@@ -1,0 +1,34 @@
+cabal-version:      3.4
+name:               competences-frontend
+version:            0.1.0.0
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Markus Mayr
+maintainer:         markus.mayr@tuta.com
+category:           Web
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  MyLib
+    build-depends:
+        base ^>=4.20.0.0,
+        competences-common,
+        jsaddle
+    hs-source-dirs:   lib
+    default-language: GHC2024
+
+executable competences-frontend
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.20.0.0,
+        competences-frontend,
+        jsaddle-warp
+    hs-source-dirs:   app
+    default-language: GHC2024
+
