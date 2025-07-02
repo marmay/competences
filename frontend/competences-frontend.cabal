@@ -2,7 +2,6 @@ cabal-version:      3.4
 name:               competences-frontend
 version:            0.1.0.0
 license:            BSD-3-Clause
-license-file:       LICENSE
 author:             Markus Mayr
 maintainer:         markus.mayr@tuta.com
 category:           Web
@@ -14,11 +13,18 @@ common warnings
 
 library
     import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
     exposed-modules:  MyLib
     build-depends:
         base ^>=4.20.0.0,
         competences-common,
-        jsaddle
+        jsaddle,
+        miso
     hs-source-dirs:   lib
     default-language: GHC2024
 

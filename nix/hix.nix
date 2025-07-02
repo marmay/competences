@@ -1,5 +1,5 @@
 {pkgs, ...}: {
-  # name = "project-name";
+  name = "competences";
   compiler-nix-name = "ghc9102"; # Version of GHC to use
 
   # Cross compilation support:
@@ -11,6 +11,7 @@
   # ]);
 
   # Tools to include in the development shell
+  shell.buildInputs = with pkgs; [ ghciwatch ];
   shell.tools.cabal = "latest";
   shell.tools.hlint = "latest";
   shell.tools.haskell-language-server = "2.11.0.0";
