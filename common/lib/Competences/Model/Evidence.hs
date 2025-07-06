@@ -1,21 +1,23 @@
 module Competences.Model.Evidence
   ( Evidence (..)
+  , EvidenceId
   , EvidenceIxs
   , SocialForm (..)
   , Ability (..)
   )
 where
 
-import Competences.Model.Competence (CompetenceId)
+import Competences.Model.Competence (CompetenceId, Level)
+import Competences.Model.Id (Id)
 import Competences.Model.User (UserId)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.IxSet.Typed qualified as Ix
+import Data.List (singleton)
 import Data.Text (Text)
 import Data.Time (Day)
-import Data.UUID (UUID)
-import Data.List (singleton)
+import GHC.Generics (Generic)
 
-newtype EvidenceId = EvidenceId UUID
-  deriving (Eq, Ord, Show)
+type EvidenceId = Id Evidence
 
 -- | Whether a competence is demonstrated as part of a group or
 -- individually.
@@ -24,7 +26,7 @@ data SocialForm
     Group
   | -- | Competence is demonstrated individually.
     Individual
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Generic, Ord, Show)
 
 -- | Whether the competence was demonstrated self-reliantly,
 -- with some support or not yet at all.
@@ -38,37 +40,36 @@ data Ability
     -- because the student did not try, did not have the correct
     -- idea or they made a significant mistake.
     NotYet
-  deriving (Eq, Show, Ord)
-
--- | Level of a competence.
-data Level
-  = -- | Basic level of competence; the essentials.
-    BasicLevel
-  | -- | Intermediate level; slightly going above the essentials.
-    IntermediateLevel
-  | -- | Advanced level; mastering the given competence in terms
-    -- of the current curriculum.
-    AdvancedLevel
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Generic, Ord, Show)
 
 data Evidence = Evidence
   { id :: !EvidenceId
   , userId :: !UserId
-  , competenceId :: !CompetenceId
-  , level :: !Level
+  , competence :: !(CompetenceId, Level)
   , date :: !Day
   , description :: !(Maybe Text)
   , socialForm :: !SocialForm
   , ability :: !Ability
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Generic, Ord, Show)
 
-type EvidenceIxs = '[EvidenceId, UserId, CompetenceId, Level]
+type EvidenceIxs = '[EvidenceId, UserId, (CompetenceId, Level)]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.userId))
-      (Ix.ixFun $ singleton . (.competenceId))
-      (Ix.ixFun $ singleton . (.level))
+      (Ix.ixFun $ singleton . (.competence))
+
+instance FromJSON SocialForm
+
+instance ToJSON SocialForm
+
+instance FromJSON Ability
+
+instance ToJSON Ability
+
+instance FromJSON Evidence
+
+instance ToJSON Evidence

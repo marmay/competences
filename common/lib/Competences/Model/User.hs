@@ -1,24 +1,24 @@
 module Competences.Model.User
   ( User (..)
-  , UserId (..)
+  , UserId
   , UserIxs
   , UserRole (..)
   )
 where
 
+import Competences.Model.Id (Id)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Text (Text)
-import Data.UUID (UUID)
+import GHC.Generics (Generic)
 
--- | Unique identifier for a Student.
-newtype UserId = UserId UUID
-  deriving (Eq, Ord, Show)
+type UserId = Id User
 
 data UserRole
   = Teacher
   | Student
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Generic, Ord, Show)
 
 -- | Information about a Student.
 data User = User
@@ -30,7 +30,7 @@ data User = User
   -- ^ Last name of the student.
   , role :: !UserRole
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Generic, Ord, Show)
 
 type UserIxs = '[UserId, UserRole]
 
@@ -39,3 +39,11 @@ instance Ix.Indexable UserIxs User where
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.role))
+
+instance FromJSON UserRole
+
+instance ToJSON UserRole
+
+instance FromJSON User
+
+instance ToJSON User

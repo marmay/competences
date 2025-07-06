@@ -1,14 +1,15 @@
 module Competences.Model.CompetenceGrid
-  ( CompetenceGridId (..)
+  ( CompetenceGridId
   , CompetenceGrid (..)
   )
 where
 
+import Competences.Model.Id (Id)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
-import Data.UUID (UUID)
+import GHC.Generics (Generic)
 
-newtype CompetenceGridId = CompetenceGridId UUID
-  deriving (Eq, Ord, Show)
+type CompetenceGridId = Id CompetenceGrid
 
 -- | Describes an entire competence grid; this is a list of
 -- competences with a title and description. It is a grid,
@@ -23,4 +24,8 @@ data CompetenceGrid = CompetenceGrid
   , description :: !Text
   -- ^ Description of the competence grid.
   }
-  deriving (Eq, Show)
+  deriving (Eq, Generic, Ord, Show)
+
+instance FromJSON CompetenceGrid
+
+instance ToJSON CompetenceGrid

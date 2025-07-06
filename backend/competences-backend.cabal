@@ -21,13 +21,19 @@ library
         OverloadedStrings,
         TypeFamilies
     exposed-modules:
-        Competences.Backend.Eff.Storage
+        Competences.Backend.API.Auth
+        Competences.Backend.Eff.Db
     build-depends:
         base ^>=4.20.0.0,
         competences-common,
         containers,
         effectful,
-        servant-server
+        postgresql-simple,
+        resource-pool,
+        servant,
+        servant-server,
+        temporary,
+        text
     hs-source-dirs:   lib
     default-language: GHC2024
 
@@ -42,3 +48,22 @@ executable competences-backend
     hs-source-dirs:   app
     default-language: GHC2024
 
+test-suite competences-backend-test
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings,
+        TypeFamilies
+    default-language: GHC2024
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    other-modules:
+        Util.Eff.TestDb
+    build-depends:
+        base ^>=4.20.0.0,
+        competences-backend,
+        effectful

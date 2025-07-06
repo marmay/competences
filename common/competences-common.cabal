@@ -17,15 +17,17 @@ library
         DuplicateRecordFields,
         GADTs,
         NoFieldSelectors,
+        OverloadedLabels,
         OverloadedRecordDot,
         OverloadedStrings
     exposed-modules:
-        Competences.API.Auth
         Competences.API.CourseList
+        Competences.Event
         Competences.Model.Assessment
         Competences.Model.Evidence
         Competences.Model.Competence
         Competences.Model.CompetenceGrid
+        Competences.Model.Id
         Competences.Model.Resource
         Competences.Model.User
         Competences.Model
@@ -35,6 +37,7 @@ library
         containers,
         generics-sop,
         ixset-typed,
+        optics-core,
         servant,
         servant-auth,
         text,

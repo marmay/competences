@@ -11,7 +11,7 @@
   # ]);
 
   # Tools to include in the development shell
-  shell.buildInputs = with pkgs; [ ghciwatch ];
+  shell.buildInputs = with pkgs; [ ghciwatch nginx postgresql ];
   shell.tools.cabal = "latest";
   shell.tools.hlint = "latest";
   shell.tools.haskell-language-server = "2.11.0.0";
