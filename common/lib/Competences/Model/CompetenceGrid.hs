@@ -1,10 +1,11 @@
 module Competences.Model.CompetenceGrid
   ( CompetenceGridId
   , CompetenceGrid (..)
+  , emptyCompetenceGrid
   )
 where
 
-import Competences.Model.Id (Id)
+import Competences.Model.Id (Id, nilId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -25,6 +26,9 @@ data CompetenceGrid = CompetenceGrid
   -- ^ Description of the competence grid.
   }
   deriving (Eq, Generic, Ord, Show)
+
+emptyCompetenceGrid :: CompetenceGrid
+emptyCompetenceGrid = CompetenceGrid nilId "" ""
 
 instance FromJSON CompetenceGrid
 

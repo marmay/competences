@@ -14,3 +14,9 @@ source-repository-package
   type: git
   location: https://github.com/well-typed/ixset-typed
   tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
+
+source-repository-package
+  --sha256: DjH3pjr+x+sNiz34Cf5jSqv5KJ0Xqn3Av/GzabiiHdc=
+  type: git
+  location: https://github.com/dmjio/miso
+  tag: 4ef097f90810bee5c02d96723cf3f757d50377bc

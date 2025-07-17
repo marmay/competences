@@ -19,22 +19,44 @@ library
         NoFieldSelectors,
         OverloadedRecordDot,
         OverloadedStrings
-    exposed-modules:  MyLib
+    exposed-modules:
+        Competences.Frontend.Action,
+        Competences.Frontend.App,
+        Competences.Frontend.State,
+        Competences.Frontend.State.Edit,
+        Competences.Frontend.Translate,
+        Competences.Frontend.View,
+        Competences.Frontend.View.Button,
+        Competences.Frontend.View.Icon,
+        Competences.Frontend.View.Style
     build-depends:
         base ^>=4.20.0.0,
+        aeson,
+        bytestring,
         competences-common,
+        containers,
         jsaddle,
-        miso
+        miso >= 1.9.0,
+        mtl,
+        text
     hs-source-dirs:   lib
     default-language: GHC2024
 
 executable competences-frontend
     import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
     main-is:          Main.hs
     build-depends:
         base ^>=4.20.0.0,
+        bytestring,
         competences-frontend,
-        jsaddle-warp
+        jsaddle-warp,
+        optparse-applicative,
+        text
     hs-source-dirs:   app
     default-language: GHC2024
-

@@ -1,13 +1,14 @@
 module Competences.Model
   ( Model (..)
   , UpdateResult(..)
+  , emptyModel
   , updateModel
   )
 where
 
 import Competences.Event (ChangableField, Event (..))
 import Competences.Model.Competence (Competence (..), CompetenceIxs)
-import Competences.Model.CompetenceGrid (CompetenceGrid)
+import Competences.Model.CompetenceGrid (CompetenceGrid, emptyCompetenceGrid)
 import Competences.Model.Evidence (Evidence (..), EvidenceIxs)
 import Competences.Model.Resource (Resource, ResourceIxs)
 import Competences.Model.User (User, UserId, UserIxs)
@@ -26,6 +27,17 @@ data Model = Model
   , users :: !(Ix.IxSet UserIxs User)
   }
   deriving (Eq, Generic, Show)
+
+emptyModel :: Model
+emptyModel =
+  Model
+    { competenceGrid = emptyCompetenceGrid
+    , competences = Ix.empty
+    , evidences = Ix.empty
+    , resources = Ix.empty
+    , lockedFields = M.empty
+    , users = Ix.empty
+    }
 
 data UpdateResult
   = UpdateSuccessful
