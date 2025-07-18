@@ -54,6 +54,7 @@ executable competences-frontend
     build-depends:
         base ^>=4.20.0.0,
         bytestring,
+        competences-common,
         competences-frontend,
         jsaddle-warp,
         optparse-applicative,

@@ -18,15 +18,13 @@ type UserId = Id User
 data UserRole
   = Teacher
   | Student
-  deriving (Eq, Generic, Ord, Show)
+  deriving (Eq, Generic, Ord, Read, Show)
 
 -- | Information about a Student.
 data User = User
   { id :: !UserId
   -- ^ Unique identifier for the student.
-  , firstName :: !Text
-  -- ^ First name of the student.
-  , lastName :: !Text
+  , name :: !Text
   -- ^ Last name of the student.
   , role :: !UserRole
   }

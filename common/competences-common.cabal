@@ -22,9 +22,12 @@ library
         OverloadedStrings
     exposed-modules:
         Competences.API.CourseList
-        Competences.Event
+        Competences.Command
+        Competences.Command.ChangeField
+        Competences.Command.Common
         Competences.Model.Assessment
         Competences.Model.Evidence
+        Competences.Model.ChangableField
         Competences.Model.Competence
         Competences.Model.CompetenceGrid
         Competences.Model.Id

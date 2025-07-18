@@ -3,7 +3,7 @@ module Competences.Frontend.View
   )
 where
 
-import Competences.Event (ChangableField (..), Event (..))
+import Competences.Command (Command (..))
 import Competences.Frontend.Action (Action (..))
 import Competences.Frontend.State (State (..), modelOf)
 import Competences.Model (Model (..))
@@ -14,19 +14,13 @@ import Miso.String qualified as M
 import Control.Monad.Reader
 import Competences.Frontend.View.Icon
 import Competences.Frontend.View.Button (iconButton)
+import Competences.Model.ChangableField (ChangableField)
+import Competences.Model.ChangableField (ChangableField(..))
 
 data ViewCtx = ViewCtx
   { renderModel :: !Model
-  , canEdit :: !(ChangableField -> Editability)
   , state :: !State
   }
-
-data Editability
-  = Editable
-  | LockedBy !UserId
-  | ThisLocked !M.MisoString
-  | OtherLocked
-  | NotEditable
 
 type ViewM = Reader ViewCtx
 
@@ -39,7 +33,7 @@ withCtx f = ask >>= f
 mkViewCtx :: State -> Maybe ViewCtx
 mkViewCtx s = do
   renderModel <- modelOf s
-  pure $ ViewCtx { renderModel = renderModel, canEdit = const Editable, state = s}
+  pure $ ViewCtx { renderModel = renderModel, state = s}
 
 viewState :: State -> M.View Action
 viewState s =
@@ -54,15 +48,15 @@ viewModel = withCtx $ \ctx -> do
 
 editable :: [M.Attribute Action] -> M.MisoString -> M.MisoString -> ChangableField -> ViewM (M.View Action)
 editable attrs text defaultText field = do
-  btns <- editableBtns field
-  pure $ M.span_ attrs $ [M.text text] <> [btns]
+  -- btns <- editableBtns field
+  pure $ M.span_ attrs $ [M.text text] -- <> [btns]
 
 editableBtns :: ChangableField -> ViewM (M.View Action)
-editableBtns f = withCtx $ \ctx -> do
-  case ctx.canEdit f of
-    Editable ->
-      pure $
-        M.span_
-          []
-          [ iconButton [M.onClick (Trigger $ FieldLocked f ctx.state.myUserId)] IcnEdit "Edit"
-          ]
+editableBtns f = withCtx $ \ctx -> do undefined
+  -- case ctx.canEdit f of
+  --   Editable ->
+  --     pure $
+  --       M.span_
+  --         []
+  --         [ iconButton [M.onClick (Trigger $ FieldLocked f ctx.state.myUserId)] IcnEdit "Edit"
+  --         ]

@@ -1,22 +1,23 @@
 module Competences.Model
   ( Model (..)
-  , UpdateResult(..)
   , emptyModel
-  , updateModel
+  , fieldATraversal
   )
 where
 
-import Competences.Event (ChangableField, Event (..))
+import Competences.Model.ChangableField (ChangableField (..))
 import Competences.Model.Competence (Competence (..), CompetenceIxs)
-import Competences.Model.CompetenceGrid (CompetenceGrid, emptyCompetenceGrid)
+import Competences.Model.CompetenceGrid (CompetenceGrid (..), emptyCompetenceGrid)
 import Competences.Model.Evidence (Evidence (..), EvidenceIxs)
 import Competences.Model.Resource (Resource, ResourceIxs)
 import Competences.Model.User (User, UserId, UserIxs)
 import Data.IxSet.Typed qualified as Ix
+import Data.Kind (Type)
 import Data.Map qualified as M
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core (Lens', (%~), (&), (^.))
+import Optics.AffineTraversal (AffineTraversal', atraversal)
+import Optics.Core (castOptic, ix, (%%))
 
 data Model = Model
   { competenceGrid :: !CompetenceGrid
@@ -39,50 +40,20 @@ emptyModel =
     , users = Ix.empty
     }
 
-data UpdateResult
-  = UpdateSuccessful
-  | UpdateFailed !Text
-  deriving (Eq, Show)
+fieldATraversal :: ChangableField -> AffineTraversal' Model Text
+fieldATraversal CompetenceGridTitle = castOptic #competenceGrid %% castOptic #title
+fieldATraversal CompetenceGridDescription = castOptic #competenceGrid %% castOptic #description
+fieldATraversal (CompetenceDescription competenceId) = castOptic #competences %% ixATraversal competenceId %% castOptic #description
+fieldATraversal (CompetenceLevelDescription (competenceId, level)) = castOptic #competences %% ixATraversal competenceId %% castOptic #levelDescriptions %% ix level
 
-updateModel :: Model -> Event -> (Model, UpdateResult)
-updateModel model event = case event of
-  FieldLocked f u -> lockField model f u
-  FieldReleased f t -> releaseField model f t
-  CompetenceAdded competence -> insertNew model #competences competence (.id)
-  CompetenceRemoved competenceId -> removeExisting model #competences competenceId
-  EvidenceAdded evidence -> insertNew model #evidences evidence (.id)
-  EvidenceRemoved evidenceId -> removeExisting model #evidences evidenceId
-
-insertNew
-  :: forall a ix ixs
-   . (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs)
-  => Model -> Lens' Model (Ix.IxSet ixs a) -> a -> (a -> ix) -> (Model, UpdateResult)
-insertNew model lens newItem p =
-  let s = model ^. lens
-   in if Ix.null $ s Ix.@= p newItem
-        then (model & lens %~ Ix.insert newItem, UpdateSuccessful)
-        else (model, UpdateFailed "already exists")
-
-removeExisting
-  :: forall a ix ixs
-   . (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs)
-  => Model -> Lens' Model (Ix.IxSet ixs a) -> ix -> (Model, UpdateResult)
-removeExisting model lens ix =
-  let s = model ^. lens
-   in if Ix.null $ s Ix.@= ix
-        then (model, UpdateFailed "does not exist")
-        else (model & lens %~ Ix.deleteIx ix, UpdateSuccessful)
-
-lockField :: Model -> ChangableField -> UserId -> (Model, UpdateResult)
-lockField model field userId =
-  let lockedFields = model ^. #lockedFields
-   in if M.member field lockedFields
-        then (model, UpdateFailed "already locked")
-        else (model & #lockedFields %~ M.insert field userId, UpdateSuccessful)
-
-releaseField :: Model -> ChangableField -> Maybe Text -> (Model, UpdateResult)
-releaseField model field _text =
-  let lockedFields = model ^. #lockedFields
-   in if M.member field lockedFields
-        then (model & #lockedFields %~ M.delete field, UpdateFailed "changing fields not implemented")
-        else (model, UpdateFailed "not locked")
+ixATraversal
+  :: forall ix a (ixs :: [Type])
+   . (Ix.IsIndexOf ix ixs, Ix.Indexable ixs a) => ix -> AffineTraversal' (Ix.IxSet ixs a) a
+ixATraversal ix' =
+  let get :: Ix.IxSet ixs a -> Either (Ix.IxSet ixs a) a
+      get ixSet = maybe (Left ixSet) Right $ Ix.getOne $ ixSet Ix.@= ix'
+      set :: Ix.IxSet ixs a -> a -> Ix.IxSet ixs a
+      set ixSet a = case Ix.getOne (ixSet Ix.@= ix') of
+        Just _ -> Ix.insert a ixSet
+        Nothing -> ixSet
+   in atraversal get set

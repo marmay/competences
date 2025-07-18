@@ -3,10 +3,10 @@ module Competences.Frontend.Action
   )
 where
 
-import Competences.Event (Event, EventId)
+import Competences.Command (Command, CommandId)
 
 data Action
-  = Trigger !Event
-  | Process !(EventId, Event)
+  = Trigger !Command
+  | Process !(CommandId, Command)
   | Refresh
   | LoadEmptyModel
