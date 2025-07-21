@@ -1,15 +1,15 @@
 module Main (main) where
 
-import Competences.Frontend.App (mkApp, runApp)
-import Competences.Frontend.State (mkState)
-import Competences.Frontend.Translate (loadTranslations)
+import Competences.Frontend.Common.Translate (loadTranslations)
+import Competences.Frontend.Grid.App (mkApp, runApp)
+import Competences.Frontend.Grid.State (mkState)
+import Competences.Model.Id (mkId, nilId)
+import Competences.Model.User (User (..), UserId, UserRole (..))
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
-import Competences.Model.User (UserRole (..), User (..), UserId)
-import Competences.Model.Id (mkId, nilId)
-import qualified Data.Text as T
 
 data Options = Options
   { port :: !Int
@@ -18,6 +18,7 @@ data Options = Options
   , userId :: !UserId
   , userName :: !Text
   , userRole :: !UserRole
+  , randomSeed :: !Int
   }
 
 options :: Parser Options
@@ -74,6 +75,15 @@ options =
           <> value Teacher
           <> metavar "USER_ROLE"
       )
+    <*> option
+      auto
+      ( long "random-seed"
+          <> short 's'
+          <> help "Random seed to use for generating random data"
+          <> showDefault
+          <> value 42
+          <> metavar "SEED"
+      )
 
 main :: IO ()
 main = do
@@ -86,3 +96,4 @@ main = do
           (User opt.userId opt.userName opt.userRole)
           (encodeUtf8 opt.jwtToken)
           translationData
+          opt.randomSeed

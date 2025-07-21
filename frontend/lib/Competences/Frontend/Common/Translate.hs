@@ -1,4 +1,4 @@
-module Competences.Frontend.Translate
+module Competences.Frontend.Common.Translate
   ( TranslationData
   , Label (..)
   , extend
@@ -11,6 +11,7 @@ module Competences.Frontend.Translate
   )
 where
 
+import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (readFile, writeFile)
@@ -20,7 +21,6 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Miso.String (MisoString, fromMisoString, ms)
 import Prelude hiding (readFile, writeFile)
-import Control.Exception (SomeException, catch)
 
 newtype TranslationData = TranslationData
   { unTranslationData :: M.Map ByteString MisoString
@@ -42,12 +42,16 @@ instance FromJSON TranslationData where
 data Label
   = LblEdit
   | LblDelete
+  | LblApplyChange
+  | LblCancelChange
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 labelOf :: Label -> ByteString
 labelOf = \case
   LblEdit -> "edit"
   LblDelete -> "delete"
+  LblApplyChange -> "apply-change"
+  LblCancelChange -> "cancel-change"
 
 missingStringOf :: Label -> ByteString
 missingStringOf l = "MISSING: " <> labelOf l
@@ -76,16 +80,17 @@ translate td l = td.unTranslationData M.! labelOf l
 loadTranslations :: FilePath -> IO TranslationData
 loadTranslations p =
   loadTranslations' p
-  `catch` \e -> do
-    putStrLn $ "When reading " <> p <> ": " <> show (e :: SomeException)
-    putStrLn "Using default translations."
-    saveTranslations p missingTranslationData
-    pure missingTranslationData
+    `catch` \e -> do
+      putStrLn $ "When reading " <> p <> ": " <> show (e :: SomeException)
+      putStrLn "Using default translations."
+      saveTranslations p missingTranslationData
+      pure missingTranslationData
 
 loadTranslations' :: FilePath -> IO TranslationData
-loadTranslations' p = decode <$> readFile p >>= \case
-  Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
-  Just t -> pure $ extend t
+loadTranslations' p =
+  decode <$> readFile p >>= \case
+    Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
+    Just t -> pure $ extend t
 
 saveTranslations :: FilePath -> TranslationData -> IO ()
 saveTranslations p t = writeFile p (encode t)

@@ -1,20 +1,28 @@
 module Competences.Command.ChangeField
-  ( lockField
+  ( canChangeField
+  , lockField
   , releaseField
   )
 where
 
-import Competences.Command.Common (UpdateResult, AffectedUsers (..))
-import Competences.Model (Model(..), fieldATraversal)
+import Competences.Command.Common (AffectedUsers (..), UpdateResult)
+import Competences.Model (Model (..), fieldATraversal)
 import Competences.Model.ChangableField (ChangableField)
-import Competences.Model.User (UserId)
-import Data.Text (Text)
-import Optics.Core ((&), (%~), matching)
-import qualified Data.Map as M
+import Competences.Model.User (UserId, UserRole (..))
 import Control.Monad (when)
 import Data.Either (isLeft)
+import Data.Map qualified as M
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Optics.Core (matching, (%~), (&))
 
+-- | Whether a given role is allowed to change a given field.
+canChangeField :: ChangableField -> UserRole -> Bool
+canChangeField _ Teacher = True
+canChangeField _ _ = False
+
+-- | Locks a field with a given content for changes by a given
+-- user.
 lockField :: Model -> ChangableField -> UserId -> Text -> UpdateResult
 lockField model field userId expectedText = do
   when (field `M.member` model.lockedFields) $
@@ -28,11 +36,14 @@ lockField model field userId expectedText = do
   let model' = model & #lockedFields %~ M.insert field userId
   pure (model', AllUsers)
 
+-- | Releases a locked field and changes its content.
 releaseField :: Model -> ChangableField -> Maybe Text -> UpdateResult
 releaseField model field text = do
   when (field `M.notMember` model.lockedFields) $
     Left "field not locked"
 
-  let model' = model & #lockedFields %~ M.delete field
-                     & fieldATraversal field %~ flip fromMaybe text
+  let model' =
+        model
+          & (#lockedFields %~ M.delete field)
+          & (fieldATraversal field %~ flip fromMaybe text)
   pure (model', AllUsers)

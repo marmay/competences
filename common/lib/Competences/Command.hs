@@ -35,15 +35,14 @@ instance FromJSON Command
 
 instance ToJSON Command
 
-handleCommand :: Model -> Command -> UpdateResult
-handleCommand model event = case event of
+handleCommand :: Command -> Model -> UpdateResult
+handleCommand cmd model = case cmd of
   LockField f u t -> lockField model f u t
   ReleaseField f t -> releaseField model f t
   AddCompetence competence -> insertNew model #competences competence (.id) (const AllUsers)
   RemoveCompetence competenceId -> removeExisting model #competences competenceId (const AllUsers)
   AddEvidence evidence -> insertNew model #evidences evidence (.id) evidenceAffectedUsers
   RemoveEvidence evidenceId -> removeExisting model #evidences evidenceId evidenceAffectedUsers
-
   where
     evidenceAffectedUsers :: Evidence -> AffectedUsers
     evidenceAffectedUsers e = AllTeachersAndSpecificStudents [e.userId]
