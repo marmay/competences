@@ -6,8 +6,8 @@ module Competences.Command.ChangeField
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Model (Model (..), fieldATraversal)
-import Competences.Model.ChangableField (ChangableField)
+import Competences.Model (Model (..), PartialChecksumId (..), fieldATraversal, updateChecksums)
+import Competences.Model.ChangableField (ChangableField (..))
 import Competences.Model.User (UserId, UserRole (..))
 import Control.Monad (when)
 import Data.Either (isLeft)
@@ -34,7 +34,7 @@ lockField model field userId expectedText = do
     Left "field has changed in the meantime"
 
   let model' = model & #lockedFields %~ M.insert field userId
-  pure (model', AllUsers)
+  pure (updateChecksums model' [PC_LockedFields], AllUsers)
 
 -- | Releases a locked field and changes its content.
 releaseField :: Model -> ChangableField -> Maybe Text -> UpdateResult
@@ -46,4 +46,10 @@ releaseField model field text = do
         model
           & (#lockedFields %~ M.delete field)
           & (fieldATraversal field %~ flip fromMaybe text)
-  pure (model', AllUsers)
+  pure (updateChecksums model' (partialChecksumIdsForChangableField field), AllUsers)
+
+partialChecksumIdsForChangableField :: ChangableField -> [PartialChecksumId]
+partialChecksumIdsForChangableField CompetenceGridTitle = [PC_CompetenceGrid]
+partialChecksumIdsForChangableField CompetenceGridDescription = [PC_CompetenceGrid]
+partialChecksumIdsForChangableField (CompetenceDescription _) = [PC_Competences]
+partialChecksumIdsForChangableField (CompetenceLevelDescription _) = [PC_Competences]

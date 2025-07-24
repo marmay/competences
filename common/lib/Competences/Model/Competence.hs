@@ -9,7 +9,8 @@ where
 
 import Competences.Model.CompetenceGrid (CompetenceGridId)
 import Competences.Model.Id (Id)
-import Data.Aeson (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Map qualified as M
@@ -51,6 +52,8 @@ instance FromJSON Level
 
 instance ToJSON Level
 
+instance Binary Level
+
 instance FromJSONKey Level
 
 instance ToJSONKey Level
@@ -58,3 +61,5 @@ instance ToJSONKey Level
 instance FromJSON Competence
 
 instance ToJSON Competence
+
+instance Binary Competence

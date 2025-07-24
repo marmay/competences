@@ -8,6 +8,7 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.UUID (UUID, fromText, toText, nil)
 import Data.Text (Text)
+import Data.Binary (Binary (..))
 
 newtype Id a = Id {unId :: UUID}
   deriving (Eq, Show, Ord)
@@ -25,3 +26,9 @@ instance FromJSON (Id a) where
 
 instance ToJSON (Id a) where
   toJSON = toJSON . toText . (.unId)
+
+instance Binary (Id a) where
+  put = put . (.unId)
+  get = do
+    uuid <- get @UUID
+    pure $ Id uuid

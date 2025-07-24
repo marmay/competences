@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Competences.Model.Evidence
   ( Evidence (..)
   , EvidenceId
@@ -16,6 +17,7 @@ import Data.List (singleton)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
+import Data.Binary (Binary)
 
 type EvidenceId = Id Evidence
 
@@ -66,10 +68,18 @@ instance FromJSON SocialForm
 
 instance ToJSON SocialForm
 
+instance Binary SocialForm
+
 instance FromJSON Ability
 
 instance ToJSON Ability
 
+instance Binary Ability
+
 instance FromJSON Evidence
 
 instance ToJSON Evidence
+
+instance Binary Day
+
+instance Binary Evidence

@@ -8,6 +8,7 @@ where
 
 import Competences.Model.Id (Id)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Text (Text)
@@ -42,6 +43,10 @@ instance FromJSON UserRole
 
 instance ToJSON UserRole
 
+instance Binary UserRole
+
 instance FromJSON User
 
 instance ToJSON User
+
+instance Binary User

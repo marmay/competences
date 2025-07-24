@@ -39,9 +39,8 @@ stateFromCompetence c =
 
 competenceEditor
   :: Competence
-  -> (Maybe Competence -> Effect State Action)
   -> Component State Action
-competenceEditor competence onFinish =
+competenceEditor competence =
   component (stateFromCompetence competence) update view
   where
     update :: Action -> Effect State Action
@@ -51,7 +50,7 @@ competenceEditor competence onFinish =
     update (SetAdvancedLevelDescription d) = modify $ \s -> s {advancedLevelDescription = d}
     update CreateCompetence = do
       s <- get
-      onFinish $
+      undefined $
         Just $
           Competence
             { id = competence.id
@@ -59,7 +58,7 @@ competenceEditor competence onFinish =
             , description = s.description_
             , levelDescriptions = undefined
             }
-    update CancelCreation = onFinish Nothing
+    update CancelCreation = undefined Nothing
 
     view :: State -> View Action
     view s =

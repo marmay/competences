@@ -24,8 +24,8 @@ viewModel = do
   title <- editable [styledClass ClsTitle] CompetenceGridTitle
   description <- editable [styledClass ClsDescription] CompetenceGridDescription
   competences <- viewCompetences
-  let competenceAddButton = iconLabelButton [M.onClick $ PushModal competenceEditor] IcnAdd "Add competence"
-  pure $ M.div_ [] [iconDefs, title, description, competences, competenceAddButton]
+  -- let competenceAddButton = iconLabelButton [M.onClick $ PushModal competenceEditor] IcnAdd "Add competence"
+  pure $ M.div_ [] [iconDefs, title, description, competences] -- , competenceAddButton]
 
 viewCompetences :: ViewM (M.View Action)
 viewCompetences = pure $ M.div_ [] []

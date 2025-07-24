@@ -20,15 +20,23 @@ library
         OverloadedRecordDot,
         OverloadedStrings
     exposed-modules:
-        Competences.Frontend.Action,
-        Competences.Frontend.App,
-        Competences.Frontend.State,
-        Competences.Frontend.State.Edit,
-        Competences.Frontend.Translate,
-        Competences.Frontend.View,
-        Competences.Frontend.View.Button,
-        Competences.Frontend.View.Icon,
-        Competences.Frontend.View.Style
+        Competences.Frontend.App.Action,
+        Competences.Frontend.App.ComponentRegistry,
+        Competences.Frontend.App.State,
+        Competences.Frontend.App.Topics,
+        Competences.Frontend.Common.Button,
+        Competences.Frontend.Common.Icon,
+        Competences.Frontend.Common.Style,
+        Competences.Frontend.Common.Translate,
+        Competences.Frontend.Grid.Action,
+        Competences.Frontend.Grid.App,
+        Competences.Frontend.Grid.State,
+        Competences.Frontend.Grid.State.Edit,
+        Competences.Frontend.Grid.Topic,
+        Competences.Frontend.Grid.View.Editable,
+        Competences.Frontend.Grid.View.ViewCtx,
+        Competences.Frontend.Grid.View,
+        Competences.Frontend.Modal.CompetenceEditor
     build-depends:
         base ^>=4.20.0.0,
         aeson,
@@ -38,6 +46,9 @@ library
         jsaddle,
         miso >= 1.9.0,
         mtl,
+        optics-core,
+        random,
+        stm,
         text
     hs-source-dirs:   lib
     default-language: GHC2024

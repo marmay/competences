@@ -7,6 +7,7 @@ where
 
 import Competences.Model.Id (Id, nilId)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Binary (Binary)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -33,3 +34,5 @@ emptyCompetenceGrid = CompetenceGrid nilId "" ""
 instance FromJSON CompetenceGrid
 
 instance ToJSON CompetenceGrid
+
+instance Binary CompetenceGrid

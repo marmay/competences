@@ -15,3 +15,4 @@ data AffectedUsers
   deriving (Eq, Show)
 
 type UpdateResult = Either Text (Model, AffectedUsers)
+
