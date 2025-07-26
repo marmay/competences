@@ -11,7 +11,8 @@ import Miso.String (MisoString)
 import Miso.Style qualified as M
 
 data ClassName
-  = ClsButton
+  = ClsApp
+  | ClsButton
   | ClsDescription
   | ClsEditableContainer
   | ClsEditableContent
@@ -26,6 +27,7 @@ styledClass = class_ . className
 
 className :: ClassName -> MisoString
 className = \case
+  ClsApp -> "app"
   ClsButton -> "button"
   ClsDescription -> "description"
   ClsEditableContainer -> "editable-container"

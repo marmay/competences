@@ -3,17 +3,18 @@ module Competences.Frontend.Grid.Action
   )
 where
 
-import Competences.Command (Command, CommandId)
+import Competences.Frontend.App.Action (ComponentAction)
+import Competences.Frontend.App.ComponentRegistry (ChannelId, LoadModelAction (..))
+import Competences.Model (Model)
 import Competences.Model.ChangableField (ChangableField)
 import Miso.String (MisoString)
-import Miso (SomeComponent)
-import Competences.Frontend.Grid.State (State)
 
-data Action
-  = Trigger !Command
-  | Process !(CommandId, Command)
-  | EditField !ChangableField !MisoString
-  | PushModal !(State -> SomeComponent)
-  | Refresh
-  | LoadEmptyModel
-  | Init ![Action]
+data Action where
+  EditField :: !ChangableField -> !MisoString -> Action
+  ChangeApp :: !ComponentAction -> Action
+  LoadModel :: !ChannelId -> Action
+  UpdateModel :: !Model -> Action
+
+instance LoadModelAction Action where
+  loadModelAction = LoadModel
+  updateModelAction = UpdateModel

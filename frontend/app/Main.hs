@@ -1,8 +1,8 @@
 module Main (main) where
 
+import Competences.Frontend.App (mkApp, runApp)
+import Competences.Frontend.App.State (mkState)
 import Competences.Frontend.Common.Translate (loadTranslations)
-import Competences.Frontend.Grid.App (mkApp, runApp)
-import Competences.Frontend.Grid.State (mkState)
 import Competences.Model.Id (mkId, nilId)
 import Competences.Model.User (User (..), UserId, UserRole (..))
 import Data.Text (Text)
@@ -89,11 +89,9 @@ main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
   translationData <- loadTranslations opt.translationsPath
-  run opt.port $
-    runApp $
-      mkApp $
-        mkState
+  app <- mkApp $ mkState
           (User opt.userId opt.userName opt.userRole)
           (encodeUtf8 opt.jwtToken)
           translationData
           opt.randomSeed
+  run opt.port $ runApp $ app

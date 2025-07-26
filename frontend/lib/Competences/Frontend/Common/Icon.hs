@@ -13,7 +13,7 @@ where
 
 import Competences.Frontend.Common.Style
 import Data.Text (Text)
-import Miso (View)
+import Miso (View, href_)
 import Miso.Svg
 
 data Icon

@@ -1,45 +1,33 @@
 module Competences.Frontend.Grid.State
   ( State (..)
   , mkState
-  , modelOf
   )
 where
 
-import Competences.Command (Command, CommandId)
 import Competences.Frontend.Common.Translate (TranslationData)
-import Competences.Model (Model)
+import Competences.Model (Model, emptyModel)
 import Competences.Model.ChangableField (ChangableField)
 import Competences.Model.User (User)
-import Control.Applicative ((<|>))
-import Data.ByteString (ByteString)
 import Data.Map qualified as M
+import GHC.Generics (Generic)
 import Miso.String (MisoString)
-import System.Random (StdGen, mkStdGen)
+import System.Random (StdGen)
 
 data State = State
   { user :: !User
-  , localModel :: !(Maybe Model)
-  , localEvents :: !(M.Map CommandId Command)
-  , serverModel :: !(Maybe Model)
-  , jwtToken :: !ByteString
   , translationData :: !TranslationData
+  , model :: !Model
   , editFields :: !(M.Map ChangableField MisoString)
   , randomGen :: !StdGen
   }
-  deriving (Eq, Show)
+  deriving (Eq, Generic, Show)
 
-modelOf :: State -> Maybe Model
-modelOf state = state.localModel <|> state.serverModel
-
-mkState :: User -> ByteString -> TranslationData -> Int -> State
-mkState user jwtToken translationData seed =
+mkState :: User -> TranslationData -> StdGen -> State
+mkState user translationData stdGen =
   State
     { user = user
-    , localModel = Nothing
-    , localEvents = M.empty
-    , serverModel = Nothing
-    , jwtToken = jwtToken
     , translationData = translationData
+    , model = emptyModel
     , editFields = M.empty
-    , randomGen = mkStdGen seed
+    , randomGen = stdGen
     }

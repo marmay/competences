@@ -4,6 +4,7 @@ module Competences.Frontend.Grid.View.Editable
 where
 
 import Competences.Command (Command (..))
+import Competences.Frontend.App.Action (ComponentAction (..))
 import Competences.Frontend.Common.Button (iconButton)
 import Competences.Frontend.Common.Icon (Icon (..))
 import Competences.Frontend.Common.Style (ClassName (..), styledClass)
@@ -34,17 +35,17 @@ editable attrs f = withViewCtx $ \ctx ->
       inputField t = M.input_ [M.id_ (ms $ show f), M.value_ (ms t), M.onInput (EditField f)]
       editButton =
         iconButton
-          [M.onClick $ Trigger (LockField f ctx.state.user.id fieldText)]
+          [M.onClick $ ChangeApp $ Trigger (LockField f ctx.state.user.id fieldText)]
           IcnEdit
           (ctx.translate LblEdit)
       applyButton t =
         iconButton
-          [M.onClick $ Trigger (ReleaseField f (Just t))]
+          [M.onClick $ ChangeApp $ Trigger (ReleaseField f (Just t))]
           IcnApply
           (ctx.translate LblApplyChange)
       cancelButton =
         iconButton
-          [M.onClick $ Trigger (ReleaseField f Nothing)]
+          [M.onClick $ ChangeApp $ Trigger (ReleaseField f Nothing)]
           IcnCancel
           (ctx.translate LblCancelChange)
    in case editability ctx.renderModel ctx.state.editFields f ctx.state.user of

@@ -8,7 +8,7 @@ module Competences.Frontend.Grid.View.ViewCtx
 where
 
 import Competences.Frontend.Common.Translate (Label, translate)
-import Competences.Frontend.Grid.State (State (..), modelOf)
+import Competences.Frontend.Grid.State (State (..))
 import Competences.Model (Model)
 import Control.Monad.Reader (Reader, ask, runReader)
 import Miso.String (MisoString)
@@ -29,5 +29,4 @@ withViewCtx f = ask >>= f
 
 mkViewCtx :: State -> Maybe ViewCtx
 mkViewCtx s = do
-  renderModel <- modelOf s
-  pure $ ViewCtx {renderModel = renderModel, state = s, translate = translate s.translationData}
+  pure $ ViewCtx {renderModel = s.model, state = s, translate = translate s.translationData}

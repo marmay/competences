@@ -1,16 +1,17 @@
 module Competences.Frontend.App.Topics
   ( changeApplicationStateTopic
-  , modelChangedTopic
+  , componentAction
   )
 where
 
-import Competences.Command (Command)
-import Competences.Frontend.App.Action (Action)
-import Data.Text (Text)
-import Miso (Topic, topic)
+import Competences.Frontend.App.Action (ComponentAction)
+import Miso (Effect, Topic, topic, publish, io_, consoleLog)
+import Miso.String (ms)
 
-changeApplicationStateTopic :: Topic Action
+changeApplicationStateTopic :: Topic ComponentAction
 changeApplicationStateTopic = topic "changeApplicationState"
 
-modelChangedTopic :: Topic (Command, Text)
-modelChangedTopic = topic "modelChanged"
+componentAction :: ComponentAction -> Effect m a
+componentAction a = do
+  io_ $ consoleLog $ ms $ show a
+  publish changeApplicationStateTopic a
