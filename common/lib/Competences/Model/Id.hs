@@ -1,17 +1,18 @@
 module Competences.Model.Id
-  ( Id(..)
+  ( Id (..)
   , mkId
   , nilId
   )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
-import Data.UUID (UUID, fromText, toText, nil)
-import Data.Text (Text)
 import Data.Binary (Binary (..))
+import Data.Text (Text)
+import Data.UUID (UUID, fromText, nil, toText)
+import System.Random (Random)
 
 newtype Id a = Id {unId :: UUID}
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Random)
 
 nilId :: Id a
 nilId = Id $ nil

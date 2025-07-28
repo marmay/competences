@@ -89,9 +89,10 @@ main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
   translationData <- loadTranslations opt.translationsPath
-  app <- mkApp $ mkState
+  run opt.port $ do
+    app <- mkApp $ mkState
           (User opt.userId opt.userName opt.userRole)
           (encodeUtf8 opt.jwtToken)
           translationData
           opt.randomSeed
-  run opt.port $ runApp $ app
+    runApp $ app

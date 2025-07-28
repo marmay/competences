@@ -1,17 +1,14 @@
 module Competences.Frontend.App.Topics
-  ( changeApplicationStateTopic
-  , componentAction
+  ( changeUiTopic
+  , uiAction
   )
 where
 
-import Competences.Frontend.App.Action (ComponentAction)
-import Miso (Effect, Topic, topic, publish, io_, consoleLog)
-import Miso.String (ms)
+import Competences.Frontend.App.Action (UiAction)
+import Miso (Effect, Topic, topic, publish)
 
-changeApplicationStateTopic :: Topic ComponentAction
-changeApplicationStateTopic = topic "changeApplicationState"
+changeUiTopic :: Topic UiAction
+changeUiTopic = topic "changeUiTopic"
 
-componentAction :: ComponentAction -> Effect m a
-componentAction a = do
-  io_ $ consoleLog $ ms $ show a
-  publish changeApplicationStateTopic a
+uiAction :: UiAction -> Effect m a
+uiAction = publish changeUiTopic

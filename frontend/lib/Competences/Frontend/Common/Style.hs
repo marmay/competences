@@ -14,9 +14,11 @@ data ClassName
   = ClsApp
   | ClsButton
   | ClsDescription
+  | ClsCompetenceDescription
   | ClsEditableContainer
   | ClsEditableContent
   | ClsEditableButtons
+  | ClsNewCompetenceRow
   | ClsIcon
   | ClsLabelButton
   | ClsTitle
@@ -30,9 +32,11 @@ className = \case
   ClsApp -> "app"
   ClsButton -> "button"
   ClsDescription -> "description"
+  ClsCompetenceDescription -> "competence-description"
   ClsEditableContainer -> "editable-container"
   ClsEditableContent -> "editable-content"
   ClsEditableButtons -> "editable-buttons"
+  ClsNewCompetenceRow -> "new-competence-row"
   ClsIcon -> "icon"
   ClsLabelButton -> "label-button"
   ClsTitle -> "title"

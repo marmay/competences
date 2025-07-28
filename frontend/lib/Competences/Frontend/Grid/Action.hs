@@ -3,18 +3,16 @@ module Competences.Frontend.Grid.Action
   )
 where
 
-import Competences.Frontend.App.Action (ComponentAction)
-import Competences.Frontend.App.ComponentRegistry (ChannelId, LoadModelAction (..))
-import Competences.Model (Model)
 import Competences.Model.ChangableField (ChangableField)
 import Miso.String (MisoString)
+import Competences.Frontend.Document (ModelChange)
+import Competences.Command (Command)
 
 data Action where
   EditField :: !ChangableField -> !MisoString -> Action
-  ChangeApp :: !ComponentAction -> Action
-  LoadModel :: !ChannelId -> Action
-  UpdateModel :: !Model -> Action
-
-instance LoadModelAction Action where
-  loadModelAction = LoadModel
-  updateModelAction = UpdateModel
+  UpdateModel :: !ModelChange -> Action
+  IssueCommand :: !Command -> Action
+  NewCompetence :: Action
+  CancelNewCompetence :: Action
+  AddNewCompetence :: Action
+  SetNewCompetenceDescription :: !MisoString -> Action

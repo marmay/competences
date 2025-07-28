@@ -1,5 +1,7 @@
 module Competences.Frontend.Grid.State
   ( State (..)
+  , NewCompetenceData (..)
+  , emptyNewCompetenceData
   , mkState
   )
 where
@@ -18,9 +20,21 @@ data State = State
   , translationData :: !TranslationData
   , model :: !Model
   , editFields :: !(M.Map ChangableField MisoString)
-  , randomGen :: !StdGen
+  , newCompetenceData :: !(Maybe NewCompetenceData)
+  , random :: !StdGen
   }
   deriving (Eq, Generic, Show)
+
+data NewCompetenceData = NewCompetenceData
+  { description :: !MisoString
+  , basicLevelDescription :: !MisoString
+  , intermediateLevelDescription :: !MisoString
+  , advancedLevelDescription :: !MisoString
+  }
+  deriving (Eq, Generic, Show)
+
+emptyNewCompetenceData :: NewCompetenceData
+emptyNewCompetenceData = NewCompetenceData "" "" "" ""
 
 mkState :: User -> TranslationData -> StdGen -> State
 mkState user translationData stdGen =
@@ -29,5 +43,6 @@ mkState user translationData stdGen =
     , translationData = translationData
     , model = emptyModel
     , editFields = M.empty
-    , randomGen = stdGen
+    , newCompetenceData = Nothing
+    , random = stdGen
     }

@@ -44,6 +44,7 @@ library
         generics-sop,
         ixset-typed,
         optics-core,
+        random,
         servant,
         servant-auth,
         text,

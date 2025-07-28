@@ -7,6 +7,7 @@ module Competences.Frontend.Common.Translate
   , merge
   , saveTranslations
   , translate
+  , translate'
   , trim
   )
 where
@@ -19,6 +20,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import GHC.Records (HasField)
 import Miso.String (MisoString, fromMisoString, ms)
 import Prelude hiding (readFile, writeFile)
 
@@ -74,8 +76,14 @@ extend a = merge a missingTranslationData
 merge :: TranslationData -> TranslationData -> TranslationData
 merge a b = TranslationData $ M.union a.unTranslationData b.unTranslationData
 
-translate :: TranslationData -> Label -> MisoString
-translate td l = td.unTranslationData M.! labelOf l
+translate' :: TranslationData -> Label -> MisoString
+translate' td l = td.unTranslationData M.! labelOf l
+
+translate
+  :: forall s
+   . (HasField "translationData" s TranslationData)
+  => s -> Label -> MisoString
+translate s = translate' s.translationData
 
 loadTranslations :: FilePath -> IO TranslationData
 loadTranslations p =

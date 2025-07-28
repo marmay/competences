@@ -23,22 +23,22 @@ library
     exposed-modules:
         Competences.Frontend.App,
         Competences.Frontend.App.Action,
-        Competences.Frontend.App.ComponentRegistry,
         Competences.Frontend.App.RegisteredComponent,
         Competences.Frontend.App.RegisteredComponentRegistrations,
         Competences.Frontend.App.State,
         Competences.Frontend.App.Topics,
         Competences.Frontend.Common.Button,
         Competences.Frontend.Common.Icon,
+        Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Style,
         Competences.Frontend.Common.Translate,
+        Competences.Frontend.Document,
         Competences.Frontend.Grid.Action,
         Competences.Frontend.Grid.App,
         Competences.Frontend.Grid.State,
         Competences.Frontend.Grid.State.Edit,
         Competences.Frontend.Grid.Topic,
         Competences.Frontend.Grid.View.Editable,
-        Competences.Frontend.Grid.View.ViewCtx,
         Competences.Frontend.Grid.View,
         Competences.Frontend.Modal.CompetenceEditor
     build-depends:
@@ -53,7 +53,8 @@ library
         optics-core,
         random,
         stm,
-        text
+        text,
+        unliftio
     hs-source-dirs:   lib
     default-language: GHC2024
 
