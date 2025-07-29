@@ -3,7 +3,6 @@ module Competences.Frontend.App.RegisteredComponent
   )
 where
 
-import Competences.Document.Competence (Competence)
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
 

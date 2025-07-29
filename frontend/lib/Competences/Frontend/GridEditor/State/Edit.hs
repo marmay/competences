@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.State.Edit
+module Competences.Frontend.GridEditor.State.Edit
   ( Editability (..)
   , editability
   )

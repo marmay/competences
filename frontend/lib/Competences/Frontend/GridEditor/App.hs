@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.App (mkApp, grid, runApp) where
+module Competences.Frontend.GridEditor.App (mkApp, grid, runApp) where
 
 import Competences.Command (Command (..))
 import Competences.Frontend.Common.Random (random')
@@ -9,9 +9,9 @@ import Competences.Frontend.SyncDocument
   , modifySyncDocument
   , subscribeDocument
   )
-import Competences.Frontend.Grid.Action (Action (..))
-import Competences.Frontend.Grid.State (NewCompetenceData (..), State (..), emptyNewCompetenceData)
-import Competences.Frontend.Grid.View (viewState)
+import Competences.Frontend.GridEditor.Action (Action (..))
+import Competences.Frontend.GridEditor.State (NewCompetenceData (..), State (..), emptyNewCompetenceData)
+import Competences.Frontend.GridEditor.View (viewState)
 import Competences.Document (Document (..), fieldATraversal)
 import Competences.Document.Competence (Competence (..), CompetenceId, Level (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..), CompetenceGridId)

@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.View.Editable
+module Competences.Frontend.GridEditor.View.Editable
   ( editable
   )
 where
@@ -8,9 +8,9 @@ import Competences.Frontend.Common.Button (iconButton)
 import Competences.Frontend.Common.Icon (Icon (..))
 import Competences.Frontend.Common.Style (ClassName (..), styledClass)
 import Competences.Frontend.Common.Translate (Label (..), translate)
-import Competences.Frontend.Grid.Action (Action (..))
-import Competences.Frontend.Grid.State (State (..))
-import Competences.Frontend.Grid.State.Edit (Editability (..), editability)
+import Competences.Frontend.GridEditor.Action (Action (..))
+import Competences.Frontend.GridEditor.State (State (..))
+import Competences.Frontend.GridEditor.State.Edit (Editability (..), editability)
 import Competences.Document (fieldATraversal)
 import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.User (User (..))

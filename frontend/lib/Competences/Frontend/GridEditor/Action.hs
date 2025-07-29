@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.Action
+module Competences.Frontend.GridEditor.Action
   ( Action (..)
   )
 where

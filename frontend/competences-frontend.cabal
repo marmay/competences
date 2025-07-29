@@ -32,12 +32,12 @@ library
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Style,
         Competences.Frontend.Common.Translate,
-        Competences.Frontend.Grid.Action,
-        Competences.Frontend.Grid.App,
-        Competences.Frontend.Grid.State,
-        Competences.Frontend.Grid.State.Edit,
-        Competences.Frontend.Grid.View.Editable,
-        Competences.Frontend.Grid.View,
+        Competences.Frontend.GridEditor.Action,
+        Competences.Frontend.GridEditor.App,
+        Competences.Frontend.GridEditor.State,
+        Competences.Frontend.GridEditor.State.Edit,
+        Competences.Frontend.GridEditor.View.Editable,
+        Competences.Frontend.GridEditor.View,
         Competences.Frontend.SyncDocument
     build-depends:
         base ^>=4.20.0.0,

@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.View
+module Competences.Frontend.GridEditor.View
   ( viewState
   )
 where
@@ -6,9 +6,9 @@ where
 import Competences.Frontend.Common.Button (iconLabelButton)
 import Competences.Frontend.Common.Icon
 import Competences.Frontend.Common.Style (ClassName (..), styledClass)
-import Competences.Frontend.Grid.Action (Action (..))
-import Competences.Frontend.Grid.State (NewCompetenceData (..), State (..))
-import Competences.Frontend.Grid.View.Editable (editable)
+import Competences.Frontend.GridEditor.Action (Action (..))
+import Competences.Frontend.GridEditor.State (NewCompetenceData (..), State (..))
+import Competences.Frontend.GridEditor.View.Editable (editable)
 import Competences.Document.ChangableField (ChangableField (..))
 import Miso qualified as M
 

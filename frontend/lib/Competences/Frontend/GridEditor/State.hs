@@ -1,4 +1,4 @@
-module Competences.Frontend.Grid.State
+module Competences.Frontend.GridEditor.State
   ( State (..)
   , NewCompetenceData (..)
   , emptyNewCompetenceData
