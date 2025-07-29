@@ -9,7 +9,7 @@ import Competences.Frontend.Common.Style (ClassName (..), styledClass)
 import Competences.Frontend.Grid.Action (Action (..))
 import Competences.Frontend.Grid.State (NewCompetenceData (..), State (..))
 import Competences.Frontend.Grid.View.Editable (editable)
-import Competences.Model.ChangableField (ChangableField (..))
+import Competences.Document.ChangableField (ChangableField (..))
 import Miso qualified as M
 
 viewState :: State -> M.View Action

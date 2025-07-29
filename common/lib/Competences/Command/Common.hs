@@ -4,9 +4,9 @@ module Competences.Command.Common
   )
 where
 
-import Competences.Model.User (UserId)
+import Competences.Document (Document)
+import Competences.Document.User (UserId)
 import Data.Text (Text)
-import Competences.Model (Model)
 
 data AffectedUsers
   = AllUsers
@@ -14,5 +14,4 @@ data AffectedUsers
   | AllTeachersAndSpecificStudents ![UserId]
   deriving (Eq, Show)
 
-type UpdateResult = Either Text (Model, AffectedUsers)
-
+type UpdateResult = Either Text (Document, AffectedUsers)

@@ -3,19 +3,19 @@ module Competences.Frontend.Grid.App (mkApp, grid, runApp) where
 import Competences.Command (Command (..))
 import Competences.Frontend.Common.Random (random')
 import Competences.Frontend.Common.Style (styleSheet)
-import Competences.Frontend.Document
-  ( DocumentRef
-  , ModelChange (..)
-  , modifyDocumentModel
+import Competences.Frontend.SyncDocument
+  ( SyncDocumentRef
+  , DocumentChange (..)
+  , modifySyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.Grid.Action (Action (..))
 import Competences.Frontend.Grid.State (NewCompetenceData (..), State (..), emptyNewCompetenceData)
 import Competences.Frontend.Grid.View (viewState)
-import Competences.Model (Model (..), fieldATraversal)
-import Competences.Model.Competence (Competence (..), CompetenceId, Level (..))
-import Competences.Model.CompetenceGrid (CompetenceGrid (..), CompetenceGridId)
-import Competences.Model.User (User (..))
+import Competences.Document (Document (..), fieldATraversal)
+import Competences.Document.Competence (Competence (..), CompetenceId, Level (..))
+import Competences.Document.CompetenceGrid (CompetenceGrid (..), CompetenceGridId)
+import Competences.Document.User (User (..))
 import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
@@ -34,28 +34,28 @@ import Miso
   , startComponent
   )
 import Miso.String (MisoString, fromMisoString, ms)
-import Optics.Core ((%~), (&), (.~), (%), (%?))
+import Optics.Core ((%), (%?), (%~), (&), (.~))
 import Optics.Core qualified as O
 
 runApp :: Component State Action -> JSM ()
 runApp = startComponent
 
-grid :: DocumentRef -> State -> Component State Action
+grid :: SyncDocumentRef -> State -> Component State Action
 grid = mkApp
 
-mkApp :: DocumentRef -> State -> Component State Action
+mkApp :: SyncDocumentRef -> State -> Component State Action
 mkApp docRef initialState =
   (component initialState (updateState docRef) viewState)
     { styles = [Sheet styleSheet]
-    , subs = [subscribeDocument docRef UpdateModel]
+    , subs = [subscribeDocument docRef UpdateDocument]
     }
 
-updateState :: DocumentRef -> Action -> Effect State Action
+updateState :: SyncDocumentRef -> Action -> Effect State Action
 updateState _ (EditField f t) = do
   modify $ \state -> state {editFields = Map.insert f t state.editFields}
   io_ $ focus $ ms $ show f
-updateState _ (UpdateModel (ModelChange m _)) = do
-  io_ $ consoleLog "UpdateModel"
+updateState _ (UpdateDocument (DocumentChange m _)) = do
+  io_ $ consoleLog "UpdateDocument"
   modify $ \state ->
     state
       & (#model .~ m)
@@ -72,7 +72,7 @@ updateState _ (UpdateModel (ModelChange m _)) = do
               & map fst
         ]
 updateState docRef (IssueCommand cmd) = do
-  io_ $ modifyDocumentModel docRef cmd
+  io_ $ modifySyncDocument docRef cmd
 updateState _ NewCompetence = modify $ (#newCompetenceData .~ Just emptyNewCompetenceData)
 updateState _ CancelNewCompetence = modify $ (#newCompetenceData .~ Nothing)
 updateState docRef AddNewCompetence = do
@@ -81,7 +81,7 @@ updateState docRef AddNewCompetence = do
   case s.newCompetenceData of
     Just n ->
       io_ $
-        modifyDocumentModel docRef (AddCompetence $ makeCompetence competenceId s.model.competenceGrid.id n)
+        modifySyncDocument docRef (AddCompetence $ makeCompetence competenceId s.model.competenceGrid.id n)
     Nothing -> pure ()
   modify (#newCompetenceData .~ Nothing)
 updateState _ (SetNewCompetenceDescription d) = modify (#newCompetenceData %? #description .~ d)

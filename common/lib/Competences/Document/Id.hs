@@ -1,4 +1,4 @@
-module Competences.Model.Id
+module Competences.Document.Id
   ( Id (..)
   , mkId
   , nilId

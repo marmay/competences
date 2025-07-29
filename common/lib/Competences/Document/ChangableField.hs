@@ -1,9 +1,9 @@
-module Competences.Model.ChangableField
+module Competences.Document.ChangableField
   ( ChangableField (..)
   )
 where
 
-import Competences.Model.Competence (CompetenceId, CompetenceLevelId)
+import Competences.Document.Competence (CompetenceId, CompetenceLevelId)
 import GHC.Generics (Generic)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)

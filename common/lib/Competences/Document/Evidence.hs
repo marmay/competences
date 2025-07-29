@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Competences.Model.Evidence
+module Competences.Document.Evidence
   ( Evidence (..)
   , EvidenceId
   , EvidenceIxs
@@ -8,9 +8,9 @@ module Competences.Model.Evidence
   )
 where
 
-import Competences.Model.Competence (CompetenceId, Level)
-import Competences.Model.Id (Id)
-import Competences.Model.User (UserId)
+import Competences.Document.Competence (CompetenceId, Level)
+import Competences.Document.Id (Id)
+import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)

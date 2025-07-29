@@ -1,4 +1,4 @@
-module Competences.Model.User
+module Competences.Document.User
   ( User (..)
   , UserId
   , UserIxs
@@ -6,7 +6,7 @@ module Competences.Model.User
   )
 where
 
-import Competences.Model.Id (Id)
+import Competences.Document.Id (Id)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix

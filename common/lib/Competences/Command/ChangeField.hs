@@ -6,9 +6,9 @@ module Competences.Command.ChangeField
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Model (Model (..), PartialChecksumId (..), fieldATraversal, updateChecksums)
-import Competences.Model.ChangableField (ChangableField (..))
-import Competences.Model.User (UserId, UserRole (..))
+import Competences.Document (Document (..), PartialChecksumId (..), fieldATraversal, updateChecksums)
+import Competences.Document.ChangableField (ChangableField (..))
+import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad (when)
 import Data.Either (isLeft)
 import Data.Map qualified as M
@@ -23,7 +23,7 @@ canChangeField _ _ = False
 
 -- | Locks a field with a given content for changes by a given
 -- user.
-lockField :: Model -> ChangableField -> UserId -> Text -> UpdateResult
+lockField :: Document -> ChangableField -> UserId -> Text -> UpdateResult
 lockField model field userId expectedText = do
   when (field `M.member` model.lockedFields) $
     Left "field already locked"
@@ -37,7 +37,7 @@ lockField model field userId expectedText = do
   pure (updateChecksums model' [PC_LockedFields], AllUsers)
 
 -- | Releases a locked field and changes its content.
-releaseField :: Model -> ChangableField -> Maybe Text -> UpdateResult
+releaseField :: Document -> ChangableField -> Maybe Text -> UpdateResult
 releaseField model field text = do
   when (field `M.notMember` model.lockedFields) $
     Left "field not locked"

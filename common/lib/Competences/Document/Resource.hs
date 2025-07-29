@@ -1,11 +1,11 @@
-module Competences.Model.Resource
+module Competences.Document.Resource
   ( ResourceId (..)
   , Resource (..)
   , ResourceIxs
   )
 where
 
-import Competences.Model.Competence (CompetenceLevelId)
+import Competences.Document.Competence (CompetenceLevelId)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Text (Text)

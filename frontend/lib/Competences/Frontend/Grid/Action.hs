@@ -3,14 +3,14 @@ module Competences.Frontend.Grid.Action
   )
 where
 
-import Competences.Model.ChangableField (ChangableField)
-import Miso.String (MisoString)
-import Competences.Frontend.Document (ModelChange)
 import Competences.Command (Command)
+import Competences.Document.ChangableField (ChangableField)
+import Competences.Frontend.SyncDocument (DocumentChange)
+import Miso.String (MisoString)
 
 data Action where
   EditField :: !ChangableField -> !MisoString -> Action
-  UpdateModel :: !ModelChange -> Action
+  UpdateDocument :: !DocumentChange -> Action
   IssueCommand :: !Command -> Action
   NewCompetence :: Action
   CancelNewCompetence :: Action

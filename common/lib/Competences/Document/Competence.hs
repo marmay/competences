@@ -1,4 +1,4 @@
-module Competences.Model.Competence
+module Competences.Document.Competence
   ( CompetenceId
   , Competence (..)
   , CompetenceLevelId
@@ -7,8 +7,8 @@ module Competences.Model.Competence
   )
 where
 
-import Competences.Model.CompetenceGrid (CompetenceGridId)
-import Competences.Model.Id (Id)
+import Competences.Document.CompetenceGrid (CompetenceGridId)
+import Competences.Document.Id (Id)
 import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix

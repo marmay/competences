@@ -1,11 +1,11 @@
-module Competences.Model.CompetenceGrid
+module Competences.Document.CompetenceGrid
   ( CompetenceGridId
   , CompetenceGrid (..)
   , emptyCompetenceGrid
   )
 where
 
-import Competences.Model.Id (Id, nilId)
+import Competences.Document.Id (Id, nilId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Text (Text)

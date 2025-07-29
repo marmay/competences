@@ -1,19 +1,19 @@
-module Competences.Model
-  ( Model (..)
+module Competences.Document
+  ( Document (..)
   , PartialChecksumId (..)
-  , emptyModel
+  , emptyDocument
   , fieldATraversal
   , updateChecksums
   , updateAllChecksums
   )
 where
 
-import Competences.Model.ChangableField (ChangableField (..))
-import Competences.Model.Competence (Competence (..), CompetenceIxs)
-import Competences.Model.CompetenceGrid (CompetenceGrid (..), emptyCompetenceGrid)
-import Competences.Model.Evidence (Evidence (..), EvidenceIxs)
-import Competences.Model.Resource (Resource, ResourceIxs)
-import Competences.Model.User (User, UserId, UserIxs)
+import Competences.Document.ChangableField (ChangableField (..))
+import Competences.Document.Competence (Competence (..), CompetenceIxs)
+import Competences.Document.CompetenceGrid (CompetenceGrid (..), emptyCompetenceGrid)
+import Competences.Document.Evidence (Evidence (..), EvidenceIxs)
+import Competences.Document.Resource (Resource, ResourceIxs)
+import Competences.Document.User (User, UserId, UserIxs)
 import Crypto.Hash.SHA1 (hashlazy)
 import Data.Binary (Binary, encode)
 import Data.ByteString (ByteString)
@@ -26,7 +26,7 @@ import GHC.Generics (Generic)
 import Optics.AffineTraversal (AffineTraversal', atraversal)
 import Optics.Core (Lens', castOptic, ix, (%%), (%~), (&), (.~), (^.))
 
-data Model = Model
+data Document = Document
   { competenceGrid :: !CompetenceGrid
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
   , evidences :: !(Ix.IxSet EvidenceIxs Evidence)
@@ -38,10 +38,10 @@ data Model = Model
   }
   deriving (Eq, Generic, Show)
 
-emptyModel :: Model
-emptyModel =
+emptyDocument :: Document
+emptyDocument =
   updateAllChecksums $
-    Model
+    Document
       { competenceGrid = emptyCompetenceGrid
       , competences = Ix.empty
       , evidences = Ix.empty
@@ -52,7 +52,7 @@ emptyModel =
       , overallChecksum = ""
       }
 
-fieldATraversal :: ChangableField -> AffineTraversal' Model Text
+fieldATraversal :: ChangableField -> AffineTraversal' Document Text
 fieldATraversal CompetenceGridTitle = castOptic #competenceGrid %% castOptic #title
 fieldATraversal CompetenceGridDescription = castOptic #competenceGrid %% castOptic #description
 fieldATraversal (CompetenceDescription competenceId) = castOptic #competences %% ixATraversal competenceId %% castOptic #description
@@ -78,18 +78,18 @@ data PartialChecksumId
   | PC_Users
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-updateChecksums :: Model -> [PartialChecksumId] -> Model
+updateChecksums :: Document -> [PartialChecksumId] -> Document
 updateChecksums m pcs = updateOverallChecksum $ foldl' updatePartialChecksum m pcs
 
-updateAllChecksums :: Model -> Model
+updateAllChecksums :: Document -> Document
 updateAllChecksums m = updateChecksums m [minBound .. maxBound]
 
-updateOverallChecksum :: Model -> Model
+updateOverallChecksum :: Document -> Document
 updateOverallChecksum m =
   let overallChecksum = hashlazy $ encode $ M.elems $ m ^. #partialChecksums
    in m & #overallChecksum .~ overallChecksum
 
-updatePartialChecksum :: Model -> PartialChecksumId -> Model
+updatePartialChecksum :: Document -> PartialChecksumId -> Document
 updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
   where
     updatePartialChecksum' v = m & (#partialChecksums %~ M.insert c v)
@@ -98,7 +98,7 @@ updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
     computePartialChecksum PC_Evidences = computePartialChecksum' #evidences encodeIx
     computePartialChecksum PC_LockedFields = computePartialChecksum' #lockedFields encode
     computePartialChecksum PC_Users = computePartialChecksum' #users encodeIx
-    computePartialChecksum' :: Lens' Model a -> (a -> BL.ByteString) -> ByteString
+    computePartialChecksum' :: Lens' Document a -> (a -> BL.ByteString) -> ByteString
     computePartialChecksum' l enc = hashlazy $ enc $ m ^. l
     encodeIx :: forall ixs a. (Binary a) => Ix.IxSet ixs a -> BL.ByteString
     encodeIx = encode . Ix.toList

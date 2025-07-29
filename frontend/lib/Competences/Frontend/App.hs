@@ -14,7 +14,7 @@ import Competences.Frontend.App.State
   )
 import Competences.Frontend.App.Topics (changeUiTopic)
 import Competences.Frontend.Common.Style (ClassName (..), styleSheet, styledClass)
-import Competences.Frontend.Document (DocumentRef, mkDocument)
+import Competences.Frontend.SyncDocument (SyncDocumentRef, mkSyncDocument)
 import Language.Javascript.JSaddle (JSM)
 import Miso
   ( CSS (..)
@@ -22,7 +22,6 @@ import Miso
   , LogLevel (Off)
   , NS (HTML)
   , View (VComp)
-  
   , consoleLog
   , defaultEvents
   , div_
@@ -30,11 +29,9 @@ import Miso
   , issue
   , key_
   , modify
-  
   , startComponent
   , subscribe
   , text
-  
   )
 import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
@@ -48,7 +45,7 @@ runApp = startComponent
 
 mkApp :: State -> JSM App
 mkApp initialState = do
-  r <- mkDocument
+  r <- mkSyncDocument
   pure $
     Component
       { model = initialState
@@ -82,7 +79,7 @@ withUiKey f = modify $ \s ->
       (g, g') = splitGen $ s ^. #sessionState % #random
    in f (s & (#uiState % #nextKeyIn %~ (+ 1)) & (#sessionState % #random .~ g), key, g')
 
-viewState :: DocumentRef -> State -> View Action
+viewState :: SyncDocumentRef -> State -> View Action
 viewState r s =
   case s ^. #uiState % #main of
     Nothing -> div_ [] [text "Initialize"]

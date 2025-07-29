@@ -6,19 +6,19 @@ module Competences.Command
 where
 
 import Competences.Command.ChangeField (lockField, releaseField)
-import Competences.Model (Model(..))
-import Competences.Model.ChangableField (ChangableField)
-import Competences.Model.Competence (Competence(..), CompetenceId)
-import Competences.Model.Evidence (Evidence(..), EvidenceId)
-import Competences.Model.Id (Id)
-import Competences.Model.User (UserId)
+import Competences.Command.Common (AffectedUsers (..), UpdateResult)
+import Competences.Document (Document (..))
+import Competences.Document.ChangableField (ChangableField)
+import Competences.Document.Competence (Competence (..), CompetenceId)
+import Competences.Document.Evidence (Evidence (..), EvidenceId)
+import Competences.Document.Id (Id)
+import Competences.Document.User (UserId)
+import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import qualified Data.IxSet.Typed as Ix
-import Optics.Core (Lens', (^.), (&), (%~))
-import Competences.Command.Common (UpdateResult, AffectedUsers (..))
-import Control.Monad (unless)
+import Optics.Core (Lens', (%~), (&), (^.))
 
 data Command
   = LockField !ChangableField !UserId !Text
@@ -35,7 +35,7 @@ instance FromJSON Command
 
 instance ToJSON Command
 
-handleCommand :: Command -> Model -> UpdateResult
+handleCommand :: Command -> Document -> UpdateResult
 handleCommand cmd model = case cmd of
   LockField f u t -> lockField model f u t
   ReleaseField f t -> releaseField model f t
@@ -50,7 +50,12 @@ handleCommand cmd model = case cmd of
 insertNew
   :: forall a ix ixs
    . (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs)
-  => Model -> Lens' Model (Ix.IxSet ixs a) -> a -> (a -> ix) -> (a -> AffectedUsers) -> UpdateResult
+  => Document
+  -> Lens' Document (Ix.IxSet ixs a)
+  -> a
+  -> (a -> ix)
+  -> (a -> AffectedUsers)
+  -> UpdateResult
 insertNew model lens newItem p affectedUsers = do
   unless (Ix.null $ (model ^. lens) Ix.@= p newItem) $
     Left "entity with that index already exists."
@@ -59,7 +64,7 @@ insertNew model lens newItem p affectedUsers = do
 removeExisting
   :: forall a ix ixs
    . (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs)
-  => Model -> Lens' Model (Ix.IxSet ixs a) -> ix -> (a -> AffectedUsers) -> UpdateResult
+  => Document -> Lens' Document (Ix.IxSet ixs a) -> ix -> (a -> AffectedUsers) -> UpdateResult
 removeExisting model lens ix affectedUsers = do
   case Ix.getOne $ (model ^. lens) Ix.@= ix of
     Just a -> pure (model & lens %~ Ix.deleteIx ix, affectedUsers a)

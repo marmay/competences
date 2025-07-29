@@ -8,7 +8,7 @@ where
 
 import Competences.Frontend.App.RegisteredComponent (RegisteredComponent)
 import Competences.Frontend.Common.Translate (TranslationData)
-import Competences.Model.User (User)
+import Competences.Document.User (User)
 import Data.ByteString (ByteString)
 import GHC.Generics (Generic)
 import Miso.String (MisoString)

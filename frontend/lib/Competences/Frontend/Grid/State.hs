@@ -7,9 +7,9 @@ module Competences.Frontend.Grid.State
 where
 
 import Competences.Frontend.Common.Translate (TranslationData)
-import Competences.Model (Model, emptyModel)
-import Competences.Model.ChangableField (ChangableField)
-import Competences.Model.User (User)
+import Competences.Document (Document, emptyDocument)
+import Competences.Document.ChangableField (ChangableField)
+import Competences.Document.User (User)
 import Data.Map qualified as M
 import GHC.Generics (Generic)
 import Miso.String (MisoString)
@@ -18,7 +18,7 @@ import System.Random (StdGen)
 data State = State
   { user :: !User
   , translationData :: !TranslationData
-  , model :: !Model
+  , model :: !Document
   , editFields :: !(M.Map ChangableField MisoString)
   , newCompetenceData :: !(Maybe NewCompetenceData)
   , random :: !StdGen
@@ -41,7 +41,7 @@ mkState user translationData stdGen =
   State
     { user = user
     , translationData = translationData
-    , model = emptyModel
+    , model = emptyDocument
     , editFields = M.empty
     , newCompetenceData = Nothing
     , random = stdGen

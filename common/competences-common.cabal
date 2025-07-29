@@ -25,15 +25,15 @@ library
         Competences.Command
         Competences.Command.ChangeField
         Competences.Command.Common
-        Competences.Model.Assessment
-        Competences.Model.Evidence
-        Competences.Model.ChangableField
-        Competences.Model.Competence
-        Competences.Model.CompetenceGrid
-        Competences.Model.Id
-        Competences.Model.Resource
-        Competences.Model.User
-        Competences.Model
+        Competences.Document.Assessment
+        Competences.Document.Evidence
+        Competences.Document.ChangableField
+        Competences.Document.Competence
+        Competences.Document.CompetenceGrid
+        Competences.Document.Id
+        Competences.Document.Resource
+        Competences.Document.User
+        Competences.Document
     build-depends:
         base ^>=4.20.0.0,
         aeson,

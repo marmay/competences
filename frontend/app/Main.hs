@@ -3,8 +3,8 @@ module Main (main) where
 import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.App.State (mkState)
 import Competences.Frontend.Common.Translate (loadTranslations)
-import Competences.Model.Id (mkId, nilId)
-import Competences.Model.User (User (..), UserId, UserRole (..))
+import Competences.Document.Id (mkId, nilId)
+import Competences.Document.User (User (..), UserId, UserRole (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)

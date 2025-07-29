@@ -1,4 +1,4 @@
-module Competences.Model.Assessment
+module Competences.Document.Assessment
   ( Assessment (..)
   , AssessmentType (..)
   , Verdict (..)
@@ -6,8 +6,8 @@ module Competences.Model.Assessment
   )
 where
 
-import Competences.Model.Evidence (Evidence)
-import Competences.Model.User (UserId)
+import Competences.Document.Evidence (Evidence)
+import Competences.Document.User (UserId)
 import Data.UUID (UUID)
 
 newtype AssessmentId = AssessmentId UUID
