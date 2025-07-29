@@ -36,7 +36,6 @@ library
         Competences.Frontend.Grid.App,
         Competences.Frontend.Grid.State,
         Competences.Frontend.Grid.State.Edit,
-        Competences.Frontend.Grid.Topic,
         Competences.Frontend.Grid.View.Editable,
         Competences.Frontend.Grid.View,
         Competences.Frontend.SyncDocument
