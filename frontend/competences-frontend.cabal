@@ -32,6 +32,7 @@ library
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Style,
         Competences.Frontend.Common.Translate,
+        Competences.Frontend.CompetenceEditor,
         Competences.Frontend.GridEditor.Action,
         Competences.Frontend.GridEditor.App,
         Competences.Frontend.GridEditor.State,

@@ -46,6 +46,11 @@ data Label
   | LblDelete
   | LblApplyChange
   | LblCancelChange
+  | LblCompetenceDescription
+  | LblCompetenceBasicLevelDescription
+  | LblCompetenceIntermediateLevelDescription
+  | LblCompetenceAdvancedLevelDescription
+  | LblEditCompetence
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 labelOf :: Label -> ByteString
@@ -54,6 +59,8 @@ labelOf = \case
   LblDelete -> "delete"
   LblApplyChange -> "apply-change"
   LblCancelChange -> "cancel-change"
+  LblCompetenceDescription -> "competence-description"
+  LblEditCompetence -> "edit-competence"
 
 missingStringOf :: Label -> ByteString
 missingStringOf l = "MISSING: " <> labelOf l
