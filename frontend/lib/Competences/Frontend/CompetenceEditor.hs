@@ -1,5 +1,5 @@
 module Competences.Frontend.CompetenceEditor
-  ( Message (..)
+  ( OutMail (..)
   , CompetenceEditorComponent
   , competenceEditor
   )
@@ -12,17 +12,19 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
 import Optics.Core (Lens', at, non, (%), (.~), (^.))
+import Competences.Frontend.Common.Button (iconLabelButton)
+import Competences.Frontend.Common.Icon (Icon(..))
 
-data Message
+data OutMail
   = EditingCanceled
   | EditingDone !Competence
   deriving (Eq, Show, Generic)
 
-instance FromJSON Message
+instance FromJSON OutMail
 
-instance ToJSON Message
+instance ToJSON OutMail
 
-competenceEditor :: ToJSON a => Competence -> TranslationData -> (Message -> a) -> M.Component Model Action
+competenceEditor :: ToJSON a => Competence -> TranslationData -> (OutMail -> a) -> M.Component Model Action
 competenceEditor competence translationData translateMessage =
   M.component (Model competence translationData) update view
   where
@@ -34,8 +36,14 @@ competenceEditor competence translationData translateMessage =
       M.modify (intermediateLevelDescriptionLens .~ toMaybe s)
     update (ChangeAdvancedLevelDescription s) =
       M.modify (advancedLevelDescriptionLens .~ toMaybe s)
+    update CompleteEditing = do
+      c <- M.gets (.competence)
+      M.issue $ NotifyParent $ EditingDone c
+    update CancelEditing = M.issue $ NotifyParent $ EditingCanceled
     update (NotifyParent m) = M.getParentComponentId (Notify m) (Log "No parent component found")
-    update (Notify m cid) = M.mail cid (translateMessage m)
+    update (Notify m cid) = do
+      M.io_ $ M.consoleLog $ "We want to send " <> M.toMisoString (show m) <> " to " <> M.toMisoString (show cid)
+      M.mail 1 (translateMessage m)
     update (Log msg) = M.io_ $ M.consoleLog msg
 
     toMaybe "" = Nothing
@@ -71,7 +79,11 @@ competenceEditor competence translationData translateMessage =
               m
               (toMaybe' advancedLevelDescriptionLens)
               ChangeAdvancedLevelDescription
-          buttons = M.div_ [] []
+          applyButton = iconLabelButton [M.onClick CompleteEditing] IcnApply (translate m LblApplyChange)
+          cancelButton = iconLabelButton [M.onClick CancelEditing] IcnCancel (translate m LblCancelChange)
+          buttons = M.div_ [] [ applyButton
+                              , cancelButton
+                              ]
        in M.div_
             []
             [ title
@@ -103,6 +115,8 @@ data Action
   | ChangeBasicLevelDescription !M.MisoString
   | ChangeIntermediateLevelDescription !M.MisoString
   | ChangeAdvancedLevelDescription !M.MisoString
-  | NotifyParent !Message
-  | Notify !Message !M.ComponentId
+  | CompleteEditing
+  | CancelEditing
+  | NotifyParent !OutMail
+  | Notify !OutMail !M.ComponentId
   | Log !M.MisoString

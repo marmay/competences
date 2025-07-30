@@ -3,13 +3,16 @@ module Competences.Frontend.GridEditor.View
   )
 where
 
+import Competences.Document.ChangableField (ChangableField (..))
+import Competences.Document.Competence (Competence)
 import Competences.Frontend.Common.Button (iconLabelButton)
 import Competences.Frontend.Common.Icon
 import Competences.Frontend.Common.Style (ClassName (..), styledClass)
-import Competences.Frontend.GridEditor.Action (Action (..))
-import Competences.Frontend.GridEditor.State (NewCompetenceData (..), State (..))
+import Competences.Frontend.CompetenceEditor (competenceEditor)
+import Competences.Frontend.GridEditor.Action (Action (..), InMail (..))
+import Competences.Frontend.GridEditor.State (State (..))
 import Competences.Frontend.GridEditor.View.Editable (editable)
-import Competences.Document.ChangableField (ChangableField (..))
+import Miso ((+>))
 import Miso qualified as M
 
 viewState :: State -> M.View Action
@@ -17,25 +20,12 @@ viewState s =
   let title = editable s [styledClass ClsTitle] CompetenceGridTitle
       description = editable s [styledClass ClsDescription] CompetenceGridDescription
       competences = viewCompetences
-      newCompetenceBox = case s.newCompetenceData of
-        Nothing -> iconLabelButton [M.onClick NewCompetence] IcnAdd "New competence"
-        Just newCompetenceData -> viewNewCompetenceData newCompetenceData
-   in M.div_ [] [iconDefs, title, description, competences, newCompetenceBox]
+   in M.div_ [] [iconDefs, title, description, competences, viewNewCompetenceData s s.newCompetence]
 
 viewCompetences :: M.View Action
 viewCompetences = M.div_ [] []
 
-viewNewCompetenceData :: NewCompetenceData -> M.View Action
-viewNewCompetenceData n =
-  M.div_
-    [styledClass ClsNewCompetenceRow]
-    [ M.span_
-        [styledClass ClsCompetenceDescription]
-        [ M.input_
-            [ M.onInput SetNewCompetenceDescription
-            , M.value_ n.description
-            ]
-        ]
-    , iconLabelButton [M.onClick CancelNewCompetence] IcnCancel "Cancel"
-    , iconLabelButton [M.onClick AddNewCompetence] IcnAdd "Add"
-    ]
+viewNewCompetenceData :: State -> Maybe Competence -> M.View Action
+viewNewCompetenceData _ Nothing = iconLabelButton [M.onClick NewCompetenceEditor] IcnAdd "New competence"
+viewNewCompetenceData s (Just c) =
+  M.div_ [M.onMountedWith NewCompetenceEditorMounted] +> competenceEditor c s.translationData CompetenceEditor

@@ -15,6 +15,7 @@ where
 import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
 import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Lazy (readFile, writeFile)
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -54,13 +55,7 @@ data Label
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 labelOf :: Label -> ByteString
-labelOf = \case
-  LblEdit -> "edit"
-  LblDelete -> "delete"
-  LblApplyChange -> "apply-change"
-  LblCancelChange -> "cancel-change"
-  LblCompetenceDescription -> "competence-description"
-  LblEditCompetence -> "edit-competence"
+labelOf = pack . show
 
 missingStringOf :: Label -> ByteString
 missingStringOf l = "MISSING: " <> labelOf l

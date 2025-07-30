@@ -1,7 +1,5 @@
 module Competences.Frontend.GridEditor.State
   ( State (..)
-  , NewCompetenceData (..)
-  , emptyNewCompetenceData
   , mkState
   )
 where
@@ -14,27 +12,19 @@ import Data.Map qualified as M
 import GHC.Generics (Generic)
 import Miso.String (MisoString)
 import System.Random (StdGen)
+import Competences.Document.Competence (Competence)
+import Miso (ComponentId)
 
 data State = State
   { user :: !User
   , translationData :: !TranslationData
   , model :: !Document
   , editFields :: !(M.Map ChangableField MisoString)
-  , newCompetenceData :: !(Maybe NewCompetenceData)
+  , newCompetence :: !(Maybe Competence)
   , random :: !StdGen
+  , componentId :: !(Maybe ComponentId)
   }
   deriving (Eq, Generic, Show)
-
-data NewCompetenceData = NewCompetenceData
-  { description :: !MisoString
-  , basicLevelDescription :: !MisoString
-  , intermediateLevelDescription :: !MisoString
-  , advancedLevelDescription :: !MisoString
-  }
-  deriving (Eq, Generic, Show)
-
-emptyNewCompetenceData :: NewCompetenceData
-emptyNewCompetenceData = NewCompetenceData "" "" "" ""
 
 mkState :: User -> TranslationData -> StdGen -> State
 mkState user translationData stdGen =
@@ -43,6 +33,7 @@ mkState user translationData stdGen =
     , translationData = translationData
     , model = emptyDocument
     , editFields = M.empty
-    , newCompetenceData = Nothing
+    , newCompetence = Nothing
     , random = stdGen
+    , componentId = Nothing
     }

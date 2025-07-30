@@ -1,25 +1,26 @@
 module Competences.Frontend.GridEditor.App (mkApp, grid, runApp) where
 
 import Competences.Command (Command (..))
+import Competences.Document (Document (..), fieldATraversal)
+import Competences.Document.Competence (Competence (..))
+import Competences.Document.CompetenceGrid (CompetenceGrid (..))
+import Competences.Document.User (User (..))
 import Competences.Frontend.Common.Random (random')
 import Competences.Frontend.Common.Style (styleSheet)
+import Competences.Frontend.CompetenceEditor qualified as CE
+import Competences.Frontend.GridEditor.Action (Action (..), InMail (..))
+import Competences.Frontend.GridEditor.State (State (..))
+import Competences.Frontend.GridEditor.View (viewState)
 import Competences.Frontend.SyncDocument
-  ( SyncDocumentRef
-  , DocumentChange (..)
+  ( DocumentChange (..)
+  , SyncDocumentRef
   , modifySyncDocument
   , subscribeDocument
   )
-import Competences.Frontend.GridEditor.Action (Action (..))
-import Competences.Frontend.GridEditor.State (NewCompetenceData (..), State (..), emptyNewCompetenceData)
-import Competences.Frontend.GridEditor.View (viewState)
-import Competences.Document (Document (..), fieldATraversal)
-import Competences.Document.Competence (Competence (..), CompetenceId, Level (..))
-import Competences.Document.CompetenceGrid (CompetenceGrid (..), CompetenceGridId)
-import Competences.Document.User (User (..))
+import Data.Aeson (Result (..), fromJSON)
 import Data.Map qualified as M
 import Data.Map qualified as Map
-import Data.Maybe (catMaybes, fromMaybe)
-import Data.Text (Text)
+import Data.Maybe (fromMaybe)
 import Language.Javascript.JSaddle (JSM)
 import Miso
   ( CSS (..)
@@ -28,13 +29,12 @@ import Miso
   , component
   , consoleLog
   , focus
-  , get
   , io_
   , modify
   , startComponent
   )
-import Miso.String (MisoString, fromMisoString, ms)
-import Optics.Core ((%), (%?), (%~), (&), (.~))
+import Miso.String (ms)
+import Optics.Core ((%~), (&), (.~))
 import Optics.Core qualified as O
 
 runApp :: Component State Action -> JSM ()
@@ -48,6 +48,11 @@ mkApp docRef initialState =
   (component initialState (updateState docRef) viewState)
     { styles = [Sheet styleSheet]
     , subs = [subscribeDocument docRef UpdateDocument]
+    , mailbox = \m -> case fromJSON @InMail m of
+        Success (CompetenceEditor CE.EditingCanceled) -> Just CancelNewCompetence
+        Success (CompetenceEditor (CE.EditingDone c)) -> Just $ AddNewCompetence c
+        Error s -> Just $ Log $ ms s
+    , initialAction = Initialize
     }
 
 updateState :: SyncDocumentRef -> Action -> Effect State Action
@@ -73,34 +78,18 @@ updateState _ (UpdateDocument (DocumentChange m _)) = do
         ]
 updateState docRef (IssueCommand cmd) = do
   io_ $ modifySyncDocument docRef cmd
-updateState _ NewCompetence = modify $ (#newCompetenceData .~ Just emptyNewCompetenceData)
-updateState _ CancelNewCompetence = modify $ (#newCompetenceData .~ Nothing)
-updateState docRef AddNewCompetence = do
+updateState _ NewCompetenceEditor = do
   competenceId <- random'
-  s <- get
-  case s.newCompetenceData of
-    Just n ->
-      io_ $
-        modifySyncDocument docRef (AddCompetence $ makeCompetence competenceId s.model.competenceGrid.id n)
-    Nothing -> pure ()
-  modify (#newCompetenceData .~ Nothing)
-updateState _ (SetNewCompetenceDescription d) = modify (#newCompetenceData %? #description .~ d)
-
-makeCompetence :: CompetenceId -> CompetenceGridId -> NewCompetenceData -> Competence
-makeCompetence competenceId competenceGridId n = do
-  Competence
-    { id = competenceId
-    , competenceGridId = competenceGridId
-    , description = fromMisoString n.description
-    , levelDescriptions =
-        M.fromList $
-          catMaybes $
-            [ (BasicLevel,) <$> toMaybe (n.basicLevelDescription)
-            , (IntermediateLevel,) <$> toMaybe (n.intermediateLevelDescription)
-            , (AdvancedLevel,) <$> toMaybe (n.advancedLevelDescription)
-            ]
-    }
-  where
-    toMaybe :: MisoString -> Maybe Text
-    toMaybe "" = Nothing
-    toMaybe s = Just $ fromMisoString s
+  modify $ \s ->
+    let newCompetence = Competence {id = competenceId, competenceGridId = s.model.competenceGrid.id, description = "", levelDescriptions = M.empty}
+     in s & (#newCompetence .~ Just newCompetence)
+updateState _ (NewCompetenceEditorMounted cId) =
+  io_ $ consoleLog $ "NewCompetenceEditorMounted" <> (ms $ show cId)
+updateState _ CancelNewCompetence = do
+  io_ $ consoleLog "CancelNewCompetence"
+  modify $ (#newCompetence .~ Nothing)
+updateState docRef (AddNewCompetence c) = do
+  io_ $ consoleLog "AddNewCompetence"
+  io_ $ modifySyncDocument docRef (AddCompetence c)
+  modify $ (#newCompetence .~ Nothing)
+updateState _ (Log s) = io_ $ consoleLog s
