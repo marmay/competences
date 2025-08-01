@@ -1,14 +1,14 @@
 module Competences.Frontend.GridEditor.App (mkApp, grid, runApp) where
 
 import Competences.Command (Command (..))
-import Competences.Document (Document (..), fieldATraversal)
+import Competences.Document (Document (..), fieldATraversal, orderMax)
 import Competences.Document.Competence (Competence (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common.Random (random')
 import Competences.Frontend.Common.Style (styleSheet)
-import Competences.Frontend.CompetenceEditor qualified as CE
-import Competences.Frontend.GridEditor.Action (Action (..), InMail (..))
+import Competences.Frontend.Component.CompetenceEditor qualified as CE
+import Competences.Frontend.GridEditor.Action (Action (..))
 import Competences.Frontend.GridEditor.State (State (..))
 import Competences.Frontend.GridEditor.View (viewState)
 import Competences.Frontend.SyncDocument
@@ -17,7 +17,6 @@ import Competences.Frontend.SyncDocument
   , modifySyncDocument
   , subscribeDocument
   )
-import Data.Aeson (Result (..), fromJSON)
 import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -26,16 +25,22 @@ import Miso
   ( CSS (..)
   , Component (..)
   , Effect
+  , ask
   , component
   , consoleLog
   , focus
+  , get
   , io_
   , modify
+  , put
+  , runEffect
   , startComponent
+  , tell
   )
 import Miso.String (ms)
-import Optics.Core ((%~), (&), (.~))
+import Optics.Core (Lens', (%~), (&), (.~), (^.))
 import Optics.Core qualified as O
+import Competences.Frontend.Common.Effect (liftEffect')
 
 runApp :: Component State Action -> JSM ()
 runApp = startComponent
@@ -48,11 +53,6 @@ mkApp docRef initialState =
   (component initialState (updateState docRef) viewState)
     { styles = [Sheet styleSheet]
     , subs = [subscribeDocument docRef UpdateDocument]
-    , mailbox = \m -> case fromJSON @InMail m of
-        Success (CompetenceEditor CE.EditingCanceled) -> Just CancelNewCompetence
-        Success (CompetenceEditor (CE.EditingDone c)) -> Just $ AddNewCompetence c
-        Error s -> Just $ Log $ ms s
-    , initialAction = Initialize
     }
 
 updateState :: SyncDocumentRef -> Action -> Effect State Action
@@ -60,7 +60,6 @@ updateState _ (EditField f t) = do
   modify $ \state -> state {editFields = Map.insert f t state.editFields}
   io_ $ focus $ ms $ show f
 updateState _ (UpdateDocument (DocumentChange m _)) = do
-  io_ $ consoleLog "UpdateDocument"
   modify $ \state ->
     state
       & (#model .~ m)
@@ -78,18 +77,27 @@ updateState _ (UpdateDocument (DocumentChange m _)) = do
         ]
 updateState docRef (IssueCommand cmd) = do
   io_ $ modifySyncDocument docRef cmd
-updateState _ NewCompetenceEditor = do
+updateState _ SpawnNewCompetenceEditor = do
   competenceId <- random'
   modify $ \s ->
-    let newCompetence = Competence {id = competenceId, competenceGridId = s.model.competenceGrid.id, description = "", levelDescriptions = M.empty}
-     in s & (#newCompetence .~ Just newCompetence)
-updateState _ (NewCompetenceEditorMounted cId) =
-  io_ $ consoleLog $ "NewCompetenceEditorMounted" <> (ms $ show cId)
-updateState _ CancelNewCompetence = do
-  io_ $ consoleLog "CancelNewCompetence"
-  modify $ (#newCompetence .~ Nothing)
-updateState docRef (AddNewCompetence c) = do
-  io_ $ consoleLog "AddNewCompetence"
-  io_ $ modifySyncDocument docRef (AddCompetence c)
-  modify $ (#newCompetence .~ Nothing)
+    let newCompetence =
+          Competence
+            { id = competenceId
+            , order = orderMax
+            , competenceGridId = s.model.competenceGrid.id
+            , description = ""
+            , levelDescriptions = M.empty
+            }
+     in s & (#newCompetenceEditor .~ Just (CE.Model newCompetence s.translationData))
+updateState docRef (NewCompetenceEditorAction CE.CompleteEditing) = do
+  s :: State <- get
+  case s.newCompetenceEditor of
+    (Just e) -> io_ $ modifySyncDocument docRef (AddCompetence e.competence)
+    Nothing -> pure ()
+  modify $ (#newCompetenceEditor .~ Nothing)
+updateState _ (NewCompetenceEditorAction CE.CancelEditing) =
+  modify $ (#newCompetenceEditor .~ Nothing)
+updateState _ (NewCompetenceEditorAction a) = do
+  liftEffect' #newCompetenceEditor NewCompetenceEditorAction $ CE.update a
 updateState _ (Log s) = io_ $ consoleLog s
+

@@ -20,7 +20,8 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
-import Miso qualified
+import Miso qualified as M
+import Miso.String qualified as M
 import Optics.Core ((%~), (&), (.~))
 import UnliftIO (modifyMVar_)
 
@@ -44,7 +45,7 @@ data DocumentChange = DocumentChange
   deriving (Eq, Show, Generic)
 
 data ChangedHandler where
-  ChangedHandler :: forall a. (DocumentChange -> a) -> (Miso.Sink a) -> ChangedHandler
+  ChangedHandler :: forall a. (DocumentChange -> a) -> (M.Sink a) -> ChangedHandler
 
 type SyncDocumentRef = MVar SyncDocument
 
@@ -54,13 +55,15 @@ mkSyncDocument = liftIO $ newMVar $ emptySyncDocument
 mkSyncDocument' :: Document -> JSM SyncDocumentRef
 mkSyncDocument' m = liftIO $ newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
 
-subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> Miso.Sink a -> JSM ()
+subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> JSM ()
 subscribeDocument d f s = do
   let h = ChangedHandler f s
   modifyMVar_ d $ \d' -> pure $ d' & (#onChanged %~ (h :))
 
 modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
-modifySyncDocument d c = modifyMVar_ d $ modifySyncDocument' c
+modifySyncDocument d c = do
+  M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
+  modifyMVar_ d $ modifySyncDocument' c
 
 setSyncDocument :: SyncDocumentRef -> Document -> JSM ()
 setSyncDocument d m = modifyMVar_ d $ setSyncDocument' m

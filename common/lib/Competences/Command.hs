@@ -12,19 +12,22 @@ import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.Competence (Competence (..), CompetenceId)
 import Competences.Document.Evidence (Evidence (..), EvidenceId)
 import Competences.Document.Id (Id)
+import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
 import Competences.Document.User (UserId)
 import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Either.Extra (mapLeft)
 import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core (Lens', (%~), (&), (^.))
+import Optics.Core (Lens', (%~), (&), (.~), (^.))
 
 data Command
   = LockField !ChangableField !UserId !Text
   | ReleaseField !ChangableField !(Maybe Text)
   | AddCompetence !Competence
   | RemoveCompetence !CompetenceId
+  | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | AddEvidence !Evidence
   | RemoveEvidence !EvidenceId
   deriving (Eq, Generic, Show)
@@ -41,6 +44,11 @@ handleCommand cmd model = case cmd of
   ReleaseField f t -> releaseField model f t
   AddCompetence competence -> insertNew model #competences competence (.id) (const AllUsers)
   RemoveCompetence competenceId -> removeExisting model #competences competenceId (const AllUsers)
+  ReorderCompetence pos reordering ->
+    fmap (,AllUsers) $
+      fmap (\cs -> model & #competences .~ cs) $
+        mapLeft explainReorderError $
+          reorder pos reordering (model ^. #competences)
   AddEvidence evidence -> insertNew model #evidences evidence (.id) evidenceAffectedUsers
   RemoveEvidence evidenceId -> removeExisting model #evidences evidenceId evidenceAffectedUsers
   where

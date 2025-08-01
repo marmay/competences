@@ -4,25 +4,23 @@ module Competences.Frontend.GridEditor.State
   )
 where
 
-import Competences.Frontend.Common.Translate (TranslationData)
 import Competences.Document (Document, emptyDocument)
 import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.User (User)
+import Competences.Frontend.Common.Translate (TranslationData)
+import Competences.Frontend.Component.CompetenceEditor qualified as CE
 import Data.Map qualified as M
 import GHC.Generics (Generic)
 import Miso.String (MisoString)
 import System.Random (StdGen)
-import Competences.Document.Competence (Competence)
-import Miso (ComponentId)
 
 data State = State
   { user :: !User
   , translationData :: !TranslationData
   , model :: !Document
   , editFields :: !(M.Map ChangableField MisoString)
-  , newCompetence :: !(Maybe Competence)
   , random :: !StdGen
-  , componentId :: !(Maybe ComponentId)
+  , newCompetenceEditor :: !(Maybe CE.Model)
   }
   deriving (Eq, Generic, Show)
 
@@ -33,7 +31,6 @@ mkState user translationData stdGen =
     , translationData = translationData
     , model = emptyDocument
     , editFields = M.empty
-    , newCompetence = Nothing
     , random = stdGen
-    , componentId = Nothing
+    , newCompetenceEditor = Nothing
     }

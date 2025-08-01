@@ -13,6 +13,7 @@ import Competences.Frontend.App.State
   , UiState (..)
   )
 import Competences.Frontend.App.Topics (changeUiTopic)
+import Competences.Frontend.Common (iconDefs)
 import Competences.Frontend.Common.Style (ClassName (..), styleSheet, styledClass)
 import Competences.Frontend.SyncDocument (SyncDocumentRef, mkSyncDocument)
 import Language.Javascript.JSaddle (JSM)
@@ -81,8 +82,12 @@ withUiKey f = modify $ \s ->
 
 viewState :: SyncDocumentRef -> State -> View Action
 viewState r s =
-  case s ^. #uiState % #main of
-    Nothing -> div_ [] [text "Initialize"]
-    Just (k, c, g) ->
-      let c' = mkRegisteredComponent r s g c
-       in div_ [styledClass ClsApp] [VComp HTML "div" [key_ k] c']
+  div_
+    []
+    [ iconDefs
+    , case s ^. #uiState % #main of
+        Nothing -> div_ [] [text "Initialize"]
+        Just (k, c, g) ->
+          let c' = mkRegisteredComponent r s g c
+           in div_ [styledClass ClsApp] [VComp HTML "div" [key_ k] c']
+    ]

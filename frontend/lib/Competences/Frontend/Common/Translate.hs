@@ -52,6 +52,7 @@ data Label
   | LblCompetenceIntermediateLevelDescription
   | LblCompetenceAdvancedLevelDescription
   | LblEditCompetence
+  | LblAddNewCompetence
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 labelOf :: Label -> ByteString

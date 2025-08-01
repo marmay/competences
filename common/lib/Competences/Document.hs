@@ -5,15 +5,27 @@ module Competences.Document
   , fieldATraversal
   , updateChecksums
   , updateAllChecksums
+  , module Competences.Document.ChangableField
+  , module Competences.Document.Competence
+  , module Competences.Document.CompetenceGrid
+  , module Competences.Document.Evidence
+  , module Competences.Document.Order
+  , module Competences.Document.Resource
+  , module Competences.Document.User
   )
 where
 
 import Competences.Document.ChangableField (ChangableField (..))
-import Competences.Document.Competence (Competence (..), CompetenceIxs)
-import Competences.Document.CompetenceGrid (CompetenceGrid (..), emptyCompetenceGrid)
-import Competences.Document.Evidence (Evidence (..), EvidenceIxs)
-import Competences.Document.Resource (Resource, ResourceIxs)
-import Competences.Document.User (User, UserId, UserIxs)
+import Competences.Document.Competence (Competence (..), CompetenceId, CompetenceIxs)
+import Competences.Document.CompetenceGrid
+  ( CompetenceGrid (..)
+  , CompetenceGridId
+  , emptyCompetenceGrid
+  )
+import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
+import Competences.Document.Order (Order, orderMax, orderMin, orderAt)
+import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
+import Competences.Document.User (User (..), UserId, UserIxs)
 import Crypto.Hash.SHA1 (hashlazy)
 import Data.Binary (Binary, encode)
 import Data.ByteString (ByteString)

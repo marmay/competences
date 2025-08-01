@@ -9,6 +9,7 @@ where
 
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
+import Competences.Document.Order (Order, Orderable)
 import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
@@ -32,6 +33,7 @@ data Level
 
 data Competence = Competence
   { id :: !CompetenceId
+  , order :: !Order
   , competenceGridId :: !CompetenceGridId
   , description :: !Text
   , levelDescriptions :: !(M.Map Level Text)
@@ -40,12 +42,13 @@ data Competence = Competence
 
 type CompetenceLevelId = (CompetenceId, Level)
 
-type CompetenceIxs = '[CompetenceId, CompetenceGridId]
+type CompetenceIxs = '[CompetenceId, Order, CompetenceGridId]
 
 instance Ix.Indexable CompetenceIxs Competence where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
+      (Ix.ixFun $ singleton . (.order))
       (Ix.ixFun $ singleton . (.competenceGridId))
 
 instance FromJSON Level
@@ -63,3 +66,5 @@ instance FromJSON Competence
 instance ToJSON Competence
 
 instance Binary Competence
+
+instance Orderable Competence
