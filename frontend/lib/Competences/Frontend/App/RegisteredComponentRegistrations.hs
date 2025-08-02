@@ -5,8 +5,6 @@ where
 
 import Competences.Frontend.App.RegisteredComponent (RegisteredComponent (..))
 import Competences.Frontend.App.State
-import Competences.Frontend.GridEditor.App (grid)
-import Competences.Frontend.GridEditor.State qualified as G
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Miso (SomeComponent (..))
 import System.Random (StdGen)

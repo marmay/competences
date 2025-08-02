@@ -64,12 +64,18 @@ view m =
         [M.onClick SpawnNewCompetenceEditor]
         C.IcnAdd
         (C.translate m C.LblAddNewCompetence)
-    , NewCompetenceEditorAction <$> modal m.newCompetenceEditor CE.view
+    , NewCompetenceEditorAction <$> C.maybeModal m.newCompetenceEditor CE.view
     ]
 
 update :: SyncDocumentRef -> Action -> M.Effect Model Action
 update r (CompetenceGridEditorAction a) = C.liftEffect #competenceGridEditor CompetenceGridEditorAction (CGE.update r a)
-update _ (NewCompetenceEditorAction a) = C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update a)
+update r (NewCompetenceEditorAction e@CE.CompleteEditing) = do
+  C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
+  M.modify $ #newCompetenceEditor.~ Nothing
+update r (NewCompetenceEditorAction e@CE.CancelEditing) = do
+  C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
+  M.modify $ #newCompetenceEditor.~ Nothing
+update r (NewCompetenceEditorAction a) = C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r a)
 update _ SpawnNewCompetenceEditor = do
   competenceId <- C.random'
   M.modify $ \m ->
@@ -83,7 +89,3 @@ update _ SpawnNewCompetenceEditor = do
             }
      in m & (#newCompetenceEditor .~ Just (CE.Model newCompetence m.translationData))
 update _ (UpdateDocument (DocumentChange d _)) = M.modify $ #document .~ d
-
-modal :: Maybe m -> (m -> M.View a') -> M.View a'
-modal (Just m) v = M.div_ [M.class_ "modal"] [v m]
-modal Nothing _ = M.div_ [] []

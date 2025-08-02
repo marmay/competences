@@ -30,6 +30,7 @@ library
         Competences.Frontend.Common.Button,
         Competences.Frontend.Common.Effect,
         Competences.Frontend.Common.Icon,
+        Competences.Frontend.Common.Modal,
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Style,
         Competences.Frontend.Common.Translate,

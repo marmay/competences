@@ -7,11 +7,19 @@ module Competences.Frontend.Component.CompetenceEditor
 where
 
 import Competences.Document.Competence (Competence (..), Level (..))
-import Competences.Frontend.Common (iconLabelButton, Icon (..), Label (..), TranslationData, translate)
+import Competences.Frontend.Common
+  ( Icon (..)
+  , Label (..)
+  , TranslationData
+  , iconLabelButton
+  , translate
+  )
+import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
 import Optics.Core (Lens', at, non, (%), (.~), (^.))
+import Competences.Command (Command(..))
 
 data Model = Model
   { competence :: !Competence
@@ -28,16 +36,19 @@ data Action
   | CancelEditing
   deriving (Eq, Show, Generic)
 
-update :: Action -> M.Effect Model Action
-update (ChangeDescription s) =
+update :: SyncDocumentRef -> Action -> M.Effect Model Action
+update _ (ChangeDescription s) =
   M.modify (descriptionLens .~ M.fromMisoString s)
-update (ChangeBasicLevelDescription s) =
+update _ (ChangeBasicLevelDescription s) =
   M.modify (basicLevelDescriptionLens .~ toMaybe s)
-update (ChangeIntermediateLevelDescription s) =
+update _ (ChangeIntermediateLevelDescription s) =
   M.modify (intermediateLevelDescriptionLens .~ toMaybe s)
-update (ChangeAdvancedLevelDescription s) =
+update _ (ChangeAdvancedLevelDescription s) =
   M.modify (advancedLevelDescriptionLens .~ toMaybe s)
-update _ = pure ()
+update r CompleteEditing = do
+  c <- M.gets (^. #competence)
+  M.io_ $ modifySyncDocument r $ AddCompetence c
+update _ _ = pure ()
 
 view :: Model -> M.View Action
 view m =

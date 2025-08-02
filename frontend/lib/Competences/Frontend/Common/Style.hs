@@ -2,17 +2,26 @@ module Competences.Frontend.Common.Style
   ( ClassName (..)
   , styleSheet
   , styledClass
+  , styledClasses
+  , styledMetaClass
   )
 where
 
+import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Miso (Attribute)
 import Miso.Html (class_)
 import Miso.String (MisoString)
+import Miso.String qualified as M
 import Miso.Style qualified as M
 
 data ClassName
   = ClsApp
   | ClsButton
+  | ClsFontTitle
+  | ClsFontSubTitle
+  | ClsFontStylePlaceholder
+  | ClsModal
   | ClsCompetences
   | ClsCompetenceDescription
   | ClsDescription
@@ -23,25 +32,32 @@ data ClassName
   | ClsIcon
   | ClsLabelButton
   | ClsTitle
-  deriving (Bounded, Enum, Eq, Show)
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+data MetaClass
+  = ClsCompetenceTitle
+  deriving (Eq, Show)
+
+toClasses :: MetaClass -> [ClassName]
+toClasses _ = []
 
 styledClass :: ClassName -> Attribute action
 styledClass = class_ . className
 
+styledClasses :: [ClassName] -> [Attribute action]
+styledClasses = map styledClass
+
+styledMetaClass :: MetaClass -> [Attribute action]
+styledMetaClass = styledClasses . toClasses
+
 className :: ClassName -> MisoString
-className = \case
-  ClsApp -> "app"
-  ClsButton -> "button"
-  ClsCompetences -> "competences"
-  ClsDescription -> "description"
-  ClsCompetenceDescription -> "competence-description"
-  ClsEditableContainer -> "editable-container"
-  ClsEditableContent -> "editable-content"
-  ClsEditableButtons -> "editable-buttons"
-  ClsNewCompetenceRow -> "new-competence-row"
-  ClsIcon -> "icon"
-  ClsLabelButton -> "label-button"
-  ClsTitle -> "title"
+className c =
+  fromMaybe "cls-unknown" $ Map.lookup c m
+  where
+    m :: Map.Map ClassName MisoString
+    m = Map.fromList $ zipWith (\c' n -> (c', classId n)) [minBound ..] [0 ..]
+    classId :: Int -> MisoString
+    classId n = M.toMisoString $ "cls-" <> show n
 
 classSelector :: ClassName -> MisoString
 classSelector = ("." <>) . className
@@ -81,5 +97,15 @@ styleSheet =
         [ M.fontSize "24px"
         , M.fontWeight "bold"
         , M.textAlign "center"
+        ]
+    , M.selector_
+        (classSelector ClsModal)
+        [ M.zIndex "1"
+        , M.position "absolute"
+        , M.left "0px"
+        , M.top "0px"
+        , M.width "100%"
+        , M.height "100%"
+        , M.backgroundColor $ M.rgba 0 0 0 0.5
         ]
     ]
