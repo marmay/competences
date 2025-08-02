@@ -37,12 +37,6 @@ library
         Competences.Frontend.Component.CompetenceEditor,
         Competences.Frontend.Component.CompetenceGridEditor,
         Competences.Frontend.Page.EditCompetenceGridPage,
-        Competences.Frontend.GridEditor.Action,
-        Competences.Frontend.GridEditor.App,
-        Competences.Frontend.GridEditor.State,
-        Competences.Frontend.GridEditor.State.Edit,
-        Competences.Frontend.GridEditor.View.Editable,
-        Competences.Frontend.GridEditor.View,
         Competences.Frontend.SyncDocument
     build-depends:
         base ^>=4.20.0.0,
