@@ -9,7 +9,9 @@ module Competences.Frontend.SyncDocument
   , setSyncDocument
   , emptySyncDocument
   , modifySyncDocument'
+  , readSyncDocument
   , setSyncDocument'
+  , issueInitialUpdate
   )
 where
 
@@ -17,13 +19,12 @@ import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, emptyDocument)
 import Control.Concurrent (MVar, newMVar)
 import Control.Monad (forM_)
-import Control.Monad.IO.Class (liftIO)
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Miso.String qualified as M
 import Optics.Core ((%~), (&), (.~))
-import UnliftIO (modifyMVar_)
+import UnliftIO (modifyMVar_, readMVar)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -49,16 +50,21 @@ data ChangedHandler where
 
 type SyncDocumentRef = MVar SyncDocument
 
-mkSyncDocument :: JSM SyncDocumentRef
-mkSyncDocument = liftIO $ newMVar $ emptySyncDocument
+mkSyncDocument :: IO SyncDocumentRef
+mkSyncDocument = newMVar $ emptySyncDocument
 
-mkSyncDocument' :: Document -> JSM SyncDocumentRef
-mkSyncDocument' m = liftIO $ newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
+mkSyncDocument' :: Document -> IO SyncDocumentRef
+mkSyncDocument' m = newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
+
+readSyncDocument :: SyncDocumentRef -> IO SyncDocument
+readSyncDocument = readMVar
 
 subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> JSM ()
 subscribeDocument d f s = do
   let h = ChangedHandler f s
-  modifyMVar_ d $ \d' -> pure $ d' & (#onChanged %~ (h :))
+  modifyMVar_ d $ \d' -> do
+    s $ f (DocumentChange d'.localDocument Nothing)
+    pure $ d' & (#onChanged %~ (h :))
 
 modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
 modifySyncDocument d c = do
@@ -74,7 +80,9 @@ emptySyncDocument = SyncDocument emptyDocument [] emptyDocument []
 modifySyncDocument' :: Command -> SyncDocument -> JSM SyncDocument
 modifySyncDocument' c d = do
   case handleCommand c d.localDocument of
-    Left _ -> pure d
+    Left err -> do
+      M.consoleLog $ M.ms $ "Handling command '" <> show c <> "' failed: " <> show err
+      pure d
     Right m' -> do
       let d' =
             d
@@ -94,3 +102,8 @@ setSyncDocument' m d = do
 
 issueDocumentChange :: DocumentChange -> ChangedHandler -> JSM ()
 issueDocumentChange c (ChangedHandler f sink) = sink $ f c
+
+issueInitialUpdate :: SyncDocumentRef -> JSM ()
+issueInitialUpdate r = do
+  d <- readMVar r
+  forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument Nothing)

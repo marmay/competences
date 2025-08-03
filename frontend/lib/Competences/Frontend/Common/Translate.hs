@@ -49,6 +49,7 @@ data Label
   | LblDelete
   | LblApplyChange
   | LblCancelChange
+  | LblMove
   | LblCompetenceDescription
   | LblCompetenceBasicLevelDescription
   | LblCompetenceIntermediateLevelDescription
@@ -63,6 +64,7 @@ defaultTranslations =
   , (LblDelete, "Löschen")
   , (LblApplyChange, "Übernehmen")
   , (LblCancelChange, "Abbrechen")
+  , (LblMove, "Verschieben")
   , (LblCompetenceDescription, "Beschreibung")
   , (LblCompetenceBasicLevelDescription, "Wesentlich")
   , (LblCompetenceIntermediateLevelDescription, "Mittelstufe")
@@ -131,4 +133,3 @@ data DefaultTranslation = DefaultTranslation
   , translation :: !Text
   }
   deriving (Eq, Show)
-

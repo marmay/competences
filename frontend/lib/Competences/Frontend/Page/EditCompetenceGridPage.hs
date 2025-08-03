@@ -28,6 +28,7 @@ editCompetenceGridPage r g u td =
     { M.subs =
         map (C.liftSub CompetenceGridEditorAction) (CGE.subscriptions r)
           <> [subscribeDocument r UpdateDocument]
+    , M.events = M.defaultEvents <> M.dragEvents
     }
   where
     model =

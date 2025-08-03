@@ -13,6 +13,7 @@ data Action
   = ChangeUi !UiAction
   | LogError !MisoString
   | Initialize
+  | Mounted
   deriving (Eq, Show, Generic)
 
 data UiAction

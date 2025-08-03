@@ -4,6 +4,7 @@ module Competences.Frontend.Common
   , module Competences.Frontend.Common.Icon
   , module Competences.Frontend.Common.Modal
   , module Competences.Frontend.Common.Random
+  , module Competences.Frontend.Common.Reorder
   , module Competences.Frontend.Common.Style
   , module Competences.Frontend.Common.Translate
   )
@@ -14,5 +15,6 @@ import Competences.Frontend.Common.Effect
 import Competences.Frontend.Common.Icon
 import Competences.Frontend.Common.Modal
 import Competences.Frontend.Common.Random
+import Competences.Frontend.Common.Reorder
 import Competences.Frontend.Common.Style
 import Competences.Frontend.Common.Translate

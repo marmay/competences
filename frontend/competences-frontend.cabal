@@ -32,6 +32,7 @@ library
         Competences.Frontend.Common.Icon,
         Competences.Frontend.Common.Modal,
         Competences.Frontend.Common.Random,
+        Competences.Frontend.Common.Reorder,
         Competences.Frontend.Common.Style,
         Competences.Frontend.Common.Translate,
         Competences.Frontend.Common,
@@ -67,6 +68,7 @@ executable competences-frontend
     main-is:          Main.hs
     build-depends:
         base ^>=4.20.0.0,
+        aeson,
         bytestring,
         competences-common,
         competences-frontend,

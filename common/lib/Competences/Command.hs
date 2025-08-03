@@ -12,7 +12,14 @@ import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.Competence (Competence (..), CompetenceId)
 import Competences.Document.Evidence (Evidence (..), EvidenceId)
 import Competences.Document.Id (Id)
-import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
+import Competences.Document.Order
+  ( OrderPosition
+  , Reorder
+  , explainReorderError
+  , orderedDelete
+  , orderedInsert
+  , reorder
+  )
 import Competences.Document.User (UserId)
 import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
@@ -42,8 +49,12 @@ handleCommand :: Command -> Document -> UpdateResult
 handleCommand cmd model = case cmd of
   LockField f u t -> lockField model f u t
   ReleaseField f t -> releaseField model f t
-  AddCompetence competence -> insertNew model #competences competence (.id) (const AllUsers)
-  RemoveCompetence competenceId -> removeExisting model #competences competenceId (const AllUsers)
+  AddCompetence competence -> do
+    competences' <- orderedInsert competence (model ^. #competences)
+    pure $ (model & #competences .~ competences', AllUsers)
+  RemoveCompetence competenceId -> do
+    competences' <- orderedDelete competenceId (model ^. #competences)
+    pure $ (model & #competences .~ competences', AllUsers)
   ReorderCompetence pos reordering ->
     fmap (,AllUsers) $
       fmap (\cs -> model & #competences .~ cs) $

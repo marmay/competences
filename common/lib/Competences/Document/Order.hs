@@ -20,6 +20,7 @@ module Competences.Document.Order
 where
 
 import Competences.Document.Id (Id)
+import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Either.Extra (maybeToEither)
@@ -113,14 +114,18 @@ ordered = Ix.toAscList (Proxy @Order)
 -- | Inserts and reorders an element in a collection.
 orderedInsert
   :: (OrderableSet ixs a)
-  => a -> Ix.IxSet ixs a -> Ix.IxSet ixs a
-orderedInsert a s = reordered $ Ix.insert a s
+  => a -> Ix.IxSet ixs a -> Either Text (Ix.IxSet ixs a)
+orderedInsert a s = do
+  unless (Ix.null $ s Ix.@= (a ^. idL)) $
+    Left "An item with the given id already exists!"
+  pure $ reordered $ Ix.insert a s
 
 -- | Deletes and reorders an element from a collection.
 orderedDelete
   :: (OrderableSet ixs a)
-  => a -> Ix.IxSet ixs a -> Ix.IxSet ixs a
-orderedDelete a s = reordered $ Ix.delete a s
+  => (Id a) -> Ix.IxSet ixs a -> Either Text (Ix.IxSet ixs a)
+orderedDelete idA s =
+  pure $ reordered $ Ix.deleteIx idA s
 
 -- | Generates the orderPosition of an element with a given id.
 orderPosition

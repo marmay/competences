@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 module Competences.Frontend.Component.CompetenceGridEditor
   ( Model
   , Action (..)
@@ -9,7 +11,19 @@ module Competences.Frontend.Component.CompetenceGridEditor
 where
 
 import Competences.Command (Command (..))
-import Competences.Document (ChangableField (..), Document (..), User (..), UserId, emptyDocument, fieldATraversal)
+import Competences.Document
+  ( ChangableField (..)
+  , Competence (..)
+  , CompetenceId
+  , Document (..)
+  , Level (..)
+  , User (..)
+  , UserId
+  , emptyDocument
+  , fieldATraversal
+  , ordered
+  )
+import Competences.Document.Order (Reorder, orderPosition)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
@@ -22,13 +36,14 @@ import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
-import Optics.Core (at, (%), (%~), (&), (.~), (^.), (^?))
+import Optics.Core ((%~), (&), (.~), (^?))
 
 data Model = Model
   { user :: !User
   , translationData :: !C.TranslationData
   , document :: !Document
   , editFields :: !(Map.Map ChangableField M.MisoString)
+  , reorderFrom :: !(C.ReorderModel Competence)
   }
   deriving (Eq, Generic, Show)
 
@@ -41,6 +56,7 @@ data Action
   | -- | The host component must catch those actions and issue the
     -- commands.
     IssueCommand !Command
+  | ReorderAction !(C.ReorderAction Competence)
   deriving (Eq, Generic, Show)
 
 mkModel :: User -> C.TranslationData -> Model
@@ -50,6 +66,7 @@ mkModel user translationData =
     , translationData = translationData
     , document = emptyDocument
     , editFields = Map.empty
+    , reorderFrom = C.initialReorderModel
     }
 
 subscriptions :: SyncDocumentRef -> [M.Sub Action]
@@ -60,9 +77,19 @@ update _ (EditField field value) = M.modify $ #editFields %~ Map.insert field va
 update _ (UpdateDocument (DocumentChange newDocument _)) = do
   M.modify $ \s ->
     s
-    & (#document .~ newDocument)
-    & (#editFields %~ updateEditFields s.user newDocument)
+      & (#document .~ newDocument)
+      & (#editFields %~ updateEditFields s.user newDocument)
+  s <- M.get
+  M.io_ $ M.consoleLog $ M.ms $ show s.document.lockedFields
 update r (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
+update r (ReorderAction a) = do
+  m <- M.get
+  C.liftEffect #reorderFrom ReorderAction (C.updateReorderModel r (mkReorderCommand m) a)
+  where
+    mkReorderCommand :: Model -> CompetenceId -> Reorder Competence -> Maybe Command
+    mkReorderCommand m id' to = do
+      fromPosition <- orderPosition m.document.competences id'
+      pure $ ReorderCompetence fromPosition to
 
 updateEditFields
   :: User -> Document -> Map.Map ChangableField M.MisoString -> Map.Map ChangableField M.MisoString
@@ -80,15 +107,58 @@ view m =
   let title = editable [C.styledClass C.ClsTitle] CompetenceGridTitle m
       description = editable [C.styledClass C.ClsDescription] CompetenceGridDescription m
       competences =
-        M.div_
-          [C.styledClass C.ClsCompetences]
-          []
-   in -- \$ map _ m.document.competences
-      M.div_
+        M.table_
+          [C.styledClass C.ClsCompetenceGridTable]
+          [ M.colgroup_
+              []
+              [ M.col_ [M.colspan_ "1", C.styledClass C.ClsSingleActionColumn]
+              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceDescriptionColumn]
+              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
+              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
+              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
+              , M.col_ [M.colspan_ "1", C.styledClass C.ClsSingleActionColumn]
+              ]
+          , M.thead_
+              []
+              [ M.tr_
+                  []
+                  [ M.th_ [] []
+                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceDescription]
+                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceBasicLevelDescription]
+                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceIntermediateLevelDescription]
+                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceAdvancedLevelDescription]
+                  , M.th_ [] []
+                  ]
+              ]
+          , M.tbody_ [] $ map (viewCompetence m) (ordered m.document.competences)
+          ]
+   in M.div_
         []
         [ title
         , description
         , competences
+        ]
+
+viewCompetence :: Model -> Competence -> M.View Action
+viewCompetence m c =
+  let description = editable [] (CompetenceDescription c.id) m
+      basicLevel = editable [] (CompetenceLevelDescription (c.id, BasicLevel)) m
+      intermediateLevel = editable [] (CompetenceLevelDescription (c.id, IntermediateLevel)) m
+      advancedLevel = editable [] (CompetenceLevelDescription (c.id, AdvancedLevel)) m
+      deleteButton =
+        C.iconButton
+          [M.onClick $ IssueCommand (RemoveCompetence c.id)]
+          C.IcnDelete
+          (C.translate m C.LblDelete)
+      reorderItemView = ReorderAction <$> C.viewReorderItem m.reorderFrom c
+   in M.tr_
+        []
+        [ M.td_ [] [reorderItemView]
+        , M.td_ [] [description]
+        , M.td_ [] [basicLevel]
+        , M.td_ [] [intermediateLevel]
+        , M.td_ [] [advancedLevel]
+        , M.td_ [] [deleteButton]
         ]
 
 editable :: [M.Attribute Action] -> ChangableField -> Model -> M.View Action

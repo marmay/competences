@@ -1,10 +1,20 @@
 module Main (main) where
 
+import Competences.Document.Id (mkId, nilId)
+import Competences.Document.User (User (..), UserId, UserRole (..))
 import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.App.State (mkState)
 import Competences.Frontend.Common.Translate (loadTranslations)
-import Competences.Document.Id (mkId, nilId)
-import Competences.Document.User (User (..), UserId, UserRole (..))
+import Competences.Frontend.SyncDocument
+  ( SyncDocument (..)
+  , SyncDocumentRef
+  , mkSyncDocument
+  , mkSyncDocument'
+  , readSyncDocument
+  )
+import Control.Exception (bracket)
+import Data.Aeson (eitherDecode, encode)
+import Data.ByteString.Lazy qualified as B
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
@@ -15,6 +25,8 @@ data Options = Options
   { port :: !Int
   , jwtToken :: !Text
   , translationsPath :: !FilePath
+  , inputDocumentPath :: !(Maybe FilePath)
+  , outputDocumentPath :: !(Maybe FilePath)
   , userId :: !UserId
   , userName :: !Text
   , userRole :: !UserRole
@@ -48,6 +60,22 @@ options =
           <> showDefault
           <> value "res/translations-de.json"
           <> metavar "PATH"
+      )
+    <*> optional
+      ( strOption
+          ( long "input-document"
+              <> short 'i'
+              <> help "Path to the document file"
+              <> metavar "INPUT_PATH"
+          )
+      )
+    <*> optional
+      ( strOption
+          ( long "output-document"
+              <> short 'o'
+              <> help "Path to the document file"
+              <> metavar "OUTPUT_PATH"
+          )
       )
     <*> option
       (maybeReader $ mkId . T.pack)
@@ -89,10 +117,27 @@ main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
   translationData <- loadTranslations opt.translationsPath
-  run opt.port $ do
-    app <- mkApp $ mkState
-          (User opt.userId opt.userName opt.userRole)
-          (encodeUtf8 opt.jwtToken)
-          translationData
-          opt.randomSeed
-    runApp $ app
+  bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
+    run opt.port $ do
+      app <-
+        mkApp document $
+          mkState
+            (User opt.userId opt.userName opt.userRole)
+            (encodeUtf8 opt.jwtToken)
+            translationData
+            opt.randomSeed
+      runApp $ app
+
+readDocument :: Maybe FilePath -> IO SyncDocumentRef
+readDocument (Just p) = do
+  f <- B.readFile p
+  case eitherDecode f of
+    Left err -> error $ "Could not read file " <> p <> ": " <> err
+    Right d -> mkSyncDocument' d
+readDocument Nothing = mkSyncDocument
+
+writeDocument :: Maybe FilePath -> SyncDocumentRef -> IO ()
+writeDocument (Just p) r = do
+  local <- (.localDocument) <$> readSyncDocument r
+  B.writeFile p $ encode local
+writeDocument Nothing _ = pure ()

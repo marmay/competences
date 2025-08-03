@@ -16,12 +16,20 @@ import Miso.String qualified as M
 import Miso.Style qualified as M
 
 data ClassName
-  = ClsApp
-  | ClsButton
-  | ClsFontTitle
-  | ClsFontSubTitle
+  = -- | Container for the entire app
+    ClsApp
+  | -- | Base class for all kinds of buttons
+    ClsButton
+  | -- | Face, size and weight of title fonts
+    ClsFontTitle
+  | -- | Face, size and weight of subtitle fonts
+    ClsFontSubTitle
+  | -- | Face, size and weight of regular text
+    ClsFontRegular
+  | ClsFontStyleHighlighted
   | ClsFontStylePlaceholder
-  | ClsModal
+  | -- | Container for modal dialogs
+    ClsModal
   | ClsCompetences
   | ClsCompetenceDescription
   | ClsDescription
@@ -29,9 +37,15 @@ data ClassName
   | ClsEditableContent
   | ClsEditableButtons
   | ClsNewCompetenceRow
-  | ClsIcon
+  | -- | Base class for all icons
+    ClsIcon
   | ClsLabelButton
   | ClsTitle
+  | ClsCompetenceGridTable
+  | ClsSingleActionColumn
+  | ClsCompetenceDescriptionColumn
+  | ClsCompetenceLevelDescriptionColumn
+  | ClsFill
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 data MetaClass
@@ -107,5 +121,39 @@ styleSheet =
         , M.width "100%"
         , M.height "100%"
         , M.backgroundColor $ M.rgba 0 0 0 0.5
+        ]
+    , M.selector_
+        (classSelector ClsCompetenceGridTable)
+        [ M.width "100%"
+        , ("table-layout", "fixed")
+        , ("border-collapse", "collapse")
+        , M.borderWidth "1px"
+        , M.borderStyle "solid"
+        ]
+    , M.selector_
+        ( classSelector ClsCompetenceGridTable
+            <> " td, "
+            <> classSelector ClsCompetenceGridTable
+            <> " tr, "
+            <> classSelector ClsCompetenceGridTable
+            <> " th"
+        )
+        [ M.borderStyle "solid"
+        , M.borderWidth (M.px 1)
+        , M.height (M.px 1)
+        ]
+    , M.selector_
+        (classSelector ClsSingleActionColumn)
+        [M.width "24px"]
+    , M.selector_
+        (classSelector ClsCompetenceDescriptionColumn)
+        [M.width "34%"]
+    , M.selector_
+        (classSelector ClsCompetenceLevelDescriptionColumn)
+        [M.width "22%"]
+    , M.selector_
+        (classSelector ClsFill)
+        [ M.width (M.pct 100)
+        , M.height (M.pct 100)
         ]
     ]

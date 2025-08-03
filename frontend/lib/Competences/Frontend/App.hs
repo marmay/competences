@@ -4,6 +4,7 @@ module Competences.Frontend.App
   )
 where
 
+import Competences.Document (Document)
 import Competences.Frontend.App.Action (Action (..), UiAction (..))
 import Competences.Frontend.App.RegisteredComponent (RegisteredComponent (..))
 import Competences.Frontend.App.RegisteredComponentRegistrations (mkRegisteredComponent)
@@ -15,7 +16,7 @@ import Competences.Frontend.App.State
 import Competences.Frontend.App.Topics (changeUiTopic)
 import Competences.Frontend.Common (iconDefs)
 import Competences.Frontend.Common.Style (ClassName (..), styleSheet, styledClass)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, mkSyncDocument)
+import Competences.Frontend.SyncDocument (SyncDocumentRef, mkSyncDocument', issueInitialUpdate)
 import Language.Javascript.JSaddle (JSM)
 import Miso
   ( CSS (..)
@@ -32,7 +33,7 @@ import Miso
   , modify
   , startComponent
   , subscribe
-  , text
+  , text, onMounted
   )
 import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
@@ -44,13 +45,12 @@ type App = Component State Action
 runApp :: Component State Action -> JSM ()
 runApp = startComponent
 
-mkApp :: State -> JSM App
-mkApp initialState = do
-  r <- mkSyncDocument
+mkApp :: SyncDocumentRef -> State -> JSM App
+mkApp r initialState = do
   pure $
     Component
       { model = initialState
-      , update = updateState
+      , update = updateState r
       , view = viewState r
       , subs = []
       , styles = [Sheet styleSheet]
@@ -62,17 +62,18 @@ mkApp initialState = do
       , logLevel = Off
       }
 
-updateState :: Action -> Effect State Action
-updateState Initialize = do
+updateState :: SyncDocumentRef -> Action -> Effect State Action
+updateState _ Initialize = do
   subscribe changeUiTopic ChangeUi LogError
   issue $ ChangeUi $ SetMain MainGrid
-updateState (ChangeUi (PushModal c)) = withUiKey $ \(s, k, g) ->
+updateState _ (ChangeUi (PushModal c)) = withUiKey $ \(s, k, g) ->
   s & (#uiState % #modal) %~ ((k, c, g) :)
-updateState (ChangeUi PopModal) = modify $ \s ->
+updateState _ (ChangeUi PopModal) = modify $ \s ->
   s & (#uiState % #modal %~ drop 1)
-updateState (ChangeUi (SetMain c)) = withUiKey $ \(s, k, g) ->
+updateState _ (ChangeUi (SetMain c)) = withUiKey $ \(s, k, g) ->
   s & (#uiState % #main .~ Just (k, c, g))
-updateState (LogError msg) = io_ $ consoleLog msg
+updateState _ (LogError msg) = io_ $ consoleLog msg
+updateState r Mounted = io_ $ issueInitialUpdate r
 
 withUiKey :: ((State, MisoString, StdGen) -> State) -> Effect State Action
 withUiKey f = modify $ \s ->
@@ -89,5 +90,5 @@ viewState r s =
         Nothing -> div_ [] [text "Initialize"]
         Just (k, c, g) ->
           let c' = mkRegisteredComponent r s g c
-           in div_ [styledClass ClsApp] [VComp HTML "div" [key_ k] c']
+           in div_ [styledClass ClsApp, onMounted Mounted] [VComp HTML "div" [key_ k] c']
     ]
