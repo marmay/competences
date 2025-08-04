@@ -29,10 +29,10 @@ data Icon
   | IcnReorder
   deriving (Bounded, Eq, Enum, Ord, Show)
 
-iconDefs :: View a
+iconDefs :: View m a
 iconDefs = svg_ [width_ "0", height_ "0"] [defs_ [] (map iconDefOf [minBound .. maxBound])]
 
-icon :: Icon -> View a
+icon :: Icon -> View m a
 icon icn =
   svg_
     [styledClass ClsIcon, fill_ "none", viewBox_ "0 0 24 24", width_ "24", height_ "24"]
@@ -51,10 +51,10 @@ iconId = \case
   IcnDoubleArrowDown -> "icon-arrow-down-double"
   IcnReorder -> "icon-reorder"
 
-iconDefOf :: Icon -> View a
+iconDefOf :: Icon -> View m a
 iconDefOf icn = symbol_ [id_ $ iconId icn, viewBox_ "0 0 24 24"] (iconDefOf' icn)
 
-iconDefOf' :: Icon -> [View a]
+iconDefOf' :: Icon -> [View m a]
 iconDefOf' = \case
   IcnEdit ->
     [ path_

@@ -43,7 +43,7 @@ updateReorderModel
   :: SyncDocumentRef
   -> MkReorderCommand a
   -> ReorderAction a
-  -> (M.Effect (ReorderModel a) (ReorderAction a))
+  -> M.Effect p (ReorderModel a) (ReorderAction a)
 updateReorderModel _ _ (ReorderFrom id') =
   M.modify $ #reorderFrom .~ Just id'
 updateReorderModel _ _ CancelReorder =
@@ -56,8 +56,8 @@ updateReorderModel r f (ReorderBefore id') = issueReorderCommand r f (Before id'
 updateReorderModel r f (ReorderAfter id') = issueReorderCommand r f (After id')
 
 issueReorderCommand
-  :: forall a
-   . SyncDocumentRef -> MkReorderCommand a -> Reorder a -> M.Effect (ReorderModel a) (ReorderAction a)
+  :: forall a p
+   . SyncDocumentRef -> MkReorderCommand a -> Reorder a -> M.Effect p (ReorderModel a) (ReorderAction a)
 issueReorderCommand r f to = do
   (fmap mkChangeOrderCommand M.get)
     >>= ( mapM_ $ \c -> do
@@ -70,7 +70,7 @@ issueReorderCommand r f to = do
       from <- m.reorderFrom
       f from to
 
-viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View (ReorderAction a)
+viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
 viewReorderItem m item =
   case m.reorderFrom of
     Nothing -> moveButton

@@ -72,7 +72,7 @@ mkModel user translationData =
 subscriptions :: SyncDocumentRef -> [M.Sub Action]
 subscriptions r = [subscribeDocument r UpdateDocument]
 
-update :: SyncDocumentRef -> Action -> M.Effect Model Action
+update :: SyncDocumentRef -> Action -> M.Effect p Model Action
 update _ (EditField field value) = M.modify $ #editFields %~ Map.insert field value
 update _ (UpdateDocument (DocumentChange newDocument _)) = do
   M.modify $ \s ->
@@ -102,7 +102,7 @@ mkEditFields u d =
     & map (\(field, _) -> (field, ""))
     & Map.fromList
 
-view :: Model -> M.View Action
+view :: Model -> M.View m Action
 view m =
   let title = editable [C.styledClass C.ClsTitle] CompetenceGridTitle m
       description = editable [C.styledClass C.ClsDescription] CompetenceGridDescription m
@@ -139,7 +139,7 @@ view m =
         , competences
         ]
 
-viewCompetence :: Model -> Competence -> M.View Action
+viewCompetence :: Model -> Competence -> M.View m Action
 viewCompetence m c =
   let description = editable [] (CompetenceDescription c.id) m
       basicLevel = editable [] (CompetenceLevelDescription (c.id, BasicLevel)) m
@@ -161,9 +161,9 @@ viewCompetence m c =
         , M.td_ [] [deleteButton]
         ]
 
-editable :: [M.Attribute Action] -> ChangableField -> Model -> M.View Action
+editable :: [M.Attribute Action] -> ChangableField -> Model -> M.View m Action
 editable attrs f m =
-  let render :: M.View Action -> [M.View Action] -> M.View Action
+  let render :: M.View m Action -> [M.View m Action] -> M.View m Action
       render content buttons =
         M.div_
           (C.styledClass C.ClsEditableContainer : attrs)

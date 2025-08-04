@@ -10,5 +10,5 @@ import Miso (Effect, Topic, topic, publish)
 changeUiTopic :: Topic UiAction
 changeUiTopic = topic "changeUiTopic"
 
-uiAction :: UiAction -> Effect m a
+uiAction :: UiAction -> Effect p m a
 uiAction = publish changeUiTopic

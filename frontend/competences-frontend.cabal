@@ -10,7 +10,7 @@ extra-doc-files:    CHANGELOG.md
 
 flag wasm
      description: Build for WASM
-        default:     False
+     default:     False
 
 common warnings
     ghc-options: -Wall

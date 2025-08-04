@@ -46,6 +46,10 @@ data ClassName
   | ClsCompetenceDescriptionColumn
   | ClsCompetenceLevelDescriptionColumn
   | ClsFill
+  | ClsModal60
+  | ClsFormRow
+  | ClsFormItem
+  | ClsButtonRow
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 data MetaClass
@@ -111,6 +115,7 @@ styleSheet =
         [ M.fontSize "24px"
         , M.fontWeight "bold"
         , M.textAlign "center"
+        , M.margin (M.px 10)
         ]
     , M.selector_
         (classSelector ClsModal)
@@ -120,6 +125,9 @@ styleSheet =
         , M.top "0px"
         , M.width "100%"
         , M.height "100%"
+        , M.display "flex"
+        , M.justifyContent "center"
+        , M.alignItems "center"
         , M.backgroundColor $ M.rgba 0 0 0 0.5
         ]
     , M.selector_
@@ -155,5 +163,48 @@ styleSheet =
         (classSelector ClsFill)
         [ M.width (M.pct 100)
         , M.height (M.pct 100)
+        ]
+    , M.selector_
+        (classSelector ClsModal60)
+        [ M.width (M.pct 60)
+        , M.backgroundColor M.white
+        ]
+    , M.selector_
+        (classSelector ClsFormRow)
+        [ M.width (M.pct 80)
+        , M.paddingTop (M.px 5)
+        , M.paddingBottom (M.px 5)
+        ]
+    , M.selector_
+        (classSelector ClsFormItem)
+        [ M.width (M.pct 100)
+        , M.display "flex"
+        , M.flexDirection "row"
+        , M.textAlign "center"
+        ]
+    , M.selector_
+        (classSelector ClsFormItem <> " span")
+        [ M.display "inline-block"
+        , M.width (M.pct 40)
+        , M.minWidth (M.px 120)
+        , M.paddingRight (M.px 10)
+        , M.textAlign "right"
+        ]
+    , M.selector_
+        (classSelector ClsFormItem <> " textarea")
+        [ M.display "inline-block"
+        , M.flexGrow "1"
+        , M.minHeight (M.px 100)
+        ]
+    , M.selector_
+        (classSelector ClsButtonRow)
+        [ M.display "flex"
+        , M.flexDirection "row"
+        , M.justifyContent "center"
+        , M.width (M.pct 100)
+        ]
+    , M.selector_
+        (classSelector ClsButtonRow <> " button")
+        [ M.margin (M.px 10)
         ]
     ]
