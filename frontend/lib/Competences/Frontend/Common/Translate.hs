@@ -50,6 +50,10 @@ data Label
   | LblApplyChange
   | LblCancelChange
   | LblMove
+  | LblInsertBefore
+  | LblInsertAfter
+  | LblInsertAtTop
+  | LblInsertAtBottom
   | LblCompetenceDescription
   | LblCompetenceBasicLevelDescription
   | LblCompetenceIntermediateLevelDescription
@@ -65,6 +69,10 @@ defaultTranslations =
   , (LblApplyChange, "Übernehmen")
   , (LblCancelChange, "Abbrechen")
   , (LblMove, "Verschieben")
+  , (LblInsertBefore, "Davor einfügen")
+  , (LblInsertAfter, "Danach einfügen")
+  , (LblInsertAtTop, "Am Anfang einfügen")
+  , (LblInsertAtBottom, "Am Ende einfügen")
   , (LblCompetenceDescription, "Beschreibung")
   , (LblCompetenceBasicLevelDescription, "Wesentlich")
   , (LblCompetenceIntermediateLevelDescription, "Mittelstufe")

@@ -22,6 +22,11 @@ data Icon
   | IcnAdd
   | IcnApply
   | IcnCancel
+  | IcnArrowUp
+  | IcnArrowDown
+  | IcnDoubleArrowUp
+  | IcnDoubleArrowDown
+  | IcnReorder
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View a
@@ -40,6 +45,11 @@ iconId = \case
   IcnAdd -> "icon-plus"
   IcnApply -> "icon-check"
   IcnCancel -> "icon-x"
+  IcnArrowUp -> "icon-arrow-up"
+  IcnArrowDown -> "icon-arrow-down"
+  IcnDoubleArrowUp -> "icon-arrow-up-double"
+  IcnDoubleArrowDown -> "icon-arrow-down-double"
+  IcnReorder -> "icon-reorder"
 
 iconDefOf :: Icon -> View a
 iconDefOf icn = symbol_ [id_ $ iconId icn, viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -142,6 +152,80 @@ iconDefOf' = \case
         , stroke_ "#1C274C"
         , strokeWidth_ "1.5"
         , strokeLinecap_ "round"
+        ]
+        []
+    ]
+  IcnArrowUp ->
+    [ path_
+        [ d_ "M19 15L12 9L5 15"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    ]
+  IcnArrowDown ->
+    [ path_
+        [ d_ "M19 9L12 15L5 9"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    ]
+  IcnDoubleArrowUp ->
+    [ path_
+        [ d_ "M19 13L12 7L5 13"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    , path_
+        [ d_ "M19 17L12 11L5 17"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    ]
+  IcnDoubleArrowDown ->
+    [ path_
+        [ d_ "M19 11L12 17L5 11"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    , path_
+        [ d_ "M19 7L12 13L5 7"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    ]
+  IcnReorder ->
+    [ path_
+        [ d_ "M16 18L16 6M16 6L20 10.125M16 6L12 10.125"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
+        ]
+        []
+    , path_
+        [ d_ "M8 6L8 18M8 18L12 13.875M8 18L4 13.875"
+        , stroke_ "#1C274C"
+        , strokeWidth_ "1.5"
+        , strokeLinecap_ "round"
+        , strokeLinejoin_ "round"
         ]
         []
     ]

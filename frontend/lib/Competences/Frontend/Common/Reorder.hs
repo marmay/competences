@@ -6,8 +6,6 @@ module Competences.Frontend.Common.Reorder
   , ReorderAction
   , updateReorderModel
   , viewReorderItem
-  -- , viewReorderableTop
-  -- , viewReorderableBottom
   )
 where
 
