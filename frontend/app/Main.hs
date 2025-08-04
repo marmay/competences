@@ -1,8 +1,43 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
+
+import Competences.Frontend.App (mkApp, runApp)
+
+#ifdef WASM
+
+import Competences.Frontend.App (run)
+import Competences.Frontend.SyncDocument
+  ( SyncDocument (..)
+  , SyncDocumentRef
+  , mkSyncDocument
+  , mkSyncDocument'
+  , readSyncDocument
+  )
+import Competences.Frontend.App.State (mkState)
+import Competences.Frontend.Common.Translate (defaultTranslationData)
+import Competences.Document (User(..))
+import Competences.Document.Id (nilId)
+import Competences.Document.User (UserRole(..))
+
+main :: IO ()
+main = do
+  document <- mkSyncDocument
+  run $ do
+    app <- mkApp document $
+      mkState
+        (User nilId "Test User" Teacher)
+        ("")
+        defaultTranslationData
+        42
+    runApp app
+
+foreign export javascript "hs_start" main :: IO ()
+
+#else
 
 import Competences.Document.Id (mkId, nilId)
 import Competences.Document.User (User (..), UserId, UserRole (..))
-import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.App.State (mkState)
 import Competences.Frontend.Common.Translate (loadTranslations)
 import Competences.Frontend.SyncDocument
@@ -18,6 +53,7 @@ import Data.ByteString.Lazy qualified as B
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
+
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
 
@@ -126,7 +162,7 @@ main = do
             (encodeUtf8 opt.jwtToken)
             translationData
             opt.randomSeed
-      runApp $ app
+      runApp app
 
 readDocument :: Maybe FilePath -> IO SyncDocumentRef
 readDocument (Just p) = do
@@ -141,3 +177,4 @@ writeDocument (Just p) r = do
   local <- (.localDocument) <$> readSyncDocument r
   B.writeFile p $ encode local
 writeDocument Nothing _ = pure ()
+#endif

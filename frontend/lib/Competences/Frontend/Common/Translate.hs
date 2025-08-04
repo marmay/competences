@@ -9,6 +9,7 @@ module Competences.Frontend.Common.Translate
   , translate
   , translate'
   , trim
+  , defaultTranslationData
   )
 where
 
@@ -62,7 +63,7 @@ data Label
   | LblAddNewCompetence
   deriving (Bounded, Eq, Enum, Ord, Show)
 
-defaultTranslations :: [(Label, Text)]
+defaultTranslations :: [(Label, MisoString)]
 defaultTranslations =
   [ (LblEdit, "Bearbeiten")
   , (LblDelete, "Löschen")
@@ -90,12 +91,12 @@ defaultTranslationData =
     M.fromList $
       map (\l -> (labelOf l, defaultTranslation l)) [minBound .. maxBound]
   where
-    defaultTranslationsMap :: M.Map Label Text
-    defaultTranslationsMap = Map.fromList $ defaultTranslations
-    defaultTranslation :: Label -> Text
+    defaultTranslationsMap :: M.Map Label MisoString
+    defaultTranslationsMap = Map.fromList defaultTranslations
+    defaultTranslation :: Label -> MisoString
     defaultTranslation l = ms $ fromMaybe (missingStringOf l) $ Map.lookup l defaultTranslationsMap
-    missingStringOf :: Label -> Text
-    missingStringOf l = "MISSING: " <> decodeUtf8 (labelOf l)
+    missingStringOf :: Label -> MisoString
+    missingStringOf l = ms $ "MISSING: " <> decodeUtf8 (labelOf l)
 
 labelStrings :: S.Set ByteString
 labelStrings = S.fromList $ map labelOf [minBound .. maxBound]
@@ -138,6 +139,6 @@ saveTranslations p t = writeFile p (encode t)
 
 data DefaultTranslation = DefaultTranslation
   { label :: !Label
-  , translation :: !Text
+  , translation :: !MisoString
   }
   deriving (Eq, Show)

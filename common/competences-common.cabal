@@ -21,7 +21,6 @@ library
         OverloadedRecordDot,
         OverloadedStrings
     exposed-modules:
-        Competences.API.CourseList
         Competences.Command
         Competences.Command.ChangeField
         Competences.Command.Common
@@ -44,11 +43,9 @@ library
         containers,
         cryptohash-sha1,
         extra,
-        generics-sop,
         ixset-typed,
         optics-core,
         random,
-        servant,
         text,
         time,
         uuid-types

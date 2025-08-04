@@ -12,8 +12,8 @@ module Competences.Frontend.Common.Icon
 where
 
 import Competences.Frontend.Common.Style
-import Data.Text (Text)
 import Miso (View, href_)
+import Miso.String (MisoString)
 import Miso.Svg
 
 data Icon
@@ -38,7 +38,7 @@ icon icn =
     [styledClass ClsIcon, fill_ "none", viewBox_ "0 0 24 24", width_ "24", height_ "24"]
     [use_ [href_ $ "#" <> iconId icn] []]
 
-iconId :: Icon -> Text
+iconId :: Icon -> MisoString
 iconId = \case
   IcnEdit -> "icon-pen"
   IcnDelete -> "icon-trash"

@@ -1,10 +1,10 @@
 module Competences.Frontend.App
   ( runApp
   , mkApp
+  , run
   )
 where
 
-import Competences.Document (Document)
 import Competences.Frontend.App.Action (Action (..), UiAction (..))
 import Competences.Frontend.App.RegisteredComponent (RegisteredComponent (..))
 import Competences.Frontend.App.RegisteredComponentRegistrations (mkRegisteredComponent)
@@ -16,7 +16,7 @@ import Competences.Frontend.App.State
 import Competences.Frontend.App.Topics (changeUiTopic)
 import Competences.Frontend.Common (iconDefs)
 import Competences.Frontend.Common.Style (ClassName (..), styleSheet, styledClass)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, mkSyncDocument', issueInitialUpdate)
+import Competences.Frontend.SyncDocument (SyncDocumentRef, issueInitialUpdate, mkSyncDocument')
 import Language.Javascript.JSaddle (JSM)
 import Miso
   ( CSS (..)
@@ -31,9 +31,11 @@ import Miso
   , issue
   , key_
   , modify
+  , onMounted
+  , run
   , startComponent
   , subscribe
-  , text, onMounted
+  , text
   )
 import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
