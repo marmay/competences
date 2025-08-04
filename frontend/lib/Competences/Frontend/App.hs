@@ -35,16 +35,16 @@ import Miso
   , run
   , startComponent
   , subscribe
-  , text
+  , text, ROOT
   )
 import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
 import Optics.Core ((%), (%~), (&), (.~), (^.))
 import System.Random (StdGen, splitGen)
 
-type App = Component State Action
+type App = Component ROOT State Action
 
-runApp :: Component State Action -> JSM ()
+runApp :: Component ROOT State Action -> JSM ()
 runApp = startComponent
 
 mkApp :: SyncDocumentRef -> State -> JSM App
@@ -64,7 +64,7 @@ mkApp r initialState = do
       , logLevel = Off
       }
 
-updateState :: SyncDocumentRef -> Action -> Effect State Action
+updateState :: SyncDocumentRef -> Action -> Effect p State Action
 updateState _ Initialize = do
   subscribe changeUiTopic ChangeUi LogError
   issue $ ChangeUi $ SetMain MainGrid
@@ -77,13 +77,13 @@ updateState _ (ChangeUi (SetMain c)) = withUiKey $ \(s, k, g) ->
 updateState _ (LogError msg) = io_ $ consoleLog msg
 updateState r Mounted = io_ $ issueInitialUpdate r
 
-withUiKey :: ((State, MisoString, StdGen) -> State) -> Effect State Action
+withUiKey :: ((State, MisoString, StdGen) -> State) -> Effect p State Action
 withUiKey f = modify $ \s ->
   let key = ms $ "dynamic-component-" <> show (s ^. #uiState % #nextKeyIn)
       (g, g') = splitGen $ s ^. #sessionState % #random
    in f (s & (#uiState % #nextKeyIn %~ (+ 1)) & (#sessionState % #random .~ g), key, g')
 
-viewState :: SyncDocumentRef -> State -> View Action
+viewState :: SyncDocumentRef -> State -> View m Action
 viewState r s =
   div_
     []

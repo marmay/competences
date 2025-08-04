@@ -8,7 +8,7 @@ where
 import Miso qualified as M
 import Optics.Core (Lens', (&), (.~), (^.))
 
-liftEffect :: forall m m' a a'. Lens' m m' -> (a' -> a) -> M.Effect m' a' -> M.Effect m a
+liftEffect :: forall m m' a a' p. Lens' m m' -> (a' -> a) -> M.Effect p m' a' -> M.Effect p m a
 liftEffect lModel liftAction e = do
   domRef <- M.ask
   m <- M.get
@@ -17,7 +17,7 @@ liftEffect lModel liftAction e = do
   M.tell $ map (liftSub liftAction) a'
   pure ()
 
-liftEffect' :: forall m m' a a'. Lens' m (Maybe m') -> (a' -> a) -> M.Effect m' a' -> M.Effect m a
+liftEffect' :: forall m m' a a' p. Lens' m (Maybe m') -> (a' -> a) -> M.Effect p m' a' -> M.Effect p m a
 liftEffect' lModel liftAction e = do
   domRef <- M.ask
   m <- M.get

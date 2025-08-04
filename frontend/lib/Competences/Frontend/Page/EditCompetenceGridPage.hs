@@ -22,13 +22,13 @@ import Optics.Core ((&), (.~))
 import System.Random (StdGen)
 
 editCompetenceGridPage
-  :: SyncDocumentRef -> StdGen -> User -> C.TranslationData -> M.Component Model Action
+  :: SyncDocumentRef -> StdGen -> User -> C.TranslationData -> M.Component p Model Action
 editCompetenceGridPage r g u td =
   (M.component model (update r) view)
     { M.subs =
         map (C.liftSub CompetenceGridEditorAction) (CGE.subscriptions r)
           <> [subscribeDocument r UpdateDocument]
-    , M.events = M.defaultEvents <> M.dragEvents
+    , M.events = M.defaultEvents <> M.keyboardEvents
     }
   where
     model =
@@ -56,7 +56,7 @@ data Action
   | UpdateDocument !DocumentChange
   deriving (Eq, Generic, Show)
 
-view :: Model -> M.View Action
+view :: forall m. Model -> M.View m Action
 view m =
   M.div_
     []
@@ -68,14 +68,14 @@ view m =
     , NewCompetenceEditorAction <$> C.maybeModal m.newCompetenceEditor CE.view
     ]
 
-update :: SyncDocumentRef -> Action -> M.Effect Model Action
+update :: SyncDocumentRef -> Action -> M.Effect p Model Action
 update r (CompetenceGridEditorAction a) = C.liftEffect #competenceGridEditor CompetenceGridEditorAction (CGE.update r a)
 update r (NewCompetenceEditorAction e@CE.CompleteEditing) = do
   C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
-  M.modify $ #newCompetenceEditor.~ Nothing
+  M.modify $ #newCompetenceEditor .~ Nothing
 update r (NewCompetenceEditorAction e@CE.CancelEditing) = do
   C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
-  M.modify $ #newCompetenceEditor.~ Nothing
+  M.modify $ #newCompetenceEditor .~ Nothing
 update r (NewCompetenceEditorAction a) = C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r a)
 update _ SpawnNewCompetenceEditor = do
   competenceId <- C.random'

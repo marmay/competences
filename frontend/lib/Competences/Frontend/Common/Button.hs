@@ -10,10 +10,10 @@ import Miso (Attribute, View, text)
 import Miso.Html (button_, title_)
 import Miso.String (MisoString)
 
-iconButton :: [Attribute action] -> Icon -> MisoString -> View action
+iconButton :: [Attribute action] -> Icon -> MisoString -> View m action
 iconButton attrs iconId label =
   button_ (styledClass ClsButton : title_ label : attrs) [icon iconId]
 
-iconLabelButton :: [Attribute action] -> Icon -> MisoString -> View action
+iconLabelButton :: [Attribute action] -> Icon -> MisoString -> View m action
 iconLabelButton attrs iconId label =
   button_ (styledClass ClsLabelButton : attrs) [icon iconId, text label]

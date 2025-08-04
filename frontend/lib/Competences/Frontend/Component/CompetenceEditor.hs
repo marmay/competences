@@ -15,12 +15,14 @@ import Competences.Frontend.Common
   , iconLabelButton
   , translate
   )
+import Competences.Frontend.Common.Style qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
-import Optics.Core (Lens', at, non, (%), (.~), (^.))
+import Optics.Core (Lens', at, (%), (.~), (^.))
+import System.IO.Unsafe (unsafePerformIO)
 
 data Model = Model
   { competence :: !Competence
@@ -37,9 +39,10 @@ data Action
   | CancelEditing
   deriving (Eq, Show, Generic)
 
-update :: SyncDocumentRef -> Action -> M.Effect Model Action
-update _ (ChangeDescription s) =
-  M.modify (descriptionLens .~ M.fromMisoString s)
+update :: SyncDocumentRef -> Action -> M.Effect p Model Action
+update _ (ChangeDescription s) = do
+  let x = unsafePerformIO $ putStrLn ("ChangeDescription" <> show s)
+  M.modify (x `seq` descriptionLens .~ M.fromMisoString s)
 update _ (ChangeBasicLevelDescription s) =
   M.modify (basicLevelDescriptionLens .~ toMaybe s)
 update _ (ChangeIntermediateLevelDescription s) =
@@ -51,38 +54,36 @@ update r CompleteEditing = do
   M.io_ $ modifySyncDocument r $ AddCompetence c
 update _ _ = pure ()
 
-view :: Model -> M.View Action
+view :: Model -> M.View m Action
 view m =
-  let title = M.text $ translate m LblEditCompetence
-      descriptionField = textField LblCompetenceDescription m descriptionLens ChangeDescription
+  let title = M.div_ [C.styledClass C.ClsTitle] [M.text $ translate m LblEditCompetence]
+      descriptionField =
+        textField (translate m LblCompetenceDescription) ChangeDescription (Just m.competence.description)
       basicLevelDescriptionField =
         textField
-          LblCompetenceBasicLevelDescription
-          m
-          (toMaybe' basicLevelDescriptionLens)
+          (translate m LblCompetenceBasicLevelDescription)
           ChangeBasicLevelDescription
+          (m.competence.levelDescriptions ^. at BasicLevel)
       intermediateLevelDescriptionField =
         textField
-          LblCompetenceIntermediateLevelDescription
-          m
-          (toMaybe' intermediateLevelDescriptionLens)
+          (translate m LblCompetenceIntermediateLevelDescription)
           ChangeIntermediateLevelDescription
+          (m.competence.levelDescriptions ^. at IntermediateLevel)
       advancedLevelDescriptionField =
         textField
-          LblCompetenceAdvancedLevelDescription
-          m
-          (toMaybe' advancedLevelDescriptionLens)
+          (translate m LblCompetenceAdvancedLevelDescription)
           ChangeAdvancedLevelDescription
+          (m.competence.levelDescriptions ^. at AdvancedLevel)
       applyButton = iconLabelButton [M.onClick CompleteEditing] IcnApply (translate m LblApplyChange)
       cancelButton = iconLabelButton [M.onClick CancelEditing] IcnCancel (translate m LblCancelChange)
       buttons =
         M.div_
-          []
+          [ C.styledClass C.ClsButtonRow ]
           [ applyButton
           , cancelButton
           ]
    in M.div_
-        []
+        [C.styledClass C.ClsModal60]
         [ title
         , descriptionField
         , basicLevelDescriptionField
@@ -91,20 +92,20 @@ view m =
         , buttons
         ]
 
-textField :: Label -> Model -> Lens' Model Text -> (M.MisoString -> Action) -> M.View Action
-textField lbl m l a =
-  M.label_
-    []
-    [ M.text $ M.toMisoString $ translate m lbl
-    , M.input_ [M.onInput a, M.value_ (M.toMisoString $ m ^. l)]
+textField :: M.MisoString -> (M.MisoString -> Action) -> Maybe Text -> M.View m Action
+textField lbl a v =
+  M.div_
+    [C.styledClass C.ClsFormRow]
+    [ M.label_
+        [C.styledClass C.ClsFormItem]
+        [ M.span_ [] [M.text lbl]
+        , M.textarea_ [M.onInput a, M.value_ (maybe "" M.ms v)] []
+        ]
     ]
 
 toMaybe :: (M.FromMisoString a) => M.MisoString -> Maybe a
 toMaybe "" = Nothing
 toMaybe s = Just $ M.fromMisoString s
-
-toMaybe' :: Lens' Model (Maybe Text) -> Lens' Model Text
-toMaybe' l = l % non ""
 
 descriptionLens :: Lens' Model Text
 descriptionLens = #competence % #description

@@ -3,7 +3,8 @@
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  outputs = { self, nixpkgs, flake-utils, haskellNix }:
+  inputs.ghc-wasm-meta.url = "gitlab:haskell-wasm/ghc-wasm-meta?host=gitlab.haskell.org";
+  outputs = { self, nixpkgs, flake-utils, haskellNix, ghc-wasm-meta }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -21,13 +22,24 @@
                 src = ./.;
                 # uncomment with your current system for `nix flake show` to work:
                 #evalSystem = "x86_64-linux";
-              };
+              } //
+	      { shell.buildInputs = [ ghc-wasm-meta.packages.${system}.all_9_12 ]; };
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
         flake = pkgs.hixProject.flake {};
       in flake // {
         legacyPackages = pkgs;
+      } // {
+        wasmShell = pkgs.mkShell {
+          name = "The miso ${system} GHC WASM 9.12.2 shell";
+          packages = [
+            ghc-wasm-meta.packages.${system}.all_9_12
+            pkgs.gnumake
+            pkgs.http-server
+            pkgs.cabal-install
+          ];
+	};
       });
 
   # --- Flake Local Nix Configuration ----------------------------
