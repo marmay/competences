@@ -2,16 +2,16 @@ module Competences.Document.Assessment
   ( Assessment (..)
   , AssessmentType (..)
   , Verdict (..)
+  , AssessmentId
   , fromEvidences
   )
 where
 
 import Competences.Document.Evidence (Evidence)
+import Competences.Document.Id (Id)
 import Competences.Document.User (UserId)
-import Data.UUID (UUID)
 
-newtype AssessmentId = AssessmentId UUID
-  deriving (Eq, Ord, Show)
+type AssessmentId = Id Assessment
 
 -- | Given a list of evidences, produces a final result.
 data Verdict

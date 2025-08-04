@@ -1,7 +1,7 @@
 module Competences.API.CourseList () where
 
 import Data.Text (Text)
-import Data.UUID (UUID)
+import Data.UUID.Types (UUID)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.User (User)
 import qualified Data.Set as S

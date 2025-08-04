@@ -49,10 +49,9 @@ library
         optics-core,
         random,
         servant,
-        servant-auth,
         text,
         time,
-        uuid
+        uuid-types
     hs-source-dirs:   lib
     default-language: GHC2024
 
