@@ -36,7 +36,7 @@ library
         Competences.Document.User
         Competences.Document
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         aeson,
         base64-bytestring,
         binary,
@@ -63,5 +63,5 @@ test-suite competences-common-test
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         competences-common

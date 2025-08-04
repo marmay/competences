@@ -24,11 +24,11 @@ library
         Competences.Backend.API.Auth
         Competences.Backend.Eff.Db
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         competences-common,
         containers,
         effectful,
-        postgresql-simple,
+        postgresql-simple >= 0.7.0.1,
         resource-pool,
         servant,
         servant-server,
@@ -41,7 +41,7 @@ executable competences-backend
     import:           warnings
     main-is:          Main.hs
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         servant-server,
         competences-backend,
         competences-common
@@ -64,6 +64,6 @@ test-suite competences-backend-test
     other-modules:
         Util.Eff.TestDb
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         competences-backend,
         effectful

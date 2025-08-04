@@ -1,6 +1,6 @@
 {pkgs, ...}: {
   name = "competences";
-  compiler-nix-name = "ghc9102"; # Version of GHC to use
+  compiler-nix-name = "ghc9122"; # Version of GHC to use
 
   # Cross compilation support:
   # crossPlatforms = p: pkgs.lib.optionals pkgs.stdenv.hostPlatform.isx86_64 ([

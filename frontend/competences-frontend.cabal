@@ -41,7 +41,7 @@ library
         Competences.Frontend.Page.EditCompetenceGridPage,
         Competences.Frontend.SyncDocument
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         aeson,
         bytestring,
         competences-common,
@@ -67,7 +67,7 @@ executable competences-frontend
         OverloadedStrings
     main-is:          Main.hs
     build-depends:
-        base ^>=4.20.0.0,
+        base ^>=4.21.0.0,
         aeson,
         bytestring,
         competences-common,
