@@ -6,6 +6,7 @@ module Competences.Frontend.Component.CompetenceEditor
   )
 where
 
+import Competences.Command (Command (..))
 import Competences.Document.Competence (Competence (..), Level (..))
 import Competences.Frontend.Common
   ( Icon (..)
@@ -15,11 +16,11 @@ import Competences.Frontend.Common
   , translate
   )
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
 import Optics.Core (Lens', at, non, (%), (.~), (^.))
-import Competences.Command (Command(..))
 
 data Model = Model
   { competence :: !Competence
@@ -90,7 +91,7 @@ view m =
         , buttons
         ]
 
-textField :: Label -> Model -> Lens' Model M.Text -> (M.MisoString -> Action) -> M.View Action
+textField :: Label -> Model -> Lens' Model Text -> (M.MisoString -> Action) -> M.View Action
 textField lbl m l a =
   M.label_
     []
@@ -102,19 +103,19 @@ toMaybe :: (M.FromMisoString a) => M.MisoString -> Maybe a
 toMaybe "" = Nothing
 toMaybe s = Just $ M.fromMisoString s
 
-toMaybe' :: Lens' Model (Maybe M.Text) -> Lens' Model M.Text
+toMaybe' :: Lens' Model (Maybe Text) -> Lens' Model Text
 toMaybe' l = l % non ""
 
-descriptionLens :: Lens' Model M.Text
+descriptionLens :: Lens' Model Text
 descriptionLens = #competence % #description
 
-levelDescriptionLens :: Level -> Lens' Model (Maybe M.Text)
+levelDescriptionLens :: Level -> Lens' Model (Maybe Text)
 levelDescriptionLens l = #competence % #levelDescriptions % at l
 
 basicLevelDescriptionLens
   , intermediateLevelDescriptionLens
   , advancedLevelDescriptionLens
-    :: Lens' Model (Maybe M.Text)
+    :: Lens' Model (Maybe Text)
 basicLevelDescriptionLens = levelDescriptionLens BasicLevel
 intermediateLevelDescriptionLens = levelDescriptionLens IntermediateLevel
 advancedLevelDescriptionLens = levelDescriptionLens AdvancedLevel

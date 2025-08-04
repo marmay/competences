@@ -179,7 +179,7 @@ editable attrs f m =
           (C.translate m C.LblEdit)
       applyButton t =
         C.iconButton
-          [M.onClick $ IssueCommand (ReleaseField f (Just t))]
+          [M.onClick $ IssueCommand (ReleaseField f (Just $ M.fromMisoString t))]
           C.IcnApply
           (C.translate m C.LblApplyChange)
       cancelButton =
@@ -188,9 +188,9 @@ editable attrs f m =
           C.IcnCancel
           (C.translate m C.LblCancelChange)
    in case editability m f of
-        Editable -> render (M.text fieldText) [editButton]
+        Editable -> render (M.text $ M.ms fieldText) [editButton]
         LockedByUs t -> render (inputField t) [applyButton t, cancelButton]
-        LockedBy _u -> render (M.text fieldText) [] -- [lockedBy u]
+        LockedBy _u -> render (M.text $ M.ms fieldText) [] -- [lockedBy u]
 
 data Editability
   = Editable
