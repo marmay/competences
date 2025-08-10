@@ -11,7 +11,7 @@ module Competences.Frontend.View.Button
   )
 where
 
-import Competences.Frontend.Common (Label (..), translate')
+import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Layout qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
