@@ -1,6 +1,8 @@
 module Competences.Frontend.View.Button
   ( iconButton
   , iconLabelButton
+  , buttonRow
+  , buttonColumn
   , applyButton
   , cancelButton
   , applyLabelButton
@@ -22,12 +24,18 @@ import Miso.String (MisoString)
 
 iconButton :: [M.Attribute action] -> ButtonStyle -> Icon -> MisoString -> M.View m action
 iconButton attrs s iconId label =
-  button_ (attributesFor s [T.IconButton] : title_ label : attrs) [icon [] iconId]
+  button_ (attributesFor s [T.IconButton, T.SizeFit] : title_ label : attrs) [icon [] iconId]
+
+buttonRow :: [M.View m action] -> M.View m action
+buttonRow = V.hBox_ (V.Expand V.Center) V.NoExpand V.TinyGap
+
+buttonColumn :: [M.View m action] -> M.View m action
+buttonColumn = V.vBox_ (V.Expand V.Center) V.NoExpand V.TinyGap
 
 iconLabelButton :: [M.Attribute action] -> ButtonStyle -> Icon -> MisoString -> M.View m action
 iconLabelButton attrs s iconId label =
   button_
-    (attributesFor s [T.IconLabelButton] : attrs)
+    (attributesFor s [T.IconLabelButton, T.SizeFit] : attrs)
     [V.hBox_ V.NoExpand (V.Expand V.End) V.SmallGap [icon [] iconId, V.buttonText_ label]]
 
 applyButton :: [M.Attribute action] -> M.View m action

@@ -74,15 +74,14 @@ issueReorderCommand r f to = do
       from <- m.reorderFrom
       f from to
 
-viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
+viewReorderItem :: (Orderable a) => ReorderModel a -> a -> [M.View m (ReorderAction a)]
 viewReorderItem m item =
   case m.reorderFrom of
-    Nothing -> moveButton
+    Nothing -> [moveButton]
     Just from ->
-      M.div_ [] $
-        if from == item ^. idL
-          then [cancelButton]
-          else [moveBeforeButton, moveAfterButton]
+      if from == item ^. idL
+        then [cancelButton]
+        else [moveBeforeButton, moveAfterButton]
   where
     moveButton =
       V.iconButton

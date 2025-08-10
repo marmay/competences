@@ -147,24 +147,32 @@ viewCompetence m c =
       basicLevel = editable fmtText (CompetenceLevelDescription (c.id, BasicLevel)) m
       intermediateLevel = editable fmtText (CompetenceLevelDescription (c.id, IntermediateLevel)) m
       advancedLevel = editable fmtText (CompetenceLevelDescription (c.id, AdvancedLevel)) m
-      reorderItemView = ReorderAction <$> C.viewReorderItem m.reorderFrom c
+      reorderItemView =
+        V.buttonRow (map (ReorderAction <$>) $ C.viewReorderItem m.reorderFrom c)
       fmtText t = M.span_ [T.tailwind [T.AlignMiddle]] [V.text_ t]
    in M.tr_
         []
-        [ M.td_ [T.tailwind [T.TableCell, T.TextCenter]] [reorderItemView]
+        [ M.td_ [T.tailwind [T.TableCell]] [reorderItemView]
         , M.td_ [T.tailwind [T.TableCell]] [description]
         , M.td_ [T.tailwind [T.TableCell]] [basicLevel]
         , M.td_ [T.tailwind [T.TableCell]] [intermediateLevel]
         , M.td_ [T.tailwind [T.TableCell]] [advancedLevel]
-        , M.td_ [T.tailwind [T.TableCell, T.TextCenter]] [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence c.id)]]
+        , M.td_
+            [T.tailwind [T.TableCell]]
+            [ V.buttonRow
+                [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence c.id)]]
+            ]
         ]
 
 editable :: (M.MisoString -> M.View m Action) -> ChangableField -> Model -> M.View m Action
 editable fmtText f m =
   let render :: M.View m Action -> [M.View m Action] -> M.View m Action
       render content buttons =
-        V.hBox_ (V.Expand V.Start) V.NoExpand V.SmallGap $
-          [V.growing_ [content]] <> buttons
+        V.hBox_
+          (V.Expand V.Start)
+          V.NoExpand
+          V.SmallGap
+          [V.growing_ [content], V.buttonColumn buttons]
       fieldText = fromMaybe "" $ m.document ^? fieldATraversal f
       inputField t =
         V.textarea_

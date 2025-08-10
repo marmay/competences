@@ -37,6 +37,7 @@ data TailwindCls
   | FlexCol
   | FlexGrow
   | FontBold
+  | Gap1
   | Gap2
   | Gap4
   | Gap8
@@ -56,9 +57,11 @@ data TailwindCls
   | P4
   | RegularBorder
   | RegularButtonColors
+  | SizeFit
   | TableCell
   | TableFixed
   | TextCenter
+  | TextSm
   | TextLg
   | TextXl
   | W8
@@ -79,12 +82,13 @@ tailwindNames AlertButtonColors =
   , "hover:" <> useColor Bg Red I600 O100
   ]
 tailwindNames AlignMiddle = ["align-middle"]
-tailwindNames ButtonText = ["text-lg/5"]
+tailwindNames ButtonText = ["text-sm/5"]
 tailwindNames Flex = ["flex"]
 tailwindNames FlexRow = ["flex-row"]
 tailwindNames FlexCol = ["flex-col"]
 tailwindNames FlexGrow = ["flex-grow"]
 tailwindNames FontBold = ["font-bold"]
+tailwindNames Gap1 = ["gap-1"]
 tailwindNames Gap2 = ["gap-2"]
 tailwindNames Gap4 = ["gap-4"]
 tailwindNames Gap8 = ["gap-8"]
@@ -122,9 +126,11 @@ tailwindNames RegularButtonColors =
   , useColor Fill Stone I100 O0
   , "hover:" <> useColor Bg Sky I600 O100
   ]
+tailwindNames SizeFit = ["size-fit"]
 tailwindNames TableCell = ["border", useColor Border Sky I800 O100]
 tailwindNames TableFixed = ["table-fixed"]
 tailwindNames TextCenter = ["text-center"]
+tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
 tailwindNames W8 = ["w-8"]

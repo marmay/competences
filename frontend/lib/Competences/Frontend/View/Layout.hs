@@ -17,7 +17,7 @@ data Direction = Horizontal | Vertical
 
 data Expand = Expand Alignment | NoExpand
 
-data Gap = NoGap | SmallGap | MediumGap | LargeGap
+data Gap = NoGap | TinyGap | SmallGap | MediumGap | LargeGap
 
 data Alignment = Start | Center | End
 
@@ -44,7 +44,7 @@ box_ d eD eO g = M.div_ [T.tailwind $ [T.Flex] <> direction <> expandD <> expand
       Vertical -> [T.FlexCol]
     expandD = case (d, eD) of
       (Horizontal, Expand a) -> T.WFull : alignD a
-      (Vertical, Expand a) -> T.HFull : alignD a
+      (Vertical, Expand a) -> alignD a
       (_, NoExpand) -> []
     expandO = case (d, eO) of
       (Horizontal, Expand a) -> T.HFull : alignO a
@@ -52,6 +52,7 @@ box_ d eD eO g = M.div_ [T.tailwind $ [T.Flex] <> direction <> expandD <> expand
       (_, NoExpand) -> []
     gap = case g of
       NoGap -> []
+      TinyGap -> [T.Gap1]
       SmallGap -> [T.Gap2]
       MediumGap -> [T.Gap4]
       LargeGap -> [T.Gap8]
