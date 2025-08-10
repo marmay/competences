@@ -13,7 +13,7 @@ title_ :: M.MisoString -> M.View m a
 title_ t = M.span_ [T.tailwind [T.TextXl, T.FontBold, T.TextCenter]] [M.text t]
 
 text_ :: M.MisoString -> M.View m a
-text_ t = M.span_ [T.tailwind [T.TextLg]] [M.text_ [t]]
+text_ t = M.span_ [T.tailwind [T.TextSm]] [M.text_ [t]]
 
 buttonText_ :: M.MisoString -> M.View m a
 buttonText_ t = M.span_ [T.tailwind [T.ButtonText]] [M.text t]
