@@ -2,6 +2,7 @@ module Competences.Frontend.App
   ( runApp
   , mkApp
   , run
+  , withTailwindPlay
   )
 where
 
@@ -14,15 +15,15 @@ import Competences.Frontend.App.State
   , UiState (..)
   )
 import Competences.Frontend.App.Topics (changeUiTopic)
-import Competences.Frontend.Common (iconDefs)
-import Competences.Frontend.Common.Style (ClassName (..), styleSheet, styledClass)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, issueInitialUpdate, mkSyncDocument')
+import Competences.Frontend.SyncDocument (SyncDocumentRef, issueInitialUpdate)
+import Competences.Frontend.View (iconDefs)
 import Language.Javascript.JSaddle (JSM)
 import Miso
-  ( CSS (..)
-  , Component (..)
+  ( Component (..)
+  , JS (..)
   , LogLevel (Off)
   , NS (HTML)
+  , ROOT
   , View (VComp)
   , consoleLog
   , defaultEvents
@@ -35,11 +36,11 @@ import Miso
   , run
   , startComponent
   , subscribe
-  , text, ROOT
+  , text
   )
 import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
-import Optics.Core ((%), (%~), (&), (.~), (^.))
+import Optics.Core ((%), (%~), (&), (.~), (^.), (?~))
 import System.Random (StdGen, splitGen)
 
 type App = Component ROOT State Action
@@ -55,7 +56,7 @@ mkApp r initialState = do
       , update = updateState r
       , view = viewState r
       , subs = []
-      , styles = [Sheet styleSheet]
+      , styles = []
       , events = defaultEvents
       , scripts = []
       , initialAction = Just Initialize
@@ -63,6 +64,9 @@ mkApp r initialState = do
       , mailbox = const Nothing
       , logLevel = Off
       }
+
+withTailwindPlay :: App -> App
+withTailwindPlay app = app {scripts = Src "https://cdn.tailwindcss.com" : scripts app}
 
 updateState :: SyncDocumentRef -> Action -> Effect p State Action
 updateState _ Initialize = do
@@ -73,7 +77,7 @@ updateState _ (ChangeUi (PushModal c)) = withUiKey $ \(s, k, g) ->
 updateState _ (ChangeUi PopModal) = modify $ \s ->
   s & (#uiState % #modal %~ drop 1)
 updateState _ (ChangeUi (SetMain c)) = withUiKey $ \(s, k, g) ->
-  s & (#uiState % #main .~ Just (k, c, g))
+  s & (#uiState % #main ?~ (k, c, g))
 updateState _ (LogError msg) = io_ $ consoleLog msg
 updateState r Mounted = io_ $ issueInitialUpdate r
 
@@ -92,5 +96,5 @@ viewState r s =
         Nothing -> div_ [] [text "Initialize"]
         Just (k, c, g) ->
           let c' = mkRegisteredComponent r s g c
-           in div_ [styledClass ClsApp, onMounted Mounted] [VComp HTML "div" [key_ k] c']
+           in div_ [onMounted Mounted] [VComp HTML "div" [key_ k] c']
     ]

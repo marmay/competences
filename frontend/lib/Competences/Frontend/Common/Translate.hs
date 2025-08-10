@@ -1,55 +1,62 @@
 module Competences.Frontend.Common.Translate
   ( TranslationData
   , Label (..)
+  , Language (..)
+  , addLanguage
   , extend
   , labelOf
   , loadTranslations
   , merge
   , saveTranslations
+  , setCurrentLanguage
   , translate
   , translate'
   , trim
-  , defaultTranslationData
   )
 where
 
 import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
-import Data.ByteString (ByteString)
-import Data.ByteString.Char8 (pack)
 import Data.ByteString.Lazy (readFile, writeFile)
+import Data.IORef (IORef, newIORef, modifyIORef, writeIORef, readIORef)
 import Data.Map qualified as M
-import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import GHC.Records (HasField)
+import Data.Text qualified as T
 import Miso.String (MisoString, fromMisoString, ms)
+import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (readFile, writeFile)
 
+data Language
+  = De
+  | En
+  deriving (Eq, Ord, Show)
+
 newtype TranslationData = TranslationData
-  { unTranslationData :: M.Map ByteString MisoString
+  { unTranslationData :: M.Map Label MisoString
   }
   deriving (Eq, Show)
 
 instance ToJSON TranslationData where
   toJSON = toJSON . map encodeTranslation . M.toList . (.unTranslationData)
     where
-      encodeTranslation :: (ByteString, MisoString) -> (Text, Text)
-      encodeTranslation (k, v) = (decodeUtf8 k, fromMisoString @Text v)
+      encodeTranslation :: (Label, MisoString) -> (Text, Text)
+      encodeTranslation (k, v) = (T.pack (show k), fromMisoString @Text v)
 
 instance FromJSON TranslationData where
-  parseJSON = fmap (TranslationData . M.fromList . map decodeTranslation) . parseJSON
+  parseJSON = fmap (TranslationData . M.fromList . mapMaybe decodeTranslation) . parseJSON
     where
-      decodeTranslation :: (Text, Text) -> (ByteString, MisoString)
-      decodeTranslation (k, v) = (encodeUtf8 k, ms v)
+      decodeTranslation :: (Text, Text) -> Maybe (Label, MisoString)
+      decodeTranslation (k, v) = do
+        l <- decodeLabel k
+        pure (l, ms v)
 
 data Label
   = LblEdit
   | LblDelete
-  | LblApplyChange
-  | LblCancelChange
+  | LblApply
+  | LblCancel
   | LblMove
   | LblInsertBefore
   | LblInsertAfter
@@ -59,65 +66,77 @@ data Label
   | LblCompetenceBasicLevelDescription
   | LblCompetenceIntermediateLevelDescription
   | LblCompetenceAdvancedLevelDescription
+  | LblCompetenceBasicLevelPlaceholder
+  | LblCompetenceIntermediateLevelPlaceholder
+  | LblCompetenceAdvancedLevelPlaceholder
   | LblEditCompetence
   | LblAddNewCompetence
   deriving (Bounded, Eq, Enum, Ord, Show)
 
-defaultTranslations :: [(Label, MisoString)]
-defaultTranslations =
-  [ (LblEdit, "Bearbeiten")
-  , (LblDelete, "Löschen")
-  , (LblApplyChange, "Übernehmen")
-  , (LblCancelChange, "Abbrechen")
-  , (LblMove, "Verschieben")
-  , (LblInsertBefore, "Davor einfügen")
-  , (LblInsertAfter, "Danach einfügen")
-  , (LblInsertAtTop, "Am Anfang einfügen")
-  , (LblInsertAtBottom, "Am Ende einfügen")
-  , (LblCompetenceDescription, "Beschreibung")
-  , (LblCompetenceBasicLevelDescription, "Wesentlich")
-  , (LblCompetenceIntermediateLevelDescription, "Mittelstufe")
-  , (LblCompetenceAdvancedLevelDescription, "Fortgeschritten")
-  , (LblEditCompetence, "Kompetenz bearbeiten")
-  , (LblAddNewCompetence, "Neue Kompetenz hinzufügen")
-  ]
+defaultLanguage :: Language
+defaultLanguage = De
 
-labelOf :: Label -> ByteString
-labelOf = pack . show
+defaultTranslation :: Label -> MisoString
+defaultTranslation LblEdit = "Bearbeiten"
+defaultTranslation LblDelete = "Löschen"
+defaultTranslation LblApply = "Übernehmen"
+defaultTranslation LblCancel = "Abbrechen"
+defaultTranslation LblMove = "Verschieben"
+defaultTranslation LblInsertBefore = "Davor einfügen"
+defaultTranslation LblInsertAfter = "Danach einfügen"
+defaultTranslation LblInsertAtTop = "Am Anfang einfügen"
+defaultTranslation LblInsertAtBottom = "Am Ende einfügen"
+defaultTranslation LblCompetenceDescription = "Beschreibung"
+defaultTranslation LblCompetenceBasicLevelDescription = "Wesentlich"
+defaultTranslation LblCompetenceIntermediateLevelDescription = "Mittelstufe"
+defaultTranslation LblCompetenceAdvancedLevelDescription = "Fortgeschritten"
+defaultTranslation LblCompetenceBasicLevelPlaceholder = "..."
+defaultTranslation LblCompetenceIntermediateLevelPlaceholder = "..."
+defaultTranslation LblCompetenceAdvancedLevelPlaceholder = "..."
+defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
+defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
 
-defaultTranslationData :: TranslationData
-defaultTranslationData =
-  TranslationData $
-    M.fromList $
-      map (\l -> (labelOf l, defaultTranslation l)) [minBound .. maxBound]
-  where
-    defaultTranslationsMap :: M.Map Label MisoString
-    defaultTranslationsMap = Map.fromList defaultTranslations
-    defaultTranslation :: Label -> MisoString
-    defaultTranslation l = ms $ fromMaybe (missingStringOf l) $ Map.lookup l defaultTranslationsMap
-    missingStringOf :: Label -> MisoString
-    missingStringOf l = ms $ "MISSING: " <> decodeUtf8 (labelOf l)
+currentLanguage :: IORef Language
+currentLanguage = unsafePerformIO $ newIORef defaultLanguage
+{-# NOINLINE currentLanguage #-}
 
-labelStrings :: S.Set ByteString
-labelStrings = S.fromList $ map labelOf [minBound .. maxBound]
+languages :: IORef (M.Map Language TranslationData)
+languages = unsafePerformIO $ newIORef $ M.fromList [(defaultLanguage, defaultTranslationData)]
+{-# NOINLINE languages #-}
+
+addLanguage :: Language -> TranslationData -> IO ()
+addLanguage l td =
+  modifyIORef languages $ M.insert l td
+
+setCurrentLanguage :: Language -> IO ()
+setCurrentLanguage = writeIORef currentLanguage
+
+translate :: Language -> Label -> IO MisoString
+translate l k = do
+  ls <- readIORef languages
+  pure $ fromMaybe (defaultTranslation k) $ do
+    lang <- ls M.!? l
+    lang.unTranslationData M.!? k
+
+translate' :: Label -> MisoString
+translate' k = unsafePerformIO $ do
+  l <- readIORef currentLanguage
+  translate l k
+
+labelOf :: Label -> Text
+labelOf = T.pack . show
+
+decodeLabel :: Text -> Maybe Label
+decodeLabel t = textToLabelMap M.!? t
 
 trim :: TranslationData -> TranslationData
-trim = TranslationData . M.filterWithKey (\k _ -> k `S.member` labelStrings) . (.unTranslationData)
+trim = TranslationData . M.filterWithKey (\k _ -> k `S.member` labels) . (.unTranslationData)
 
 extend :: TranslationData -> TranslationData
 extend a = merge a defaultTranslationData
 
 merge :: TranslationData -> TranslationData -> TranslationData
 merge a b = TranslationData $ M.union a.unTranslationData b.unTranslationData
-
-translate' :: TranslationData -> Label -> MisoString
-translate' td l = td.unTranslationData M.! labelOf l
-
-translate
-  :: forall s
-   . (HasField "translationData" s TranslationData)
-  => s -> Label -> MisoString
-translate s = translate' s.translationData
 
 loadTranslations :: FilePath -> IO TranslationData
 loadTranslations p =
@@ -137,8 +156,14 @@ loadTranslations' p =
 saveTranslations :: FilePath -> TranslationData -> IO ()
 saveTranslations p t = writeFile p (encode t)
 
-data DefaultTranslation = DefaultTranslation
-  { label :: !Label
-  , translation :: !MisoString
-  }
-  deriving (Eq, Show)
+labels :: S.Set Label
+labels = S.fromList [minBound .. maxBound]
+
+textToLabelMap :: M.Map Text Label
+textToLabelMap = M.fromList $ map (\l -> (labelOf l, l)) [minBound .. maxBound]
+
+defaultTranslationData :: TranslationData
+defaultTranslationData =
+  TranslationData $
+    M.fromList $
+      map (\l -> (l, ms (defaultTranslation l))) [minBound .. maxBound]

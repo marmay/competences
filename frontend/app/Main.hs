@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import Competences.Frontend.App (mkApp, runApp)
+import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
 
 #ifdef WASM
 
@@ -156,7 +156,7 @@ main = do
   bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
       app <-
-        mkApp document $
+        fmap withTailwindPlay $ mkApp document $
           mkState
             (User opt.userId opt.userName opt.userRole)
             (encodeUtf8 opt.jwtToken)

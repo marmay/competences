@@ -15,10 +15,11 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceEditor qualified as CE
 import Competences.Frontend.Component.CompetenceGridEditor qualified as CGE
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (.~), (?~))
 import System.Random (StdGen)
 
 editCompetenceGridPage
@@ -33,7 +34,7 @@ editCompetenceGridPage r g u td =
   where
     model =
       Model
-        { competenceGridEditor = CGE.mkModel u td
+        { competenceGridEditor = CGE.mkModel u
         , newCompetenceEditor = Nothing
         , document = emptyDocument
         , translationData = td
@@ -58,14 +59,22 @@ data Action
 
 view :: forall m. Model -> M.View m Action
 view m =
-  M.div_
-    []
+  V.vBox_
+    V.NoExpand
+    (V.Expand V.Start)
+    V.LargeGap
     [ CompetenceGridEditorAction <$> CGE.view m.competenceGridEditor
-    , C.iconLabelButton
-        [M.onClick SpawnNewCompetenceEditor]
-        C.IcnAdd
-        (C.translate m C.LblAddNewCompetence)
-    , NewCompetenceEditorAction <$> C.maybeModal m.newCompetenceEditor CE.view
+    , V.hBox_
+        (V.Expand V.End)
+        V.NoExpand
+        V.NoGap
+        [ V.iconLabelButton
+            [M.onClick SpawnNewCompetenceEditor]
+            V.RegularButton
+            V.IcnAdd
+            (C.translate' C.LblAddNewCompetence)
+        ]
+    , NewCompetenceEditorAction <$> V.maybeModalHost m.newCompetenceEditor CE.view
     ]
 
 update :: SyncDocumentRef -> Action -> M.Effect p Model Action
@@ -88,5 +97,5 @@ update _ SpawnNewCompetenceEditor = do
             , description = ""
             , levelDescriptions = Map.empty
             }
-     in m & (#newCompetenceEditor .~ Just (CE.Model newCompetence m.translationData))
+     in m & (#newCompetenceEditor ?~ CE.Model newCompetence)
 update _ (UpdateDocument (DocumentChange d _)) = M.modify $ #document .~ d

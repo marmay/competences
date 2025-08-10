@@ -31,6 +31,8 @@ import Competences.Frontend.SyncDocument
   , modifySyncDocument
   , subscribeDocument
   )
+import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Tailwind qualified as T
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
@@ -40,7 +42,6 @@ import Optics.Core ((%~), (&), (.~), (^?))
 
 data Model = Model
   { user :: !User
-  , translationData :: !C.TranslationData
   , document :: !Document
   , editFields :: !(Map.Map ChangableField M.MisoString)
   , reorderFrom :: !(C.ReorderModel Competence)
@@ -59,11 +60,10 @@ data Action
   | ReorderAction !(C.ReorderAction Competence)
   deriving (Eq, Generic, Show)
 
-mkModel :: User -> C.TranslationData -> Model
-mkModel user translationData =
+mkModel :: User -> Model
+mkModel user =
   Model
     { user = user
-    , translationData = translationData
     , document = emptyDocument
     , editFields = Map.empty
     , reorderFrom = C.initialReorderModel
@@ -104,36 +104,38 @@ mkEditFields u d =
 
 view :: Model -> M.View m Action
 view m =
-  let title = editable [C.styledClass C.ClsTitle] CompetenceGridTitle m
-      description = editable [C.styledClass C.ClsDescription] CompetenceGridDescription m
+  let title = editable V.title_ CompetenceGridTitle m
+      description = editable V.text_ CompetenceGridDescription m
       competences =
         M.table_
-          [C.styledClass C.ClsCompetenceGridTable]
+          [T.tailwind [T.TableFixed, T.WFull]]
           [ M.colgroup_
               []
-              [ M.col_ [M.colspan_ "1", C.styledClass C.ClsSingleActionColumn]
-              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceDescriptionColumn]
-              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
-              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
-              , M.col_ [M.colspan_ "1", C.styledClass C.ClsCompetenceLevelDescriptionColumn]
-              , M.col_ [M.colspan_ "1", C.styledClass C.ClsSingleActionColumn]
+              [ M.col_ [M.colspan_ "1", T.tailwind [T.W24]]
+              , M.col_ [M.colspan_ "1"]
+              , M.col_ [M.colspan_ "1"]
+              , M.col_ [M.colspan_ "1"]
+              , M.col_ [M.colspan_ "1"]
+              , M.col_ [M.colspan_ "1", T.tailwind [T.W8]]
               ]
           , M.thead_
               []
               [ M.tr_
                   []
-                  [ M.th_ [] []
-                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceDescription]
-                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceBasicLevelDescription]
-                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceIntermediateLevelDescription]
-                  , M.th_ [] [M.text $ C.translate m C.LblCompetenceAdvancedLevelDescription]
-                  , M.th_ [] []
+                  [ M.th_ [T.tailwind [T.TableCell]] []
+                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceDescription]
+                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceBasicLevelDescription]
+                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceIntermediateLevelDescription]
+                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceAdvancedLevelDescription]
+                  , M.th_ [T.tailwind [T.TableCell]] []
                   ]
               ]
           , M.tbody_ [] $ map (viewCompetence m) (ordered m.document.competences)
           ]
-   in M.div_
-        []
+   in V.vBox_
+        V.NoExpand
+        (V.Expand V.Start)
+        V.SmallGap
         [ title
         , description
         , competences
@@ -141,55 +143,43 @@ view m =
 
 viewCompetence :: Model -> Competence -> M.View m Action
 viewCompetence m c =
-  let description = editable [] (CompetenceDescription c.id) m
-      basicLevel = editable [] (CompetenceLevelDescription (c.id, BasicLevel)) m
-      intermediateLevel = editable [] (CompetenceLevelDescription (c.id, IntermediateLevel)) m
-      advancedLevel = editable [] (CompetenceLevelDescription (c.id, AdvancedLevel)) m
-      deleteButton =
-        C.iconButton
-          [M.onClick $ IssueCommand (RemoveCompetence c.id)]
-          C.IcnDelete
-          (C.translate m C.LblDelete)
+  let description = editable fmtText (CompetenceDescription c.id) m
+      basicLevel = editable fmtText (CompetenceLevelDescription (c.id, BasicLevel)) m
+      intermediateLevel = editable fmtText (CompetenceLevelDescription (c.id, IntermediateLevel)) m
+      advancedLevel = editable fmtText (CompetenceLevelDescription (c.id, AdvancedLevel)) m
       reorderItemView = ReorderAction <$> C.viewReorderItem m.reorderFrom c
+      fmtText t = M.span_ [T.tailwind [T.AlignMiddle]] [V.text_ t]
    in M.tr_
         []
-        [ M.td_ [] [reorderItemView]
-        , M.td_ [] [description]
-        , M.td_ [] [basicLevel]
-        , M.td_ [] [intermediateLevel]
-        , M.td_ [] [advancedLevel]
-        , M.td_ [] [deleteButton]
+        [ M.td_ [T.tailwind [T.TableCell, T.TextCenter]] [reorderItemView]
+        , M.td_ [T.tailwind [T.TableCell]] [description]
+        , M.td_ [T.tailwind [T.TableCell]] [basicLevel]
+        , M.td_ [T.tailwind [T.TableCell]] [intermediateLevel]
+        , M.td_ [T.tailwind [T.TableCell]] [advancedLevel]
+        , M.td_ [T.tailwind [T.TableCell, T.TextCenter]] [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence c.id)]]
         ]
 
-editable :: [M.Attribute Action] -> ChangableField -> Model -> M.View m Action
-editable attrs f m =
+editable :: (M.MisoString -> M.View m Action) -> ChangableField -> Model -> M.View m Action
+editable fmtText f m =
   let render :: M.View m Action -> [M.View m Action] -> M.View m Action
       render content buttons =
-        M.div_
-          (C.styledClass C.ClsEditableContainer : attrs)
-          [ M.span_ [C.styledClass C.ClsEditableContent] [content]
-          , M.span_ [C.styledClass C.ClsEditableButtons] buttons
-          ]
+        V.hBox_ (V.Expand V.Start) V.NoExpand V.SmallGap $
+          [V.growing_ [content]] <> buttons
       fieldText = fromMaybe "" $ m.document ^? fieldATraversal f
-      inputField t = M.input_ [M.id_ (M.ms $ show f), M.value_ (M.ms t), M.onInput (EditField f)]
-      editButton =
-        C.iconButton
-          [M.onClick $ IssueCommand (LockField f m.user.id fieldText)]
-          C.IcnEdit
-          (C.translate m C.LblEdit)
-      applyButton t =
-        C.iconButton
-          [M.onClick $ IssueCommand (ReleaseField f (Just $ M.fromMisoString t))]
-          C.IcnApply
-          (C.translate m C.LblApplyChange)
-      cancelButton =
-        C.iconButton
-          [M.onClick $ IssueCommand (ReleaseField f Nothing)]
-          C.IcnCancel
-          (C.translate m C.LblCancelChange)
+      inputField t =
+        V.textarea_
+          [M.id_ (M.ms $ show f), M.value_ (M.ms t), M.onInput (EditField f), T.tailwind [T.WFull]]
    in case editability m f of
-        Editable -> render (M.text $ M.ms fieldText) [editButton]
-        LockedByUs t -> render (inputField t) [applyButton t, cancelButton]
+        Editable ->
+          render
+            (fmtText $ M.ms fieldText)
+            [V.editButton [M.onClick $ IssueCommand (LockField f m.user.id fieldText)]]
+        LockedByUs t ->
+          render
+            (inputField t)
+            [ V.applyButton [M.onClick $ IssueCommand (ReleaseField f (Just $ M.fromMisoString t))]
+            , V.cancelButton [M.onClick $ IssueCommand (ReleaseField f Nothing)]
+            ]
         LockedBy _u -> render (M.text $ M.ms fieldText) [] -- [lockedBy u]
 
 data Editability
