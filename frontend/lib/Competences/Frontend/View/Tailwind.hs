@@ -64,8 +64,13 @@ data TailwindCls
   | TextSm
   | TextLg
   | TextXl
+  | ToggleButton
+  | ToggleButtonOn
+  | ToggleButtonOff
+  | ToggleButtonIndeterminate
   | W8
   | W12
+  | W16
   | W24
   | WThird
   | WHalf
@@ -133,8 +138,28 @@ tailwindNames TextCenter = ["text-center"]
 tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
+tailwindNames ToggleButton = ["border", "rounded", "p-1", "size-fit"]
+tailwindNames ToggleButtonOn =
+  [ useColor Bg Sky I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  ]
+tailwindNames ToggleButtonOff =
+  [ useColor Bg Gray I200 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  ]
+tailwindNames ToggleButtonIndeterminate =
+  [ useColor Bg Yellow I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  ]
 tailwindNames W8 = ["w-8"]
 tailwindNames W12 = ["w-12"]
+tailwindNames W16 = ["w-16"]
 tailwindNames W24 = ["w-24"]
 tailwindNames WThird = ["w-1/3"]
 tailwindNames WHalf = ["w-1/2"]

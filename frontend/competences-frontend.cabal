@@ -38,6 +38,7 @@ library
         Competences.Frontend.Common,
         Competences.Frontend.Component.CompetenceEditor,
         Competences.Frontend.Component.CompetenceGridEditor,
+        Competences.Frontend.Component.CompetenceSelector,
         Competences.Frontend.Page.EditCompetenceGridPage,
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,
@@ -46,6 +47,7 @@ library
         Competences.Frontend.View.Icon,
         Competences.Frontend.View.Layout,
         Competences.Frontend.View.Modal,
+        Competences.Frontend.View.Table,
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.Text
     build-depends:

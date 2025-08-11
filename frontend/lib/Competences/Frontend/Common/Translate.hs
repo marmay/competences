@@ -27,6 +27,7 @@ import Data.Text qualified as T
 import Miso.String (MisoString, fromMisoString, ms)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (readFile, writeFile)
+import Competences.Document (Level (..))
 
 data Language
   = De
@@ -52,6 +53,8 @@ instance FromJSON TranslationData where
         l <- decodeLabel k
         pure (l, ms v)
 
+-- If you change anything here, make sure to also add it to labels' an
+-- defaultTranslation.
 data Label
   = LblEdit
   | LblDelete
@@ -63,15 +66,33 @@ data Label
   | LblInsertAtTop
   | LblInsertAtBottom
   | LblCompetenceDescription
-  | LblCompetenceBasicLevelDescription
-  | LblCompetenceIntermediateLevelDescription
-  | LblCompetenceAdvancedLevelDescription
-  | LblCompetenceBasicLevelPlaceholder
-  | LblCompetenceIntermediateLevelPlaceholder
-  | LblCompetenceAdvancedLevelPlaceholder
+  | LblCompetenceLevelDescription !Level
+  | LblCompetenceLevelPlaceholder !Level
   | LblEditCompetence
   | LblAddNewCompetence
-  deriving (Bounded, Eq, Enum, Ord, Show)
+  deriving (Eq, Ord, Show)
+
+labels' :: [Label]
+labels' =
+  [ LblEdit
+  , LblDelete
+  , LblApply
+  , LblCancel
+  , LblMove
+  , LblInsertBefore
+  , LblInsertAfter
+  , LblInsertAtTop
+  , LblInsertAtBottom
+  , LblCompetenceDescription
+  , LblCompetenceLevelDescription BasicLevel
+  , LblCompetenceLevelDescription IntermediateLevel
+  , LblCompetenceLevelDescription AdvancedLevel
+  , LblCompetenceLevelPlaceholder BasicLevel
+  , LblCompetenceLevelPlaceholder IntermediateLevel
+  , LblCompetenceLevelPlaceholder AdvancedLevel
+  , LblEditCompetence
+  , LblAddNewCompetence
+  ]
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -87,12 +108,12 @@ defaultTranslation LblInsertAfter = "Danach einfügen"
 defaultTranslation LblInsertAtTop = "Am Anfang einfügen"
 defaultTranslation LblInsertAtBottom = "Am Ende einfügen"
 defaultTranslation LblCompetenceDescription = "Beschreibung"
-defaultTranslation LblCompetenceBasicLevelDescription = "Wesentlich"
-defaultTranslation LblCompetenceIntermediateLevelDescription = "Mittelstufe"
-defaultTranslation LblCompetenceAdvancedLevelDescription = "Fortgeschritten"
-defaultTranslation LblCompetenceBasicLevelPlaceholder = "..."
-defaultTranslation LblCompetenceIntermediateLevelPlaceholder = "..."
-defaultTranslation LblCompetenceAdvancedLevelPlaceholder = "..."
+defaultTranslation (LblCompetenceLevelDescription BasicLevel) = "Wesentlich"
+defaultTranslation (LblCompetenceLevelDescription IntermediateLevel) = "Mittelstufe"
+defaultTranslation (LblCompetenceLevelDescription AdvancedLevel) = "Fortgeschritten"
+defaultTranslation (LblCompetenceLevelPlaceholder BasicLevel) = "..."
+defaultTranslation (LblCompetenceLevelPlaceholder IntermediateLevel) = "..."
+defaultTranslation (LblCompetenceLevelPlaceholder AdvancedLevel) = "..."
 defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
 defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
 
@@ -149,21 +170,21 @@ loadTranslations p =
 
 loadTranslations' :: FilePath -> IO TranslationData
 loadTranslations' p =
-  decode <$> readFile p >>= \case
+  readFile p >>= (\case
     Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
-    Just t -> pure $ extend t
+    Just t -> pure $ extend t) . decode
 
 saveTranslations :: FilePath -> TranslationData -> IO ()
 saveTranslations p t = writeFile p (encode t)
 
 labels :: S.Set Label
-labels = S.fromList [minBound .. maxBound]
+labels = S.fromList labels'
 
 textToLabelMap :: M.Map Text Label
-textToLabelMap = M.fromList $ map (\l -> (labelOf l, l)) [minBound .. maxBound]
+textToLabelMap = M.fromList $ map (\l -> (labelOf l, l)) labels'
 
 defaultTranslationData :: TranslationData
 defaultTranslationData =
   TranslationData $
     M.fromList $
-      map (\l -> (l, ms (defaultTranslation l))) [minBound .. maxBound]
+      map (\l -> (l, ms (defaultTranslation l))) labels'

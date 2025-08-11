@@ -47,25 +47,19 @@ view m =
         V.formField_
           (translate' LblCompetenceDescription)
           $ textField ChangeDescription (Right $ M.ms $ m ^. descriptionLens)
-      levelTextField label placeholder level =
-        V.formField_ (translate' label) $
+      levelTextField level =
+        V.formField_ (translate' $ LblCompetenceLevelDescription level) $
           textField
             (ChangeLevelDescription level)
-            (maybeToEither (translate' placeholder) (m ^. levelDescriptionLens level))
+            (maybeToEither (translate' $ LblCompetenceLevelPlaceholder level) (m ^. levelDescriptionLens level))
    in modalDialog
         []
         [ V.form_
             (translate' LblEditCompetence)
             [ descriptionField
-            , levelTextField LblCompetenceBasicLevelDescription LblCompetenceBasicLevelPlaceholder BasicLevel
-            , levelTextField
-                LblCompetenceIntermediateLevelDescription
-                LblCompetenceIntermediateLevelPlaceholder
-                IntermediateLevel
-            , levelTextField
-                LblCompetenceAdvancedLevelDescription
-                LblCompetenceAdvancedLevelPlaceholder
-                AdvancedLevel
+            , levelTextField BasicLevel
+            , levelTextField IntermediateLevel
+            , levelTextField AdvancedLevel
             ]
             [ applyLabelButton [M.onClick CompleteEditing]
             , cancelLabelButton [M.onClick CancelEditing]

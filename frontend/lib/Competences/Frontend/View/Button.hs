@@ -9,7 +9,13 @@ module Competences.Frontend.View.Button
   , deleteButton
   , editButton
   , cancelLabelButton
+  , toggleButton
+  , toToggleState
+  , triStateButton
+  , toTriState
   , ButtonStyle (..)
+  , ToggleState (..)
+  , TriState (..)
   )
 where
 
@@ -37,6 +43,40 @@ iconLabelButton attrs s iconId label =
   button_
     (attributesFor s [T.IconLabelButton, T.SizeFit] : attrs)
     [V.hBox_ V.NoExpand (V.Expand V.End) V.SmallGap [icon [] iconId, V.buttonText_ label]]
+
+data ToggleState
+  = ToggleOff
+  | ToggleOn
+  deriving (Eq, Show, Ord)
+
+toToggleState :: Bool -> ToggleState
+toToggleState True = ToggleOn
+toToggleState False = ToggleOff
+
+toggleButton :: (ToggleState -> action) -> ToggleState -> M.View m action -> M.View m action
+toggleButton a s c = button_ [T.tailwind [T.ToggleButton, tailwindStyleFor s], M.onClick (a s)] [c]
+  where
+    tailwindStyleFor ToggleOff = T.ToggleButtonOff
+    tailwindStyleFor ToggleOn = T.ToggleButtonOn
+
+toTriState :: [ToggleState] -> TriState
+toTriState ts
+  | all (== ToggleOn) ts = TriStateOn
+  | all (== ToggleOff) ts = TriStateOff
+  | otherwise = TriStateIndeterminate
+
+data TriState
+  = TriStateOff
+  | TriStateOn
+  | TriStateIndeterminate
+  deriving (Eq, Show, Ord)
+
+triStateButton :: (TriState -> action) -> TriState -> M.View m action -> M.View m action
+triStateButton a s c = button_ [T.tailwind [T.ToggleButton, tailwindStyleFor s], M.onClick (a s)] [c]
+  where
+    tailwindStyleFor TriStateOff = T.ToggleButtonOff
+    tailwindStyleFor TriStateOn = T.ToggleButtonOn
+    tailwindStyleFor TriStateIndeterminate = T.ToggleButtonIndeterminate
 
 applyButton :: [M.Attribute action] -> M.View m action
 applyButton attrs = iconButton attrs RegularButton IcnApply (translate' LblApply)
