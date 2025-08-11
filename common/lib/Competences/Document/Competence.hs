@@ -4,6 +4,7 @@ module Competences.Document.Competence
   , CompetenceLevelId
   , CompetenceIxs
   , Level (..)
+  , competenceLevelIdsOf
   )
 where
 
@@ -39,6 +40,10 @@ data Competence = Competence
   , levelDescriptions :: !(M.Map Level Text)
   }
   deriving (Eq, Generic, Ord, Show)
+
+competenceLevelIdsOf :: Competence -> [CompetenceLevelId]
+competenceLevelIdsOf competence =
+   map (competence.id,) $ M.keys competence.levelDescriptions
 
 type CompetenceLevelId = (CompetenceId, Level)
 

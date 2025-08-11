@@ -102,36 +102,45 @@ mkEditFields u d =
     & map (\(field, _) -> (field, ""))
     & Map.fromList
 
+data CompetenceGridColumn
+  = MoveColumn
+  | DescriptionColumn
+  | LevelDescriptionColumn !Level
+  | DeleteColumn
+  deriving (Eq, Ord, Show)
+
 view :: Model -> M.View m Action
 view m =
   let title = editable V.title_ CompetenceGridTitle m
       description = editable V.text_ CompetenceGridDescription m
+      fmtText t = M.span_ [T.tailwind [T.AlignMiddle]] [V.text_ t]
       competences =
-        M.table_
-          [T.tailwind [T.TableFixed, T.WFull]]
-          [ M.colgroup_
-              []
-              [ M.col_ [M.colspan_ "1", T.tailwind [T.W24]]
-              , M.col_ [M.colspan_ "1"]
-              , M.col_ [M.colspan_ "1"]
-              , M.col_ [M.colspan_ "1"]
-              , M.col_ [M.colspan_ "1"]
-              , M.col_ [M.colspan_ "1", T.tailwind [T.W8]]
-              ]
-          , M.thead_
-              []
-              [ M.tr_
-                  []
-                  [ M.th_ [T.tailwind [T.TableCell]] []
-                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceDescription]
-                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceBasicLevelDescription]
-                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceIntermediateLevelDescription]
-                  , M.th_ [T.tailwind [T.TableCell]] [M.text $ C.translate' C.LblCompetenceAdvancedLevelDescription]
-                  , M.th_ [T.tailwind [T.TableCell]] []
-                  ]
-              ]
-          , M.tbody_ [] $ map (viewCompetence m) (ordered m.document.competences)
-          ]
+        V.viewTable $
+          V.Table
+            { columns =
+                [ MoveColumn
+                , DescriptionColumn
+                , LevelDescriptionColumn BasicLevel
+                , LevelDescriptionColumn IntermediateLevel
+                , LevelDescriptionColumn AdvancedLevel
+                , DeleteColumn
+                ]
+            , rows = ordered m.document.competences
+            , columnSpec = \case
+                MoveColumn -> V.TripleActionColumn
+                DeleteColumn -> V.SingleActionColumn
+                _ -> V.AutoSizedColumn
+            , columnHeader = \c -> fromMaybe "" $ case c of
+                MoveColumn -> Nothing
+                DescriptionColumn -> Just $ C.translate' C.LblCompetenceDescription
+                LevelDescriptionColumn level -> Just $ C.translate' $ C.LblCompetenceLevelDescription level
+                DeleteColumn -> Nothing
+            , cellContents = \competence -> \case
+                MoveColumn -> V.buttonRow $ map (ReorderAction <$>) $ C.viewReorderItem m.reorderFrom competence
+                DescriptionColumn -> editable fmtText (CompetenceDescription competence.id) m
+                LevelDescriptionColumn level -> editable fmtText (CompetenceLevelDescription (competence.id, level)) m
+                DeleteColumn -> V.buttonRow [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence competence.id)]]
+            }
    in V.vBox_
         V.NoExpand
         (V.Expand V.Start)
@@ -139,29 +148,6 @@ view m =
         [ title
         , description
         , competences
-        ]
-
-viewCompetence :: Model -> Competence -> M.View m Action
-viewCompetence m c =
-  let description = editable fmtText (CompetenceDescription c.id) m
-      basicLevel = editable fmtText (CompetenceLevelDescription (c.id, BasicLevel)) m
-      intermediateLevel = editable fmtText (CompetenceLevelDescription (c.id, IntermediateLevel)) m
-      advancedLevel = editable fmtText (CompetenceLevelDescription (c.id, AdvancedLevel)) m
-      reorderItemView =
-        V.buttonRow (map (ReorderAction <$>) $ C.viewReorderItem m.reorderFrom c)
-      fmtText t = M.span_ [T.tailwind [T.AlignMiddle]] [V.text_ t]
-   in M.tr_
-        []
-        [ M.td_ [T.tailwind [T.TableCell]] [reorderItemView]
-        , M.td_ [T.tailwind [T.TableCell]] [description]
-        , M.td_ [T.tailwind [T.TableCell]] [basicLevel]
-        , M.td_ [T.tailwind [T.TableCell]] [intermediateLevel]
-        , M.td_ [T.tailwind [T.TableCell]] [advancedLevel]
-        , M.td_
-            [T.tailwind [T.TableCell]]
-            [ V.buttonRow
-                [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence c.id)]]
-            ]
         ]
 
 editable :: (M.MisoString -> M.View m Action) -> ChangableField -> Model -> M.View m Action
