@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-
 module Competences.Frontend.Component.CompetenceGridEditor
   ( Model
   , Action (..)
@@ -99,7 +97,7 @@ mkEditFields :: User -> Document -> Map.Map ChangableField M.MisoString
 mkEditFields u d =
   Map.toList d.lockedFields
     & filter (\(_, userId) -> userId == u.id)
-    & map (\(field, _) -> (field, ""))
+    & map (\(field, _) -> (field, fromMaybe "Not set" $ d ^? fieldATraversal field))
     & Map.fromList
 
 data CompetenceGridColumn
