@@ -1,8 +1,9 @@
+{-# LANGUAGE TypeFamilies #-}
+
 module Competences.Document
   ( Document (..)
   , PartialChecksumId (..)
   , emptyDocument
-  , fieldATraversal
   , updateChecksums
   , updateAllChecksums
   , module Competences.Document.ChangableField
@@ -15,8 +16,9 @@ module Competences.Document
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document.ChangableField (ChangableField (..))
-import Competences.Document.Competence (Competence (..), CompetenceId, CompetenceIxs, Level (..))
+import Competences.Document.Competence (Competence (..), CompetenceId, CompetenceIxs, Level (..), levels)
 import Competences.Document.CompetenceGrid
   ( CompetenceGrid (..)
   , CompetenceGridId
@@ -32,14 +34,27 @@ import Data.Binary (Binary, encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy qualified as BL (ByteString)
-import Data.IxSet.Typed qualified as Ix
-import Data.Kind (Type)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
-import Optics.AffineTraversal (AffineTraversal', atraversal)
-import Optics.Core (Lens', castOptic, (%%), (%~), (&), (.~), (^.))
+import Optics.Core
+  ( An_AffineTraversal
+  , Index
+  , IxValue
+  , Ixed (..)
+  , Lens'
+  , at
+  , castOptic
+  , ix
+  , non
+  , (%)
+  , (%%)
+  , (%~)
+  , (&)
+  , (.~)
+  , (^.)
+  )
 
 data Document = Document
   { competenceGrid :: !CompetenceGrid
@@ -57,13 +72,15 @@ instance FromJSON Document where
   parseJSON = withObject "Document" $ \v ->
     Document
       <$> v .: "competenceGrid"
-      <*> (fmap Ix.fromList $ v .: "competences")
-      <*> (fmap Ix.fromList $ v .: "evidences")
-      <*> (fmap Ix.fromList $ v .: "resources")
-      <*> (fmap M.fromList $ v .: "lockedFields")
-      <*> (fmap Ix.fromList $ v .: "users")
-      <*> (fmap (M.fromList . map (\(k, v') -> (k, Base64.decodeLenient (encodeUtf8 v')))) $ v .: "partialChecksums")
-      <*> (fmap (Base64.decodeLenient . encodeUtf8) $ v .: "overallChecksum")
+      <*> fmap Ix.fromList (v .: "competences")
+      <*> fmap Ix.fromList (v .: "evidences")
+      <*> fmap Ix.fromList (v .: "resources")
+      <*> fmap M.fromList (v .: "lockedFields")
+      <*> fmap Ix.fromList (v .: "users")
+      <*> fmap
+        (M.fromList . map (\(k, v') -> (k, Base64.decodeLenient (encodeUtf8 v'))))
+        (v .: "partialChecksums")
+      <*> fmap (Base64.decodeLenient . encodeUtf8) (v .: "overallChecksum")
 
 instance ToJSON Document where
   toJSON d =
@@ -74,7 +91,8 @@ instance ToJSON Document where
       , "resources" .= Ix.toList d.resources
       , "lockedFields" .= M.toList d.lockedFields
       , "users" .= Ix.toList d.users
-      , "partialChecksums" .= map (\(k, v') -> (k, decodeUtf8 (Base64.encode v'))) (M.toList d.partialChecksums)
+      , "partialChecksums"
+          .= map (\(k, v') -> (k, decodeUtf8 (Base64.encode v'))) (M.toList d.partialChecksums)
       , "overallChecksum" .= decodeUtf8 (Base64.encode d.overallChecksum)
       ]
 
@@ -92,33 +110,17 @@ emptyDocument =
       , overallChecksum = ""
       }
 
-fieldATraversal :: ChangableField -> AffineTraversal' Document Text
-fieldATraversal CompetenceGridTitle = castOptic #competenceGrid %% castOptic #title
-fieldATraversal CompetenceGridDescription = castOptic #competenceGrid %% castOptic #description
-fieldATraversal (CompetenceDescription competenceId) = castOptic #competences %% ixATraversal competenceId %% castOptic #description
-fieldATraversal (CompetenceLevelDescription (competenceId, level)) = castOptic #competences %% ixATraversal competenceId %% castOptic #levelDescriptions %% defaultedMapTraversal level ""
+type instance Index Document = ChangableField
 
-ixATraversal
-  :: forall ix a (ixs :: [Type])
-   . (Ix.IsIndexOf ix ixs, Ix.Indexable ixs a) => ix -> AffineTraversal' (Ix.IxSet ixs a) a
-ixATraversal ix' =
-  let get :: Ix.IxSet ixs a -> Either (Ix.IxSet ixs a) a
-      get ixSet = maybe (Left ixSet) Right $ Ix.getOne $ ixSet Ix.@= ix'
-      set :: Ix.IxSet ixs a -> a -> Ix.IxSet ixs a
-      set ixSet a = case Ix.getOne (ixSet Ix.@= ix') of
-        Just _ -> Ix.insert a $ Ix.deleteIx ix' ixSet
-        Nothing -> ixSet
-   in atraversal get set
+type instance IxValue Document = Text
 
--- | Behaves as if the underlying map always contains the key; if it does not, it is assumed
--- to be equal to the default value passed as 2nd argument.
-defaultedMapTraversal :: forall k v. (Ord k) => k -> v -> AffineTraversal' (M.Map k v) v
-defaultedMapTraversal k v =
-  let get :: M.Map k v -> Either (M.Map k v) v
-      get m = maybe (Right v) Right $ M.lookup k m
-      set :: M.Map k v -> v -> M.Map k v
-      set m a = M.insert k a m
-   in atraversal get set
+instance Ixed Document where
+  type IxKind Document = An_AffineTraversal
+  ix CompetenceGridTitle = castOptic (#competenceGrid %% #title)
+  ix CompetenceGridDescription = castOptic (#competenceGrid %% #description)
+  ix (CompetenceDescription competenceId) = castOptic (#competences % ix competenceId % #description)
+  ix (CompetenceLevelDescription (competenceId, level)) =
+    castOptic (#competences % ix competenceId % #levelDescriptions % at level % non "")
 
 data PartialChecksumId
   = PC_CompetenceGrid
@@ -146,7 +148,7 @@ updateOverallChecksum m =
 updatePartialChecksum :: Document -> PartialChecksumId -> Document
 updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
   where
-    updatePartialChecksum' v = m & (#partialChecksums %~ M.insert c v)
+    updatePartialChecksum' v = m & #partialChecksums %~ M.insert c v
     computePartialChecksum PC_CompetenceGrid = computePartialChecksum' #competenceGrid encode
     computePartialChecksum PC_Competences = computePartialChecksum' #competences encodeIx
     computePartialChecksum PC_Evidences = computePartialChecksum' #evidences encodeIx

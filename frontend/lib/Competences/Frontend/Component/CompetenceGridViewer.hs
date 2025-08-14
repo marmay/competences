@@ -14,16 +14,16 @@ import Competences.Document
   , User
   , UserId
   , emptyDocument
-  , ordered
+  , ordered, levels
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange)
+import Competences.Frontend.SyncDocument (DocumentChange (..))
 import Competences.Frontend.View qualified as V
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (ix, (%), (&), (?~))
+import Optics.Core (ix, (%), (&), (.~), (^?))
 
 data Model = Model
   { document :: !Document
@@ -48,9 +48,13 @@ data Action
   | UpdateDocument !DocumentChange
   deriving (Eq, Generic, Show)
 
-update :: Action -> M.Effect p Action Model
-update (SelectUser userId) = pure ()
--- M.modify (\m -> m & selectedUser ?~ m & #document % #users % ix userId)
+update :: Action -> M.Effect p Model Action
+update (SelectUser userId) =
+  M.modify $ \m -> m & (#selectedUser .~ (m ^? (#document % #users % ix userId)))
+update (SetHighlighted highlighted) =
+  M.modify $ #highlighted .~ Set.fromList highlighted
+update (UpdateDocument (DocumentChange document _)) =
+  M.modify $ #document .~ document
 update _ = pure ()
 
 data Column
@@ -76,10 +80,7 @@ view m =
         V.defTable
           { V.columns =
               [ DescriptionColumn
-              , LevelDescriptionColumn BasicLevel
-              , LevelDescriptionColumn IntermediateLevel
-              , LevelDescriptionColumn AdvancedLevel
-              ]
+              ] <> map LevelDescriptionColumn levels
           , V.rows = ordered m.document.competences
           , V.columnHeader = \case
               DescriptionColumn -> C.translate' C.LblCompetenceDescription

@@ -7,7 +7,7 @@ module Competences.Frontend.Component.CompetenceEditor
 where
 
 import Competences.Command (Command (..))
-import Competences.Document.Competence (Competence (..), Level (..))
+import Competences.Document.Competence (Competence (..), Level (..), levels)
 import Competences.Frontend.Common (Label (..), translate')
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
 import Competences.Frontend.View (applyLabelButton, cancelLabelButton, modalDialog)
@@ -56,11 +56,7 @@ view m =
         []
         [ V.form_
             (translate' LblEditCompetence)
-            [ descriptionField
-            , levelTextField BasicLevel
-            , levelTextField IntermediateLevel
-            , levelTextField AdvancedLevel
-            ]
+            ([descriptionField] <> map levelTextField levels)
             [ applyLabelButton [M.onClick CompleteEditing]
             , cancelLabelButton [M.onClick CancelEditing]
             ]

@@ -5,6 +5,7 @@ module Competences.Document.Evidence
   , EvidenceIxs
   , SocialForm (..)
   , Ability (..)
+  , evidenceLevel
   )
 where
 
@@ -55,14 +56,19 @@ data Evidence = Evidence
   }
   deriving (Eq, Generic, Ord, Show)
 
-type EvidenceIxs = '[EvidenceId, UserId, (CompetenceId, Level)]
+evidenceLevel :: Evidence -> Level
+evidenceLevel = snd . (.competence)
+
+type EvidenceIxs = '[EvidenceId, UserId, CompetenceId, Level, Day]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.userId))
-      (Ix.ixFun $ singleton . (.competence))
+      (Ix.ixFun $ singleton . fst . (.competence))
+      (Ix.ixFun $ singleton . snd . (.competence))
+      (Ix.ixFun $ singleton . (.date))
 
 instance FromJSON SocialForm
 

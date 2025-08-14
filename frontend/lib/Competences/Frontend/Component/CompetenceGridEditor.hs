@@ -18,7 +18,7 @@ import Competences.Document
   , User (..)
   , UserId
   , emptyDocument
-  , fieldATraversal
+  , levels
   , ordered
   )
 import Competences.Document.Order (Reorder, orderPosition)
@@ -36,7 +36,7 @@ import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String qualified as M
-import Optics.Core ((%~), (&), (.~), (^?))
+import Optics.Core (ix, (%~), (&), (.~), (^?))
 
 data Model = Model
   { user :: !User
@@ -97,7 +97,7 @@ mkEditFields :: User -> Document -> Map.Map ChangableField M.MisoString
 mkEditFields u d =
   Map.toList d.lockedFields
     & filter (\(_, userId) -> userId == u.id)
-    & map (\(field, _) -> (field, fromMaybe "Not set" $ d ^? fieldATraversal field))
+    & map (\(field, _) -> (field, fromMaybe "Not set" $ d ^? ix field))
     & Map.fromList
 
 data CompetenceGridColumn
@@ -118,11 +118,9 @@ view m =
             { columns =
                 [ MoveColumn
                 , DescriptionColumn
-                , LevelDescriptionColumn BasicLevel
-                , LevelDescriptionColumn IntermediateLevel
-                , LevelDescriptionColumn AdvancedLevel
-                , DeleteColumn
                 ]
+                  <> map LevelDescriptionColumn levels
+                  <> [DeleteColumn]
             , rows = ordered m.document.competences
             , columnSpec = \case
                 MoveColumn -> V.TripleActionColumn
@@ -157,7 +155,7 @@ editable fmtText f m =
           V.NoExpand
           V.SmallGap
           [V.growing_ [content], V.buttonColumn buttons]
-      fieldText = fromMaybe "" $ m.document ^? fieldATraversal f
+      fieldText = fromMaybe "" $ m.document ^? ix f
       inputField t =
         V.textarea_
           [M.id_ (M.ms $ show f), M.value_ (M.ms t), M.onInput (EditField f), T.tailwind [T.WFull]]

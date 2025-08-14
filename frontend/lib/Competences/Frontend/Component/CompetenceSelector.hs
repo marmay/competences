@@ -8,7 +8,7 @@ module Competences.Frontend.Component.CompetenceSelector
   )
 where
 
-import Competences.Document (Competence (..), Document (..), Level (..), ordered)
+import Competences.Document (Competence (..), Document (..), Level (..), levels, ordered)
 import Competences.Document.Competence (CompetenceLevelId, competenceLevelIdsOf)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
@@ -43,9 +43,7 @@ subscriptions r = [subscribeDocument r UpdateDocument]
 
 update :: Action -> M.Effect p Model Action
 update (ToggleCompetence c V.TriStateOn) =
-  M.modify
-    ( #selected %~ \s -> foldr Set.delete s [(c.id, l) | l <- [BasicLevel, IntermediateLevel, AdvancedLevel]]
-    )
+  M.modify (#selected %~ \s -> foldr Set.delete s [(c.id, l) | l <- levels])
 update (ToggleCompetence c _) =
   M.modify (#selected %~ \s -> foldr Set.insert s $ competenceLevelIdsOf c)
 update (ToggleCompetenceLevel l V.ToggleOn) =
@@ -65,11 +63,7 @@ view m =
   V.viewTable $
     V.defTable
       { V.columns =
-          [ CompetenceDescriptionColumn
-          , CompetenceLevelDescriptionColumn BasicLevel
-          , CompetenceLevelDescriptionColumn IntermediateLevel
-          , CompetenceLevelDescriptionColumn AdvancedLevel
-          ]
+          [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn levels
       , V.rows = m.document
       , V.columnHeader = \case
           CompetenceDescriptionColumn -> C.translate' C.LblCompetenceDescription
