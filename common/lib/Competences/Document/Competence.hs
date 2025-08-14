@@ -4,6 +4,7 @@ module Competences.Document.Competence
   , CompetenceLevelId
   , CompetenceIxs
   , Level (..)
+  , levels
   , competenceLevelIdsOf
   )
 where
@@ -40,6 +41,10 @@ data Competence = Competence
   , levelDescriptions :: !(M.Map Level Text)
   }
   deriving (Eq, Generic, Ord, Show)
+
+-- | List of all levels in increasing order of competence.
+levels :: [Level]
+levels = [BasicLevel, IntermediateLevel, AdvancedLevel]
 
 competenceLevelIdsOf :: Competence -> [CompetenceLevelId]
 competenceLevelIdsOf competence =

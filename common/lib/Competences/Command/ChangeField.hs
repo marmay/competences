@@ -6,7 +6,7 @@ module Competences.Command.ChangeField
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Document (Document (..), PartialChecksumId (..), fieldATraversal, updateChecksums)
+import Competences.Document (Document (..), PartialChecksumId (..), updateChecksums)
 import Competences.Document.ChangableField (ChangableField (..))
 import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad (when)
@@ -14,7 +14,7 @@ import Data.Either (isLeft)
 import Data.Map qualified as M
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Optics.Core (matching, (%~), (&))
+import Optics.Core (matching, ix, (%~), (&))
 
 -- | Whether a given role is allowed to change a given field.
 canChangeField :: ChangableField -> UserRole -> Bool
@@ -27,7 +27,7 @@ lockField :: Document -> ChangableField -> UserId -> Text -> UpdateResult
 lockField model field userId expectedText = do
   when (field `M.member` model.lockedFields) $
     Left "field already locked"
-  let current = matching (fieldATraversal field) model
+  let current = matching (ix field) model
   when (isLeft current) $
     Left "field no longer exists"
   when (current /= Right expectedText) $
@@ -45,7 +45,7 @@ releaseField model field text = do
   let model' =
         model
           & (#lockedFields %~ M.delete field)
-          & (fieldATraversal field %~ flip fromMaybe text)
+          & (ix field %~ flip fromMaybe text)
   pure (updateChecksums model' (partialChecksumIdsForChangableField field), AllUsers)
 
 partialChecksumIdsForChangableField :: ChangableField -> [PartialChecksumId]

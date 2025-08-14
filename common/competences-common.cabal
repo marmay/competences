@@ -24,6 +24,7 @@ library
         Competences.Command
         Competences.Command.ChangeField
         Competences.Command.Common
+        Competences.Common.IxSet
         Competences.Document.Assessment
         Competences.Document.Evidence
         Competences.Document.ChangableField
@@ -33,6 +34,7 @@ library
         Competences.Document.Order
         Competences.Document.Resource
         Competences.Document.User
+        Competences.Document.Verdict
         Competences.Document
     build-depends:
         base ^>=4.21.0.0,
