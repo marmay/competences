@@ -17,13 +17,12 @@ where
 
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, emptyDocument)
-import Control.Concurrent (MVar, newMVar)
 import Control.Monad (forM_)
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
-import UnliftIO (modifyMVar_, readMVar, MonadIO)
+import UnliftIO (modifyMVar_, newMVar, readMVar, MonadIO, MVar)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -39,7 +38,7 @@ data SyncDocument = SyncDocument
   deriving (Generic)
 
 data DocumentChange = DocumentChange
-  { model :: !Document
+  { document :: !Document
   , change :: !(Maybe (Document, Command))
   }
   deriving (Eq, Show, Generic)
@@ -49,10 +48,10 @@ data ChangedHandler where
 
 type SyncDocumentRef = MVar SyncDocument
 
-mkSyncDocument :: IO SyncDocumentRef
+mkSyncDocument :: MonadIO m => m SyncDocumentRef
 mkSyncDocument = newMVar emptySyncDocument
 
-mkSyncDocument' :: Document -> IO SyncDocumentRef
+mkSyncDocument' :: MonadIO m => Document -> m SyncDocumentRef
 mkSyncDocument' m = newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
 
 readSyncDocument :: MonadIO m => SyncDocumentRef -> m SyncDocument
