@@ -1,6 +1,7 @@
 module Competences.Frontend.Page.EditCompetenceGridPage
   ( editCompetenceGridPage
   , EditCompetenceGridPage
+  , EditCompetenceGridView
   )
 where
 
@@ -49,6 +50,7 @@ data Action
   deriving (Eq, Generic, Show)
 
 type EditCompetenceGridPage p = M.Component p Model Action
+type EditCompetenceGridView = M.View Model Action
 
 editCompetenceGridPage
   :: SyncDocumentRef -> User -> M.Component p Model Action

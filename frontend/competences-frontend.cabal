@@ -63,6 +63,7 @@ library
         mtl,
         optics-core,
         random,
+        servant,
         stm,
         text,
         unliftio

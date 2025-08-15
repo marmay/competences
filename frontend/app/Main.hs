@@ -152,16 +152,10 @@ options =
 main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
-  translationData <- loadTranslations opt.translationsPath
+  let user = User opt.userId opt.userName opt.userRole
   bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
-      app <-
-        fmap withTailwindPlay $ mkApp document $
-          mkState
-            (User opt.userId opt.userName opt.userRole)
-            (encodeUtf8 opt.jwtToken)
-            translationData
-            opt.randomSeed
+      let app = withTailwindPlay $ mkApp document user
       runApp app
 
 readDocument :: Maybe FilePath -> IO SyncDocumentRef

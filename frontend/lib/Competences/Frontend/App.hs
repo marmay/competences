@@ -1,90 +1,76 @@
 module Competences.Frontend.App
   ( runApp
   , mkApp
-  , run
   , withTailwindPlay
   )
 where
 
-import Competences.Frontend.App.Action (Action (..), UiAction (..))
-import Competences.Frontend.App.RegisteredComponent (RegisteredComponent (..))
-import Competences.Frontend.App.RegisteredComponentRegistrations (mkRegisteredComponent)
-import Competences.Frontend.App.State
-  ( SessionState (..)
-  , State (..)
-  , UiState (..)
+import Competences.Document.User (User)
+import Competences.Frontend.Page.EditCompetenceGridPage
+  ( EditCompetenceGridView
+  , editCompetenceGridPage
   )
-import Competences.Frontend.App.Topics (changeUiTopic)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, issueInitialUpdate)
-import Competences.Frontend.View (iconDefs)
+import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Competences.Frontend.View qualified as V
+import Data.Proxy (Proxy (..))
+import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
-import Miso
-  ( Component (..)
-  , JS (..)
-  , LogLevel (Off)
-  , NS (HTML)
-  , ROOT
-  , View (VComp)
-  , consoleLog
-  , defaultEvents
-  , div_
-  , io_
-  , issue
-  , key_
-  , modify
-  , onMounted
-  , run
-  , startComponent
-  , subscribe
-  , text
-  )
-import Miso.Effect (Effect)
-import Miso.String (MisoString, ms)
-import Optics.Core ((%), (%~), (&), (.~), (^.), (?~))
-import System.Random (StdGen, splitGen)
-import qualified Miso as M
-import Competences.Frontend.Page.EditCompetenceGridPage (editCompetenceGridPage, EditCompetenceGridPage)
+import Miso qualified as M
+import Optics.Core ((.~), (^.))
+import Servant.API ((:<|>) (..), (:>))
+import Servant.Links (allLinks', linkURI)
 
-type App = EditCompetenceGridPage ROOT
+type App = M.Component M.ROOT Model Action
+
+newtype Model = Model
+  { uri :: M.URI
+  }
+  deriving (Eq, Generic, Show)
+
+data Action
+  = PushURI M.URI
+  | SetURI M.URI
+  deriving (Eq, Show)
 
 runApp :: App -> JSM ()
-runApp = startComponent
+runApp = M.startComponent
 
-mkApp :: SyncDocumentRef -> State -> JSM App
-mkApp r initialState = pure $ editCompetenceGridPage r initialState.sessionState.user
-  -- pure $ M.component initialState (updateState r) (viewState r)
+mkApp :: SyncDocumentRef -> User -> App
+mkApp r u =
+  M.component model update view
+  where
+    model = Model editCompetenceGridUri
+
+    update (SetURI uri) = M.modify $ #uri .~ uri
+    update (PushURI uri) = M.io_ $ M.pushURI uri
+
+    view m =
+      M.div_
+        []
+        [ V.iconDefs
+        , V.vBox_ (V.Expand V.Start) (V.Expand V.Center) V.SmallGap [topMenu, page (m ^. #uri), footer]
+        ]
+
+    topMenu = V.hBox_ (V.Expand V.Start) V.NoExpand V.SmallGap [V.text_ "Top Menu"]
+
+    page uri =
+      case M.route (Proxy @API) (viewCompetenceGrid :<|> editCompetenceGrid) id uri of
+        Left _ -> V.text_ "404"
+        Right v -> v
+
+    viewCompetenceGrid _ = V.text_ "View Competence Grid"
+    editCompetenceGrid _ = mounted $ editCompetenceGridPage r u
+
+    mounted c = M.div_ [] M.+> c
+
+    footer = V.text_ "Footer"
 
 withTailwindPlay :: App -> App
-withTailwindPlay app = app {scripts = Src "https://cdn.tailwindcss.com" : scripts app}
+withTailwindPlay app = app {M.scripts = M.Src "https://cdn.tailwindcss.com" : M.scripts app}
 
-updateState :: SyncDocumentRef -> Action -> Effect p State Action
-updateState _ Initialize = do
-  subscribe changeUiTopic ChangeUi LogError
-  issue $ ChangeUi $ SetMain MainGrid
-updateState _ (ChangeUi (PushModal c)) = withUiKey $ \(s, k, g) ->
-  s & (#uiState % #modal) %~ ((k, c, g) :)
-updateState _ (ChangeUi PopModal) = modify $ \s ->
-  s & (#uiState % #modal %~ drop 1)
-updateState _ (ChangeUi (SetMain c)) = withUiKey $ \(s, k, g) ->
-  s & (#uiState % #main ?~ (k, c, g))
-updateState _ (LogError msg) = io_ $ consoleLog msg
-updateState r Mounted = io_ $ issueInitialUpdate r
+type ViewCompetenceGridView = EditCompetenceGridView
 
-withUiKey :: ((State, MisoString, StdGen) -> State) -> Effect p State Action
-withUiKey f = modify $ \s ->
-  let key = ms $ "dynamic-component-" <> show (s ^. #uiState % #nextKeyIn)
-      (g, g') = splitGen $ s ^. #sessionState % #random
-   in f (s & (#uiState % #nextKeyIn %~ (+ 1)) & (#sessionState % #random .~ g), key, g')
+type API = ("view" :> ViewCompetenceGridView) :<|> EditCompetenceGridView
 
-viewState :: SyncDocumentRef -> State -> View m Action
-viewState r s =
-  div_
-    []
-    [ iconDefs
-    , case s ^. #uiState % #main of
-        Nothing -> div_ [] [text "Initialize"]
-        Just (k, c, g) ->
-          div_ [] [text "Initialization done."]
-          -- let c' = mkRegisteredComponent r s g c
-          --  in div_ [onMounted Mounted] [VComp HTML "div" [key_ k] c']
-    ]
+viewCompetenceGridUri, editCompetenceGridUri :: M.URI
+viewCompetenceGridUri :<|> editCompetenceGridUri = allLinks' linkURI (Proxy @API)
