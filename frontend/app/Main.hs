@@ -38,8 +38,6 @@ foreign export javascript "hs_start" main :: IO ()
 
 import Competences.Document.Id (mkId, nilId)
 import Competences.Document.User (User (..), UserId, UserRole (..))
-import Competences.Frontend.App.State (mkState)
-import Competences.Frontend.Common.Translate (loadTranslations)
 import Competences.Frontend.SyncDocument
   ( SyncDocument (..)
   , SyncDocumentRef
@@ -52,7 +50,6 @@ import Data.Aeson (eitherDecode, encode)
 import Data.ByteString.Lazy qualified as B
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
 
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
