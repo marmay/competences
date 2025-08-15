@@ -35,7 +35,9 @@ library
         Competences.Frontend.Component.CompetenceGridEditor,
         Competences.Frontend.Component.CompetenceGridViewer,
         Competences.Frontend.Component.CompetenceSelector,
+        Competences.Frontend.Component.EvidenceEditor,
         Competences.Frontend.Page.EditCompetenceGridPage,
+        Competences.Frontend.Page.ViewCompetenceGridPage,
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,
         Competences.Frontend.View.Button,
@@ -43,6 +45,7 @@ library
         Competences.Frontend.View.Icon,
         Competences.Frontend.View.Layout,
         Competences.Frontend.View.Modal,
+        Competences.Frontend.View.SidePanel,
         Competences.Frontend.View.Table,
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.Text
