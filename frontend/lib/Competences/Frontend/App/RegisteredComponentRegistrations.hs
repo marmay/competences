@@ -14,4 +14,4 @@ mkRegisteredComponent
   :: SyncDocumentRef -> State -> StdGen -> RegisteredComponent -> SomeComponent m
 mkRegisteredComponent r s g MainGrid =
   -- SomeComponent $ grid r $ G.mkState s.sessionState.user s.sessionState.translationData g
-  SomeComponent $ editCompetenceGridPage r g s.sessionState.user s.sessionState.translationData
+  SomeComponent $ editCompetenceGridPage r s.sessionState.user
