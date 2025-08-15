@@ -1,5 +1,6 @@
 module Competences.Frontend.Page.EditCompetenceGridPage
   ( editCompetenceGridPage
+  , EditCompetenceGridPage
   )
 where
 
@@ -8,94 +9,97 @@ import Competences.Document
   , CompetenceGrid (..)
   , Document (..)
   , User
-  , emptyDocument
   , orderMax
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceEditor qualified as CE
 import Competences.Frontend.Component.CompetenceGridEditor qualified as CGE
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument
+  ( SyncDocument (..)
+  , SyncDocumentRef
+  , readSyncDocument
+  )
 import Competences.Frontend.View qualified as V
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~))
-import System.Random (StdGen)
+import Optics.Core ((%), (.~), (?~), (^.))
+import System.Random (randomIO)
+
+data Model = Model
+  { competenceGridEditor :: !CGE.Model
+  , newCompetence :: !(Maybe Competence)
+  }
+  deriving (Eq, Generic, Show)
+
+data CloseId = CloseNewCompetenceEditor
+  deriving (Eq, Generic, Show)
+
+instance ToJSON CloseId
+
+instance FromJSON CloseId
+
+data Action
+  = CompetenceGridEditorAction !CGE.Action
+  | SpawnNewCompetenceEditor
+  | SpawnNewCompetenceEditor' !Competence
+  | HandleClose !CloseId
+  | NoOp
+  deriving (Eq, Generic, Show)
+
+type EditCompetenceGridPage p = M.Component p Model Action
 
 editCompetenceGridPage
-  :: SyncDocumentRef -> StdGen -> User -> C.TranslationData -> M.Component p Model Action
-editCompetenceGridPage r g u td =
-  (M.component model (update r) view)
+  :: SyncDocumentRef -> User -> M.Component p Model Action
+editCompetenceGridPage r u =
+  (M.component model update view)
     { M.subs =
         map (C.liftSub CompetenceGridEditorAction) (CGE.subscriptions r)
-          <> [subscribeDocument r UpdateDocument]
-    , M.events = M.defaultEvents <> M.keyboardEvents
+    , M.mailbox = M.checkMail HandleClose (const NoOp)
     }
   where
     model =
       Model
         { competenceGridEditor = CGE.mkModel u
-        , newCompetenceEditor = Nothing
-        , document = emptyDocument
-        , translationData = td
-        , random = g
+        , newCompetence = Nothing
         }
 
-data Model = Model
-  { competenceGridEditor :: !CGE.Model
-  , newCompetenceEditor :: !(Maybe CE.Model)
-  , document :: !Document
-  , translationData :: !C.TranslationData
-  , random :: !StdGen
-  }
-  deriving (Eq, Generic, Show)
+    update (CompetenceGridEditorAction a) = C.liftEffect #competenceGridEditor CompetenceGridEditorAction (CGE.update r a)
+    update SpawnNewCompetenceEditor =
+      M.withSink $ \sink -> do
+        competenceId <- randomIO
+        document <- readSyncDocument r
+        let competenceGridId = document ^. #localDocument % #competenceGrid % #id
+        sink $
+          SpawnNewCompetenceEditor' $
+            Competence
+              { id = competenceId
+              , competenceGridId = competenceGridId
+              , description = ""
+              , levelDescriptions = Map.empty
+              , order = orderMax
+              }
+    update (SpawnNewCompetenceEditor' c) = M.modify (#newCompetence ?~ c)
+    update (HandleClose CloseNewCompetenceEditor) = M.modify (#newCompetence .~ Nothing)
+    update NoOp = pure ()
 
-data Action
-  = CompetenceGridEditorAction !CGE.Action
-  | NewCompetenceEditorAction !CE.Action
-  | SpawnNewCompetenceEditor
-  | UpdateDocument !DocumentChange
-  deriving (Eq, Generic, Show)
-
-view :: forall m. Model -> M.View m Action
-view m =
-  V.vBox_
-    V.NoExpand
-    (V.Expand V.Start)
-    V.LargeGap
-    [ CompetenceGridEditorAction <$> CGE.view m.competenceGridEditor
-    , V.hBox_
-        (V.Expand V.End)
+    view m =
+      V.vBox_
         V.NoExpand
-        V.NoGap
-        [ V.iconLabelButton
-            [M.onClick SpawnNewCompetenceEditor]
-            V.RegularButton
-            V.IcnAdd
-            (C.translate' C.LblAddNewCompetence)
+        (V.Expand V.Start)
+        V.LargeGap
+        [ CompetenceGridEditorAction <$> CGE.view m.competenceGridEditor
+        , V.hBox_
+            (V.Expand V.End)
+            V.NoExpand
+            V.NoGap
+            [ V.iconLabelButton
+                [M.onClick SpawnNewCompetenceEditor]
+                V.RegularButton
+                V.IcnAdd
+                (C.translate' C.LblAddNewCompetence)
+            ]
+        , V.maybeModalHost
+            (CE.competenceEditorComponent CloseNewCompetenceEditor r <$> m.newCompetence)
         ]
-    , NewCompetenceEditorAction <$> V.maybeModalHost m.newCompetenceEditor CE.view
-    ]
-
-update :: SyncDocumentRef -> Action -> M.Effect p Model Action
-update r (CompetenceGridEditorAction a) = C.liftEffect #competenceGridEditor CompetenceGridEditorAction (CGE.update r a)
-update r (NewCompetenceEditorAction e@CE.CompleteEditing) = do
-  C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
-  M.modify $ #newCompetenceEditor .~ Nothing
-update r (NewCompetenceEditorAction e@CE.CancelEditing) = do
-  C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r e)
-  M.modify $ #newCompetenceEditor .~ Nothing
-update r (NewCompetenceEditorAction a) = C.liftEffect' #newCompetenceEditor NewCompetenceEditorAction (CE.update r a)
-update _ SpawnNewCompetenceEditor = do
-  competenceId <- C.random'
-  M.modify $ \m ->
-    let newCompetence =
-          Competence
-            { id = competenceId
-            , order = orderMax
-            , competenceGridId = m.document.competenceGrid.id
-            , description = ""
-            , levelDescriptions = Map.empty
-            }
-     in m & (#newCompetenceEditor ?~ CE.Model newCompetence)
-update _ (UpdateDocument (DocumentChange d _)) = M.modify $ #document .~ d

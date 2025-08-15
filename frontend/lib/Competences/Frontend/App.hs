@@ -42,28 +42,17 @@ import Miso.Effect (Effect)
 import Miso.String (MisoString, ms)
 import Optics.Core ((%), (%~), (&), (.~), (^.), (?~))
 import System.Random (StdGen, splitGen)
+import qualified Miso as M
+import Competences.Frontend.Page.EditCompetenceGridPage (editCompetenceGridPage, EditCompetenceGridPage)
 
-type App = Component ROOT State Action
+type App = EditCompetenceGridPage ROOT
 
-runApp :: Component ROOT State Action -> JSM ()
+runApp :: App -> JSM ()
 runApp = startComponent
 
 mkApp :: SyncDocumentRef -> State -> JSM App
-mkApp r initialState = do
-  pure $
-    Component
-      { model = initialState
-      , update = updateState r
-      , view = viewState r
-      , subs = []
-      , styles = []
-      , events = defaultEvents
-      , scripts = []
-      , initialAction = Just Initialize
-      , mountPoint = Nothing
-      , mailbox = const Nothing
-      , logLevel = Off
-      }
+mkApp r initialState = pure $ editCompetenceGridPage r initialState.sessionState.user
+  -- pure $ M.component initialState (updateState r) (viewState r)
 
 withTailwindPlay :: App -> App
 withTailwindPlay app = app {scripts = Src "https://cdn.tailwindcss.com" : scripts app}
@@ -95,6 +84,7 @@ viewState r s =
     , case s ^. #uiState % #main of
         Nothing -> div_ [] [text "Initialize"]
         Just (k, c, g) ->
-          let c' = mkRegisteredComponent r s g c
-           in div_ [onMounted Mounted] [VComp HTML "div" [key_ k] c']
+          div_ [] [text "Initialization done."]
+          -- let c' = mkRegisteredComponent r s g c
+          --  in div_ [onMounted Mounted] [VComp HTML "div" [key_ k] c']
     ]
