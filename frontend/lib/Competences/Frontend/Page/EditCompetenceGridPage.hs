@@ -13,8 +13,8 @@ import Competences.Document
   , orderMax
   )
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceEditor qualified as CE
-import Competences.Frontend.Component.CompetenceGridEditor qualified as CGE
+import Competences.Frontend.Component.CompetenceEditor (competenceEditorComponent)
+import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.SyncDocument
   ( SyncDocument (..)
   , SyncDocumentRef
@@ -28,9 +28,8 @@ import Miso qualified as M
 import Optics.Core ((%), (.~), (?~), (^.))
 import System.Random (randomIO)
 
-data Model = Model
-  { competenceGridEditor :: !CGE.Model
-  , newCompetence :: !(Maybe Competence)
+newtype Model = Model
+  { newCompetence :: Maybe Competence
   }
   deriving (Eq, Generic, Show)
 
@@ -42,32 +41,28 @@ instance ToJSON CloseId
 instance FromJSON CloseId
 
 data Action
-  = CompetenceGridEditorAction !CGE.Action
-  | SpawnNewCompetenceEditor
+  = SpawnNewCompetenceEditor
   | SpawnNewCompetenceEditor' !Competence
   | HandleClose !CloseId
   | NoOp
   deriving (Eq, Generic, Show)
 
 type EditCompetenceGridPage p = M.Component p Model Action
+
 type EditCompetenceGridView = M.View Model Action
 
 editCompetenceGridPage
   :: SyncDocumentRef -> User -> M.Component p Model Action
 editCompetenceGridPage r u =
   (M.component model update view)
-    { M.subs =
-        map (C.liftSub CompetenceGridEditorAction) (CGE.subscriptions r)
-    , M.mailbox = M.checkMail HandleClose (const NoOp)
+    { M.mailbox = M.checkMail HandleClose (const NoOp)
     }
   where
     model =
       Model
-        { competenceGridEditor = CGE.mkModel u
-        , newCompetence = Nothing
+        { newCompetence = Nothing
         }
 
-    update (CompetenceGridEditorAction a) = C.liftEffect #competenceGridEditor CompetenceGridEditorAction (CGE.update r a)
     update SpawnNewCompetenceEditor =
       M.withSink $ \sink -> do
         competenceId <- randomIO
@@ -91,7 +86,7 @@ editCompetenceGridPage r u =
         V.NoExpand
         (V.Expand V.Start)
         V.LargeGap
-        [ CompetenceGridEditorAction <$> CGE.view m.competenceGridEditor
+        [ M.div_ [] M.+> competenceGridEditorComponent r u
         , V.hBox_
             (V.Expand V.End)
             V.NoExpand
@@ -103,5 +98,5 @@ editCompetenceGridPage r u =
                 (C.translate' C.LblAddNewCompetence)
             ]
         , V.maybeModalHost
-            (CE.competenceEditorComponent CloseNewCompetenceEditor r <$> m.newCompetence)
+            (competenceEditorComponent CloseNewCompetenceEditor r <$> m.newCompetence)
         ]
