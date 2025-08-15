@@ -51,6 +51,7 @@ data TailwindCls
   | JustifyStart
   | JustifyCenter
   | JustifyEnd
+  | LinkButton
   | M4
   | ModalHost
   | ModalDialog
@@ -107,6 +108,7 @@ tailwindNames ItemsEnd = ["items-end"]
 tailwindNames JustifyStart = ["justify-start"]
 tailwindNames JustifyCenter = ["justify-center"]
 tailwindNames JustifyEnd = ["justify-end"]
+tailwindNames LinkButton = []
 tailwindNames M4 = ["m-4"]
 tailwindNames ModalHost = ["fixed", "inset-0", "z-50", "overflow-y-auto", useColor Bg Gray I500 O50]
 tailwindNames ModalDialog =

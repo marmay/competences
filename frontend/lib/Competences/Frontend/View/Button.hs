@@ -1,6 +1,7 @@
 module Competences.Frontend.View.Button
   ( iconButton
   , iconLabelButton
+  , link
   , buttonRow
   , buttonColumn
   , applyButton
@@ -43,6 +44,9 @@ iconLabelButton attrs s iconId label =
   button_
     (attributesFor s [T.IconLabelButton, T.SizeFit] : attrs)
     [V.hBox_ V.NoExpand (V.Expand V.End) V.SmallGap [icon [] iconId, V.buttonText_ label]]
+
+link :: [M.Attribute action] -> MisoString -> M.View m action
+link attrs label = button_ (T.tailwind [T.LinkButton] : attrs) [V.buttonText_ label]
 
 data ToggleState
   = ToggleOff

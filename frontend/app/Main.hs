@@ -63,7 +63,6 @@ data Options = Options
   , userId :: !UserId
   , userName :: !Text
   , userRole :: !UserRole
-  , randomSeed :: !Int
   }
 
 options :: Parser Options
@@ -136,15 +135,6 @@ options =
           <> value Teacher
           <> metavar "USER_ROLE"
       )
-    <*> option
-      auto
-      ( long "random-seed"
-          <> short 's'
-          <> help "Random seed to use for generating random data"
-          <> showDefault
-          <> value 42
-          <> metavar "SEED"
-      )
 
 main :: IO ()
 main = do
@@ -152,8 +142,7 @@ main = do
   let user = User opt.userId opt.userName opt.userRole
   bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
-      let app = withTailwindPlay $ mkApp document user
-      runApp app
+      runApp $ withTailwindPlay $ mkApp document user
 
 readDocument :: Maybe FilePath -> IO SyncDocumentRef
 readDocument (Just p) = do
