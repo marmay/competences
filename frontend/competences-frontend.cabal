@@ -26,11 +26,6 @@ library
         OverloadedStrings
     exposed-modules:
         Competences.Frontend.App,
-        Competences.Frontend.App.Action,
-        Competences.Frontend.App.RegisteredComponent,
-        Competences.Frontend.App.RegisteredComponentRegistrations,
-        Competences.Frontend.App.State,
-        Competences.Frontend.App.Topics,
         Competences.Frontend.Common.Effect,
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Reorder,
