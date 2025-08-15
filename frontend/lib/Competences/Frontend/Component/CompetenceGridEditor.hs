@@ -1,10 +1,7 @@
 module Competences.Frontend.Component.CompetenceGridEditor
   ( Model
-  , Action (..)
-  , mkModel
-  , subscriptions
-  , update
-  , view
+  , Action
+  , competenceGridEditorComponent
   )
 where
 
@@ -35,7 +32,6 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.String qualified as M
 import Optics.Core (ix, (%~), (&), (.~), (^?))
 
 data Model = Model
@@ -58,36 +54,34 @@ data Action
   | ReorderAction !(C.ReorderAction Competence)
   deriving (Eq, Generic, Show)
 
-mkModel :: User -> Model
-mkModel user =
-  Model
-    { user = user
-    , document = emptyDocument
-    , editFields = Map.empty
-    , reorderFrom = C.initialReorderModel
-    }
-
-subscriptions :: SyncDocumentRef -> [M.Sub Action]
-subscriptions r = [subscribeDocument r UpdateDocument]
-
-update :: SyncDocumentRef -> Action -> M.Effect p Model Action
-update _ (EditField field value) = M.modify $ #editFields %~ Map.insert field value
-update _ (UpdateDocument (DocumentChange newDocument _)) = do
-  M.modify $ \s ->
-    s
-      & (#document .~ newDocument)
-      & (#editFields %~ updateEditFields s.user newDocument)
-  s <- M.get
-  M.io_ $ M.consoleLog $ M.ms $ show s.document.lockedFields
-update r (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
-update r (ReorderAction a) = do
-  m <- M.get
-  C.liftEffect #reorderFrom ReorderAction (C.updateReorderModel r (mkReorderCommand m) a)
+competenceGridEditorComponent :: SyncDocumentRef -> User -> M.Component p Model Action
+competenceGridEditorComponent r u = (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
   where
-    mkReorderCommand :: Model -> CompetenceId -> Reorder Competence -> Maybe Command
-    mkReorderCommand m id' to = do
-      fromPosition <- orderPosition m.document.competences id'
-      pure $ ReorderCompetence fromPosition to
+    model =
+      Model
+        { user = u
+        , document = emptyDocument
+        , editFields = Map.empty
+        , reorderFrom = C.initialReorderModel
+        }
+
+    update (EditField field value) = M.modify $ #editFields %~ Map.insert field value
+    update (UpdateDocument (DocumentChange newDocument _)) = do
+      M.modify $ \s ->
+        s
+          & (#document .~ newDocument)
+          & (#editFields %~ updateEditFields s.user newDocument)
+      s <- M.get
+      M.io_ $ M.consoleLog $ M.ms $ show s.document.lockedFields
+    update (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
+    update (ReorderAction a) = do
+      m <- M.get
+      C.liftEffect #reorderFrom ReorderAction (C.updateReorderModel r (mkReorderCommand m) a)
+      where
+        mkReorderCommand :: Model -> CompetenceId -> Reorder Competence -> Maybe Command
+        mkReorderCommand m id' to = do
+          fromPosition <- orderPosition m.document.competences id'
+          pure $ ReorderCompetence fromPosition to
 
 updateEditFields
   :: User -> Document -> Map.Map ChangableField M.MisoString -> Map.Map ChangableField M.MisoString
