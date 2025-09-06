@@ -21,9 +21,9 @@ sidePanel
   -> M.View model action
 sidePanel state = M.div_ [T.tailwind (tailwindStyleFor state)]
   where
-    tailwindStyleFor MenuPanel = undefined
-    tailwindStyleFor EditorPanel = undefined
-    tailwindStyleFor LargePanel = undefined
+    tailwindStyleFor MenuPanel = []
+    tailwindStyleFor EditorPanel = []
+    tailwindStyleFor LargePanel = []
 
 mounted
   :: (Eq childModel) => M.MisoString -> M.Component model childModel childAction -> M.View model action

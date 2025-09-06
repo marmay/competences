@@ -31,12 +31,13 @@ data User = User
   }
   deriving (Eq, Generic, Ord, Show)
 
-type UserIxs = '[UserId, UserRole]
+type UserIxs = '[UserId, Text, UserRole]
 
 instance Ix.Indexable UserIxs User where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
+      (Ix.ixFun $ singleton . (.name))
       (Ix.ixFun $ singleton . (.role))
 
 instance FromJSON UserRole
