@@ -8,6 +8,7 @@ import Competences.Document (User)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
+import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
@@ -31,9 +32,6 @@ data SidePanel
   | EvidenceEditor
   | Menu
   deriving (Eq, Generic, Show)
-
-competenceGridViewerComponent :: SyncDocumentRef -> User -> M.Component p () ()
-competenceGridViewerComponent = undefined
 
 viewCompetenceGridPage :: SyncDocumentRef -> User -> M.Component p Model Action
 viewCompetenceGridPage r u = M.component model update view
