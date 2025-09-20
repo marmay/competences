@@ -43,7 +43,7 @@ import Competences.Frontend.SyncDocument
   , SyncDocumentRef
   , mkSyncDocument
   , mkSyncDocument'
-  , readSyncDocument
+  , readSyncDocument, modifySyncDocument
   )
 import Control.Exception (bracket)
 import Data.Aeson (eitherDecode, encode)
@@ -53,6 +53,7 @@ import Data.Text qualified as T
 
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
+import Competences.Command (Command(..))
 
 data Options = Options
   { port :: !Int
@@ -142,6 +143,7 @@ main = do
   let user = User opt.userId opt.userName opt.userRole
   bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
+      modifySyncDocument document $ AddUser user
       runApp $ withTailwindPlay $ mkApp document user
 
 readDocument :: Maybe FilePath -> IO SyncDocumentRef

@@ -2,19 +2,35 @@ module Competences.Command.ChangeField
   ( canChangeField
   , lockField
   , releaseField
+  , changableFieldMeta
+  , defaultEncoding
+  , ChangableFieldMeta (..)
+  , FieldEncoding (..)
+  , FieldType (..)
   )
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Document (Document (..), PartialChecksumId (..), updateChecksums)
+import Competences.Document
+  ( Competence (..)
+  , CompetenceGrid (..)
+  , Document (..)
+  , PartialChecksumId (..)
+  , User (..)
+  , updateChecksums
+  )
 import Competences.Document.ChangableField (ChangableField (..))
 import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad (when)
-import Data.Either (isLeft)
+import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as M
-import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import Optics.Core (matching, ix, (%~), (&))
+import Data.Text qualified as T
+import Data.Typeable (Typeable, typeRep)
+import GHC.Generics (Generic)
+import Optics.Core (AffineTraversal', castOptic, ix, preview, (%), (%%), (%~), (&), (.~))
+import Data.Aeson (ToJSON, FromJSON)
 
 -- | Whether a given role is allowed to change a given field.
 canChangeField :: ChangableField -> UserRole -> Bool
@@ -23,33 +39,142 @@ canChangeField _ _ = False
 
 -- | Locks a field with a given content for changes by a given
 -- user.
-lockField :: Document -> ChangableField -> UserId -> Text -> UpdateResult
-lockField model field userId expectedText = do
-  when (field `M.member` model.lockedFields) $
+lockField :: Document -> ChangableField -> UserId -> FieldEncoding -> UpdateResult
+lockField document field userId expected = do
+  let m = changableFieldMeta field
+  m.checkPermissions document userId
+  when (field `M.member` document.lockedFields) $
     Left "field already locked"
-  let current = matching (ix field) model
-  when (isLeft current) $
-    Left "field no longer exists"
-  when (current /= Right expectedText) $
+  oldContents <- m.get document
+  when (oldContents /= expected) $
     Left "field has changed in the meantime"
-
-  let model' = model & #lockedFields %~ M.insert field userId
-  pure (updateChecksums model' [PC_LockedFields], AllUsers)
+  let document' = document & #lockedFields %~ M.insert field userId
+  pure (updateChecksums document' [PC_LockedFields], AllUsers)
 
 -- | Releases a locked field and changes its content.
-releaseField :: Document -> ChangableField -> Maybe Text -> UpdateResult
-releaseField model field text = do
-  when (field `M.notMember` model.lockedFields) $
+releaseField :: Document -> ChangableField -> Maybe FieldEncoding -> UpdateResult
+releaseField document field newValue = do
+  let m = changableFieldMeta field
+  let document' = updateChecksums (document & #lockedFields %~ M.delete field) [PC_LockedFields]
+  when (field `M.notMember` document.lockedFields) $
     Left "field not locked"
+  case newValue of
+    Nothing -> pure (document', AllTeachers)
+    Just newValue' -> m.set document' newValue'
 
-  let model' =
-        model
-          & (#lockedFields %~ M.delete field)
-          & (ix field %~ flip fromMaybe text)
-  pure (updateChecksums model' (partialChecksumIdsForChangableField field), AllUsers)
+data ChangableFieldMeta = ChangableFieldMeta
+  { get :: Document -> Either Text FieldEncoding
+  , set :: Document -> FieldEncoding -> Either Text (Document, AffectedUsers)
+  , fieldType :: FieldType
+  , checkPermissions :: Document -> UserId -> Either Text ()
+  }
+  deriving (Generic)
 
-partialChecksumIdsForChangableField :: ChangableField -> [PartialChecksumId]
-partialChecksumIdsForChangableField CompetenceGridTitle = [PC_CompetenceGrid]
-partialChecksumIdsForChangableField CompetenceGridDescription = [PC_CompetenceGrid]
-partialChecksumIdsForChangableField (CompetenceDescription _) = [PC_Competences]
-partialChecksumIdsForChangableField (CompetenceLevelDescription _) = [PC_Competences]
+noCheckPermissions :: Document -> UserId -> Either Text ()
+noCheckPermissions _ _ = Right ()
+
+data FieldType
+  = TextField
+  | EnumField {fieldType :: !Text, possibleValues :: ![Text]}
+  deriving (Eq, Generic, Ord, Show)
+
+changableTextFieldMeta
+  :: AffineTraversal' Document Text -> [PartialChecksumId] -> ChangableFieldMeta
+changableTextFieldMeta t cs =
+  let get d = case d & preview t of
+        Just x -> Right (TextEncoding x)
+        Nothing -> Left "field not found"
+      set d v = case v of
+        (TextEncoding x) -> get d *> Right (updateChecksums (d & t .~ x) cs, AllUsers)
+        _otherwise -> Left "wrong data value type"
+   in ChangableFieldMeta
+        { get = get
+        , set = set
+        , fieldType = TextField
+        , checkPermissions = noCheckPermissions
+        }
+
+defaultEncoding :: FieldType -> FieldEncoding
+defaultEncoding TextField = TextEncoding ""
+defaultEncoding EnumField{ possibleValues = v:_ } = TextEncoding v
+defaultEncoding EnumField{} = TextEncoding ""
+
+data FieldEncoding
+  = TextEncoding !Text
+  | IntEncoding !Int
+  deriving (Eq, Generic, Show)
+
+instance ToJSON FieldEncoding
+
+instance FromJSON FieldEncoding
+
+data EnumEncoder a = EnumEncoder
+  { toText :: a -> Text
+  , fromText :: Text -> Either Text a
+  , fieldType :: FieldType
+  }
+
+defaultEnumEncoder :: forall a. (Bounded a, Show a, Read a, Typeable a, Enum a) => EnumEncoder a
+defaultEnumEncoder =
+  EnumEncoder
+    { toText = T.pack . show
+    , fromText = \t -> case reads @a (T.unpack t) of
+        [(x, "")] -> Right x
+        _ -> Left "could not parse enum value"
+    , fieldType =
+        EnumField
+          { fieldType = T.pack $ show (typeRep (Proxy @a))
+          , possibleValues = T.pack . show <$> [minBound @a .. maxBound @a]
+          }
+    }
+
+changableEnumFieldMeta
+  :: forall a
+   . (Typeable a)
+  => AffineTraversal' Document a -> EnumEncoder a -> [PartialChecksumId] -> ChangableFieldMeta
+changableEnumFieldMeta t e cs =
+  let get d = case d & preview t of
+        Just x -> Right (TextEncoding $ e.toText x)
+        Nothing -> Left "field not found."
+      set d v = case v of
+        (TextEncoding x) -> do
+          x' <- e.fromText x
+          get d *> Right (updateChecksums (d & t .~ x') cs, AllUsers)
+        _otherwise -> Left "wrong data value type"
+   in ChangableFieldMeta
+        { get = get
+        , set = set
+        , fieldType = e.fieldType
+        , checkPermissions = noCheckPermissions
+        }
+
+changableFieldMeta :: ChangableField -> ChangableFieldMeta
+changableFieldMeta CompetenceGridTitle =
+  changableTextFieldMeta (castOptic $ #competenceGrid %% #title) [PC_CompetenceGrid]
+    & (#checkPermissions .~ requireRole Teacher)
+changableFieldMeta CompetenceGridDescription =
+  changableTextFieldMeta (castOptic $ #competenceGrid %% #description) [PC_CompetenceGrid]
+    & (#checkPermissions .~ requireRole Teacher)
+changableFieldMeta (CompetenceDescription competenceId) =
+  changableTextFieldMeta (castOptic $ #competences % ix competenceId % #description) [PC_Competences]
+    & (#checkPermissions .~ requireRole Teacher)
+changableFieldMeta (CompetenceLevelDescription (competenceId, level)) =
+  changableTextFieldMeta
+    (castOptic $ #competences % ix competenceId % #levelDescriptions % ix level)
+    [PC_Competences]
+    & (#checkPermissions .~ requireRole Teacher)
+changableFieldMeta (UserName userId) =
+  changableTextFieldMeta (castOptic $ #users % ix userId % #name) [PC_Users]
+    & (#checkPermissions .~ requireRole Teacher)
+changableFieldMeta (UserRole userId) =
+  changableEnumFieldMeta (castOptic $ #users % ix userId % #role) defaultEnumEncoder [PC_Users]
+    & (#checkPermissions .~ requireRole Teacher)
+
+requireRole :: UserRole -> Document -> UserId -> Either Text ()
+requireRole r d u =
+  case Ix.getOne (d.users Ix.@= u) of
+    Nothing -> Left "user not found"
+    (Just user) -> do
+      when (user.role /= r) $
+        Left "user does not have required role!"
+      Right ()
