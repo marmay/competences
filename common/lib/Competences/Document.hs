@@ -27,7 +27,7 @@ import Competences.Document.CompetenceGrid
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
-import Competences.Document.User (User (..), UserId, UserIxs)
+import Competences.Document.User (User (..), UserRole(..), UserId, UserIxs)
 import Crypto.Hash.SHA1 (hashlazy)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Binary (Binary, encode)
@@ -35,7 +35,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy qualified as BL (ByteString)
 import Data.Map qualified as M
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
 import Optics.Core
@@ -109,18 +108,6 @@ emptyDocument =
       , partialChecksums = M.empty
       , overallChecksum = ""
       }
-
-type instance Index Document = ChangableField
-
-type instance IxValue Document = Text
-
-instance Ixed Document where
-  type IxKind Document = An_AffineTraversal
-  ix CompetenceGridTitle = castOptic (#competenceGrid %% #title)
-  ix CompetenceGridDescription = castOptic (#competenceGrid %% #description)
-  ix (CompetenceDescription competenceId) = castOptic (#competences % ix competenceId % #description)
-  ix (CompetenceLevelDescription (competenceId, level)) =
-    castOptic (#competences % ix competenceId % #levelDescriptions % at level % non "")
 
 data PartialChecksumId
   = PC_CompetenceGrid

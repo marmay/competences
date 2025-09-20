@@ -19,7 +19,7 @@ type UserId = Id User
 data UserRole
   = Teacher
   | Student
-  deriving (Eq, Generic, Ord, Read, Show)
+  deriving (Eq, Generic, Ord, Read, Show, Enum, Bounded)
 
 -- | Information about a Student.
 data User = User

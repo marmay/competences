@@ -5,9 +5,9 @@ module Competences.Command
   )
 where
 
-import Competences.Command.ChangeField (lockField, releaseField)
+import Competences.Command.ChangeField (lockField, releaseField, FieldEncoding)
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Document (Document (..))
+import Competences.Document (Document (..), User(..))
 import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.Competence (Competence (..), CompetenceId)
 import Competences.Document.Evidence (Evidence (..), EvidenceId)
@@ -25,18 +25,19 @@ import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Either.Extra (mapLeft)
 import Data.IxSet.Typed qualified as Ix
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%~), (&), (.~), (^.))
 
 data Command
-  = LockField !ChangableField !UserId !Text
-  | ReleaseField !ChangableField !(Maybe Text)
+  = LockField !ChangableField !UserId !FieldEncoding
+  | ReleaseField !ChangableField !(Maybe FieldEncoding)
   | AddCompetence !Competence
   | RemoveCompetence !CompetenceId
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | AddEvidence !Evidence
   | RemoveEvidence !EvidenceId
+  | AddUser !User
+  | RemoveUser !UserId
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -51,10 +52,10 @@ handleCommand cmd model = case cmd of
   ReleaseField f t -> releaseField model f t
   AddCompetence competence -> do
     competences' <- orderedInsert competence (model ^. #competences)
-    pure $ (model & #competences .~ competences', AllUsers)
+    pure (model & #competences .~ competences', AllUsers)
   RemoveCompetence competenceId -> do
     competences' <- orderedDelete competenceId (model ^. #competences)
-    pure $ (model & #competences .~ competences', AllUsers)
+    pure (model & #competences .~ competences', AllUsers)
   ReorderCompetence pos reordering ->
     fmap (,AllUsers) $
       fmap (\cs -> model & #competences .~ cs) $
@@ -62,9 +63,13 @@ handleCommand cmd model = case cmd of
           reorder pos reordering (model ^. #competences)
   AddEvidence evidence -> insertNew model #evidences evidence (.id) evidenceAffectedUsers
   RemoveEvidence evidenceId -> removeExisting model #evidences evidenceId evidenceAffectedUsers
+  AddUser user -> do
+    insertNew model #users user (.id) userAffectedUsers
+  RemoveUser userId -> do
+    removeExisting model #users userId userAffectedUsers
   where
-    evidenceAffectedUsers :: Evidence -> AffectedUsers
     evidenceAffectedUsers e = AllTeachersAndSpecificStudents [e.userId]
+    userAffectedUsers u = AllTeachersAndSpecificStudents [u.id]
 
 insertNew
   :: forall a ix ixs

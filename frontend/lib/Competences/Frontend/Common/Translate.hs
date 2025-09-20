@@ -71,6 +71,9 @@ data Label
   | LblEditCompetence
   | LblAddNewCompetence
   | LblAddEvidence
+  | LblUserList
+  | LblUserName
+  | LblUserRole
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -94,6 +97,9 @@ labels' =
   , LblEditCompetence
   , LblAddNewCompetence
   , LblAddEvidence
+  , LblUserList
+  , LblUserName
+  , LblUserRole
   ]
 
 defaultLanguage :: Language
@@ -119,6 +125,9 @@ defaultTranslation (LblCompetenceLevelPlaceholder AdvancedLevel) = "..."
 defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
 defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
 defaultTranslation LblAddEvidence = "Beobachtung hinzufügen"
+defaultTranslation LblUserList = "Liste aller Benutzer"
+defaultTranslation LblUserName = "Benutzername"
+defaultTranslation LblUserRole = "Benutzerrolle"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

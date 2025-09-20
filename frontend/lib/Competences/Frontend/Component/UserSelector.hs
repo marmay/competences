@@ -19,6 +19,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (.~), (?~), (^.))
+import Data.Foldable (find)
 
 data Model = Model
   { users :: [User]
@@ -33,16 +34,22 @@ instance FromJSON UserSelectorMessage
 
 instance ToJSON UserSelectorMessage
 
-selectUser :: User -> Model -> Model
-selectUser u m
-  | u `elem` m ^. #users = m & #selectedUser ?~ u
-  | otherwise = cancelSelection m
+selectUser :: UserId -> Model -> Model
+selectUser u m = case find ((== u) . (^. #id)) (m ^. #users) of
+  Just u' -> m & #selectedUser ?~ u'
+  Nothing -> cancelSelection m
 
 cancelSelection :: Model -> Model
 cancelSelection = #selectedUser .~ Nothing
 
+refreshUser :: Model -> Model
+refreshUser m = case m ^. #selectedUser of
+  Just u -> selectUser (u ^. #id) m
+  Nothing -> m
+
 updateUsers :: Document -> Model -> Model
-updateUsers d = #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
+updateUsers d m = m & #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
+                    & refreshUser
 
 notifySelection :: M.Effect p Model Action -> M.Effect p Model Action
 notifySelection e = do
@@ -51,7 +58,7 @@ notifySelection e = do
   M.mailParent $ UserSelectionChanged u
 
 data Action
-  = SelectUser !User
+  = SelectUser !UserId
   | CancelSelection
   | UpdateDocument DocumentChange
   deriving (Eq, Show)
@@ -77,7 +84,7 @@ userSelectorComponent syncDocumentRef =
       V.toggleButton onClicked toggleState (V.text_ $ u ^. #name)
       where
         onClicked V.ToggleOn = CancelSelection
-        onClicked V.ToggleOff = SelectUser u
+        onClicked V.ToggleOff = SelectUser (u ^. #id)
 
         toggleState
           | Just u == (m ^. #selectedUser) = V.ToggleOn
