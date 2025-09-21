@@ -26,4 +26,4 @@ manageUsersPage r u =
   M.component Model update view
   where
     update _ = pure ()
-    view Model = M.div_ [] M.+> userListEditorComponent r u
+    view Model = M.div_ [M.key_ @M.MisoString "user-list"] M.+> userListEditorComponent r u

@@ -74,6 +74,7 @@ data Label
   | LblUserList
   | LblUserName
   | LblUserRole
+  | LblAddUser
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -100,6 +101,7 @@ labels' =
   , LblUserList
   , LblUserName
   , LblUserRole
+  , LblAddUser
   ]
 
 defaultLanguage :: Language
@@ -128,6 +130,7 @@ defaultTranslation LblAddEvidence = "Beobachtung hinzufügen"
 defaultTranslation LblUserList = "Liste aller Benutzer"
 defaultTranslation LblUserName = "Benutzername"
 defaultTranslation LblUserRole = "Benutzerrolle"
+defaultTranslation LblAddUser = "Benutzer hinzufügen"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
