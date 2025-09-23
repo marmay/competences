@@ -7,7 +7,7 @@ where
 
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
-import Miso.String qualified as M
+import Miso.Html qualified as M
 
 title_ :: M.MisoString -> M.View m a
 title_ t = M.span_ [T.tailwind [T.TextXl, T.FontBold, T.TextCenter]] [M.text t]

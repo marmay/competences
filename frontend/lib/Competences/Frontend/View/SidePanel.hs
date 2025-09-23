@@ -8,6 +8,8 @@ where
 
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
+import Miso.Html qualified as M
+import Miso.Html.Property qualified as M
 
 data SidePanelState
   = MenuPanel

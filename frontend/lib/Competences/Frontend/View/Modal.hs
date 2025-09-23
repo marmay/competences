@@ -7,6 +7,7 @@ where
 
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
+import Miso.Html qualified as M
 
 modalHost :: [M.Attribute a] -> [M.View m a] -> M.View m a
 modalHost attrs = M.div_ (T.tailwind [ T.ModalHost ] : attrs)

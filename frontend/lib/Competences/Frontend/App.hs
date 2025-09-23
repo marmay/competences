@@ -6,21 +6,18 @@ module Competences.Frontend.App
 where
 
 import Competences.Document.User (User)
-import Competences.Frontend.Page.EditCompetenceGridPage
-  ( EditCompetenceGridView
-  , editCompetenceGridPage
-  )
-import Competences.Frontend.Page.ViewCompetenceGridPage (ViewCompetenceGridView, viewCompetenceGridPage)
+import Competences.Frontend.Page.EditCompetenceGridPage (editCompetenceGridPage)
+import Competences.Frontend.Page.ManageUsersPage (manageUsersPage)
+import Competences.Frontend.Page.ViewCompetenceGridPage (viewCompetenceGridPage)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
-import Data.Proxy (Proxy (..))
+import Data.Functor (($>))
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
+import Miso.Html qualified as M
+import Miso.Router qualified as M
 import Optics.Core ((.~), (^.))
-import Servant.API ((:<|>) (..), (:>))
-import Servant.Links (allLinks', linkURI)
-import Competences.Frontend.Page.ManageUsersPage (ManageUsersView, manageUsersPage)
 
 type App = M.Component M.ROOT Model Action
 
@@ -41,7 +38,7 @@ mkApp :: SyncDocumentRef -> User -> App
 mkApp r u =
   (M.component model update view) {M.subs = [M.uriSub SetURI]}
   where
-    model = Model editCompetenceGridUri
+    model = Model $ M.toURI EditCompetenceGrid
 
     update (SetURI uri) = M.modify $ #uri .~ uri
     update (PushURI uri) = M.io_ $ M.pushURI uri
@@ -59,20 +56,22 @@ mkApp r u =
         V.NoExpand
         V.SmallGap
         [ V.buttonRow
-            [ V.link [M.onClick $ PushURI viewCompetenceGridUri] "View"
-            , V.link [M.onClick $ PushURI editCompetenceGridUri] "Edit"
-            , V.link [M.onClick $ PushURI manageUsersPageUri] "Users"
+            [ V.link [M.onClick $ PushURI $ M.toURI ViewCompetenceGrid] "View"
+            , V.link [M.onClick $ PushURI $ M.toURI EditCompetenceGrid] "Edit"
+            , V.link [M.onClick $ PushURI $ M.toURI ManageUsers] "Users"
             ]
         ]
 
-    page uri =
-      case M.route (Proxy @API) (viewCompetenceGrid :<|> editCompetenceGrid :<|> manageUsers) id uri of
-        Left _ -> V.text_ "404"
-        Right v -> v
+    page uri = case M.route uri of
+      Left _ -> V.text_ "404"
+      Right v -> case v of
+        ViewCompetenceGrid -> viewCompetenceGrid
+        EditCompetenceGrid -> editCompetenceGrid
+        ManageUsers -> manageUsers
 
-    viewCompetenceGrid _ = mounted ViewCompetenceGrid $ viewCompetenceGridPage r u
-    editCompetenceGrid _ = mounted EditCompetenceGrid $ editCompetenceGridPage r u
-    manageUsers _ = mounted ManageUsers $ manageUsersPage r u
+    viewCompetenceGrid = mounted ViewCompetenceGrid $ viewCompetenceGridPage r u
+    editCompetenceGrid = mounted EditCompetenceGrid $ editCompetenceGridPage r u
+    manageUsers = mounted ManageUsers $ manageUsersPage r u
 
     mounted key c = M.div_ [M.key_ key] M.+> c
 
@@ -81,17 +80,22 @@ mkApp r u =
 withTailwindPlay :: App -> App
 withTailwindPlay app = app {M.scripts = M.Src "https://cdn.tailwindcss.com" : M.scripts app}
 
-type API = ViewCompetenceGridView :<|> ("edit" :> EditCompetenceGridView) :<|> ("users" :> ManageUsersView)
-
-viewCompetenceGridUri, editCompetenceGridUri, manageUsersPageUri :: M.URI
-viewCompetenceGridUri :<|> editCompetenceGridUri :<|> manageUsersPageUri =
-  allLinks' linkURI (Proxy @API)
-
 data Page
   = ViewCompetenceGrid
   | EditCompetenceGrid
   | ManageUsers
   deriving (Eq, Show)
+
+instance M.Router Page where
+  routeParser =
+    M.routes
+      [ M.path "view" $> ViewCompetenceGrid
+      , M.path "edit" $> EditCompetenceGrid
+      , M.path "users" $> ManageUsers
+      ]
+  fromRoute ViewCompetenceGrid = [M.toPath "view"]
+  fromRoute EditCompetenceGrid = [M.toPath "edit"]
+  fromRoute ManageUsers = [M.toPath "users"]
 
 instance M.ToKey Page where
   toKey = M.toKey . show

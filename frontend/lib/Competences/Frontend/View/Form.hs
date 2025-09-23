@@ -8,6 +8,7 @@ where
 import Competences.Frontend.View.Layout qualified as V
 import Competences.Frontend.View.Text qualified as V
 import Miso qualified as M
+import Miso.Html qualified as M
 import qualified Competences.Frontend.View.Tailwind as T
 
 form_ :: M.MisoString -> [M.View m a] -> [M.View m a] -> M.View m a

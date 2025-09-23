@@ -7,6 +7,7 @@ import Competences.Document (User)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 
 data Model = Model
   {
