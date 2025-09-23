@@ -26,6 +26,7 @@ import Data.Aeson (Result (..), fromJSON)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core (ix, (%), (&), (.~), (?~), (^.), (^?))
 
 competenceGridViewerComponent :: SyncDocumentRef -> User -> M.Component p Model Action
@@ -59,8 +60,8 @@ competenceGridViewerComponent r u =
         , competences
         ]
       where
-        title = V.title_ m.document.competenceGrid.title
-        description = V.text_ m.document.competenceGrid.description
+        title = V.title_ (M.ms m.document.competenceGrid.title)
+        description = V.text_ (M.ms m.document.competenceGrid.description)
         userSelector = M.div_ [] M.+> userSelectorComponent r
         competences =
           V.viewTable $
@@ -79,7 +80,7 @@ competenceGridViewerComponent r u =
               , V.cellContents = \competence ->
                   let
                    in \case
-                        DescriptionColumn -> V.text_ competence.description
+                        DescriptionColumn -> V.text_ (M.ms competence.description)
                         LevelDescriptionColumn level -> V.text_ "..."
               }
 

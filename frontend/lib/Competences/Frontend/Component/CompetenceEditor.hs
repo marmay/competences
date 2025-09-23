@@ -15,7 +15,9 @@ import Data.Aeson (ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core (Lens', at, non, (%), (.~), (^.))
+import qualified Miso.Html.Property as M
 
 newtype Model = Model
   { competence :: Competence
@@ -55,7 +57,7 @@ competenceEditorComponent closeMessage syncDocumentRef competence =
             V.formField_ (translate' $ LblCompetenceLevelDescription level) $
               textField
                 (ChangeLevelDescription level)
-                (withPlaceholder (translate' $ LblCompetenceLevelPlaceholder level) (m ^. levelDescriptionLens level))
+                (withPlaceholder (translate' $ LblCompetenceLevelPlaceholder level) (M.ms $ m ^. levelDescriptionLens level))
        in modalDialog
             []
             [ V.form_
@@ -71,8 +73,8 @@ withPlaceholder placeholder "" = Left placeholder
 withPlaceholder _ s = Right s
 
 textField :: (M.MisoString -> Action) -> Either M.MisoString M.MisoString -> M.View m Action
-textField a (Left s) = textField' a (M.placeholder_ s)
-textField a (Right s) = textField' a (M.value_ s)
+textField a (Left s) = textField' a (M.placeholder_ (M.ms s))
+textField a (Right s) = textField' a (M.value_ (M.ms s))
 
 textField' :: (M.MisoString -> Action) -> M.Attribute Action -> M.View m Action
 textField' a attr = V.textarea_ [M.onInput a, attr]

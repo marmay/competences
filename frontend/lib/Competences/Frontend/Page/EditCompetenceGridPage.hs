@@ -25,6 +25,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core ((%), (.~), (?~), (^.))
 import System.Random (randomIO)
 

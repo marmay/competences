@@ -6,7 +6,6 @@ import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
 
 #ifdef WASM
 
-import Competences.Frontend.App (run)
 import Competences.Frontend.SyncDocument
   ( SyncDocument (..)
   , SyncDocumentRef
@@ -14,8 +13,7 @@ import Competences.Frontend.SyncDocument
   , mkSyncDocument'
   , readSyncDocument
   )
-import Competences.Frontend.App.State (mkState)
-import Competences.Frontend.Common.Translate (defaultTranslationData)
+import Language.Javascript.JSaddle.Wasm (run)
 import Competences.Document (User(..))
 import Competences.Document.Id (nilId)
 import Competences.Document.User (UserRole(..))
@@ -24,12 +22,7 @@ main :: IO ()
 main = do
   document <- mkSyncDocument
   run $ do
-    app <- mkApp document $
-      mkState
-        (User nilId "Test User" Teacher)
-        ("")
-        defaultTranslationData
-        42
+    app <- mkApp document (User nilId "Test User" Teacher)
     runApp app
 
 foreign export javascript "hs_start" main :: IO ()

@@ -80,13 +80,13 @@ view m =
                   V.triStateButton
                     (ToggleCompetence competence)
                     (V.toTriState $ Map.elems levelsSelected)
-                    (V.text_ competence.description)
+                    (V.text_ $ M.ms competence.description)
                 CompetenceLevelDescriptionColumn l ->
                   case l `Map.lookup` levelsSelected of
                     Just s ->
                       V.toggleButton
                         (ToggleCompetenceLevel (competence.id, l))
                         s
-                        (V.text_ $ competence.levelDescriptions Map.! l)
+                        (V.text_ $ M.ms (competence.levelDescriptions Map.! l))
                     Nothing -> V.text_ ""
       }

@@ -13,7 +13,7 @@ where
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Miso qualified as M
-import Miso.String qualified as M
+import qualified Miso.Html.Property as M
 
 tailwind :: [TailwindCls] -> M.Attribute a
 tailwind clses = M.class_ $ M.ms $ T.intercalate " " $ concatMap tailwindNames clses
@@ -214,8 +214,8 @@ data ColorStep = I50 | I100 | I200 | I300 | I400 | I500 | I600 | I700 | I800 | I
 data Opacity = O0 | O10 | O20 | O30 | O40 | O50 | O60 | O70 | O80 | O90 | O100
   deriving (Eq, Show, Enum, Bounded)
 
-useColor :: ColorUtility -> Color -> ColorStep -> Opacity -> M.MisoString
-useColor utility color step opacity = M.concat [utility', color', step', opacity']
+useColor :: ColorUtility -> Color -> ColorStep -> Opacity -> T.Text
+useColor utility color step opacity = T.concat [utility', color', step', opacity']
   where
     utility' = case utility of
       Bg -> "bg-"

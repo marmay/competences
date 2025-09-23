@@ -10,6 +10,7 @@ import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 
 data Model = Model
   deriving (Eq, Generic, Show)

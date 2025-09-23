@@ -19,6 +19,7 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core ((.~), (^.))
 import System.Random (randomIO)
 

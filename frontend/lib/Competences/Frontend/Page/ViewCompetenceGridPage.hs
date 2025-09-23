@@ -13,6 +13,7 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core ((.~))
 
 type ViewCompetenceGridView = M.View Model Action
@@ -80,5 +81,5 @@ viewCompetenceGridPage r u = M.component model update view
             V.RegularButton
             V.IcnCancel
             (C.translate' C.LblCancel)
-        , M.div_ [M.id_ id'] M.+> child
+        , M.div_ [M.key_ id'] M.+> child
         ]

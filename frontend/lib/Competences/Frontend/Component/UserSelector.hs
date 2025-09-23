@@ -81,7 +81,7 @@ userSelectorComponent syncDocumentRef =
 
     viewUser :: Model -> User -> M.View Model Action
     viewUser m u =
-      V.toggleButton onClicked toggleState (V.text_ $ u ^. #name)
+      V.toggleButton onClicked toggleState (V.text_ $ M.ms (u ^. #name))
       where
         onClicked V.ToggleOn = CancelSelection
         onClicked V.ToggleOff = SelectUser (u ^. #id)

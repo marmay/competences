@@ -18,6 +18,7 @@ import Competences.Frontend.View.Button qualified as V
 import Competences.Frontend.View.Icon qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core ((.~), (?~), (^.))
 
 newtype ReorderModel a = ReorderModel

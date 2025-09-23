@@ -23,8 +23,10 @@ import Data.Map qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core (ix, (%~), (&), (.~), (^?))
 import Data.Either (fromRight)
+import qualified Miso.Html.Property as M
 
 data Model = Model
   { user :: !User
@@ -87,13 +89,13 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
     view' :: Editability -> Model -> M.View Model Action
     view' Editable m =
       case m.contents of
-        Left err -> V.text_ err
+        Left err -> V.text_ $ M.ms err
         Right contents -> 
           withButtons [V.editButton [M.onClick $ IssueCommand (LockField f u.id contents)]] $
             renderContents meta.fieldType contents
     view' (LockedBy _) m =
       case m.contents of
-        Left err -> V.text_ err
+        Left err -> V.text_ $ M.ms err
         Right contents ->
           withButtons [] $
             renderContents meta.fieldType contents
@@ -112,10 +114,10 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
         V.SmallGap
         [content, V.vBox_ (V.Expand V.Center) V.NoExpand V.SmallGap buttons]
 
-    renderContents TextField (TextEncoding contents) = V.text_ contents
-    renderContents EnumField{} (TextEncoding contents) = V.text_ contents
+    renderContents TextField (TextEncoding contents) = V.text_ (M.ms contents)
+    renderContents EnumField{} (TextEncoding contents) = V.text_ (M.ms contents)
     renderContents _ _ = V.text_ "Application error"
 
-    renderForm TextField (TextEncoding contents) = V.textarea_ [M.value_ contents, M.onInput (EditField . TextEncoding)]
+    renderForm TextField (TextEncoding contents) = V.textarea_ [M.value_ (M.ms contents), M.onInput (EditField . TextEncoding . M.fromMisoString)]
     -- renderForm EnumField{} (TextEncoding contents) = V.select_ [M.value_ contents, M.onChange (EditField . TextEncoding)] $ map (V.option_ . fst) options
     renderForm _ _ = V.text_ "Application error"

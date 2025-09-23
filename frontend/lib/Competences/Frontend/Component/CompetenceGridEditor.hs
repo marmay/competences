@@ -30,6 +30,7 @@ import Competences.Frontend.View qualified as V
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
 
 data Model = Model

@@ -93,6 +93,8 @@ executable competences-frontend
             jsaddle-warp,
             optparse-applicative
     if flag(wasm)
+        build-depends:
+            jsaddle-wasm
         cpp-options: -DWASM
         ghc-options:
           -no-hs-main

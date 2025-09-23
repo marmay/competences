@@ -9,7 +9,7 @@ where
 
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
-import Miso.String qualified as M
+import Miso.Html as M
 
 data TableColumnWidth
   = SingleActionColumn
