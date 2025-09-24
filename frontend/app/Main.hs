@@ -12,18 +12,20 @@ import Competences.Frontend.SyncDocument
   , mkSyncDocument
   , mkSyncDocument'
   , readSyncDocument
+  , modifySyncDocument
   )
 import Language.Javascript.JSaddle.Wasm (run)
-import Competences.Document (User(..))
+import Competences.Command (Command(..))
+import Competences.Document (User(..), UserId, UserRole(..))
 import Competences.Document.Id (nilId)
-import Competences.Document.User (UserRole(..))
 
 main :: IO ()
 main = do
   document <- mkSyncDocument
+  let user = (User nilId "Test User" Teacher)
   run $ do
-    app <- mkApp document (User nilId "Test User" Teacher)
-    runApp app
+    modifySyncDocument document $ AddUser user
+    runApp $ withTailwindPlay $ mkApp document user
 
 foreign export javascript "hs_start" main :: IO ()
 
