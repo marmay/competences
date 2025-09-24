@@ -22,6 +22,7 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((.~), (^.))
 import System.Random (randomIO)
+import qualified Miso.Html.Property as M
 
 newtype Model = Model
   { users :: [User]
@@ -84,8 +85,10 @@ userListEditorComponent r u =
               (V.Expand V.End)
               V.NoExpand
               V.NoGap
-              [V.iconLabelButton [M.key_ @M.MisoString "add-user", M.onClick NewUser] V.RegularButton V.IcnAdd (C.translate' C.LblAddUser)]
+              [V.iconLabelButton [M.id_ "add-user", onClick' NewUser] V.RegularButton V.IcnAdd (C.translate' C.LblAddUser)]
           editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> editableComponent r u (UserName u')
           editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> editableComponent r u (UserRole u')
-          deleteButton u' = V.deleteButton [M.onClick $ IssueCommand (RemoveUser u')]
+          deleteButton u' = V.deleteButton [M.id_ "delete-user", onClick' $ IssueCommand (RemoveUser u')]
+          onClick' action = M.onWithOptions options "click" M.emptyDecoder $ \() _ -> action
+                            where options = M.defaultOptions {M._stopPropagation = True}
        in V.vBox_ V.NoExpand (V.Expand V.Start) V.SmallGap [title, users, addButton]
