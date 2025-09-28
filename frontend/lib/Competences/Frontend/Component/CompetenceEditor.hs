@@ -9,15 +9,14 @@ import Competences.Command (Command (..))
 import Competences.Document.Competence (Competence (..), Level (..), levels)
 import Competences.Frontend.Common (Label (..), translate')
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
-import Competences.Frontend.View (applyLabelButton, cancelLabelButton, modalDialog)
-import Competences.Frontend.View.Form qualified as V
+import Competences.Frontend.View as V
 import Data.Aeson (ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as M
 import Optics.Core (Lens', at, non, (%), (.~), (^.))
-import qualified Miso.Html.Property as M
 
 newtype Model = Model
   { competence :: Competence
@@ -57,14 +56,20 @@ competenceEditorComponent closeMessage syncDocumentRef competence =
             V.formField_ (translate' $ LblCompetenceLevelDescription level) $
               textField
                 (ChangeLevelDescription level)
-                (withPlaceholder (translate' $ LblCompetenceLevelPlaceholder level) (M.ms $ m ^. levelDescriptionLens level))
+                ( withPlaceholder
+                    (translate' $ LblCompetenceLevelPlaceholder level)
+                    (M.ms $ m ^. levelDescriptionLens level)
+                )
        in modalDialog
             []
             [ V.form_
                 (translate' LblEditCompetence)
                 ([descriptionField] <> map levelTextField levels)
-                [ applyLabelButton [M.onClick CompleteEditing]
-                , cancelLabelButton [M.onClick CancelEditing]
+                [ V.viewButtons
+                    V.hButtons
+                    [ applyLabelButton CompleteEditing
+                    , cancelLabelButton CancelEditing
+                    ]
                 ]
             ]
 

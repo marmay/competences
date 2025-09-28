@@ -27,7 +27,7 @@ data Model = Model
 
 data Action
   = ToggleCompetence !Competence !V.TriState
-  | ToggleCompetenceLevel !CompetenceLevelId !V.ToggleState
+  | ToggleCompetenceLevel !CompetenceLevelId !Bool
   | UpdateDocument !DocumentChange
   deriving (Eq, Generic, Show)
 
@@ -46,9 +46,9 @@ update (ToggleCompetence c V.TriStateOn) =
   M.modify (#selected %~ \s -> foldr Set.delete s [(c.id, l) | l <- levels])
 update (ToggleCompetence c _) =
   M.modify (#selected %~ \s -> foldr Set.insert s $ competenceLevelIdsOf c)
-update (ToggleCompetenceLevel l V.ToggleOn) =
+update (ToggleCompetenceLevel l True) =
   M.modify (#selected %~ Set.delete l)
-update (ToggleCompetenceLevel l V.ToggleOff) =
+update (ToggleCompetenceLevel l False) =
   M.modify (#selected %~ Set.insert l)
 update (UpdateDocument (DocumentChange newDocument _)) =
   M.modify (#document .~ ordered newDocument.competences)
@@ -69,24 +69,27 @@ view m =
           CompetenceDescriptionColumn -> C.translate' C.LblCompetenceDescription
           CompetenceLevelDescriptionColumn l -> C.translate' $ C.LblCompetenceLevelDescription l
       , V.cellContents = \competence ->
-          let levelsSelected :: Map.Map Level V.ToggleState
+          let levelsSelected :: Map.Map Level Bool
               levelsSelected =
                 Map.fromList
-                  [ (l, V.toToggleState $ (competence.id, l) `Set.member` m.selected)
+                  [ (l, (competence.id, l) `Set.member` m.selected)
                   | l <- Map.keys competence.levelDescriptions
                   ]
            in \case
                 CompetenceDescriptionColumn ->
-                  V.triStateButton
-                    (ToggleCompetence competence)
-                    (V.toTriState $ Map.elems levelsSelected)
-                    (V.text_ $ M.ms competence.description)
+                  let s = V.toTriState $ Map.elems levelsSelected
+                   in V.viewButton $
+                        V.textButton
+                          (M.ms competence.description)
+                          s
+                          (ToggleCompetence competence s)
                 CompetenceLevelDescriptionColumn l ->
                   case l `Map.lookup` levelsSelected of
                     Just s ->
-                      V.toggleButton
-                        (ToggleCompetenceLevel (competence.id, l))
-                        s
-                        (V.text_ $ M.ms (competence.levelDescriptions Map.! l))
+                      V.viewButton $
+                        V.textButton
+                          (M.ms (competence.levelDescriptions Map.! l))
+                          s
+                          (ToggleCompetenceLevel (competence.id, l) s)
                     Nothing -> V.text_ ""
       }

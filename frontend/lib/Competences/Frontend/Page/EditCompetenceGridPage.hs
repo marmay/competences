@@ -26,7 +26,7 @@ import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((%), (.~), (?~), (^.))
+import Optics.Core ((%), (&), (.~), (?~), (^.))
 import System.Random (randomIO)
 
 newtype Model = Model
@@ -83,21 +83,17 @@ editCompetenceGridPage r u =
     update NoOp = pure ()
 
     view m =
-      V.vBox_
-        V.NoExpand
-        (V.Expand V.Start)
-        V.LargeGap
+      V.viewFlow
+        ( V.vFlow
+            & (#expandOrthogonal .~ V.Expand V.Start)
+            & (#gap .~ V.LargeSpace)
+        )
         [ M.div_ [] M.+> competenceGridEditorComponent r u
-        , V.hBox_
-            (V.Expand V.End)
-            V.NoExpand
-            V.NoGap
-            [ V.iconLabelButton
-                [M.onClick SpawnNewCompetenceEditor]
-                V.RegularButton
-                V.IcnAdd
-                (C.translate' C.LblAddNewCompetence)
-            ]
+        , V.viewFlow
+            ( V.hFlow
+                & (#expandDirection .~ V.Expand V.End)
+            )
+            [V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddNewCompetence SpawnNewCompetenceEditor]
         , V.maybeModalHost
             (competenceEditorComponent CloseNewCompetenceEditor r <$> m.newCompetence)
         ]

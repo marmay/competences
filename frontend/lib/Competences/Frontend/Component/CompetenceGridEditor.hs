@@ -63,12 +63,10 @@ competenceGridEditorComponent r u = (M.component model update view) {M.subs = [s
         , reorderFrom = C.initialReorderModel
         }
 
-    -- update (EditField field value) = M.modify $ #editFields %~ Map.insert field value
     update (UpdateDocument (DocumentChange newDocument _)) = do
       M.modify $ \s ->
         s
           & (#document .~ newDocument)
-      -- & (#editFields %~ updateEditFields s.user newDocument)
       s <- M.get
       M.io_ $ M.consoleLog $ M.ms $ show s.document.lockedFields
     update (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
@@ -105,15 +103,16 @@ competenceGridEditorComponent r u = (M.component model update view) {M.subs = [s
                     LevelDescriptionColumn level -> Just $ C.translate' $ C.LblCompetenceLevelDescription level
                     DeleteColumn -> Nothing
                 , cellContents = \competence -> \case
-                    MoveColumn -> V.buttonRow $ map (ReorderAction <$>) $ C.viewReorderItem m.reorderFrom competence
+                    MoveColumn -> ReorderAction <$> C.viewReorderItem m.reorderFrom competence
                     DescriptionColumn -> M.div_ [] M.+> editableComponent r u (CompetenceDescription competence.id)
                     LevelDescriptionColumn level -> M.div_ [] M.+> editableComponent r u (CompetenceLevelDescription (competence.id, level))
-                    DeleteColumn -> V.buttonRow [V.deleteButton [M.onClick $ IssueCommand (RemoveCompetence competence.id)]]
+                    DeleteColumn -> V.viewButtons V.hButtons [V.deleteButton (IssueCommand (RemoveCompetence competence.id))]
                 }
-       in V.vBox_
-            V.NoExpand
-            (V.Expand V.Start)
-            V.SmallGap
+       in V.viewFlow
+            ( V.vFlow
+                & (#expandOrthogonal .~ V.Expand V.Start)
+                & (#gap .~ V.SmallSpace)
+            )
             [ title
             , description
             , competences

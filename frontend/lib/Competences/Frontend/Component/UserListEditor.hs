@@ -78,17 +78,10 @@ userListEditorComponent r u =
                 , cellContents = \user -> \case
                     NameColumn -> editableName user.id
                     RoleColumn -> editableRole user.id
-                    DeleteColumn -> deleteButton user.id
+                    DeleteColumn -> V.viewButton (deleteButton user.id)
                 }
-          addButton =
-            V.hBox_
-              (V.Expand V.End)
-              V.NoExpand
-              V.NoGap
-              [V.iconLabelButton [M.id_ "add-user", onClick' NewUser] V.RegularButton V.IcnAdd (C.translate' C.LblAddUser)]
+          addButton = V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
           editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> editableComponent r u (UserName u')
           editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> editableComponent r u (UserRole u')
-          deleteButton u' = V.deleteButton [M.id_ "delete-user", onClick' $ IssueCommand (RemoveUser u')]
-          onClick' action = M.onWithOptions options "click" M.emptyDecoder $ \() _ -> action
-                            where options = M.defaultOptions {M._stopPropagation = True}
-       in V.vBox_ V.NoExpand (V.Expand V.Start) V.SmallGap [title, users, addButton]
+          deleteButton u' = V.deleteButton (IssueCommand (RemoveUser u'))
+       in V.viewFlow (V.vFlow) [title, users, V.viewButton addButton]

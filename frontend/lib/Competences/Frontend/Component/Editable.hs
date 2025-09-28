@@ -91,7 +91,7 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
       case m.contents of
         Left err -> V.text_ $ M.ms err
         Right contents -> 
-          withButtons [V.editButton [M.onClick $ IssueCommand (LockField f u.id contents)]] $
+          withButtons [V.editButton (IssueCommand (LockField f u.id contents))] $
             renderContents meta.fieldType contents
     view' (LockedBy _) m =
       case m.contents of
@@ -101,18 +101,17 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
             renderContents meta.fieldType contents
     view' (LockedByUs contents) _ =
       withButtons
-        [ V.applyButton [M.onClick $ IssueCommand (ReleaseField f (Just contents))]
-        , V.cancelButton [M.onClick $ IssueCommand (ReleaseField f Nothing)]
+        [ V.applyButton (IssueCommand (ReleaseField f u.id (Just contents)))
+        , V.cancelButton (IssueCommand (ReleaseField f u.id Nothing))
         ]
         $ renderForm meta.fieldType contents
 
-    withButtons :: [M.View Model Action] -> M.View Model Action -> M.View Model Action
+    withButtons :: [V.Button () Action] -> M.View Model Action -> M.View Model Action
     withButtons buttons content =
-      V.hBox_
-        (V.Expand V.Start)
-        V.NoExpand
-        V.SmallGap
-        [content, V.vBox_ (V.Expand V.Center) V.NoExpand V.SmallGap buttons]
+      V.viewFlow
+        (V.hFlow & (#expandDirection .~ V.Expand V.Start) & (#gap .~ V.SmallSpace))
+        [content
+        , V.viewButtons V.hButtons buttons]
 
     renderContents TextField (TextEncoding contents) = V.text_ (M.ms contents)
     renderContents EnumField{} (TextEncoding contents) = V.text_ (M.ms contents)

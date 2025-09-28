@@ -7,17 +7,17 @@ where
 import Competences.Document (User)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
+-- import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((.~))
+import Optics.Core ((&), (.~))
 
 type ViewCompetenceGridView = M.View Model Action
-  
+
 data Model = Model
   { highlightedCompetenceLevels :: ![CompetenceLevelId]
   , sidePanel :: !SidePanel
@@ -47,27 +47,24 @@ viewCompetenceGridPage r u = M.component model update view
 
     view :: Model -> M.View Model Action
     view m =
-      V.hBox_
-        (V.Expand V.Start)
-        V.NoExpand
-        V.SmallGap
+      V.viewFlow
+        ( V.hFlow
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#gap .~ V.SmallSpace)
+        )
         [ V.mounted' (competenceGridViewerComponent r u)
-        , V.spring_
+        , V.flowSpring
         , viewSidePanel m.sidePanel
         ]
 
     viewSidePanel (EvidenceViewer _ _) = V.text_ "Not implemented yet"
-    viewSidePanel EvidenceEditor =
-      closableSidePanel "evidence-editor" False $
-        evidenceEditorComponent r u
+    viewSidePanel EvidenceEditor = V.text_ "Not implemented yet"
+    -- closableSidePanel "evidence-editor" False $
+    --   evidenceEditorComponent r u
     viewSidePanel Menu =
       V.sidePanel
         V.MenuPanel
-        [ V.iconButton
-            [M.onClick $ SetSidePanel EvidenceEditor]
-            V.RegularButton
-            V.IcnAdd
-            (C.translate' C.LblAddEvidence)
+        [ V.viewButton $ V.iconButton' V.IcnAdd C.LblAddEvidence (SetSidePanel EvidenceEditor)
         ]
 
     closableSidePanel
@@ -76,10 +73,6 @@ viewCompetenceGridPage r u = M.component model update view
     closableSidePanel id' maximized child =
       V.sidePanel
         (if maximized then V.LargePanel else V.EditorPanel)
-        [ V.iconButton
-            [M.onClick $ SetSidePanel Menu]
-            V.RegularButton
-            V.IcnCancel
-            (C.translate' C.LblCancel)
+        [ V.viewButton $ V.iconButton' V.IcnCancel C.LblCancel (SetSidePanel Menu)
         , M.div_ [M.key_ id'] M.+> child
         ]

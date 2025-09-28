@@ -18,7 +18,7 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core ((&), (.~), (?~), (^.), Lens', toLensVL)
 import Data.Foldable (find)
 
 data Model = Model
@@ -51,41 +51,37 @@ updateUsers :: Document -> Model -> Model
 updateUsers d m = m & #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
                     & refreshUser
 
-notifySelection :: M.Effect p Model Action -> M.Effect p Model Action
-notifySelection e = do
-  e
-  u <- M.gets (^. #selectedUser)
-  M.mailParent $ UserSelectionChanged u
-
 data Action
   = SelectUser !UserId
   | CancelSelection
   | UpdateDocument DocumentChange
   deriving (Eq, Show)
 
-userSelectorComponent :: SyncDocumentRef -> M.Component p Model Action
-userSelectorComponent syncDocumentRef =
+userSelectorComponent :: SyncDocumentRef -> Lens' p (Maybe User) -> M.Component p Model Action
+userSelectorComponent syncDocumentRef l =
   (M.component model update view)
     { M.subs = [subscribeDocument syncDocumentRef UpdateDocument]
+    , M.bindings = [toLensVL l M.<--- toLensVL #selectedUser]
     }
   where
     model = Model [] Nothing
 
     update :: Action -> M.Effect p Model Action
-    update (SelectUser u) = notifySelection $ M.modify (selectUser u)
-    update CancelSelection = notifySelection $ M.modify cancelSelection
-    update (UpdateDocument c) = notifySelection $ M.modify (updateUsers (c ^. #document))
+    update (SelectUser u) = M.modify (selectUser u)
+    update CancelSelection = M.modify cancelSelection
+    update (UpdateDocument c) = M.modify (updateUsers (c ^. #document))
 
     view :: Model -> M.View Model Action
-    view m = V.buttonRow $ map (viewUser m) (m ^. #users)
+    view m = V.viewButtons V.hButtons $ map (viewUser m) (m ^. #users)
 
-    viewUser :: Model -> User -> M.View Model Action
+    viewUser :: Model -> User -> V.Button V.ToggleState Action
     viewUser m u =
-      V.toggleButton onClicked toggleState (V.text_ $ M.ms (u ^. #name))
+      V.textButton (M.ms (u ^. #name)) toggleState onClicked
       where
-        onClicked V.ToggleOn = CancelSelection
-        onClicked V.ToggleOff = SelectUser (u ^. #id)
-
         toggleState
           | Just u == (m ^. #selectedUser) = V.ToggleOn
           | otherwise = V.ToggleOff
+        onClicked = case toggleState of
+          V.ToggleOn -> CancelSelection
+          V.ToggleOff -> SelectUser (u ^. #id)
+

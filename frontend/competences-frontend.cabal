@@ -36,7 +36,9 @@ library
         Competences.Frontend.Component.CompetenceGridViewer,
         Competences.Frontend.Component.CompetenceSelector,
         Competences.Frontend.Component.Editable,
+        Competences.Frontend.Component.EvidenceCreator,
         Competences.Frontend.Component.EvidenceEditor,
+        Competences.Frontend.Component.ListSelector,
         Competences.Frontend.Component.UserListEditor,
         Competences.Frontend.Component.UserSelector,
         Competences.Frontend.Page.EditCompetenceGridPage,
@@ -65,9 +67,9 @@ library
         mtl,
         optics-core,
         random,
-        servant,
         stm,
         text,
+        time,
         unliftio
     hs-source-dirs:   lib
     default-language: GHC2024
