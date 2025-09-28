@@ -29,7 +29,9 @@ requiredClasses = Set.fromList $ concatMap tailwindNames [minBound .. maxBound]
 
 -- | Each TailwindCls is a bundle of native Tailwind classes.
 data TailwindCls
-  = AlertButtonColors
+  = AlertButtonOn
+  | AlertButtonOff
+  | AlertButtonIndeterminate
   | AlignMiddle
   | ButtonText
   | Flex
@@ -52,12 +54,22 @@ data TailwindCls
   | JustifyCenter
   | JustifyEnd
   | LinkButton
+  | M1
+  | M2
   | M4
+  | M8
   | ModalHost
   | ModalDialog
   | P4
   | RegularBorder
-  | RegularButtonColors
+  | RegularButtonOn
+  | RegularButtonOff
+  | RegularButtonIndeterminate
+  | Rounded
+  | RoundedLeft
+  | RoundedRight
+  | RoundedTop
+  | RoundedBottom
   | SizeFit
   | TableCell
   | TableFixed
@@ -65,10 +77,6 @@ data TailwindCls
   | TextSm
   | TextLg
   | TextXl
-  | ToggleButton
-  | ToggleButtonOn
-  | ToggleButtonOff
-  | ToggleButtonIndeterminate
   | W8
   | W12
   | W16
@@ -79,7 +87,23 @@ data TailwindCls
   deriving (Eq, Show, Enum, Bounded)
 
 tailwindNames :: TailwindCls -> [T.Text]
-tailwindNames AlertButtonColors =
+tailwindNames AlertButtonOn =
+  [ useColor Border Red I800 O100
+  , useColor Bg Red I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  , "hover:" <> useColor Bg Red I600 O100
+  ]
+tailwindNames AlertButtonOff =
+  [ useColor Border Red I800 O100
+  , useColor Bg Red I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  , "hover:" <> useColor Bg Red I600 O100
+  ]
+tailwindNames AlertButtonIndeterminate =
   [ useColor Border Red I800 O100
   , useColor Bg Red I500 O100
   , useColor Text Stone I50 O100
@@ -109,7 +133,10 @@ tailwindNames JustifyStart = ["justify-start"]
 tailwindNames JustifyCenter = ["justify-center"]
 tailwindNames JustifyEnd = ["justify-end"]
 tailwindNames LinkButton = []
+tailwindNames M1 = ["m-1"]
+tailwindNames M2 = ["m-2"]
 tailwindNames M4 = ["m-4"]
+tailwindNames M8 = ["m-8"]
 tailwindNames ModalHost = ["fixed", "inset-0", "z-50", "overflow-y-auto", useColor Bg Gray I500 O50]
 tailwindNames ModalDialog =
   [ "relative"
@@ -125,7 +152,7 @@ tailwindNames ModalDialog =
   ]
 tailwindNames P4 = ["p-4"]
 tailwindNames RegularBorder = ["border", "rounded", useColor Border Gray I200 O100]
-tailwindNames RegularButtonColors =
+tailwindNames RegularButtonOn =
   [ useColor Border Sky I800 O100
   , useColor Bg Sky I500 O100
   , useColor Text Stone I50 O100
@@ -133,6 +160,27 @@ tailwindNames RegularButtonColors =
   , useColor Fill Stone I100 O0
   , "hover:" <> useColor Bg Sky I600 O100
   ]
+tailwindNames RegularButtonOff =
+  [ useColor Border Sky I200 O100
+  , useColor Bg Sky I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  , "hover:" <> useColor Bg Sky I300 O100
+  ]
+tailwindNames RegularButtonIndeterminate =
+  [ useColor Border Yellow I500 O100
+  , useColor Bg Sky I500 O100
+  , useColor Text Stone I50 O100
+  , useColor Stroke Stone I50 O100
+  , useColor Fill Stone I100 O0
+  , "hover:" <> useColor Bg Sky I600 O100
+  ]
+tailwindNames Rounded = ["rounded-md"]
+tailwindNames RoundedLeft = ["rounded-l-md"]
+tailwindNames RoundedRight = ["rounded-r-md"]
+tailwindNames RoundedTop = ["rounded-t-md"]
+tailwindNames RoundedBottom = ["rounded-b-md"]
 tailwindNames SizeFit = ["size-fit"]
 tailwindNames TableCell = ["border", useColor Border Sky I800 O100]
 tailwindNames TableFixed = ["table-fixed"]
@@ -140,25 +188,6 @@ tailwindNames TextCenter = ["text-center"]
 tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
-tailwindNames ToggleButton = ["border", "rounded", "p-1", "size-fit"]
-tailwindNames ToggleButtonOn =
-  [ useColor Bg Sky I500 O100
-  , useColor Text Stone I50 O100
-  , useColor Stroke Stone I50 O100
-  , useColor Fill Stone I100 O0
-  ]
-tailwindNames ToggleButtonOff =
-  [ useColor Bg Gray I200 O100
-  , useColor Text Stone I50 O100
-  , useColor Stroke Stone I50 O100
-  , useColor Fill Stone I100 O0
-  ]
-tailwindNames ToggleButtonIndeterminate =
-  [ useColor Bg Yellow I500 O100
-  , useColor Text Stone I50 O100
-  , useColor Stroke Stone I50 O100
-  , useColor Fill Stone I100 O0
-  ]
 tailwindNames W8 = ["w-8"]
 tailwindNames W12 = ["w-12"]
 tailwindNames W16 = ["w-16"]

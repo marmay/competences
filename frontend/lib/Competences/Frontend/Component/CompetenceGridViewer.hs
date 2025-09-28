@@ -6,6 +6,7 @@ module Competences.Frontend.Component.CompetenceGridViewer
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
@@ -17,12 +18,14 @@ import Competences.Document
   , ordered
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
+import Competences.Document.Evidence (Evidence)
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.UserSelector (UserSelectorMessage (..), userSelectorComponent)
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Data.Aeson (Result (..), fromJSON)
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -33,15 +36,11 @@ competenceGridViewerComponent :: SyncDocumentRef -> User -> M.Component p Model 
 competenceGridViewerComponent r u =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]
-    , M.mailbox = handleMail
     }
   where
-    model = defaultSelection u emptyModel
+    model = emptyModel
 
     update :: Action -> M.Effect p Model Action
-    update (SelectUser userId) =
-      M.modify $ \m -> m & (#selectedUser .~ (m ^? (#document % #users % ix userId)))
-    update CancelUserSelection = M.modify $ \m -> m & (#selectedUser .~ Nothing)
     update (SetHighlighted highlighted) =
       M.modify $ #highlighted .~ Set.fromList highlighted
     update (UpdateDocument (DocumentChange document _)) =
@@ -50,10 +49,12 @@ competenceGridViewerComponent r u =
 
     view :: Model -> M.View Model Action
     view m =
-      V.vBox_
-        (V.Expand V.Start)
-        (V.Expand V.Center)
-        V.SmallGap
+      V.viewFlow
+        ( V.vFlow
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#expandOrthogonal .~ V.Expand V.Center)
+            & (#gap .~ V.SmallSpace)
+        )
         [ title
         , description
         , userSelector
@@ -62,7 +63,10 @@ competenceGridViewerComponent r u =
       where
         title = V.title_ (M.ms m.document.competenceGrid.title)
         description = V.text_ (M.ms m.document.competenceGrid.description)
-        userSelector = M.div_ [] M.+> userSelectorComponent r
+        userSelector = M.div_ [] M.+> userSelectorComponent r #selectedUser
+        evidences = case m.selectedUser of
+          Just user -> m.document.evidences Ix.@= user.id
+          Nothing -> Ix.empty
         competences =
           V.viewTable $
             V.defTable
@@ -84,12 +88,6 @@ competenceGridViewerComponent r u =
                         LevelDescriptionColumn level -> V.text_ "..."
               }
 
-    handleMail m =
-      case fromJSON m of
-        Success (UserSelectionChanged (Just u')) -> pure $ SelectUser (u' ^. #id)
-        Success (UserSelectionChanged Nothing) -> pure CancelUserSelection
-        _ -> Nothing
-
 data Model = Model
   { document :: !Document
   , highlighted :: !(Set.Set CompetenceLevelId)
@@ -98,9 +96,7 @@ data Model = Model
   deriving (Eq, Generic, Show)
 
 data Action
-  = SelectUser !UserId
-  | CancelUserSelection
-  | SetHighlighted ![CompetenceLevelId]
+  = SetHighlighted ![CompetenceLevelId]
   | ResourceDetailsOf ![CompetenceLevelId]
   | EvidenceDetailsOf ![CompetenceLevelId]
   | UpdateDocument !DocumentChange
@@ -118,8 +114,3 @@ emptyModel =
     , highlighted = Set.empty
     , selectedUser = Nothing
     }
-
-defaultSelection :: User -> Model -> Model
-defaultSelection u m
-  | u `elem` m.document.users = m & (#selectedUser ?~ u)
-  | otherwise = m

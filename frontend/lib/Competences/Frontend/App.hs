@@ -17,7 +17,7 @@ import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Router qualified as M
-import Optics.Core ((.~), (^.))
+import Optics.Core ((&), (.~), (^.))
 
 type App = M.Component M.ROOT Model Action
 
@@ -47,18 +47,26 @@ mkApp r u =
       M.div_
         []
         [ V.iconDefs
-        , V.vBox_ (V.Expand V.Start) (V.Expand V.Center) V.SmallGap [topMenu, page (m ^. #uri), footer]
+        , V.viewFlow
+            ( V.vFlow
+                & (#expandDirection .~ V.Expand V.Start)
+                & (#expandOrthogonal .~ V.Expand V.Center)
+                & (#gap .~ V.SmallSpace)
+            )
+            [topMenu, page (m ^. #uri), footer]
         ]
 
     topMenu =
-      V.hBox_
-        (V.Expand V.Start)
-        V.NoExpand
-        V.SmallGap
-        [ V.buttonRow
-            [ V.link [M.onClick $ PushURI $ M.toURI ViewCompetenceGrid] "View"
-            , V.link [M.onClick $ PushURI $ M.toURI EditCompetenceGrid] "Edit"
-            , V.link [M.onClick $ PushURI $ M.toURI ManageUsers] "Users"
+      V.viewFlow
+        ( V.hFlow
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#gap .~ V.SmallSpace)
+        )
+        [ V.viewButtons
+            (V.hButtons & (#compact .~ True))
+            [ V.textButton' "View" (PushURI $ M.toURI ViewCompetenceGrid)
+            , V.textButton' "Edit" (PushURI $ M.toURI EditCompetenceGrid)
+            , V.textButton' "Users" (PushURI $ M.toURI ManageUsers)
             ]
         ]
 
@@ -75,7 +83,7 @@ mkApp r u =
 
     mounted key c = M.div_ [M.key_ key] M.+> c
 
-    footer = V.hBox_ (V.Expand V.Center) V.NoExpand V.NoGap [V.text_ "© 2025 Markus Mayr"]
+    footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 
 withTailwindPlay :: App -> App
 withTailwindPlay app = app {M.scripts = M.Src "https://cdn.tailwindcss.com" : M.scripts app}

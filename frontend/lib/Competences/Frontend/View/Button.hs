@@ -1,50 +1,167 @@
 module Competences.Frontend.View.Button
   ( iconButton
+  , iconButton'
   , iconLabelButton
+  , iconLabelButton'
+  , labelButton
+  , labelButton'
+  , textButton
+  , textButton'
+  , hButtons
+  , vButtons
+  , viewButton
+  , viewButtons
   , link
-  , buttonRow
-  , buttonColumn
   , applyButton
   , cancelButton
   , applyLabelButton
   , deleteButton
   , editButton
   , cancelLabelButton
-  , toggleButton
-  , toToggleState
-  , triStateButton
   , toTriState
-  , ButtonStyle (..)
+  , Button (..)
+  , Buttons (..)
   , ToggleState (..)
   , TriState (..)
+  , ButtonType (..)
   )
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Layout (FlowDirection (..))
 import Competences.Frontend.View.Layout qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Competences.Frontend.View.Text qualified as V
+import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as MP
 import Miso.String (MisoString)
+import Optics.Core ((&), (.~))
 
-iconButton :: [M.Attribute action] -> ButtonStyle -> Icon -> MisoString -> M.View m action
-iconButton attrs s iconId label =
-  M.button_ (attributesFor s [T.IconButton, T.SizeFit] : MP.title_ label : attrs) [icon [] iconId]
+data ButtonContents
+  = ButtonIcon !Icon !M.MisoString
+  | ButtonText !M.MisoString
+  | ButtonIconAndText !Icon !M.MisoString
+  deriving (Eq, Show)
 
-buttonRow :: [M.View m action] -> M.View m action
-buttonRow = V.hBox_ (V.Expand V.Center) V.NoExpand V.TinyGap
+data ButtonType
+  = RegularButton
+  | AlertButton
 
-buttonColumn :: [M.View m action] -> M.View m action
-buttonColumn = V.vBox_ (V.Expand V.Center) V.NoExpand V.TinyGap
+data ButtonRoundedness
+  = ButtonRoundedNone
+  | ButtonRoundedLeft
+  | ButtonRoundedRight
+  | ButtonRoundedTop
+  | ButtonRoundedBottom
+  | ButtonRoundedAll
 
-iconLabelButton :: [M.Attribute action] -> ButtonStyle -> Icon -> MisoString -> M.View m action
-iconLabelButton attrs s iconId label =
+data Button s a = Button
+  { contents :: ButtonContents
+  , state :: !s
+  , buttonType :: !ButtonType
+  , roundedness :: !ButtonRoundedness
+  , minimumWidth :: !(Maybe Int)
+  , onClick :: !a
+  }
+  deriving (Generic)
+
+contentsButton :: ButtonContents -> s -> a -> Button s a
+contentsButton c s a =
+  Button
+    { contents = c
+    , state = s
+    , buttonType = RegularButton
+    , roundedness = ButtonRoundedAll
+    , minimumWidth = Nothing
+    , onClick = a
+    }
+
+textButton :: M.MisoString -> s -> a -> Button s a
+textButton = contentsButton . ButtonText
+
+textButton':: M.MisoString -> a -> Button () a
+textButton' t = textButton t ()
+
+labelButton :: Label -> s -> a -> Button s a
+labelButton l = contentsButton (ButtonText $ translate' l)
+
+labelButton' :: Label -> a -> Button () a
+labelButton' l = labelButton l ()
+
+iconButton :: Icon -> Label -> s -> a -> Button s a
+iconButton i l = contentsButton (ButtonIcon i (translate' l))
+
+iconButton' :: Icon -> Label -> a -> Button () a
+iconButton' i l = iconButton i l ()
+
+iconLabelButton :: Icon -> Label -> s -> a -> Button s a
+iconLabelButton i l = contentsButton (ButtonIconAndText i (translate' l))
+
+iconLabelButton' :: Icon -> Label -> a -> Button () a
+iconLabelButton' i l = iconLabelButton i l ()
+
+viewButton :: (ToTriState s) => Button s a -> M.View m a
+viewButton b =
   M.button_
-    (attributesFor s [T.IconLabelButton, T.SizeFit] : attrs)
-    [V.hBox_ V.NoExpand (V.Expand V.End) V.SmallGap [icon [] iconId, V.buttonText_ label]]
+    [ T.tailwind $ mconcat [rounded, colors]
+    , M.onClick b.onClick
+    ]
+    (viewButtonContents b.contents)
+  where
+    rounded = case b.roundedness of
+      ButtonRoundedNone -> []
+      ButtonRoundedLeft -> [T.RoundedLeft]
+      ButtonRoundedRight -> [T.RoundedRight]
+      ButtonRoundedTop -> [T.RoundedTop]
+      ButtonRoundedBottom -> [T.RoundedBottom]
+      ButtonRoundedAll -> [T.Rounded]
+    colors = case (b.buttonType, toTriState b.state) of
+      (RegularButton, TriStateOff) -> [T.RegularButtonOff]
+      (RegularButton, TriStateOn) -> [T.RegularButtonOn]
+      (RegularButton, TriStateIndeterminate) -> [T.RegularButtonIndeterminate]
+      (AlertButton, TriStateOff) -> [T.AlertButtonOff]
+      (AlertButton, TriStateOn) -> [T.AlertButtonOn]
+      (AlertButton, TriStateIndeterminate) -> [T.AlertButtonIndeterminate]
+    viewButtonContents (ButtonIcon i _t) = [icon [] i]
+    viewButtonContents (ButtonText t) = [V.buttonText_ t]
+    viewButtonContents (ButtonIconAndText i t) = [icon [] i, V.buttonText_ t]
+
+data Buttons = Buttons
+  { direction :: !FlowDirection
+  , compact :: !Bool
+  }
+  deriving (Eq, Generic, Show)
+
+buttons :: FlowDirection -> Buttons
+buttons d = Buttons d False
+
+hButtons, vButtons :: Buttons
+hButtons = buttons HorizontalFlow
+vButtons = buttons VerticalFlow
+
+viewButtons :: (ToTriState s) => Buttons -> [Button s a] -> M.View m a
+viewButtons b bs =
+  V.viewFlow
+    ( V.flow b.direction
+        & #gap
+        .~ (if b.compact then V.NoSpace else V.SmallSpace)
+    )
+    (viewButtons' bs)
+  where
+    viewButtons' [] = []
+    viewButtons' [btn] = [viewButton (btn & #roundedness .~ ButtonRoundedAll)]
+    viewButtons' (btn : btns) = (btn & buttonRoundedFirst & viewButton) : viewButtons'' btns
+    viewButtons'' [] = []
+    viewButtons'' [btn] = [btn & buttonRoundedLast & viewButton]
+    viewButtons'' (btn : btns) = viewButton (btn & #roundedness .~ ButtonRoundedNone) : viewButtons'' btns
+    buttonRoundedFirst = case b.direction of
+      HorizontalFlow -> #roundedness .~ ButtonRoundedLeft
+      VerticalFlow -> #roundedness .~ ButtonRoundedTop
+    buttonRoundedLast = case b.direction of
+      HorizontalFlow -> #roundedness .~ ButtonRoundedRight
+      VerticalFlow -> #roundedness .~ ButtonRoundedBottom
 
 link :: [M.Attribute action] -> MisoString -> M.View m action
 link attrs label = M.button_ (T.tailwind [T.LinkButton] : attrs) [V.buttonText_ label]
@@ -54,58 +171,55 @@ data ToggleState
   | ToggleOn
   deriving (Eq, Show, Ord)
 
-toToggleState :: Bool -> ToggleState
-toToggleState True = ToggleOn
-toToggleState False = ToggleOff
-
-toggleButton :: (ToggleState -> action) -> ToggleState -> M.View m action -> M.View m action
-toggleButton a s c = M.button_ [T.tailwind [T.ToggleButton, tailwindStyleFor s], M.onClick (a s)] [c]
-  where
-    tailwindStyleFor ToggleOff = T.ToggleButtonOff
-    tailwindStyleFor ToggleOn = T.ToggleButtonOn
-
-toTriState :: [ToggleState] -> TriState
-toTriState ts
-  | all (== ToggleOn) ts = TriStateOn
-  | all (== ToggleOff) ts = TriStateOff
-  | otherwise = TriStateIndeterminate
-
 data TriState
   = TriStateOff
   | TriStateOn
   | TriStateIndeterminate
   deriving (Eq, Show, Ord)
 
-triStateButton :: (TriState -> action) -> TriState -> M.View m action -> M.View m action
-triStateButton a s c = M.button_ [T.tailwind [T.ToggleButton, tailwindStyleFor s], M.onClick (a s)] [c]
-  where
-    tailwindStyleFor TriStateOff = T.ToggleButtonOff
-    tailwindStyleFor TriStateOn = T.ToggleButtonOn
-    tailwindStyleFor TriStateIndeterminate = T.ToggleButtonIndeterminate
+applyButton :: a -> Button () a
+applyButton = iconButton' IcnApply LblApply
 
-applyButton :: [M.Attribute action] -> M.View m action
-applyButton attrs = iconButton attrs RegularButton IcnApply (translate' LblApply)
+cancelButton :: a -> Button () a
+cancelButton = iconButton' IcnCancel LblCancel
 
-cancelButton :: [M.Attribute action] -> M.View m action
-cancelButton attrs = iconButton attrs AlertButton IcnCancel (translate' LblCancel)
+deleteButton :: a -> Button () a
+deleteButton = iconLabelButton' IcnDelete LblDelete
 
-deleteButton :: [M.Attribute action] -> M.View m action
-deleteButton attrs = iconButton attrs AlertButton IcnDelete (translate' LblDelete)
+editButton :: a -> Button () a
+editButton = iconLabelButton' IcnEdit LblEdit
 
-editButton :: [M.Attribute action] -> M.View m action
-editButton attrs = iconButton attrs RegularButton IcnEdit (translate' LblEdit)
+applyLabelButton :: a -> Button () a
+applyLabelButton = labelButton' LblApply
 
-applyLabelButton :: [M.Attribute action] -> M.View m action
-applyLabelButton attrs = iconLabelButton attrs RegularButton IcnApply (translate' LblApply)
+cancelLabelButton :: a -> Button () a
+cancelLabelButton = labelButton' LblCancel
 
-cancelLabelButton :: [M.Attribute action] -> M.View m action
-cancelLabelButton attrs = iconLabelButton attrs AlertButton IcnCancel (translate' LblCancel)
+class ToTriState a where
+  toTriState :: a -> TriState
 
-data ButtonStyle
-  = RegularButton
-  | AlertButton
-  deriving (Eq, Show)
+instance ToTriState TriState where
+  toTriState = id
 
-attributesFor :: ButtonStyle -> [T.TailwindCls] -> M.Attribute action
-attributesFor RegularButton clss = T.tailwind $ T.RegularButtonColors : clss
-attributesFor AlertButton clss = T.tailwind $ T.AlertButtonColors : clss
+instance ToTriState Bool where
+  toTriState False = TriStateOff
+  toTriState True = TriStateOn
+
+instance ToTriState [Bool] where
+  toTriState xs
+    | and xs = TriStateOn
+    | all not xs = TriStateOff
+    | otherwise = TriStateIndeterminate
+
+instance ToTriState ToggleState where
+  toTriState ToggleOff = TriStateOff
+  toTriState ToggleOn = TriStateOn
+
+instance ToTriState [ToggleState] where
+  toTriState xs
+    | all (== ToggleOn) xs = TriStateOn
+    | all (== ToggleOff) xs = TriStateOff
+    | otherwise = TriStateIndeterminate
+
+instance ToTriState () where
+  toTriState _ = TriStateOn

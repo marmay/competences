@@ -10,6 +10,8 @@ module Competences.Common.IxSet
   )
 where
 
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Binary (Binary (..))
 import Data.IxSet.Typed
 import Data.IxSet.Typed qualified as Ix
 import Data.Kind (Type)
@@ -45,3 +47,13 @@ replacePrimary
   :: forall ix ixs a
    . (Ix.Indexable (ix ': ixs) a) => ix -> (a -> a) -> Ix.IxSet (ix ': ixs) a -> Ix.IxSet (ix ': ixs) a
 replacePrimary i f s = foldr (Ix.insert . f) (Ix.deleteIx i s) (Ix.toList $ s Ix.@= i)
+
+instance (FromJSON a, Ix.Indexable ixs a) => FromJSON (Ix.IxSet ixs a) where
+  parseJSON = fmap Ix.fromList . parseJSON
+
+instance (ToJSON a, Ix.Indexable ixs a) => ToJSON (Ix.IxSet ixs a) where
+  toJSON = toJSON . Ix.toList
+
+instance (Binary a, Ix.Indexable ixs a) => Binary (Ix.IxSet ixs a) where
+  put = put . Ix.toList
+  get = fmap Ix.fromList get

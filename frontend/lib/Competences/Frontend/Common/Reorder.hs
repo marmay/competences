@@ -18,8 +18,7 @@ import Competences.Frontend.View.Button qualified as V
 import Competences.Frontend.View.Icon qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
-import Optics.Core ((.~), (?~), (^.))
+import Optics.Core ((.~), (?~), (^.), (&))
 
 newtype ReorderModel a = ReorderModel
   { reorderFrom :: Maybe (Id a)
@@ -75,9 +74,9 @@ issueReorderCommand r f to = do
       from <- m.reorderFrom
       f from to
 
-viewReorderItem :: (Orderable a) => ReorderModel a -> a -> [M.View m (ReorderAction a)]
+viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
 viewReorderItem m item =
-  case m.reorderFrom of
+  V.viewButtons (V.hButtons & #compact .~ True) $ case m.reorderFrom of
     Nothing -> [moveButton]
     Just from ->
       if from == item ^. idL
@@ -85,26 +84,10 @@ viewReorderItem m item =
         else [moveBeforeButton, moveAfterButton]
   where
     moveButton =
-      V.iconButton
-        [M.onClick $ ReorderFrom $ item ^. idL]
-        V.RegularButton
-        V.IcnReorder
-        (C.translate' C.LblMove)
+      V.iconButton' V.IcnReorder C.LblMove (ReorderFrom $ item ^. idL)
     cancelButton =
-      V.iconButton
-        [M.onClick CancelReorder]
-        V.RegularButton
-        V.IcnCancel
-        (C.translate' C.LblCancel)
+      V.iconButton' V.IcnCancel C.LblCancel CancelReorder
     moveBeforeButton =
-      V.iconButton
-        [M.onClick $ ReorderBefore $ item ^. idL]
-        V.RegularButton
-        V.IcnArrowUp
-        (C.translate' C.LblInsertBefore)
+      V.iconButton' V.IcnArrowUp C.LblInsertBefore (ReorderBefore $ item ^. idL)
     moveAfterButton =
-      V.iconButton
-        [M.onClick $ ReorderAfter $ item ^. idL]
-        V.RegularButton
-        V.IcnArrowDown
-        (C.translate' C.LblInsertAfter)
+      V.iconButton' V.IcnArrowDown C.LblInsertAfter (ReorderAfter $ item ^. idL)

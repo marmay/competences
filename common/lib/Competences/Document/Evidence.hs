@@ -1,26 +1,34 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+
 module Competences.Document.Evidence
   ( Evidence (..)
   , EvidenceId
   , EvidenceIxs
   , SocialForm (..)
   , Ability (..)
-  , evidenceLevel
+  , ActivityType (..)
+  , ActivityTasks (..)
+  , Observation (..)
+  , ObservationId
+  , ObservationRemark (..)
+  , mkEvidence
   )
 where
 
-import Competences.Document.Competence (CompetenceId, Level)
-import Competences.Document.Id (Id)
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Id (Id, nilId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
-import Data.IxSet.Typed qualified as Ix
+import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
-import Data.Time (Day)
+import Data.Time (Day, getCurrentTime, utctDay, fromGregorian)
 import GHC.Generics (Generic)
-import Data.Binary (Binary)
+import qualified Data.Set as Set
 
 type EvidenceId = Id Evidence
+type ObservationId = Id Observation
 
 -- | Whether a competence is demonstrated as part of a group or
 -- individually.
@@ -29,13 +37,16 @@ data SocialForm
     Group
   | -- | Competence is demonstrated individually.
     Individual
-  deriving (Eq, Generic, Ord, Show)
+  deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
 -- | Whether the competence was demonstrated self-reliantly,
 -- with some support or not yet at all.
 data Ability
   = -- | Competence was demonstrated self-reliantly.
     SelfReliant
+  | -- | Competence was demonstrated self-reliantly with some silly
+    -- mistakes; but a high level of understanding was demonstrated.
+    SelfReliantWithSillyMistakes
   | -- | Competence was demonstrated with some support, like
     -- giving a hint or correcting a minor mistake.
     WithSupport
@@ -43,32 +54,85 @@ data Ability
     -- because the student did not try, did not have the correct
     -- idea or they made a significant mistake.
     NotYet
+  deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
+
+data ActivityType
+  = -- | Competence was demonstrated as part of a supervised
+    -- activity.
+    Supervised
+  | -- | Competence was demonstrated in a semi-supervised activity,
+    -- where the SocialForm is mostly self-reported, but randomly
+    -- checked.
+    SemiSupervised
+  | -- | Competence was demonstrated as part of an unsupervised
+    -- activity.
+    Unsupervised
+  deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
+
+newtype ActivityTasks = ActivityTasks Text
+  deriving (Eq, Generic, Ord, Show)
+  deriving newtype (Binary, FromJSON, ToJSON)
+
+newtype ObservationRemark = ObservationRemark Text
+  deriving (Eq, Generic, Ord, Show)
+  deriving newtype (Binary, FromJSON, ToJSON)
+
+data Observation = Observation
+  { observationId :: !ObservationId
+  , competenceLevelId :: !CompetenceLevelId
+  , socialForm :: !SocialForm
+  , ability :: !Ability
+  , remark :: !ObservationRemark
+  }
   deriving (Eq, Generic, Ord, Show)
 
 data Evidence = Evidence
   { id :: !EvidenceId
-  , userId :: !UserId
-  , competence :: !(CompetenceId, Level)
+  , userIds :: !(Set.Set UserId)
+  , activityType :: !ActivityType
   , date :: !Day
-  , description :: !(Maybe Text)
-  , socialForm :: !SocialForm
-  , ability :: !Ability
+  , activityTasks :: !ActivityTasks
+  , observations :: !(Ix.IxSet ObservationIxs Observation)
   }
   deriving (Eq, Generic, Ord, Show)
 
-evidenceLevel :: Evidence -> Level
-evidenceLevel = snd . (.competence)
+mkEvidence :: EvidenceId -> IO Evidence
+mkEvidence eId = do
+  today <- utctDay <$> getCurrentTime
+  pure $ nilEvidence
+    { id = eId
+    , date = today
+    }
 
-type EvidenceIxs = '[EvidenceId, UserId, CompetenceId, Level, Day]
+nilEvidence :: Evidence
+nilEvidence = Evidence
+  { id = nilId
+  , userIds = Set.empty
+  , activityType = Supervised
+  , date = fromGregorian 2025 1 1
+  , activityTasks = ActivityTasks ""
+  , observations = Ix.empty
+  }
+
+type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
-      (Ix.ixFun $ singleton . (.userId))
-      (Ix.ixFun $ singleton . fst . (.competence))
-      (Ix.ixFun $ singleton . snd . (.competence))
+      (Ix.ixFun $ Set.toList . (.userIds))
       (Ix.ixFun $ singleton . (.date))
+      (Ix.ixFun $ map (.competenceLevelId) . Ix.toList . (.observations))
+
+type ObservationIxs = '[ObservationId, CompetenceLevelId, SocialForm, Ability]
+
+instance Ix.Indexable ObservationIxs Observation where
+  indices =
+    Ix.ixList
+      (Ix.ixFun $ singleton . (.observationId))
+      (Ix.ixFun $ singleton . (.competenceLevelId))
+      (Ix.ixFun $ singleton . (.socialForm))
+      (Ix.ixFun $ singleton . (.ability))
 
 instance FromJSON SocialForm
 
@@ -82,10 +146,22 @@ instance ToJSON Ability
 
 instance Binary Ability
 
+instance FromJSON ActivityType
+
+instance ToJSON ActivityType
+
+instance Binary ActivityType
+
 instance FromJSON Evidence
 
 instance ToJSON Evidence
 
-instance Binary Day
-
 instance Binary Evidence
+
+instance FromJSON Observation
+
+instance ToJSON Observation
+
+instance Binary Observation
+
+instance Binary Day

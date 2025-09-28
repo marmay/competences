@@ -5,9 +5,9 @@ module Competences.Command
   )
 where
 
-import Competences.Command.ChangeField (lockField, releaseField, FieldEncoding)
+import Competences.Command.ChangeField (FieldEncoding, changeField, lockField, releaseField)
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Document (Document (..), User(..))
+import Competences.Document (Document (..), User (..))
 import Competences.Document.ChangableField (ChangableField)
 import Competences.Document.Competence (Competence (..), CompetenceId)
 import Competences.Document.Evidence (Evidence (..), EvidenceId)
@@ -25,12 +25,14 @@ import Control.Monad (unless)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Either.Extra (mapLeft)
 import Data.IxSet.Typed qualified as Ix
+import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%~), (&), (.~), (^.))
 
 data Command
   = LockField !ChangableField !UserId !FieldEncoding
-  | ReleaseField !ChangableField !(Maybe FieldEncoding)
+  | ReleaseField !ChangableField !UserId !(Maybe FieldEncoding)
+  | ChangeField !ChangableField !UserId !FieldEncoding !FieldEncoding
   | AddCompetence !Competence
   | RemoveCompetence !CompetenceId
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
@@ -49,7 +51,8 @@ instance ToJSON Command
 handleCommand :: Command -> Document -> UpdateResult
 handleCommand cmd model = case cmd of
   LockField f u t -> lockField model f u t
-  ReleaseField f t -> releaseField model f t
+  ReleaseField f u t -> releaseField model f u t
+  ChangeField f u t t' -> changeField model f u t t'
   AddCompetence competence -> do
     competences' <- orderedInsert competence (model ^. #competences)
     pure (model & #competences .~ competences', AllUsers)
@@ -68,7 +71,7 @@ handleCommand cmd model = case cmd of
   RemoveUser userId -> do
     removeExisting model #users userId userAffectedUsers
   where
-    evidenceAffectedUsers e = AllTeachersAndSpecificStudents [e.userId]
+    evidenceAffectedUsers e = AllTeachersAndSpecificStudents (Set.toList e.userIds)
     userAffectedUsers u = AllTeachersAndSpecificStudents [u.id]
 
 insertNew

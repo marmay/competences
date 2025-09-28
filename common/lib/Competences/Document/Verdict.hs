@@ -10,7 +10,6 @@ import Competences.Document.Evidence
   , Evidence (..)
   , EvidenceIxs
   , SocialForm (..)
-  , evidenceLevel
   )
 import Competences.Document.User (User (..))
 import Data.IxSet.Typed qualified as Ix
@@ -41,27 +40,27 @@ data AutoVerdict
   deriving (Eq, Ord, Show)
 
 autoVerdict :: Ix.IxSet EvidenceIxs Evidence -> User -> Competence -> [(Level, AutoVerdict)]
-autoVerdict s u c =
-  let s' = Ix.toDescList (Proxy @Day) $ s Ix.@= c.id Ix.@= u.id
-      atLevel l = l `Map.lookup` c.levelDescriptions >> pure (l, autoVerdict' s' l)
-   in promoteVerdicts $ mapMaybe atLevel levels
+autoVerdict _s _u _c = []
+--  let s' = Ix.toDescList (Proxy @Day) $ s Ix.@= c.id Ix.@= u.id
+--      atLevel l = l `Map.lookup` c.levelDescriptions >> pure (l, autoVerdict' s' l)
+--   in promoteVerdicts $ mapMaybe atLevel levels
 
 -- | Given all evidences of a given user and competence, in reverse chronological
 -- order, determines the `AutoVerdict` at a given level.
 autoVerdict' :: [Evidence] -> Level -> AutoVerdict
-autoVerdict' evs l
-  | individuallySelfReliant competentSequence = Competent
-  | individuallySelfReliant probablyCompetentSequence = ProbablyCompetent
-  | length (filter ((== l) . evidenceLevel) evs) >= 3 = NotYetCompetent
-  | otherwise = Inconclusive
-  where
-    filterWithSelect :: ([Evidence] -> [Evidence]) -> [Evidence] -> [Evidence]
-    filterWithSelect select = filter ((== l) . evidenceLevel) . select . filter ((<= l) . evidenceLevel)
-    competentSequence = filterWithSelect (takeWhile (\e -> e.ability /= NotYet)) evs
-    probablyCompetentSequence = filterWithSelect (takeWhileButDropFirstFail (\e -> e.ability /= NotYet)) evs
-    individuallySelfReliant s =
-      any (\e -> e.socialForm == Individual && e.ability == SelfReliant) s
-        && length (group $ map (.date) $ filter (\e -> e.ability == SelfReliant) s) >= 2
+autoVerdict' _evs _l = Inconclusive
+--  | individuallySelfReliant competentSequence = Competent
+--  | individuallySelfReliant probablyCompetentSequence = ProbablyCompetent
+--  | length (filter ((== l) . evidenceLevel) evs) >= 3 = NotYetCompetent
+--  | otherwise = Inconclusive
+--  where
+--    filterWithSelect :: ([Evidence] -> [Evidence]) -> [Evidence] -> [Evidence]
+--    filterWithSelect select = filter ((== l) . evidenceLevel) . select . filter ((<= l) . evidenceLevel)
+--    competentSequence = filterWithSelect (takeWhile (\e -> e.ability /= NotYet)) evs
+--    probablyCompetentSequence = filterWithSelect (takeWhileButDropFirstFail (\e -> e.ability /= NotYet)) evs
+--    individuallySelfReliant s =
+--      any (\e -> e.socialForm == Individual && e.ability == SelfReliant) s
+--        && length (group $ map (.date) $ filter (\e -> e.ability == SelfReliant) s) >= 2
 
 takeWhileButDropFirstFail :: (a -> Bool) -> [a] -> [a]
 takeWhileButDropFirstFail p (x : xs)
