@@ -38,7 +38,7 @@ import Competences.Frontend.SyncDocument
   , SyncDocumentRef
   , mkSyncDocument
   , mkSyncDocument'
-  , readSyncDocument, modifySyncDocument
+  , readSyncDocument, modifySyncDocument, SyncDocumentEnv, mkSyncDocumentEnv
   )
 import Control.Exception (bracket)
 import Data.Aeson (eitherDecode, encode)
@@ -136,18 +136,19 @@ main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
   let user = User opt.userId opt.userName opt.userRole
-  bracket (readDocument opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
+  env <- mkSyncDocumentEnv user
+  bracket (readDocument env opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
       modifySyncDocument document $ AddUser user
-      runApp $ withTailwindPlay $ mkApp document user
+      runApp $ withTailwindPlay $ mkApp document
 
-readDocument :: Maybe FilePath -> IO SyncDocumentRef
-readDocument (Just p) = do
+readDocument :: SyncDocumentEnv -> Maybe FilePath -> IO SyncDocumentRef
+readDocument e (Just p) = do
   f <- B.readFile p
   case eitherDecode f of
     Left err -> error $ "Could not read file " <> p <> ": " <> err
-    Right d -> mkSyncDocument' d
-readDocument Nothing = mkSyncDocument
+    Right d -> mkSyncDocument' e d
+readDocument e Nothing = mkSyncDocument e
 
 writeDocument :: Maybe FilePath -> SyncDocumentRef -> IO ()
 writeDocument (Just p) r = do

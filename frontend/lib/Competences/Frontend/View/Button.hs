@@ -36,6 +36,7 @@ import Competences.Frontend.View.Text qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString)
 import Optics.Core ((&), (.~))
 
@@ -57,11 +58,18 @@ data ButtonRoundedness
   | ButtonRoundedBottom
   | ButtonRoundedAll
 
+data ButtonFill
+  = HorizontalFill
+  | VerticalFill
+  | BothFill
+  | NoFill
+
 data Button s a = Button
   { contents :: ButtonContents
   , state :: !s
   , buttonType :: !ButtonType
   , roundedness :: !ButtonRoundedness
+  , fill :: !ButtonFill
   , minimumWidth :: !(Maybe Int)
   , onClick :: !a
   }
@@ -74,6 +82,7 @@ contentsButton c s a =
     , state = s
     , buttonType = RegularButton
     , roundedness = ButtonRoundedAll
+    , fill = NoFill
     , minimumWidth = Nothing
     , onClick = a
     }
@@ -81,7 +90,7 @@ contentsButton c s a =
 textButton :: M.MisoString -> s -> a -> Button s a
 textButton = contentsButton . ButtonText
 
-textButton':: M.MisoString -> a -> Button () a
+textButton' :: M.MisoString -> a -> Button () a
 textButton' t = textButton t ()
 
 labelButton :: Label -> s -> a -> Button s a
@@ -105,10 +114,12 @@ iconLabelButton' i l = iconLabelButton i l ()
 viewButton :: (ToTriState s) => Button s a -> M.View m a
 viewButton b =
   M.button_
-    [ T.tailwind $ mconcat [rounded, colors]
+    [ T.tailwind $ mconcat [rounded, colors, fill]
     , M.onClick b.onClick
     ]
-    (viewButtonContents b.contents)
+    [ V.viewFlow (V.hFlow & (#margin .~ V.SmallSpace) & (#gap .~ V.SmallSpace)) $
+        viewButtonContents b.contents
+    ]
   where
     rounded = case b.roundedness of
       ButtonRoundedNone -> []
@@ -124,18 +135,27 @@ viewButton b =
       (AlertButton, TriStateOff) -> [T.AlertButtonOff]
       (AlertButton, TriStateOn) -> [T.AlertButtonOn]
       (AlertButton, TriStateIndeterminate) -> [T.AlertButtonIndeterminate]
-    viewButtonContents (ButtonIcon i _t) = [icon [] i]
+    fill = case b.fill of
+      NoFill -> []
+      HorizontalFill -> [T.HFull]
+      VerticalFill -> [T.WFull]
+      BothFill -> [T.HFull, T.WFull]
+    viewButtonContents (ButtonIcon i t) = [icon [MP.alt_ t] i]
     viewButtonContents (ButtonText t) = [V.buttonText_ t]
-    viewButtonContents (ButtonIconAndText i t) = [icon [] i, V.buttonText_ t]
+    viewButtonContents (ButtonIconAndText i t) =
+      [ icon [] i
+      , V.viewFlow (V.vFlow & (#expandDirection .~ V.Expand V.Center)) [V.buttonText_ t]
+      ]
 
 data Buttons = Buttons
   { direction :: !FlowDirection
+  , alignment :: !V.Alignment
   , compact :: !Bool
   }
   deriving (Eq, Generic, Show)
 
 buttons :: FlowDirection -> Buttons
-buttons d = Buttons d False
+buttons d = Buttons d V.Start False
 
 hButtons, vButtons :: Buttons
 hButtons = buttons HorizontalFlow
@@ -145,23 +165,44 @@ viewButtons :: (ToTriState s) => Buttons -> [Button s a] -> M.View m a
 viewButtons b bs =
   V.viewFlow
     ( V.flow b.direction
-        & #gap
-        .~ (if b.compact then V.NoSpace else V.SmallSpace)
+        & (#gap .~ (if b.compact then V.NoSpace else V.SmallSpace))
+        & (#expandDirection .~ expansion)
     )
     (viewButtons' bs)
   where
     viewButtons' [] = []
     viewButtons' [btn] = [viewButton (btn & #roundedness .~ ButtonRoundedAll)]
-    viewButtons' (btn : btns) = (btn & buttonRoundedFirst & viewButton) : viewButtons'' btns
+    viewButtons' (btn : btns) = viewButton (btn & buttonRoundedFirst & fill) : viewButtons'' btns
     viewButtons'' [] = []
-    viewButtons'' [btn] = [btn & buttonRoundedLast & viewButton]
-    viewButtons'' (btn : btns) = viewButton (btn & #roundedness .~ ButtonRoundedNone) : viewButtons'' btns
-    buttonRoundedFirst = case b.direction of
-      HorizontalFlow -> #roundedness .~ ButtonRoundedLeft
-      VerticalFlow -> #roundedness .~ ButtonRoundedTop
-    buttonRoundedLast = case b.direction of
-      HorizontalFlow -> #roundedness .~ ButtonRoundedRight
-      VerticalFlow -> #roundedness .~ ButtonRoundedBottom
+    viewButtons'' [btn] = [viewButton (btn & buttonRoundedLast & fill)]
+    viewButtons'' (btn : btns) = viewButton (btn & buttonRoundedMiddle & fill) : viewButtons'' btns
+    buttonRoundedFirst =
+      if b.compact
+        then case b.direction of
+          HorizontalFlow -> #roundedness .~ ButtonRoundedLeft
+          VerticalFlow -> #roundedness .~ ButtonRoundedTop
+        else #roundedness .~ ButtonRoundedAll
+    buttonRoundedLast =
+      if b.compact
+        then case b.direction of
+          HorizontalFlow -> #roundedness .~ ButtonRoundedRight
+          VerticalFlow -> #roundedness .~ ButtonRoundedBottom
+        else #roundedness .~ ButtonRoundedAll
+    buttonRoundedMiddle =
+      if b.compact
+        then #roundedness .~ ButtonRoundedNone
+        else #roundedness .~ ButtonRoundedAll
+    fill =
+      if b.compact
+        then case b.direction of
+          HorizontalFlow -> #fill .~ HorizontalFill
+          VerticalFlow -> #fill .~ VerticalFill
+        else #fill .~ NoFill
+
+    expansion = case b.alignment of
+      V.Start -> V.NoExpand
+      V.Center -> V.Expand V.Center
+      V.End -> V.Expand V.End
 
 link :: [M.Attribute action] -> MisoString -> M.View m action
 link attrs label = M.button_ (T.tailwind [T.LinkButton] : attrs) [V.buttonText_ label]
@@ -181,19 +222,19 @@ applyButton :: a -> Button () a
 applyButton = iconButton' IcnApply LblApply
 
 cancelButton :: a -> Button () a
-cancelButton = iconButton' IcnCancel LblCancel
+cancelButton a = iconButton' IcnCancel LblCancel a & (#buttonType .~ AlertButton)
 
 deleteButton :: a -> Button () a
-deleteButton = iconLabelButton' IcnDelete LblDelete
+deleteButton a = iconButton' IcnDelete LblDelete a & (#buttonType .~ AlertButton)
 
 editButton :: a -> Button () a
-editButton = iconLabelButton' IcnEdit LblEdit
+editButton = iconButton' IcnEdit LblEdit
 
 applyLabelButton :: a -> Button () a
-applyLabelButton = labelButton' LblApply
+applyLabelButton = iconLabelButton' IcnApply LblApply
 
 cancelLabelButton :: a -> Button () a
-cancelLabelButton = labelButton' LblCancel
+cancelLabelButton a = iconLabelButton' IcnCancel LblCancel a & (#buttonType .~ AlertButton)
 
 class ToTriState a where
   toTriState :: a -> TriState

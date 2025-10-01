@@ -27,6 +27,8 @@ data Icon
   | IcnArrowDown
   | IcnDoubleArrowUp
   | IcnDoubleArrowDown
+  | IcnExpandShrinkArrowLeft
+  | IcnExpandShrinkArrowRight
   | IcnReorder
   deriving (Bounded, Eq, Enum, Ord, Show)
 
@@ -50,6 +52,8 @@ iconId = \case
   IcnArrowDown -> "icon-arrow-down"
   IcnDoubleArrowUp -> "icon-arrow-up-double"
   IcnDoubleArrowDown -> "icon-arrow-down-double"
+  IcnExpandShrinkArrowLeft -> "icon-expand-shrink-arrow-left"
+  IcnExpandShrinkArrowRight -> "icon-expand-shrink-arrow-right"
   IcnReorder -> "icon-reorder"
 
 iconDefOf :: Icon -> View m a
@@ -171,6 +175,24 @@ iconDefOf' = \case
         ]
     , MS.path_
         [ MSP.d_ "M19 7L12 13L5 7"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.strokeLinecap_ "round"
+        , MSP.strokeLinejoin_ "round"
+        ]
+    ]
+  -- todo: this is ai generated, look for proper icon!
+  IcnExpandShrinkArrowLeft ->
+    [ MS.path_
+        [ MSP.d_ "M15 18L9 12L15 6"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.strokeLinecap_ "round"
+        , MSP.strokeLinejoin_ "round"
+        ]
+    ]
+  -- todo: this is ai generated, look for proper icon!
+  IcnExpandShrinkArrowRight ->
+    [ MS.path_
+        [ MSP.d_ "M9 18L15 12L9 6"
         , MSP.strokeWidth_ "1.5"
         , MSP.strokeLinecap_ "round"
         , MSP.strokeLinejoin_ "round"

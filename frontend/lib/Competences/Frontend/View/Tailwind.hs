@@ -44,6 +44,7 @@ data TailwindCls
   | Gap4
   | Gap8
   | HFull
+  | Hidden
   | IconButton
   | IconLabelButton
   | ItemsStart
@@ -123,6 +124,7 @@ tailwindNames Gap2 = ["gap-2"]
 tailwindNames Gap4 = ["gap-4"]
 tailwindNames Gap8 = ["gap-8"]
 tailwindNames HFull = ["h-full"]
+tailwindNames Hidden = ["hidden"]
 tailwindNames IconButton = ["border", "rounded"]
 tailwindNames IconLabelButton = ["border", "rounded", "p-1"]
 tailwindNames ItemsStart = ["items-start"]

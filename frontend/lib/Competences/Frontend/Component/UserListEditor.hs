@@ -41,8 +41,8 @@ data UserListColumn
   | DeleteColumn
   deriving (Eq, Ord, Show)
 
-userListEditorComponent :: SyncDocumentRef -> User -> M.Component p Model Action
-userListEditorComponent r u =
+userListEditorComponent :: SyncDocumentRef -> M.Component p Model Action
+userListEditorComponent r =
   (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
   where
     model = Model []
@@ -81,7 +81,7 @@ userListEditorComponent r u =
                     DeleteColumn -> V.viewButton (deleteButton user.id)
                 }
           addButton = V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
-          editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> editableComponent r u (UserName u')
-          editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> editableComponent r u (UserRole u')
+          editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> editableComponent r (UserName u')
+          editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> editableComponent r (UserRole u')
           deleteButton u' = V.deleteButton (IssueCommand (RemoveUser u'))
-       in V.viewFlow (V.vFlow) [title, users, V.viewButton addButton]
+       in V.viewFlow V.vFlow [title, users, V.viewButton addButton]

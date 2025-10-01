@@ -4,6 +4,8 @@ module Competences.Frontend.View.Layout
   , flow
   , flowSpring
   , viewFlow
+  , visibleIf
+  , fixedWidth
   , Expand (..)
   , FlowDirection (..)
   , LayoutSpace (..)
@@ -16,6 +18,7 @@ import Competences.Frontend.View.Tailwind qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import qualified Miso.CSS as MS
 
 data FlowDirection = HorizontalFlow | VerticalFlow
   deriving (Eq, Show)
@@ -84,3 +87,10 @@ viewFlow l =
       Start -> [T.ItemsStart]
       Center -> [T.ItemsLastBaseline]
       End -> [T.ItemsEnd]
+
+visibleIf :: Bool -> M.View m a -> M.View m a
+visibleIf True v = v
+visibleIf False v = M.div_ [T.tailwind [T.Hidden]] [v]
+
+fixedWidth :: Int -> M.View m a -> M.View m a
+fixedWidth w v = M.div_ [MS.style_ [("width", M.ms (show w) <> "px")]] [v]

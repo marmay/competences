@@ -1,5 +1,6 @@
 module Competences.Frontend.SyncDocument
   ( SyncDocumentRef
+  , SyncDocumentEnv (..)
   , SyncDocument (..)
   , DocumentChange (..)
   , mkSyncDocument
@@ -12,17 +13,20 @@ module Competences.Frontend.SyncDocument
   , readSyncDocument
   , setSyncDocument'
   , issueInitialUpdate
+  , syncDocumentEnv
+  , mkSyncDocumentEnv
   )
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Document (Document, emptyDocument)
+import Competences.Document (Document, User, emptyDocument)
 import Control.Monad (forM_)
+import Data.Time (Day, UTCTime (..), getCurrentTime)
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
-import UnliftIO (modifyMVar_, newMVar, readMVar, MonadIO, MVar)
+import UnliftIO (MVar, MonadIO, liftIO, modifyMVar_, newMVar, readMVar)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -46,31 +50,44 @@ data DocumentChange = DocumentChange
 data ChangedHandler where
   ChangedHandler :: forall a. (DocumentChange -> a) -> (M.Sink a) -> ChangedHandler
 
-type SyncDocumentRef = MVar SyncDocument
+data SyncDocumentRef = SyncDocumentRef
+  { syncDocument :: MVar SyncDocument
+  , env :: !SyncDocumentEnv
+  }
 
-mkSyncDocument :: MonadIO m => m SyncDocumentRef
-mkSyncDocument = newMVar emptySyncDocument
+data SyncDocumentEnv = SyncDocumentEnv
+  { currentDay :: !Day
+  , connectedUser :: !User
+  }
+  deriving (Eq, Generic, Show)
 
-mkSyncDocument' :: MonadIO m => Document -> m SyncDocumentRef
-mkSyncDocument' m = newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
+mkSyncDocument :: (MonadIO m) => SyncDocumentEnv -> m SyncDocumentRef
+mkSyncDocument env = do
+  syncDocument <- newMVar emptySyncDocument
+  pure $ SyncDocumentRef syncDocument env
 
-readSyncDocument :: MonadIO m => SyncDocumentRef -> m SyncDocument
-readSyncDocument = readMVar
+mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> Document -> m SyncDocumentRef
+mkSyncDocument' env m = do
+  syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
+  pure $ SyncDocumentRef syncDocument env
+
+readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
+readSyncDocument = readMVar . (.syncDocument)
 
 subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> JSM ()
 subscribeDocument d f s = do
   let h = ChangedHandler f s
-  modifyMVar_ d $ \d' -> do
+  modifyMVar_ d.syncDocument $ \d' -> do
     s $ f (DocumentChange d'.localDocument Nothing)
     pure $ d' & (#onChanged %~ (h :))
 
 modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
 modifySyncDocument d c = do
   M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
-  modifyMVar_ d $ modifySyncDocument' c
+  modifyMVar_ d.syncDocument $ modifySyncDocument' c
 
 setSyncDocument :: SyncDocumentRef -> Document -> JSM ()
-setSyncDocument d m = modifyMVar_ d $ setSyncDocument' m
+setSyncDocument d m = modifyMVar_ d.syncDocument $ setSyncDocument' m
 
 emptySyncDocument :: SyncDocument
 emptySyncDocument = SyncDocument emptyDocument [] emptyDocument []
@@ -86,7 +103,8 @@ modifySyncDocument' c d = do
             d
               & (#localChanges %~ (c :))
               & (#localDocument .~ fst m')
-      forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument (Just (d.localDocument, c)))
+      forM_ d.onChanged $
+        issueDocumentChange (DocumentChange d'.localDocument (Just (d.localDocument, c)))
       pure d'
 
 setSyncDocument' :: Document -> SyncDocument -> JSM SyncDocument
@@ -103,5 +121,13 @@ issueDocumentChange c (ChangedHandler f sink) = sink $ f c
 
 issueInitialUpdate :: SyncDocumentRef -> JSM ()
 issueInitialUpdate r = do
-  d <- readMVar r
+  d <- readMVar r.syncDocument
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument Nothing)
+
+syncDocumentEnv :: SyncDocumentRef -> SyncDocumentEnv
+syncDocumentEnv = (.env)
+
+mkSyncDocumentEnv :: (MonadIO m) => User -> m SyncDocumentEnv
+mkSyncDocumentEnv u = do
+  d <- (.utctDay) <$> liftIO getCurrentTime
+  pure $ SyncDocumentEnv d u

@@ -6,6 +6,7 @@ module Competences.Frontend.App
 where
 
 import Competences.Document.User (User)
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Page.EditCompetenceGridPage (editCompetenceGridPage)
 import Competences.Frontend.Page.ManageUsersPage (manageUsersPage)
 import Competences.Frontend.Page.ViewCompetenceGridPage (viewCompetenceGridPage)
@@ -18,6 +19,7 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Router qualified as M
 import Optics.Core ((&), (.~), (^.))
+import Competences.Frontend.Page.EvidencesPage (evidencesPage)
 
 type App = M.Component M.ROOT Model Action
 
@@ -34,8 +36,8 @@ data Action
 runApp :: App -> JSM ()
 runApp = M.startComponent
 
-mkApp :: SyncDocumentRef -> User -> App
-mkApp r u =
+mkApp :: SyncDocumentRef -> App
+mkApp r =
   (M.component model update view) {M.subs = [M.uriSub SetURI]}
   where
     model = Model $ M.toURI EditCompetenceGrid
@@ -53,9 +55,10 @@ mkApp r u =
                 & (#expandOrthogonal .~ V.Expand V.Center)
                 & (#gap .~ V.SmallSpace)
             )
-            [topMenu, page (m ^. #uri), footer]
+            [title, topMenu, page (m ^. #uri), footer]
         ]
 
+    title = V.title_ $ C.translate' C.LblPageTitle
     topMenu =
       V.viewFlow
         ( V.hFlow
@@ -63,10 +66,11 @@ mkApp r u =
             & (#gap .~ V.SmallSpace)
         )
         [ V.viewButtons
-            (V.hButtons & (#compact .~ True))
-            [ V.textButton' "View" (PushURI $ M.toURI ViewCompetenceGrid)
-            , V.textButton' "Edit" (PushURI $ M.toURI EditCompetenceGrid)
-            , V.textButton' "Users" (PushURI $ M.toURI ManageUsers)
+            (V.hButtons & (#alignment .~ V.Center))
+            [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
+            , V.labelButton' C.LblEditCompetenceGrid (PushURI $ M.toURI EditCompetenceGrid)
+            , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
+            , V.labelButton' C.LblManageUsers (PushURI $ M.toURI ManageUsers)
             ]
         ]
 
@@ -75,11 +79,13 @@ mkApp r u =
       Right v -> case v of
         ViewCompetenceGrid -> viewCompetenceGrid
         EditCompetenceGrid -> editCompetenceGrid
+        Evidences -> evidences
         ManageUsers -> manageUsers
 
-    viewCompetenceGrid = mounted ViewCompetenceGrid $ viewCompetenceGridPage r u
-    editCompetenceGrid = mounted EditCompetenceGrid $ editCompetenceGridPage r u
-    manageUsers = mounted ManageUsers $ manageUsersPage r u
+    viewCompetenceGrid = mounted ViewCompetenceGrid $ viewCompetenceGridPage r
+    editCompetenceGrid = mounted EditCompetenceGrid $ editCompetenceGridPage r
+    evidences = mounted Evidences $ evidencesPage r
+    manageUsers = mounted ManageUsers $ manageUsersPage r
 
     mounted key c = M.div_ [M.key_ key] M.+> c
 
@@ -91,6 +97,7 @@ withTailwindPlay app = app {M.scripts = M.Src "https://cdn.tailwindcss.com" : M.
 data Page
   = ViewCompetenceGrid
   | EditCompetenceGrid
+  | Evidences
   | ManageUsers
   deriving (Eq, Show)
 
@@ -99,10 +106,12 @@ instance M.Router Page where
     M.routes
       [ M.path "view" $> ViewCompetenceGrid
       , M.path "edit" $> EditCompetenceGrid
+      , M.path "evidences" $> Evidences
       , M.path "users" $> ManageUsers
       ]
-  fromRoute ViewCompetenceGrid = [M.toPath "view"]
-  fromRoute EditCompetenceGrid = [M.toPath "edit"]
+  fromRoute ViewCompetenceGrid = [M.toPath "grid/view"]
+  fromRoute EditCompetenceGrid = [M.toPath "grid/edit"]
+  fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageUsers = [M.toPath "users"]
 
 instance M.ToKey Page where

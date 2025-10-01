@@ -9,7 +9,6 @@ where
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as M
 
 data SidePanelState
   = MenuPanel
@@ -29,7 +28,7 @@ sidePanel state = M.div_ [T.tailwind (tailwindStyleFor state)]
 
 mounted
   :: (Eq childModel) => M.MisoString -> M.Component model childModel childAction -> M.View model action
-mounted id' c = M.div_ [M.id_ id'] M.+> c
+mounted id' c = M.div_ [M.key_ id'] M.+> c
 
 mounted'
   :: (Eq childModel) => M.Component model childModel childAction -> M.View model action
