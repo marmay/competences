@@ -6,31 +6,32 @@ where
 import Competences.Command (Command (..))
 import Competences.Command.ChangeField
   ( ChangableFieldMeta (..)
-  , FieldEncoding(..)
-  , FieldType(..)
+  , FieldEncoding (..)
+  , FieldType (..)
   , changableFieldMeta
   , defaultEncoding
   )
 import Competences.Document (ChangableField, Document (..), User (..))
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
+  , SyncDocumentEnv (..)
   , SyncDocumentRef
   , modifySyncDocument
   , subscribeDocument
+  , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
+import Data.Either (fromRight)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core (ix, (%~), (&), (.~), (^?))
-import Data.Either (fromRight)
-import qualified Miso.Html.Property as M
+import Miso.Html.Property qualified as M
+import Optics.Core (ix, (%), (%~), (&), (.~), (^.), (^?))
 
 data Model = Model
-  { user :: !User
-  , contents :: !(Either Text FieldEncoding)
+  { contents :: !(Either Text FieldEncoding)
   , editability :: !Editability
   }
   deriving (Eq, Generic, Show)
@@ -47,16 +48,16 @@ data Action
   | UpdateDocument !DocumentChange
   deriving (Eq, Generic, Show)
 
-editableComponent :: SyncDocumentRef -> User -> ChangableField -> M.Component p Model Action
-editableComponent r u f = (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
+editableComponent :: SyncDocumentRef -> ChangableField -> M.Component p Model Action
+editableComponent r f = (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
   where
     meta = changableFieldMeta f
+    userId = syncDocumentEnv r ^. #connectedUser % #id
 
     model :: Model
     model =
       Model
-        { user = u
-        , contents = Left "not initialized"
+        { contents = Left "not initialized"
         , editability = Editable
         }
 
@@ -75,7 +76,7 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
         newEditability = case Map.lookup f newDocument.lockedFields of
           Nothing -> Editable
           Just lockedUid ->
-            if lockedUid == u.id
+            if lockedUid == userId
               then LockedByUs $ fromRight (defaultEncoding meta.fieldType) $ meta.get newDocument
               else LockedBy $ newDocument.users ^? ix lockedUid
 
@@ -90,8 +91,8 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
     view' Editable m =
       case m.contents of
         Left err -> V.text_ $ M.ms err
-        Right contents -> 
-          withButtons [V.editButton (IssueCommand (LockField f u.id contents))] $
+        Right contents ->
+          withButtons [V.editButton (IssueCommand (LockField f userId contents))] $
             renderContents meta.fieldType contents
     view' (LockedBy _) m =
       case m.contents of
@@ -101,8 +102,8 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
             renderContents meta.fieldType contents
     view' (LockedByUs contents) _ =
       withButtons
-        [ V.applyButton (IssueCommand (ReleaseField f u.id (Just contents)))
-        , V.cancelButton (IssueCommand (ReleaseField f u.id Nothing))
+        [ V.applyButton (IssueCommand (ReleaseField f userId (Just contents)))
+        , V.cancelButton (IssueCommand (ReleaseField f userId Nothing))
         ]
         $ renderForm meta.fieldType contents
 
@@ -110,11 +111,12 @@ editableComponent r u f = (M.component model update view) {M.subs = [subscribeDo
     withButtons buttons content =
       V.viewFlow
         (V.hFlow & (#expandDirection .~ V.Expand V.Start) & (#gap .~ V.SmallSpace))
-        [content
-        , V.viewButtons V.hButtons buttons]
+        [ content
+        , V.viewButtons V.hButtons buttons
+        ]
 
     renderContents TextField (TextEncoding contents) = V.text_ (M.ms contents)
-    renderContents EnumField{} (TextEncoding contents) = V.text_ (M.ms contents)
+    renderContents EnumField {} (TextEncoding contents) = V.text_ (M.ms contents)
     renderContents _ _ = V.text_ "Application error"
 
     renderForm TextField (TextEncoding contents) = V.textarea_ [M.value_ (M.ms contents), M.onInput (EditField . TextEncoding . M.fromMisoString)]

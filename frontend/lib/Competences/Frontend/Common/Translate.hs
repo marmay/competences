@@ -77,6 +77,13 @@ data Label
   | LblAddUser
   | LblInitializing
   | LblCreateEvidence
+  | LblPageTitle
+  | LblViewCompetenceGrid
+  | LblEditCompetenceGrid
+  | LblManageUsers
+  | LblEvidences
+  | LblCollapseEvidenceSelector
+  | LblExpandEvidenceSelector
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -106,6 +113,13 @@ labels' =
   , LblAddUser
   , LblInitializing
   , LblCreateEvidence
+  , LblPageTitle
+  , LblViewCompetenceGrid
+  , LblEditCompetenceGrid
+  , LblManageUsers
+  , LblEvidences
+  , LblCollapseEvidenceSelector
+  , LblExpandEvidenceSelector
   ]
 
 defaultLanguage :: Language
@@ -137,6 +151,13 @@ defaultTranslation LblUserRole = "Benutzerrolle"
 defaultTranslation LblAddUser = "Benutzer hinzufügen"
 defaultTranslation LblInitializing = "Initialisiere ..."
 defaultTranslation LblCreateEvidence = "Aufzeichnung erstellen"
+defaultTranslation LblPageTitle = "Kompetenzerfassung"
+defaultTranslation LblViewCompetenceGrid = "Kompetenzraster anzeigen"
+defaultTranslation LblEditCompetenceGrid = "Kompetenzraster bearbeiten"
+defaultTranslation LblManageUsers = "Benutzer verwalten"
+defaultTranslation LblEvidences = "Aufzeichnungen"
+defaultTranslation LblCollapseEvidenceSelector = "Aufzeichnungen einklappen"
+defaultTranslation LblExpandEvidenceSelector = "Aufzeichungen ausklappen"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

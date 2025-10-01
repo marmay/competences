@@ -53,8 +53,8 @@ type EditCompetenceGridPage p = M.Component p Model Action
 type EditCompetenceGridView = M.View Model Action
 
 editCompetenceGridPage
-  :: SyncDocumentRef -> User -> M.Component p Model Action
-editCompetenceGridPage r u =
+  :: SyncDocumentRef -> M.Component p Model Action
+editCompetenceGridPage r =
   (M.component model update view)
     { M.mailbox = M.checkMail HandleClose (const NoOp)
     }
@@ -88,7 +88,7 @@ editCompetenceGridPage r u =
             & (#expandOrthogonal .~ V.Expand V.Start)
             & (#gap .~ V.LargeSpace)
         )
-        [ M.div_ [] M.+> competenceGridEditorComponent r u
+        [ M.div_ [] M.+> competenceGridEditorComponent r
         , V.viewFlow
             ( V.hFlow
                 & (#expandDirection .~ V.Expand V.End)

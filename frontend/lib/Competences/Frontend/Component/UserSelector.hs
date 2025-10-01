@@ -1,87 +1,36 @@
 module Competences.Frontend.Component.UserSelector
-  ( UserSelectorMessage (..)
-  , userSelectorComponent
+  ( singleUserSelectorComponent
+  , multiUserSelectorComponent
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..))
-import Competences.Document.User
-import Competences.Frontend.SyncDocument
-  ( DocumentChange (..)
-  , SyncDocumentRef
-  , subscribeDocument
-  )
-import Competences.Frontend.View qualified as V
-import Data.Aeson (FromJSON, ToJSON)
+import Competences.Document (Document(..), User (..))
+import Competences.Frontend.Component.ListSelector qualified as L
+import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~), (^.), Lens', toLensVL)
-import Data.Foldable (find)
+import Optics.Core (Lens')
 
-data Model = Model
-  { users :: [User]
-  , selectedUser :: Maybe User
-  }
-  deriving (Eq, Generic, Show)
+singleUserSelectorComponent
+  :: SyncDocumentRef
+  -> (User -> Bool)
+  -> Lens' p (Maybe User)
+  -> M.Component p (L.SingleModel User) (L.Action User)
+singleUserSelectorComponent r p parentLens =
+  L.singleListSelectorComponent r (listUsers p) showUser parentLens L.SButtons
 
-newtype UserSelectorMessage = UserSelectionChanged (Maybe User)
-  deriving (Eq, Generic, Show)
+multiUserSelectorComponent
+  :: SyncDocumentRef
+  -> (User -> Bool)
+  -> Lens' p [User]
+  -> M.Component p (L.MultiModel User) (L.Action User)
+multiUserSelectorComponent r p parentLens =
+  L.multiListSelectorComponent r (listUsers p) showUser parentLens L.MButtons
 
-instance FromJSON UserSelectorMessage
+listUsers :: (User -> Bool) -> Document -> [User]
+listUsers p d = filter p $ Ix.toAscList (Proxy @Text) d.users
 
-instance ToJSON UserSelectorMessage
-
-selectUser :: UserId -> Model -> Model
-selectUser u m = case find ((== u) . (^. #id)) (m ^. #users) of
-  Just u' -> m & #selectedUser ?~ u'
-  Nothing -> cancelSelection m
-
-cancelSelection :: Model -> Model
-cancelSelection = #selectedUser .~ Nothing
-
-refreshUser :: Model -> Model
-refreshUser m = case m ^. #selectedUser of
-  Just u -> selectUser (u ^. #id) m
-  Nothing -> m
-
-updateUsers :: Document -> Model -> Model
-updateUsers d m = m & #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
-                    & refreshUser
-
-data Action
-  = SelectUser !UserId
-  | CancelSelection
-  | UpdateDocument DocumentChange
-  deriving (Eq, Show)
-
-userSelectorComponent :: SyncDocumentRef -> Lens' p (Maybe User) -> M.Component p Model Action
-userSelectorComponent syncDocumentRef l =
-  (M.component model update view)
-    { M.subs = [subscribeDocument syncDocumentRef UpdateDocument]
-    , M.bindings = [toLensVL l M.<--- toLensVL #selectedUser]
-    }
-  where
-    model = Model [] Nothing
-
-    update :: Action -> M.Effect p Model Action
-    update (SelectUser u) = M.modify (selectUser u)
-    update CancelSelection = M.modify cancelSelection
-    update (UpdateDocument c) = M.modify (updateUsers (c ^. #document))
-
-    view :: Model -> M.View Model Action
-    view m = V.viewButtons V.hButtons $ map (viewUser m) (m ^. #users)
-
-    viewUser :: Model -> User -> V.Button V.ToggleState Action
-    viewUser m u =
-      V.textButton (M.ms (u ^. #name)) toggleState onClicked
-      where
-        toggleState
-          | Just u == (m ^. #selectedUser) = V.ToggleOn
-          | otherwise = V.ToggleOff
-        onClicked = case toggleState of
-          V.ToggleOn -> CancelSelection
-          V.ToggleOff -> SelectUser (u ^. #id)
-
+showUser :: User -> M.MisoString
+showUser u = M.ms u.name

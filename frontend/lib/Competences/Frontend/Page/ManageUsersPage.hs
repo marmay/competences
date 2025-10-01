@@ -5,7 +5,6 @@ module Competences.Frontend.Page.ManageUsersPage
   )
 where
 
-import Competences.Document (User)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import GHC.Generics (Generic)
@@ -22,9 +21,9 @@ type ManageUsersPage p = M.Component p Model Action
 
 type ManageUsersView = M.View Model Action
 
-manageUsersPage :: SyncDocumentRef -> User -> M.Component p Model Action
-manageUsersPage r u =
+manageUsersPage :: SyncDocumentRef -> M.Component p Model Action
+manageUsersPage r =
   M.component Model update view
   where
     update _ = pure ()
-    view Model = M.div_ [M.key_ @M.MisoString "user-list"] M.+> userListEditorComponent r u
+    view Model = M.div_ [M.key_ @M.MisoString "user-list"] M.+> userListEditorComponent r

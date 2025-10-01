@@ -12,7 +12,6 @@ import Competences.Document
   , CompetenceId
   , Document (..)
   , Level (..)
-  , User (..)
   , emptyDocument
   , levels
   , ordered
@@ -34,8 +33,7 @@ import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
 
 data Model = Model
-  { user :: !User
-  , document :: !Document
+  { document :: !Document
   , reorderFrom :: !(C.ReorderModel Competence)
   }
   deriving (Eq, Generic, Show)
@@ -53,13 +51,13 @@ data CompetenceGridColumn
   | DeleteColumn
   deriving (Eq, Ord, Show)
 
-competenceGridEditorComponent :: SyncDocumentRef -> User -> M.Component p Model Action
-competenceGridEditorComponent r u = (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
+competenceGridEditorComponent :: SyncDocumentRef -> M.Component p Model Action
+competenceGridEditorComponent r =
+  (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
   where
     model =
       Model
-        { user = u
-        , document = emptyDocument
+        { document = emptyDocument
         , reorderFrom = C.initialReorderModel
         }
 
@@ -81,8 +79,8 @@ competenceGridEditorComponent r u = (M.component model update view) {M.subs = [s
 
     view :: Model -> M.View m Action
     view m =
-      let title = M.div_ [] M.+> editableComponent r u CompetenceGridTitle
-          description = M.div_ [] M.+> editableComponent r u CompetenceGridDescription
+      let title = M.div_ [] M.+> editableComponent r CompetenceGridTitle
+          description = M.div_ [] M.+> editableComponent r CompetenceGridDescription
           competences =
             V.viewTable $
               V.Table
@@ -104,8 +102,8 @@ competenceGridEditorComponent r u = (M.component model update view) {M.subs = [s
                     DeleteColumn -> Nothing
                 , cellContents = \competence -> \case
                     MoveColumn -> ReorderAction <$> C.viewReorderItem m.reorderFrom competence
-                    DescriptionColumn -> M.div_ [] M.+> editableComponent r u (CompetenceDescription competence.id)
-                    LevelDescriptionColumn level -> M.div_ [] M.+> editableComponent r u (CompetenceLevelDescription (competence.id, level))
+                    DescriptionColumn -> M.div_ [] M.+> editableComponent r (CompetenceDescription competence.id)
+                    LevelDescriptionColumn level -> M.div_ [] M.+> editableComponent r (CompetenceLevelDescription (competence.id, level))
                     DeleteColumn -> V.viewButtons V.hButtons [V.deleteButton (IssueCommand (RemoveCompetence competence.id))]
                 }
        in V.viewFlow

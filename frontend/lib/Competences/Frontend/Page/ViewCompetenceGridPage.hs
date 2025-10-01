@@ -34,8 +34,8 @@ data SidePanel
   | Menu
   deriving (Eq, Generic, Show)
 
-viewCompetenceGridPage :: SyncDocumentRef -> User -> M.Component p Model Action
-viewCompetenceGridPage r u = M.component model update view
+viewCompetenceGridPage :: SyncDocumentRef -> M.Component p Model Action
+viewCompetenceGridPage r = M.component model update view
   where
     model =
       Model
@@ -52,7 +52,7 @@ viewCompetenceGridPage r u = M.component model update view
             & (#expandDirection .~ V.Expand V.Start)
             & (#gap .~ V.SmallSpace)
         )
-        [ V.mounted' (competenceGridViewerComponent r u)
+        [ V.mounted' (competenceGridViewerComponent r)
         , V.flowSpring
         , viewSidePanel m.sidePanel
         ]

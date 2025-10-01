@@ -13,6 +13,7 @@ import Competences.Document
   , Document (..)
   , User
   , UserId
+  , UserRole (..)
   , emptyDocument
   , levels
   , ordered
@@ -21,7 +22,7 @@ import Competences.Document.Competence (CompetenceLevelId, Level (..))
 import Competences.Document.Evidence (Evidence)
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.UserSelector (UserSelectorMessage (..), userSelectorComponent)
+import Competences.Frontend.Component.UserSelector (singleUserSelectorComponent)
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Data.Aeson (Result (..), fromJSON)
@@ -32,8 +33,8 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core (ix, (%), (&), (.~), (?~), (^.), (^?))
 
-competenceGridViewerComponent :: SyncDocumentRef -> User -> M.Component p Model Action
-competenceGridViewerComponent r u =
+competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
+competenceGridViewerComponent r =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]
     }
@@ -63,7 +64,7 @@ competenceGridViewerComponent r u =
       where
         title = V.title_ (M.ms m.document.competenceGrid.title)
         description = V.text_ (M.ms m.document.competenceGrid.description)
-        userSelector = M.div_ [] M.+> userSelectorComponent r #selectedUser
+        userSelector = M.div_ [] M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) #selectedUser
         evidences = case m.selectedUser of
           Just user -> m.document.evidences Ix.@= user.id
           Nothing -> Ix.empty
