@@ -8,6 +8,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Evidence (..), EvidenceId, User (..), UserId)
 import Competences.Document.Evidence (ActivityTasks (..), ActivityType (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.DateSelector (dateSelectorComponent)
 import Competences.Frontend.Component.UserSelector (multiUserSelectorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
 import Competences.Frontend.View qualified as V
@@ -27,16 +28,15 @@ data Model = Model
   deriving (Eq, Generic, Show)
 
 data Action
-  = UpdateUserIds ![UserId]
-  | UpdateDate !Day
+  = UpdateDate !Day
   | UpdateActivityType !ActivityType
   | UpdateActivityTasks !ActivityTasks
   | CreateEvidence
   deriving (Eq, Show)
 
 evidenceCreatorComponent
-  :: SyncDocumentRef -> User -> EvidenceId -> Day -> M.Component p Model Action
-evidenceCreatorComponent r u eId initialDay =
+  :: SyncDocumentRef -> EvidenceId -> Day -> M.Component p Model Action
+evidenceCreatorComponent r eId initialDay =
   M.component model update view
   where
     model = Model [] initialDay SemiSupervised (ActivityTasks "")
@@ -64,6 +64,10 @@ evidenceCreatorComponent r u eId initialDay =
       V.viewFlow
         (V.vFlow & #gap .~ V.SmallSpace)
         [ V.title_ (C.translate' C.LblCreateEvidence)
-        , M.div_ [M.key_ $ "user-selector:" <> show eId]
-            M.+> (multiUserSelectorComponent r (const True) #users)
+        , V.mounted
+            (M.ms $ "user-selector:" <> show eId)
+            (multiUserSelectorComponent r (const True) #users)
+        , V.mounted
+            (M.ms $ "date-selector" <> show eId)
+            (dateSelectorComponent initialDay #date)
         ]

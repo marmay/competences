@@ -35,6 +35,7 @@ library
         Competences.Frontend.Component.CompetenceGridEditor,
         Competences.Frontend.Component.CompetenceGridViewer,
         Competences.Frontend.Component.CompetenceSelector,
+        Competences.Frontend.Component.DateSelector,
         Competences.Frontend.Component.Editable,
         Competences.Frontend.Component.EnumSelector,
         Competences.Frontend.Component.EvidenceCreator,
