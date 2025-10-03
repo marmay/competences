@@ -104,13 +104,13 @@ data Page
 instance M.Router Page where
   routeParser =
     M.routes
-      [ M.path "view" $> ViewCompetenceGrid
-      , M.path "edit" $> EditCompetenceGrid
+      [ M.path "view-grid" $> ViewCompetenceGrid
+      , M.path "edit-grid" $> EditCompetenceGrid
       , M.path "evidences" $> Evidences
       , M.path "users" $> ManageUsers
       ]
-  fromRoute ViewCompetenceGrid = [M.toPath "grid/view"]
-  fromRoute EditCompetenceGrid = [M.toPath "grid/edit"]
+  fromRoute ViewCompetenceGrid = [M.toPath "view-grid"]
+  fromRoute EditCompetenceGrid = [M.toPath "edit-grid"]
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageUsers = [M.toPath "users"]
 

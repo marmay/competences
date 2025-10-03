@@ -117,7 +117,7 @@ viewButton b =
     [ T.tailwind $ mconcat [rounded, colors, fill]
     , M.onClick b.onClick
     ]
-    [ V.viewFlow (V.hFlow & (#margin .~ V.SmallSpace) & (#gap .~ V.SmallSpace)) $
+    [ V.viewFlow (V.hFlow & (#margin .~ V.TinySpace) & (#gap .~ V.SmallSpace)) $
         viewButtonContents b.contents
     ]
   where
