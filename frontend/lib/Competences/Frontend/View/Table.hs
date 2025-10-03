@@ -55,9 +55,9 @@ viewTable t =
   where
     viewColumnSpec :: TableColumnWidth -> M.View m action
     viewColumnSpec AutoSizedColumn = M.col_ []
-    viewColumnSpec SingleActionColumn = M.col_ [T.tailwind [T.W8]]
-    viewColumnSpec DoubleActionColumn = M.col_ [T.tailwind [T.W16]]
-    viewColumnSpec TripleActionColumn = M.col_ [T.tailwind [T.W24]]
+    viewColumnSpec SingleActionColumn = M.col_ [T.tailwind [T.W10]]
+    viewColumnSpec DoubleActionColumn = M.col_ [T.tailwind [T.W20]]
+    viewColumnSpec TripleActionColumn = M.col_ [T.tailwind [T.W30]]
 
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =
