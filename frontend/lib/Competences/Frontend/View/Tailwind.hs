@@ -45,6 +45,7 @@ data TailwindCls
   | Gap8
   | HFull
   | Hidden
+  | HBorder
   | IconButton
   | IconLabelButton
   | ItemsStart
@@ -61,6 +62,8 @@ data TailwindCls
   | M8
   | ModalHost
   | ModalDialog
+  | OverflowXAuto
+  | OverflowYAuto
   | P4
   | RegularBorder
   | RegularButtonOn
@@ -78,6 +81,7 @@ data TailwindCls
   | TextSm
   | TextLg
   | TextXl
+  | VBorder
   | W10
   | W15
   | W20
@@ -124,6 +128,7 @@ tailwindNames Gap1 = ["gap-1"]
 tailwindNames Gap2 = ["gap-2"]
 tailwindNames Gap4 = ["gap-4"]
 tailwindNames Gap8 = ["gap-8"]
+tailwindNames HBorder = ["h-1", "w-full", useColor Bg Sky I800 O100]
 tailwindNames HFull = ["h-full"]
 tailwindNames Hidden = ["hidden"]
 tailwindNames IconButton = ["border", "rounded"]
@@ -153,6 +158,8 @@ tailwindNames ModalDialog =
   , useColor Bg Stone I50 O100
   , useColor Border Gray I200 O100
   ]
+tailwindNames OverflowXAuto = ["overflow-x-auto"]
+tailwindNames OverflowYAuto = ["overflow-y-auto"]
 tailwindNames P4 = ["p-4"]
 tailwindNames RegularBorder = ["border", "rounded", useColor Border Gray I200 O100]
 tailwindNames RegularButtonOn =
@@ -191,6 +198,7 @@ tailwindNames TextCenter = ["text-center"]
 tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
+tailwindNames VBorder = ["w-1", "h-full", useColor Bg Sky I800 O100]
 tailwindNames W10 = ["w-10"]
 tailwindNames W15 = ["w-15"]
 tailwindNames W20 = ["w-20"]

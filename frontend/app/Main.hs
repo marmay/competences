@@ -1,35 +1,35 @@
 {-# LANGUAGE CPP #-}
 
-module Main (main) where
+module Main (main, startServer) where
 
 import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
 
-#ifdef WASM
 
-import Competences.Frontend.SyncDocument
-  ( SyncDocument (..)
-  , SyncDocumentRef
-  , mkSyncDocument
-  , mkSyncDocument'
-  , readSyncDocument
-  , modifySyncDocument
-  )
-import Language.Javascript.JSaddle.Wasm (run)
-import Competences.Command (Command(..))
-import Competences.Document (User(..), UserId, UserRole(..))
-import Competences.Document.Id (nilId)
 
-main :: IO ()
-main = do
-  document <- mkSyncDocument
-  let user = (User nilId "Test User" Teacher)
-  run $ do
-    modifySyncDocument document $ AddUser user
-    runApp $ withTailwindPlay $ mkApp document user
 
-foreign export javascript "hs_start" main :: IO ()
 
-#else
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 import Competences.Document.Id (mkId, nilId)
 import Competences.Document.User (User (..), UserId, UserRole (..))
@@ -49,6 +49,8 @@ import Data.Text qualified as T
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
 import Competences.Command (Command(..))
+import Control.Concurrent (MVar, ThreadId, newEmptyMVar, tryTakeMVar, killThread, forkIO, putMVar)
+import System.IO.Unsafe (unsafePerformIO)
 
 data Options = Options
   { port :: !Int
@@ -155,4 +157,13 @@ writeDocument (Just p) r = do
   local <- (.localDocument) <$> readSyncDocument r
   B.writeFile p $ encode local
 writeDocument Nothing _ = pure ()
-#endif
+
+currentThread :: MVar ThreadId
+currentThread = unsafePerformIO newEmptyMVar
+{-# NOINLINE currentThread #-}
+
+startServer :: IO ()
+startServer = do
+  tryTakeMVar currentThread >>= mapM_ killThread
+  tid <- forkIO main
+  putMVar currentThread tid
