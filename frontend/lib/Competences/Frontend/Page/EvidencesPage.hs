@@ -27,7 +27,7 @@ data MainView
   deriving (Eq, Show)
 
 data Action
-  = ToggleEvidenceSelectorVisibility
+  = SelectEvidence !EvidenceId
   deriving (Eq, Show)
 
 type EvidencesPage p = M.Component p Model Action
@@ -44,32 +44,15 @@ evidencesPage r =
       V.viewFlow
         ( V.hFlow
             & (#expandDirection .~ V.Expand V.Start)
-            & (#gap .~ V.SmallSpace)
+            & (#expandOrthogonal .~ V.Expand V.Start)
+            & (#gap .~ V.LargeSpace)
         )
-        [ mainView
-        , V.flowSpring
-        , sidePanel m.evidenceSelectorVisible
+        [ V.vScrollable (V.mounted "evidence-selector" $ evidenceSelectorComponent r)
+        , V.vBorder
+        , V.vScrollable (mainView)
         ]
-
-    mainView = V.text_ "To be added soon."
-    sidePanel expanded =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-        )
-        [ V.viewButton $
-            if expanded
-              then
-                V.iconButton'
-                  V.IcnExpandShrinkArrowRight
-                  C.LblCollapseEvidenceSelector
-                  ToggleEvidenceSelectorVisibility
-              else
-                V.iconButton'
-                  V.IcnExpandShrinkArrowLeft
-                  C.LblExpandEvidenceSelector
-                  ToggleEvidenceSelectorVisibility
-        , V.visibleIf expanded $
-           V.mounted ("evidence-selector" :: M.MisoString) $
-             evidenceSelectorComponent r
-        ]
+      where
+        mainView = case m.mainView of
+          EditEvidence eid -> V.title_ (M.ms $ show eid)
+          CreateEvidence eid -> V.title_ (M.ms $ show eid)
+          Empty -> V.empty

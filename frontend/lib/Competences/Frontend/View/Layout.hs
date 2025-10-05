@@ -2,7 +2,12 @@ module Competences.Frontend.View.Layout
   ( hFlow
   , vFlow
   , flow
+  , empty
   , flowSpring
+  , hBorder
+  , hScrollable
+  , vBorder
+  , vScrollable
   , viewFlow
   , visibleIf
   , fixedWidth
@@ -94,3 +99,15 @@ visibleIf False v = M.div_ [T.tailwind [T.Hidden]] [v]
 
 fixedWidth :: Int -> M.View m a -> M.View m a
 fixedWidth w v = M.div_ [MS.style_ [("width", M.ms (show w) <> "px")]] [v]
+
+hScrollable, vScrollable :: M.View m a -> M.View m a
+hScrollable v = M.div_ [T.tailwind [T.OverflowXAuto, T.WFull]] [v]
+vScrollable v = M.div_ [T.tailwind [T.OverflowYAuto, T.HFull]] [v]
+
+hBorder, vBorder :: M.View m a
+hBorder = M.div_ [T.tailwind [T.HBorder]] []
+vBorder = M.div_ [T.tailwind [T.VBorder]] []
+
+empty :: M.View m a
+empty = M.div_ [] []
+  
