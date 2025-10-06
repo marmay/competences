@@ -5,30 +5,31 @@ module Competences.Frontend.Page.EvidencesPage
   )
 where
 
-import Competences.Document.Evidence (EvidenceId)
+import Competences.Document.Evidence (EvidenceId, Evidence)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (.~), lens, Lens')
 import Competences.Frontend.Component.EvidenceSelector
 
-data Model = Model
-  { evidenceSelectorVisible :: !Bool
-  , mainView :: !MainView
-  }
-  deriving (Eq, Generic, Show)
-
-data MainView
-  = EditEvidence !EvidenceId
+data Model
+  = EditEvidence !Evidence
   | CreateEvidence !EvidenceId
   | Empty
   deriving (Eq, Show)
 
+selectedEvidence :: Lens' Model (Maybe Evidence)
+selectedEvidence = lens get set
+  where
+    get (EditEvidence eId) = Just eId
+    get _ = Nothing
+    set _ (Just eId) = EditEvidence eId
+    set (EditEvidence _) Nothing = Empty
+    set m Nothing = m
+
 data Action
-  = SelectEvidence !EvidenceId
-  deriving (Eq, Show)
 
 type EvidencesPage p = M.Component p Model Action
 
@@ -38,7 +39,7 @@ evidencesPage :: SyncDocumentRef -> M.Component p Model Action
 evidencesPage r =
   M.component model update view
   where
-    model = Model True Empty
+    model = Empty
     update _ = pure ()
     view m =
       V.viewFlow
@@ -47,12 +48,12 @@ evidencesPage r =
             & (#expandOrthogonal .~ V.Expand V.Start)
             & (#gap .~ V.LargeSpace)
         )
-        [ V.vScrollable (V.mounted "evidence-selector" $ evidenceSelectorComponent r)
+        [ V.vScrollable (V.mounted "evidence-selector" $ evidenceSelectorComponent r selectedEvidence)
         , V.vBorder
-        , V.vScrollable (mainView)
+        , V.vScrollable mainView
         ]
       where
-        mainView = case m.mainView of
+        mainView = case m of
           EditEvidence eid -> V.title_ (M.ms $ show eid)
           CreateEvidence eid -> V.title_ (M.ms $ show eid)
           Empty -> V.empty

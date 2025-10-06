@@ -13,7 +13,7 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((.~), (&))
+import Optics.Core ((.~), (&), Lens', lensVL)
 
 data DateRange
   = Today
@@ -25,16 +25,20 @@ data Model = Model
   { filteredUsers :: ![User]
   , filteredDateRange :: !DateRange
   , allEvidenes :: Ix.IxSet EvidenceIxs Evidence
+  , selectedEvidence :: !(Maybe Evidence)
   }
   deriving (Eq, Generic, Show)
 
 data Action
 
-evidenceSelectorComponent :: SyncDocumentRef -> M.Component p Model Action
-evidenceSelectorComponent r =
-  M.component model update view
+evidenceSelectorComponent :: SyncDocumentRef -> Lens' p (Maybe Evidence) -> M.Component p Model Action
+evidenceSelectorComponent r parentLens =
+  (M.component model update view)
+  { M.bindings = [ lensVL parentLens M.<--- lensVL #selectedEvidence ]
+  }
+    
   where
-    model = Model [] ThisWeek Ix.empty
+    model = Model [] ThisWeek Ix.empty Nothing
     update = undefined
     view _ = V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace))
                [ V.title_ "Evidences"
