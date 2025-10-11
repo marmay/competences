@@ -28,6 +28,9 @@ import Miso.String (MisoString, fromMisoString, ms)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (readFile, writeFile)
 import Competences.Document (Level (..))
+import Competences.Document.Evidence (SocialForm, Ability, socialForms, abilities)
+import Competences.Document.Evidence (SocialForm(..))
+import Competences.Document.Evidence (Ability(..))
 
 data Language
   = De
@@ -84,6 +87,8 @@ data Label
   | LblEvidences
   | LblCollapseEvidenceSelector
   | LblExpandEvidenceSelector
+  | LblSocialForm !SocialForm
+  | LblAbility !Ability
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -121,6 +126,8 @@ labels' =
   , LblCollapseEvidenceSelector
   , LblExpandEvidenceSelector
   ]
+  <> map LblSocialForm socialForms
+  <> map LblAbility abilities
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -158,6 +165,12 @@ defaultTranslation LblManageUsers = "Benutzer verwalten"
 defaultTranslation LblEvidences = "Aufzeichnungen"
 defaultTranslation LblCollapseEvidenceSelector = "Aufzeichnungen einklappen"
 defaultTranslation LblExpandEvidenceSelector = "Aufzeichungen ausklappen"
+defaultTranslation (LblSocialForm Individual) = "Individuell"
+defaultTranslation (LblSocialForm Group) = "Gruppe"
+defaultTranslation (LblAbility SelfReliant) = "selbstständig"
+defaultTranslation (LblAbility SelfReliantWithSillyMistakes) = "dumme Fehler"
+defaultTranslation (LblAbility WithSupport) = "mit Unterstützung"
+defaultTranslation (LblAbility NotYet) = "noch nicht"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

@@ -15,18 +15,22 @@ module Competences.Frontend.SyncDocument
   , issueInitialUpdate
   , syncDocumentEnv
   , mkSyncDocumentEnv
+  , nextId
   )
 where
 
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User, emptyDocument)
+import Competences.Document.Id (Id (..))
 import Control.Monad (forM_)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
+import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
-import UnliftIO (MVar, MonadIO, liftIO, modifyMVar_, newMVar, readMVar)
+import System.Random (StdGen, getStdGen, random)
+import UnliftIO (MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newMVar, readMVar)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -52,6 +56,7 @@ data ChangedHandler where
 
 data SyncDocumentRef = SyncDocumentRef
   { syncDocument :: MVar SyncDocument
+  , randomGen :: MVar StdGen
   , env :: !SyncDocumentEnv
   }
 
@@ -64,12 +69,14 @@ data SyncDocumentEnv = SyncDocumentEnv
 mkSyncDocument :: (MonadIO m) => SyncDocumentEnv -> m SyncDocumentRef
 mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
-  pure $ SyncDocumentRef syncDocument env
+  randomGen <- liftIO getStdGen >>= newMVar
+  pure $ SyncDocumentRef syncDocument randomGen env
 
-mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> Document -> m SyncDocumentRef
-mkSyncDocument' env m = do
+mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncDocumentRef
+mkSyncDocument' env randomGen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
-  pure $ SyncDocumentRef syncDocument env
+  randomGen' <- newMVar randomGen
+  pure $ SyncDocumentRef syncDocument randomGen' env
 
 readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
 readSyncDocument = readMVar . (.syncDocument)
@@ -131,3 +138,7 @@ mkSyncDocumentEnv :: (MonadIO m) => User -> m SyncDocumentEnv
 mkSyncDocumentEnv u = do
   d <- (.utctDay) <$> liftIO getCurrentTime
   pure $ SyncDocumentEnv d u
+
+nextId :: (MonadUnliftIO m) => SyncDocumentRef -> m (Id a)
+nextId r = do
+  modifyMVar r.randomGen (pure . swap . random)

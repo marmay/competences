@@ -51,6 +51,7 @@ import Options.Applicative
 import Competences.Command (Command(..))
 import Control.Concurrent (MVar, ThreadId, newEmptyMVar, tryTakeMVar, killThread, forkIO, putMVar)
 import System.IO.Unsafe (unsafePerformIO)
+import System.Random (mkStdGen)
 
 data Options = Options
   { port :: !Int
@@ -149,7 +150,7 @@ readDocument e (Just p) = do
   f <- B.readFile p
   case eitherDecode f of
     Left err -> error $ "Could not read file " <> p <> ": " <> err
-    Right d -> mkSyncDocument' e d
+    Right d -> mkSyncDocument' e (mkStdGen 42) d
 readDocument e Nothing = mkSyncDocument e
 
 writeDocument :: Maybe FilePath -> SyncDocumentRef -> IO ()

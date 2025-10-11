@@ -12,6 +12,9 @@ module Competences.Document.Evidence
   , ObservationId
   , ObservationRemark (..)
   , mkEvidence
+  , socialForms
+  , abilities
+  , activityTypes
   )
 where
 
@@ -113,6 +116,15 @@ nilEvidence = Evidence
   , activityTasks = ActivityTasks ""
   , observations = Ix.empty
   }
+
+socialForms :: [SocialForm]
+socialForms = [minBound .. maxBound]
+
+abilities :: [Ability]
+abilities = [minBound .. maxBound]
+
+activityTypes :: [ActivityType]
+activityTypes = [minBound .. maxBound]
 
 type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId]
 
