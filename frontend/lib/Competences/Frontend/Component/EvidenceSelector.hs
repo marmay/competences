@@ -13,7 +13,7 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((.~), (&), Lens', lensVL)
+import Optics.Core ((.~), (&), Lens', lensVL, toLensVL)
 
 data DateRange
   = Today
@@ -34,7 +34,7 @@ data Action
 evidenceSelectorComponent :: SyncDocumentRef -> Lens' p (Maybe Evidence) -> M.Component p Model Action
 evidenceSelectorComponent r parentLens =
   (M.component model update view)
-  { M.bindings = [ lensVL parentLens M.<--- lensVL #selectedEvidence ]
+  { M.bindings = [ toLensVL parentLens M.<--- toLensVL #selectedEvidence ]
   }
     
   where

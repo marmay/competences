@@ -29,6 +29,12 @@ import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%~), (&), (.~), (^.))
 
+data ReleaseCommand a
+  = OnlyRelease
+  | ReleaseWithChange !a
+  | Delete
+  deriving (Eq, Generic, Show)
+
 data Command
   = LockField !ChangableField !UserId !FieldEncoding
   | ReleaseField !ChangableField !UserId !(Maybe FieldEncoding)
@@ -37,7 +43,8 @@ data Command
   | RemoveCompetence !CompetenceId
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | AddEvidence !Evidence
-  | RemoveEvidence !EvidenceId
+  | LockEvidence !EvidenceId
+  | ReleaseEvidence !(ReleaseCommand Evidence)
   | AddUser !User
   | RemoveUser !UserId
   deriving (Eq, Generic, Show)

@@ -35,8 +35,8 @@ data Level
 
 data Competence = Competence
   { id :: !CompetenceId
-  , order :: !Order
   , competenceGridId :: !CompetenceGridId
+  , order :: !Order
   , description :: !Text
   , levelDescriptions :: !(M.Map Level Text)
   }

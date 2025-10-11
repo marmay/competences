@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.CompetenceSelector
+module Competences.Frontend.Component.EvidenceCompetenceSelector
   ( Model
   , Action (..)
   , emptyModel

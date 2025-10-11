@@ -10,13 +10,12 @@ import Competences.Document.Evidence (ActivityTasks (..), ActivityType (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.DateSelector (dateSelectorComponent)
 import Competences.Frontend.Component.UserSelector (multiUserSelectorComponent)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
+import Competences.Frontend.SyncDocument (SyncDocumentRef, SyncDocumentEnv(..), modifySyncDocument, syncDocumentEnv)
 import Competences.Frontend.View qualified as V
 import Data.Set qualified as Set
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core ((&), (.~), (^.))
 
 data Model = Model
@@ -35,10 +34,12 @@ data Action
   deriving (Eq, Show)
 
 evidenceCreatorComponent
-  :: SyncDocumentRef -> EvidenceId -> Day -> M.Component p Model Action
-evidenceCreatorComponent r eId initialDay =
+  :: SyncDocumentRef -> EvidenceId -> M.Component p Model Action
+evidenceCreatorComponent r eId =
   M.component model update view
   where
+    initialDay = syncDocumentEnv r ^. #currentDay
+
     model = Model [] initialDay SemiSupervised (ActivityTasks "")
 
     update (UpdateDate date) = M.modify $ #date .~ date

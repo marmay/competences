@@ -5,14 +5,15 @@ module Competences.Frontend.Page.EvidencesPage
   )
 where
 
-import Competences.Document.Evidence (EvidenceId, Evidence)
+import Competences.Document.Evidence (Evidence, EvidenceId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Competences.Frontend.Component.EvidenceCreator (evidenceCreatorComponent)
+import Competences.Frontend.Component.EvidenceSelector
+import Competences.Frontend.SyncDocument (SyncDocumentRef, nextId)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), lens, Lens')
-import Competences.Frontend.Component.EvidenceSelector
+import Optics.Core (Lens', lens, (&), (.~))
 
 data Model
   = EditEvidence !Evidence
@@ -30,6 +31,9 @@ selectedEvidence = lens get set
     set m Nothing = m
 
 data Action
+  = NewEvidence
+  | NewEvidence' EvidenceId
+  deriving (Eq, Show, Generic)
 
 type EvidencesPage p = M.Component p Model Action
 
@@ -40,7 +44,10 @@ evidencesPage r =
   M.component model update view
   where
     model = Empty
-    update _ = pure ()
+    update NewEvidence = do
+      M.io $ NewEvidence' <$> nextId r
+    update (NewEvidence' eId) =
+      M.modify $ const $ CreateEvidence eId
     view m =
       V.viewFlow
         ( V.hFlow
@@ -48,12 +55,22 @@ evidencesPage r =
             & (#expandOrthogonal .~ V.Expand V.Start)
             & (#gap .~ V.LargeSpace)
         )
-        [ V.vScrollable (V.mounted "evidence-selector" $ evidenceSelectorComponent r selectedEvidence)
+        [ V.viewFlow
+            ( V.vFlow
+                & (#expandDirection .~ V.Expand V.Start)
+                & (#gap .~ V.SmallSpace)
+            )
+            [ V.viewButton (V.labelButton' C.LblAddEvidence NewEvidence)
+            , V.vScrollable (V.mounted "evidence-selector" $ evidenceSelectorComponent r selectedEvidence)
+            ]
         , V.vBorder
         , V.vScrollable mainView
         ]
       where
         mainView = case m of
           EditEvidence eid -> V.title_ (M.ms $ show eid)
-          CreateEvidence eid -> V.title_ (M.ms $ show eid)
+          CreateEvidence eId ->
+            V.mounted
+              (M.ms $ "evidence-creator:" <> show eId)
+              (evidenceCreatorComponent r eId)
           Empty -> V.empty

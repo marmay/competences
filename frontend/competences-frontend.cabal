@@ -34,10 +34,10 @@ library
         Competences.Frontend.Component.CompetenceEditor,
         Competences.Frontend.Component.CompetenceGridEditor,
         Competences.Frontend.Component.CompetenceGridViewer,
-        Competences.Frontend.Component.CompetenceSelector,
         Competences.Frontend.Component.DateSelector,
         Competences.Frontend.Component.Editable,
         Competences.Frontend.Component.EnumSelector,
+        Competences.Frontend.Component.EvidenceCompetenceSelector,
         Competences.Frontend.Component.EvidenceCreator,
         Competences.Frontend.Component.EvidenceEditor,
         Competences.Frontend.Component.EvidenceSelector,
@@ -93,6 +93,7 @@ executable competences-frontend
         bytestring,
         competences-common,
         competences-frontend,
+        random,
         text
     if !flag(wasm)
         build-depends:
