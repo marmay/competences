@@ -13,7 +13,6 @@ import Competences.Document
   , orderMax
   )
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceEditor (competenceEditorComponent)
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.SyncDocument
   ( SyncDocument (..)
@@ -94,6 +93,4 @@ editCompetenceGridPage r =
                 & (#expandDirection .~ V.Expand V.End)
             )
             [V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddNewCompetence SpawnNewCompetenceEditor]
-        , V.maybeModalHost
-            (competenceEditorComponent CloseNewCompetenceEditor r <$> m.newCompetence)
         ]

@@ -5,20 +5,21 @@ module Competences.Frontend.Component.CompetenceGridEditor
   )
 where
 
-import Competences.Command (Command (..))
+import Competences.Command (Command (..), EntityCommand (..))
 import Competences.Document
-  ( ChangableField (..)
-  , Competence (..)
+  ( Competence (..)
+  , CompetenceGrid (..)
   , CompetenceId
   , Document (..)
   , Level (..)
+  , Lock (..)
   , emptyDocument
   , levels
   , ordered
   )
 import Competences.Document.Order (Reorder, orderPosition)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editable (editableComponent)
+import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentRef
@@ -30,7 +31,10 @@ import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((&), (.~))
+import Optics.Core ((%), (&), (.~), (^.))
+import Optics.Core qualified as O
+import Data.Tuple (Solo(..))
+import qualified Data.Map as Map
 
 data Model = Model
   { document :: !Document
@@ -41,14 +45,13 @@ data Model = Model
 data Action
   = UpdateDocument !DocumentChange
   | IssueCommand !Command
-  | ReorderAction !(C.ReorderAction Competence)
   deriving (Eq, Generic, Show)
 
 data CompetenceGridColumn
   = MoveColumn
   | DescriptionColumn
   | LevelDescriptionColumn !Level
-  | DeleteColumn
+  | ActionColumn
   deriving (Eq, Ord, Show)
 
 competenceGridEditorComponent :: SyncDocumentRef -> M.Component p Model Action
@@ -65,46 +68,32 @@ competenceGridEditorComponent r =
       M.modify $ \s ->
         s
           & (#document .~ newDocument)
-      s <- M.get
-      M.io_ $ M.consoleLog $ M.ms $ show s.document.lockedFields
     update (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
-    update (ReorderAction a) = do
-      m <- M.get
-      C.liftEffect #reorderFrom ReorderAction (C.updateReorderModel r (mkReorderCommand m) a)
-      where
-        mkReorderCommand :: Model -> CompetenceId -> Reorder Competence -> Maybe Command
-        mkReorderCommand m id' to = do
-          fromPosition <- orderPosition m.document.competences id'
-          pure $ ReorderCompetence fromPosition to
-
     view :: Model -> M.View m Action
     view m =
-      let title = M.div_ [] M.+> editableComponent r CompetenceGridTitle
-          description = M.div_ [] M.+> editableComponent r CompetenceGridDescription
+      let title = M.div_ [] M.+> competenceGridTitleEditor r
+          description = M.div_ [] M.+> competenceGridDescriptionEditor r
           competences =
             V.viewTable $
               V.Table
                 { columns =
-                    [ MoveColumn
-                    , DescriptionColumn
+                    [ DescriptionColumn
                     ]
                       <> map LevelDescriptionColumn levels
-                      <> [DeleteColumn]
+                      <> [ActionColumn]
                 , rows = ordered m.document.competences
                 , columnSpec = \case
-                    MoveColumn -> V.TripleActionColumn
-                    DeleteColumn -> V.SingleActionColumn
+                    ActionColumn -> V.SingleActionColumn
                     _ -> V.AutoSizedColumn
                 , columnHeader = \c -> fromMaybe "" $ case c of
-                    MoveColumn -> Nothing
                     DescriptionColumn -> Just $ C.translate' C.LblCompetenceDescription
                     LevelDescriptionColumn level -> Just $ C.translate' $ C.LblCompetenceLevelDescription level
-                    DeleteColumn -> Nothing
+                    _ -> Nothing
                 , cellContents = \competence -> \case
-                    MoveColumn -> ReorderAction <$> C.viewReorderItem m.reorderFrom competence
-                    DescriptionColumn -> M.div_ [] M.+> editableComponent r (CompetenceDescription competence.id)
-                    LevelDescriptionColumn level -> M.div_ [] M.+> editableComponent r (CompetenceLevelDescription (competence.id, level))
-                    DeleteColumn -> V.viewButtons V.hButtons [V.deleteButton (IssueCommand (RemoveCompetence competence.id))]
+                    MoveColumn -> M.div_ [] []
+                    DescriptionColumn -> M.div_ [] []
+                    LevelDescriptionColumn level -> M.div_ [] []
+                    ActionColumn -> V.viewButtons V.hButtons [V.deleteButton (IssueCommand (OnCompetences (Delete competence.id)))]
                 }
        in V.viewFlow
             ( V.vFlow
@@ -115,3 +104,19 @@ competenceGridEditorComponent r =
             , description
             , competences
             ]
+    competenceGridTitleEditor = TE.editorComponent editor
+      where
+        editable =
+          TE.Editable
+          { get = \d -> MkSolo (d ^. #competenceGrid % #title, (d ^. #locks) Map.!? CompetenceGridTitleLock)
+          , modify = const ModifyCompetenceGridTitle
+          }
+        editor = TE.flowEditor editable `TE.addField` TE.textEditorField TE.msIso
+    competenceGridDescriptionEditor = TE.editorComponent editor
+      where
+        editable =
+          TE.Editable
+          { get = \d -> MkSolo (d ^. #competenceGrid % #description, (d ^. #locks) Map.!? CompetenceGridDescriptionLock)
+          , modify = const ModifyCompetenceGridDescription
+          }
+        editor = TE.flowEditor editable `TE.addField` TE.textEditorField TE.msIso

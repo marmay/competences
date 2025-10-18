@@ -3,7 +3,7 @@ module Competences.Frontend.Component.EvidenceCreator
   )
 where
 
-import Competences.Command (Command (..))
+import Competences.Command ( Command(..), EntityCommand(..) )
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Evidence (..), EvidenceId, User (..), UserId)
 import Competences.Document.Evidence (ActivityTasks (..), ActivityType (..))
@@ -47,7 +47,7 @@ evidenceCreatorComponent r eId =
     update (UpdateActivityTasks activityTasks) = M.modify $ #activityTasks .~ activityTasks
     update CreateEvidence = do
       e <- mkEvidence
-      M.io_ $ modifySyncDocument r (AddEvidence e)
+      M.io_ $ modifySyncDocument r (OnEvidences (Create e))
 
     mkEvidence = do
       m <- M.get

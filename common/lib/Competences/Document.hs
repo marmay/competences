@@ -6,7 +6,7 @@ module Competences.Document
   , emptyDocument
   , updateChecksums
   , updateAllChecksums
-  , module Competences.Document.ChangableField
+  , module Competences.Document.Lock
   , module Competences.Document.Competence
   , module Competences.Document.CompetenceGrid
   , module Competences.Document.Evidence
@@ -17,7 +17,7 @@ module Competences.Document
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document.ChangableField (ChangableField (..))
+import Competences.Document.Lock(Lock(..))
 import Competences.Document.Competence (Competence (..), CompetenceId, CompetenceIxs, Level (..), levels)
 import Competences.Document.CompetenceGrid
   ( CompetenceGrid (..)
@@ -60,7 +60,7 @@ data Document = Document
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
   , evidences :: !(Ix.IxSet EvidenceIxs Evidence)
   , resources :: !(Ix.IxSet ResourceIxs Resource)
-  , lockedFields :: !(M.Map ChangableField UserId)
+  , locks :: !(M.Map Lock UserId)
   , users :: !(Ix.IxSet UserIxs User)
   , partialChecksums :: !(M.Map PartialChecksumId ByteString)
   , overallChecksum :: !ByteString
@@ -88,7 +88,7 @@ instance ToJSON Document where
       , "competences" .= Ix.toList d.competences
       , "evidences" .= Ix.toList d.evidences
       , "resources" .= Ix.toList d.resources
-      , "lockedFields" .= M.toList d.lockedFields
+      , "locks" .= M.toList d.locks
       , "users" .= Ix.toList d.users
       , "partialChecksums"
           .= map (\(k, v') -> (k, decodeUtf8 (Base64.encode v'))) (M.toList d.partialChecksums)
@@ -103,7 +103,7 @@ emptyDocument =
       , competences = Ix.empty
       , evidences = Ix.empty
       , resources = Ix.empty
-      , lockedFields = M.empty
+      , locks = M.empty
       , users = Ix.empty
       , partialChecksums = M.empty
       , overallChecksum = ""
@@ -113,7 +113,7 @@ data PartialChecksumId
   = PC_CompetenceGrid
   | PC_Competences
   | PC_Evidences
-  | PC_LockedFields
+  | PC_Locks
   | PC_Users
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
@@ -139,7 +139,7 @@ updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
     computePartialChecksum PC_CompetenceGrid = computePartialChecksum' #competenceGrid encode
     computePartialChecksum PC_Competences = computePartialChecksum' #competences encodeIx
     computePartialChecksum PC_Evidences = computePartialChecksum' #evidences encodeIx
-    computePartialChecksum PC_LockedFields = computePartialChecksum' #lockedFields encode
+    computePartialChecksum PC_Locks = computePartialChecksum' #locks encode
     computePartialChecksum PC_Users = computePartialChecksum' #users encodeIx
     computePartialChecksum' :: Lens' Document a -> (a -> BL.ByteString) -> ByteString
     computePartialChecksum' l enc = hashlazy $ enc $ m ^. l
