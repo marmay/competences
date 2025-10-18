@@ -73,10 +73,12 @@ evidenceCompetenceSelector r parentLens =
           { V.columns =
               [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn levels
           , V.rows = m.competences
-          , V.columnHeader = \case
-              CompetenceDescriptionColumn -> C.translate' C.LblCompetenceDescription
-              CompetenceLevelDescriptionColumn l -> C.translate' $ C.LblCompetenceLevelDescription l
-          , V.cellContents = \competence ->
+          , V.columnSpec = \case
+              CompetenceDescriptionColumn ->
+                V.TableColumnSpec V.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
+              CompetenceLevelDescriptionColumn l ->
+                V.TableColumnSpec V.AutoSizedColumn (C.translate' (C.LblCompetenceLevelDescription l))
+          , V.rowContents = V.cellContents $ \competence ->
               \case
                 CompetenceDescriptionColumn -> V.text_ (M.ms competence.description)
                 CompetenceLevelDescriptionColumn l ->

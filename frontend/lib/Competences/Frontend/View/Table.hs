@@ -1,9 +1,12 @@
 module Competences.Frontend.View.Table
   ( Table (..)
   , TableColumnWidth (..)
+  , TableColumnSpec (..)
+  , cellContents
   , defTable
   , viewTable
   , tableHeader_
+  , tableRow
   )
 where
 
@@ -18,22 +21,32 @@ data TableColumnWidth
   | AutoSizedColumn
   deriving (Eq, Show)
 
+data TableColumnSpec = TableColumnSpec
+  { width :: !TableColumnWidth
+  , title :: !M.MisoString
+  } deriving (Eq, Show)
+
 data Table col row m action = Table
   { columns :: [col]
   , rows :: [row]
-  , columnSpec :: col -> TableColumnWidth
-  , columnHeader :: col -> M.MisoString
-  , cellContents :: row -> col -> M.View m action
+  , columnSpec :: col -> TableColumnSpec
+  , rowContents :: [col] -> row -> M.View m action
   }
+
+cellContents :: (row -> col -> M.View m action) -> [col] -> row -> M.View m action
+cellContents perCell cols row = tableRow $ map (perCell row) cols
+
+tableRow :: [M.View m action] -> M.View m action
+tableRow cells =
+  M.tr_ [T.tailwind []] $ map (\cell -> M.td_ [T.tailwind [T.RegularBorder]] [cell]) cells
 
 defTable :: Table col row m action
 defTable =
   Table
     { columns = []
     , rows = []
-    , columnSpec = const AutoSizedColumn
-    , columnHeader = const ""
-    , cellContents = const $ const $ M.text_ []
+    , columnSpec = const (TableColumnSpec AutoSizedColumn "")
+    , rowContents = cellContents (\_ _ -> M.text_ [])
     }
 
 viewTable :: forall col row m action. Table col row m action -> M.View m action
@@ -43,32 +56,27 @@ viewTable t =
     [ M.colgroup_
         []
         $ map
-          (viewColumnSpec . t.columnSpec)
+          (viewColumnWidth . (.width) . t.columnSpec)
           t.columns
     , M.thead_
         []
         $ map
-          (viewColumnHeader . t.columnHeader)
+          (viewColumnHeader . (.title) . t.columnSpec)
           t.columns
-    , M.tbody_ [] $ map (viewRow t.columns) t.rows
+    , M.tbody_ [] $ map (t.rowContents t.columns) t.rows
     ]
   where
-    viewColumnSpec :: TableColumnWidth -> M.View m action
-    viewColumnSpec AutoSizedColumn = M.col_ []
-    viewColumnSpec SingleActionColumn = M.col_ [T.tailwind [T.W10]]
-    viewColumnSpec DoubleActionColumn = M.col_ [T.tailwind [T.W20]]
-    viewColumnSpec TripleActionColumn = M.col_ [T.tailwind [T.W30]]
+    viewColumnWidth :: TableColumnWidth -> M.View m action
+    viewColumnWidth AutoSizedColumn = M.col_ []
+    viewColumnWidth SingleActionColumn = M.col_ [T.tailwind [T.W10]]
+    viewColumnWidth DoubleActionColumn = M.col_ [T.tailwind [T.W20]]
+    viewColumnWidth TripleActionColumn = M.col_ [T.tailwind [T.W30]]
 
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =
       M.th_
         [T.tailwind [T.RegularBorder]]
         [M.text_ [col]]
-
-    viewRow :: [col] -> row -> M.View m action
-    viewRow cols row =
-      let cellContents' = t.cellContents row
-       in M.tr_ [T.tailwind []] $ map (\col -> M.td_ [T.tailwind [T.RegularBorder]] [cellContents' col]) cols
 
 tableHeader_ :: M.MisoString -> M.View m action
 tableHeader_ header =
