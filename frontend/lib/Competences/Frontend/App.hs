@@ -7,9 +7,7 @@ where
 
 import Competences.Document.User (User)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Page.EditCompetenceGridPage (editCompetenceGridPage)
 import Competences.Frontend.Page.ManageUsersPage (manageUsersPage)
-import Competences.Frontend.Page.ViewCompetenceGridPage (viewCompetenceGridPage)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Data.Functor (($>))
@@ -20,6 +18,8 @@ import Miso.Html qualified as M
 import Miso.Router qualified as M
 import Optics.Core ((&), (.~), (^.))
 import Competences.Frontend.Page.EvidencesPage (evidencesPage)
+import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
+import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 
 type App = M.Component M.ROOT Model Action
 
@@ -82,8 +82,8 @@ mkApp r =
         Evidences -> evidences
         ManageUsers -> manageUsers
 
-    viewCompetenceGrid = mounted ViewCompetenceGrid $ viewCompetenceGridPage r
-    editCompetenceGrid = mounted EditCompetenceGrid $ editCompetenceGridPage r
+    viewCompetenceGrid = mounted ViewCompetenceGrid $ competenceGridViewerComponent r
+    editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
     evidences = mounted Evidences $ evidencesPage r
     manageUsers = mounted ManageUsers $ manageUsersPage r
 
