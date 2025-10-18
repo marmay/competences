@@ -20,7 +20,7 @@ module Competences.Frontend.SyncDocument
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Document (Document, User, emptyDocument)
+import Competences.Document (Document, User(..), emptyDocument, UserId)
 import Competences.Document.Id (Id (..))
 import Control.Monad (forM_)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
@@ -91,7 +91,7 @@ subscribeDocument d f s = do
 modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
 modifySyncDocument d c = do
   M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
-  modifyMVar_ d.syncDocument $ modifySyncDocument' c
+  modifyMVar_ d.syncDocument $ modifySyncDocument' d.env.connectedUser.id c
 
 setSyncDocument :: SyncDocumentRef -> Document -> JSM ()
 setSyncDocument d m = modifyMVar_ d.syncDocument $ setSyncDocument' m
@@ -99,9 +99,9 @@ setSyncDocument d m = modifyMVar_ d.syncDocument $ setSyncDocument' m
 emptySyncDocument :: SyncDocument
 emptySyncDocument = SyncDocument emptyDocument [] emptyDocument []
 
-modifySyncDocument' :: Command -> SyncDocument -> JSM SyncDocument
-modifySyncDocument' c d = do
-  case handleCommand c d.localDocument of
+modifySyncDocument' :: UserId -> Command -> SyncDocument -> JSM SyncDocument
+modifySyncDocument' uId c d = do
+  case handleCommand uId c d.localDocument of
     Left err -> do
       M.consoleLog $ M.ms $ "Handling command '" <> show c <> "' failed: " <> show err
       pure d

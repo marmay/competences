@@ -48,7 +48,7 @@ import Data.Text qualified as T
 
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
-import Competences.Command (Command(..))
+import Competences.Command (Command(..), EntityCommand (..))
 import Control.Concurrent (MVar, ThreadId, newEmptyMVar, tryTakeMVar, killThread, forkIO, putMVar)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen)
@@ -142,7 +142,7 @@ main = do
   env <- mkSyncDocumentEnv user
   bracket (readDocument env opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
-      modifySyncDocument document $ AddUser user
+      modifySyncDocument document $ OnUsers (Create user)
       runApp $ withTailwindPlay $ mkApp document
 
 readDocument :: SyncDocumentEnv -> Maybe FilePath -> IO SyncDocumentRef

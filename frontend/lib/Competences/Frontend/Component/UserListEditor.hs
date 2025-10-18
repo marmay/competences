@@ -5,9 +5,8 @@ where
 
 import Competences.Command (Command (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (ChangableField (..), Document (..), User (..), UserRole (..))
+import Competences.Document (Document (..), User (..), UserRole (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editable (editableComponent)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentRef
@@ -53,8 +52,9 @@ userListEditorComponent r =
       M.modify $ #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
     update (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
     update NewUser = M.io_ $ do
-      uid <- randomIO
-      modifySyncDocument r $ AddUser $ User {id = uid, name = "", role = Student}
+      -- uid <- randomIO
+      -- modifySyncDocument r $ AddUser $ User {id = uid, name = "", role = Student}
+      pure ()
 
     view :: Model -> M.View Model Action
     view m =
@@ -76,12 +76,12 @@ userListEditorComponent r =
                     RoleColumn -> C.translate' C.LblUserRole
                     DeleteColumn -> ""
                 , cellContents = \user -> \case
-                    NameColumn -> editableName user.id
-                    RoleColumn -> editableRole user.id
-                    DeleteColumn -> V.viewButton (deleteButton user.id)
+                    NameColumn -> undefined -- editableName user.id
+                    RoleColumn -> undefined -- editableRole user.id
+                    DeleteColumn -> undefined -- V.viewButton (deleteButton user.id)
                 }
           addButton = V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
-          editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> editableComponent r (UserName u')
-          editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> editableComponent r (UserRole u')
-          deleteButton u' = V.deleteButton (IssueCommand (RemoveUser u'))
+          -- editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> undefined
+          -- editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> undefined
+          -- deleteButton u' = V.deleteButton (IssueCommand (RemoveUser u'))
        in V.viewFlow V.vFlow [title, users, V.viewButton addButton]

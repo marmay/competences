@@ -27,10 +27,10 @@ library
         Competences.Common.IxSet
         Competences.Document.Assessment
         Competences.Document.Evidence
-        Competences.Document.ChangableField
         Competences.Document.Competence
         Competences.Document.CompetenceGrid
         Competences.Document.Id
+        Competences.Document.Lock
         Competences.Document.Order
         Competences.Document.Resource
         Competences.Document.User

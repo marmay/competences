@@ -5,14 +5,11 @@ module Competences.Command.Common
 where
 
 import Competences.Document (Document)
-import Competences.Document.User (UserId)
+import Competences.Document.User (User(..), UserId)
 import Data.Text (Text)
 
-data AffectedUsers
-  = AllUsers
-  | AllTeachers
-  | AllTeachersAndSpecificStudents ![UserId]
-  | Nobody
+newtype AffectedUsers = AffectedUsers [UserId]
   deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
 
 type UpdateResult = Either Text (Document, AffectedUsers)

@@ -89,6 +89,8 @@ data Label
   | LblExpandEvidenceSelector
   | LblSocialForm !SocialForm
   | LblAbility !Ability
+  | LblGridTitle
+  | LblGridDescription
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -125,6 +127,8 @@ labels' =
   , LblEvidences
   , LblCollapseEvidenceSelector
   , LblExpandEvidenceSelector
+  , LblGridTitle
+  , LblGridDescription
   ]
   <> map LblSocialForm socialForms
   <> map LblAbility abilities
@@ -171,6 +175,8 @@ defaultTranslation (LblAbility SelfReliant) = "selbstständig"
 defaultTranslation (LblAbility SelfReliantWithSillyMistakes) = "dumme Fehler"
 defaultTranslation (LblAbility WithSupport) = "mit Unterstützung"
 defaultTranslation (LblAbility NotYet) = "noch nicht"
+defaultTranslation LblGridTitle = "Titel"
+defaultTranslation LblGridDescription = "Beschreibung"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
