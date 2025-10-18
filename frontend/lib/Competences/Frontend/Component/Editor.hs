@@ -2,18 +2,21 @@ module Competences.Frontend.Component.Editor
   ( editor
   , flowEditor
   , addField
+  , addNamedField
   , Editor
-  , Editable(..)
+  , Editable (..)
   , EditorField
+  , editorTableRowView
+  , editorTableRowView'
   , textEditorField
   , editorComponent
   , msIso
+  , withDeleteAction
   )
 where
 
 import Competences.Command (Command (..), ModifyCommand (..))
-import Competences.Document (CompetenceGrid (..), Document (..), Lock (..), User (..), UserId)
-import Competences.Frontend.Common qualified as C
+import Competences.Document (Document (..), User (..), UserId)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentEnv (..)
@@ -27,6 +30,7 @@ import Data.Foldable (toList)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Tuple (Solo)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -37,6 +41,7 @@ import Optics.Core qualified as O
 data Model a = Model
   { entries :: ![(a, Maybe UserId)]
   , patches :: !(Map.Map a a)
+  , reorderFrom :: !(Maybe a)
   }
   deriving (Eq, Show, Generic)
 
@@ -47,7 +52,6 @@ data Action a
   | UpdatePatch !a !a
   | UpdateDocument !DocumentChange
   | IssueCommand !Command
-  deriving (Eq, Show)
 
 data Editable f a = Editable
   { get :: !(Document -> f (a, Maybe UserId))
@@ -74,7 +78,7 @@ withDeleteAction :: forall a n. (a -> Command) -> EditorView a n -> EditorView a
 withDeleteAction delete v = v . (#items %~ fmap addDeleteAction)
   where
     addDeleteAction :: EditorViewItem a n -> EditorViewItem a n
-    addDeleteAction e = e & (#itemActions %~ (<> [V.viewButton (V.deleteButton (IssueCommand $ delete e.item))]))
+    addDeleteAction e = e & #itemActions %~ (<> [V.viewButton (V.deleteButton (IssueCommand $ delete e.item))])
 
 data Editor a f n = Editor
   { editable :: !(Editable f a)
@@ -85,30 +89,48 @@ data Editor a f n = Editor
 
 data EditorField a = EditorField
   { viewer :: !(a -> M.View (Model a) (Action a))
-  , editor :: !(a -> M.View (Model a) (Action a))
+  , editor :: !(a -> a -> M.View (Model a) (Action a))
   }
   deriving (Generic)
 
 editor :: EditorView a n -> Editable f a -> Editor a f n
 editor v e = Editor {editable = e, view = v, fields = []}
 
-flowEditor :: Editable f a -> Editor a f n
-flowEditor = editor flowView
-  where
-    flowView viewData =
-      let items = (viewData ^. #items)
-       in V.viewFlow
-            (V.hFlow & (#gap .~ V.SmallSpace))
-            ( map snd (concatMap (^. #fieldData) items)
-                <> concatMap (^. #itemActions) items
-            )
+flowEditor :: Editable Solo a -> Editor a Solo n
+flowEditor = editor editorFlowView
 
-tableRowEditor :: Editable f a -> Editor a f n
-tableRowEditor = editor tableRowView
-  where
-    tableRowView = undefined
+editorFlowView :: EditorView a n
+editorFlowView viewData =
+  let items = (viewData ^. #items)
+   in V.viewFlow
+        (V.hFlow & #gap .~ V.SmallSpace)
+        ( map snd (concatMap (^. #fieldData) items)
+            <> concatMap (^. #itemActions) items
+        )
 
-textEditorField :: Iso' a M.MisoString -> EditorField a
+data TableRowEditorColumn n
+  = TableRowEditorNamedColumn n
+  | TableRowEditorActionColumn
+
+editorTableRowView :: (n -> V.TableColumnSpec) -> V.TableColumnSpec -> EditorView a n
+editorTableRowView specOf actionSpec viewData =
+  V.viewTable $
+    V.Table
+      { columns = map TableRowEditorNamedColumn viewData.fields <> [TableRowEditorActionColumn]
+      , rows = viewData.items
+      , columnSpec = \case
+          TableRowEditorNamedColumn n -> specOf n
+          TableRowEditorActionColumn -> actionSpec
+      , rowContents = \_ r ->
+          -- We know that cols matches the fields.
+          V.tableRow $ map snd r.fieldData <> [V.viewFlow V.hFlow r.itemActions]
+      }
+
+editorTableRowView' :: EditorView a M.MisoString
+editorTableRowView' =
+  editorTableRowView (V.TableColumnSpec V.AutoSizedColumn) (V.TableColumnSpec V.TripleActionColumn "")
+
+textEditorField :: Lens' a M.MisoString -> EditorField a
 textEditorField l =
   EditorField
     { viewer = textViewer (O.castOptic l)
@@ -120,15 +142,15 @@ textViewer l a =
   let s = a ^. l
    in V.text_ s
 
-textEditor :: Iso' a M.MisoString -> a -> M.View (Model a) (Action a)
-textEditor l a =
-  M.input_ [M.onChange (UpdatePatch a . O.review l), M.value_ (O.view l a)]
+textEditor :: Lens' a M.MisoString -> a -> a -> M.View (Model a) (Action a)
+textEditor l original patched =
+  M.input_ [M.onChange (\v -> UpdatePatch original (patched & (l .~ v))), M.value_ (O.view l patched)]
 
 addField :: Editor a f () -> EditorField a -> Editor a f ()
-addField e f = e & (#fields %~ (<> [((), f)]))
+addField e f = e & #fields %~ (<> [((), f)])
 
 addNamedField :: Editor a f n -> (n, EditorField a) -> Editor a f n
-addNamedField e f = e & (#fields %~ (<> [f]))
+addNamedField e f = e & #fields %~ (<> [f])
 
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
@@ -141,7 +163,7 @@ editorComponent e r =
     { M.subs = [subscribeDocument r UpdateDocument]
     }
   where
-    model = Model [] Map.empty
+    model = Model [] Map.empty Nothing
 
     update (StartEditing a) =
       M.io_ (modifySyncDocument r (e.editable.modify a Lock))
@@ -152,21 +174,21 @@ editorComponent e r =
       case patches Map.!? a of
         Just t -> M.io_ (modifySyncDocument r (e.editable.modify a $ Release $ Just (a, t)))
         Nothing -> pure ()
-    update (UpdatePatch a a') = do
-      M.modify $ #patches %~ Map.insert a a'
+    update (UpdatePatch original patched) =
+      M.modify $ #patches %~ Map.insert original patched
     update (UpdateDocument (DocumentChange newDocument _)) =
       M.modify $ updateModel newDocument
     update (IssueCommand cmd) =
       M.io_ (modifySyncDocument r cmd)
 
     updateModel :: Document -> Model a -> Model a
-    updateModel d (Model _ patches) =
+    updateModel d (Model _ patches reorderFrom) =
       let (es :: [(a, Maybe UserId)]) = toList $ e.editable.get d
           myEdits = filter (\(_, u) -> u == Just (syncDocumentEnv r ^. #connectedUser % #id)) es
           patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe e' (Map.lookup e' patches))) myEdits
-       in Model es patches'
+       in Model es patches' reorderFrom
 
-    view (Model entries patches) =
+    view (Model entries patches _) =
       e.view $
         EditorViewData
           { fields = map fst e.fields
@@ -180,7 +202,7 @@ editorComponent e r =
            in EditorViewItem
                 { item = item'
                 , editing = True
-                , fieldData = mkFieldData (.editor) item'
+                , fieldData = map (\(n, f) -> (n, f.editor item item')) e.fields
                 , itemActions =
                     [ V.viewButton (V.applyButton (FinishEditing item))
                     , V.viewButton (V.cancelButton (CancelEditing item))
@@ -190,10 +212,6 @@ editorComponent e r =
           EditorViewItem
             { item = item
             , editing = False
-            , fieldData = mkFieldData (.viewer) item
+            , fieldData = map (\(n, f) -> (n, f.viewer item)) e.fields
             , itemActions = [V.viewButton (V.editButton (StartEditing item))]
             }
-
-    mkFieldData
-      :: (EditorField a -> (a -> M.View (Model a) (Action a))) -> a -> [(n, M.View (Model a) (Action a))]
-    mkFieldData f a = map (\(n, e') -> (n, f e' a)) e.fields

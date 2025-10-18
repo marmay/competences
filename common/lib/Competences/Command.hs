@@ -126,7 +126,7 @@ interpretEntityCommand ctx uid (Modify i (Release (Just (a, a')))) d = do
   a'' <- ctx.fetch i d'
   when (a'' /= a) $
     Left "entity has been modified in the meantime!"
-  d'' <- ctx.create a' . fst =<< ctx.delete i d
+  d'' <- ctx.create a' . fst =<< ctx.delete i d'
   pure (d'', ctx.affectedUsers a' d <> ctx.affectedUsers a d)
 
 handleCommand :: UserId -> Command -> Document -> UpdateResult

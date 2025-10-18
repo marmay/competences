@@ -69,13 +69,10 @@ userListEditorComponent r =
                     ]
                 , rows = m.users
                 , columnSpec = \case
-                    DeleteColumn -> V.SingleActionColumn
-                    _ -> V.AutoSizedColumn
-                , columnHeader = \case
-                    NameColumn -> C.translate' C.LblUserName
-                    RoleColumn -> C.translate' C.LblUserRole
-                    DeleteColumn -> ""
-                , cellContents = \user -> \case
+                    NameColumn -> V.TableColumnSpec V.AutoSizedColumn (C.translate' C.LblUserName)
+                    RoleColumn -> V.TableColumnSpec V.AutoSizedColumn (C.translate' C.LblUserRole)
+                    DeleteColumn -> V.TableColumnSpec V.SingleActionColumn ""
+                , rowContents = V.cellContents $ \user -> \case
                     NameColumn -> undefined -- editableName user.id
                     RoleColumn -> undefined -- editableRole user.id
                     DeleteColumn -> undefined -- V.viewButton (deleteButton user.id)

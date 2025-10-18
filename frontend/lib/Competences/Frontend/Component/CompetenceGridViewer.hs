@@ -32,6 +32,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core (ix, (%), (&), (.~), (?~), (^.), (^?))
+import qualified Competences.Frontend.View.Table as C
 
 competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
 competenceGridViewerComponent r =
@@ -76,17 +77,14 @@ competenceGridViewerComponent r =
                   ]
                     <> map LevelDescriptionColumn levels
               , V.rows = ordered m.document.competences
-              , V.columnHeader =
-                  \case
-                    DescriptionColumn ->
-                      C.translate'
-                        C.LblCompetenceDescription
-                    LevelDescriptionColumn l -> C.translate' $ C.LblCompetenceLevelDescription l
-              , V.cellContents = \competence ->
-                  let
-                   in \case
-                        DescriptionColumn -> V.text_ (M.ms competence.description)
-                        LevelDescriptionColumn level -> V.text_ "..."
+              , V.columnSpec = \case
+                 DescriptionColumn ->
+                   C.TableColumnSpec C.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
+                 LevelDescriptionColumn l ->
+                   C.TableColumnSpec C.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
+              , V.rowContents = V.cellContents $ \competence -> \case
+                 DescriptionColumn -> V.text_ (M.ms competence.description)
+                 LevelDescriptionColumn level -> V.text_ "..."
               }
 
 data Model = Model
