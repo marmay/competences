@@ -32,7 +32,6 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
-import Control.Monad (forM_)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
@@ -46,7 +45,7 @@ import qualified Competences.Frontend.Component.Editor.FlowView as TE
 import qualified Competences.Frontend.Component.Editor.TableView as TE
 import Competences.Document.Order (orderPosition)
 import Competences.Frontend.Component.Editor.Types (translateReorder')
-import Debug.Trace (trace, traceWith)
+import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 
 newtype Model = Model
   { competences :: Ix.IxSet CompetenceIxs Competence
@@ -54,32 +53,12 @@ newtype Model = Model
   deriving (Eq, Generic, Show)
 
 data Action
-  = UpdateDocument !DocumentChange
-  | IssueCommands ![Command]
-  | CreateNewCompetence
+  = CreateNewCompetence
   deriving (Eq, Generic, Show)
 
-data CompetenceGridColumn
-  = MoveColumn
-  | DescriptionColumn
-  | LevelDescriptionColumn !Level
-  | ActionColumn
-  deriving (Eq, Ord, Show)
-
-competenceGridEditorComponent :: SyncDocumentRef -> M.Component p Model Action
-competenceGridEditorComponent r =
-  (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
+competenceGridEditorComponent :: SyncDocumentRef -> StaticComponent p Action
+competenceGridEditorComponent r = staticComponent update view
   where
-    model =
-      Model
-        { competences = Ix.empty
-        }
-
-    update (UpdateDocument (DocumentChange newDocument _)) = do
-      M.modify $ \s ->
-        traceWith (\d -> "newModel: " <> show d) $ s
-          & (#competences .~ newDocument.competences)
-    update (IssueCommands cmds) = M.io_ $ forM_ cmds $ modifySyncDocument r
     update CreateNewCompetence = M.io_ $ do
       d <- readSyncDocument r
       competenceId <- nextId r
@@ -93,8 +72,9 @@ competenceGridEditorComponent r =
               }
       modifySyncDocument r (OnCompetences $ Create competence)
       modifySyncDocument r (OnCompetences $ Modify competenceId Lock)
-    view :: Model -> M.View m Action
-    view _ =
+
+    view :: StaticView Action
+    view =
       let title = M.div_ [] M.+> competenceGridTitleEditor r
           description = M.div_ [] M.+> competenceGridDescriptionEditor r
           competenceEditable =
