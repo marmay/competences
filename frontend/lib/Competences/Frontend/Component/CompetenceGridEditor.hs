@@ -18,7 +18,7 @@ import Competences.Document
   , emptyDocument
   , levels
   , orderMax
-  , ordered
+  , ordered, CompetenceIxs
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -44,10 +44,12 @@ import Optics.Core ((%), (&), (.~), (^.), (?~))
 import Optics.Core qualified as O
 import qualified Competences.Frontend.Component.Editor.FlowView as TE
 import qualified Competences.Frontend.Component.Editor.TableView as TE
+import Competences.Document.Order (orderPosition)
+import Competences.Frontend.Component.Editor.Types (translateReorder')
+import Debug.Trace (trace, traceWith)
 
-data Model = Model
-  { document :: !Document
-  , reorderFrom :: !(C.ReorderModel Competence)
+newtype Model = Model
+  { competences :: Ix.IxSet CompetenceIxs Competence
   }
   deriving (Eq, Generic, Show)
 
@@ -70,14 +72,13 @@ competenceGridEditorComponent r =
   where
     model =
       Model
-        { document = emptyDocument
-        , reorderFrom = C.initialReorderModel
+        { competences = Ix.empty
         }
 
     update (UpdateDocument (DocumentChange newDocument _)) = do
       M.modify $ \s ->
-        s
-          & (#document .~ newDocument)
+        traceWith (\d -> "newModel: " <> show d) $ s
+          & (#competences .~ newDocument.competences)
     update (IssueCommands cmds) = M.io_ $ forM_ cmds $ modifySyncDocument r
     update CreateNewCompetence = M.io_ $ do
       d <- readSyncDocument r
@@ -101,8 +102,11 @@ competenceGridEditorComponent r =
               (\d -> map
                     (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
                     (Ix.toAscList (Proxy @Order) $ d ^. #competences))
-              & #modify ?~ (\c m -> OnCompetences (Modify c.id m))
-              & #delete ?~ (\c -> OnCompetences (Delete c.id))
+              & (#modify ?~ (\c m -> OnCompetences (Modify c.id m)))
+              & (#delete ?~ (\c -> OnCompetences (Delete c.id)))
+              & (#reorder ?~ (\d c a -> do
+                                p <- orderPosition d.competences c.id
+                                pure $ ReorderCompetence p (translateReorder' (.id) a)))
 
           competencesEditor =
             TE.editor

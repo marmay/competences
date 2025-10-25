@@ -8,10 +8,23 @@ module Competences.Command
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
-import Competences.Document (CompetenceGrid (..), Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document
+  ( CompetenceGrid (..)
+  , Document (..)
+  , Lock (..)
+  , User (..)
+  , UserRole (..)
+  )
 import Competences.Document.Competence (Competence (..))
 import Competences.Document.Evidence (Evidence (..))
 import Competences.Document.Id (Id)
+import Competences.Document.Order
+  ( OrderPosition
+  , OrderableSet
+  , Reorder
+  , explainReorderError
+  , reorder, reordered
+  )
 import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
 import Data.Aeson (FromJSON, ToJSON)
@@ -21,7 +34,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%), (%~), (&), (.~), (^.))
-import Competences.Document.Order (Reorder, OrderPosition, reorder, explainReorderError)
+import qualified Optics.Core as O
 
 data ModifyCommand a
   = Lock
@@ -65,6 +78,20 @@ data EntityCommandContext a = EntityCommandContext
   , lock :: Id a -> Lock
   }
   deriving (Generic)
+
+mkOrderedEntityCommandContext
+  :: (Ord a, OrderableSet ixs a, Ix.IsIndexOf (Id a) ixs)
+  => Lens' Document (Ix.IxSet ixs a)
+  -> Lens' a (Id a)
+  -> (Id a -> Lock)
+  -> (a -> Document -> AffectedUsers)
+  -> EntityCommandContext a
+mkOrderedEntityCommandContext l idOf lock affectedUsers =
+  let ctx = mkEntityCommandContext l idOf lock affectedUsers
+   in ctx
+        { create = \a d -> O.over l reordered <$> ctx.create a d
+        , delete = \i d -> O.over (O._1 % l) reordered <$> ctx.delete i d
+        }
 
 mkEntityCommandContext
   :: (Ord a, Ix.Indexable ixs a, Ix.IsIndexOf (Id a) ixs)
@@ -160,7 +187,7 @@ handleCommand userId cmd d = case cmd of
   OnEvidences c -> interpretEntityCommand evidenceContext userId c d
   where
     competenceContext =
-      mkEntityCommandContext
+      mkOrderedEntityCommandContext
         #competences
         #id
         CompetenceLock
