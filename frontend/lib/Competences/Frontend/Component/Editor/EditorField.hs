@@ -2,11 +2,14 @@ module Competences.Frontend.Component.Editor.EditorField
   ( EditorField (..)
   , textEditorField
   , dayEditorField
+  , msIso
   )
 where
 
 import Competences.Frontend.Component.Editor.Types (Action (..), Model)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Tailwind qualified as T
+import Data.Text (Text)
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -27,6 +30,9 @@ textEditorField l =
     { viewer = textViewer (O.castOptic l)
     , editor = textEditor l
     }
+
+msIso :: O.Iso' Text M.MisoString
+msIso = O.iso M.ms M.fromMisoString
 
 dayEditorField :: Lens' a Day -> EditorField a f
 dayEditorField l =
@@ -56,4 +62,8 @@ textViewer l a =
 
 textEditor :: Lens' a M.MisoString -> a -> a -> M.View (Model a f) (Action a)
 textEditor l original patched =
-  M.input_ [M.onChange (\v -> UpdatePatch original (patched & (l .~ v))), M.value_ (O.view l patched)]
+  M.input_
+    [ T.tailwind [T.WFull]
+    , M.onChange (\v -> UpdatePatch original (patched & (l .~ v)))
+    , M.value_ (O.view l patched)
+    ]

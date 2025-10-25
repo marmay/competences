@@ -21,6 +21,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%), (%~), (&), (.~), (^.))
+import Competences.Document.Order (Reorder, OrderPosition, reorder, explainReorderError)
 
 data ModifyCommand a
   = Lock
@@ -37,6 +38,7 @@ data Command
   = ModifyCompetenceGridTitle !(ModifyCommand Text)
   | ModifyCompetenceGridDescription !(ModifyCommand Text)
   | OnCompetences !(EntityCommand Competence)
+  | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | OnUsers !(EntityCommand User)
   | OnEvidences !(EntityCommand Evidence)
   deriving (Eq, Generic, Show)
@@ -150,6 +152,10 @@ handleCommand userId cmd d = case cmd of
       Left "competence grid description has been modified in the meantime!"
     pure (d' & (#competenceGrid % #description .~ t'), allUsers d')
   OnCompetences c -> interpretEntityCommand competenceContext userId c d
+  ReorderCompetence p t -> do
+    case reorder p t d.competences of
+      Left err -> Left $ explainReorderError err
+      Right c' -> Right (d & (#competences .~ c'), allUsers d)
   OnUsers c -> interpretEntityCommand userContext userId c d
   OnEvidences c -> interpretEntityCommand evidenceContext userId c d
   where

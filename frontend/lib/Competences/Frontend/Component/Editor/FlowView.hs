@@ -10,9 +10,7 @@ import Optics.Core ((&), (.~), (^.))
 
 editorFlowView :: EditorView a Solo n
 editorFlowView viewData =
-  let
-    (MkSolo item) = viewData ^. #items
-    itemActionsOf item = []
-  in V.viewFlow
-        (V.hFlow & #gap .~ V.SmallSpace)
-        (map snd item.fieldData <> itemActionsOf item)
+  let (MkSolo item) = viewData ^. #items
+   in V.viewFlow
+        (V.hFlow & #expandDirection .~ V.Expand V.Start & #gap .~ V.SmallSpace)
+        (map snd item.fieldData <> compactButtons item)

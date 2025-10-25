@@ -8,6 +8,7 @@ import Competences.Frontend.Component.Editor.View
 import Competences.Frontend.View qualified as V
 import Data.Foldable (toList)
 import Miso qualified as M
+import Optics.Core ((&), (.~))
 
 data TableRowEditorColumn n
   = TableRowEditorNamedColumn n
@@ -16,8 +17,7 @@ data TableRowEditorColumn n
 editorTableRowView
   :: (Foldable f) => (n -> V.TableColumnSpec) -> V.TableColumnSpec -> EditorView a f n
 editorTableRowView specOf actionSpec viewData =
-  let itemActions = [] -- todo
-  in V.viewTable $
+  V.viewTable $
     V.Table
       { columns = map TableRowEditorNamedColumn viewData.fields <> [TableRowEditorActionColumn]
       , rows = toList viewData.items
@@ -26,7 +26,7 @@ editorTableRowView specOf actionSpec viewData =
           TableRowEditorActionColumn -> actionSpec
       , rowContents = \_ r ->
           -- We know that cols matches the fields.
-          V.tableRow $ map snd r.fieldData <> [V.viewFlow V.hFlow itemActions]
+          V.tableRow $ map snd r.fieldData <> [V.viewFlow (V.hFlow & #gap .~ V.SmallSpace) $ compactButtons r]
       }
 
 editorTableRowView' :: (Foldable f) => EditorView a f M.MisoString

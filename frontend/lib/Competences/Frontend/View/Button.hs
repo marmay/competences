@@ -19,8 +19,10 @@ module Competences.Frontend.View.Button
   , editButton
   , cancelLabelButton
   , toTriState
+  , contentsButton
   , Button (..)
   , Buttons (..)
+  , ButtonContents (..)
   , ToggleState (..)
   , TriState (..)
   , ButtonType (..)
