@@ -16,6 +16,7 @@ module Competences.Document.Order
   , orderedInsert
   , orderedDelete
   , reorder
+  , reordered
   )
 where
 

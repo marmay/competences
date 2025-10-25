@@ -14,7 +14,7 @@ where
 
 import Competences.Document (User)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editor.Types (Action (..), Model, ReorderAction (..))
+import Competences.Frontend.Component.Editor.Types (Action (..), Model, Reorder' (..))
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -108,16 +108,16 @@ deleteButton s a = V.contentsButton (mkContents s V.IcnDelete C.LblDelete) () (D
 moveButton s a = V.contentsButton (mkContents s V.IcnReorder C.LblMove) () (StartMoving a)
 cancelMoveButton s _ = V.contentsButton (mkContents s V.IcnCancel C.LblCancel) () CancelMoving
 moveBeforeButton s a =
-  V.contentsButton (mkContents s V.IcnArrowUp C.LblInsertBefore) () (FinishMoving (ReorderBefore a))
+  V.contentsButton (mkContents s V.IcnArrowUp C.LblInsertBefore) () (FinishMoving (Before' a))
 moveAfterButton s a =
-  V.contentsButton (mkContents s V.IcnArrowDown C.LblInsertAfter) () (FinishMoving (ReorderAfter a))
+  V.contentsButton (mkContents s V.IcnArrowDown C.LblInsertAfter) () (FinishMoving (After' a))
 moveToTopButton s _ =
-  V.contentsButton (mkContents s V.IcnDoubleArrowUp C.LblInsertAtTop) () (FinishMoving ReorderToFront)
+  V.contentsButton (mkContents s V.IcnDoubleArrowUp C.LblInsertAtTop) () (FinishMoving Front')
 moveToBottomButton s _ =
   V.contentsButton
     (mkContents s V.IcnDoubleArrowDown C.LblInsertAtBottom)
     ()
-    (FinishMoving ReorderToBack)
+    (FinishMoving Back')
 
 mkContents :: ViewButtonStyle -> V.Icon -> C.Label -> V.ButtonContents
 mkContents Compact icn lbl = V.ButtonIcon icn (C.translate' lbl)

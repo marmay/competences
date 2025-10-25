@@ -1,15 +1,18 @@
 module Competences.Frontend.Component.Editor.Types
   ( Model (..)
   , Action (..)
-  , ReorderAction (..)
+  , Reorder' (..)
+  , translateReorder'
   )
 where
 
-import Competences.Document (UserId, User)
+import Competences.Document (User, UserId)
+import Competences.Document.Id (Id)
+import Competences.Document.Order (Reorder (..))
 import Competences.Frontend.SyncDocument (DocumentChange)
+import Data.Foldable (toList)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
-import Data.Foldable (toList)
 
 data Model a f = Model
   { entries :: !(Maybe (f (a, Maybe UserId)))
@@ -31,17 +34,25 @@ data Action a
   | FinishEditing !a
   | StartMoving !a
   | CancelMoving
-  | FinishMoving !(ReorderAction a)
+  | FinishMoving !(Reorder' a)
   | Delete !a
   | UpdatePatch !a !a
   | UpdateDocument !DocumentChange
   deriving (Eq, Show)
 
-data ReorderAction a
-  = ReorderToFront
-  | ReorderToBack
-  | ReorderForward
-  | ReorderBackward
-  | ReorderBefore !a
-  | ReorderAfter !a
+data Reorder' a
+  = Front'
+  | Back'
+  | Forward'
+  | Backward'
+  | Before' !a
+  | After' !a
   deriving (Eq, Show)
+
+translateReorder' :: (a -> Id a) -> Reorder' a -> Reorder a
+translateReorder' _ Front' = Front
+translateReorder' _ Back' = Back
+translateReorder' _ Forward' = Forward
+translateReorder' _ Backward' = Backward
+translateReorder' f (Before' a) = Before (f a)
+translateReorder' f (After' a) = After (f a)
