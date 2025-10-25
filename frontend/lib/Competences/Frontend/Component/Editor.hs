@@ -26,12 +26,10 @@ import Competences.Frontend.SyncDocument
 import Data.Foldable (toList)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isNothing)
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((%), (%~), (&), (.~), (^.), (?~))
-import Optics.Core qualified as O
 import Competences.Frontend.Component.Editor.View (EditorView, EditorViewData (..), EditorViewItem (..), EditState (..), MoveState (..), DeleteState (..))
 import Competences.Frontend.Component.Editor.Editable (Editable(..), editable, withModify, withReorder, withDelete)
 import Competences.Frontend.Component.Editor.Types (Model (..), Action (..))
@@ -52,9 +50,6 @@ addField e f = e & #fields %~ (<> [((), f)])
 
 addNamedField :: Editor a f n -> (n, EditorField a f) -> Editor a f n
 addNamedField e f = e & #fields %~ (<> [f])
-
-msIso :: O.Iso' Text M.MisoString
-msIso = O.iso M.ms M.fromMisoString
 
 editorComponent
   :: forall a f n p

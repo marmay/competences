@@ -123,7 +123,7 @@ orderedInsert a s = do
 -- | Deletes and reorders an element from a collection.
 orderedDelete
   :: (OrderableSet ixs a)
-  => (Id a) -> Ix.IxSet ixs a -> Either Text (Ix.IxSet ixs a)
+  => Id a -> Ix.IxSet ixs a -> Either Text (Ix.IxSet ixs a)
 orderedDelete idA s =
   pure $ reordered $ Ix.deleteIx idA s
 
@@ -141,22 +141,22 @@ orderPosition s this = do
 reorder
   :: (OrderableSet ixs a)
   => OrderPosition a -> Reorder a -> Ix.IxSet ixs a -> Either (ReorderError a) (Ix.IxSet ixs a)
-reorder p Front s = withValidatedOrderPosition s p $ (& orderL .~ orderMin)
-reorder p Back s = withValidatedOrderPosition s p $ (orderL .~ orderMax)
-reorder p Forward s = withValidatedOrderPosition s p $ (& orderL %~ up)
+reorder p Front s = withValidatedOrderPosition s p (orderL .~ orderMin)
+reorder p Back s = withValidatedOrderPosition s p (orderL .~ orderMax)
+reorder p Forward s = withValidatedOrderPosition s p (orderL %~ up)
   where
     up (Order i) = Order $ i - 3
-reorder p Backward s = withValidatedOrderPosition s p $ (& orderL %~ down)
+reorder p Backward s = withValidatedOrderPosition s p (orderL %~ down)
   where
     down (Order i) = Order $ i + 3
 reorder p (Before i) s = do
   o <- orderOf s i
-  withValidatedOrderPosition s p $ (& orderL .~ before o)
+  withValidatedOrderPosition s p (orderL .~ before o)
   where
     before (Order o) = Order $ o - 1
 reorder p (After i) s = do
   o <- orderOf s i
-  withValidatedOrderPosition s p $ (& orderL .~ after o)
+  withValidatedOrderPosition s p (orderL .~ after o)
   where
     after (Order o) = Order $ o + 1
 
@@ -164,7 +164,7 @@ reorder p (After i) s = do
 orderOf
   :: (OrderableSet ixs a)
   => Ix.IxSet ixs a -> Id a -> Either (ReorderError a) Order
-orderOf s i = maybeToEither (ReferencedElementNotFound i) $ fmap ((^. orderL)) $ Ix.getOne $ s Ix.@= i
+orderOf s i = maybeToEither (ReferencedElementNotFound i) $ fmap (^. orderL) $ Ix.getOne $ s Ix.@= i
 
 -- | Ensures that a given orderPosition is valid for a given collection.
 validateOrderPosition
