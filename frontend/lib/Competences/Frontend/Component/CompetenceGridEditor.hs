@@ -20,7 +20,6 @@ import Competences.Document
   , orderMax
   , ordered
   )
-import Competences.Document.Order (Reorder, orderPosition)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.SyncDocument
@@ -41,8 +40,10 @@ import Data.Tuple (Solo (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((%), (&), (.~), (^.))
+import Optics.Core ((%), (&), (.~), (^.), (?~))
 import Optics.Core qualified as O
+import qualified Competences.Frontend.Component.Editor.FlowView as TE
+import qualified Competences.Frontend.Component.Editor.TableView as TE
 
 data Model = Model
   { document :: !Document
@@ -96,17 +97,16 @@ competenceGridEditorComponent r =
       let title = M.div_ [] M.+> competenceGridTitleEditor r
           description = M.div_ [] M.+> competenceGridDescriptionEditor r
           competenceEditable =
-            TE.Editable
-              { get = \d ->
-                  map
+            TE.editable
+              (\d -> map
                     (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
-                    (Ix.toAscList (Proxy @Order) $ d ^. #competences)
-              , modify = \c m -> OnCompetences (Modify c.id m)
-              }
+                    (Ix.toAscList (Proxy @Order) $ d ^. #competences))
+              & #modify ?~ (\c m -> OnCompetences (Modify c.id m))
+              & #delete ?~ (\c -> OnCompetences (Delete c.id))
 
           competencesEditor =
             TE.editor
-              (TE.withDeleteAction (\c -> OnCompetences $ Delete c.id) TE.editorTableRowView')
+              TE.editorTableRowView'
               competenceEditable
               `TE.addNamedField` ( C.translate' C.LblCompetenceDescription
                                  , TE.textEditorField (#description % TE.msIso)
@@ -136,16 +136,14 @@ competenceGridEditorComponent r =
     competenceGridTitleEditor = TE.editorComponent editor
       where
         editable =
-          TE.Editable
-            { get = \d -> MkSolo (d ^. #competenceGrid % #title, (d ^. #locks) Map.!? CompetenceGridTitleLock)
-            , modify = const ModifyCompetenceGridTitle
-            }
-        editor = TE.flowEditor editable `TE.addField` TE.textEditorField (O.castOptic TE.msIso)
+          TE.editable
+            (\d -> MkSolo (d ^. #competenceGrid % #title, (d ^. #locks) Map.!? CompetenceGridTitleLock))
+            & (#modify ?~ const ModifyCompetenceGridTitle)
+        editor = TE.editor TE.editorFlowView editable `TE.addField` TE.textEditorField (O.castOptic TE.msIso)
     competenceGridDescriptionEditor = TE.editorComponent editor
       where
         editable =
-          TE.Editable
-            { get = \d -> MkSolo (d ^. #competenceGrid % #description, (d ^. #locks) Map.!? CompetenceGridDescriptionLock)
-            , modify = const ModifyCompetenceGridDescription
-            }
-        editor = TE.flowEditor editable `TE.addField` TE.textEditorField (O.castOptic TE.msIso)
+          TE.editable
+            (\d -> MkSolo (d ^. #competenceGrid % #description, (d ^. #locks) Map.!? CompetenceGridDescriptionLock))
+            & (#modify ?~ const ModifyCompetenceGridDescription)
+        editor = TE.editor TE.editorFlowView editable `TE.addField` TE.textEditorField (O.castOptic TE.msIso)
