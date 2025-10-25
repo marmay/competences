@@ -82,10 +82,9 @@ data TailwindCls
   | TextLg
   | TextXl
   | VBorder
-  | W10
-  | W15
-  | W20
-  | W30
+  | W16
+  | W24
+  | W32
   | W40
   | WThird
   | WHalf
@@ -199,10 +198,9 @@ tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
 tailwindNames VBorder = ["w-1", "h-full", useColor Bg Sky I800 O100]
-tailwindNames W10 = ["w-10"]
-tailwindNames W15 = ["w-15"]
-tailwindNames W20 = ["w-20"]
-tailwindNames W30 = ["w-30"]
+tailwindNames W16 = ["w-16"]
+tailwindNames W24 = ["w-24"]
+tailwindNames W32 = ["w-32"]
 tailwindNames W40 = ["w-40"]
 tailwindNames WThird = ["w-1/3"]
 tailwindNames WHalf = ["w-1/2"]
