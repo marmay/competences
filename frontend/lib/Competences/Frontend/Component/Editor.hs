@@ -5,6 +5,8 @@ module Competences.Frontend.Component.Editor
   , addNamedField
   , textEditorField
   , dayEditorField
+  , enumEditorField
+  , enumEditorField'
   , Editable (..)
   , editable
   , editorComponent
