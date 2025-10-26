@@ -62,7 +62,7 @@ enumParseMap :: (Show e, Bounded e, Enum e) => Map.Map M.MisoString e
 enumParseMap = Map.fromList $ map (\e -> (M.ms $ show e, e)) [minBound .. maxBound]
 
 enumEditorField
-  :: forall a e f. (Show e, Bounded e, Enum e) => (e -> M.MisoString) -> Lens' a e -> EditorField a f
+  :: forall a e f. (Show e, Bounded e, Enum e, Eq e) => (e -> M.MisoString) -> Lens' a e -> EditorField a f
 enumEditorField toText l =
   EditorField
     { viewer = V.text_ . toText . O.view l
@@ -74,11 +74,13 @@ enumEditorField toText l =
                   Nothing -> UpdatePatch original patched
               )
           , M.value_ (toText $ patched ^. l)
+          , T.tailwind [T.WFull]
           ]
           $ map
             ( \e ->
                 M.option_
                   [ M.value_ (M.ms $ show e)
+                  , M.selected_ (e == patched ^. l)
                   ]
                   [M.text_ [toText e]]
             )
@@ -86,7 +88,7 @@ enumEditorField toText l =
     }
 
 enumEditorField'
-  :: forall a e f. (Show e, Bounded e, Enum e) => Lens' a e -> EditorField a f
+  :: forall a e f. (Show e, Bounded e, Enum e, Eq e) => Lens' a e -> EditorField a f
 enumEditorField' = enumEditorField (M.ms . show)
 
 textViewer :: Lens' a M.MisoString -> a -> M.View (Model a f) (Action a)
