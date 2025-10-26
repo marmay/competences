@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.ListSelector
+module Competences.Frontend.Component.Selector.ListSelector
   ( singleListSelectorComponent
   , multiListSelectorComponent
   , SingleSelectionStyle (..)
