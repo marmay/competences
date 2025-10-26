@@ -9,6 +9,7 @@ module Competences.Frontend.Component.Editor.View
   , compactButtons
   , extendedButtons
   , buttons
+  , refocusTargetString
   )
 where
 
@@ -125,3 +126,6 @@ moveToBottomButton s _ =
 mkContents :: ViewButtonStyle -> V.Icon -> C.Label -> V.ButtonContents
 mkContents Compact icn lbl = V.ButtonIcon icn (C.translate' lbl)
 mkContents Extended icn lbl = V.ButtonIconAndText icn (C.translate' lbl)
+
+refocusTargetString :: M.MisoString
+refocusTargetString = "editor-refocus-target"
