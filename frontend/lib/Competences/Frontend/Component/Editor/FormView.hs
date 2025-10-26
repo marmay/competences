@@ -4,8 +4,14 @@ module Competences.Frontend.Component.Editor.FormView
 where
 
 import Competences.Frontend.Component.Editor.View
-import Data.Tuple (Solo)
+import Competences.Frontend.View.Form qualified as V
+import Data.Tuple (Solo (..))
 import Miso qualified as M
 
-editorFormView :: EditorView a Solo M.MisoString
-editorFormView viewData = undefined
+editorFormView :: M.MisoString -> (n -> M.MisoString) -> EditorView a Solo n
+editorFormView title toText viewData =
+  let (MkSolo item) = viewData.items
+   in V.form_
+        title
+        (map (\(n, f) -> V.formField_ (toText n) f) item.fieldData)
+        (extendedButtons item)
