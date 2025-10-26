@@ -171,7 +171,7 @@ tailwindNames RegularButtonOn =
   ]
 tailwindNames RegularButtonOff =
   [ useColor Border Sky I200 O100
-  , useColor Bg Sky I500 O100
+  , useColor Bg Sky I300 O100
   , useColor Text Stone I50 O100
   , useColor Stroke Stone I50 O100
   , useColor Fill Stone I100 O0
@@ -179,7 +179,7 @@ tailwindNames RegularButtonOff =
   ]
 tailwindNames RegularButtonIndeterminate =
   [ useColor Border Yellow I500 O100
-  , useColor Bg Sky I500 O100
+  , useColor Bg Gray I500 O100
   , useColor Text Stone I50 O100
   , useColor Stroke Stone I50 O100
   , useColor Fill Stone I100 O0

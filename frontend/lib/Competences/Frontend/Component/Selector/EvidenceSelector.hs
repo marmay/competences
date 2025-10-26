@@ -14,6 +14,9 @@ import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((.~), (&), Lens', lensVL, toLensVL)
+import Competences.Frontend.Component.Selector.UserSelector (multiUserSelectorComponent)
+import Competences.Document.User (isStudent)
+import qualified Competences.Frontend.Component.Selector.EnumSelector as ES
 
 data DateRange
   = Today
@@ -42,4 +45,9 @@ evidenceSelectorComponent r parentLens =
     update = undefined
     view _ = V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace))
                [ V.title_ "Evidences"
+               , V.component "evidence-selector-users" (multiUserSelectorComponent r isStudent #filteredUsers)
+               , V.component "evidence-selector-date-range" (ES.enumSelectorComponent' AllTime [Today, ThisWeek, AllTime] ES.ButtonsCompact translateDateRange #filteredDateRange)
                ]
+    translateDateRange Today = "Today"
+    translateDateRange ThisWeek = "This Week"
+    translateDateRange AllTime = "All Time"

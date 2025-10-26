@@ -3,6 +3,8 @@ module Competences.Document.User
   , UserId
   , UserIxs
   , UserRole (..)
+  , isStudent
+  , isTeacher
   )
 where
 
@@ -30,6 +32,12 @@ data User = User
   , role :: !UserRole
   }
   deriving (Eq, Generic, Ord, Show)
+
+isStudent :: User -> Bool
+isStudent = (== Student) . (.role)
+
+isTeacher :: User -> Bool
+isTeacher = (== Teacher) . (.role)
 
 type UserIxs = '[UserId, Text, UserRole]
 

@@ -5,10 +5,11 @@ module Competences.Frontend.Component.Editor.EditorField
   , enumEditorField
   , enumEditorField'
   , msIso
+  , hostEditorField
   )
 where
 
-import Competences.Frontend.Component.Editor.Types (Action (..), Model)
+import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
@@ -21,6 +22,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Optics.Core (Lens', (&), (.~), (^.))
 import Optics.Core qualified as O
+import Data.Maybe (fromMaybe)
 
 data EditorField a f = EditorField
   { viewer :: !(a -> M.View (Model a f) (Action a))
@@ -37,6 +39,24 @@ textEditorField l =
 
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
+
+hostEditorField
+  :: (Eq cm, Ord a)
+  => Lens' a b
+  -> (b -> M.View (Model a f) (Action a))
+  -> (Lens' (Model a f) b -> M.Component (Model a f) cm ca)
+  -> EditorField a f
+hostEditorField l viewer mkEditorComponent =
+  EditorField
+    { viewer = \a -> viewer (a ^. l)
+    , editor = \refocusTarget original _ ->
+        let modelLens = (#patches O.% O.at original O.% maybeLens original O.% l)
+            editorComponent = mkEditorComponent modelLens
+         in M.div_ (refocusTargetAttr refocusTarget) M.+> editorComponent
+    }
+  where
+    maybeLens :: Eq a => a -> Lens' (Maybe a) a
+    maybeLens v = O.lens (fromMaybe v) (\_ v' -> if v == v' then Nothing else Just v')
 
 dayEditorField :: Lens' a Day -> EditorField a f
 dayEditorField l =
@@ -111,4 +131,5 @@ textEditor l refocusTarget original patched =
       <> refocusTargetAttr refocusTarget
 
 refocusTargetAttr :: Bool -> [M.Attribute action]
-refocusTargetAttr refocusTarget = if refocusTarget then [M.id_ refocusTargetString] else []
+refocusTargetAttr True = [M.id_ refocusTargetString]
+refocusTargetAttr False = []

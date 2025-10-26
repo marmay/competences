@@ -1,11 +1,10 @@
 module Competences.Frontend.Component.Selector.EnumSelector
   ( enumSelectorComponent
   , enumSelectorComponent'
-  , SingleSelectionStyle (..)
+  , SelectionStyle (..)
   )
 where
 
-import Competences.Frontend.Component.Selector.ListSelector (SingleSelectionStyle (..))
 import Competences.Frontend.View qualified as V
 import Data.List.NonEmpty (NonEmpty (..), toList)
 import GHC.Generics (Generic)
