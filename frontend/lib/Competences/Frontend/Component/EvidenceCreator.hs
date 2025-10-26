@@ -3,14 +3,19 @@ module Competences.Frontend.Component.EvidenceCreator
   )
 where
 
-import Competences.Command ( Command(..), EntityCommand(..) )
+import Competences.Command (Command (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Evidence (..), EvidenceId, User (..), UserId)
 import Competences.Document.Evidence (ActivityTasks (..), ActivityType (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.DateSelector (dateSelectorComponent)
-import Competences.Frontend.Component.UserSelector (multiUserSelectorComponent)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, SyncDocumentEnv(..), modifySyncDocument, syncDocumentEnv)
+import Competences.Frontend.Component.Selector.DateSelector (dateSelectorComponent)
+import Competences.Frontend.Component.Selector.UserSelector (multiUserSelectorComponent)
+import Competences.Frontend.SyncDocument
+  ( SyncDocumentEnv (..)
+  , SyncDocumentRef
+  , modifySyncDocument
+  , syncDocumentEnv
+  )
 import Competences.Frontend.View qualified as V
 import Data.Set qualified as Set
 import Data.Time (Day)

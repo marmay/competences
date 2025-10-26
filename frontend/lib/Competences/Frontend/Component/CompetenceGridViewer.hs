@@ -12,27 +12,24 @@ import Competences.Document
   , CompetenceGrid (..)
   , Document (..)
   , User
-  , UserId
+  
   , UserRole (..)
   , emptyDocument
   , levels
   , ordered
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
-import Competences.Document.Evidence (Evidence)
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.UserSelector (singleUserSelectorComponent)
+import Competences.Frontend.Component.Selector.UserSelector (singleUserSelectorComponent)
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
-import Data.Aeson (Result (..), fromJSON)
-import Data.Map qualified as Map
+import Competences.Frontend.View.Table qualified as C
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core (ix, (%), (&), (.~), (?~), (^.), (^?))
-import qualified Competences.Frontend.View.Table as C
+import Optics.Core ((&), (.~))
 
 competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
 competenceGridViewerComponent r =
@@ -78,13 +75,13 @@ competenceGridViewerComponent r =
                     <> map LevelDescriptionColumn levels
               , V.rows = ordered m.document.competences
               , V.columnSpec = \case
-                 DescriptionColumn ->
-                   C.TableColumnSpec C.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
-                 LevelDescriptionColumn l ->
-                   C.TableColumnSpec C.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
+                  DescriptionColumn ->
+                    C.TableColumnSpec C.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
+                  LevelDescriptionColumn l ->
+                    C.TableColumnSpec C.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
               , V.rowContents = V.cellContents $ \competence -> \case
-                 DescriptionColumn -> V.text_ (M.ms competence.description)
-                 LevelDescriptionColumn level -> V.text_ "..."
+                  DescriptionColumn -> V.text_ (M.ms competence.description)
+                  LevelDescriptionColumn level -> V.text_ "..."
               }
 
 data Model = Model

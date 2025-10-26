@@ -8,7 +8,7 @@ where
 import Competences.Document.Evidence (Evidence, EvidenceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.EvidenceCreator (evidenceCreatorComponent)
-import Competences.Frontend.Component.EvidenceSelector
+import Competences.Frontend.Component.Selector.EvidenceSelector
 import Competences.Frontend.SyncDocument (SyncDocumentRef, nextId)
 import Competences.Frontend.View qualified as V
 import GHC.Generics (Generic)

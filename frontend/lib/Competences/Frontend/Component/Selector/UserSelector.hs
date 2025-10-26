@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.UserSelector
+module Competences.Frontend.Component.Selector.UserSelector
   ( singleUserSelectorComponent
   , multiUserSelectorComponent
   )
@@ -6,7 +6,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document(..), User (..))
-import Competences.Frontend.Component.ListSelector qualified as L
+import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)

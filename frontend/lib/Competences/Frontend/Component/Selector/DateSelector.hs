@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.DateSelector
+module Competences.Frontend.Component.Selector.DateSelector
   ( dateSelectorComponent
   )
 where

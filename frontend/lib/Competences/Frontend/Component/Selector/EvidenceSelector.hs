@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.EvidenceSelector
+module Competences.Frontend.Component.Selector.EvidenceSelector
   ( evidenceSelectorComponent
   )
 where
