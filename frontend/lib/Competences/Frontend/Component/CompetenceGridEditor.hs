@@ -10,26 +10,26 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
-  , CompetenceId
+  , CompetenceIxs
   , Document (..)
   , Level (..)
   , Lock (..)
   , Order
-  , emptyDocument
-  , levels
   , orderMax
-  , ordered, CompetenceIxs
   )
+import Competences.Document.Order (orderPosition)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Editor.FlowView qualified as TE
+import Competences.Frontend.Component.Editor.TableView qualified as TE
+import Competences.Frontend.Component.Editor.Types (translateReorder')
+import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 import Competences.Frontend.SyncDocument
-  ( DocumentChange (..)
-  , SyncDocument (..)
+  ( SyncDocument (..)
   , SyncDocumentRef
   , modifySyncDocument
   , nextId
   , readSyncDocument
-  , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
@@ -39,13 +39,8 @@ import Data.Tuple (Solo (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((%), (&), (.~), (^.), (?~))
+import Optics.Core ((%), (&), (.~), (?~), (^.))
 import Optics.Core qualified as O
-import qualified Competences.Frontend.Component.Editor.FlowView as TE
-import qualified Competences.Frontend.Component.Editor.TableView as TE
-import Competences.Document.Order (orderPosition)
-import Competences.Frontend.Component.Editor.Types (translateReorder')
-import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 
 newtype Model = Model
   { competences :: Ix.IxSet CompetenceIxs Competence
@@ -79,14 +74,19 @@ competenceGridEditorComponent r = staticComponent update view
           description = M.div_ [] M.+> competenceGridDescriptionEditor r
           competenceEditable =
             TE.editable
-              (\d -> map
+              ( \d ->
+                  map
                     (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
-                    (Ix.toAscList (Proxy @Order) $ d ^. #competences))
+                    (Ix.toAscList (Proxy @Order) $ d ^. #competences)
+              )
               & (#modify ?~ (\c m -> OnCompetences (Modify c.id m)))
               & (#delete ?~ (\c -> OnCompetences (Delete c.id)))
-              & (#reorder ?~ (\d c a -> do
-                                p <- orderPosition d.competences c.id
-                                pure $ ReorderCompetence p (translateReorder' (.id) a)))
+              & ( #reorder
+                    ?~ ( \d c a -> do
+                           p <- orderPosition d.competences c.id
+                           pure $ ReorderCompetence p (translateReorder' (.id) a)
+                       )
+                )
 
           competencesEditor =
             TE.editor
@@ -128,6 +128,7 @@ competenceGridEditorComponent r = staticComponent update view
       where
         editable =
           TE.editable
-            (\d -> MkSolo (d ^. #competenceGrid % #description, (d ^. #locks) Map.!? CompetenceGridDescriptionLock))
+            ( \d -> MkSolo (d ^. #competenceGrid % #description, (d ^. #locks) Map.!? CompetenceGridDescriptionLock)
+            )
             & (#modify ?~ const ModifyCompetenceGridDescription)
         editor = TE.editor TE.editorFlowView editable `TE.addField` TE.textEditorField (O.castOptic TE.msIso)

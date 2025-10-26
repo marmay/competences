@@ -104,9 +104,12 @@ editButton
 editButton s a = V.contentsButton (mkContents s V.IcnEdit C.LblEdit) () (StartEditing a)
 finishEditButton s a = V.contentsButton (mkContents s V.IcnApply C.LblApply) () (FinishEditing a)
 cancelEditButton s a = V.contentsButton (mkContents s V.IcnCancel C.LblCancel) () (CancelEditing a)
+                         & (#buttonType .~ V.AlertButton)
 deleteButton s a = V.contentsButton (mkContents s V.IcnDelete C.LblDelete) () (Delete a)
+                         & (#buttonType .~ V.AlertButton)
 moveButton s a = V.contentsButton (mkContents s V.IcnReorder C.LblMove) () (StartMoving a)
 cancelMoveButton s _ = V.contentsButton (mkContents s V.IcnCancel C.LblCancel) () CancelMoving
+                         & (#buttonType .~ V.AlertButton)
 moveBeforeButton s a =
   V.contentsButton (mkContents s V.IcnArrowUp C.LblInsertBefore) () (FinishMoving (Before' a))
 moveAfterButton s a =
