@@ -18,6 +18,7 @@ data Model a f = Model
   { entries :: !(Maybe (f (a, Maybe UserId)))
   , patches :: !(Map.Map a a)
   , reorderFrom :: !(Maybe a)
+  , refocusTarget :: !(Maybe a)
   , users :: !(Map.Map UserId User)
   }
   deriving (Generic)

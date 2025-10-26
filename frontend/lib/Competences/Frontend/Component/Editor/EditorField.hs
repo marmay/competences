@@ -9,6 +9,7 @@ module Competences.Frontend.Component.Editor.EditorField
 where
 
 import Competences.Frontend.Component.Editor.Types (Action (..), Model)
+import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Map qualified as Map
@@ -23,7 +24,7 @@ import Optics.Core qualified as O
 
 data EditorField a f = EditorField
   { viewer :: !(a -> M.View (Model a f) (Action a))
-  , editor :: !(a -> a -> M.View (Model a f) (Action a))
+  , editor :: !(Bool -> a -> a -> M.View (Model a f) (Action a))
   }
   deriving (Generic)
 
@@ -46,8 +47,8 @@ dayEditorField l =
       showTime day = M.toMisoString $ show day
    in EditorField
         { viewer = \a -> M.input_ [M.type_ "date", M.value_ (showTime $ a ^. l), M.disabled_]
-        , editor = \original patched ->
-            M.input_
+        , editor = \refocusTarget original patched ->
+            M.input_ $
               [ M.type_ "date"
               , M.value_ (showTime $ patched ^. l)
               , M.onChange
@@ -56,26 +57,30 @@ dayEditorField l =
                       Nothing -> UpdatePatch original patched
                   )
               ]
+                <> refocusTargetAttr refocusTarget
         }
 
 enumParseMap :: (Show e, Bounded e, Enum e) => Map.Map M.MisoString e
 enumParseMap = Map.fromList $ map (\e -> (M.ms $ show e, e)) [minBound .. maxBound]
 
 enumEditorField
-  :: forall a e f. (Show e, Bounded e, Enum e, Eq e) => (e -> M.MisoString) -> Lens' a e -> EditorField a f
+  :: forall a e f
+   . (Show e, Bounded e, Enum e, Eq e) => (e -> M.MisoString) -> Lens' a e -> EditorField a f
 enumEditorField toText l =
   EditorField
     { viewer = V.text_ . toText . O.view l
-    , editor = \original patched ->
+    , editor = \refocusTarget original patched ->
         M.select_
-          [ M.onChange
-              ( \v -> case enumParseMap Map.!? v of
-                  Just v' -> UpdatePatch original (patched & (l .~ v'))
-                  Nothing -> UpdatePatch original patched
-              )
-          , M.value_ (toText $ patched ^. l)
-          , T.tailwind [T.WFull]
-          ]
+          ( [ M.onChange
+                ( \v -> case enumParseMap Map.!? v of
+                    Just v' -> UpdatePatch original (patched & (l .~ v'))
+                    Nothing -> UpdatePatch original patched
+                )
+            , M.value_ (toText $ patched ^. l)
+            , T.tailwind [T.WFull]
+            ]
+              <> refocusTargetAttr refocusTarget
+          )
           $ map
             ( \e ->
                 M.option_
@@ -96,10 +101,14 @@ textViewer l a =
   let s = a ^. l
    in V.text_ s
 
-textEditor :: Lens' a M.MisoString -> a -> a -> M.View (Model a f) (Action a)
-textEditor l original patched =
-  M.input_
+textEditor :: Lens' a M.MisoString -> Bool -> a -> a -> M.View (Model a f) (Action a)
+textEditor l refocusTarget original patched =
+  M.input_ $
     [ T.tailwind [T.WFull]
     , M.onChange (\v -> UpdatePatch original (patched & (l .~ v)))
     , M.value_ (O.view l patched)
     ]
+      <> refocusTargetAttr refocusTarget
+
+refocusTargetAttr :: Bool -> [M.Attribute action]
+refocusTargetAttr refocusTarget = if refocusTarget then [M.id_ refocusTargetString] else []
