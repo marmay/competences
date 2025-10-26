@@ -3,15 +3,17 @@ module Competences.Frontend.Component.UserListEditor
   )
 where
 
-import Competences.Command (Command (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), User (..), UserRole (..))
+import Competences.Document (Document (..), User (..), UserRole (..), Lock (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentRef
   , modifySyncDocument
-  , subscribeDocument
+  , subscribeDocument, nextId
   )
 import Competences.Frontend.View qualified as V
 import Data.Proxy (Proxy (..))
@@ -19,9 +21,9 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((.~), (^.))
-import System.Random (randomIO)
-import qualified Miso.Html.Property as M
+import Optics.Core ((&), (.~), (?~), (^.), (%))
+import qualified Competences.Frontend.Component.Editor.TableView as TE
+import qualified Data.Map as Map
 
 newtype Model = Model
   { users :: [User]
@@ -29,56 +31,43 @@ newtype Model = Model
   deriving (Eq, Generic, Show)
 
 data Action
-  = UpdateDocument DocumentChange
-  | IssueCommand Command
-  | NewUser
+  = NewUser
   deriving (Eq, Generic, Show)
 
-data UserListColumn
-  = NameColumn
-  | RoleColumn
-  | DeleteColumn
-  deriving (Eq, Ord, Show)
-
-userListEditorComponent :: SyncDocumentRef -> M.Component p Model Action
+userListEditorComponent :: SyncDocumentRef -> StaticComponent p Action
 userListEditorComponent r =
-  (M.component model update view) {M.subs = [subscribeDocument r UpdateDocument]}
+  staticComponent update view
   where
-    model = Model []
-
-    update :: Action -> M.Effect p Model Action
-    update (UpdateDocument (DocumentChange d _)) = do
-      M.io_ $ M.consoleLog $ "UserListEditor: UpdateDocument: " <> M.ms (show d)
-      M.modify $ #users .~ Ix.toAscList (Proxy @Text) (d ^. #users)
-    update (IssueCommand cmd) = M.io_ $ modifySyncDocument r cmd
+    update :: Action -> M.Effect p () Action
     update NewUser = M.io_ $ do
-      -- uid <- randomIO
-      -- modifySyncDocument r $ AddUser $ User {id = uid, name = "", role = Student}
-      pure ()
+      userId <- nextId r
+      let user =
+            User
+              { id = userId
+              , name = ""
+              , role = Student
+              }
+      modifySyncDocument r (OnUsers $ Create user)
+      modifySyncDocument r (OnUsers $ Modify userId Lock)
 
-    view :: Model -> M.View Model Action
-    view m =
+    view :: StaticView Action
+    view =
       let title = V.title_ (C.translate' C.LblUserList)
-          users =
-            V.viewTable $
-              V.Table
-                { columns =
-                    [ NameColumn
-                    , RoleColumn
-                    , DeleteColumn
-                    ]
-                , rows = m.users
-                , columnSpec = \case
-                    NameColumn -> V.TableColumnSpec V.AutoSizedColumn (C.translate' C.LblUserName)
-                    RoleColumn -> V.TableColumnSpec V.AutoSizedColumn (C.translate' C.LblUserRole)
-                    DeleteColumn -> V.TableColumnSpec V.SingleActionColumn ""
-                , rowContents = V.cellContents $ \user -> \case
-                    NameColumn -> undefined -- editableName user.id
-                    RoleColumn -> undefined -- editableRole user.id
-                    DeleteColumn -> undefined -- V.viewButton (deleteButton user.id)
-                }
+          usersEditable =
+            TE.editable
+              ( \d ->
+                  map
+                    (\u -> (u, (d ^. #locks) Map.!? UserLock u.id))
+                    (Ix.toAscList (Proxy @Text) (d ^. #users))
+              )
+              & (#modify ?~ \u m -> OnUsers $ Modify u.id m)
+              & (#delete ?~ \u -> OnUsers $ Delete u.id)
+          usersEditor =
+            TE.editor
+              TE.editorTableRowView'
+              usersEditable
+              `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField (#name % TE.msIso))
+              `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role)
+          users = M.div_ [] M.+> TE.editorComponent usersEditor r
           addButton = V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
-          -- editableName u' = M.div_ [M.key_ $ M.ms (show (UserName u'))] M.+> undefined
-          -- editableRole u' = M.div_ [M.key_ $ M.ms (show (UserRole u'))] M.+> undefined
-          -- deleteButton u' = V.deleteButton (IssueCommand (RemoveUser u'))
        in V.viewFlow V.vFlow [title, users, V.viewButton addButton]

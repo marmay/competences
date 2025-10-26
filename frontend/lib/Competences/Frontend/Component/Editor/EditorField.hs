@@ -2,6 +2,8 @@ module Competences.Frontend.Component.Editor.EditorField
   ( EditorField (..)
   , textEditorField
   , dayEditorField
+  , enumEditorField
+  , enumEditorField'
   , msIso
   )
 where
@@ -9,6 +11,7 @@ where
 import Competences.Frontend.Component.Editor.Types (Action (..), Model)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
+import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
 import GHC.Generics (Generic)
@@ -54,6 +57,37 @@ dayEditorField l =
                   )
               ]
         }
+
+enumParseMap :: (Show e, Bounded e, Enum e) => Map.Map M.MisoString e
+enumParseMap = Map.fromList $ map (\e -> (M.ms $ show e, e)) [minBound .. maxBound]
+
+enumEditorField
+  :: forall a e f. (Show e, Bounded e, Enum e) => (e -> M.MisoString) -> Lens' a e -> EditorField a f
+enumEditorField toText l =
+  EditorField
+    { viewer = V.text_ . toText . O.view l
+    , editor = \original patched ->
+        M.select_
+          [ M.onChange
+              ( \v -> case enumParseMap Map.!? v of
+                  Just v' -> UpdatePatch original (patched & (l .~ v'))
+                  Nothing -> UpdatePatch original patched
+              )
+          , M.value_ (toText $ patched ^. l)
+          ]
+          $ map
+            ( \e ->
+                M.option_
+                  [ M.value_ (M.ms $ show e)
+                  ]
+                  [M.text_ [toText e]]
+            )
+            [minBound .. maxBound]
+    }
+
+enumEditorField'
+  :: forall a e f. (Show e, Bounded e, Enum e) => Lens' a e -> EditorField a f
+enumEditorField' = enumEditorField (M.ms . show)
 
 textViewer :: Lens' a M.MisoString -> a -> M.View (Model a f) (Action a)
 textViewer l a =
