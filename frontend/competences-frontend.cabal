@@ -53,7 +53,6 @@ library
         Competences.Frontend.Component.UserListEditor,
         Competences.Frontend.Component.UserSelector,
         Competences.Frontend.Page.EvidencesPage,
-        Competences.Frontend.Page.ManageUsersPage,
         Competences.Frontend.Page.ViewCompetenceGridPage,
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,
