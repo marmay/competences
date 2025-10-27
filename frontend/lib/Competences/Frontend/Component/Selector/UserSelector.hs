@@ -1,21 +1,28 @@
 module Competences.Frontend.Component.Selector.UserSelector
-  ( singleUserSelectorComponent
+  ( UserSelectorConfig (..)
+  , singleUserSelectorComponent
+  , singleUserEditorField
   , multiUserSelectorComponent
+  , multiUserEditorField
+  , defaultUserSelectorConfig
+  , SingleUserSelectorStyle (..)
+  , MultiUserSelectorStyle (..)
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
-import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
-import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens)
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens (..))
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
-import Competences.Frontend.View qualified as V
+import Data.Foldable (toList)
 import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Optics.Core ((^.))
 
 data SingleUserSelectorStyle
   = SingleUserSelectorStyleButtons
@@ -36,50 +43,82 @@ defaultUserSelectorConfig =
     , isInitialUser = const False
     }
 
-toListSelectorConfig :: UserSelectorConfig -> L.ListSelectorConfig User
+toListSelectorConfig :: UserSelectorConfig -> L.ListSelectorConfig User f
 toListSelectorConfig config =
-  L.ListSelectorConfig
-    { L.isPossibleItem = p
-    , L.isInitialItem = config.isInitialUser
-    , L.showItem = showUser
-    , L.listItems = listUsers p
+  (L.listSelectorConfig (listUsers config.isPossibleUser) showUser)
+    { L.isInitialValue = config.isInitialUser
     }
+
+toSingleSelectionStyle :: SingleUserSelectorStyle -> L.SingleSelectionStyle
+toSingleSelectionStyle SingleUserSelectorStyleButtons = L.SButtons
+toSingleSelectionStyle SingleUserSelectorStyleComboBox = L.SComboBox
+toSingleSelectionStyle SingleUserSelectorStyleShowOnly = L.SShow
 
 singleUserSelectorComponent
   :: SyncDocumentRef
   -> UserSelectorConfig
   -> SingleUserSelectorStyle
-  -> SelectorTransformedLens p (Maybe User) t
+  -> SelectorTransformedLens p Maybe User f t
   -> M.Component p (L.SingleModel User) (L.Action User)
-singleUserSelectorComponent r config parentLens =
-  L.singleListSelectorComponent r parentLens (toListSelectorConfig config) L.SButtons
+singleUserSelectorComponent r config style =
+  L.singleListSelectorComponent r (toListSelectorConfig config) (toSingleSelectionStyle style)
 
 singleUserEditorField
-  :: (Ord p)
+  :: (Eq t, Ord p)
   => SyncDocumentRef
+  -> M.MisoString
   -> (User -> Bool)
-  -> SelectorTransformedLens p (Maybe User) (Maybe User)
+  -> SelectorTransformedLens p Maybe User Maybe t
   -> EditorField p f
-singleUserEditorField r p l =
-  selectorEditorField
-    l
-    (V.text_ . maybe (C.translate' C.LblNoUser) showUser)
-    (\e -> singleUserSelectorComponent r p undefined)
+singleUserEditorField r k p l =
+  let config e =
+        UserSelectorConfig
+          { isPossibleUser = p
+          , isInitialUser = \u -> e ^. l.lens == Just (l.transform u)
+          }
+   in selectorEditorField
+        k
+        l
+        (singleUserSelectorComponent r . config)
+        (SingleUserSelectorStyleButtons, SingleUserSelectorStyleShowOnly)
 
-singleUserIdEditorField r p l =
-  selectorEditorField
-    l
-    (V.text_ . maybe (C.translate' C.LblNoUser) (V.text_ . C.userId))
-    (\e -> singleUserSelectorComponent r p undefined)
+data MultiUserSelectorStyle
+  = MultiUserSelectorStyleButtons
+  | MultiUserSelectorStyleShowOnly
+  deriving (Eq, Show)
+
+toMultiSelectionStyle :: MultiUserSelectorStyle -> L.MultiSelectionStyle
+toMultiSelectionStyle MultiUserSelectorStyleButtons = L.MButtons
+toMultiSelectionStyle MultiUserSelectorStyleShowOnly = L.MShow
 
 multiUserSelectorComponent
   :: SyncDocumentRef
-  -> (User -> Bool)
-  -> (User -> Bool)
-  -> SelectorTransformedLens p [User] t
+  -> UserSelectorConfig
+  -> MultiUserSelectorStyle
+  -> SelectorTransformedLens p [] User f t
   -> M.Component p (L.MultiModel User) (L.Action User)
-multiUserSelectorComponent r p selectInitialUsers parentLens =
-  L.multiListSelectorComponent r (listUsers p) showUser parentLens selectInitialUsers L.MButtons
+multiUserSelectorComponent r config style =
+  L.multiListSelectorComponent r (toListSelectorConfig config) (toMultiSelectionStyle style)
+
+multiUserEditorField
+  :: (Ord p, Ord t, Foldable f)
+  => SyncDocumentRef
+  -> M.MisoString
+  -> (User -> Bool)
+  -> SelectorTransformedLens p [] User f t
+  -> EditorField p f'
+multiUserEditorField r k p l =
+  let config e =
+        let initialSelection = Set.fromList (toList $ e ^. l.lens)
+         in UserSelectorConfig
+              { isPossibleUser = p
+              , isInitialUser = \u -> l.transform u `Set.member` initialSelection
+              }
+   in selectorEditorField
+        k
+        l
+        (multiUserSelectorComponent r . config)
+        (MultiUserSelectorStyleShowOnly, MultiUserSelectorStyleButtons)
 
 listUsers :: (User -> Bool) -> Document -> [User]
 listUsers p d = filter p $ Ix.toAscList (Proxy @Text) d.users

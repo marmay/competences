@@ -99,6 +99,7 @@ data Label
   | LblAllTime
   | LblSelectEvidences
   | LblEvidenceDate
+  | LblStudents
   | LblPleaseSelectItem
   | LblNoUser
   deriving (Eq, Ord, Show)
@@ -145,6 +146,7 @@ labels' =
   , LblAllTime
   , LblSelectEvidences
   , LblEvidenceDate
+  , LblStudents
   , LblPleaseSelectItem
   , LblNoUser
   ]
@@ -201,6 +203,7 @@ defaultTranslation LblThisWeek = "Diese Woche"
 defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
 defaultTranslation LblEvidenceDate = "Datum"
+defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblNoUser = "Kein Benutzer"
 
