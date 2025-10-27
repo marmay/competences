@@ -12,7 +12,6 @@ import Competences.Document
   , CompetenceGrid (..)
   , Document (..)
   , User
-  
   , UserRole (..)
   , emptyDocument
   , levels
@@ -21,6 +20,7 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.UserSelector (singleUserSelectorComponent)
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
@@ -30,7 +30,6 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
-import Competences.Frontend.Component.Selector.Common (selectorLens)
 
 competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
 competenceGridViewerComponent r =
@@ -63,7 +62,9 @@ competenceGridViewerComponent r =
       where
         title = V.title_ (M.ms m.document.competenceGrid.title)
         description = V.text_ (M.ms m.document.competenceGrid.description)
-        userSelector = M.div_ [] M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) (selectorLens #selectedUser)
+        userSelector =
+          M.div_ []
+            M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) (const False) (selectorLens #selectedUser)
         evidences = case m.selectedUser of
           Just user -> m.document.evidences Ix.@= user.id
           Nothing -> Ix.empty

@@ -16,18 +16,20 @@ import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens)
 singleUserSelectorComponent
   :: SyncDocumentRef
   -> (User -> Bool)
+  -> (User -> Bool)
   -> SelectorTransformedLens p (Maybe User) t
   -> M.Component p (L.SingleModel User) (L.Action User)
-singleUserSelectorComponent r p parentLens =
-  L.singleListSelectorComponent r (listUsers p) showUser parentLens L.SButtons
+singleUserSelectorComponent r p parentLens selectInitialUser =
+  L.singleListSelectorComponent r (listUsers p) showUser selectInitialUser parentLens L.SButtons
 
 multiUserSelectorComponent
   :: SyncDocumentRef
   -> (User -> Bool)
+  -> (User -> Bool)
   -> SelectorTransformedLens p [User] t
   -> M.Component p (L.MultiModel User) (L.Action User)
-multiUserSelectorComponent r p parentLens =
-  L.multiListSelectorComponent r (listUsers p) showUser parentLens L.MButtons
+multiUserSelectorComponent r p selectInitialUsers parentLens =
+  L.multiListSelectorComponent r (listUsers p) showUser parentLens selectInitialUsers L.MButtons
 
 listUsers :: (User -> Bool) -> Document -> [User]
 listUsers p d = filter p $ Ix.toAscList (Proxy @Text) d.users
