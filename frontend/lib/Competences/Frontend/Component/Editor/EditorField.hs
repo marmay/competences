@@ -11,9 +11,14 @@ where
 
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
+import Competences.Frontend.Component.Selector.Common
+  ( SelectorTransformedLens (..)
+  , selectorTransformedLens
+  )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
 import GHC.Generics (Generic)
@@ -22,7 +27,6 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Optics.Core (Lens', (&), (.~), (^.))
 import Optics.Core qualified as O
-import Data.Maybe (fromMaybe)
 
 data EditorField a f = EditorField
   { viewer :: !(a -> M.View (Model a f) (Action a))
@@ -41,21 +45,23 @@ msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
 
 hostEditorField
-  :: (Eq cm, Ord a)
-  => Lens' a b
-  -> (b -> M.View (Model a f) (Action a))
-  -> (Lens' (Model a f) b -> M.Component (Model a f) cm ca)
+  :: forall a b b' f cm ca
+   . (Eq cm, Ord a)
+  => SelectorTransformedLens a b b'
+  -> (b' -> M.View (Model a f) (Action a))
+  -> (SelectorTransformedLens (Model a f) b b' -> M.Component (Model a f) cm ca)
   -> EditorField a f
 hostEditorField l viewer mkEditorComponent =
   EditorField
-    { viewer = \a -> viewer (a ^. l)
+    { viewer = \a -> viewer (a ^. l.lens)
     , editor = \refocusTarget original _ ->
-        let modelLens = (#patches O.% O.at original O.% maybeLens original O.% l)
-            editorComponent = mkEditorComponent modelLens
+        let l' =
+              selectorTransformedLens l.transformer (#patches O.% O.at original O.% maybeLens original O.% l.lens)
+            editorComponent = mkEditorComponent l'
          in M.div_ (refocusTargetAttr refocusTarget) M.+> editorComponent
     }
   where
-    maybeLens :: Eq a => a -> Lens' (Maybe a) a
+    maybeLens :: (Eq a) => a -> Lens' (Maybe a) a
     maybeLens v = O.lens (fromMaybe v) (\_ v' -> if v == v' then Nothing else Just v')
 
 dayEditorField :: Lens' a Day -> EditorField a f

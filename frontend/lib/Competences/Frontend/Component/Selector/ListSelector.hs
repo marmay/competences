@@ -15,8 +15,9 @@ import Competences.Frontend.View qualified as V
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (Lens', (%~), (&), (.~))
+import Optics.Core (Setter', (%~), (&), (.~), (^.))
 import Optics.Core qualified as O
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 
 data SingleSelectionStyle
   = SButtons
@@ -46,17 +47,17 @@ data Action a
   deriving (Eq, Show)
 
 singleListSelectorComponent
-  :: forall a p
+  :: forall p a t
    . (Eq a)
   => SyncDocumentRef
   -> (Document -> [a])
   -> (a -> M.MisoString)
-  -> Lens' p (Maybe a)
+  -> SelectorTransformedLens p (Maybe a) t 
   -> SingleSelectionStyle
   -> M.Component p (SingleModel a) (Action a)
-singleListSelectorComponent r getValues showValue parentLens style =
+singleListSelectorComponent r getValues showValue t style =
   (M.component model update view)
-    { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #selectedValue]
+    { M.bindings = [ mkSelectorBinding t #selectedValue ]
     , M.subs = [subscribeDocument r UpdateDocument]
     }
   where
@@ -83,17 +84,17 @@ singleListSelectorComponent r getValues showValue parentLens style =
           (\v -> Just v == m.selectedValue)
 
 multiListSelectorComponent
-  :: forall a p
+  :: forall p a t
    . (Ord a)
   => SyncDocumentRef
   -> (Document -> [a])
   -> (a -> M.MisoString)
-  -> Lens' p [a]
+  -> SelectorTransformedLens p [a] t
   -> MultiSelectionStyle
   -> M.Component p (MultiModel a) (Action a)
-multiListSelectorComponent r getValues showValue parentLens selectionMode =
+multiListSelectorComponent r getValues showValue s selectionMode =
   (M.component model update view)
-    { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #selectedValues]
+    { M.bindings = [mkSelectorBinding s (O.castOptic #selectedValues)]
     , M.subs = [subscribeDocument r UpdateDocument]
     }
   where

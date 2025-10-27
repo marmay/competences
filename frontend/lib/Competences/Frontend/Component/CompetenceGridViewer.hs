@@ -30,6 +30,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
+import Competences.Frontend.Component.Selector.Common (selectorLens)
 
 competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
 competenceGridViewerComponent r =
@@ -62,7 +63,7 @@ competenceGridViewerComponent r =
       where
         title = V.title_ (M.ms m.document.competenceGrid.title)
         description = V.text_ (M.ms m.document.competenceGrid.description)
-        userSelector = M.div_ [] M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) #selectedUser
+        userSelector = M.div_ [] M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) (selectorLens #selectedUser)
         evidences = case m.selectedUser of
           Just user -> m.document.evidences Ix.@= user.id
           Nothing -> Ix.empty

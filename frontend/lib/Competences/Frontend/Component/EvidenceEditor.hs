@@ -9,6 +9,7 @@ import Competences.Document
   ( Document (..)
   , Evidence (..)
   , Lock (..)
+  , User (..)
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -26,7 +27,12 @@ import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core ((&), (.~), (?~), (^.), (%))
+import Competences.Frontend.Component.Selector.UserSelector (multiUserSelectorComponent)
+import Competences.Document.User (isStudent)
+import qualified Optics.Core as O
+import qualified Data.Set as Set
+import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -70,4 +76,9 @@ evidenceEditorComponent r =
             evidenceEditable
             `TE.addNamedField` ( C.translate' C.LblEvidenceDate
                                , TE.dayEditorField #date
+                               )
+            `TE.addNamedField` ( "Users"
+                               , TE.hostEditorField (selectorTransformedLens (Set.fromList . fmap (.id)) #userIds)
+                                                    (const $ M.div_ [] [])
+                                                    (multiUserSelectorComponent r isStudent)
                                )

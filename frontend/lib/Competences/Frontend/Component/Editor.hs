@@ -10,6 +10,7 @@ module Competences.Frontend.Component.Editor
   , Editable (..)
   , editable
   , editorComponent
+  , hostEditorField
   , msIso
   )
 where
