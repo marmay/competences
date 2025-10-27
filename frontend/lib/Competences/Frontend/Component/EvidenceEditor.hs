@@ -11,6 +11,7 @@ import Competences.Document
   , Lock (..)
   , User (..)
   )
+import Competences.Document.Evidence (ActivityTasks (..))
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -25,6 +26,7 @@ import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core qualified as O
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -68,6 +70,11 @@ evidenceEditorComponent r =
             `TE.addNamedField` ( C.translate' C.LblEvidenceDate
                                , TE.dayEditorField #date
                                )
+            `TE.addNamedField` ( C.translate' C.LblActivityType
+                               , TE.enumEditorField
+                                   (C.translate' . C.LblActivityTypeDescription)
+                                   #activityType
+                               )
             `TE.addNamedField` ( C.translate' C.LblStudents
                                , multiUserEditorField
                                    r
@@ -75,8 +82,8 @@ evidenceEditorComponent r =
                                    isStudent
                                    (selectorTransformedLens (.id) Set.fromList #userIds)
                                )
-            `TE.addNamedField` ( C.translate' C.LblActivityType
-                               , TE.enumEditorField
-                                   (C.translate' . C.LblActivityTypeDescription)
-                                   #activityType
+            `TE.addNamedField` ( C.translate' C.LblActivityTasks
+                               , TE.textEditorField (#activityTasks O.% activityTasksIso)
                                )
+        activityTasksIso :: O.Iso' ActivityTasks M.MisoString
+        activityTasksIso = O.iso (\(ActivityTasks t) -> M.ms t) (ActivityTasks . M.fromMisoString)

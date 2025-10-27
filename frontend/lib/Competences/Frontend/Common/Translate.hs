@@ -99,6 +99,7 @@ data Label
   | LblEvidenceDate
   | LblActivityType
   | LblActivityTypeDescription !ActivityType
+  | LblActivityTasks
   | LblStudents
   | LblPleaseSelectItem
   | LblNoUser
@@ -150,6 +151,7 @@ labels' =
   , LblActivityTypeDescription Supervised
   , LblActivityTypeDescription SemiSupervised
   , LblActivityTypeDescription Unsupervised
+  , LblActivityTasks
   , LblStudents
   , LblPleaseSelectItem
   , LblNoUser
@@ -211,6 +213,7 @@ defaultTranslation LblActivityType = "Art der Aktivität"
 defaultTranslation (LblActivityTypeDescription Supervised) = "Beaufsichtigt"
 defaultTranslation (LblActivityTypeDescription SemiSupervised) = "Betreut"
 defaultTranslation (LblActivityTypeDescription Unsupervised) = "Selbstständig"
+defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblNoUser = "Kein Benutzer"
