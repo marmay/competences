@@ -23,8 +23,10 @@ import Optics.Core ((&), (.~))
 import UnliftIO (liftIO)
 
 data Model = Model
-  { evidences :: Ix.IxSet EvidenceIxs Evidence
-  , 
+  {
+  } 
+
+
 -- data Model = Model
 --   { evidence :: !(Maybe Evidence)
 --   , nextObservationText :: !Text
