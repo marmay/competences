@@ -3,9 +3,16 @@ module Competences.Frontend.Component.EvidenceEditor
   )
 where
 
+import Competences.Command (Command (..), EntityCommand (..))
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document
-  ( Evidence (..)
+  ( Document (..)
+  , Evidence (..)
+  , Lock (..)
   )
+import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.SyncDocument
   ( SyncDocumentEnv (..)
@@ -15,10 +22,11 @@ import Competences.Frontend.SyncDocument
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
+import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((&), (.~), (^.))
+import Optics.Core ((&), (.~), (?~), (^.))
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -38,8 +46,28 @@ evidenceEditorComponent r =
       V.viewFlow
         (V.hFlow & #expandDirection .~ V.Expand V.Start)
         [ V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence)
-        , evidenceEditor
+        , V.component
+            ("evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence)
+            (TE.editorComponent evidenceEditor r)
         ]
       where
+        evidenceEditable =
+          TE.editable
+            ( \d -> do
+                e <- m.evidence
+                fmap
+                  (\c -> (c, (d ^. #locks) Map.!? EvidenceLock c.id))
+                  (Ix.getOne $ d.evidences Ix.@= e.id)
+            )
+            & (#modify ?~ (\e modify -> OnEvidences (Modify e.id modify)))
+            & (#delete ?~ (\e -> OnEvidences (Delete e.id)))
         evidenceEditor =
-          M.div_ [] []
+          TE.editor
+            ( TE.editorFormView'
+                (C.translate' C.LblEditEvidence)
+                id
+            )
+            evidenceEditable
+            `TE.addNamedField` ( C.translate' C.LblEvidenceDate
+                               , TE.dayEditorField #date
+                               )

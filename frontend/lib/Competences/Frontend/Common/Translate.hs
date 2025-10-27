@@ -74,6 +74,7 @@ data Label
   | LblCompetenceLevelDescription !Level
   | LblCompetenceLevelPlaceholder !Level
   | LblEditCompetence
+  | LblEditEvidence
   | LblAddNewCompetence
   | LblAddEvidence
   | LblUserList
@@ -97,6 +98,7 @@ data Label
   | LblThisWeek
   | LblAllTime
   | LblSelectEvidences
+  | LblEvidenceDate
   | LblPleaseSelectItem
   deriving (Eq, Ord, Show)
 
@@ -119,6 +121,7 @@ labels' =
   , LblCompetenceLevelPlaceholder IntermediateLevel
   , LblCompetenceLevelPlaceholder AdvancedLevel
   , LblEditCompetence
+  , LblEditEvidence
   , LblAddNewCompetence
   , LblAddEvidence
   , LblUserList
@@ -140,6 +143,7 @@ labels' =
   , LblThisWeek
   , LblAllTime
   , LblSelectEvidences
+  , LblEvidenceDate
   , LblPleaseSelectItem
   ]
   <> map LblSocialForm socialForms
@@ -166,6 +170,7 @@ defaultTranslation (LblCompetenceLevelPlaceholder BasicLevel) = "..."
 defaultTranslation (LblCompetenceLevelPlaceholder IntermediateLevel) = "..."
 defaultTranslation (LblCompetenceLevelPlaceholder AdvancedLevel) = "..."
 defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
+defaultTranslation LblEditEvidence = "Aufzeichnung bearbeiten"
 defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
 defaultTranslation LblAddEvidence = "Beobachtung hinzufügen"
 defaultTranslation LblUserList = "Liste aller Benutzer"
@@ -193,6 +198,7 @@ defaultTranslation LblToday = "Heute"
 defaultTranslation LblThisWeek = "Diese Woche"
 defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
+defaultTranslation LblEvidenceDate = "Datum"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 
 currentLanguage :: IORef Language
