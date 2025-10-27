@@ -3,12 +3,9 @@ module Competences.Frontend.Component.EvidenceEditor
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..))
 import Competences.Document
   ( Evidence (..)
   )
-import Competences.Document.Evidence (mkEvidence)
-import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.SyncDocument
   ( SyncDocumentEnv (..)

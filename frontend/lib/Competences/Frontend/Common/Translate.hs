@@ -97,6 +97,7 @@ data Label
   | LblThisWeek
   | LblAllTime
   | LblSelectEvidences
+  | LblPleaseSelectItem
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -139,6 +140,7 @@ labels' =
   , LblThisWeek
   , LblAllTime
   , LblSelectEvidences
+  , LblPleaseSelectItem
   ]
   <> map LblSocialForm socialForms
   <> map LblAbility abilities
@@ -191,6 +193,7 @@ defaultTranslation LblToday = "Heute"
 defaultTranslation LblThisWeek = "Diese Woche"
 defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
+defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
