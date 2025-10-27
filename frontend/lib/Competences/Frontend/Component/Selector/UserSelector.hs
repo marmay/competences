@@ -11,12 +11,12 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Miso qualified as M
-import Optics.Core (Lens')
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens)
 
 singleUserSelectorComponent
   :: SyncDocumentRef
   -> (User -> Bool)
-  -> Lens' p (Maybe User)
+  -> SelectorTransformedLens p (Maybe User) t
   -> M.Component p (L.SingleModel User) (L.Action User)
 singleUserSelectorComponent r p parentLens =
   L.singleListSelectorComponent r (listUsers p) showUser parentLens L.SButtons
@@ -24,7 +24,7 @@ singleUserSelectorComponent r p parentLens =
 multiUserSelectorComponent
   :: SyncDocumentRef
   -> (User -> Bool)
-  -> Lens' p [User]
+  -> SelectorTransformedLens p [User] t
   -> M.Component p (L.MultiModel User) (L.Action User)
 multiUserSelectorComponent r p parentLens =
   L.multiListSelectorComponent r (listUsers p) showUser parentLens L.MButtons
