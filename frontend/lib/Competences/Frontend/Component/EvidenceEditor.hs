@@ -75,3 +75,8 @@ evidenceEditorComponent r =
                                    isStudent
                                    (selectorTransformedLens (.id) Set.fromList #userIds)
                                )
+            `TE.addNamedField` ( C.translate' C.LblActivityType
+                               , TE.enumEditorField
+                                   (C.translate' . C.LblActivityTypeDescription)
+                                   #activityType
+                               )

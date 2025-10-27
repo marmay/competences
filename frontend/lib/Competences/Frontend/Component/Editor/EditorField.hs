@@ -103,7 +103,6 @@ enumEditorField toText l =
                     Just v' -> UpdatePatch original (patched & (l .~ v'))
                     Nothing -> UpdatePatch original patched
                 )
-            , M.value_ (toText $ patched ^. l)
             , T.tailwind [T.WFull]
             ]
               <> refocusTargetAttr refocusTarget
