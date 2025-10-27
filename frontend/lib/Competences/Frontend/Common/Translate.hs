@@ -100,6 +100,7 @@ data Label
   | LblSelectEvidences
   | LblEvidenceDate
   | LblPleaseSelectItem
+  | LblNoUser
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -145,6 +146,7 @@ labels' =
   , LblSelectEvidences
   , LblEvidenceDate
   , LblPleaseSelectItem
+  , LblNoUser
   ]
   <> map LblSocialForm socialForms
   <> map LblAbility abilities
@@ -200,6 +202,7 @@ defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
 defaultTranslation LblEvidenceDate = "Datum"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
+defaultTranslation LblNoUser = "Kein Benutzer"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

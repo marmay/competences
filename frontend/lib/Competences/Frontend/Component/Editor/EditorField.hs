@@ -5,7 +5,7 @@ module Competences.Frontend.Component.Editor.EditorField
   , enumEditorField
   , enumEditorField'
   , msIso
-  , hostEditorField
+  , selectorEditorField
   )
 where
 
@@ -44,14 +44,14 @@ textEditorField l =
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
 
-hostEditorField
+selectorEditorField
   :: forall a b b' f cm ca
    . (Eq cm, Ord a)
   => SelectorTransformedLens a b b'
   -> (b' -> M.View (Model a f) (Action a))
   -> (a -> SelectorTransformedLens (Model a f) b b' -> M.Component (Model a f) cm ca)
   -> EditorField a f
-hostEditorField l viewer mkEditorComponent =
+selectorEditorField l viewer mkEditorComponent =
   EditorField
     { viewer = \a -> viewer (a ^. l.lens)
     , editor = \refocusTarget original _ ->
@@ -62,7 +62,7 @@ hostEditorField l viewer mkEditorComponent =
     }
   where
     maybeLens :: (Eq a) => a -> Lens' (Maybe a) a
-    maybeLens v = O.lens (fromMaybe v) (\_ v' -> if v == v' then Nothing else Just v')
+    maybeLens v = O.lens (fromMaybe v) (\_ v' -> Just v')
 
 dayEditorField :: Lens' a Day -> EditorField a f
 dayEditorField l =
