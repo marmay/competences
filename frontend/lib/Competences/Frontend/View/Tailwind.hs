@@ -74,6 +74,7 @@ data TailwindCls
   | RoundedRight
   | RoundedTop
   | RoundedBottom
+  | Shrink
   | SizeFit
   | TableCell
   | TableFixed
@@ -190,6 +191,7 @@ tailwindNames RoundedLeft = ["rounded-l-md"]
 tailwindNames RoundedRight = ["rounded-r-md"]
 tailwindNames RoundedTop = ["rounded-t-md"]
 tailwindNames RoundedBottom = ["rounded-b-md"]
+tailwindNames Shrink = ["shrink"]
 tailwindNames SizeFit = ["size-fit"]
 tailwindNames TableCell = ["border", useColor Border Sky I800 O100]
 tailwindNames TableFixed = ["table-fixed"]

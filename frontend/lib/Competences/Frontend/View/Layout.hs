@@ -37,29 +37,30 @@ data LayoutSpace = NoSpace | TinySpace | SmallSpace | MediumSpace | LargeSpace
 data Alignment = Start | Center | End
   deriving (Eq, Show)
 
-data FlowLayout = FlowLayout
+data FlowLayout a = FlowLayout
   { direction :: !FlowDirection
   , expandDirection :: !Expand
   , expandOrthogonal :: !Expand
   , gap :: !LayoutSpace
   , margin :: !LayoutSpace
+  , extraAttrs :: [M.Attribute a]
   }
-  deriving (Eq, Generic, Show)
+  deriving (Generic)
 
 flowSpring :: M.View m a
 flowSpring = M.div_ [T.tailwind [T.FlexGrow]] []
 
-flow :: FlowDirection -> FlowLayout
-flow d = FlowLayout d NoExpand NoExpand NoSpace NoSpace
+flow :: FlowDirection -> FlowLayout a
+flow d = FlowLayout d NoExpand NoExpand NoSpace NoSpace []
 
-hFlow, vFlow :: FlowLayout
+hFlow, vFlow :: FlowLayout a
 hFlow = flow HorizontalFlow
 vFlow = flow VerticalFlow
 
-viewFlow :: FlowLayout -> [M.View m a] -> M.View m a
+viewFlow :: FlowLayout a -> [M.View m a] -> M.View m a
 viewFlow l =
   M.div_
-    [T.tailwind $ mconcat [[T.Flex], direction, expandDirectional, expandOrthogonal, gap, margin]]
+    ([T.tailwind $ mconcat [[T.Flex], direction, expandDirectional, expandOrthogonal, gap, margin]] <> l.extraAttrs)
   where
     direction = case l.direction of
       HorizontalFlow -> [T.FlexRow]

@@ -8,8 +8,8 @@ where
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
+import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
-import Competences.Frontend.Page.EvidencesPage (evidencesPage)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Data.Functor (($>))
@@ -83,7 +83,7 @@ mkApp r =
 
     viewCompetenceGrid = mounted ViewCompetenceGrid $ competenceGridViewerComponent r
     editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
-    evidences = mounted Evidences $ evidencesPage r
+    evidences = mounted Evidences $ evidenceEditorComponent r
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
     mounted key c = M.div_ [M.key_ key] M.+> c

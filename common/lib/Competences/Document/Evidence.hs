@@ -99,12 +99,11 @@ data Evidence = Evidence
   }
   deriving (Eq, Generic, Ord, Show)
 
-mkEvidence :: EvidenceId -> IO Evidence
-mkEvidence eId = do
-  today <- utctDay <$> getCurrentTime
-  pure $ nilEvidence
+mkEvidence :: EvidenceId -> Day -> Evidence
+mkEvidence eId date = do
+  nilEvidence
     { id = eId
-    , date = today
+    , date = date
     }
 
 nilEvidence :: Evidence
