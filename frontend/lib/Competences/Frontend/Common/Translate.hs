@@ -4,6 +4,7 @@ module Competences.Frontend.Common.Translate
   , Language (..)
   , addLanguage
   , extend
+  , formatDay
   , labelOf
   , loadTranslations
   , merge
@@ -31,6 +32,7 @@ import Competences.Document (Level (..))
 import Competences.Document.Evidence (SocialForm, Ability, socialForms, abilities)
 import Competences.Document.Evidence (SocialForm(..))
 import Competences.Document.Evidence (Ability(..))
+import Data.Time (Day, formatTime, defaultTimeLocale)
 
 data Language
   = De
@@ -91,6 +93,9 @@ data Label
   | LblAbility !Ability
   | LblGridTitle
   | LblGridDescription
+  | LblToday
+  | LblThisWeek
+  | LblAllTime
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -129,6 +134,9 @@ labels' =
   , LblExpandEvidenceSelector
   , LblGridTitle
   , LblGridDescription
+  , LblToday
+  , LblThisWeek
+  , LblAllTime
   ]
   <> map LblSocialForm socialForms
   <> map LblAbility abilities
@@ -177,6 +185,9 @@ defaultTranslation (LblAbility WithSupport) = "mit Unterstützung"
 defaultTranslation (LblAbility NotYet) = "noch nicht"
 defaultTranslation LblGridTitle = "Titel"
 defaultTranslation LblGridDescription = "Beschreibung"
+defaultTranslation LblToday = "Heute"
+defaultTranslation LblThisWeek = "Diese Woche"
+defaultTranslation LblAllTime = "Gesamt"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
@@ -204,6 +215,9 @@ translate' :: Label -> MisoString
 translate' k = unsafePerformIO $ do
   l <- readIORef currentLanguage
   translate l k
+
+formatDay :: Day -> MisoString
+formatDay d = ms $ formatTime defaultTimeLocale "%d.%m.%Y" d
 
 labelOf :: Label -> Text
 labelOf = T.pack . show
