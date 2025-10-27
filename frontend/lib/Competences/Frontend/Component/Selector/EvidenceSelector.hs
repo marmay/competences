@@ -16,7 +16,12 @@ import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
-import Competences.Frontend.Component.Selector.UserSelector (singleUserSelectorComponent)
+import Competences.Frontend.Component.Selector.UserSelector
+  ( SingleUserSelectorStyle (SingleUserSelectorStyleButtons)
+  , UserSelectorConfig (..)
+  , defaultUserSelectorConfig
+  , singleUserSelectorComponent
+  )
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentEnv (..)
@@ -104,7 +109,12 @@ evidenceSelectorComponent r parentLens =
         [ V.title_ (C.translate' C.LblSelectEvidences)
         , V.component
             "evidence-selector-users"
-            (singleUserSelectorComponent r isStudent (const False) (selectorLens #filteredUsers))
+            ( singleUserSelectorComponent
+                r
+                defaultUserSelectorConfig {isPossibleUser = isStudent}
+                SingleUserSelectorStyleButtons
+                (selectorLens #filteredUsers)
+            )
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'

@@ -22,20 +22,17 @@ import Optics.Core qualified as O
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Data.List (find)
 
-data ListSelectorConfig a = ListSelectorConfig
+data ListSelectorConfig a t = ListSelectorConfig
   { listValues :: !(Document -> [a])
   , showValue :: !(a -> M.MisoString)
-  , isPossibleValue :: !(a -> Bool)
   , isInitialValue :: !(a -> Bool)
   }
 
-listSelectorConfig :: (Document -> [a]) -> (a -> M.MisoString) -> ListSelectorConfig a
+listSelectorConfig :: (Document -> [a]) -> (a -> M.MisoString) -> ListSelectorConfig a f
 listSelectorConfig listValues showValue =
   ListSelectorConfig
     { listValues = listValues
     , showValue = showValue
-    , isEditing = False
-    , isPossibleValue = const True
     , isInitialValue = const False
     }
 
@@ -70,14 +67,14 @@ data Action a
   deriving (Eq, Show)
 
 singleListSelectorComponent
-  :: forall p a t
+  :: forall p a f t
    . (Eq a)
   => SyncDocumentRef
-  -> SelectorTransformedLens p (Maybe a) t
-  -> ListSelectorConfig a
+  -> ListSelectorConfig a t
   -> SingleSelectionStyle
+  -> SelectorTransformedLens p Maybe a f t
   -> M.Component p (SingleModel a) (Action a)
-singleListSelectorComponent r t config style =
+singleListSelectorComponent r config style t =
   (M.component model update view)
     { M.bindings = [ mkSelectorBinding t #selectedValue ]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -86,7 +83,7 @@ singleListSelectorComponent r t config style =
     model = SingleModel [] Nothing
 
     update (UpdateDocument (DocumentChange d info)) =
-      let possibleValues = filter config.isPossibleValue (config.listValues d)
+      let possibleValues = config.listValues d
        in M.modify $ \m ->
             let selectedValue
                   | isInitialUpdate info = find config.isInitialValue possibleValues
@@ -110,14 +107,14 @@ singleListSelectorComponent r t config style =
       SShow -> V.text_ $ maybe "" config.showValue m.selectedValue
 
 multiListSelectorComponent
-  :: forall p a t
-   . (Ord a)
+  :: forall p a f t
+   . (Ord a, Show a)
   => SyncDocumentRef
-  -> SelectorTransformedLens p [a] t
-  -> ListSelectorConfig a
+  -> ListSelectorConfig a t
   -> MultiSelectionStyle
+  -> SelectorTransformedLens p [] a f t
   -> M.Component p (MultiModel a) (Action a)
-multiListSelectorComponent r s config style =
+multiListSelectorComponent r config style s =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding s (O.castOptic #selectedValues)]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -126,7 +123,7 @@ multiListSelectorComponent r s config style =
     model = MultiModel [] []
 
     update (UpdateDocument (DocumentChange d info)) =
-      let possibleValues = filter config.isPossibleValue $ config.listValues d
+      let possibleValues = config.listValues d
        in M.modify $ \m ->
             let selectedValues =
                   if isInitialUpdate info

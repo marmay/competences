@@ -18,10 +18,15 @@ import Competences.Document
   , ordered
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
-import Competences.Document.User (User (..))
+import Competences.Document.User (User (..), isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (selectorLens)
-import Competences.Frontend.Component.Selector.UserSelector (singleUserSelectorComponent)
+import Competences.Frontend.Component.Selector.UserSelector
+  ( SingleUserSelectorStyle (SingleUserSelectorStyleButtons)
+  , UserSelectorConfig (..)
+  , defaultUserSelectorConfig
+  , singleUserSelectorComponent
+  )
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Table qualified as C
@@ -63,8 +68,13 @@ competenceGridViewerComponent r =
         title = V.title_ (M.ms m.document.competenceGrid.title)
         description = V.text_ (M.ms m.document.competenceGrid.description)
         userSelector =
-          M.div_ []
-            M.+> singleUserSelectorComponent r (\u' -> u'.role == Student) (const False) (selectorLens #selectedUser)
+          V.component'
+            ( singleUserSelectorComponent
+                r
+                defaultUserSelectorConfig {isPossibleUser = isStudent}
+                SingleUserSelectorStyleButtons
+                (selectorLens #selectedUser)
+            )
         evidences = case m.selectedUser of
           Just user -> m.document.evidences Ix.@= user.id
           Nothing -> Ix.empty

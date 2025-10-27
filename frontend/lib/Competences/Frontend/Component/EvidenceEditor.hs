@@ -11,28 +11,20 @@ import Competences.Document
   , Lock (..)
   , User (..)
   )
+import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
+import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
-import Competences.Frontend.SyncDocument
-  ( SyncDocumentEnv (..)
-  , SyncDocumentRef
-  , modifySyncDocument
-  , nextId
-  , syncDocumentEnv
-  )
+import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
+import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
-import Optics.Core ((&), (.~), (?~), (^.), (%))
-import Competences.Frontend.Component.Selector.UserSelector (multiUserSelectorComponent)
-import Competences.Document.User (isStudent)
-import qualified Optics.Core as O
-import qualified Data.Set as Set
-import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
+import Optics.Core ((&), (.~), (?~), (^.))
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -52,11 +44,10 @@ evidenceEditorComponent r =
       V.viewFlow
         (V.hFlow & #expandDirection .~ V.Expand V.Start)
         [ V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence)
-        , V.component
-            ("evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence)
-            (TE.editorComponent evidenceEditor r)
+        , V.component evidenceEditorId (TE.editorComponent evidenceEditor r)
         ]
       where
+        evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
         evidenceEditable =
           TE.editable
             ( \d -> do
@@ -77,8 +68,10 @@ evidenceEditorComponent r =
             `TE.addNamedField` ( C.translate' C.LblEvidenceDate
                                , TE.dayEditorField #date
                                )
-            `TE.addNamedField` ( "Users"
-                               , TE.hostEditorField (selectorTransformedLens (Set.fromList . fmap (.id)) #userIds)
-                                                    (const $ M.div_ [] [])
-                                                    (\e -> multiUserSelectorComponent r isStudent ((`Set.member` e.userIds) . (.id)))
+            `TE.addNamedField` ( C.translate' C.LblStudents
+                               , multiUserEditorField
+                                   r
+                                   (evidenceEditorId <> "-users")
+                                   isStudent
+                                   (selectorTransformedLens (.id) Set.fromList #userIds)
                                )

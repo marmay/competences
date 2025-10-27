@@ -45,20 +45,21 @@ msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
 
 selectorEditorField
-  :: forall a b b' f cm ca
+  :: forall a f b f' b' ef cm ca s
    . (Eq cm, Ord a)
-  => SelectorTransformedLens a b b'
-  -> (b' -> M.View (Model a f) (Action a))
-  -> (a -> SelectorTransformedLens (Model a f) b b' -> M.Component (Model a f) cm ca)
-  -> EditorField a f
-selectorEditorField l viewer mkEditorComponent =
-  EditorField
-    { viewer = \a -> viewer (a ^. l.lens)
-    , editor = \refocusTarget original _ ->
-        let l' =
-              selectorTransformedLens l.transformer (#patches O.% O.at original O.% maybeLens original O.% l.lens)
-            editorComponent = mkEditorComponent original l'
-         in M.div_ (refocusTargetAttr refocusTarget) M.+> editorComponent
+  => M.MisoString
+  -> SelectorTransformedLens a f b f' b'
+  -> (a -> s -> SelectorTransformedLens (Model a ef) f b f' b' -> M.Component (Model a ef) cm ca)
+  -> (s, s)
+  -> EditorField a ef
+selectorEditorField k l mkEditorComponent (viewerStyle, editorStyle) =
+  let
+    l' p = selectorTransformedLens l.transform l.embed (#patches O.% O.at p O.% maybeLens p O.% l.lens)
+  in EditorField
+    { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
+    , editor = \refocusTarget a _ ->
+         M.div_ (M.key_ (k <> "-editor") : refocusTargetAttr refocusTarget)
+           M.+> mkEditorComponent a editorStyle (l' a)
     }
   where
     maybeLens :: (Eq a) => a -> Lens' (Maybe a) a
