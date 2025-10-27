@@ -10,14 +10,15 @@ module Competences.Frontend.Component.Selector.ListSelector
 where
 
 import Competences.Document (Document)
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument, isInitialUpdate)
 import Competences.Frontend.View qualified as V
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (Setter', (%~), (&), (.~), (^.))
+import Optics.Core ((%~), (&), (.~), (^.))
 import Optics.Core qualified as O
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
+import Data.List (find)
 
 data SingleSelectionStyle
   = SButtons
@@ -52,10 +53,11 @@ singleListSelectorComponent
   => SyncDocumentRef
   -> (Document -> [a])
   -> (a -> M.MisoString)
-  -> SelectorTransformedLens p (Maybe a) t 
+  -> SelectorTransformedLens p (Maybe a) t
+  -> (a -> Bool)
   -> SingleSelectionStyle
   -> M.Component p (SingleModel a) (Action a)
-singleListSelectorComponent r getValues showValue t style =
+singleListSelectorComponent r getValues showValue t selectInitialValue style =
   (M.component model update view)
     { M.bindings = [ mkSelectorBinding t #selectedValue ]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -63,15 +65,17 @@ singleListSelectorComponent r getValues showValue t style =
   where
     model = SingleModel [] Nothing
 
-    update (UpdateDocument (DocumentChange d _)) =
+    update (UpdateDocument (DocumentChange d info)) =
       let possibleValues = getValues d
        in M.modify $ \m ->
-            m
+            let selectedValue
+                  | isInitialUpdate info = find selectInitialValue possibleValues
+                  | otherwise = do
+                                  v <- m ^. #selectedValue
+                                  if v `elem` possibleValues then Just v else Nothing
+            in m
               & (#possibleValues .~ possibleValues)
-              & ( #selectedValue %~ \case
-                    Nothing -> Nothing
-                    Just v -> if v `elem` possibleValues then Just v else Nothing
-                )
+              & (#selectedValue .~ selectedValue)
     update (Toggle v) = M.modify (#selectedValue %~ \s -> if s == Just v then Nothing else Just v)
 
     view m = case style of
@@ -90,9 +94,10 @@ multiListSelectorComponent
   -> (Document -> [a])
   -> (a -> M.MisoString)
   -> SelectorTransformedLens p [a] t
+  -> (a -> Bool)
   -> MultiSelectionStyle
   -> M.Component p (MultiModel a) (Action a)
-multiListSelectorComponent r getValues showValue s selectionMode =
+multiListSelectorComponent r getValues showValue s selectInitialValues selectionMode =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding s (O.castOptic #selectedValues)]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -100,12 +105,16 @@ multiListSelectorComponent r getValues showValue s selectionMode =
   where
     model = MultiModel [] []
 
-    update (UpdateDocument (DocumentChange d _)) =
+    update (UpdateDocument (DocumentChange d info)) =
       let possibleValues = getValues d
        in M.modify $ \m ->
-            m
+            let selectedValues =
+                  if isInitialUpdate info
+                  then filter selectInitialValues possibleValues
+                  else filter (`Set.member` Set.fromList possibleValues) (m ^. #selectedValues)
+            in m
               & (#possibleValues .~ possibleValues)
-              & (#selectedValues %~ filter (`Set.member` Set.fromList possibleValues))
+              & (#selectedValues .~ selectedValues)
     update (Toggle a) = M.modify $ \m ->
       let selected = Set.fromList m.selectedValues
        in m

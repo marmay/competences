@@ -49,7 +49,7 @@ hostEditorField
    . (Eq cm, Ord a)
   => SelectorTransformedLens a b b'
   -> (b' -> M.View (Model a f) (Action a))
-  -> (SelectorTransformedLens (Model a f) b b' -> M.Component (Model a f) cm ca)
+  -> (a -> SelectorTransformedLens (Model a f) b b' -> M.Component (Model a f) cm ca)
   -> EditorField a f
 hostEditorField l viewer mkEditorComponent =
   EditorField
@@ -57,7 +57,7 @@ hostEditorField l viewer mkEditorComponent =
     , editor = \refocusTarget original _ ->
         let l' =
               selectorTransformedLens l.transformer (#patches O.% O.at original O.% maybeLens original O.% l.lens)
-            editorComponent = mkEditorComponent l'
+            editorComponent = mkEditorComponent original l'
          in M.div_ (refocusTargetAttr refocusTarget) M.+> editorComponent
     }
   where

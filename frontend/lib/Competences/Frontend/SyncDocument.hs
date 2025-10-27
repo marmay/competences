@@ -16,6 +16,7 @@ module Competences.Frontend.SyncDocument
   , syncDocumentEnv
   , mkSyncDocumentEnv
   , nextId
+  , isInitialUpdate
   )
 where
 
@@ -47,9 +48,19 @@ data SyncDocument = SyncDocument
 
 data DocumentChange = DocumentChange
   { document :: !Document
-  , change :: !(Maybe (Document, Command))
+  , change :: !DocumentChangeInfo
   }
   deriving (Eq, Show, Generic)
+
+data DocumentChangeInfo
+  = InitialUpdate
+  | DocumentReloaded
+  | DocumentChanged Document Command
+  deriving (Eq, Show, Generic)
+
+isInitialUpdate :: DocumentChangeInfo -> Bool
+isInitialUpdate InitialUpdate = True
+isInitialUpdate _ = False
 
 data ChangedHandler where
   ChangedHandler :: forall a. (DocumentChange -> a) -> (M.Sink a) -> ChangedHandler
@@ -85,7 +96,7 @@ subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sin
 subscribeDocument d f s = do
   let h = ChangedHandler f s
   modifyMVar_ d.syncDocument $ \d' -> do
-    s $ f (DocumentChange d'.localDocument Nothing)
+    s $ f (DocumentChange d'.localDocument InitialUpdate)
     pure $ d' & (#onChanged %~ (h :))
 
 modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
@@ -111,7 +122,7 @@ modifySyncDocument' uId c d = do
               & (#localChanges %~ (c :))
               & (#localDocument .~ fst m')
       forM_ d.onChanged $
-        issueDocumentChange (DocumentChange d'.localDocument (Just (d.localDocument, c)))
+        issueDocumentChange (DocumentChange d'.localDocument (DocumentChanged d.localDocument c))
       pure d'
 
 setSyncDocument' :: Document -> SyncDocument -> JSM SyncDocument
@@ -120,7 +131,7 @@ setSyncDocument' m d = do
         d
           & (#localChanges .~ [])
           & (#localDocument .~ m)
-  forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument Nothing)
+  forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument DocumentReloaded)
   pure d'
 
 issueDocumentChange :: DocumentChange -> ChangedHandler -> JSM ()
@@ -129,7 +140,7 @@ issueDocumentChange c (ChangedHandler f sink) = sink $ f c
 issueInitialUpdate :: SyncDocumentRef -> JSM ()
 issueInitialUpdate r = do
   d <- readMVar r.syncDocument
-  forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument Nothing)
+  forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument InitialUpdate)
 
 syncDocumentEnv :: SyncDocumentRef -> SyncDocumentEnv
 syncDocumentEnv = (.env)

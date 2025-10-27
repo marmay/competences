@@ -14,6 +14,7 @@ import Competences.Document.Evidence
   )
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Selector.UserSelector (singleUserSelectorComponent)
 import Competences.Frontend.SyncDocument
@@ -35,7 +36,6 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
-import Competences.Frontend.Component.Selector.Common (selectorLens)
 
 data DateRange
   = Today
@@ -102,7 +102,9 @@ evidenceSelectorComponent r parentLens =
       V.viewFlow
         (V.vFlow & (#gap .~ V.SmallSpace))
         [ V.title_ (C.translate' C.LblSelectEvidences)
-        , V.component "evidence-selector-users" (singleUserSelectorComponent r isStudent (selectorLens #filteredUsers))
+        , V.component
+            "evidence-selector-users"
+            (singleUserSelectorComponent r isStudent (const False) (selectorLens #filteredUsers))
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'

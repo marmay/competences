@@ -80,5 +80,5 @@ evidenceEditorComponent r =
             `TE.addNamedField` ( "Users"
                                , TE.hostEditorField (selectorTransformedLens (Set.fromList . fmap (.id)) #userIds)
                                                     (const $ M.div_ [] [])
-                                                    (multiUserSelectorComponent r isStudent)
+                                                    (\e -> multiUserSelectorComponent r isStudent ((`Set.member` e.userIds) . (.id)))
                                )
