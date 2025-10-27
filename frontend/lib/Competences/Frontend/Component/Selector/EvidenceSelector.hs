@@ -8,7 +8,6 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..), UserId)
 import Competences.Document.Evidence
   ( ActivityTasks (..)
-  , ActivityType (..)
   , Evidence (..)
   , mkEvidence
   )
@@ -142,7 +141,7 @@ evidenceSelectorComponent r parentLens =
                     (V.hFlow & (#expandDirection .~ V.Expand V.Start))
                     [ viewDate e.date
                     , V.flowSpring
-                    , viewActivityType e.activityType
+                    , V.text_ (viewActivityType e.activityType)
                     ]
                     : [ viewContext [] (sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds))
                       , viewContext [] [viewActivityTasks e.activityTasks]
@@ -150,9 +149,7 @@ evidenceSelectorComponent r parentLens =
                 )
             ]
         viewDate d = M.text_ [C.formatDay d]
-        viewActivityType Supervised = "Supervised"
-        viewActivityType SemiSupervised = "Semi-Supervised"
-        viewActivityType Unsupervised = "Unsupervised"
+        viewActivityType = C.translate' . C.LblActivityTypeDescription
         viewActivityTasks (ActivityTasks t) = M.ms t
         viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [M.text_ ms]
 
