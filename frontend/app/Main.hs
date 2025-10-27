@@ -1,35 +1,37 @@
 {-# LANGUAGE CPP #-}
 
-module Main (main, startServer) where
+module Main (main) where
 
 import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
 
+#ifdef WASM
 
+import Competences.Frontend.SyncDocument
+  ( SyncDocument (..)
+  , SyncDocumentRef
+  , mkSyncDocument
+  , mkSyncDocument'
+  , mkSyncDocumentEnv
+  , readSyncDocument
+  , modifySyncDocument
+  )
+import Language.Javascript.JSaddle.Wasm (run)
+import Competences.Command (Command(..), EntityCommand (..))
+import Competences.Document (User(..), UserId, UserRole(..))
+import Competences.Document.Id (nilId)
 
+main :: IO ()
+main = do
+  let user = (User nilId "Test User" Teacher)
+  env <- mkSyncDocumentEnv user
+  document <- mkSyncDocument env
+  run $ do
+    modifySyncDocument document $ OnUsers (Create user)
+    runApp $ withTailwindPlay $ mkApp document
 
+foreign export javascript "hs_start" main :: IO ()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#else
 
 import Competences.Document.Id (mkId, nilId)
 import Competences.Document.User (User (..), UserId, UserRole (..))
@@ -168,3 +170,4 @@ startServer = do
   tryTakeMVar currentThread >>= mapM_ killThread
   tid <- forkIO main
   putMVar currentThread tid
+#endif
