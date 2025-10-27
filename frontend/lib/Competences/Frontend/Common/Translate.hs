@@ -16,23 +16,21 @@ module Competences.Frontend.Common.Translate
   )
 where
 
+import Competences.Document (Level (..))
+import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
 import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
 import Data.ByteString.Lazy (readFile, writeFile)
-import Data.IORef (IORef, newIORef, modifyIORef, writeIORef, readIORef)
+import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
 import Data.Map qualified as M
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Time (Day, defaultTimeLocale, formatTime)
 import Miso.String (MisoString, fromMisoString, ms)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (readFile, writeFile)
-import Competences.Document (Level (..))
-import Competences.Document.Evidence (SocialForm, Ability, socialForms, abilities)
-import Competences.Document.Evidence (SocialForm(..))
-import Competences.Document.Evidence (Ability(..))
-import Data.Time (Day, formatTime, defaultTimeLocale)
 
 data Language
   = De
@@ -99,6 +97,8 @@ data Label
   | LblAllTime
   | LblSelectEvidences
   | LblEvidenceDate
+  | LblActivityType
+  | LblActivityTypeDescription !ActivityType
   | LblStudents
   | LblPleaseSelectItem
   | LblNoUser
@@ -146,12 +146,16 @@ labels' =
   , LblAllTime
   , LblSelectEvidences
   , LblEvidenceDate
+  , LblActivityType
+  , LblActivityTypeDescription Supervised
+  , LblActivityTypeDescription SemiSupervised
+  , LblActivityTypeDescription Unsupervised
   , LblStudents
   , LblPleaseSelectItem
   , LblNoUser
   ]
-  <> map LblSocialForm socialForms
-  <> map LblAbility abilities
+    <> map LblSocialForm socialForms
+    <> map LblAbility abilities
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -203,6 +207,10 @@ defaultTranslation LblThisWeek = "Diese Woche"
 defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
 defaultTranslation LblEvidenceDate = "Datum"
+defaultTranslation LblActivityType = "Art der Aktivität"
+defaultTranslation (LblActivityTypeDescription Supervised) = "Beaufsichtigt"
+defaultTranslation (LblActivityTypeDescription SemiSupervised) = "Betreut"
+defaultTranslation (LblActivityTypeDescription Unsupervised) = "Selbstständig"
 defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblNoUser = "Kein Benutzer"
@@ -263,9 +271,12 @@ loadTranslations p =
 
 loadTranslations' :: FilePath -> IO TranslationData
 loadTranslations' p =
-  readFile p >>= (\case
-    Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
-    Just t -> pure $ extend t) . decode
+  readFile p
+    >>= ( \case
+            Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
+            Just t -> pure $ extend t
+        )
+      . decode
 
 saveTranslations :: FilePath -> TranslationData -> IO ()
 saveTranslations p t = writeFile p (encode t)
