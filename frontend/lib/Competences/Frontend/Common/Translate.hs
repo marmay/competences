@@ -74,6 +74,7 @@ data Label
   | LblEditCompetence
   | LblEditEvidence
   | LblAddNewCompetence
+  | LblAddCompetenceGrid
   | LblAddEvidence
   | LblUserList
   | LblUserName
@@ -106,6 +107,10 @@ data Label
   | LblPleaseCompleteObservation
   | LblNoMatchingAlternatives
   | LblActivityObservations
+  | LblSelectCompetenceGrids
+  | LblCompetenceGridTitle
+  | LblCompetenceGridDescription
+  | LblCompetenceGrid
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -129,6 +134,7 @@ labels' =
   , LblEditCompetence
   , LblEditEvidence
   , LblAddNewCompetence
+  , LblAddCompetenceGrid
   , LblAddEvidence
   , LblUserList
   , LblUserName
@@ -161,6 +167,10 @@ labels' =
   , LblPleaseCompleteObservation
   , LblNoMatchingAlternatives
   , LblActivityObservations
+  , LblSelectCompetenceGrids
+  , LblCompetenceGridTitle
+  , LblCompetenceGridDescription
+  , LblCompetenceGrid
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -188,6 +198,7 @@ defaultTranslation (LblCompetenceLevelPlaceholder AdvancedLevel) = "..."
 defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
 defaultTranslation LblEditEvidence = "Aufzeichnung bearbeiten"
 defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
+defaultTranslation LblAddCompetenceGrid = "Kompetenzraster hinzufügen"
 defaultTranslation LblAddEvidence = "Beobachtung hinzufügen"
 defaultTranslation LblUserList = "Liste aller Benutzer"
 defaultTranslation LblUserName = "Benutzername"
@@ -226,6 +237,10 @@ defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes
 defaultTranslation LblNoUser = "Kein Benutzer"
 defaultTranslation LblPleaseCompleteObservation = "Bitte vervollständige die Beobachtung zuerst!"
 defaultTranslation LblNoMatchingAlternatives = "Bitte wähle eine gültige Alternative aus!"
+defaultTranslation LblSelectCompetenceGrids = "Kompetenzraster"
+defaultTranslation LblCompetenceGridTitle = "Titel"
+defaultTranslation LblCompetenceGridDescription = "Beschreibung"
+defaultTranslation LblCompetenceGrid = "Kompetenzraster"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
