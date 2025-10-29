@@ -21,6 +21,10 @@ import Competences.Document.Competence (CompetenceLevelId, Level (..))
 import Competences.Document.User (User (..), isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.CompetenceGridSelector
+  ( CompetenceGridSelectorStyle (..)
+  , competenceGridSelectorComponent
+  )
 import Competences.Frontend.Component.Selector.UserSelector
   ( SingleUserSelectorStyle (SingleUserSelectorStyleButtons)
   , UserSelectorConfig (..)
@@ -54,6 +58,21 @@ competenceGridViewerComponent r =
     view :: Model -> M.View Model Action
     view m =
       V.viewFlow
+        (V.hFlow & (#expandDirection .~ V.Expand V.Start) & (#expandOrthogonal .~ V.Expand V.Start))
+        [ V.component
+            "competence-grid-viewer-selection"
+            (competenceGridSelectorComponent r CompetenceGridSelectorViewOnlyStyle #competenceGrid)
+        , V.flexGrow (viewCompetenceGrid m)
+        ]
+
+    viewCompetenceGrid :: Model -> M.View Model Action
+    viewCompetenceGrid m =
+      case m.competenceGrid of
+        Just competenceGrid -> viewCompetenceGrid' m.document m.selectedUser competenceGrid
+        Nothing -> V.text_ "Bitte wähle einen Kompetenzraster aus."
+    viewCompetenceGrid' :: Document -> Maybe User -> CompetenceGrid -> M.View Model Action
+    viewCompetenceGrid' document selectedUser competenceGrid =
+      V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
             & (#expandOrthogonal .~ V.Expand V.Center)
@@ -65,8 +84,8 @@ competenceGridViewerComponent r =
         , competences
         ]
       where
-        title = V.title_ (M.ms m.document.competenceGrid.title)
-        description = V.text_ (M.ms m.document.competenceGrid.description)
+        title = V.title_ (M.ms competenceGrid.title)
+        description = V.text_ (M.ms competenceGrid.description)
         userSelector =
           V.component'
             ( singleUserSelectorComponent
@@ -75,8 +94,8 @@ competenceGridViewerComponent r =
                 SingleUserSelectorStyleButtons
                 (selectorLens #selectedUser)
             )
-        evidences = case m.selectedUser of
-          Just user -> m.document.evidences Ix.@= user.id
+        evidences = case selectedUser of
+          Just user -> document.evidences Ix.@= user.id
           Nothing -> Ix.empty
         competences =
           V.viewTable $
@@ -85,7 +104,7 @@ competenceGridViewerComponent r =
                   [ DescriptionColumn
                   ]
                     <> map LevelDescriptionColumn levels
-              , V.rows = ordered m.document.competences
+              , V.rows = ordered document.competences
               , V.columnSpec = \case
                   DescriptionColumn ->
                     C.TableColumnSpec C.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
@@ -99,6 +118,7 @@ competenceGridViewerComponent r =
 data Model = Model
   { document :: !Document
   , highlighted :: !(Set.Set CompetenceLevelId)
+  , competenceGrid :: !(Maybe CompetenceGrid)
   , selectedUser :: !(Maybe User)
   }
   deriving (Eq, Generic, Show)
@@ -120,5 +140,6 @@ emptyModel =
   Model
     { document = emptyDocument
     , highlighted = Set.empty
+    , competenceGrid = Nothing
     , selectedUser = Nothing
     }

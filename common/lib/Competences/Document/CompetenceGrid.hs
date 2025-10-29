@@ -1,13 +1,16 @@
 module Competences.Document.CompetenceGrid
   ( CompetenceGridId
   , CompetenceGrid (..)
+  , CompetenceGridIxs
   , emptyCompetenceGrid
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id, nilId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
+import Data.List (singleton)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -27,6 +30,13 @@ data CompetenceGrid = CompetenceGrid
   -- ^ Description of the competence grid.
   }
   deriving (Eq, Generic, Ord, Show)
+
+type CompetenceGridIxs = '[CompetenceGridId]
+
+instance Ix.Indexable CompetenceGridIxs CompetenceGrid where
+  indices =
+    Ix.ixList
+      (Ix.ixFun $ singleton . (.id))
 
 emptyCompetenceGrid :: CompetenceGrid
 emptyCompetenceGrid = CompetenceGrid nilId "" ""

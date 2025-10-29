@@ -48,8 +48,7 @@ data EntityCommand a
   deriving (Eq, Generic, Show)
 
 data Command
-  = ModifyCompetenceGridTitle !(ModifyCommand Text)
-  | ModifyCompetenceGridDescription !(ModifyCommand Text)
+  = OnCompetenceGrids !(EntityCommand CompetenceGrid)
   | OnCompetences !(EntityCommand Competence)
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | OnUsers !(EntityCommand User)
@@ -160,24 +159,7 @@ interpretEntityCommand ctx uid (Modify i (Release (Just (a, a')))) d = do
 
 handleCommand :: UserId -> Command -> Document -> UpdateResult
 handleCommand userId cmd d = case cmd of
-  ModifyCompetenceGridTitle Lock -> do
-    (,allUsers d) <$> doLock userId CompetenceGridTitleLock d
-  ModifyCompetenceGridTitle (Release Nothing) -> do
-    (,allUsers d) <$> doRelease userId CompetenceGridTitleLock d
-  ModifyCompetenceGridTitle (Release (Just (t, t'))) -> do
-    d' <- doRelease userId CompetenceGridTitleLock d
-    when (d'.competenceGrid.title /= t) $
-      Left "competence grid title has been modified in the meantime!"
-    pure (d' & (#competenceGrid % #title .~ t'), allUsers d')
-  ModifyCompetenceGridDescription Lock -> do
-    (,allUsers d) <$> doLock userId CompetenceGridDescriptionLock d
-  ModifyCompetenceGridDescription (Release Nothing) -> do
-    (,allUsers d) <$> doRelease userId CompetenceGridDescriptionLock d
-  ModifyCompetenceGridDescription (Release (Just (t, t'))) -> do
-    d' <- doRelease userId CompetenceGridDescriptionLock d
-    when (d'.competenceGrid.description /= t) $
-      Left "competence grid description has been modified in the meantime!"
-    pure (d' & (#competenceGrid % #description .~ t'), allUsers d')
+  OnCompetenceGrids c -> interpretEntityCommand competenceGridContext userId c d
   OnCompetences c -> interpretEntityCommand competenceContext userId c d
   ReorderCompetence p t -> do
     case reorder p t d.competences of
@@ -186,6 +168,12 @@ handleCommand userId cmd d = case cmd of
   OnUsers c -> interpretEntityCommand userContext userId c d
   OnEvidences c -> interpretEntityCommand evidenceContext userId c d
   where
+    competenceGridContext =
+      mkEntityCommandContext
+        #competenceGrids
+        #id
+        CompetenceGridLock
+        (\_ d' -> allUsers d')
     competenceContext =
       mkOrderedEntityCommandContext
         #competences

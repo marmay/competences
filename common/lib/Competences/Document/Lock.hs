@@ -4,6 +4,7 @@ module Competences.Document.Lock
 where
 
 import Competences.Document.Competence (CompetenceId)
+import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (EvidenceId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -14,8 +15,7 @@ import GHC.Generics (Generic)
 -- can be changed in isolation by providing a new value
 -- as a Text.
 data Lock
-  = CompetenceGridTitleLock
-  | CompetenceGridDescriptionLock
+  = CompetenceGridLock !CompetenceGridId
   | CompetenceLock !CompetenceId
   | UserLock !UserId
   | EvidenceLock !EvidenceId

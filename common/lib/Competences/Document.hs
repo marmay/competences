@@ -22,7 +22,7 @@ import Competences.Document.Competence (Competence (..), CompetenceId, Competenc
 import Competences.Document.CompetenceGrid
   ( CompetenceGrid (..)
   , CompetenceGridId
-  , emptyCompetenceGrid
+  , emptyCompetenceGrid, CompetenceGridIxs
   )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
@@ -56,7 +56,7 @@ import Optics.Core
   )
 
 data Document = Document
-  { competenceGrid :: !CompetenceGrid
+  { competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
   , evidences :: !(Ix.IxSet EvidenceIxs Evidence)
   , resources :: !(Ix.IxSet ResourceIxs Resource)
@@ -70,7 +70,7 @@ data Document = Document
 instance FromJSON Document where
   parseJSON = withObject "Document" $ \v ->
     Document
-      <$> v .: "competenceGrid"
+      <$> v .: "competenceGrids"
       <*> fmap Ix.fromList (v .: "competences")
       <*> fmap Ix.fromList (v .: "evidences")
       <*> fmap Ix.fromList (v .: "resources")
@@ -84,7 +84,7 @@ instance FromJSON Document where
 instance ToJSON Document where
   toJSON d =
     object
-      [ "competenceGrid" .= d.competenceGrid
+      [ "competenceGrids" .= d.competenceGrids
       , "competences" .= Ix.toList d.competences
       , "evidences" .= Ix.toList d.evidences
       , "resources" .= Ix.toList d.resources
@@ -99,7 +99,7 @@ emptyDocument :: Document
 emptyDocument =
   updateAllChecksums $
     Document
-      { competenceGrid = emptyCompetenceGrid
+      { competenceGrids = Ix.empty
       , competences = Ix.empty
       , evidences = Ix.empty
       , resources = Ix.empty
@@ -136,7 +136,7 @@ updatePartialChecksum :: Document -> PartialChecksumId -> Document
 updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
   where
     updatePartialChecksum' v = m & #partialChecksums %~ M.insert c v
-    computePartialChecksum PC_CompetenceGrid = computePartialChecksum' #competenceGrid encode
+    computePartialChecksum PC_CompetenceGrid = computePartialChecksum' #competenceGrids encodeIx
     computePartialChecksum PC_Competences = computePartialChecksum' #competences encodeIx
     computePartialChecksum PC_Evidences = computePartialChecksum' #evidences encodeIx
     computePartialChecksum PC_Locks = computePartialChecksum' #locks encode
