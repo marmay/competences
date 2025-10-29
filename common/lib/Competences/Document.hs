@@ -65,7 +65,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "competences")
       <*> fmap Ix.fromList (v .: "evidences")
       <*> fmap Ix.fromList (v .: "resources")
-      <*> fmap M.fromList (v .: "lockedFields")
+      <*> fmap M.fromList (v .: "locks")
       <*> fmap Ix.fromList (v .: "users")
       <*> fmap
         (M.fromList . map (\(k, v') -> (k, Base64.decodeLenient (encodeUtf8 v'))))
