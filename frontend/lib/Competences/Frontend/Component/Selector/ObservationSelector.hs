@@ -11,7 +11,6 @@ import Competences.Document
   , Document (..)
   , EvidenceId
   , Level (..)
-  , emptyDocument
   , levels
   )
 import Competences.Document.Evidence
@@ -40,7 +39,6 @@ import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -248,6 +246,7 @@ data Action
 data ObservationSelectorStyle
   = ObservationSelectorStyleEnabled
   | ObservationSelectorStyleDisabled
+  deriving (Eq, Show)
 
 observationSelectorComponent
   :: SyncDocumentRef
@@ -310,8 +309,10 @@ observationSelectorComponent r evidenceId style lens =
     view m =
       V.viewFlow
         (V.vFlow & #expandOrthogonal .~ V.Expand V.Center)
-        ( [viewSelectedObservations m, viewCurrentInput m]
-            <> [viewCurrentSuggestions m]
+        ( [viewSelectedObservations m]
+          <> (if style == ObservationSelectorStyleEnabled
+              then [viewCurrentInput m, viewCurrentSuggestions m ]
+              else [])
         )
 
     viewSelectedObservations m =
@@ -388,7 +389,10 @@ observationSelectorComponent r evidenceId style lens =
     viewCurrentInput' (SelectingAbility _ _ _ i) = [i.currentInput]
 
     viewCurrentSuggestions m =
-      M.div_ [T.tailwind [T.TooltipBox, T.TextSm, T.H96, T.OverflowYScroll]] $ map (\v -> V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace)) [M.text_ [M.ms v]]) (viewCurrentSuggestions' m.state)
+      M.div_ [T.tailwind [T.TooltipBox, T.TextSm, T.H96, T.OverflowYScroll]] $
+        map
+          (\v -> V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace)) [M.text_ [M.ms v]])
+          (viewCurrentSuggestions' m.state)
     viewCurrentSuggestions' (SelectingCompetence i) = map (\(_, d, _) -> d) i.currentSuggestions
     viewCurrentSuggestions' (SelectingCompetenceLevel _ i) = map (\(_, d, _) -> d) i.currentSuggestions
     viewCurrentSuggestions' (SelectingSocialForm _ _ i) = map (\(_, d, _) -> d) i.currentSuggestions

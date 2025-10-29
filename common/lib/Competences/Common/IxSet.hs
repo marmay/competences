@@ -29,19 +29,19 @@ type instance IxValue (Ix.IxSet (_ ': _) a) = a
 
 instance (Ix.Indexable (ix0 ': ixs) a) => Ixed (Ix.IxSet (ix0 ': ixs) a) where
   type IxKind (Ix.IxSet (ix0 ': ixs) a) = An_AffineTraversal
-  ix i = atraversal get set
+  ix i = atraversal lensGet lensSet
     where
-      get s = maybe (Left s) Right $ Ix.getOne $ s Ix.@= i
-      set s v = case Ix.getOne (s Ix.@= i) of
+      lensGet s = maybe (Left s) Right $ Ix.getOne $ s Ix.@= i
+      lensSet s v = case Ix.getOne (s Ix.@= i) of
         Just _ -> Ix.insert v $ Ix.deleteIx i s
         Nothing -> s
 
 instance (Ix.Indexable (ix0 ': ixs) a) => At (Ix.IxSet (ix0 ': ixs) a) where
-  at i = lens get set
+  at i = lens lensGet lensSet
     where
-      get s = Ix.getOne $ s Ix.@= i
-      set s Nothing = Ix.deleteIx i s
-      set s (Just v) = Ix.insert v $ Ix.deleteIx i s
+      lensGet s = Ix.getOne $ s Ix.@= i
+      lensSet s Nothing = Ix.deleteIx i s
+      lensSet s (Just v) = Ix.insert v $ Ix.deleteIx i s
 
 replacePrimary
   :: forall ix ixs a

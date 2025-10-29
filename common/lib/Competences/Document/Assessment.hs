@@ -48,4 +48,4 @@ data Assessment = Assessment
   deriving (Eq, Ord, Show)
 
 fromEvidences :: [Evidence] -> Verdict
-fromEvidences es = undefined
+fromEvidences _es = undefined
