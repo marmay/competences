@@ -12,6 +12,7 @@ module Competences.Frontend.View.Layout
   , visibleIf
   , fixedWidth
   , flexGrow
+  , sideMenu
   , Expand (..)
   , FlowDirection (..)
   , LayoutSpace (..)
@@ -23,8 +24,9 @@ where
 import Competences.Frontend.View.Tailwind qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.CSS qualified as MS
 import Miso.Html qualified as M
-import qualified Miso.CSS as MS
+import Optics.Core ((&), (.~))
 
 data FlowDirection = HorizontalFlow | VerticalFlow
   deriving (Eq, Show)
@@ -61,7 +63,9 @@ vFlow = flow VerticalFlow
 viewFlow :: FlowLayout a -> [M.View m a] -> M.View m a
 viewFlow l =
   M.div_
-    ([T.tailwind $ mconcat [[T.Flex], direction, expandDirectional, expandOrthogonal, gap, margin]] <> l.extraAttrs)
+    ( [T.tailwind $ mconcat [[T.Flex], direction, expandDirectional, expandOrthogonal, gap, margin]]
+        <> l.extraAttrs
+    )
   where
     direction = case l.direction of
       HorizontalFlow -> [T.FlexRow]
@@ -115,4 +119,11 @@ vBorder = M.div_ [T.tailwind [T.VBorder]] []
 
 empty :: M.View m a
 empty = M.div_ [] []
-  
+
+sideMenu :: M.View m a -> M.View m a -> M.View m a
+sideMenu side main =
+  viewFlow
+    (hFlow & (#expandDirection .~ Expand Start) & (#expandOrthogonal .~ Expand Start))
+    [ M.div_ [T.tailwind [T.HFull]] [side]
+    , M.div_ [T.tailwind [T.FlexGrow]] [main]
+    ]

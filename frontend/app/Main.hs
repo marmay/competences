@@ -51,14 +51,12 @@ import Data.Text qualified as T
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
 import Competences.Command (Command(..), EntityCommand (..))
-import Control.Concurrent (MVar, ThreadId, newEmptyMVar, tryTakeMVar, killThread, forkIO, putMVar)
-import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen)
 
 data Options = Options
   { port :: !Int
-  , jwtToken :: !Text
-  , translationsPath :: !FilePath
+  -- , jwtToken :: !Text
+  -- , translationsPath :: !FilePath
   , inputDocumentPath :: !(Maybe FilePath)
   , outputDocumentPath :: !(Maybe FilePath)
   , userId :: !UserId
@@ -78,22 +76,22 @@ options =
           <> value 3000
           <> metavar "PORT"
       )
-    <*> strOption
-      ( long "jwt-token"
-          <> short 't'
-          <> help "JWT token to use for authentication"
-          <> showDefault
-          <> value "no-token"
-          <> metavar "TOKEN"
-      )
-    <*> strOption
-      ( long "translations"
-          <> short 'l'
-          <> help "Path to the translations file"
-          <> showDefault
-          <> value "res/translations-de.json"
-          <> metavar "PATH"
-      )
+    -- <*> strOption
+    --   ( long "jwt-token"
+    --       <> short 't'
+    --       <> help "JWT token to use for authentication"
+    --       <> showDefault
+    --       <> value "no-token"
+    --       <> metavar "TOKEN"
+    --   )
+    -- <*> strOption
+    --   ( long "translations"
+    --       <> short 'l'
+    --       <> help "Path to the translations file"
+    --       <> showDefault
+    --       <> value "res/translations-de.json"
+    --       <> metavar "PATH"
+    --   )
     <*> optional
       ( strOption
           ( long "input-document"
@@ -160,14 +158,4 @@ writeDocument (Just p) r = do
   local <- (.localDocument) <$> readSyncDocument r
   B.writeFile p $ encode local
 writeDocument Nothing _ = pure ()
-
-currentThread :: MVar ThreadId
-currentThread = unsafePerformIO newEmptyMVar
-{-# NOINLINE currentThread #-}
-
-startServer :: IO ()
-startServer = do
-  tryTakeMVar currentThread >>= mapM_ killThread
-  tid <- forkIO main
-  putMVar currentThread tid
 #endif

@@ -12,12 +12,18 @@ import Competences.Document
   , CompetenceGrid (..)
   , Document (..)
   , User
-  , UserRole (..)
   , emptyDocument
   , levels
   , ordered
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
+import Competences.Document.Evidence
+  ( Ability (..)
+  , ActivityType (..)
+  , Evidence (..)
+  , Observation (..)
+  , SocialForm (..)
+  )
 import Competences.Document.User (User (..), isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (selectorLens)
@@ -34,10 +40,14 @@ import Competences.Frontend.Component.Selector.UserSelector
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Table qualified as C
+import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
+import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
+import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 
 competenceGridViewerComponent :: SyncDocumentRef -> M.Component p Model Action
@@ -112,7 +122,38 @@ competenceGridViewerComponent r =
                     C.TableColumnSpec C.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
               , V.rowContents = V.cellContents $ \competence -> \case
                   DescriptionColumn -> V.text_ (M.ms competence.description)
-                  LevelDescriptionColumn level -> V.text_ "..."
+                  LevelDescriptionColumn level ->
+                    let competenceLevelId = (competence.id, level)
+                        levelDescription = M.ms $ fromMaybe "" (competence.levelDescriptions Map.!? level)
+                        evidences' = evidences Ix.@= competenceLevelId
+                        showEvidence evidence =
+                          case Ix.getOne (evidence.observations Ix.@= competenceLevelId) of
+                            Just observation ->
+                              showSummary evidence.activityType observation.socialForm observation.ability
+                            Nothing -> V.empty
+                        showSummary activityType socialForm ability =
+                          let color = case ability of
+                                SelfReliant -> "#00743f"
+                                SelfReliantWithSillyMistakes -> "#42ab49"
+                                WithSupport -> "#f2a104"
+                                NotYet -> "#f25117"
+                              activityTypeIcn = case activityType of
+                                Supervised -> V.IcnActivityTypeSupervised
+                                SemiSupervised -> V.IcnActivityTypeSemiSupervised
+                                Unsupervised -> V.IcnActivityTypeUnsupervised
+                              socialFormIcn = case socialForm of
+                                Group -> V.IcnSocialFormGroup
+                                Individual -> V.IcnSocialFormIndividual
+                           in V.viewFlow
+                                V.hFlow
+                                [V.icon [MSP.stroke_ color] i | i <- [activityTypeIcn, socialFormIcn]]
+                     in V.viewFlow
+                          (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
+                          [ V.text_ levelDescription
+                          , V.viewFlow
+                              (V.hFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start))
+                              (V.flowSpring : map showEvidence (Ix.toAscList (Proxy @Day) evidences'))
+                          ]
               }
 
 data Model = Model
