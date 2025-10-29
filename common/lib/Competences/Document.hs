@@ -17,17 +17,24 @@ module Competences.Document
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document.Lock(Lock(..))
-import Competences.Document.Competence (Competence (..), CompetenceId, CompetenceIxs, Level (..), levels)
+import Competences.Document.Competence
+  ( Competence (..)
+  , CompetenceId
+  , CompetenceIxs
+  , Level (..)
+  , levels
+  )
 import Competences.Document.CompetenceGrid
   ( CompetenceGrid (..)
   , CompetenceGridId
-  , emptyCompetenceGrid, CompetenceGridIxs
+  , CompetenceGridIxs
+  , emptyCompetenceGrid
   )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
+import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
-import Competences.Document.User (User (..), UserRole(..), UserId, UserIxs)
+import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Crypto.Hash.SHA1 (hashlazy)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Binary (Binary, encode)
@@ -37,23 +44,7 @@ import Data.ByteString.Lazy qualified as BL (ByteString)
 import Data.Map qualified as M
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
-import Optics.Core
-  ( An_AffineTraversal
-  , Index
-  , IxValue
-  , Ixed (..)
-  , Lens'
-  , at
-  , castOptic
-  , ix
-  , non
-  , (%)
-  , (%%)
-  , (%~)
-  , (&)
-  , (.~)
-  , (^.)
-  )
+import Optics.Core (Lens', (%~), (&), (.~), (^.))
 
 data Document = Document
   { competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)

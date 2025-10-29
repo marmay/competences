@@ -26,7 +26,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
-import Data.Time (Day, getCurrentTime, utctDay, fromGregorian)
+import Data.Time (Day, fromGregorian)
 import GHC.Generics (Generic)
 import qualified Data.Set as Set
 

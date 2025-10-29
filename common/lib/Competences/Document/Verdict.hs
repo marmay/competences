@@ -4,20 +4,14 @@ module Competences.Document.Verdict
   )
 where
 
-import Competences.Document.Competence (Competence (..), Level (..), levels)
+import Competences.Document.Competence (Competence (..), Level (..))
 import Competences.Document.Evidence
-  ( Ability (..)
-  , Evidence (..)
+  ( Evidence (..)
   , EvidenceIxs
-  , SocialForm (..)
+  
   )
 import Competences.Document.User (User (..))
 import Data.IxSet.Typed qualified as Ix
-import Data.List (group)
-import Data.Map qualified as Map
-import Data.Maybe (mapMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Time (Day)
 
 -- | Given a list of evidences, produces a final result.
 data AutoVerdict
@@ -47,8 +41,9 @@ autoVerdict _s _u _c = []
 
 -- | Given all evidences of a given user and competence, in reverse chronological
 -- order, determines the `AutoVerdict` at a given level.
-autoVerdict' :: [Evidence] -> Level -> AutoVerdict
-autoVerdict' _evs _l = Inconclusive
+
+-- autoVerdict' :: [Evidence] -> Level -> AutoVerdict
+-- autoVerdict' _evs _l = Inconclusive
 --  | individuallySelfReliant competentSequence = Competent
 --  | individuallySelfReliant probablyCompetentSequence = ProbablyCompetent
 --  | length (filter ((== l) . evidenceLevel) evs) >= 3 = NotYetCompetent
@@ -62,25 +57,28 @@ autoVerdict' _evs _l = Inconclusive
 --      any (\e -> e.socialForm == Individual && e.ability == SelfReliant) s
 --        && length (group $ map (.date) $ filter (\e -> e.ability == SelfReliant) s) >= 2
 
-takeWhileButDropFirstFail :: (a -> Bool) -> [a] -> [a]
-takeWhileButDropFirstFail p (x : xs)
-  | p x = x : takeWhileButDropFirstFail p xs
-  | otherwise = takeWhile p xs
-takeWhileButDropFirstFail _ [] = []
+-- takeWhileButDropFirstFail :: (a -> Bool) -> [a] -> [a]
+-- takeWhileButDropFirstFail p (x : xs)
+--   | p x = x : takeWhileButDropFirstFail p xs
+--   | otherwise = takeWhile p xs
+-- takeWhileButDropFirstFail _ [] = []
 
 -- | Promotes `AutoVerdict` at lower levels given the verdicts at higher levels.
-promoteVerdicts :: [(Level, AutoVerdict)] -> [(Level, AutoVerdict)]
-promoteVerdicts ((l0, v0) : (l1, v1) : rest) =
-  (l0, promoteVerdict v0 v1) : promoteVerdicts ((l1, v1) : rest)
-promoteVerdicts rest = rest
+
+-- promoteVerdicts :: [(Level, AutoVerdict)] -> [(Level, AutoVerdict)]
+-- promoteVerdicts ((l0, v0) : (l1, v1) : rest) =
+--   (l0, promoteVerdict v0 v1) : promoteVerdicts ((l1, v1) : rest)
+-- promoteVerdicts rest = rest
 
 -- | Promotes `Verdict` at a lower level given the verdict at a higher level.
 --
 -- If a student is `Competent` or `ProbabyCompetent` at a higher level, but there
 -- is not enough evidence, they have that level of competence at the lower level,
 -- we assume they are at least as competent as they are at the higher level.
-promoteVerdict :: AutoVerdict -> AutoVerdict -> AutoVerdict
-promoteVerdict _ Competent = Competent
-promoteVerdict Competent _ = Competent
-promoteVerdict _ ProbablyCompetent = ProbablyCompetent
-promoteVerdict lower _ = lower
+
+-- promoteVerdict :: AutoVerdict -> AutoVerdict -> AutoVerdict
+-- promoteVerdict _ Competent = Competent
+-- promoteVerdict Competent _ = Competent
+-- promoteVerdict _ ProbablyCompetent = ProbablyCompetent
+-- promoteVerdict lower _ = lower
+

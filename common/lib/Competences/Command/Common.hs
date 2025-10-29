@@ -5,7 +5,7 @@ module Competences.Command.Common
 where
 
 import Competences.Document (Document)
-import Competences.Document.User (User(..), UserId)
+import Competences.Document.User (UserId)
 import Data.Text (Text)
 
 newtype AffectedUsers = AffectedUsers [UserId]

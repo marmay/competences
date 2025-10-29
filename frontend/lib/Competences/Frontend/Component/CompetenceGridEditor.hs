@@ -10,7 +10,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
-  , CompetenceIxs
+  
   , Document (..)
   , Level (..)
   , Lock (..)
@@ -28,20 +28,17 @@ import Competences.Frontend.Component.Selector.CompetenceGridSelector
   , competenceGridSelectorComponent
   )
 import Competences.Frontend.SyncDocument
-  ( SyncDocument (..)
-  , SyncDocumentRef
+  ( SyncDocumentRef
   , modifySyncDocument
   , nextId
-  , readSyncDocument
+  
   )
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
-import Data.Tuple (Solo (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core ((%), (&), (.~), (?~), (^.))
 import Optics.Core qualified as O
 
