@@ -11,6 +11,7 @@ module Competences.Frontend.View.Layout
   , viewFlow
   , visibleIf
   , fixedWidth
+  , flexGrow
   , Expand (..)
   , FlowDirection (..)
   , LayoutSpace (..)
@@ -100,6 +101,9 @@ visibleIf False v = M.div_ [T.tailwind [T.Hidden]] [v]
 
 fixedWidth :: Int -> M.View m a -> M.View m a
 fixedWidth w v = M.div_ [MS.style_ [("width", M.ms (show w) <> "px")]] [v]
+
+flexGrow :: M.View m a -> M.View m a
+flexGrow v = M.span_ [T.tailwind [T.FlexGrow]] [v]
 
 hScrollable, vScrollable :: M.View m a -> M.View m a
 hScrollable v = M.div_ [T.tailwind [T.OverflowXAuto, T.WFull]] [v]

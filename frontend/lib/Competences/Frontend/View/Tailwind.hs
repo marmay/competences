@@ -29,10 +29,12 @@ requiredClasses = Set.fromList $ concatMap tailwindNames [minBound .. maxBound]
 
 -- | Each TailwindCls is a bundle of native Tailwind classes.
 data TailwindCls
-  = AlertButtonOn
+  = Absolute
+  | AlertButtonOn
   | AlertButtonOff
   | AlertButtonIndeterminate
   | AlignMiddle
+  | BottomFull
   | ButtonText
   | Flex
   | FlexRow
@@ -46,6 +48,7 @@ data TailwindCls
   | HFull
   | Hidden
   | HBorder
+  | H96
   | IconButton
   | IconLabelButton
   | ItemsStart
@@ -64,11 +67,15 @@ data TailwindCls
   | ModalDialog
   | OverflowXAuto
   | OverflowYAuto
+  | OverflowYScroll
+  | P1
+  | P2
   | P4
   | RegularBorder
   | RegularButtonOn
   | RegularButtonOff
   | RegularButtonIndeterminate
+  | Relative
   | Rounded
   | RoundedLeft
   | RoundedRight
@@ -81,18 +88,24 @@ data TailwindCls
   | TextCenter
   | TextSm
   | TextLg
+  | TextRight
   | TextXl
+  | TooltipBox
   | VBorder
   | W16
   | W24
   | W32
   | W40
+  | W96
   | WThird
   | WHalf
   | WFull
+  | WQuarterVh
   deriving (Eq, Show, Enum, Bounded)
 
 tailwindNames :: TailwindCls -> [T.Text]
+tailwindNames Absolute = ["absolute"]
+tailwindNames BottomFull = ["bottom-full"]
 tailwindNames AlertButtonOn =
   [ useColor Border Red I800 O100
   , useColor Bg Red I500 O100
@@ -130,6 +143,7 @@ tailwindNames Gap4 = ["gap-4"]
 tailwindNames Gap8 = ["gap-8"]
 tailwindNames HBorder = ["h-1", "w-full", useColor Bg Sky I800 O100]
 tailwindNames HFull = ["h-full"]
+tailwindNames H96 = ["h-96"]
 tailwindNames Hidden = ["hidden"]
 tailwindNames IconButton = ["border", "rounded"]
 tailwindNames IconLabelButton = ["border", "rounded", "p-1"]
@@ -160,6 +174,9 @@ tailwindNames ModalDialog =
   ]
 tailwindNames OverflowXAuto = ["overflow-x-auto"]
 tailwindNames OverflowYAuto = ["overflow-y-auto"]
+tailwindNames OverflowYScroll = ["overflow-y-scroll"]
+tailwindNames P1 = ["p-1"]
+tailwindNames P2 = ["p-2"]
 tailwindNames P4 = ["p-4"]
 tailwindNames RegularBorder = ["border", "rounded", useColor Border Gray I200 O100]
 tailwindNames RegularButtonOn =
@@ -186,6 +203,7 @@ tailwindNames RegularButtonIndeterminate =
   , useColor Fill Stone I100 O0
   , "hover:" <> useColor Bg Sky I600 O100
   ]
+tailwindNames Relative = ["relative"]
 tailwindNames Rounded = ["rounded-md"]
 tailwindNames RoundedLeft = ["rounded-l-md"]
 tailwindNames RoundedRight = ["rounded-r-md"]
@@ -199,14 +217,21 @@ tailwindNames TextCenter = ["text-center"]
 tailwindNames TextSm = ["text-sm"]
 tailwindNames TextLg = ["text-lg"]
 tailwindNames TextXl = ["text-xl"]
+tailwindNames TooltipBox =
+  [ useColor Border Stone I50 O100
+  , useColor Bg Gray I100 O100
+  ]
+tailwindNames TextRight = ["text-right"]
 tailwindNames VBorder = ["w-1", "h-full", useColor Bg Sky I800 O100]
 tailwindNames W16 = ["w-16"]
 tailwindNames W24 = ["w-24"]
 tailwindNames W32 = ["w-32"]
 tailwindNames W40 = ["w-40"]
+tailwindNames W96 = ["w-96"]
 tailwindNames WThird = ["w-1/3"]
 tailwindNames WHalf = ["w-1/2"]
 tailwindNames WFull = ["w-full"]
+tailwindNames WQuarterVh = ["w-[25vh]"]
 
 data ColorUtility
   = Bg

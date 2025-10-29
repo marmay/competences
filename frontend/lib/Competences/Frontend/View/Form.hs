@@ -17,7 +17,6 @@ form_ title fields buttons =
   V.viewFlow
     ( V.vFlow
         & (#gap .~ V.SmallSpace)
-        & (#margin .~ V.LargeSpace)
     )
     [ V.title_ title
     , V.viewFlow
@@ -40,10 +39,10 @@ formField_ label field =
         & (#expandDirection .~ V.Expand V.Start)
         & (#gap .~ V.SmallSpace)
     )
-    [label_ label, field]
+    [label_ label, V.flexGrow field]
   where
     label_ :: M.MisoString -> M.View m a
-    label_ t = M.span_ [T.tailwind [T.WThird]] [V.text_ t]
+    label_ t = M.span_ [T.tailwind [T.WThird, T.TextRight]] [V.text_ t]
 
 textarea_ :: [M.Attribute a] -> M.View m a
 textarea_ as = M.textarea_ (T.tailwind [T.FlexGrow, T.RegularBorder] : as) []

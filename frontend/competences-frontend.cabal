@@ -49,6 +49,7 @@ library
         Competences.Frontend.Component.Selector.EnumSelector,
         Competences.Frontend.Component.Selector.EvidenceSelector,
         Competences.Frontend.Component.Selector.ListSelector,
+        Competences.Frontend.Component.Selector.ObservationSelector,
         Competences.Frontend.Component.Selector.UserSelector,
         Competences.Frontend.Component.Static,
         Competences.Frontend.Component.UserListEditor,
@@ -64,7 +65,8 @@ library
         Competences.Frontend.View.SidePanel,
         Competences.Frontend.View.Table,
         Competences.Frontend.View.Tailwind,
-        Competences.Frontend.View.Text
+        Competences.Frontend.View.Text,
+        Competences.Frontend.View.Tooltip
     build-depends:
         base ^>=4.21.0.0,
         aeson,

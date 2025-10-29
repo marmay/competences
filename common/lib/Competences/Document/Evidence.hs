@@ -81,11 +81,10 @@ newtype ObservationRemark = ObservationRemark Text
   deriving newtype (Binary, FromJSON, ToJSON)
 
 data Observation = Observation
-  { observationId :: !ObservationId
+  { id :: !ObservationId
   , competenceLevelId :: !CompetenceLevelId
   , socialForm :: !SocialForm
   , ability :: !Ability
-  , remark :: !ObservationRemark
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -140,7 +139,7 @@ type ObservationIxs = '[ObservationId, CompetenceLevelId, SocialForm, Ability]
 instance Ix.Indexable ObservationIxs Observation where
   indices =
     Ix.ixList
-      (Ix.ixFun $ singleton . (.observationId))
+      (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.competenceLevelId))
       (Ix.ixFun $ singleton . (.socialForm))
       (Ix.ixFun $ singleton . (.ability))
