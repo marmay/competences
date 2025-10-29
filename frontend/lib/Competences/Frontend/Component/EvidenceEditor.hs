@@ -27,7 +27,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core ((&), (?~), (^.))
 import Optics.Core qualified as O
 
 data Model = Model
@@ -45,12 +45,9 @@ evidenceEditorComponent r =
     update _ = pure ()
 
     view m =
-      V.viewFlow
-        (V.hFlow & #expandDirection .~ V.Expand V.Start)
-        [ V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence)
-        , V.flexGrow (V.viewFlow (V.vFlow & (#expandOrthogonal .~ V.Expand V.Center))
-                      [V.component evidenceEditorId (TE.editorComponent evidenceEditor r)])
-        ]
+      V.sideMenu
+        (V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence))
+        (V.component evidenceEditorId (TE.editorComponent evidenceEditor r))
       where
         evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
         evidenceEditable =

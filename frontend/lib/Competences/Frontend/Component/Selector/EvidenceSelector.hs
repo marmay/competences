@@ -129,29 +129,33 @@ evidenceSelectorComponent r parentLens =
     viewEvidences m =
       let filteredEvidences = Ix.toList m.allEvidences
        in V.viewFlow
-            (V.vFlow & (#extraAttrs .~ [T.tailwind [T.Shrink, T.OverflowYAuto]]))
+            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [T.tailwind [T.H164, T.OverflowYScroll]]))
             (map viewEvidence filteredEvidences)
       where
         viewEvidence e =
           M.a_
             [C.onClick' (SelectEvidence e)]
             [ V.viewFlow
-                (V.vFlow & #expandOrthogonal .~ V.Expand V.Start)
+                (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
                 ( V.viewFlow
                     (V.hFlow & (#expandDirection .~ V.Expand V.Start))
                     [ viewDate e.date
                     , V.flowSpring
                     , V.text_ (viewActivityType e.activityType)
                     ]
-                    : [ viewContext [] (sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds))
-                      , viewContext [] [viewActivityTasks e.activityTasks]
+                    : [ viewContext [] (commaSeparated $ sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds))
+                      , viewContext [] (viewActivityTasks e.activityTasks)
                       ]
                 )
             ]
-        viewDate d = M.text_ [C.formatDay d]
+        viewDate d = V.text_ (C.formatDay d)
         viewActivityType = C.translate' . C.LblActivityTypeDescription
         viewActivityTasks (ActivityTasks t) = M.ms t
-        viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [M.text_ ms]
+        viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
+        commaSeparated  :: [M.MisoString] -> M.MisoString
+        commaSeparated (x:x':xs) = x <> ", " <> commaSeparated (x':xs)
+        commaSeparated [x] = x
+        commaSeparated [] = ""
 
     translateDateRange Today = C.translate' C.LblToday
     translateDateRange ThisWeek = C.translate' C.LblThisWeek
