@@ -310,9 +310,10 @@ observationSelectorComponent r evidenceId style lens =
       V.viewFlow
         (V.vFlow & #expandOrthogonal .~ V.Expand V.Center)
         ( [viewSelectedObservations m]
-          <> (if style == ObservationSelectorStyleEnabled
-              then [viewCurrentInput m, viewCurrentSuggestions m ]
-              else [])
+            <> ( if style == ObservationSelectorStyleEnabled
+                   then [viewCurrentInput m, viewCurrentSuggestions m]
+                   else []
+               )
         )
 
     viewSelectedObservations m =
@@ -333,9 +334,11 @@ observationSelectorComponent r evidenceId style lens =
                         [T.tailwind []]
                         [ V.viewFlow
                             (V.hFlow & (#gap .~ V.SmallSpace))
-                            [ V.text_ label
-                            , V.viewButton (V.deleteButton (DeleteObservation observation))
-                            ]
+                            ( [V.text_ label]
+                                <> [ V.viewButton (V.deleteButton (DeleteObservation observation))
+                                   | style == ObservationSelectorStyleEnabled
+                                   ]
+                            )
                         ]
                 let tooltip' =
                       V.viewFlow
