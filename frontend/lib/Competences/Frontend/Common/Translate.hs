@@ -103,6 +103,9 @@ data Label
   | LblStudents
   | LblPleaseSelectItem
   | LblNoUser
+  | LblPleaseCompleteObservation
+  | LblNoMatchingAlternatives
+  | LblActivityObservations
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -155,6 +158,9 @@ labels' =
   , LblStudents
   , LblPleaseSelectItem
   , LblNoUser
+  , LblPleaseCompleteObservation
+  , LblNoMatchingAlternatives
+  , LblActivityObservations
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -214,9 +220,12 @@ defaultTranslation (LblActivityTypeDescription Supervised) = "Beaufsichtigt"
 defaultTranslation (LblActivityTypeDescription SemiSupervised) = "Betreut"
 defaultTranslation (LblActivityTypeDescription Unsupervised) = "Selbstständig"
 defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
+defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblNoUser = "Kein Benutzer"
+defaultTranslation LblPleaseCompleteObservation = "Bitte vervollständige die Beobachtung zuerst!"
+defaultTranslation LblNoMatchingAlternatives = "Bitte wähle eine gültige Alternative aus!"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

@@ -17,6 +17,7 @@ module Competences.Document.Order
   , orderedDelete
   , reorder
   , reordered
+  , formatOrderNumber
   )
 where
 
@@ -191,6 +192,12 @@ reordered
   :: (OrderableSet ixs a)
   => Ix.IxSet ixs a -> Ix.IxSet ixs a
 reordered as = Ix.fromList $ zipWith (\a i -> a & orderL .~ Order i) (ordered as) [0, 2 ..]
+
+formatOrderNumber :: Order -> String
+formatOrderNumber (Order i)
+  | i == minBound = "min"
+  | i == maxBound = "max"
+  | otherwise = show (i `div` 2)
 
 instance FromJSON Order
 

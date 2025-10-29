@@ -5,6 +5,7 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
+import Competences.Common.IxSet qualified as IxSet
 import Competences.Document
   ( Document (..)
   , Evidence (..)
@@ -18,6 +19,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
+import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
@@ -46,7 +48,8 @@ evidenceEditorComponent r =
       V.viewFlow
         (V.hFlow & #expandDirection .~ V.Expand V.Start)
         [ V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence)
-        , V.component evidenceEditorId (TE.editorComponent evidenceEditor r)
+        , V.flexGrow (V.viewFlow (V.vFlow & (#expandOrthogonal .~ V.Expand V.Center))
+                      [V.component evidenceEditorId (TE.editorComponent evidenceEditor r)])
         ]
       where
         evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
@@ -84,6 +87,13 @@ evidenceEditorComponent r =
                                )
             `TE.addNamedField` ( C.translate' C.LblActivityTasks
                                , TE.textEditorField (#activityTasks O.% activityTasksIso)
+                               )
+            `TE.addNamedField` ( C.translate' C.LblActivityObservations
+                               , TE.observationEditorField
+                                   r
+                                   (evidenceEditorId <> "-observations")
+                                   (.id)
+                                   (selectorTransformedLens id IxSet.fromList #observations)
                                )
         activityTasksIso :: O.Iso' ActivityTasks M.MisoString
         activityTasksIso = O.iso (\(ActivityTasks t) -> M.ms t) (ActivityTasks . M.fromMisoString)
