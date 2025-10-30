@@ -104,7 +104,7 @@ evidenceSelectorComponent r parentLens =
 
     view m =
       V.viewFlow
-        (V.vFlow & (#gap .~ V.SmallSpace))
+        (V.vFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start) & (#extraAttrs .~ [T.tailwind [T.HFull]]))
         [ V.title_ (C.translate' C.LblSelectEvidences)
         , V.component
             "evidence-selector-users"
@@ -129,7 +129,7 @@ evidenceSelectorComponent r parentLens =
     viewEvidences m =
       let filteredEvidences = Ix.toList m.allEvidences
        in V.viewFlow
-            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [T.tailwind [T.H164, T.OverflowYScroll]]))
+            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [T.tailwind [T.OverflowYScroll, T.MinH0]]))
             (map viewEvidence filteredEvidences)
       where
         viewEvidence e =

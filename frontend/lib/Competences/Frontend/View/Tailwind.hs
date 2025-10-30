@@ -49,6 +49,7 @@ data TailwindCls
   | Hidden
   | HBorder
   | H96
+  | HScreen
   | IconButton
   | IconLabelButton
   | ItemsStart
@@ -63,6 +64,8 @@ data TailwindCls
   | M2
   | M4
   | M8
+  | MinH0
+  | MinW0
   | ModalHost
   | ModalDialog
   | OverflowXAuto
@@ -144,6 +147,7 @@ tailwindNames Gap8 = ["gap-8"]
 tailwindNames HBorder = ["h-1", "w-full", useColor Bg Sky I800 O100]
 tailwindNames HFull = ["h-full"]
 tailwindNames H96 = ["h-96"]
+tailwindNames HScreen = ["h-screen"]
 tailwindNames Hidden = ["hidden"]
 tailwindNames IconButton = ["border", "rounded"]
 tailwindNames IconLabelButton = ["border", "rounded", "p-1"]
@@ -159,6 +163,8 @@ tailwindNames M1 = ["m-1"]
 tailwindNames M2 = ["m-2"]
 tailwindNames M4 = ["m-4"]
 tailwindNames M8 = ["m-8"]
+tailwindNames MinH0 = ["min-h-0"]
+tailwindNames MinW0 = ["min-w-0"]
 tailwindNames ModalHost = ["fixed", "inset-0", "z-50", "overflow-y-auto", useColor Bg Gray I500 O50]
 tailwindNames ModalDialog =
   [ "relative"

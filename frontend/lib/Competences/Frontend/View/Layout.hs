@@ -125,5 +125,5 @@ sideMenu side main =
   viewFlow
     (hFlow & (#expandDirection .~ Expand Start) & (#expandOrthogonal .~ Expand Start))
     [ M.div_ [T.tailwind [T.HFull]] [side]
-    , M.div_ [T.tailwind [T.FlexGrow]] [main]
+    , M.div_ [T.tailwind [T.HFull, T.FlexGrow]] [main]
     ]

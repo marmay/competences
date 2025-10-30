@@ -19,6 +19,7 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Router qualified as M
 import Optics.Core ((&), (.~), (^.))
+import qualified Competences.Frontend.View.Tailwind as T
 
 type App = M.Component M.ROOT Model Action
 
@@ -46,13 +47,14 @@ mkApp r =
 
     view m =
       M.div_
-        []
+        [ T.tailwind [T.HScreen] ]
         [ V.iconDefs
         , V.viewFlow
             ( V.vFlow
                 & (#expandDirection .~ V.Expand V.Start)
                 & (#expandOrthogonal .~ V.Expand V.Center)
                 & (#gap .~ V.SmallSpace)
+                & (#extraAttrs .~ [T.tailwind [T.HFull]])
             )
             [title, topMenu, page (m ^. #uri), footer]
         ]
@@ -86,7 +88,7 @@ mkApp r =
     evidences = mounted Evidences $ evidenceEditorComponent r
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
-    mounted key c = M.div_ [M.key_ key] M.+> c
+    mounted key c = M.div_ [M.key_ key, T.tailwind [T.MinH0]] M.+> c
 
     footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 

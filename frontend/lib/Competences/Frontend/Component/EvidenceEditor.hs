@@ -29,6 +29,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
 import Optics.Core qualified as O
+import qualified Competences.Frontend.View.Tailwind as T
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -46,8 +47,8 @@ evidenceEditorComponent r =
 
     view m =
       V.sideMenu
-        (V.component "evidence-editor-selection" (evidenceSelectorComponent r #evidence))
-        (V.component evidenceEditorId (TE.editorComponent evidenceEditor r))
+        (V.componentA "evidence-editor-selection" [T.tailwind [T.HFull]] (evidenceSelectorComponent r #evidence))
+        (V.componentA evidenceEditorId [T.tailwind [T.HFull]] (TE.editorComponent evidenceEditor r))
       where
         evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
         evidenceEditable =

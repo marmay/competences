@@ -392,7 +392,7 @@ observationSelectorComponent r evidenceId style lens =
     viewCurrentInput' (SelectingAbility _ _ _ i) = [i.currentInput]
 
     viewCurrentSuggestions m =
-      M.div_ [T.tailwind [T.TooltipBox, T.TextSm, T.H96, T.OverflowYScroll]] $
+      M.div_ [T.tailwind [T.TooltipBox, T.TextSm, T.H96, T.W96, T.OverflowYScroll]] $
         map
           (\v -> V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace)) [M.text_ [M.ms v]])
           (viewCurrentSuggestions' m.state)
