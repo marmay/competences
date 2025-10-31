@@ -21,7 +21,7 @@ module Competences.Frontend.SyncDocument
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Document (Document, User(..), emptyDocument, UserId)
+import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
 import Control.Monad (forM_)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
@@ -30,7 +30,7 @@ import GHC.Generics (Generic)
 import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
-import System.Random (StdGen, getStdGen, random)
+import System.Random (StdGen, newStdGen, random)
 import UnliftIO (MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newMVar, readMVar)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
@@ -80,7 +80,7 @@ data SyncDocumentEnv = SyncDocumentEnv
 mkSyncDocument :: (MonadIO m) => SyncDocumentEnv -> m SyncDocumentRef
 mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
-  randomGen <- liftIO getStdGen >>= newMVar
+  randomGen <- newStdGen >>= newMVar
   pure $ SyncDocumentRef syncDocument randomGen env
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncDocumentRef
