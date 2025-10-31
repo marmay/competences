@@ -114,7 +114,7 @@ competenceGridViewerComponent r =
                   [ DescriptionColumn
                   ]
                     <> map LevelDescriptionColumn levels
-              , V.rows = ordered document.competences
+              , V.rows = ordered (document.competences Ix.@= competenceGrid.id)
               , V.columnSpec = \case
                   DescriptionColumn ->
                     C.TableColumnSpec C.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
