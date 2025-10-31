@@ -10,6 +10,7 @@ import Competences.Document
   ( CompetenceGrid (..)
   , CompetenceGridIxs
   , Document (..)
+  , orderMax
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
@@ -62,7 +63,7 @@ competenceGridSelectorComponent r style parentLens =
         Nothing -> m & (#newCompetenceGrid ?~ c)
     update CreateNewCompetenceGrid = M.withSink $ \s -> do
       competenceGridId <- nextId r
-      let competenceGrid = CompetenceGrid competenceGridId "" ""
+      let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
       modifySyncDocument r (OnCompetenceGrids $ Create competenceGrid)
       s (SelectCompetenceGrid competenceGrid)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
