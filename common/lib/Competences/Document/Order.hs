@@ -120,14 +120,14 @@ orderedInsert
 orderedInsert a s = do
   unless (Ix.null $ s Ix.@= (a ^. idL)) $
     Left "An item with the given id already exists!"
-  pure $ reordered $ Ix.insert a s
+  pure $ reordered' $ Ix.insert a s
 
 -- | Deletes and reorders an element from a collection.
 orderedDelete
   :: (OrderableSet ixs a)
   => Id a -> Ix.IxSet ixs a -> Either Text (Ix.IxSet ixs a)
 orderedDelete idA s =
-  pure $ reordered $ Ix.deleteIx idA s
+  pure $ reordered' $ Ix.deleteIx idA s
 
 -- | Generates the orderPosition of an element with a given id.
 orderPosition
@@ -182,17 +182,25 @@ withValidatedOrderPosition
   => Ix.IxSet ixs a -> OrderPosition a -> (a -> a) -> Either (ReorderError a) (Ix.IxSet ixs a)
 withValidatedOrderPosition s p@OrderPosition {this} f
   | validateOrderPosition s p = case Ix.getOne $ s Ix.@= this of
-      Just a -> Right $ reordered $ Ix.insert (f a) $ Ix.deleteIx (a ^. idL) s
+      Just a -> Right $ reordered' $ Ix.insert (f a) $ Ix.deleteIx (a ^. idL) s
       Nothing -> Left $ ReferencedElementNotFound this
   | otherwise = Left $ InvalidOrderPosition p
 
 -- | Updates all order properties within the collection to prepare it for
 -- new insertions.
 reordered
+  :: (OrderableSet ixs a, Ix.IsIndexOf ix ixs)
+  => ix -> Ix.IxSet ixs a -> Ix.IxSet ixs a
+reordered ix as =
+  let as' = reordered' as Ix.@= ix
+  in as Ix.@< ix Ix.||| as' Ix.||| as Ix.@> ix
+
+reordered'
   :: (OrderableSet ixs a)
   => Ix.IxSet ixs a -> Ix.IxSet ixs a
-reordered as = Ix.fromList $ zipWith (\a i -> a & orderL .~ Order i) (ordered as) [0, 2 ..]
+reordered' as = Ix.fromList $ zipWith (\a i -> a & orderL .~ Order i) (ordered as) [0, 2 ..]
 
+  
 formatOrderNumber :: Order -> String
 formatOrderNumber (Order i)
   | i == minBound = "min"
