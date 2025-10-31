@@ -79,17 +79,20 @@ data EntityCommandContext a = EntityCommandContext
   deriving (Generic)
 
 mkOrderedEntityCommandContext
-  :: (Ord a, OrderableSet ixs a, Ix.IsIndexOf (Id a) ixs)
+  :: (Ord a, OrderableSet ixs a, Ix.IsIndexOf ix ixs, Ix.IsIndexOf (Id a) ixs)
   => Lens' Document (Ix.IxSet ixs a)
   -> Lens' a (Id a)
   -> (Id a -> Lock)
+  -> (a -> ix)
   -> (a -> Document -> AffectedUsers)
   -> EntityCommandContext a
-mkOrderedEntityCommandContext l idOf lock affectedUsers =
+mkOrderedEntityCommandContext l idOf lock orderGroup affectedUsers =
   let ctx = mkEntityCommandContext l idOf lock affectedUsers
    in ctx
-        { create = \a d -> O.over l reordered <$> ctx.create a d
-        , delete = \i d -> O.over (O._1 % l) reordered <$> ctx.delete i d
+        { create = \a d -> O.over l (reordered (orderGroup a)) <$> ctx.create a d
+        , delete = \i d -> do
+            a <- ctx.fetch i d
+            O.over (O._1 % l) (reordered (orderGroup a)) <$> ctx.delete i d
         }
 
 mkEntityCommandContext
@@ -179,6 +182,7 @@ handleCommand userId cmd d = case cmd of
         #competences
         #id
         CompetenceLock
+        (^. #competenceGridId)
         (\_ d' -> allUsers d')
     userContext =
       mkEntityCommandContext
