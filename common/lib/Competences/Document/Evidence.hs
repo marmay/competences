@@ -59,17 +59,17 @@ data Ability
     NotYet
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
+-- | Different kinds of activities during which a student can demonstrate
+-- they are competent.
 data ActivityType
-  = -- | Competence was demonstrated as part of a supervised
-    -- activity.
-    Supervised
-  | -- | Competence was demonstrated in a semi-supervised activity,
-    -- where the SocialForm is mostly self-reported, but randomly
-    -- checked.
-    SemiSupervised
-  | -- | Competence was demonstrated as part of an unsupervised
-    -- activity.
-    Unsupervised
+  = Conversation
+    -- ^ A conversation with a teacher.
+  | Exam
+    -- ^ A written or oral exam.
+  | SchoolExercise
+    -- ^ Exercising in school.
+  | HomeExercise
+    -- ^ Home exercise.
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
 newtype ActivityTasks = ActivityTasks Text
@@ -109,7 +109,7 @@ nilEvidence :: Evidence
 nilEvidence = Evidence
   { id = nilId
   , userIds = Set.empty
-  , activityType = Supervised
+  , activityType = SchoolExercise
   , date = fromGregorian 2025 1 1
   , activityTasks = ActivityTasks ""
   , observations = Ix.empty
