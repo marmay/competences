@@ -51,7 +51,7 @@ import Data.Text qualified as T
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
 import Competences.Command (Command(..), EntityCommand (..))
-import System.Random (mkStdGen)
+import System.Random (newStdGen)
 
 data Options = Options
   { port :: !Int
@@ -148,9 +148,10 @@ main = do
 readDocument :: SyncDocumentEnv -> Maybe FilePath -> IO SyncDocumentRef
 readDocument e (Just p) = do
   f <- B.readFile p
+  g <- newStdGen
   case eitherDecode f of
     Left err -> error $ "Could not read file " <> p <> ": " <> err
-    Right d -> mkSyncDocument' e (mkStdGen 42) d
+    Right d -> mkSyncDocument' e g d
 readDocument e Nothing = mkSyncDocument e
 
 writeDocument :: Maybe FilePath -> SyncDocumentRef -> IO ()
