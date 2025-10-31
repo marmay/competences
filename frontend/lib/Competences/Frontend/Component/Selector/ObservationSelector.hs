@@ -15,6 +15,7 @@ import Competences.Document
   , Document (..)
   , EvidenceId
   , Level (..)
+  , Order
   , emptyDocument
   , levels
   )
@@ -45,6 +46,7 @@ import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -136,25 +138,6 @@ hListPop (HCons _ xs) = xs
 hListPush :: x -> HList xs -> HList (x ': xs)
 hListPush = HCons
 
-class HListOn f a xs where
-  hListOn' :: a -> f -> HList xs -> a
-  hListOn' def _ _ = def
-
-instance HListOn (x -> a) a (x ': xs) where
-  hListOn' _ f (x `HCons` _) = f x
-
-instance (HListOn (y -> a) a xs) => HListOn (x -> y -> a) a (x ': xs) where
-  hListOn' def f (x `HCons` xs) = hListOn' def (f x) xs
-
-instance HListOn f a '[] where
-  hListOn' def _ HNil = def
-
-instance (HListOn f a xs) => HListOn f a (x ': xs) where
-  hListOn' def f (_ `HCons` xs) = hListOn' def f xs
-
-hListOn :: (HListOn f a xs) => a -> f -> HList xs -> a
-hListOn = hListOn'
-
 data HandleInputResult
   = HandleInputUpdate State
   | HandleInputFinished (HList '[Ability, SocialForm, Level, Competence, CompetenceGrid])
@@ -165,22 +148,29 @@ handleInput d input (SelectingCompetenceGrid i) =
   case handleInput' d input competenceGridP i of
     StateUpdatePop -> HandleInputUpdate $ SelectingCompetenceGrid $ initStageInfo i.currentContext competenceGridP d
     StateUpdatePush c ->
-      HandleInputUpdate $ SelectingCompetence $ initStageInfo (hListPush c i.currentContext) competenceP d
+      HandleInputUpdate $
+        SelectingCompetence $
+          initStageInfo (hListPush c i.currentContext) (competenceP c) d
     StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetenceGrid i'
     StateUpdateError e -> HandleInputError e
-handleInput d input (SelectingCompetence i) =
-  case handleInput' d input competenceP i of
-    StateUpdatePop -> HandleInputUpdate $ SelectingCompetence $ initStageInfo i.currentContext competenceP d
+handleInput d input (SelectingCompetence i@StageInfo {currentContext = competenceGrid `HCons` _}) =
+  case handleInput' d input (competenceP competenceGrid) i of
+    StateUpdatePop ->
+      HandleInputUpdate $
+        SelectingCompetenceGrid $
+          initStageInfo (hListPop i.currentContext) competenceGridP d
     StateUpdatePush c ->
       HandleInputUpdate $
         SelectingCompetenceLevel $
           initStageInfo (hListPush c i.currentContext) (levelP c) d
     StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetence i'
     StateUpdateError e -> HandleInputError e
-handleInput d input (SelectingCompetenceLevel i@StageInfo {currentContext = competence `HCons` _}) =
+handleInput d input (SelectingCompetenceLevel i@StageInfo {currentContext = competence `HCons` competenceGrid `HCons` _}) =
   case handleInput' d input (levelP competence) i of
     StateUpdatePop ->
-      HandleInputUpdate $ SelectingCompetence $ initStageInfo (hListPop i.currentContext) competenceP d
+      HandleInputUpdate $
+        SelectingCompetence $
+          initStageInfo (hListPop i.currentContext) (competenceP competenceGrid) d
     StateUpdatePush l ->
       HandleInputUpdate $ SelectingSocialForm $ initStageInfo (hListPush l i.currentContext) socialFormP d
     StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetenceLevel i'
@@ -215,8 +205,8 @@ matchingInput s cs = filter (\(k, _, _) -> s `isInfixOf` k) cs
 makeSuggestions'
   :: String -> (a -> String) -> (a -> M.MisoString) -> [a] -> [(String, M.MisoString, a)]
 makeSuggestions' s toKey toDescription as =
-  matchingInput s (map (\a -> let key = toKey a in (key, M.ms key <> toDescription a, a)) as)
-  
+  matchingInput s (map (\a -> let key = toKey a in (key, M.ms key <> ": " <> toDescription a, a)) as)
+
 competenceGridP :: IncrementalParserSpec CompetenceGrid
 competenceGridP = IncrementalParserSpec {makeSuggestions, reconstructInput}
   where
@@ -225,18 +215,18 @@ competenceGridP = IncrementalParserSpec {makeSuggestions, reconstructInput}
         s
         reconstructInput
         (M.ms . (.title))
-        (Ix.toList i.competenceGrids)
+        (Ix.toAscList (Proxy @Order) i.competenceGrids)
     reconstructInput c = formatOrderNumber c.order
 
-competenceP :: IncrementalParserSpec Competence
-competenceP = IncrementalParserSpec {makeSuggestions, reconstructInput}
+competenceP :: CompetenceGrid -> IncrementalParserSpec Competence
+competenceP competenceGrid = IncrementalParserSpec {makeSuggestions, reconstructInput}
   where
     makeSuggestions i s =
       makeSuggestions'
         s
         reconstructInput
         (M.ms . (.description))
-        (Ix.toList i.competences)
+        (Ix.toAscList (Proxy @Order) (i.competences Ix.@= competenceGrid.id))
     reconstructInput c = formatOrderNumber c.order
 
 levelP :: Competence -> IncrementalParserSpec Level
@@ -420,11 +410,13 @@ observationSelectorComponent r evidenceId style lens =
             fromMaybe ("???", V.text_ "Die Beobachtung bezieht sich auf Daten, die nicht länger existieren.") $
               do
                 competence <- Ix.getOne $ m.suggestionsInput.competences Ix.@= fst observation.competenceLevelId
-                let competenceLabel = competenceP.reconstructInput competence
+                competenceGrid <- Ix.getOne $ m.suggestionsInput.competenceGrids Ix.@= competence.competenceGridId
+                let competenceGridLabel = competenceGridP.reconstructInput competenceGrid
+                let competenceLabel = (competenceP competenceGrid).reconstructInput competence
                 let levelLabel = (levelP competence).reconstructInput (snd observation.competenceLevelId)
                 let socialFormLabel = socialFormP.reconstructInput observation.socialForm
                 let abilityLabel = abilityP.reconstructInput observation.ability
-                let label = M.ms $ intercalate "." [competenceLabel, levelLabel, socialFormLabel, abilityLabel]
+                let label = M.ms $ intercalate "." [competenceGridLabel, competenceLabel, levelLabel, socialFormLabel, abilityLabel]
                 let short' =
                       M.span_
                         [T.tailwind []]
@@ -466,7 +458,7 @@ observationSelectorComponent r evidenceId style lens =
                 ">"
                   <> intercalate
                     "."
-                    (viewCompetence m <> viewLevel m <> viewSocialForm m <> viewCurrentInput' m)
+                    (viewContext m <> viewCurrentInput' m)
                   <> "▁"
             )
         ]
@@ -476,13 +468,6 @@ observationSelectorComponent r evidenceId style lens =
         map
           (\v -> V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace)) [M.text_ [M.ms v]])
           (viewCurrentSuggestions' state)
-
-    onContext :: a -> (HList xs -> a) -> State -> a
-    onContext def f (SelectingCompetenceGrid s) = hListOn def f s.currentContext
-    onContext def f (SelectingCompetence s) = hListOn def f s.currentContext
-    onContext def f (SelectingCompetenceLevel s) = hListOn def f s.currentContext
-    onContext def f (SelectingSocialForm s) = hListOn def f s.currentContext
-    onContext def f (SelectingAbility s) = hListOn def f s.currentContext
 
     onStageInfo :: (forall p a. StageInfo p a -> b) -> State -> b
     onStageInfo f (SelectingCompetenceGrid s) = f s
@@ -494,18 +479,30 @@ observationSelectorComponent r evidenceId style lens =
     viewCurrentInput' = onStageInfo (\s -> [s.currentInput])
     viewCurrentSuggestions' = onStageInfo (\s -> map (\(_, d, _) -> d) s.currentSuggestions)
 
-    viewCompetence = onContext [] viewCompetence'
-      where
-        viewCompetence' :: HList '[Competence] -> [String]
-        viewCompetence' (c `HCons` HNil) = [competenceP.reconstructInput c]
-    viewLevel = onContext [] viewLevel'
-      where
-        viewLevel' :: HList '[Level, Competence] -> [String]
-        viewLevel' (l `HCons` (c `HCons` HNil)) = [(levelP c).reconstructInput l]
-    viewSocialForm = onContext [] viewSocialForm'
-      where
-        viewSocialForm' :: HList '[SocialForm] -> [String]
-        viewSocialForm' (s `HCons` HNil) = [socialFormP.reconstructInput s]
+    viewContext (SelectingCompetenceGrid _) = []
+    viewContext (SelectingCompetence StageInfo {currentContext = competenceGrid `HCons` HNil}) =
+      [competenceGridP.reconstructInput competenceGrid]
+    viewContext (SelectingCompetenceLevel StageInfo {currentContext = competence `HCons` competenceGrid `HCons` HNil}) =
+      [ competenceGridP.reconstructInput competenceGrid
+      , (competenceP competenceGrid).reconstructInput competence
+      ]
+    viewContext ( SelectingSocialForm
+                    StageInfo {currentContext = level `HCons` competence `HCons` competenceGrid `HCons` HNil}
+                  ) =
+      [ competenceGridP.reconstructInput competenceGrid
+      , (competenceP competenceGrid).reconstructInput competence
+      , (levelP competence).reconstructInput level
+      ]
+    viewContext ( SelectingAbility
+                    StageInfo
+                      { currentContext = socialForm `HCons` level `HCons` competence `HCons` competenceGrid `HCons` HNil
+                      }
+                  ) =
+      [ competenceGridP.reconstructInput competenceGrid
+      , (competenceP competenceGrid).reconstructInput competence
+      , (levelP competence).reconstructInput level
+      , socialFormP.reconstructInput socialForm
+      ]
 
 observationEditorField
   :: (Ord p)
