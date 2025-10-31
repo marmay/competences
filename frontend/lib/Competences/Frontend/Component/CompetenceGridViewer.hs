@@ -138,9 +138,10 @@ competenceGridViewerComponent r =
                                 WithSupport -> "#f2a104"
                                 NotYet -> "#f25117"
                               activityTypeIcn = case activityType of
-                                Supervised -> V.IcnActivityTypeSupervised
-                                SemiSupervised -> V.IcnActivityTypeSemiSupervised
-                                Unsupervised -> V.IcnActivityTypeUnsupervised
+                                Conversation -> V.IcnActivityTypeConversation
+                                Exam -> V.IcnActivityTypeExam
+                                SchoolExercise -> V.IcnActivityTypeSchoolExercise
+                                HomeExercise -> V.IcnActivityTypeHomeExercise
                               socialFormIcn = case socialForm of
                                 Group -> V.IcnSocialFormGroup
                                 Individual -> V.IcnSocialFormIndividual

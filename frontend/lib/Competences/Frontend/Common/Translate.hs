@@ -157,9 +157,10 @@ labels' =
   , LblSelectEvidences
   , LblEvidenceDate
   , LblActivityType
-  , LblActivityTypeDescription Supervised
-  , LblActivityTypeDescription SemiSupervised
-  , LblActivityTypeDescription Unsupervised
+  , LblActivityTypeDescription Conversation
+  , LblActivityTypeDescription Exam
+  , LblActivityTypeDescription SchoolExercise
+  , LblActivityTypeDescription HomeExercise
   , LblActivityTasks
   , LblStudents
   , LblPleaseSelectItem
@@ -227,9 +228,10 @@ defaultTranslation LblAllTime = "Gesamt"
 defaultTranslation LblSelectEvidences = "Aufzeichnungen"
 defaultTranslation LblEvidenceDate = "Datum"
 defaultTranslation LblActivityType = "Art der Aktivität"
-defaultTranslation (LblActivityTypeDescription Supervised) = "Beaufsichtigt"
-defaultTranslation (LblActivityTypeDescription SemiSupervised) = "Betreut"
-defaultTranslation (LblActivityTypeDescription Unsupervised) = "Selbstständig"
+defaultTranslation (LblActivityTypeDescription Conversation) = "Gespräch"
+defaultTranslation (LblActivityTypeDescription Exam) = "Test"
+defaultTranslation (LblActivityTypeDescription SchoolExercise) = "Schulübung"
+defaultTranslation (LblActivityTypeDescription HomeExercise) = "Hausübung"
 defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"
