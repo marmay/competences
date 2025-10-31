@@ -111,7 +111,7 @@ competenceGridEditorComponent r = M.component emptyModel update view
               ( \d ->
                   map
                     (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
-                    (Ix.toAscList (Proxy @Order) $ d ^. #competences)
+                    (Ix.toAscList (Proxy @Order) ((d ^. #competences) Ix.@= competenceGrid.id))
               )
               & (#modify ?~ (\c m -> OnCompetences (Modify c.id m)))
               & (#delete ?~ (\c -> OnCompetences (Delete c.id)))
