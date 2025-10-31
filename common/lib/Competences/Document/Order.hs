@@ -17,6 +17,7 @@ module Competences.Document.Order
   , orderedDelete
   , reorder
   , reordered
+  , reordered'
   , formatOrderNumber
   )
 where

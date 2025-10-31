@@ -23,7 +23,9 @@ import Competences.Document.Order
   , OrderableSet
   , Reorder
   , explainReorderError
-  , reorder, reordered
+  , reorder
+  , reordered
+  , reordered'
   )
 import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
@@ -34,7 +36,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core (Lens', (%), (%~), (&), (.~), (^.))
-import qualified Optics.Core as O
+import Optics.Core qualified as O
 
 data ModifyCommand a
   = Lock
@@ -78,7 +80,7 @@ data EntityCommandContext a = EntityCommandContext
   }
   deriving (Generic)
 
-mkOrderedEntityCommandContext
+mkGroupOrderedEntityCommandContext
   :: (Ord a, OrderableSet ixs a, Ix.IsIndexOf ix ixs, Ix.IsIndexOf (Id a) ixs)
   => Lens' Document (Ix.IxSet ixs a)
   -> Lens' a (Id a)
@@ -86,13 +88,28 @@ mkOrderedEntityCommandContext
   -> (a -> ix)
   -> (a -> Document -> AffectedUsers)
   -> EntityCommandContext a
-mkOrderedEntityCommandContext l idOf lock orderGroup affectedUsers =
+mkGroupOrderedEntityCommandContext l idOf lock orderGroup affectedUsers =
   let ctx = mkEntityCommandContext l idOf lock affectedUsers
    in ctx
-        { create = \a d -> O.over l (reordered (orderGroup a)) <$> ctx.create a d
+        { create = \a d -> O.over l (reordered $ orderGroup a) <$> ctx.create a d
         , delete = \i d -> do
             a <- ctx.fetch i d
-            O.over (O._1 % l) (reordered (orderGroup a)) <$> ctx.delete i d
+            O.over (O._1 % l) (reordered $ orderGroup a) <$> ctx.delete i d
+        }
+
+mkOrderedEntityCommandContext
+  :: (Ord a, OrderableSet ixs a, Ix.IsIndexOf (Id a) ixs)
+  => Lens' Document (Ix.IxSet ixs a)
+  -> Lens' a (Id a)
+  -> (Id a -> Lock)
+  -> (a -> Document -> AffectedUsers)
+  -> EntityCommandContext a
+mkOrderedEntityCommandContext l idOf lock affectedUsers =
+  let ctx = mkEntityCommandContext l idOf lock affectedUsers
+   in ctx
+        { create = \a d -> O.over l reordered' <$> ctx.create a d
+        , delete = \i d -> do
+            O.over (O._1 % l) reordered' <$> ctx.delete i d
         }
 
 mkEntityCommandContext
@@ -172,13 +189,13 @@ handleCommand userId cmd d = case cmd of
   OnEvidences c -> interpretEntityCommand evidenceContext userId c d
   where
     competenceGridContext =
-      mkEntityCommandContext
+      mkOrderedEntityCommandContext
         #competenceGrids
         #id
         CompetenceGridLock
         (\_ d' -> allUsers d')
     competenceContext =
-      mkOrderedEntityCommandContext
+      mkGroupOrderedEntityCommandContext
         #competences
         #id
         CompetenceLock

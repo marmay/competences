@@ -8,6 +8,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id, nilId)
+import Competences.Document.Order (Order, orderMax, Orderable)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.List (singleton)
@@ -24,6 +25,8 @@ type CompetenceGridId = Id CompetenceGrid
 data CompetenceGrid = CompetenceGrid
   { id :: !CompetenceGridId
   -- ^ Unique identifier for the competence grid.
+  , order :: !Order
+  -- ^ Order in which competence grids are displayed.
   , title :: !Text
   -- ^ Title of the competence grid.
   , description :: !Text
@@ -31,18 +34,21 @@ data CompetenceGrid = CompetenceGrid
   }
   deriving (Eq, Generic, Ord, Show)
 
-type CompetenceGridIxs = '[CompetenceGridId]
+type CompetenceGridIxs = '[CompetenceGridId, Order]
 
 instance Ix.Indexable CompetenceGridIxs CompetenceGrid where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
+      (Ix.ixFun $ singleton . (.order))
 
 emptyCompetenceGrid :: CompetenceGrid
-emptyCompetenceGrid = CompetenceGrid nilId "" ""
+emptyCompetenceGrid = CompetenceGrid nilId orderMax "" ""
 
 instance FromJSON CompetenceGrid
 
 instance ToJSON CompetenceGrid
 
 instance Binary CompetenceGrid
+
+instance Orderable CompetenceGrid
