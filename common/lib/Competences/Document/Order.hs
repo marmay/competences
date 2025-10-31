@@ -141,24 +141,24 @@ orderPosition s this = do
 
 -- | Reorders an item in a collection.
 reorder
-  :: (OrderableSet ixs a)
-  => OrderPosition a -> Reorder a -> Ix.IxSet ixs a -> Either (ReorderError a) (Ix.IxSet ixs a)
-reorder p Front s = withValidatedOrderPosition s p (orderL .~ orderMin)
-reorder p Back s = withValidatedOrderPosition s p (orderL .~ orderMax)
-reorder p Forward s = withValidatedOrderPosition s p (orderL %~ up)
+  :: (OrderableSet ixs a, Ix.IsIndexOf ix ixs)
+  => OrderPosition a -> Reorder a -> Ix.IxSet ixs a -> (a -> ix) -> Either (ReorderError a) (Ix.IxSet ixs a)
+reorder p Front s ix = withValidatedOrderPosition s ix p (orderL .~ orderMin)
+reorder p Back s ix = withValidatedOrderPosition s ix p (orderL .~ orderMax)
+reorder p Forward s ix = withValidatedOrderPosition s ix p (orderL %~ up)
   where
     up (Order i) = Order $ i - 3
-reorder p Backward s = withValidatedOrderPosition s p (orderL %~ down)
+reorder p Backward s ix = withValidatedOrderPosition s ix p (orderL %~ down)
   where
     down (Order i) = Order $ i + 3
-reorder p (Before i) s = do
+reorder p (Before i) s ix = do
   o <- orderOf s i
-  withValidatedOrderPosition s p (orderL .~ before o)
+  withValidatedOrderPosition s ix p (orderL .~ before o)
   where
     before (Order o) = Order $ o - 1
-reorder p (After i) s = do
+reorder p (After i) s ix = do
   o <- orderOf s i
-  withValidatedOrderPosition s p (orderL .~ after o)
+  withValidatedOrderPosition s ix p (orderL .~ after o)
   where
     after (Order o) = Order $ o + 1
 
@@ -178,11 +178,11 @@ validateOrderPosition s p@OrderPosition {this} =
 -- | Helper function that conditionally applies a function to an item, if
 -- that item is at the position described by its OrderPosition.
 withValidatedOrderPosition
-  :: (OrderableSet ixs a)
-  => Ix.IxSet ixs a -> OrderPosition a -> (a -> a) -> Either (ReorderError a) (Ix.IxSet ixs a)
-withValidatedOrderPosition s p@OrderPosition {this} f
+  :: (OrderableSet ixs a, Ix.IsIndexOf ix ixs)
+  => Ix.IxSet ixs a -> (a -> ix) -> OrderPosition a -> (a -> a) -> Either (ReorderError a) (Ix.IxSet ixs a)
+withValidatedOrderPosition s ixOf p@OrderPosition {this} f
   | validateOrderPosition s p = case Ix.getOne $ s Ix.@= this of
-      Just a -> Right $ reordered' $ Ix.insert (f a) $ Ix.deleteIx (a ^. idL) s
+      Just a -> Right $ reordered (ixOf a) $ Ix.insert (f a) $ Ix.deleteIx (a ^. idL) s
       Nothing -> Left $ ReferencedElementNotFound this
   | otherwise = Left $ InvalidOrderPosition p
 
@@ -192,7 +192,7 @@ reordered
   :: (OrderableSet ixs a, Ix.IsIndexOf ix ixs)
   => ix -> Ix.IxSet ixs a -> Ix.IxSet ixs a
 reordered ix as =
-  let as' = reordered' as Ix.@= ix
+  let as' = reordered' (as Ix.@= ix)
   in as Ix.@< ix Ix.||| as' Ix.||| as Ix.@> ix
 
 reordered'
@@ -200,7 +200,6 @@ reordered'
   => Ix.IxSet ixs a -> Ix.IxSet ixs a
 reordered' as = Ix.fromList $ zipWith (\a i -> a & orderL .~ Order i) (ordered as) [0, 2 ..]
 
-  
 formatOrderNumber :: Order -> String
 formatOrderNumber (Order i)
   | i == minBound = "min"

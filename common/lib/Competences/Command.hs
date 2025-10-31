@@ -165,7 +165,7 @@ handleCommand userId cmd d = case cmd of
   OnCompetenceGrids c -> interpretEntityCommand competenceGridContext userId c d
   OnCompetences c -> interpretEntityCommand competenceContext userId c d
   ReorderCompetence p t -> do
-    case reorder p t d.competences of
+    case reorder p t d.competences (.competenceGridId) of
       Left err -> Left $ explainReorderError err
       Right c' -> Right (d & (#competences .~ c'), allUsers d)
   OnUsers c -> interpretEntityCommand userContext userId c d
