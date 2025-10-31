@@ -10,7 +10,6 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
-  
   , Document (..)
   , Level (..)
   , Lock (..)
@@ -31,7 +30,6 @@ import Competences.Frontend.SyncDocument
   ( SyncDocumentRef
   , modifySyncDocument
   , nextId
-  
   )
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
@@ -143,7 +141,11 @@ competenceGridEditorComponent r = M.component emptyModel update view
                 & (#expandOrthogonal .~ V.Expand V.Start)
                 & (#gap .~ V.SmallSpace)
             )
-            [ V.component "competence-grid-editor-competence-grid" (TE.editorComponent competenceGridEditor r)
-            , V.component "competence-grid-editor-competences" (TE.editorComponent competencesEditor r)
+            [ V.component
+                ("competence-grid-editor-competence-grid-" <> M.ms (show competenceGrid.id))
+                (TE.editorComponent competenceGridEditor r)
+            , V.component
+                ("competence-grid-editor-competences-" <> M.ms (show competenceGrid.id))
+                (TE.editorComponent competencesEditor r)
             , V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddNewCompetence CreateNewCompetence
             ]
