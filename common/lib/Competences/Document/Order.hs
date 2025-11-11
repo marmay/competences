@@ -8,6 +8,7 @@ module Competences.Document.Order
   , ReorderError (..)
   , OrderableSet
   , explainReorderError
+  , orderPos
   , orderAt
   , orderMax
   , orderMin
@@ -97,6 +98,10 @@ data ReorderError a
 explainReorderError :: ReorderError a -> Text
 explainReorderError (InvalidOrderPosition p) = "Invalid order position: " <> pack (show p)
 explainReorderError (ReferencedElementNotFound i) = "Referenced element not found: " <> pack (show i)
+
+-- | Specify a given order.
+orderPos :: Int -> Order
+orderPos i = Order $ 2 * i
 
 -- | Use this to insert an item at a given position in the collection.
 orderAt :: Int -> Order

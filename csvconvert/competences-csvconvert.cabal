@@ -1,0 +1,40 @@
+cabal-version:      3.4
+name:               competences-csvconvert
+version:            0.1.0.0
+license:            BSD-3-Clause
+author:             Markus Mayr
+maintainer:         markus.mayr@tuta.com
+category:           Web
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall -Werror
+
+executable competences-csvconvert
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.21.0.0,
+        attoparsec,
+        aeson,
+        bytestring,
+        cassava,
+        competences-common,
+        containers,
+        extra,
+        ixset-typed,
+        mtl,
+        optics-core,
+        optparse-applicative,
+        random,
+        text,
+        time
+    hs-source-dirs:   app
+    default-language: GHC2024
