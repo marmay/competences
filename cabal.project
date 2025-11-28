@@ -1,4 +1,4 @@
-packages: backend common csvconvert frontend
+packages: backend common csvconvert frontend template
 
 allow-newer:
   ixset-typed:template-haskell
