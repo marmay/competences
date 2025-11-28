@@ -33,6 +33,7 @@ library
         Competences.Document.Lock
         Competences.Document.Order
         Competences.Document.Resource
+        Competences.Document.Template
         Competences.Document.User
         Competences.Document.Verdict
         Competences.Document

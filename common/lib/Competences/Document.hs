@@ -12,6 +12,7 @@ module Competences.Document
   , module Competences.Document.Evidence
   , module Competences.Document.Order
   , module Competences.Document.Resource
+  , module Competences.Document.Template
   , module Competences.Document.User
   )
 where
@@ -34,6 +35,7 @@ import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
+import Competences.Document.Template (Template(..), TemplateName(..), TemplateIxs)
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Crypto.Hash.SHA1 (hashlazy)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
@@ -53,6 +55,7 @@ data Document = Document
   , resources :: !(Ix.IxSet ResourceIxs Resource)
   , locks :: !(M.Map Lock UserId)
   , users :: !(Ix.IxSet UserIxs User)
+  , templates :: !(Ix.IxSet TemplateIxs Template)
   , partialChecksums :: !(M.Map PartialChecksumId ByteString)
   , overallChecksum :: !ByteString
   }
@@ -67,6 +70,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "resources")
       <*> fmap M.fromList (v .: "locks")
       <*> fmap Ix.fromList (v .: "users")
+      <*> fmap Ix.fromList (v .: "templates")
       <*> fmap
         (M.fromList . map (\(k, v') -> (k, Base64.decodeLenient (encodeUtf8 v'))))
         (v .: "partialChecksums")
@@ -81,6 +85,7 @@ instance ToJSON Document where
       , "resources" .= Ix.toList d.resources
       , "locks" .= M.toList d.locks
       , "users" .= Ix.toList d.users
+      , "templates" .= Ix.toList d.templates
       , "partialChecksums"
           .= map (\(k, v') -> (k, decodeUtf8 (Base64.encode v'))) (M.toList d.partialChecksums)
       , "overallChecksum" .= decodeUtf8 (Base64.encode d.overallChecksum)
@@ -96,6 +101,7 @@ emptyDocument =
       , resources = Ix.empty
       , locks = M.empty
       , users = Ix.empty
+      , templates = Ix.empty
       , partialChecksums = M.empty
       , overallChecksum = ""
       }

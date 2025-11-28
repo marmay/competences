@@ -34,10 +34,13 @@ import Data.Aeson (eitherDecode, encode)
 import Data.Attoparsec.Text qualified as A
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as BL
+import Data.Char (ord)
 import Data.Csv
-  ( FromNamedRecord (..)
+  ( DecodeOptions (..)
+  , FromNamedRecord (..)
   , ToNamedRecord (..)
-  , decodeByName
+  , decodeByNameWith
+  , defaultDecodeOptions
   , encodeByName
   , namedRecord
   , (.:)
@@ -148,7 +151,10 @@ main = handleExceptions $ do
 
   warnExistingFile opts.documentOutput
   warnExistingFile opts.csvOutput
-  (header, csv) <- throwLeft (ParseError opts.csvInput) . decodeByName <$> BL.readFile opts.csvInput
+  (header, csv) <-
+    throwLeft (ParseError opts.csvInput)
+      . decodeByNameWith (defaultDecodeOptions {decDelimiter = fromIntegral (ord ';')})
+      <$> BL.readFile opts.csvInput
   document :: Document <-
     throwLeft (ParseError opts.documentInput) . eitherDecode <$> BL.readFile opts.documentInput
 
@@ -169,15 +175,19 @@ handleCsvCommand :: (Document, [CsvCommand]) -> CsvCommand -> IO (Document, [Csv
 handleCsvCommand (document, failed) command = do
   h <- runExceptT $ handleCsvCommand' document command
   case h of
-    Right document' -> pure (document', failed)
-    Left _err -> pure (document, command : failed)
+    Right document' -> do
+      -- putStrLn $ "Successfully applied " <> show command <> "."
+      pure (document', failed)
+    Left err -> do
+      putStrLn $ "Failed to apply " <> show command <> ": " <> err
+      pure (document, command : failed)
 
 handleCsvCommand' :: Document -> CsvCommand -> ExceptT String IO Document
 handleCsvCommand' document command = do
   day :: Day <-
     liftEither $
       maybeToEither "Could not parse date!" $
-        parseTimeM True defaultTimeLocale "%d.%m.%Y" (T.unpack command.date)
+        parseTimeM True defaultTimeLocale "%-d.%-m.%Y" (T.unpack command.date)
   studentId <- liftEither $ matchStudent document command.student
   competences <- liftEither $ mapM (parseCompetence document) (T.words command.competences)
   let activityTasks = ActivityTasks command.exercises
