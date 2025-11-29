@@ -7,6 +7,12 @@
 module Competences.Common.IxSet
   ( module Data.IxSet.Typed
   , replacePrimary
+  , (@=?)
+  , (@>=?)
+  , (@<=?)
+  , (@=!)
+  , (@>=!)
+  , (@<=!)
   )
 where
 
@@ -47,6 +53,24 @@ replacePrimary
   :: forall ix ixs a
    . (Ix.Indexable (ix ': ixs) a) => ix -> (a -> a) -> Ix.IxSet (ix ': ixs) a -> Ix.IxSet (ix ': ixs) a
 replacePrimary i f s = foldr (Ix.insert . f) (Ix.deleteIx i s) (Ix.toList $ s Ix.@= i)
+
+liftOp :: forall ix ixs a. (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs) => Ix.IxSet ixs a -> (Ix.IxSet ixs a -> ix -> Ix.IxSet ixs a) -> Ix.IxSet ixs a -> Maybe ix -> Ix.IxSet ixs a
+liftOp def _ _ Nothing = def
+liftOp _ op s (Just x) = op s x
+
+liftOpA, liftOpB :: forall ix ixs a. (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs) => (Ix.IxSet ixs a -> ix -> Ix.IxSet ixs a) -> Ix.IxSet ixs a -> Maybe ix -> Ix.IxSet ixs a
+liftOpA op s = liftOp s op s
+liftOpB = liftOp Ix.empty
+
+(@=?), (@>=?), (@<=?), (@=!), (@>=!), (@<=!)
+  :: forall ix ixs a
+   . (Ix.Indexable ixs a, Ix.IsIndexOf ix ixs) => Ix.IxSet ixs a -> Maybe ix -> Ix.IxSet ixs a
+(@=?) = liftOpA (@=)
+(@>=?) = liftOpA (@=)
+(@<=?) = liftOpA (@=)
+(@=!) = liftOpB (@=)
+(@>=!) = liftOpB (@=)
+(@<=!) = liftOpB (@=)
 
 instance (FromJSON a, Ix.Indexable ixs a) => FromJSON (Ix.IxSet ixs a) where
   parseJSON = fmap Ix.fromList . parseJSON

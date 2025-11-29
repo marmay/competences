@@ -6,7 +6,7 @@ module Main
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Competence, Document (..), Level, Template (..), TemplateExercise, TemplateName (..), User (..))
+import Competences.Document (Competence, Document (..), Level, Template (..), TemplateName (..), User (..))
 import Competences.Document.Evidence (Ability, ActivityType (..), SocialForm (..))
 import Control.Applicative (Alternative (..))
 import Control.Exception (Exception, catch, throw)
@@ -25,6 +25,7 @@ import Options.Applicative qualified as O
 import System.Console.Haskeline qualified as H
 import System.Random (randomIO)
 import Data.Either.Extra (maybeToEither)
+import Competences.Document.Template (TemplateAssessment(..))
 
 newtype Options = Options
   { document :: FilePath
@@ -127,7 +128,7 @@ handleInitCmd' :: (MonadIO m) => Document -> InitCommand -> ExceptT String (H.In
 handleInitCmd' d (ApplyTemplate t u) = do
   template <- liftEither $ findTemplate d t
   user <- liftEither $ findUser d u
-  pure (d, Apply template user (ApplyState [] template.exercises))
+  pure (d, Apply template user (ApplyState [] template.assessments))
 handleInitCmd' d (EditTemplate t) = do
   case Ix.getOne ((d ^. #templates) Ix.@= TemplateName t) of
     Just t' -> pure (d, Edit t' EditInit)
@@ -140,34 +141,35 @@ handleInitCmd' d (EditTemplate t) = do
       date <- utctDay <$> liftIO getCurrentTime
       pure $ Template id' (TemplateName t') date Exam [Individual] []
 
-data ApplyCommand
-  = Rate !Int !Bool
-  | Summarize
-  | Commit
-  | Abort
+-- data ApplyCommand
+--   = Rate !Int !Bool
+--   | Summarize
+--   | Commit
+--   | Abort
+-- 
+-- applyCommandParser :: A.Parser ApplyCommand
+-- applyCommandParser =
+--   summarizeParser <|> commitParser <|> abortParser <|> rateParser
+--   where
+--     summarizeParser = Summarize <$ A.string "summarize"
+--     commitParser = Commit <$ A.string "commit"
+--     abortParser = Abort <$ A.string "abort"
+--     rateParser = do
+--       level <- A.decimal
+--       withoutSillyMistakes <- A.option True (False <$ A.char '?')
+--       pure $ Rate level withoutSillyMistakes
 
-applyCommandParser :: A.Parser ApplyCommand
-applyCommandParser =
-  summarizeParser <|> commitParser <|> abortParser <|> rateParser
-  where
-    summarizeParser = Summarize <$ A.string "summarize"
-    commitParser = Commit <$ A.string "commit"
-    abortParser = Abort <$ A.string "abort"
-    rateParser = do
-      level <- A.decimal
-      withoutSillyMistakes <- A.option True (False <$ A.char '?')
-      pure $ Rate level withoutSillyMistakes
-
-handleApplyCmd :: (MonadIO m) => Template -> User -> ApplyState -> Document -> String -> ExceptT String (H.InputT m) (Document, RunState)
-handleApplyCmd t u s d cmd = liftEither (A.parseOnly applyCommandParser (T.pack cmd)) >>= handleApplyCmd' t u s d
-
-handleApplyCmd' :: (MonadIO m) => Template -> User -> ApplyState -> Document -> ApplyCommand -> ExceptT String (H.InputT m) (Document, RunState)
-handleApplyCmd' _ _ (ApplyState rs (t:ts)) d (Rate level withoutSillyMistakes) = do
-  competence <- Ix.getOne ((d ^. #competences) Ix.@= t.competence)
+-- handleApplyCmd :: (MonadIO m) => Template -> User -> ApplyState -> Document -> String -> ExceptT String (H.InputT m) (Document, RunState)
+-- handleApplyCmd t u s d cmd = liftEither (A.parseOnly applyCommandParser (T.pack cmd)) >>= handleApplyCmd' t u s d
+-- 
+-- handleApplyCmd' :: (MonadIO m) => Template -> User -> ApplyState -> Document -> ApplyCommand -> ExceptT String (H.InputT m) (Document, RunState)
+-- handleApplyCmd' _ _ (ApplyState rs (t:ts)) d (Rate level withoutSillyMistakes) = do
+--   competence <- Ix.getOne ((d ^. #competences) Ix.@= t.competence)
+--   pure (d, ApplyState rs (t:ts)) -- todo
 
 handle :: (MonadIO m) => RunState -> Document -> String -> ExceptT String (H.InputT m) (Document, RunState)
 handle Init = handleInitCmd
-handle (Apply t u s) = handleApplyCmd t u s
+-- handle (Apply t u s) = handleApplyCmd t u s
 handle _ = \_ _ -> liftEither $ Left "Not implemented yet."
 
 handleInput :: (MonadIO m) => Document -> RunState -> String -> H.InputT m (Document, RunState)
@@ -192,7 +194,7 @@ data RunState
 
 data ApplyState = ApplyState
   { assessments :: ![(Text, Competence, Level, Ability)]
-  , toAssess :: ![TemplateExercise]
+  , toAssess :: ![TemplateAssessment]
   }
   deriving (Eq, Show)
 

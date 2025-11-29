@@ -103,6 +103,7 @@ data Label
   | LblActivityTasks
   | LblStudents
   | LblPleaseSelectItem
+  | LblPleaseSelectItemShort
   | LblNoUser
   | LblPleaseCompleteObservation
   | LblNoMatchingAlternatives
@@ -164,6 +165,7 @@ labels' =
   , LblActivityTasks
   , LblStudents
   , LblPleaseSelectItem
+  , LblPleaseSelectItemShort
   , LblNoUser
   , LblPleaseCompleteObservation
   , LblNoMatchingAlternatives
@@ -236,6 +238,7 @@ defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
+defaultTranslation LblPleaseSelectItemShort = "Bitte Element auswählen!"
 defaultTranslation LblNoUser = "Kein Benutzer"
 defaultTranslation LblPleaseCompleteObservation = "Bitte vervollständige die Beobachtung zuerst!"
 defaultTranslation LblNoMatchingAlternatives = "Bitte wähle eine gültige Alternative aus!"
