@@ -11,8 +11,16 @@ import Competences.Document.Evidence
   , Evidence (..)
   , mkEvidence
   )
+import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
+import Competences.Frontend.Component.Selector.UserSelector
+  ( SingleUserSelectorStyle (..)
+  , UserSelectorConfig (..)
+  , defaultUserSelectorConfig
+  , singleUserSelectorComponent
+  )
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentEnv (..)
@@ -32,6 +40,8 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
+import Data.Time (Day, addDays)
+import Data.Proxy (Proxy(..))
 
 data DateRange
   = Today
@@ -40,7 +50,7 @@ data DateRange
   deriving (Eq, Show)
 
 data Model = Model
-  { filteredUsers :: !(Maybe User)
+  { filteredUser :: !(Maybe User)
   , filteredDateRange :: !DateRange
   , allEvidences :: Ix.IxSet EvidenceIxs Evidence
   , userNames :: Map.Map UserId M.MisoString
@@ -63,7 +73,7 @@ evidenceSelectorComponent r parentLens =
     , M.subs = [subscribeDocument r UpdateDocument]
     }
   where
-    model = Model Nothing ThisWeek Ix.empty Map.empty Nothing Nothing
+    model = Model Nothing AllTime Ix.empty Map.empty Nothing Nothing
     update (SelectEvidence e) =
       M.modify $ \m -> case Ix.getOne (m.allEvidences Ix.@= e.id) of
         Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing)
@@ -96,16 +106,20 @@ evidenceSelectorComponent r parentLens =
 
     view m =
       V.viewFlow
-        (V.vFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start) & (#extraAttrs .~ [T.tailwind [T.HFull]]))
+        ( V.vFlow
+            & (#gap .~ V.SmallSpace)
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#extraAttrs .~ [T.tailwind [T.HFull]])
+        )
         [ V.title_ (C.translate' C.LblSelectEvidences)
-        -- , V.component
-        --     "evidence-selector-users"
-        --     ( singleUserSelectorComponent
-        --         r
-        --         defaultUserSelectorConfig {isPossibleUser = isStudent}
-        --         SingleUserSelectorStyleButtons
-        --         (selectorLens #filteredUsers)
-        --     )
+        , V.component
+            "evidence-selector-users"
+            ( singleUserSelectorComponent
+                r
+                defaultUserSelectorConfig {isPossibleUser = isStudent}
+                SingleUserSelectorStyleComboBox
+                (selectorLens #filteredUser)
+            )
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'
@@ -119,7 +133,13 @@ evidenceSelectorComponent r parentLens =
         , V.viewButton (V.labelButton' C.LblAddEvidence CreateNewEvidence)
         ]
     viewEvidences m =
-      let filteredEvidences = Ix.toList m.allEvidences
+      let dateRangeFilter :: Ix.IxSet EvidenceIxs Evidence -> Ix.IxSet EvidenceIxs Evidence
+          dateRangeFilter = case m.filteredDateRange of
+            AllTime -> id
+            ThisWeek -> (Ix.@>= (addDays (-7) $ syncDocumentEnv r ^. #currentDay))
+            Today -> (Ix.@= (syncDocumentEnv r ^. #currentDay))
+          filteredEvidences =
+            Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.filteredUser)
        in V.viewFlow
             (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [T.tailwind [T.OverflowYScroll, T.MinH0]]))
             (map viewEvidence filteredEvidences)
@@ -144,8 +164,8 @@ evidenceSelectorComponent r parentLens =
         viewActivityType = C.translate' . C.LblActivityTypeDescription
         viewActivityTasks (ActivityTasks t) = M.ms t
         viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
-        commaSeparated  :: [M.MisoString] -> M.MisoString
-        commaSeparated (x:x':xs) = x <> ", " <> commaSeparated (x':xs)
+        commaSeparated :: [M.MisoString] -> M.MisoString
+        commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)
         commaSeparated [x] = x
         commaSeparated [] = ""
 
