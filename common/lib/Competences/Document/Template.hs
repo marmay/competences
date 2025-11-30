@@ -1,23 +1,37 @@
 module Competences.Document.Template
   ( Template (..)
+  , TemplateEvaluation (..)
   , TemplateName (..)
-  , TemplateAssessment (..)
+  , TemplateAspect (..)
   , TemplateIxs
   , mkTemplate
-  , addAssessment
+  , addAspect
+  , mkEvidenceFromTemplateEvaluation
   )
 where
 
-import Competences.Document.Competence (CompetenceId, Level)
-import Competences.Document.Evidence (ActivityType, SocialForm)
+import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Evidence
+  ( Ability
+  , ActivityTasks (..)
+  , ActivityType
+  , Evidence (..)
+  , Observation (..)
+  , SocialForm
+  )
 import Competences.Document.Id (Id)
+import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
+import Data.Map qualified as Map
+import Data.Maybe (mapMaybe)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
+import System.Random (RandomGen, random, randoms)
 import Prelude hiding (id)
 
 type TemplateId = Id Template
@@ -26,7 +40,8 @@ newtype TemplateName = TemplateName {unTemplateName :: Text}
   deriving (Eq, Generic, Ord, Show)
 
 -- | When you frequently want to record the same activity, having a
--- template makes it a bit smoother.
+-- template makes it a bit smoother. You evaluate a fixed set of
+-- aspects and can auto-aggregate information from those aspects.
 data Template = Template
   { id :: !TemplateId
   -- ^ Id of the template.
@@ -36,27 +51,64 @@ data Template = Template
   -- ^ Default date of the activity.
   , activityType :: !ActivityType
   -- ^ Default ActivityType
-  , socialForms :: ![SocialForm]
-  -- ^ Possible SocialForms; if only one is given, then it is auto-selected.
-  , assessments :: ![TemplateAssessment]
+  , socialForm :: !SocialForm
+  -- ^ Default SocialForm.
+  , aspects :: ![TemplateAspect]
   -- ^ List of exercises and their respecitve competences.
   }
   deriving (Eq, Generic, Ord, Show)
 
-data TemplateAssessment = TemplateAssessment
+data TemplateAspect = TemplateAspect
   { name :: !Text
-  , achievableCompetence :: !CompetenceId
-  , achievableLevels :: ![Level]
+  , achievableCompetenceLevel :: !CompetenceLevelId
   }
   deriving (Eq, Generic, Ord, Show)
 
-mkTemplate :: TemplateId -> TemplateName -> Day -> ActivityType -> [SocialForm] -> Template
-mkTemplate id name date activityType socialForms =
-  let assessments = []
-  in Template {id, name, date, activityType, socialForms, assessments}
+data TemplateEvaluation = TemplateEvaluation
+  { template :: !Template
+  -- ^ Refers to the evaluated template
+  , userIds :: !(Set.Set UserId)
+  , assessed :: ![(TemplateAspect, Maybe Ability)]
+  -- ^ Asessments made.
+  , pending :: ![TemplateAspect]
+  -- ^ Pending assessments.
+  }
+  deriving (Eq, Generic, Ord, Show)
 
-addAssessment :: TemplateAssessment -> Template -> Template
-addAssessment e t = t {assessments = e : t.assessments}
+mkEvidenceFromTemplateEvaluation :: (RandomGen g) => g -> TemplateEvaluation -> Evidence
+mkEvidenceFromTemplateEvaluation g t =
+  let (evidenceId, g') = random g
+      activityTasks = ActivityTasks t.template.name.unTemplateName
+      byCompetenceLevelId =
+        Map.fromListWith max $
+          mapMaybe
+            ( \(task, ability) -> do
+                ability' <- ability
+                pure (task.achievableCompetenceLevel, ability')
+            )
+            t.assessed
+      observations =
+        zipWith
+          ( \oId (competenceLevelId, ability) -> Observation {id = oId, competenceLevelId, socialForm = t.template.socialForm, ability}
+          )
+          (randoms g')
+          (Map.toList byCompetenceLevelId)
+   in Evidence
+        { id = evidenceId
+        , userIds = t.userIds
+        , activityType = t.template.activityType
+        , date = t.template.date
+        , activityTasks = activityTasks
+        , observations = Ix.fromList observations
+        }
+
+mkTemplate :: TemplateId -> TemplateName -> Day -> ActivityType -> SocialForm -> Template
+mkTemplate id name date activityType socialForm =
+  let aspects = []
+   in Template {id, name, date, activityType, socialForm, aspects}
+
+addAspect :: TemplateAspect -> Template -> Template
+addAspect e t = t {aspects = e : t.aspects}
 
 type TemplateIxs = '[TemplateId, TemplateName]
 
@@ -78,8 +130,8 @@ instance ToJSON Template
 
 instance Binary Template
 
-instance FromJSON TemplateAssessment
+instance FromJSON TemplateAspect
 
-instance ToJSON TemplateAssessment
+instance ToJSON TemplateAspect
 
-instance Binary TemplateAssessment
+instance Binary TemplateAspect
