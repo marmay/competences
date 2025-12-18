@@ -6,3 +6,4 @@ static/app.wasm
 static/ghc_wasm_jsffi.js
 res
 frontend/res
+data
