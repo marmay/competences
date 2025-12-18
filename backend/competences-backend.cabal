@@ -30,6 +30,7 @@ library
     build-depends:
         base ^>=4.21.0.0,
         aeson,
+        blaze-html,
         bytestring,
         competences-common,
         containers,
