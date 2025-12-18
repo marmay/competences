@@ -22,7 +22,7 @@ import Competences.Document.Id (nilId)
 
 main :: IO ()
 main = do
-  let user = (User nilId "Test User" Teacher)
+  let user = User nilId "Test User" Teacher Nothing
   env <- mkSyncDocumentEnv user
   document <- mkSyncDocument env
   run $ do
@@ -138,7 +138,7 @@ options =
 main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
-  let user = User opt.userId opt.userName opt.userRole
+  let user = User opt.userId opt.userName opt.userRole Nothing
   env <- mkSyncDocumentEnv user
   bracket (readDocument env opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do

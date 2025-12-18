@@ -23,6 +23,8 @@ library
     exposed-modules:
         Competences.Backend.API.Auth
         Competences.Backend.Eff.Db
+        Competences.Backend.State
+        Competences.Backend.WebSocket
     build-depends:
         base ^>=4.21.0.0,
         aeson,
@@ -60,9 +62,14 @@ executable competences-backend
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
-        servant-server,
+        bytestring,
         competences-backend,
-        competences-common
+        competences-common,
+        http-types,
+        wai,
+        wai-websockets,
+        warp,
+        websockets
     hs-source-dirs:   app
     default-language: GHC2024
 

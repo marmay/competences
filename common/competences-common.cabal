@@ -21,14 +21,16 @@ library
         OverloadedRecordDot,
         OverloadedStrings
     exposed-modules:
+        Competences.Analysis.Statistics
         Competences.Command
         Competences.Command.ChangeField
         Competences.Command.Common
         Competences.Common.IxSet
+        Competences.Document
         Competences.Document.Assessment
-        Competences.Document.Evidence
         Competences.Document.Competence
         Competences.Document.CompetenceGrid
+        Competences.Document.Evidence
         Competences.Document.Id
         Competences.Document.Lock
         Competences.Document.Order
@@ -36,8 +38,7 @@ library
         Competences.Document.Template
         Competences.Document.User
         Competences.Document.Verdict
-        Competences.Document
-        Competences.Analysis.Statistics
+        Competences.Protocol
     build-depends:
         base ^>=4.21.0.0,
         aeson,
