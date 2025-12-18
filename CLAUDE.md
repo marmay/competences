@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a competences tracking application written in Haskell, using a multi-package Cabal project structure. It consists of:
-- **backend**: Server-side component (currently minimal, only API/auth stubs)
-- **frontend**: Miso-based web frontend (runs either via JSaddle-Warp or compiled to WASM)
+- **backend**: Server-side component with Office365 OAuth, JWT authentication, WebSocket sync, and static file serving
+- **frontend**: Miso-based web frontend compiled to WASM, served via backend
 - **common**: Shared code including domain models, commands, and business logic
 - **csvconvert**: Utility for converting CSV files to the application's format
 
@@ -36,22 +36,51 @@ cabal test competences-backend-test
 cabal test competences-common-test
 ```
 
+### Backend Development
+
+Run backend server:
+```bash
+competences-backend <port> <data-file> <jwt-secret> <client-id> <client-secret> <redirect-uri> <tenant-id> <static-dir>
+```
+
+Example:
+```bash
+cabal run competences-backend -- 8080 data.json "my-secret-key" \
+  "azure-client-id" "azure-client-secret" \
+  "http://localhost:8080/oauth/callback" \
+  "azure-tenant-id" \
+  "./static"
+```
+
+The server provides:
+- HTTP OAuth endpoints at `/` and `/oauth/callback`
+- Static file serving at `/static/*`
+- WebSocket connections for real-time sync
+
 ### Frontend Development
 
-Run frontend locally (requires class data file):
+**Development mode** (JSaddle-based, for rapid iteration):
 ```bash
 ./start.sh <CLASS_NAME>
 ```
 This looks for `data/<CLASS_NAME>.json`, creates a backup, and starts the JSaddle-based development server.
 
-Deploy frontend to WASM:
+**Production mode** (WASM deployment):
 ```bash
 ./deploy_frontend.sh
 ```
+Compiles frontend to WASM and places files in `static/` directory:
+- `static/app.wasm`: Compiled Haskell frontend
+- `static/ghc_wasm_jsffi.js`: GHC WASM FFI runtime
+- `static/index.html`: Entry point (only used for standalone testing)
+- `static/index.js`: WASM loader
+
 Requires WASM toolchain from Nix:
 ```bash
 nix develop .#wasmShell.x86_64-linux
 ```
+
+**Note**: When running via backend, the OAuth callback endpoint serves dynamically generated HTML with embedded JWT, not the static `index.html`.
 
 ### Nix Development
 
@@ -90,11 +119,20 @@ The application uses a command-sourcing pattern where:
 
 ### Client-Server Communication Model
 
-**WebSocket-Only Architecture:**
-- Backend serves static frontend files with embedded JWT token
-- Frontend establishes WebSocket connection using JWT for authentication
-- All client-server communication happens over this single WebSocket
-- No REST endpoints for data synchronization
+**HTTP + WebSocket Architecture:**
+- HTTP endpoints handle OAuth flow and static file serving
+- WebSocket handles all real-time data synchronization
+- Single port serves both HTTP and WebSocket (via `websocketsOr`)
+
+**HTTP Endpoints:**
+- `GET /`: Redirects to Office365 login page
+- `GET /oauth/callback?code=...`: Handles OAuth callback, generates JWT, serves frontend HTML
+- `GET /static/*`: Serves static WASM files (app.wasm, ghc_wasm_jsffi.js, index.js)
+
+**WebSocket Connection:**
+- Frontend connects with JWT in query parameter: `ws://host:port/?token=<jwt>`
+- All data synchronization happens over this connection
+- No REST endpoints for data operations
 
 **Message Protocol** (defined in `Competences.Protocol`):
 
@@ -235,17 +273,27 @@ Current `backend/schema.sql` only contains user table as placeholder.
   - `broadcastToUsers`: Send ServerMessage to specific users
 
 - `Competences.Backend.WebSocket`: WebSocket handler
-  - `wsHandler`: Main WebSocket application handler
+  - `wsHandler`: Main WebSocket application handler with JWT validation
   - `handleClient`: Per-client connection management
-  - `handleClientMessage`: Route ClientMessage (SendCommand, KeepAlive)
-  - `extractUserFromRequest`: Stub for JWT validation (currently returns test user)
+    - Sends `InitialSnapshot` on connection
+    - Handles incoming `ClientMessage` (SendCommand, KeepAlive)
+    - Cleans up on disconnect
+  - `handleClientMessage`: Routes messages and applies commands
+    - Calls `updateDocument` which uses `handleCommand`
+    - Broadcasts `ApplyCommand` to affected users on success
+    - Sends `CommandRejected` to sender on failure
+    - Triggers async save after successful command
+  - `extractUserFromRequest`: Validates JWT from query param and extracts user info
 
 - `backend/app/Main.hs`: Server entry point
-  - Command-line arguments: `<port> <data-file>`
-  - Loads state from file or starts empty
-  - WebSocket-only server (no HTTP endpoints yet)
-  - Periodic auto-save (60 seconds)
-  - Graceful shutdown with final save
+  - Command-line arguments: `<port> <data-file> <jwt-secret> <client-id> <client-secret> <redirect-uri> <tenant-id> <static-dir>`
+  - Loads state from file or initializes empty Document
+  - Creates combined WAI application using `websocketsOr`:
+    - WebSocket requests → `wsHandler`
+    - HTTP requests → Servant server (OAuth + static files)
+  - Runs both on single port via `Network.Wai.Handler.Warp`
+  - Periodic auto-save (60 seconds) in background thread
+  - Graceful shutdown with final save on Ctrl+C
 
 - `Competences.Backend.Auth`: JWT and OAuth2 implementation
   - `OAuth2Config`: Configuration for Office365 OAuth
@@ -256,26 +304,48 @@ Current `backend/schema.sql` only contains user table as placeholder.
   - `validateJWT`: Validate JWT signatures
   - `extractUserFromJWT`: Extract user claims from validated JWT
 
-**JWT Authentication Flow:**
-1. User clicks login → redirected to Office365
-2. OAuth callback receives authorization code
-3. Exchange code for access token
-4. Get user info from Microsoft Graph API
-5. Find or create User in Document (by office365Id)
-6. Generate JWT token with user claims
-7. Serve frontend HTML with JWT embedded
-8. Frontend connects to WebSocket with JWT in query parameter
-9. Backend validates JWT and establishes connection
+- `Competences.Backend.HTTP`: HTTP server with OAuth and static files
+  - `AppAPI`: Servant API type definition
+  - `oauthInitHandler`: Redirects to Office365 login (GET /)
+  - `oauthCallbackHandler`: OAuth callback handler (GET /oauth/callback)
+    - Exchanges authorization code for Microsoft access token
+    - Retrieves user info from Microsoft Graph API
+    - Finds existing user by `office365Id` or creates new Student user
+    - Generates JWT token with user claims (id, name, role, office365Id)
+    - Serves dynamically generated HTML with JWT in `window.COMPETENCES_JWT`
+  - `renderFrontendHTML`: Generates HTML that loads `/static/index.js` with embedded JWT
+  - `findOrCreateUser`: Looks up user by Office365Id index or creates default Student
+  - Static file serving via Servant's `serveDirectoryWebApp`
+
+**Complete Authentication Flow:**
+1. User visits `http://localhost:8080/` → redirected to Office365 login
+2. User authenticates with Microsoft credentials
+3. Office365 redirects to `/oauth/callback?code=<auth-code>`
+4. Backend exchanges code for Microsoft Graph API access token
+5. Backend retrieves user profile (id, displayName, mail, userPrincipalName)
+6. Backend searches Document for user with matching `office365Id`
+   - If found: use existing user
+   - If not found: create new User with `role = Student` and `office365Id` set
+7. Backend generates JWT containing: `sub` (userId), `name`, `role`, `o365Id`
+8. Backend serves HTML with JWT embedded in `window.COMPETENCES_JWT` global variable
+9. Frontend JavaScript (`static/index.js`) loads and initializes WASM app
+10. Frontend reads JWT from `window.COMPETENCES_JWT`
+11. Frontend connects to WebSocket: `ws://localhost:8080/?token=<jwt>`
+12. Backend validates JWT signature, extracts user claims, accepts connection
+13. Backend sends `InitialSnapshot` with current Document state
+14. Real-time sync begins
 
 **WebSocket Authentication:**
 - JWT token passed as query parameter: `ws://host:port/?token=<jwt>`
-- `extractUserFromRequest` validates JWT and extracts user info
-- Invalid/missing token → connection rejected
+- `extractUserFromRequest` validates JWT signature and extracts user claims
+- Invalid/missing token → connection rejected with "Authentication required"
+- JWT expires after 24 hours (configurable in `generateJWT`)
 
-**TODO:**
-- OAuth callback endpoint implementation (integrate `Competences.Backend.Auth` functions)
-- Static file serving with JWT embedding in HTML
-- Frontend HTML/JavaScript entry point
+**User Management:**
+- Users are automatically created on first Office365 login with default `Student` role
+- Teachers must manually promote users to `Teacher` role via User management UI
+- `office365Id` field links application users to Microsoft identities
+- Uses `ixset-typed` index on `Maybe Office365Id` for fast lookup
 
 ## Conventions
 
@@ -284,6 +354,9 @@ Current `backend/schema.sql` only contains user table as placeholder.
 - Translations via `Competences.Frontend.Common.Translate`
 - Order/positioning uses `Competences.Document.Order`
 - Frontend styling via `Competences.Frontend.View.Tailwind`
+- When importing types with `NoFieldSelectors`, use `Type(..)` to access record fields:
+  - ✓ `import Competences.Document (Document(..), User(..))`
+  - ✗ `import Competences.Document (Document, User)` (won't allow `doc.users` access)
 
 ## Conflict Resolution Strategy
 
@@ -294,3 +367,24 @@ Current `backend/schema.sql` only contains user table as placeholder.
   - No sophisticated merge strategies needed
 - **Command Design**: Commands (especially student commands) are designed to minimize conflicts
 - `ReorderCompetence` expresses intent clearly to succeed in most reordering scenarios
+
+## Office365 OAuth Configuration
+
+To set up Office365 authentication:
+
+1. **Azure Portal Setup:**
+   - Register application in Azure Active Directory
+   - Note: Client ID, Client Secret, Tenant ID
+   - Set Redirect URI to `http://localhost:8080/oauth/callback` (or your deployment URL)
+   - Grant API permissions: `User.Read`, `openid`, `profile`, `email`
+
+2. **Backend Configuration:**
+   - Pass OAuth credentials as command-line arguments when starting backend
+   - JWT secret should be a strong random string (used for signing tokens)
+   - Static directory should point to where WASM files are deployed (typically `./static`)
+
+3. **Security Considerations:**
+   - JWT tokens expire after 24 hours
+   - Tokens are validated on every WebSocket connection attempt
+   - Office365 access tokens are only used during OAuth callback (not stored)
+   - User sessions persist via JWT until expiration or server restart
