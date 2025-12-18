@@ -66,12 +66,11 @@ data TemplateAspect = TemplateAspect
 
 data TemplateEvaluation = TemplateEvaluation
   { template :: !Template
-  -- ^ Refers to the evaluated template
+  -- ^ Refers to the evaluated template.
   , userIds :: !(Set.Set UserId)
-  , assessed :: ![(TemplateAspect, Maybe Ability)]
+  -- ^ Users that the template is evaluated for.
+  , assessments :: ![(TemplateAspect, Maybe Ability)]
   -- ^ Asessments made.
-  , pending :: ![TemplateAspect]
-  -- ^ Pending assessments.
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -86,7 +85,7 @@ mkEvidenceFromTemplateEvaluation g t =
                 ability' <- ability
                 pure (task.achievableCompetenceLevel, ability')
             )
-            t.assessed
+            t.assessments
       observations =
         zipWith
           ( \oId (competenceLevelId, ability) -> Observation {id = oId, competenceLevelId, socialForm = t.template.socialForm, ability}

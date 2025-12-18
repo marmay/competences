@@ -9,6 +9,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
+import Competences.Frontend.Component.StatisticsViewer (statisticsViewerComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
@@ -45,6 +46,7 @@ mkApp r =
     update (SetURI uri) = M.modify $ #uri .~ uri
     update (PushURI uri) = M.io_ $ M.pushURI uri
 
+    view :: Model -> M.View Model Action
     view m =
       M.div_
         [ T.tailwind [T.HScreen] ]
@@ -71,6 +73,7 @@ mkApp r =
             [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
             , V.labelButton' C.LblEditCompetenceGrid (PushURI $ M.toURI EditCompetenceGrid)
             , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
+            , V.labelButton' C.LblStatistics (PushURI $ M.toURI Statistics)
             , V.labelButton' C.LblManageUsers (PushURI $ M.toURI ManageUsers)
             ]
         ]
@@ -81,11 +84,13 @@ mkApp r =
         ViewCompetenceGrid -> viewCompetenceGrid
         EditCompetenceGrid -> editCompetenceGrid
         Evidences -> evidences
+        Statistics -> statistics
         ManageUsers -> manageUsers
 
     viewCompetenceGrid = mounted ViewCompetenceGrid $ competenceGridViewerComponent r
     editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
     evidences = mounted Evidences $ evidenceEditorComponent r
+    statistics = mounted Statistics $ statisticsViewerComponent r
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
     mounted key c = M.div_ [M.key_ key, T.tailwind [T.MinH0]] M.+> c
@@ -99,6 +104,7 @@ data Page
   = ViewCompetenceGrid
   | EditCompetenceGrid
   | Evidences
+  | Statistics
   | ManageUsers
   deriving (Eq, Show)
 
@@ -108,11 +114,13 @@ instance M.Router Page where
       [ M.path "view-grid" $> ViewCompetenceGrid
       , M.path "edit-grid" $> EditCompetenceGrid
       , M.path "evidences" $> Evidences
+      , M.path "statistics" $> Statistics
       , M.path "users" $> ManageUsers
       ]
   fromRoute ViewCompetenceGrid = [M.toPath "view-grid"]
   fromRoute EditCompetenceGrid = [M.toPath "edit-grid"]
   fromRoute Evidences = [M.toPath "evidences"]
+  fromRoute Statistics = [M.toPath "statistics"]
   fromRoute ManageUsers = [M.toPath "users"]
 
 instance M.ToKey Page where
