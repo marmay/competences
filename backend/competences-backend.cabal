@@ -24,6 +24,7 @@ library
         Competences.Backend.API.Auth
         Competences.Backend.Auth
         Competences.Backend.Eff.Db
+        Competences.Backend.HTTP
         Competences.Backend.State
         Competences.Backend.WebSocket
     build-depends:
@@ -34,6 +35,7 @@ library
         containers,
         directory,
         effectful,
+        filepath,
         http-client,
         http-client-tls,
         http-types,
@@ -45,6 +47,7 @@ library
         postgresql-simple >= 0.7.0.1,
         resource-pool,
         servant,
+        servant-blaze,
         servant-server,
         servant-websockets,
         stm,
@@ -67,6 +70,8 @@ executable competences-backend
         competences-backend,
         competences-common,
         http-types,
+        servant,
+        servant-server,
         text,
         wai,
         wai-websockets,

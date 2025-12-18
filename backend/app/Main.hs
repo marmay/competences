@@ -1,31 +1,42 @@
 module Main where
 
-import Competences.Backend.Auth (JWTSecret (..))
-import Competences.Backend.State (AppState, initAppState, loadAppState, saveAppState)
+import Competences.Backend.Auth (JWTSecret (..), OAuth2Config (..))
+import Competences.Backend.HTTP (appAPI, server)
+import Competences.Backend.State (AppState, loadAppState, saveAppState)
 import Competences.Backend.WebSocket (wsHandler)
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (bracket, finally)
-import Data.ByteString.Lazy.Char8 qualified as BL
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
+import Control.Exception (finally)
 import Data.Text qualified as T
-import Network.HTTP.Types (status400)
-import Network.Wai (Application, responseLBS)
 import Network.Wai.Handler.Warp (run)
+import Servant (serve)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.WebSockets (defaultConnectionOptions)
-import System.Environment (getArgs, lookupEnv)
+import System.Environment (getArgs)
 import System.Exit (die)
 import System.IO (hFlush, stdout)
 
 main :: IO ()
 main = do
   -- Parse command line arguments
+  let usage = "Usage: competences-backend <port> <data-file> <jwt-secret> <client-id> <client-secret> <redirect-uri> <tenant-id> <static-dir>"
   args <- getArgs
-  (port, dataPath, jwtSecret) <- case args of
-    [portStr, path, secret] -> case reads portStr of
-      [(p, "")] -> pure (p, path, JWTSecret $ T.pack secret)
-      _ -> die "Usage: competences-backend <port> <data-file> <jwt-secret>"
-    _ -> die "Usage: competences-backend <port> <data-file> <jwt-secret>"
+  (port, dataPath, jwtSecret, oauth2Config, staticDir) <- case args of
+    [portStr, path, secret, clientId, clientSecret, redirectUri, tenantId, static] -> case reads portStr of
+      [(p, "")] -> pure
+        ( p
+        , path
+        , JWTSecret $ T.pack secret
+        , OAuth2Config
+            { clientId = T.pack clientId
+            , clientSecret = T.pack clientSecret
+            , redirectUri = T.pack redirectUri
+            , tenantId = T.pack tenantId
+            }
+        , static
+        )
+      _ -> die usage
+    _ -> die usage
 
   putStrLn $ "Competences Backend Server"
   putStrLn $ "=========================="
@@ -49,14 +60,15 @@ main = do
 
   -- Run server with graceful shutdown
   flip finally (gracefulShutdown state dataPath shutdown) $ do
+    let httpApp = serve appAPI (server state oauth2Config jwtSecret staticDir)
     run port $ websocketsOr
       defaultConnectionOptions
       (wsHandler state dataPath jwtSecret)
-      notFoundApp
+      httpApp
 
 -- | Save state periodically (every 60 seconds)
 saveLoop :: AppState -> FilePath -> MVar () -> IO ()
-saveLoop state dataPath shutdown = go
+saveLoop state dataPath _shutdown = go
   where
     go = do
       threadDelay 60000000 -- 60 seconds
@@ -72,8 +84,3 @@ gracefulShutdown state dataPath shutdown = do
   saveAppState dataPath state
   putStrLn "Goodbye!"
   putMVar shutdown ()
-
--- | Fallback application for non-WebSocket requests
-notFoundApp :: Application
-notFoundApp _req respond =
-  respond $ responseLBS status400 [] (BL.pack "This server only supports WebSocket connections")
