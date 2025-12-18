@@ -6,10 +6,11 @@ module Competences.Frontend.Component.StatisticsViewer
   )
 where
 
-import Competences.Analysis.Statistics (userEvidenceByActivity, ActivityStats (..))
+import Competences.Analysis.Statistics (userEvidenceByActivity, ActivityStats (..), userObservationsByAbility, AbilityStats (..))
 import Competences.Document (Document (..), User (..), emptyDocument)
-import Competences.Document.Evidence (ActivityType (..))
-import Competences.Document.User (UserId, isStudent)
+import Competences.Document.Id (nilId)
+import Competences.Document.Evidence (ActivityType (..), Ability (..))
+import Competences.Document.User (UserId, UserRole (..), isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef, subscribeDocument, DocumentChange (..))
 import Competences.Frontend.View qualified as V
@@ -19,12 +20,14 @@ import Data.List (find)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String (ms)
-import Optics.Core ((&), (.~))
+
 
 -- | Statistics Viewer Component Model
+-- For individual student statistics view
 data Model = Model
   { document :: !Document
   , currentUserId :: !(Maybe UserId)
+  , connectedUser :: !User  -- The currently logged-in user
   }
   deriving (Eq, Generic, Show)
 
@@ -39,28 +42,34 @@ emptyModel :: Model
 emptyModel = Model
   { document = emptyDocument
   , currentUserId = Nothing
+  , connectedUser = User nilId "" Student
   }
 
 -- | Statistics Viewer Component
-statisticsViewerComponent :: SyncDocumentRef -> M.Component p Model Action
-statisticsViewerComponent docRef =
+-- Now accepts the connected user to determine what data to show
+statisticsViewerComponent :: SyncDocumentRef -> User -> M.Component p Model Action
+statisticsViewerComponent docRef connectedUser' =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]
     , M.events = mempty
     , M.initialAction = Nothing
     }
   where
-    model = emptyModel
+    model = emptyModel { connectedUser = connectedUser' }
 
     update :: Action -> M.Effect p Model Action
     update (UpdateDocument (DocumentChange doc _)) = do
-      let -- Try to find the first student user as default
-          firstStudent = case toList doc.users of
-            (user:_) | isStudent user -> Just user.id
-            _ -> Nothing
+      let -- Determine which user to show based on connected user role
+          currentUserId' = case model.connectedUser.role of
+            -- Teachers can see any student, default to first student
+            Teacher -> case toList doc.users of
+              (user:_) | isStudent user -> Just user.id
+              _ -> Nothing
+            -- Students can only see their own data
+            Student -> Just model.connectedUser.id
       M.modify $ \m -> m
         { document = doc
-        , currentUserId = firstStudent
+        , currentUserId = currentUserId'
         }
     update (SetCurrentUser userId) = M.modify $ \m -> m { currentUserId = userId }
 
@@ -71,7 +80,7 @@ statisticsViewerComponent docRef =
         Just userId ->
           case findUser userId m.document of
             Nothing -> userNotFoundView
-            Just user -> statisticsView m.document user
+            Just user -> statisticsView m.document user user
 
     -- Helper to find a user by ID
     findUser userId doc =
@@ -93,34 +102,71 @@ userNotFoundView =
   V.text_ (C.translate' C.LblNoUser)
 
 -- | Main statistics view showing user evidence by activity
-statisticsView :: Document -> User -> M.View Model Action
-statisticsView doc user =
+statisticsView :: Document -> User -> User -> M.View Model Action
+statisticsView doc user _connectedUser =
   let
-      stats = userEvidenceByActivity doc user.id
-      totalEvidence = sum (map (.count) stats)
+      -- Activity statistics
+      activityStats = userEvidenceByActivity doc user.id
+      totalEvidence = sum (map (.count) activityStats)
       
-      -- Create a row for each activity type
-      activityRows = map activityStatRow stats
+      -- Ability statistics
+      abilityStats = userObservationsByAbility doc user.id
+      totalObservations = sum (map (.count) abilityStats)
       
-      -- Add a total row
-      totalRow =
+      -- Create rows for each activity type
+      activityRows = map activityStatRow activityStats
+      
+      -- Create rows for each ability
+      abilityRows = map abilityStatRow abilityStats
+      
+      -- Add total rows
+      activityTotalRow =
         T.tableRow
           [ V.text_ (C.translate' C.LblActivityType)
           , V.text_ (ms $ show totalEvidence)
           , V.text_ "-"  -- No weight for total
           ]
       
+      abilityTotalRow =
+        T.tableRow
+          [ V.text_ "Ability Total"
+          , V.text_ (ms $ show totalObservations)
+          , V.text_ "-"  -- No weight for total
+          ]
+      
+      -- Show user selector only for teachers
+      userSelector =
+        if isTeacher user
+        then
+          V.viewFlow V.vFlow
+            [ V.text_ "Viewing statistics for:"
+            , V.text_ (ms user.name)
+            , V.text_ " "
+            ]
+        else
+          V.viewFlow V.vFlow
+            [ V.text_ "Your statistics:"
+            , V.text_ (ms user.name)
+            ]
   in V.viewFlow V.vFlow
        [ -- Header with user info
-         V.viewFlow (V.hFlow & (#gap .~ V.SmallSpace))
-           [ V.text_ "Statistics for:"
-           , V.text_ (ms user.name)
-           ]
+         userSelector
        , V.text_ " "  -- Simple spacing
-       , -- Statistics table
-         V.viewFlow V.vFlow activityRows
+       , -- Activity Statistics Section
+         V.viewFlow V.vFlow
+           [ V.title_ "Activity Statistics"
+           , V.viewFlow V.vFlow activityRows
+           , V.text_ " "
+           , V.viewFlow V.vFlow [activityTotalRow]
+           ]
        , V.text_ " "
-       , V.viewFlow V.vFlow [totalRow]
+       , -- Ability Statistics Section
+         V.viewFlow V.vFlow
+           [ V.title_ "Ability Statistics"
+           , V.viewFlow V.vFlow abilityRows
+           , V.text_ " "
+           , V.viewFlow V.vFlow [abilityTotalRow]
+           ]
        ]
 
 -- | Create a table row for a single activity statistic
@@ -131,6 +177,23 @@ activityStatRow stat =
     , V.text_ (ms $ show stat.count)
     , V.text_ (ms $ show stat.weight)
     ]
+
+-- | Create a table row for a single ability statistic
+abilityStatRow :: AbilityStats -> M.View Model Action
+abilityStatRow stat =
+  T.tableRow
+    [ V.text_ (abilityText stat.ability)
+    , V.text_ (ms $ show stat.count)
+    , V.text_ (ms $ show stat.weight)
+    ]
+
+-- | Convert ability to display text
+abilityText :: Ability -> M.MisoString
+abilityText ability = case ability of
+  SelfReliant -> "Self-Reliant"
+  SelfReliantWithSillyMistakes -> "Self-Reliant (with silly mistakes)"
+  WithSupport -> "With Support"
+  NotYet -> "Not Yet"
 
 -- | Convert activity type to display text
 activityTypeText :: ActivityType -> M.MisoString

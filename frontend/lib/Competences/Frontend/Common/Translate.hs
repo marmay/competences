@@ -113,6 +113,9 @@ data Label
   | LblCompetenceGridDescription
   | LblCompetenceGrid
   | LblStatistics
+  | LblAnalytics
+  | LblStatisticsOverview
+  | LblStatisticsIndividual
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -176,6 +179,9 @@ labels' =
   , LblCompetenceGridDescription
   , LblCompetenceGrid
   , LblStatistics
+  , LblAnalytics
+  , LblStatisticsOverview
+  , LblStatisticsIndividual
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -249,6 +255,9 @@ defaultTranslation LblCompetenceGridTitle = "Titel"
 defaultTranslation LblCompetenceGridDescription = "Beschreibung"
 defaultTranslation LblCompetenceGrid = "Kompetenzraster"
 defaultTranslation LblStatistics = "Statistik"
+defaultTranslation LblAnalytics = "Analytics"
+defaultTranslation LblStatisticsOverview = "Statistics Overview"
+defaultTranslation LblStatisticsIndividual = "My Statistics"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
