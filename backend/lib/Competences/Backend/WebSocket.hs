@@ -1,9 +1,11 @@
 module Competences.Backend.WebSocket
   ( wsHandler
   , handleClient
+  , extractUserFromRequest
   )
 where
 
+import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
 import Competences.Backend.State
   ( AppState
   , broadcastToUsers
@@ -17,39 +19,46 @@ import Competences.Command (Command)
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Document (User (..), UserId, UserRole (..))
 import Competences.Document.Id (nilId)
+import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerMessage (..))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception (SomeException, catch, finally)
 import Control.Monad (forever, void)
 import Data.Aeson (decode, encode)
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (decodeUtf8)
 import Network.WebSockets qualified as WS
 
 -- | WebSocket application handler
 -- Validates JWT and delegates to handleClient
-wsHandler :: AppState -> FilePath -> WS.ServerApp
-wsHandler state savePath pending = do
-  conn <- WS.acceptRequest pending
-  WS.withPingThread conn 30 (pure ()) $ do
-    -- TODO: Extract and validate JWT from request headers
-    -- For now, we'll use a test user
-    user <- extractUserFromRequest pending
-    let uid = user.id
+wsHandler :: AppState -> FilePath -> JWTSecret -> WS.ServerApp
+wsHandler state savePath jwtSecret pending = do
+  case extractUserFromRequest jwtSecret pending of
+    Left err -> do
+      putStrLn $ "Authentication failed: " <> err
+      WS.rejectRequest pending "Authentication required"
+    Right (userId, userName, userRole, o365Id) -> do
+      conn <- WS.acceptRequest pending
+      WS.withPingThread conn 30 (pure ()) $ do
+        let user = User userId userName userRole o365Id
+        handleClient state savePath userId user conn
 
-    handleClient state savePath uid user conn
+-- | Extract and validate user from WebSocket request
+extractUserFromRequest :: JWTSecret -> WS.PendingConnection -> Either String (UserId, Text, UserRole, Maybe Office365Id)
+extractUserFromRequest jwtSecret pending = do
+  -- Extract JWT from request path (query parameter)
+  let path = WS.requestPath $ WS.pendingRequest pending
+  token <- case T.stripPrefix "/?token=" (decodeUtf8 path) of
+    Nothing -> Left "Missing token in request"
+    Just t -> Right t
 
--- | Extract user from WebSocket request (stub for JWT validation)
--- TODO: Implement JWT token extraction and validation
-extractUserFromRequest :: WS.PendingConnection -> IO User
-extractUserFromRequest _pending = do
-  -- Placeholder: return test user
-  -- In production, this will:
-  -- 1. Extract JWT from request headers
-  -- 2. Validate JWT signature
-  -- 3. Extract user claims from JWT
-  -- 4. Return authenticated user
-  pure $ User nilId "Test User" Teacher Nothing
+  -- Validate JWT
+  claims <- validateJWT jwtSecret token
+
+  -- Extract user info from claims
+  extractUserFromJWT claims
 
 -- | Handle a single client connection
 handleClient :: AppState -> FilePath -> UserId -> User -> WS.Connection -> IO ()
