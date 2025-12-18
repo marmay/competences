@@ -25,15 +25,33 @@ library
         Competences.Backend.Eff.Db
     build-depends:
         base ^>=4.21.0.0,
+        aeson,
+        bytestring,
         competences-common,
         containers,
+        directory,
         effectful,
+        http-client,
+        http-client-tls,
+        http-types,
+        http-conduit,
+        hslogger,
+        jwt,
+        ixset-typed,
+        optics-core,
         postgresql-simple >= 0.7.0.1,
         resource-pool,
         servant,
         servant-server,
-        temporary,
-        text
+        servant-websockets,
+        stm,
+        text,
+        time,
+        wai,
+        wai-extra,
+        wai-websockets,
+        warp,
+        websockets
     hs-source-dirs:   lib
     default-language: GHC2024
 
