@@ -3,10 +3,12 @@ module Competences.Frontend.View.Tailwind
   , tailwind'
   , tailwindColors
   , requiredClasses
+  , useColor
   , TailwindCls (..)
   , ColorUtility (..)
   , Color (..)
   , ColorStep (..)
+  , Opacity(..)
   )
 where
 

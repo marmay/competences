@@ -60,6 +60,7 @@ library
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,
         Competences.Frontend.View.Button,
+        Competences.Frontend.View.Colors,
         Competences.Frontend.View.Component,
         Competences.Frontend.View.Form,
         Competences.Frontend.View.Icon,

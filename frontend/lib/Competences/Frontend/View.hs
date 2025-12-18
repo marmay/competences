@@ -1,5 +1,6 @@
 module Competences.Frontend.View
   ( module Competences.Frontend.View.Button
+  , module Competences.Frontend.View.Colors
   , module Competences.Frontend.View.Component
   , module Competences.Frontend.View.Form
   , module Competences.Frontend.View.Icon
@@ -13,6 +14,7 @@ module Competences.Frontend.View
   where
 
 import Competences.Frontend.View.Button
+import Competences.Frontend.View.Colors
 import Competences.Frontend.View.Component
 import Competences.Frontend.View.Form
 import Competences.Frontend.View.Icon

@@ -1,3 +1,5 @@
+{-# LANGUAGE IncoherentInstances #-}
+
 module Competences.Frontend.Component.StatisticsOverview
   ( statisticsOverviewComponent
   , Model (..)
@@ -6,45 +8,69 @@ module Competences.Frontend.Component.StatisticsOverview
   )
 where
 
-import Competences.Analysis.Statistics
-  ( allUsersEvidenceByActivity
-  , allUsersObservationsByAbility
-  , UserActivityStats (..)
-  , UserAbilityStats (..)
-  , ActivityStats (..)
-  , AbilityStats (..)
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document (Document (..), User (..))
+import Competences.Document.Evidence
+  ( Ability (..)
+  , ActivityType (..)
+  , Evidence (..)
+  , Observation (..)
   )
-import Competences.Document (Document (..), emptyDocument)
-import Competences.Document.Evidence (ActivityType (..), Ability (..))
-
-import Competences.Frontend.SyncDocument (SyncDocumentRef, subscribeDocument, DocumentChange (..))
+import Competences.Document.User (isStudent)
+import Competences.Frontend.Common qualified as C
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Table qualified as T
-import Data.List (find)
+import Data.List (sortBy)
+import Data.Map qualified as Map
+import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.String (ms)
-import Optics.Core ((.~))
 
 -- | Statistics Overview Component Model
 -- For teacher view showing all students' statistics
 data Model = Model
-  { document :: !Document
+  { byUserStats :: Map.Map User UserStatistics
+  , maximumHomeExerciseTasks :: !Int
+  , maximumSchoolExerciseTasks :: !Int
+  }
+  deriving (Eq, Generic, Show)
 
+data UserStatistics = UserStatistics
+  { homeExerciseTasks :: !Int
+  , schoolExerciseTasks :: !Int
+  , totalTasks :: !Int
+  , selfReliantEvidences :: !Int
+  , selfReliantWithSillyMistakesEvidences :: !Int
+  , withSupportEvidences :: !Int
+  , notYetEvidences :: !Int
   }
   deriving (Eq, Generic, Show)
 
 -- | Statistics Overview Component Actions
 data Action
   = UpdateDocument !DocumentChange
-
   deriving (Eq, Show)
 
 -- | Empty model for statistics overview
 emptyModel :: Model
-emptyModel = Model
-  { document = emptyDocument
-  }
+emptyModel =
+  Model
+    { byUserStats = Map.empty
+    , maximumHomeExerciseTasks = 0
+    , maximumSchoolExerciseTasks = 0
+    }
+
+data StatColumn
+  = ColName
+  | ColHomeExercises
+  | ColSchoolExercises
+  | ColTotalExercises
+  | ColSelfReliant
+  | ColSelfReliantWithSillyMistakes
+  | ColWithSupport
+  | ColNotYet
+  | ColTotalObservations
+  deriving (Eq, Ord, Show)
 
 -- | Statistics Overview Component
 statisticsOverviewComponent :: SyncDocumentRef -> M.Component p Model Action
@@ -59,145 +85,105 @@ statisticsOverviewComponent docRef =
 
     update :: Action -> M.Effect p Model Action
     update (UpdateDocument (DocumentChange doc _)) =
-      M.modify $ #document .~ doc
-
+      M.modify $ const $ computeStats doc
 
     view :: Model -> M.View Model Action
-    view m =
-      let
-        -- Get activity statistics for all users
-        activityStats = allUsersEvidenceByActivity m.document
-        
-        -- Get ability statistics for all users
-        abilityStats = allUsersObservationsByAbility m.document
-        
-        -- Filter for home and school exercises
-        homeActivityStats = filterActivityStats activityStats [HomeExercise]
-        schoolActivityStats = filterActivityStats activityStats [SchoolExercise]
-        
-        homeAbilityStats = filterAbilityStats abilityStats [HomeExercise]
-        schoolAbilityStats = filterAbilityStats abilityStats [SchoolExercise]
-      in
-        V.viewFlow V.vFlow
-          [ -- Header
-            V.title_ "Statistics Overview"
-          , V.text_ " "
-          , -- Activity Statistics Section
-            V.viewFlow V.vFlow
-              [ V.title_ "Activity Statistics"
-              , V.text_ " "
-              , V.viewFlow V.vFlow
-                  [ activityStatisticsTable "Home Exercises" homeActivityStats
-                  , V.text_ " "
-                  , activityStatisticsTable "School Exercises" schoolActivityStats
+    view m = V.viewFlow V.vFlow [V.title_ "Statistics Overview", table]
+      where
+        table =
+          V.viewTable $
+            V.defTable
+              { V.columns =
+                  [ ColName
+                  , ColHomeExercises
+                  , ColSchoolExercises
+                  , ColTotalExercises
+                  , ColSelfReliant
+                  , ColSelfReliantWithSillyMistakes
+                  , ColWithSupport
+                  , ColNotYet
+                  , ColTotalObservations
                   ]
-              ]
-          , V.text_ " "
-          , -- Ability Statistics Section
-            V.viewFlow V.vFlow
-              [ V.title_ "Ability Statistics"
-              , V.text_ " "
-              , V.viewFlow V.vFlow
-                  [ abilityStatisticsTable "Home Exercises" homeAbilityStats
-                  , V.text_ " "
-                  , abilityStatisticsTable "School Exercises" schoolAbilityStats
-                  ]
-              ]
-          ]
+              , V.rows = sortBy (comparing (.name)) $ Map.keys m.byUserStats
+              , V.columnSpec = \c -> V.TableColumnSpec {width = V.AutoSizedColumn, title = columnLabel c}
+              , V.rowContents = \cs u ->
+                  case m.byUserStats Map.!? u of
+                    (Just userData) -> V.tableRow $ map (cellContents m u userData) cs
+                    Nothing -> V.tableRow $ map (const $ V.text_ "?") cs
+              }
 
--- | Filter activity statistics by specific activity types
-filterActivityStats :: [UserActivityStats] -> [ActivityType] -> [UserActivityStats]
-filterActivityStats userStats activityTypes =
-  map filterUserActivity userStats
-  where
-    filterUserActivity userStat =
-      let
-        filteredStats = filter (\stat -> stat.activityType `elem` activityTypes) userStat.activityStats
-        totalCount = sum (map (.count) filteredStats)
-      in
-        userStat { activityStats = filteredStats, totalCount = totalCount }
+columnLabel :: StatColumn -> M.MisoString
+columnLabel ColName = C.translate' C.LblUserName
+columnLabel ColHomeExercises = C.translate' (C.LblActivityTypeDescription HomeExercise)
+columnLabel ColSchoolExercises = C.translate' (C.LblActivityTypeDescription SchoolExercise)
+columnLabel ColTotalExercises = C.translate' C.LblTotalExercises
+columnLabel ColSelfReliant = C.translate' (C.LblAbility SelfReliant)
+columnLabel ColSelfReliantWithSillyMistakes = C.translate' (C.LblAbility SelfReliantWithSillyMistakes)
+columnLabel ColWithSupport = C.translate' (C.LblAbility WithSupport)
+columnLabel ColNotYet = C.translate' (C.LblAbility NotYet)
+columnLabel ColTotalObservations = C.translate' C.LblTotalObservations
 
--- | Filter ability statistics by specific activity types
-filterAbilityStats :: [UserAbilityStats] -> [ActivityType] -> [UserAbilityStats]
-filterAbilityStats userStats _activityTypes =
-  map filterUserAbility userStats
-  where
-    filterUserAbility userStat =
-      -- For ability stats, we need to filter by activity type at the evidence level
-      -- This is a simplified approach - in a real implementation, we'd need to
-      -- track which observations came from which activity types
-      userStat  -- Keep all ability stats for now, filtering would be more complex
+cellContents :: Model -> User -> UserStatistics -> StatColumn -> M.View m a
+cellContents _ u _ ColName = V.text_ $ M.ms u.name
+cellContents m _ d ColHomeExercises =
+  graduallyColored d.homeExerciseTasks m.maximumHomeExerciseTasks
+cellContents m _ d ColSchoolExercises =
+  graduallyColored d.schoolExerciseTasks m.maximumSchoolExerciseTasks
+cellContents m _ d ColTotalExercises =
+  graduallyColored d.totalTasks (m.maximumHomeExerciseTasks + m.maximumSchoolExerciseTasks)
+cellContents _ _ d ColSelfReliant =
+  V.coloredText_ (V.abilityColor SelfReliant) (M.ms $ show d.selfReliantEvidences)
+cellContents _ _ d ColSelfReliantWithSillyMistakes =
+  V.coloredText_
+    (V.abilityColor SelfReliantWithSillyMistakes)
+    (M.ms $ show d.selfReliantWithSillyMistakesEvidences)
+cellContents _ _ d ColWithSupport =
+  V.coloredText_ (V.abilityColor WithSupport) (M.ms $ show d.withSupportEvidences)
+cellContents _ _ d ColNotYet =
+  V.coloredText_ (V.abilityColor NotYet) (M.ms $ show d.notYetEvidences)
+cellContents _ _ d ColTotalObservations =
+  V.text_
+    ( M.ms $
+        show $
+          d.selfReliantEvidences
+            + d.selfReliantWithSillyMistakesEvidences
+            + d.withSupportEvidences
+            + d.notYetEvidences
+    )
 
--- | Create a table showing activity statistics for all users
-activityStatisticsTable :: M.MisoString -> [UserActivityStats] -> M.View Model Action
-activityStatisticsTable title stats =
-  V.viewFlow V.vFlow
-    [ V.title_ title
-    , V.viewFlow V.vFlow
-        [ -- Header row
-          T.tableRow
-            [ V.text_ "Student"
-            , V.text_ "Conversation"
-            , V.text_ "Exam"
-            , V.text_ "School Exercise"
-            , V.text_ "Home Exercise"
-            , V.text_ "Total"
-            ]
-        ]
-    , V.viewFlow V.vFlow (map userActivityRow stats)
-    ]
+graduallyColored :: Int -> Int -> M.View m a
+graduallyColored value maximumValue =
+  V.coloredText_
+    (V.gradualPercentageColor (fromIntegral value / fromIntegral maximumValue))
+    (M.ms value)
 
--- | Create a row for a user's activity statistics
-userActivityRow :: UserActivityStats -> M.View Model Action
-userActivityRow userStat =
-  let
-    -- Create a simple lookup function for activity counts
-    getCount activityType =
-      case find (\stat -> stat.activityType == activityType) userStat.activityStats of
-        Just stat -> stat.count
-        Nothing -> 0
-  in
-    T.tableRow
-      [ V.text_ (ms userStat.userName)
-      , V.text_ (ms $ show $ getCount Conversation)
-      , V.text_ (ms $ show $ getCount Exam)
-      , V.text_ (ms $ show $ getCount SchoolExercise)
-      , V.text_ (ms $ show $ getCount HomeExercise)
-      , V.text_ (ms $ show userStat.totalCount)
-      ]
+computeStats :: Document -> Model
+computeStats document =
+  let byUserStats =
+        Map.fromList $
+          map (\user -> (user, computeUserStats document user)) (filter isStudent $ Ix.toList document.users)
+      maximumHomeExerciseTasks = maximum $ map (.homeExerciseTasks) $ Map.elems byUserStats
+      maximumSchoolExerciseTasks = maximum $ map (.schoolExerciseTasks) $ Map.elems byUserStats
+   in Model {byUserStats, maximumHomeExerciseTasks, maximumSchoolExerciseTasks}
 
--- | Create a table showing ability statistics for all users
-abilityStatisticsTable :: M.MisoString -> [UserAbilityStats] -> M.View Model Action
-abilityStatisticsTable title stats =
-  V.viewFlow V.vFlow
-    [ V.title_ title
-    , V.viewFlow V.vFlow
-        [ -- Header row
-          T.tableRow
-            [ V.text_ "Student"
-            , V.text_ "Self-Reliant"
-            , V.text_ "With Support"
-            , V.text_ "Not Yet"
-            , V.text_ "Total"
-            ]
-        ]
-    , V.viewFlow V.vFlow (map userAbilityRow stats)
-    ]
-
--- | Create a row for a user's ability statistics
-userAbilityRow :: UserAbilityStats -> M.View Model Action
-userAbilityRow userStat =
-  let
-    -- Create a simple lookup function for ability counts
-    getCount ability =
-      case find (\stat -> stat.ability == ability) userStat.abilityStats of
-        Just stat -> stat.count
-        Nothing -> 0
-  in
-    T.tableRow
-      [ V.text_ (ms userStat.userName)
-      , V.text_ (ms $ show $ getCount SelfReliant)
-      , V.text_ (ms $ show $ getCount WithSupport)
-      , V.text_ (ms $ show $ getCount NotYet)
-      , V.text_ (ms $ show userStat.totalCount)
-      ]
+computeUserStats :: Document -> User -> UserStatistics
+computeUserStats document user =
+  let evidences = Ix.toList $ document.evidences Ix.@= user.id
+      observations = concatMap (Ix.toList . (.observations)) evidences
+      homeExerciseTasks = length $ filter (\evidence -> evidence.activityType == HomeExercise) evidences
+      schoolExerciseTasks = length $ filter (\evidence -> evidence.activityType == SchoolExercise) evidences
+      totalTasks = homeExerciseTasks + schoolExerciseTasks
+      selfReliantEvidences = length $ filter (\observation -> observation.ability == SelfReliant) observations
+      selfReliantWithSillyMistakesEvidences =
+        length $ filter (\observation -> observation.ability == SelfReliantWithSillyMistakes) observations
+      withSupportEvidences = length $ filter (\observation -> observation.ability == WithSupport) observations
+      notYetEvidences = length $ filter (\observation -> observation.ability == NotYet) observations
+   in UserStatistics
+        { homeExerciseTasks
+        , schoolExerciseTasks
+        , totalTasks
+        , selfReliantEvidences
+        , selfReliantWithSillyMistakesEvidences
+        , withSupportEvidences
+        , notYetEvidences
+        }
