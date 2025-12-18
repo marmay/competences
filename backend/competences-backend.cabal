@@ -22,6 +22,7 @@ library
         TypeFamilies
     exposed-modules:
         Competences.Backend.API.Auth
+        Competences.Backend.Auth
         Competences.Backend.Eff.Db
         Competences.Backend.State
         Competences.Backend.WebSocket
@@ -66,6 +67,7 @@ executable competences-backend
         competences-backend,
         competences-common,
         http-types,
+        text,
         wai,
         wai-websockets,
         warp,

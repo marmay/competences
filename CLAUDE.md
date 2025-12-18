@@ -247,11 +247,35 @@ Current `backend/schema.sql` only contains user table as placeholder.
   - Periodic auto-save (60 seconds)
   - Graceful shutdown with final save
 
+- `Competences.Backend.Auth`: JWT and OAuth2 implementation
+  - `OAuth2Config`: Configuration for Office365 OAuth
+  - `getAuthorizationUrl`: Generate O365 login URL
+  - `exchangeCodeForToken`: Exchange auth code for access token
+  - `getUserInfo`: Get user profile from Microsoft Graph API
+  - `generateJWT`: Create JWT tokens for users
+  - `validateJWT`: Validate JWT signatures
+  - `extractUserFromJWT`: Extract user claims from validated JWT
+
+**JWT Authentication Flow:**
+1. User clicks login → redirected to Office365
+2. OAuth callback receives authorization code
+3. Exchange code for access token
+4. Get user info from Microsoft Graph API
+5. Find or create User in Document (by office365Id)
+6. Generate JWT token with user claims
+7. Serve frontend HTML with JWT embedded
+8. Frontend connects to WebSocket with JWT in query parameter
+9. Backend validates JWT and establishes connection
+
+**WebSocket Authentication:**
+- JWT token passed as query parameter: `ws://host:port/?token=<jwt>`
+- `extractUserFromRequest` validates JWT and extracts user info
+- Invalid/missing token → connection rejected
+
 **TODO:**
-- JWT generation and validation
-- Office365 OAuth flow
+- OAuth callback endpoint implementation (integrate `Competences.Backend.Auth` functions)
 - Static file serving with JWT embedding in HTML
-- Replace `extractUserFromRequest` stub with real JWT validation
+- Frontend HTML/JavaScript entry point
 
 ## Conventions
 
