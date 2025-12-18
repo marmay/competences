@@ -36,6 +36,7 @@ userListEditorComponent r =
               { id = userId
               , name = ""
               , role = Student
+              , office365Id = Nothing
               }
       modifySyncDocument r (OnUsers $ Create user)
       modifySyncDocument r (OnUsers $ Modify userId Lock)

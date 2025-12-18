@@ -42,7 +42,7 @@ emptyModel :: Model
 emptyModel = Model
   { document = emptyDocument
   , currentUserId = Nothing
-  , connectedUser = User nilId "" Student
+  , connectedUser = User nilId "" Student Nothing
   }
 
 -- | Statistics Viewer Component
