@@ -37,6 +37,7 @@ library
         Competences.Document.User
         Competences.Document.Verdict
         Competences.Document
+        Competences.Analysis.Statistics
     build-depends:
         base ^>=4.21.0.0,
         aeson,
@@ -63,4 +64,8 @@ test-suite competences-common-test
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
-        competences-common
+        competences-common,
+        containers,
+        ixset-typed,
+        time,
+        text
