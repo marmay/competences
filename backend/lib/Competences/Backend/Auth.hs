@@ -12,8 +12,9 @@ module Competences.Backend.Auth
 where
 
 import Competences.Document (User (..), UserId)
-import Competences.Document.Id (mkId)
+import Competences.Document.Id (Id (..), mkId)
 import Competences.Document.User (Office365Id (..), UserRole (..))
+import Data.UUID.Types qualified as UUID
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), eitherDecode, object, withObject, (.:), (.=))
 import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString (ByteString)
@@ -29,6 +30,7 @@ import Network.HTTP.Client (Manager, Request, RequestBody (..), httpLbs, method,
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types (hContentType)
 import Web.JWT qualified as JWT
+import Web.JWT (stringOrURIToText)
 
 -- | OAuth2 configuration for Office365
 data OAuth2Config = OAuth2Config
@@ -133,7 +135,7 @@ generateJWT (JWTSecret secret) user = do
 
   let claims = JWT.JWTClaimsSet
         { JWT.iss = JWT.stringOrURI "competences-backend"
-        , JWT.sub = JWT.stringOrURI $ T.pack $ show user.id
+        , JWT.sub = JWT.stringOrURI $ UUID.toText user.id.unId
         , JWT.aud = Nothing
         , JWT.exp = JWT.numericDate $ utcTimeToPOSIXSeconds expiry
         , JWT.nbf = Nothing
@@ -162,10 +164,10 @@ extractUserFromJWT claims = do
   -- Extract subject (user ID)
   subText <- case JWT.sub claims of
     Nothing -> Left "Missing subject in JWT"
-    Just uri -> Right $ T.pack $ show uri
+    Just uri -> Right $ stringOrURIToText uri
 
   userId <- case mkId subText of
-    Nothing -> Left "Invalid user ID in JWT"
+    Nothing -> Left $ "Invalid user ID in JWT: " <> T.unpack subText
     Just uid -> Right uid
 
   -- Extract custom claims

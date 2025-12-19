@@ -73,14 +73,17 @@ Compiles frontend to WASM and places files in `static/` directory:
 - `static/app.wasm`: Compiled Haskell frontend
 - `static/ghc_wasm_jsffi.js`: GHC WASM FFI runtime
 - `static/index.html`: Entry point (only used for standalone testing)
-- `static/index.js`: WASM loader
+- `static/index.js`: WASM loader (updated to use absolute paths: `/static/app.wasm`, `/static/ghc_wasm_jsffi.js`)
 
 Requires WASM toolchain from Nix:
 ```bash
 nix develop .#wasmShell.x86_64-linux
 ```
 
-**Note**: When running via backend, the OAuth callback endpoint serves dynamically generated HTML with embedded JWT, not the static `index.html`.
+**IMPORTANT Notes:**
+- When running via backend, the OAuth callback endpoint serves dynamically generated HTML with embedded JWT, not the static `index.html`
+- The `index.js` was updated to use absolute paths so resources load correctly from `/oauth/callback` page
+- WebSocket integration is in progress but not yet working (see Frontend WebSocket Integration section)
 
 ### Nix Development
 
@@ -262,6 +265,52 @@ Current `backend/schema.sql` only contains user table as placeholder.
 - `Release` includes before/after state for conflict detection
 - Lock expiration may be added in future
 
+## Frontend WebSocket Integration (IN PROGRESS)
+
+**Current Status:**
+The frontend WebSocket integration is partially implemented but NOT YET WORKING. The WASM build is not yet compiling.
+
+**Work Completed:**
+- Created `frontend/lib/Competences/Frontend/WebSocket.hs` module with:
+  - `getJWTToken :: JSM (Maybe Text)` - reads JWT from `window.COMPETENCES_JWT`
+  - `connectWebSocket` - attempts to create WebSocket connection (NOT WORKING YET)
+  - `sendMessage` - sends ClientMessage to server
+  - Currently has JSaddle API issues that need to be resolved
+
+- Updated `frontend/app/Main.hs` WASM section to:
+  - Read JWT token from `window.COMPETENCES_JWT`
+  - Attempt to establish WebSocket connection
+  - Handle ServerMessage types (InitialSnapshot, ApplyCommand, etc.)
+  - Falls back to test user if no JWT found
+
+- Added `Competences.Frontend.WebSocket` to frontend cabal exposed-modules
+
+**Known Issues:**
+- JSaddle FFI usage in WebSocket module is incorrect - compilation errors
+- Need to either:
+  1. Fix JSaddle FFI calls (proper syntax for `#`, `<#`, `fun`, etc.)
+  2. OR implement WebSocket handling in JavaScript (in index.js) and expose simple interface to Haskell
+  3. OR find existing JSaddle WebSocket examples to follow
+
+**Next Steps:**
+1. Install WASM toolchain: `nix develop .#wasmShell.x86_64-linux`
+2. Fix WebSocket module compilation errors
+3. Test WASM build: `cabal build -f "+wasm" exe:competences-frontend`
+4. Deploy frontend: `./deploy_frontend.sh`
+5. Test end-to-end: OAuth → JWT → Frontend loads → WebSocket connects → InitialSnapshot received
+6. Implement full sync logic:
+   - Send commands to server when `modifySyncDocument` is called
+   - Apply remote commands to SyncDocument when received
+   - Handle command rejection and echo detection
+
+**Alternative Approach to Consider:**
+Instead of using JSaddle FFI directly, implement WebSocket in JavaScript:
+- Add WebSocket setup to `static/index.js` before loading WASM
+- Store connection in `window.competences_ws`
+- Queue messages in `window.competences_messages` for Haskell to read
+- Expose `window.competences_send(msg)` for Haskell to call
+- This may be simpler than JSaddle FFI for WebSocket API
+
 ## Backend Implementation Status
 
 **Completed modules:**
@@ -357,6 +406,29 @@ Current `backend/schema.sql` only contains user table as placeholder.
 - When importing types with `NoFieldSelectors`, use `Type(..)` to access record fields:
   - ✓ `import Competences.Document (Document(..), User(..))`
   - ✗ `import Competences.Document (Document, User)` (won't allow `doc.users` access)
+
+## Testing the Full Stack
+
+**Prerequisites:**
+1. WASM toolchain installed: `nix develop .#wasmShell.x86_64-linux`
+2. Frontend compiled: `./deploy_frontend.sh`
+3. Azure OAuth app configured with Client ID, Secret, Tenant ID
+
+**Running:**
+1. Start backend:
+   ```bash
+   cabal run competences-backend -- \
+     8080 data.json "secret-key" \
+     "client-id" "client-secret" \
+     "http://localhost:8080/oauth/callback" \
+     "tenant-id" \
+     "./static"
+   ```
+
+2. Visit `http://localhost:8080/`
+3. Authenticate with Office365
+4. Should see frontend load with JWT embedded
+5. Check browser console for WebSocket connection status (currently will show errors until WebSocket integration is complete)
 
 ## Conflict Resolution Strategy
 

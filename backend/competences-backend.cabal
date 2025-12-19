@@ -54,6 +54,7 @@ library
         stm,
         text,
         time,
+        uuid-types,
         wai,
         wai-extra,
         wai-websockets,

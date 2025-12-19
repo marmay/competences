@@ -70,7 +70,8 @@ library
         Competences.Frontend.View.Table,
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.Text,
-        Competences.Frontend.View.Tooltip
+        Competences.Frontend.View.Tooltip,
+        Competences.Frontend.WebSocket
     build-depends:
         base ^>=4.21.0.0,
         aeson,
@@ -96,6 +97,7 @@ executable competences-frontend
         DuplicateRecordFields,
         GADTs,
         NoFieldSelectors,
+        OverloadedLabels,
         OverloadedRecordDot,
         OverloadedStrings
     main-is:          Main.hs
@@ -113,7 +115,9 @@ executable competences-frontend
             optparse-applicative
     if flag(wasm)
         build-depends:
-            jsaddle-wasm
+            jsaddle,
+            jsaddle-wasm,
+            optics-core
         cpp-options: -DWASM
         ghc-options:
           -no-hs-main
