@@ -17,7 +17,7 @@ import Competences.Backend.State
   )
 import Competences.Command (Command)
 import Competences.Command.Common (AffectedUsers (..))
-import Competences.Document (User (..), UserId, UserRole (..))
+import Competences.Document (User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.Id (nilId)
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerMessage (..))
@@ -68,9 +68,10 @@ handleClient state savePath uid user conn = do
   -- Register client
   registerClient state uid user conn
 
-  -- Send initial snapshot with authenticated user
+  -- Send initial snapshot with authenticated user (projected based on user identity)
   doc <- getDocument state
-  WS.sendTextData conn (encode $ InitialSnapshot doc user)
+  let projectedDoc = projectDocument user doc
+  WS.sendTextData conn (encode $ InitialSnapshot projectedDoc user)
 
   -- Handle messages and cleanup on disconnect
   flip finally (cleanup uid) $ do
@@ -80,29 +81,35 @@ handleClient state savePath uid user conn = do
         Nothing -> do
           putStrLn $ "Invalid message format from " <> show uid <> ", ignoring"
           -- Ignore invalid messages rather than disconnecting
-        Just clientMsg -> handleClientMessage state savePath uid clientMsg conn
+        Just clientMsg -> handleClientMessage state savePath uid user clientMsg conn
   where
     cleanup userId = do
       putStrLn $ "Client disconnected: " <> show userId
       unregisterClient state userId
 
 -- | Handle individual client messages
-handleClientMessage :: AppState -> FilePath -> UserId -> ClientMessage -> WS.Connection -> IO ()
-handleClientMessage state savePath uid clientMsg conn = case clientMsg of
+handleClientMessage :: AppState -> FilePath -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
+handleClientMessage state savePath uid user clientMsg conn = case clientMsg of
   SendCommand cmd -> do
     putStrLn $ "Received command from " <> show uid <> ": " <> show cmd
-    result <- updateDocument state uid cmd
-    case result of
-      Left err -> do
-        putStrLn $ "Command rejected: " <> T.unpack err
-        WS.sendTextData conn (encode $ CommandRejected cmd err)
-      Right (doc, AffectedUsers affected) -> do
-        putStrLn $ "Command applied, broadcasting to " <> show (length affected) <> " users"
-        -- Broadcast to all affected users (including sender)
-        broadcastToUsers state affected (ApplyCommand cmd)
-        -- Save document after successful command
-        -- TODO: Make this async or batched for better performance
-        void $ forkIO $ saveAppState savePath state
+    -- Authorization check: currently all commands require Teacher role
+    if user.role /= Teacher
+      then do
+        putStrLn $ "Command rejected: user " <> show uid <> " is not a teacher"
+        WS.sendTextData conn (encode $ CommandRejected cmd "Only teachers can execute commands")
+      else do
+        result <- updateDocument state uid cmd
+        case result of
+          Left err -> do
+            putStrLn $ "Command rejected: " <> T.unpack err
+            WS.sendTextData conn (encode $ CommandRejected cmd err)
+          Right (doc, AffectedUsers affected) -> do
+            putStrLn $ "Command applied, broadcasting to " <> show (length affected) <> " users"
+            -- Broadcast to all affected users (including sender)
+            broadcastToUsers state affected (ApplyCommand cmd)
+            -- Save document after successful command
+            -- TODO: Make this async or batched for better performance
+            void $ forkIO $ saveAppState savePath state
 
   KeepAlive -> do
     -- Respond to keep-alive

@@ -120,6 +120,107 @@ The application uses a command-sourcing pattern where:
 3. Commands are handled via `handleCommand` which validates and applies changes
 4. The frontend maintains a `SyncDocument` that tracks local and remote document state
 
+### Document Projection and Access Control
+
+**Security Model**: Not all users have access to all data. The backend projects the full `Document` to a user-specific view based on their identity.
+
+**Projection Rules**:
+
+Students see (based on their user identity):
+- **Users**: Only themselves (not other users)
+- **CompetenceGrids**: All competence grids
+- **Evidences**: Only evidences where they are a participant (their ID is in `evidence.userIds`)
+- **Other entities**: Filtered similarly based on relevance to the student
+
+Teachers see:
+- **Full document**: No filtering, all entities visible
+
+**Implementation**:
+```haskell
+-- In common/lib/Competences/Document.hs
+projectDocument :: User -> Document -> Document
+-- If user.role == Teacher: return full document
+-- If user.role == Student: filter entities based on user.id
+--   - Uses UserId index on Evidence for efficient filtering
+--   - Updates checksums after projection
+```
+
+**Status**: ✅ Implemented
+- Location: `common/lib/Competences/Document.hs`
+- Students see: own User, own Evidences (via UserId index), all CompetenceGrids/Competences/Resources/Templates
+- Locks filtered to show only locks on accessible entities
+- Checksums updated after filtering
+
+**InitialSnapshot**:
+- When a user connects, backend sends `InitialSnapshot` with **projected document**
+- This ensures students never receive data they shouldn't see
+- Frontend's `remoteDocument` is always a projection (full for teachers, filtered for students)
+
+**Status**: ✅ Implemented
+- Location: `backend/lib/Competences/Backend/WebSocket.hs:71-74`
+- Calls `projectDocument user doc` before sending `InitialSnapshot`
+
+**AffectedUsers and Broadcasting**:
+- When a command is applied, `handleCommand` returns `AffectedUsers`
+- `AffectedUsers` = list of users whose **projected document** changes
+- Only affected users receive the `ApplyCommand` broadcast
+- This is efficient: users only get updates relevant to them
+
+**Examples**:
+- Student creates their own evidence → `AffectedUsers = [student, all teachers]`
+  - Student's projection gains the evidence
+  - Teachers' projections gain the evidence
+  - Other students don't see it (not in their projection)
+- Teacher modifies Student A's evidence → `AffectedUsers = [Student A, all teachers]`
+  - Student A's projection changes
+  - All teachers' projections change
+  - Other students unaffected
+- Teacher modifies a competence grid → `AffectedUsers = [all users]`
+  - Everyone's projection includes competence grids
+
+**Deduplication**:
+- Backend deduplicates `AffectedUsers` before broadcasting
+- Prevents sending the same command multiple times to the same user
+- Uses `Map.keys $ Map.fromList [(uid, ()) | uid <- userIds]`
+
+**Authorization**:
+- **Current**: All commands require Teacher role (validated server-side)
+- **Future**: Student-specific commands will be added with per-command authorization
+- Backend validates user has permission to execute each command
+- Frontend can make optimistic updates, but backend is authoritative
+
+**Status**: ✅ Implemented
+- Location: `backend/lib/Competences/Backend/WebSocket.hs:95-99`
+- Checks `user.role /= Teacher` before processing commands
+- Sends `CommandRejected` with "Only teachers can execute commands" for non-teachers
+
+**Property-Based Testing**:
+- Verify `AffectedUsers` correctness with QuickCheck properties:
+  ```haskell
+  -- AffectedUsers must match users whose projection changes
+  prop_affectedUsersMatchProjection :: User -> Command -> Document -> Property
+  prop_affectedUsersMatchProjection sender cmd doc =
+    case handleCommand sender.id cmd doc of
+      Right (doc', AffectedUsers affected) ->
+        let changedProjections = filter
+              (\u -> projectDocument u doc /= projectDocument u doc')
+              allUsers
+        in sort affected === sort (map (.id) changedProjections)
+  ```
+- Other properties: teacher projections are identity, student projections are subsets, etc.
+
+**Status**: ⏸️ TODO
+- Requires: QuickCheck dependency in `competences-common.cabal`
+- Requires: `Arbitrary` instances for `Document`, `User`, `Command`, `Evidence`, etc.
+- Suggested location: `common/test/ProjectionProperties.hs`
+- **Note**: This is important for verifying that `AffectedUsers` calculations are correct across all command types
+
+**Session Integrity**:
+- User identity (id, role, name, office365Id) must not change during a session
+- On reconnection, if user differs → error logged, session should terminate
+- Future: `ConnectedUserInfo` projection for fields that CAN change without breaking session
+- Current check in `Main.hs`: verifies `user.id` matches on reconnect
+
 ### Client-Server Communication Model
 
 **HTTP + WebSocket Architecture:**
@@ -148,8 +249,10 @@ Client → Server:
 - `KeepAlive`: Maintain connection (prevent timeout)
 
 Server → Client:
-- `InitialSnapshot Document User`: Initial state + authenticated user sent on connection
+- `InitialSnapshot Document User`: **Projected** document + authenticated user sent on connection
+  - Document is projected based on user identity (full for teachers, filtered for students)
 - `ApplyCommand Command`: Command to apply (echo or broadcast)
+  - Only sent to users in `AffectedUsers` (those whose projection changes)
 - `CommandRejected Command Text`: Command validation failed
 - `KeepAliveResponse`: Acknowledge keep-alive
 
@@ -157,7 +260,8 @@ Server → Client:
 
 1. **Connection**:
    - Frontend connects, receives `InitialSnapshot Document User`
-   - Sets `remoteDocument` and `localDocument`
+   - Document is **projected** based on user identity (filtered for students, full for teachers)
+   - Sets `remoteDocument` and `localDocument` to projected document
    - Sets `connectedUser` from server (authoritative)
    - Stores WebSocket connection in `SyncDocumentRef.webSocket`
 
@@ -174,8 +278,11 @@ Server → Client:
    - **Ordered**: FIFO queue ensures correct sequencing
 
 4. **Server Processing**:
-   - Server validates and applies command → broadcasts `ApplyCommand` to affected users (including sender)
-   - Or sends `CommandRejected` if validation fails
+   - Server validates **authorization** (currently: all commands require Teacher role)
+   - Server validates and applies command using `handleCommand`
+   - On success: broadcasts `ApplyCommand` to `AffectedUsers` (deduplicated) including sender
+   - `AffectedUsers` = users whose projected document changes
+   - On failure: sends `CommandRejected` to sender only
 
 5. **Remote Update - Echo** (ApplyCommand matches `pendingCommand`):
    - Apply to `remoteDocument`
@@ -214,6 +321,9 @@ Server → Client:
 - Uses `ixset-typed` for indexed collections of entities
 - Entities: `User`, `Competence`, `CompetenceGrid`, `Evidence`, `Resource`, `Template`
 - Maintains checksums for partial sync
+- **Document Projection**: `projectDocument :: User -> Document -> Document`
+  - Filters document based on user identity for access control
+  - Teachers see full document, students see filtered view
 
 **Competences.Command** (`common/lib/Competences/Command.hs`):
 - Defines command types: `EntityCommand` (Create, Delete, Modify)
@@ -225,13 +335,14 @@ Server → Client:
 
 **Competences.Frontend.SyncDocument** (`frontend/lib/Competences/Frontend/SyncDocument.hs`):
 - Manages document state in the frontend
-- **`remoteDocument`**: Server's authoritative state
+- **`remoteDocument`**: Server's authoritative **projected** state (filtered for students, full for teachers)
 - **`localDocument`**: Computed as `remoteDocument + pendingCommand + localChanges` (always)
 - **`pendingCommand`**: Command currently sent to server, awaiting acknowledgment (at most one)
 - **`localChanges`**: Queue of commands not yet sent to server
 - **`webSocket`**: MVar holding WebSocket connection for sending commands
 - When server sends command: apply to `remoteDocument`, then replay `pendingCommand + localChanges` to recompute `localDocument`
 - Commands that fail during replay are stripped (indicates they're already applied or conflicted)
+- **Note**: Replay works correctly on projected documents because users only issue commands about entities in their projection
 - Provides subscription mechanism via `ChangedHandler`s
 - Wrapped in `SyncDocumentRef` (MVar-based) for concurrent access
 
@@ -718,3 +829,44 @@ uuid = userId.unId
 - `NoFieldSelectors` disables automatic field selector generation
 - `OverloadedRecordDot` provides `.` syntax as an alternative
 - But you MUST import the constructor for GHC to know about the fields
+
+## Recent Implementation: Document Projection (2025-12-19)
+
+Implemented document projection and access control for data privacy:
+
+### What Was Implemented
+
+1. **`projectDocument` function** (`common/lib/Competences/Document.hs`):
+   - Filters document based on user identity
+   - Teachers: see full document
+   - Students: see only own User, own Evidences (via UserId index), all public materials (CompetenceGrids, Competences, Resources, Templates)
+   - Locks filtered to show only accessible entities
+   - Uses efficient UserId index on Evidence for filtering
+
+2. **Backend Projection** (`backend/lib/Competences/Backend/WebSocket.hs:71-74`):
+   - `InitialSnapshot` now sends projected documents
+   - Students never receive unauthorized data
+   - Frontend's `remoteDocument` is always a projection
+
+3. **Authorization** (`backend/lib/Competences/Backend/WebSocket.hs:95-99`):
+   - All commands currently require Teacher role
+   - Non-teachers receive `CommandRejected` with error message
+   - Future: per-command authorization for student commands
+
+4. **Deduplication** (`backend/lib/Competences/Backend/State.hs:110`):
+   - `broadcastToUsers` deduplicates user IDs
+   - Prevents sending same command multiple times to same user
+
+### Key Design Decisions
+
+- **Projection based on identity, not role**: Students see data about THEM specifically, not just "any student data"
+- **Efficient indexing**: Used UserId index on Evidence for O(log n) filtering instead of O(n) scan
+- **AffectedUsers = projection changes**: Users receive broadcasts only if their projected document changes
+- **Server authoritative**: All authorization on backend, frontend can make optimistic updates
+
+### TODO
+
+- **Property-based tests**: Add QuickCheck tests to verify `AffectedUsers` correctness
+  - Requires: QuickCheck dependency, Arbitrary instances
+  - Property: `AffectedUsers(cmd) = {u | project(u, doc) ≠ project(u, apply(cmd, doc))}`
+  - Location: `common/test/ProjectionProperties.hs`
