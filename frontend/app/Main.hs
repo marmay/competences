@@ -11,6 +11,9 @@ import Competences.Frontend.SyncDocument
   , mkSyncDocumentEnv
   , modifySyncDocument
   , setSyncDocument
+  , setWebSocket
+  , applyRemoteCommand
+  , rejectCommand
   )
 import Competences.Frontend.WebSocket
   ( getJWTToken
@@ -24,7 +27,7 @@ import Competences.Document.Id (nilId)
 import Competences.Protocol (ServerMessage(..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Text qualified as T
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, tryTakeMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, tryTakeMVar, tryReadMVar)
 
 main :: IO ()
 main = do
@@ -54,7 +57,7 @@ main = do
         -- MVar that will be filled when we receive the first InitialSnapshot
         initialState <- liftIO newEmptyMVar
 
-        _ <- connectWebSocket wsUrl jwtToken $ \serverMsg -> do
+        ws <- connectWebSocket wsUrl jwtToken $ \serverMsg -> do
           case serverMsg of
             InitialSnapshot doc user -> do
               maybeState <- liftIO $ tryTakeMVar initialState
@@ -83,14 +86,17 @@ main = do
                       setSyncDocument existingDoc doc
 
             ApplyCommand cmd -> do
-              liftIO $ putStrLn $ "Received ApplyCommand: " <> show cmd
-              -- TODO: Apply to remote document and replay local changes
-              pure ()
+              maybeState <- liftIO $ tryReadMVar initialState
+              case maybeState of
+                Just (document, _) -> applyRemoteCommand document cmd
+                Nothing -> liftIO $ putStrLn "WARNING: Received ApplyCommand before initialization"
 
             CommandRejected cmd err -> do
               liftIO $ putStrLn $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
-              -- TODO: Remove from local changes
-              pure ()
+              maybeState <- liftIO $ tryReadMVar initialState
+              case maybeState of
+                Just (document, _) -> rejectCommand document cmd
+                Nothing -> liftIO $ putStrLn "WARNING: Received CommandRejected before initialization"
 
             KeepAliveResponse -> do
               -- Acknowledge keep-alive
@@ -99,6 +105,8 @@ main = do
         -- Wait for first InitialSnapshot to arrive, then start app
         (document, user) <- liftIO $ takeMVar initialState
         liftIO $ putStrLn $ "Starting app for user: " <> T.unpack user.name
+        -- Set WebSocket connection after document is created
+        setWebSocket document ws
         runApp $ withTailwindPlay $ mkApp document
 
 foreign export javascript "hs_start" main :: IO ()
