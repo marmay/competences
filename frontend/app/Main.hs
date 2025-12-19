@@ -27,7 +27,7 @@ import Competences.Document.Id (nilId)
 import Competences.Protocol (ServerMessage(..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Text qualified as T
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, tryTakeMVar, tryReadMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar, tryTakeMVar, tryReadMVar)
 
 main :: IO ()
 main = do
@@ -103,7 +103,7 @@ main = do
               pure ()
 
         -- Wait for first InitialSnapshot to arrive, then start app
-        (document, user) <- liftIO $ takeMVar initialState
+        (document, user) <- liftIO $ readMVar initialState
         liftIO $ putStrLn $ "Starting app for user: " <> T.unpack user.name
         -- Set WebSocket connection after document is created
         setWebSocket document ws

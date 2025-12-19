@@ -106,7 +106,9 @@ getConnectedClients state =
 broadcastToUsers :: AppState -> [UserId] -> ServerMessage -> IO ()
 broadcastToUsers state userIds msg = do
   clients <- readTVarIO state.clients
-  forM_ userIds $ \uid ->
+  -- Deduplicate user IDs to avoid sending the same message multiple times
+  let uniqueUserIds = Map.keys $ Map.fromList [(uid, ()) | uid <- userIds]
+  forM_ uniqueUserIds $ \uid ->
     case Map.lookup uid clients of
       Nothing -> pure () -- User not connected
       Just client -> WS.sendTextData client.connection (encode msg)
