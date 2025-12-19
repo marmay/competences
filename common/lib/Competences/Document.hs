@@ -6,6 +6,7 @@ module Competences.Document
   , emptyDocument
   , updateChecksums
   , updateAllChecksums
+  , projectDocument
   , module Competences.Document.Lock
   , module Competences.Document.Competence
   , module Competences.Document.CompetenceGrid
@@ -142,3 +143,26 @@ updatePartialChecksum m c = updatePartialChecksum' (computePartialChecksum c)
     computePartialChecksum' l enc = hashlazy $ enc $ m ^. l
     encodeIx :: forall ixs a. (Binary a) => Ix.IxSet ixs a -> BL.ByteString
     encodeIx = encode . Ix.toList
+
+-- | Project document based on user identity for access control
+-- Teachers see full document, students see filtered view
+projectDocument :: User -> Document -> Document
+projectDocument user doc
+  | user.role == Teacher = doc  -- Teachers see everything
+  | otherwise =
+      -- Students see filtered view based on their identity
+      updateAllChecksums $
+        doc
+          & #users .~ Ix.fromList [user]  -- Only their own user
+          & #evidences .~ (doc.evidences Ix.@= user.id)  -- Only evidences about them (via UserId index)
+          & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks)  -- Only locks on entities they can see
+          -- competenceGrids, competences, resources, templates: students see all (public materials)
+  where
+    -- Student can see locks on entities they have access to
+    isLockVisible lock _ = case lock of
+      UserLock uid -> uid == user.id  -- Only their own user
+      EvidenceLock eid ->
+        case Ix.getOne (Ix.getEQ eid (doc ^. #evidences)) of
+          Just e -> user.id `elem` e.userIds  -- Only evidences about them
+          Nothing -> False
+      _ -> True  -- Other locks (competence, grid, etc.) are visible (public materials)
