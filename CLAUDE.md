@@ -265,51 +265,114 @@ Current `backend/schema.sql` only contains user table as placeholder.
 - `Release` includes before/after state for conflict detection
 - Lock expiration may be added in future
 
-## Frontend WebSocket Integration (IN PROGRESS)
+## Frontend WebSocket Integration (COMPLETED)
 
-**Current Status:**
-The frontend WebSocket integration is partially implemented but NOT YET WORKING. The WASM build is not yet compiling.
+**Status:** ✅ Fully functional and deployed
 
-**Work Completed:**
-- Created `frontend/lib/Competences/Frontend/WebSocket.hs` module with:
+**Implementation:**
+The frontend successfully establishes WebSocket connections using JSaddle FFI directly (no JavaScript wrapper needed).
+
+**Modules:**
+- `frontend/lib/Competences/Frontend/WebSocket.hs` - WebSocket connection management
   - `getJWTToken :: JSM (Maybe Text)` - reads JWT from `window.COMPETENCES_JWT`
-  - `connectWebSocket` - attempts to create WebSocket connection (NOT WORKING YET)
+  - `connectWebSocket` - creates WebSocket connection with event handlers
   - `sendMessage` - sends ClientMessage to server
-  - Currently has JSaddle API issues that need to be resolved
 
-- Updated `frontend/app/Main.hs` WASM section to:
-  - Read JWT token from `window.COMPETENCES_JWT`
-  - Attempt to establish WebSocket connection
-  - Handle ServerMessage types (InitialSnapshot, ApplyCommand, etc.)
+- `frontend/app/Main.hs` (WASM section):
+  - Reads JWT token from `window.COMPETENCES_JWT`
+  - Establishes WebSocket connection to same host as HTTP server
+  - Handles ServerMessage types (InitialSnapshot, ApplyCommand, CommandRejected, KeepAliveResponse)
   - Falls back to test user if no JWT found
 
-- Added `Competences.Frontend.WebSocket` to frontend cabal exposed-modules
+**Key Implementation Details:**
 
-**Known Issues:**
-- JSaddle FFI usage in WebSocket module is incorrect - compilation errors
-- Need to either:
-  1. Fix JSaddle FFI calls (proper syntax for `#`, `<#`, `fun`, etc.)
-  2. OR implement WebSocket handling in JavaScript (in index.js) and expose simple interface to Haskell
-  3. OR find existing JSaddle WebSocket examples to follow
+1. **JSaddle FFI Patterns (IMPORTANT - Common pitfalls fixed):**
+   - Constructor calls: `new (jsg "WebSocket") [toJSVal url]` (NOT `jsg "WebSocket" # [url]`)
+   - Method calls: `ws # "send" $ [jsonVal]`
+   - Property access: `msgEvent ! "data"`
+   - Setting properties: `ws <# "onmessage" $ callback`
+   - Creating callbacks: `fun $ \this fn args -> case args of (arg:_) -> ... _ -> pure ()`
+     - Pattern matching on args list, NOT in lambda parameters
+     - Signature: `JSVal -> JSVal -> [JSVal] -> JSM ()`
+   - **Type annotations required:** All string literals need explicit `:: Text` to avoid type-defaulting errors with `-Werror`
+   - **Import requirements:** Need `new`, `#`, `<#`, `!`, `fun`, `jsg`, `toJSVal`, `valToText` from `Language.Javascript.JSaddle`
 
-**Next Steps:**
-1. Install WASM toolchain: `nix develop .#wasmShell.x86_64-linux`
-2. Fix WebSocket module compilation errors
-3. Test WASM build: `cabal build -f "+wasm" exe:competences-frontend`
-4. Deploy frontend: `./deploy_frontend.sh`
-5. Test end-to-end: OAuth → JWT → Frontend loads → WebSocket connects → InitialSnapshot received
-6. Implement full sync logic:
-   - Send commands to server when `modifySyncDocument` is called
-   - Apply remote commands to SyncDocument when received
-   - Handle command rejection and echo detection
+2. **WebSocket URL Construction:**
+   - Must include trailing `/` before query params: `ws://host:port/?token=<jwt>`
+   - Backend expects path format: `/?token=<jwt>` (see `backend/lib/Competences/Backend/WebSocket.hs:53`)
+   - Frontend constructs: `wsProtocol <> host <> "/" <> "?token=" <> jwtToken`
 
-**Alternative Approach to Consider:**
-Instead of using JSaddle FFI directly, implement WebSocket in JavaScript:
-- Add WebSocket setup to `static/index.js` before loading WASM
-- Store connection in `window.competences_ws`
-- Queue messages in `window.competences_messages` for Haskell to read
-- Expose `window.competences_send(msg)` for Haskell to call
-- This may be simpler than JSaddle FFI for WebSocket API
+3. **WASM Build Dependencies:**
+   - Main executable needs: `jsaddle`, `jsaddle-wasm`, `optics-core` when building with `wasm` flag
+   - Main executable needs: `OverloadedLabels` extension (for `#field` syntax)
+   - Uses `liftIO` for IO operations within JSM monad
+
+4. **Common Compilation Errors Fixed:**
+   ```
+   ERROR: "Couldn't match expected type: JSM JSVal with actual type: args0 -> JSM JSVal"
+   FIX: Use correct operator precedence and argument passing for # operator
+
+   ERROR: "Defaulting the type variable 'name0' to type '[Char]'"
+   FIX: Add explicit type annotations: ("propertyName" :: Text)
+
+   ERROR: "Could not load module 'jsaddle'" (in WASM build)
+   FIX: Add jsaddle and optics-core to executable build-depends under wasm flag
+
+   ERROR: "Variable not in scope: (#)"
+   FIX: Add OverloadedLabels to executable's default-extensions
+
+   ERROR: "Couldn't match type 'IO' with 'JSM'"
+   FIX: Use liftIO for IO operations: liftIO $ putStrLn "message"
+   ```
+
+5. **Connection Flow:**
+   - User authenticates via OAuth → receives JWT in `window.COMPETENCES_JWT`
+   - Frontend reads JWT, constructs WebSocket URL
+   - Connects to `ws://host:port/?token=<jwt>`
+   - Backend validates JWT, sends InitialSnapshot
+   - Frontend updates SyncDocument with initial state
+   - Real-time sync begins
+
+## JWT Token Generation and Validation (IMPORTANT)
+
+**Critical Bug Fixed:** The JWT generation was using `show` on the user ID, which created malformed tokens.
+
+**Correct Implementation:**
+
+1. **Import Requirements:**
+   ```haskell
+   import Competences.Document.Id (Id (..), mkId)  -- Must import constructor
+   import Data.UUID.Types qualified as UUID
+   import Web.JWT (stringOrURIToText)
+   ```
+
+2. **Generating JWT (in `backend/lib/Competences/Backend/Auth.hs`):**
+   ```haskell
+   -- ❌ WRONG - creates "Id {unId = <uuid>}"
+   JWT.sub = JWT.stringOrURI $ T.pack $ show user.id
+
+   -- ✅ CORRECT - creates just the UUID string
+   JWT.sub = JWT.stringOrURI $ UUID.toText user.id.unId
+   ```
+   - With `NoFieldSelectors` + `OverloadedRecordDot`, you MUST import `Id(..)` constructor to access `.unId`
+   - Use `UUID.toText` to convert UUID to Text (NOT `show`)
+
+3. **Extracting from JWT:**
+   ```haskell
+   -- ❌ WRONG - double-wraps the value
+   Just uri -> Right $ T.pack $ show uri
+
+   -- ✅ CORRECT - properly extracts the text
+   Just uri -> Right $ stringOrURIToText uri
+   ```
+   - Use `stringOrURIToText` from `Web.JWT` to extract Text from StringOrURI
+   - Then use `mkId` to parse the UUID string
+
+**Common Pitfalls:**
+- Using `show` on newtypes creates Haskell-formatted strings like `"Id {unId = ...}"`
+- Forgetting to import constructors with `NoFieldSelectors` prevents field access
+- Not using `stringOrURIToText` for JWT claims extraction
+- `OverloadedRecordDot` requires constructor import: `Id(..)` enables `value.unId` syntax
 
 ## Backend Implementation Status
 
@@ -460,3 +523,136 @@ To set up Office365 authentication:
    - Tokens are validated on every WebSocket connection attempt
    - Office365 access tokens are only used during OAuth callback (not stored)
    - User sessions persist via JWT until expiration or server restart
+
+## Lessons Learned & Debugging Guide
+
+### General Development Workflow
+
+1. **Always read files before editing** - Use the Read tool to understand existing code structure
+2. **Build incrementally** - Fix one error at a time, rebuild frequently
+3. **Check dependencies** - Missing packages in `.cabal` files are a common issue
+4. **Enable all extensions** - Ensure executable sections have same extensions as library (especially `OverloadedLabels`)
+
+### WASM Frontend Development
+
+**Build Command:**
+```bash
+./deploy_frontend.sh
+```
+
+**Common Issues:**
+1. **Missing dependencies in WASM build:**
+   - Check executable's `if flag(wasm)` section in `.cabal` file
+   - Need: `jsaddle`, `jsaddle-wasm`, `optics-core`
+
+2. **Type defaulting errors:**
+   - Always add explicit type annotations to string literals: `("text" :: Text)`
+   - Affects all JSaddle FFI calls (property names, method names)
+
+3. **Import errors with OverloadedRecordDot:**
+   - Import data constructors: `Type(..)` not just `Type`
+   - Example: `import Competences.Document.Id (Id(..))` enables `.unId` access
+
+### JSaddle FFI Quick Reference
+
+```haskell
+-- Imports needed
+import Language.Javascript.JSaddle
+  ( JSM, JSVal, fun, jsg, new, toJSVal, valToText, (!), (#), (<#) )
+
+-- Global object access
+window <- jsg ("window" :: Text)
+
+-- Property access (reading)
+value <- obj ! ("propertyName" :: Text)
+
+-- Property setting
+_ <- obj <# ("propertyName" :: Text) $ someValue
+
+-- Constructor calls (like 'new WebSocket(url)')
+ws <- new (jsg ("WebSocket" :: Text)) [toJSVal url]
+
+-- Method calls (like 'ws.send(data)')
+jsonVal <- toJSVal textData
+_ <- ws # ("send" :: Text) $ [jsonVal]
+
+-- Creating callbacks
+callback <- fun $ \this fn args -> do
+  case args of
+    (firstArg:_) -> do
+      -- handle event
+      pure ()
+    _ -> pure ()
+
+-- Setting event handlers
+_ <- element <# ("onclick" :: Text) $ callback
+```
+
+### Backend JWT Debugging
+
+**Check JWT contents:**
+```bash
+# Decode JWT (just the payload, base64)
+echo "eyJ..." | base64 -d
+```
+
+**Common JWT issues:**
+- User ID not found: Check `sub` field is valid UUID (not `"Id {unId = ...}"`)
+- Authentication fails: Verify JWT secret matches between generation and validation
+- User not linked: Office365 ID must match a user in the database
+
+### WebSocket Connection Debugging
+
+**Frontend (Browser Console):**
+```javascript
+// Check if JWT is set
+console.log(window.COMPETENCES_JWT)
+
+// Check WebSocket connection
+// Should see: "WebSocket connected"
+```
+
+**Backend (Terminal):**
+```
+# Should see:
+Client connected: <name> (<user-id>)
+
+# If authentication fails:
+Authentication failed: <error message>
+```
+
+**Common Connection Issues:**
+1. **400 Bad Request:**
+   - Check WebSocket URL includes `/` before query: `ws://host:port/?token=...`
+   - Verify JWT token is being passed correctly
+
+2. **401 Unauthorized:**
+   - JWT validation failed
+   - Check JWT secret matches
+   - Check JWT hasn't expired
+
+3. **Connection refused:**
+   - Backend not running
+   - Wrong port number
+   - Firewall blocking WebSocket
+
+### NoFieldSelectors + OverloadedRecordDot Pattern
+
+When using both extensions together:
+
+```haskell
+-- Import constructor to enable field access
+import MyModule (MyType(..))  -- Note the (..)
+
+-- Now you can use record dot syntax
+value = myRecord.field.nestedField
+
+-- For newtypes like Id:
+import Competences.Document.Id (Id(..))  -- Enables .unId
+uuid = userId.unId
+```
+
+**Why this matters:**
+- `NoFieldSelectors` disables automatic field selector generation
+- `OverloadedRecordDot` provides `.` syntax as an alternative
+- But you MUST import the constructor for GHC to know about the fields

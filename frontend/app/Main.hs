@@ -24,6 +24,7 @@ import Competences.Document.Id (nilId)
 import Competences.Protocol (ServerMessage(..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Text qualified as T
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, tryTakeMVar)
 
 main :: IO ()
 main = do
@@ -43,12 +44,6 @@ main = do
       Just jwtToken -> do
         liftIO $ putStrLn $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
 
-        -- Create temporary environment with placeholder user
-        -- (we'll get the real user from InitialSnapshot)
-        let tempUser = User nilId "Loading..." Student Nothing
-        env <- mkSyncDocumentEnv tempUser
-        document <- mkSyncDocument env
-
         -- Determine WebSocket URL from current location
         location <- jsg ("window" :: T.Text) ! ("location" :: T.Text)
         protocol <- location ! ("protocol" :: T.Text) >>= valToText
@@ -56,12 +51,36 @@ main = do
         let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
         let wsUrl = wsProtocol <> host <> "/"
 
+        -- MVar that will be filled when we receive the first InitialSnapshot
+        initialState <- liftIO newEmptyMVar
+
         _ <- connectWebSocket wsUrl jwtToken $ \serverMsg -> do
           case serverMsg of
-            InitialSnapshot doc -> do
-              liftIO $ putStrLn "Received InitialSnapshot"
-              -- Set the document to the initial snapshot
-              setSyncDocument document doc
+            InitialSnapshot doc user -> do
+              maybeState <- liftIO $ tryTakeMVar initialState
+
+              case maybeState of
+                Nothing -> do
+                  -- First connection: create document with authenticated user and signal ready
+                  liftIO $ putStrLn $ "Initial connection for user: " <> T.unpack user.name <> " (" <> show user.id <> ")"
+                  env <- mkSyncDocumentEnv user
+                  document <- mkSyncDocument env
+                  setSyncDocument document doc
+                  liftIO $ putMVar initialState (document, user)
+
+                Just (existingDoc, existingUser) -> do
+                  -- Reconnection: verify user matches and update document
+                  liftIO $ putMVar initialState (existingDoc, existingUser)  -- Put it back
+                  if user.id /= existingUser.id
+                    then do
+                      liftIO $ putStrLn $ "ERROR: User mismatch on reconnect! Expected "
+                        <> T.unpack existingUser.name <> " (" <> show existingUser.id
+                        <> ") but got " <> T.unpack user.name <> " (" <> show user.id <> ")"
+                      -- This should never happen - indicates serious auth problem
+                      -- TODO: Show error message to user and/or reload page
+                    else do
+                      liftIO $ putStrLn "Reconnection: updating document"
+                      setSyncDocument existingDoc doc
 
             ApplyCommand cmd -> do
               liftIO $ putStrLn $ "Received ApplyCommand: " <> show cmd
@@ -77,7 +96,9 @@ main = do
               -- Acknowledge keep-alive
               pure ()
 
-        -- Start the app
+        -- Wait for first InitialSnapshot to arrive, then start app
+        (document, user) <- liftIO $ takeMVar initialState
+        liftIO $ putStrLn $ "Starting app for user: " <> T.unpack user.name
         runApp $ withTailwindPlay $ mkApp document
 
 foreign export javascript "hs_start" main :: IO ()

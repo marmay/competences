@@ -68,9 +68,9 @@ handleClient state savePath uid user conn = do
   -- Register client
   registerClient state uid user conn
 
-  -- Send initial snapshot
+  -- Send initial snapshot with authenticated user
   doc <- getDocument state
-  WS.sendTextData conn (encode $ InitialSnapshot doc)
+  WS.sendTextData conn (encode $ InitialSnapshot doc user)
 
   -- Handle messages and cleanup on disconnect
   flip finally (cleanup uid) $ do

@@ -17,11 +17,9 @@ import Competences.Backend.Auth
   , getAuthorizationUrl
   , getUserInfo
   )
-import Competences.Backend.State (AppState, getDocument, updateDocument)
-import Competences.Command (Command (..), EntityCommand (..))
-import Competences.Document (Document (..),User (..))
-import Competences.Document.Id (mkId)
-import Competences.Document.User (Office365Id (..), UserRole (..))
+import Competences.Backend.State (AppState, getDocument)
+import Competences.Document (Document (..), User (..))
+import Competences.Document.User (Office365Id (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy qualified as BL
 import Data.IxSet.Typed qualified as Ix
@@ -95,8 +93,19 @@ oauthCallbackHandler state oauth2Config jwtSecret maybeCode = do
     Left err -> throwError err500 {errBody = BL.fromStrict $ encodeUtf8 $ T.pack err}
     Right info -> pure info
 
-  -- Find or create user in document
-  user <- liftIO $ findOrCreateUser state o365User
+  -- Find user in document by email address
+  let email = case o365User.mail of
+        Just m -> m
+        Nothing -> o365User.userPrincipalName
+
+  userResult <- liftIO $ findUserByEmail state email
+  user <- case userResult of
+    Just u -> pure u
+    Nothing -> throwError err400
+      { errBody = BL.fromStrict $ encodeUtf8 $
+          "No user found with email address: " <> email <>
+          ". Please contact an administrator to create your user account."
+      }
 
   -- Generate JWT
   jwt <- liftIO $ generateJWT jwtSecret user
@@ -104,33 +113,12 @@ oauthCallbackHandler state oauth2Config jwtSecret maybeCode = do
   -- Serve frontend HTML with JWT embedded
   pure $ renderFrontendHTML jwt
 
--- | Find existing user by Office365 ID or create new one
-findOrCreateUser :: AppState -> Office365User -> IO User
-findOrCreateUser state o365User = do
+-- | Find existing user by email address stored in office365Id field
+findUserByEmail :: AppState -> Text -> IO (Maybe User)
+findUserByEmail state email = do
   doc <- getDocument state
-  let o365Id = Office365Id o365User.o365Id
-  let existingUser = Ix.getOne $ doc.users Ix.@= (Just o365Id)
-
-  case existingUser of
-    Just user -> pure user
-    Nothing -> do
-      -- Create new user
-      let userId = case mkId o365User.o365Id of
-            Just uid -> uid
-            Nothing -> error $ "Failed to create user ID from Office365 ID: " <> T.unpack o365User.o365Id
-
-      let newUser = User
-            { id = userId
-            , name = o365User.displayName
-            , role = Student -- Default role, can be changed manually
-            , office365Id = Just o365Id
-            }
-
-      -- Add user to document
-      result <- updateDocument state userId (OnUsers $ Create newUser)
-      case result of
-        Left err -> error $ "Failed to create user: " <> T.unpack err
-        Right _ -> pure newUser
+  let o365Id = Office365Id email
+  pure $ Ix.getOne $ doc.users Ix.@= (Just o365Id)
 
 -- | Render frontend HTML with JWT embedded
 renderFrontendHTML :: Text -> Html

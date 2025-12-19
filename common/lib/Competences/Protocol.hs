@@ -5,7 +5,7 @@ module Competences.Protocol
 where
 
 import Competences.Command (Command)
-import Competences.Document (Document)
+import Competences.Document (Document, User)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -25,7 +25,8 @@ instance ToJSON ClientMessage
 -- | Messages sent from server to client over WebSocket.
 data ServerMessage
   = -- | Initial document snapshot sent upon connection establishment.
-    InitialSnapshot !Document
+    -- Includes the authenticated user making the connection.
+    InitialSnapshot !Document !User
   | -- | Command successfully applied by server (echo or broadcast).
     -- Client should apply to remoteDocument and replay localChanges.
     ApplyCommand !Command

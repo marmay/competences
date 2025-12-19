@@ -79,6 +79,7 @@ data Label
   | LblUserList
   | LblUserName
   | LblUserRole
+  | LblUserEmail
   | LblAddUser
   | LblInitializing
   | LblCreateEvidence
@@ -146,6 +147,7 @@ labels' =
   , LblUserList
   , LblUserName
   , LblUserRole
+  , LblUserEmail
   , LblAddUser
   , LblInitializing
   , LblCreateEvidence
@@ -218,6 +220,7 @@ defaultTranslation LblAddEvidence = "Beobachtung hinzufügen"
 defaultTranslation LblUserList = "Liste aller Benutzer"
 defaultTranslation LblUserName = "Benutzername"
 defaultTranslation LblUserRole = "Benutzerrolle"
+defaultTranslation LblUserEmail = "E-Mail"
 defaultTranslation LblAddUser = "Benutzer hinzufügen"
 defaultTranslation LblInitializing = "Initialisiere ..."
 defaultTranslation LblCreateEvidence = "Aufzeichnung erstellen"
