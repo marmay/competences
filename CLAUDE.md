@@ -83,7 +83,7 @@ nix develop .#wasmShell.x86_64-linux
 **IMPORTANT Notes:**
 - When running via backend, the OAuth callback endpoint serves dynamically generated HTML with embedded JWT, not the static `index.html`
 - The `index.js` was updated to use absolute paths so resources load correctly from `/oauth/callback` page
-- WebSocket integration is in progress but not yet working (see Frontend WebSocket Integration section)
+- WebSocket integration is complete and functional (see Frontend WebSocket Integration section)
 
 ### Nix Development
 
@@ -130,46 +130,82 @@ The application uses a command-sourcing pattern where:
 **HTTP Endpoints:**
 - `GET /`: Redirects to Office365 login page
 - `GET /oauth/callback?code=...`: Handles OAuth callback, generates JWT, serves frontend HTML
+  - **Authentication**: Matches Office365 email to `office365Id` field in existing users
+  - **No auto-creation**: Login fails if no matching user exists
+  - **Email-based matching**: Uses `mail` or `userPrincipalName` from Microsoft Graph
 - `GET /static/*`: Serves static WASM files (app.wasm, ghc_wasm_jsffi.js, index.js)
 
 **WebSocket Connection:**
 - Frontend connects with JWT in query parameter: `ws://host:port/?token=<jwt>`
 - All data synchronization happens over this connection
 - No REST endpoints for data operations
+- Connection is stored in `SyncDocumentRef.webSocket` for sending commands
 
 **Message Protocol** (defined in `Competences.Protocol`):
 
 Client → Server:
-- `SendCommand Command`: Send a command to be applied
+- `SendCommand Command`: Send a command to be applied (sent one at a time)
 - `KeepAlive`: Maintain connection (prevent timeout)
 
 Server → Client:
-- `InitialSnapshot Document`: Initial state sent on connection
+- `InitialSnapshot Document User`: Initial state + authenticated user sent on connection
 - `ApplyCommand Command`: Command to apply (echo or broadcast)
 - `CommandRejected Command Text`: Command validation failed
 - `KeepAliveResponse`: Acknowledge keep-alive
 
 **Synchronization Flow:**
 
-1. **Connection**: Frontend connects, receives `InitialSnapshot`, sets `remoteDocument` and `localDocument`
+1. **Connection**:
+   - Frontend connects, receives `InitialSnapshot Document User`
+   - Sets `remoteDocument` and `localDocument`
+   - Sets `connectedUser` from server (authoritative)
+   - Stores WebSocket connection in `SyncDocumentRef.webSocket`
 
-2. **Local Action**: User performs action → generates `Command` → applied optimistically to `localDocument` → added to `localChanges` → sent via `SendCommand`
+2. **Local Action**:
+   - User performs action → generates `Command` → validated via `handleCommand`
+   - If valid: added to `localChanges` → applied optimistically to `localDocument`
+   - `trySendNextCommand` called to send if no command pending
 
-3. **Server Processing**: Server validates and applies command → broadcasts `ApplyCommand` to affected users (including sender)
+3. **Sending Commands** (One at a Time):
+   - If `pendingCommand == Nothing` && WebSocket connected && `localChanges` non-empty:
+     - Move first command from `localChanges` to `pendingCommand`
+     - Send via `SendCommand`
+   - **Non-idempotent safe**: Commands sent at most once
+   - **Ordered**: FIFO queue ensures correct sequencing
 
-4. **Remote Update**: Frontend receives `ApplyCommand`:
+4. **Server Processing**:
+   - Server validates and applies command → broadcasts `ApplyCommand` to affected users (including sender)
+   - Or sends `CommandRejected` if validation fails
+
+5. **Remote Update - Echo** (ApplyCommand matches `pendingCommand`):
    - Apply to `remoteDocument`
-   - Recompute `localDocument` by replaying all `localChanges` on new `remoteDocument`
-   - Commands that fail during replay (already applied) are stripped from `localChanges`
-   - **Echo Detection**: If command equals first item in `localChanges`, it's an echo (silent drop)
-   - **Conflict Detection**: If command doesn't match and causes local commands to fail, show error
+   - Clear `pendingCommand`
+   - Replay `localChanges` on new `remoteDocument` to get `localDocument`
+   - Call `trySendNextCommand` to send next queued command
 
-5. **Invariant**: `localDocument = remoteDocument + apply(localChanges)`
+6. **Remote Update - Broadcast** (ApplyCommand from another user):
+   - Apply to `remoteDocument`
+   - Keep `pendingCommand` unchanged
+   - Replay `pendingCommand + localChanges` on new `remoteDocument` to get `localDocument`
+
+7. **Command Rejection**:
+   - If matches `pendingCommand`: clear it, remove from `localChanges`, try send next
+   - If doesn't match: log warning (shouldn't happen)
+
+8. **Reconnection**:
+   - Receive `InitialSnapshot` with new server state
+   - Clear `pendingCommand` (accept loss of in-flight command)
+   - **Keep `localChanges`** (preserve user's work)
+   - Replay `localChanges` on new `remoteDocument`
+   - Call `trySendNextCommand` to resume sending
+
+9. **Invariant**: `localDocument = remoteDocument + apply(pendingCommand) + apply(localChanges)`
 
 **Command Ordering:**
 - WebSocket guarantees message ordering within a connection
 - Server applies commands in received order
-- Echo detection relies on this ordering (first local command should be next echo)
+- Frontend sends commands one at a time (queue in `localChanges`)
+- Echo detection via `pendingCommand` match
 
 ### Key Modules
 
@@ -190,12 +226,22 @@ Server → Client:
 **Competences.Frontend.SyncDocument** (`frontend/lib/Competences/Frontend/SyncDocument.hs`):
 - Manages document state in the frontend
 - **`remoteDocument`**: Server's authoritative state
-- **`localDocument`**: Computed as `remoteDocument + localChanges` (always)
-- **`localChanges`**: List of commands not yet acknowledged by server
-- When server sends command: apply to `remoteDocument`, then replay `localChanges` to recompute `localDocument`
+- **`localDocument`**: Computed as `remoteDocument + pendingCommand + localChanges` (always)
+- **`pendingCommand`**: Command currently sent to server, awaiting acknowledgment (at most one)
+- **`localChanges`**: Queue of commands not yet sent to server
+- **`webSocket`**: MVar holding WebSocket connection for sending commands
+- When server sends command: apply to `remoteDocument`, then replay `pendingCommand + localChanges` to recompute `localDocument`
 - Commands that fail during replay are stripped (indicates they're already applied or conflicted)
 - Provides subscription mechanism via `ChangedHandler`s
 - Wrapped in `SyncDocumentRef` (MVar-based) for concurrent access
+
+**Key Functions**:
+- `modifySyncDocument`: Add command to `localChanges`, call `trySendNextCommand`
+- `trySendNextCommand`: Move first `localChanges` to `pendingCommand` and send if no pending
+- `applyRemoteCommand`: Handle server echo or broadcast, replay changes
+- `rejectCommand`: Handle rejected command, try send next
+- `setWebSocket`: Set WebSocket connection (called after connecting)
+- `setSyncDocument`: Set remote document (handles both initial connection and reconnection)
 
 **Competences.Frontend.App** (`frontend/lib/Competences/Frontend/App.hs`):
 - Main application entry point using Miso framework
@@ -276,13 +322,18 @@ The frontend successfully establishes WebSocket connections using JSaddle FFI di
 - `frontend/lib/Competences/Frontend/WebSocket.hs` - WebSocket connection management
   - `getJWTToken :: JSM (Maybe Text)` - reads JWT from `window.COMPETENCES_JWT`
   - `connectWebSocket` - creates WebSocket connection with event handlers
-  - `sendMessage` - sends ClientMessage to server
+  - `sendMessage` - sends ClientMessage to server (one at a time via pendingCommand)
 
 - `frontend/app/Main.hs` (WASM section):
   - Reads JWT token from `window.COMPETENCES_JWT`
   - Establishes WebSocket connection to same host as HTTP server
-  - Handles ServerMessage types (InitialSnapshot, ApplyCommand, CommandRejected, KeepAliveResponse)
-  - Falls back to test user if no JWT found
+  - Handles ServerMessage types:
+    - `InitialSnapshot Document User` - sets connectedUser and remoteDocument
+    - `ApplyCommand` - calls `applyRemoteCommand` (handles echo or broadcast)
+    - `CommandRejected` - calls `rejectCommand`
+    - `KeepAliveResponse` - acknowledges keep-alive
+  - Stores WebSocket connection via `setWebSocket` for sending commands
+  - Falls back to test user if no JWT found (development mode)
 
 **Key Implementation Details:**
 
@@ -329,9 +380,11 @@ The frontend successfully establishes WebSocket connections using JSaddle FFI di
    - User authenticates via OAuth → receives JWT in `window.COMPETENCES_JWT`
    - Frontend reads JWT, constructs WebSocket URL
    - Connects to `ws://host:port/?token=<jwt>`
-   - Backend validates JWT, sends InitialSnapshot
-   - Frontend updates SyncDocument with initial state
-   - Real-time sync begins
+   - Backend validates JWT, sends `InitialSnapshot Document User`
+   - Frontend sets `connectedUser` from server (authoritative)
+   - Frontend updates `remoteDocument` and replays any `localChanges` (for reconnection)
+   - Frontend stores WebSocket connection via `setWebSocket`
+   - Real-time sync begins (commands sent one at a time via `pendingCommand`)
 
 ## JWT Token Generation and Validation (IMPORTANT)
 
@@ -435,17 +488,20 @@ The frontend successfully establishes WebSocket connections using JSaddle FFI di
 3. Office365 redirects to `/oauth/callback?code=<auth-code>`
 4. Backend exchanges code for Microsoft Graph API access token
 5. Backend retrieves user profile (id, displayName, mail, userPrincipalName)
-6. Backend searches Document for user with matching `office365Id`
+6. Backend searches Document for user with matching `office365Id` (email address)
+   - Uses `mail` field, or falls back to `userPrincipalName`
    - If found: use existing user
-   - If not found: create new User with `role = Student` and `office365Id` set
+   - **If not found: Login fails with HTTP 400 error** (no auto-creation)
 7. Backend generates JWT containing: `sub` (userId), `name`, `role`, `o365Id`
 8. Backend serves HTML with JWT embedded in `window.COMPETENCES_JWT` global variable
 9. Frontend JavaScript (`static/index.js`) loads and initializes WASM app
 10. Frontend reads JWT from `window.COMPETENCES_JWT`
 11. Frontend connects to WebSocket: `ws://localhost:8080/?token=<jwt>`
 12. Backend validates JWT signature, extracts user claims, accepts connection
-13. Backend sends `InitialSnapshot` with current Document state
-14. Real-time sync begins
+13. Backend sends `InitialSnapshot Document User` with current state + authenticated user
+14. Frontend sets `connectedUser` from server (authoritative source)
+15. Frontend stores WebSocket connection for sending commands
+16. Real-time sync begins
 
 **WebSocket Authentication:**
 - JWT token passed as query parameter: `ws://host:port/?token=<jwt>`
@@ -454,9 +510,11 @@ The frontend successfully establishes WebSocket connections using JSaddle FFI di
 - JWT expires after 24 hours (configurable in `generateJWT`)
 
 **User Management:**
-- Users are automatically created on first Office365 login with default `Student` role
-- Teachers must manually promote users to `Teacher` role via User management UI
-- `office365Id` field links application users to Microsoft identities
+- Users must be created manually via User management UI before they can log in
+- `office365Id` field stores the user's email address (editable in UI)
+- Teachers set user roles (`Student` or `Teacher`) via User management UI
+- On OAuth login, email from Microsoft Graph is matched against `office365Id`
+- Login fails if no matching user exists (no auto-creation)
 - Uses `ixset-typed` index on `Maybe Office365Id` for fast lookup
 
 ## Conventions
@@ -497,10 +555,14 @@ The frontend successfully establishes WebSocket connections using JSaddle FFI di
 
 - **Target Users**: 1-2 teachers per class, mostly online
 - **Approach**: Conflicts are rare, so handling is simple:
-  - If remote command matches first `localChange`: silent drop (echo)
-  - If remote command causes local commands to fail: show error, drop conflicted commands
+  - **Echo detection**: If `ApplyCommand` matches `pendingCommand`, it's an echo (clear pending, send next)
+  - **Broadcast handling**: If `ApplyCommand` doesn't match, apply to remote and replay local changes
+  - **Conflict detection**: If remote command causes local commands to fail during replay, drop conflicted commands
+  - **Command rejection**: If server rejects pending command, clear it and try send next
+  - **Reconnection**: Clear `pendingCommand` (accept loss), keep `localChanges` (preserve work)
   - No sophisticated merge strategies needed
 - **Command Design**: Commands (especially student commands) are designed to minimize conflicts
+- **Non-idempotent safety**: Commands sent at most once (one pending at a time)
 - `ReorderCompetence` expresses intent clearly to succeed in most reordering scenarios
 
 ## Office365 OAuth Configuration
