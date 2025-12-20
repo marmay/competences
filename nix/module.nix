@@ -53,9 +53,12 @@ let
       };
 
       user = mkOption {
-        type = types.str;
-        default = "competences-${name}";
-        description = "User account under which this instance runs";
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          User account under which this instance runs.
+          If not specified (null), defaults to the database name for peer authentication.
+        '';
       };
 
       group = mkOption {
@@ -143,8 +146,16 @@ in {
     services.postgresql = mkIf cfg.postgresql.enable {
       enable = true;
       package = cfg.postgresql.package;
+
+      # Create databases for each instance
+      # Database names are taken from instance configuration
       ensureDatabases = map (name: cfg.instances.${name}.database) (attrNames cfg.instances);
-      # Note: Users still need to be created manually or via ensureUsers
+
+      # Create PostgreSQL users matching database names
+      ensureUsers = map (name: {
+        name = cfg.instances.${name}.database;  # User name matches database name
+        ensureDBOwnership = true;
+      }) (attrNames cfg.instances);
     };
 
     # Deploy frontend static files
@@ -158,8 +169,14 @@ in {
     users.groups.competences = {};
 
     users.users = listToAttrs (map (name:
-      let instance = cfg.instances.${name}; in
-      nameValuePair instance.user {
+      let
+        instance = cfg.instances.${name};
+        # Default user to database name for peer authentication
+        userName = if instance.user != null
+                   then instance.user
+                   else instance.database;
+      in
+      nameValuePair userName {
         isSystemUser = true;
         group = instance.group;
         description = "Competences instance ${name} user";
@@ -171,24 +188,53 @@ in {
       let
         instance = cfg.instances.${name};
         serviceName = "competences-${name}";
+        # Default user to database name for peer authentication
+        userName = if instance.user != null
+                   then instance.user
+                   else instance.database;
       in
       nameValuePair serviceName {
         description = "Competences tracking system instance: ${name}";
         wantedBy = [ "multi-user.target" ];
-        after = [ "network.target" ] ++ optional cfg.postgresql.enable "postgresql.service";
-        requires = optional cfg.postgresql.enable "postgresql.service";
+        after = [ "network.target" ]
+          ++ optional cfg.postgresql.enable "postgresql.service"
+          ++ optional cfg.postgresql.enable "postgresql-setup.service";
+        requires = optional cfg.postgresql.enable "postgresql.service"
+          ++ optional cfg.postgresql.enable "postgresql-setup.service";
 
         serviceConfig = {
           Type = "simple";
-          User = instance.user;
+          User = userName;
           Group = instance.group;
           Restart = "always";
           RestartSec = "10s";
 
+          # Initialize database schema if needed (+ prefix runs with full privileges)
+          ExecStartPre = mkIf cfg.postgresql.enable (
+            let
+              initScript = pkgs.writeShellScript "init-db-${name}" ''
+                # Check if schema is initialized by looking for schema_migrations table
+                if ! ${pkgs.sudo}/bin/sudo -u postgres \
+                     ${cfg.postgresql.package}/bin/psql -d ${instance.database} \
+                     -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='schema_migrations'" \
+                     | ${pkgs.gnugrep}/bin/grep -q 1; then
+                  echo "Initializing database schema for ${instance.database}..."
+                  # Run schema initialization as database owner user (for proper permissions)
+                  ${pkgs.sudo}/bin/sudo -u ${instance.database} \
+                    ${cfg.postgresql.package}/bin/psql -d ${instance.database} \
+                    -f ${../backend/schema.sql}
+                  echo "Schema initialized."
+                else
+                  echo "Database schema already initialized."
+                fi
+              '';
+            in "+${initScript}"
+          );
+
           ExecStart = concatStringsSep " " ([
             "${cfg.package}/bin/competences-backend"
             "--port ${toString instance.port}"
-            "--database \"host=/run/postgresql dbname=${instance.database}\""
+            "--database \"host=/run/postgresql dbname=${instance.database} user=${instance.database}\""
             "--config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
           ] ++ optional (instance.initDocument != null) "--init-document ${instance.initDocument}");
