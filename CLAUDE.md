@@ -38,24 +38,55 @@ cabal test competences-common-test
 
 ### Backend Development
 
+**Prerequisites:**
+1. PostgreSQL database initialized with schema: `psql < backend/schema.sql`
+2. Configuration file with secrets (see `backend/config.example.json`)
+
 Run backend server:
 ```bash
-competences-backend <port> <data-file> <jwt-secret> <client-id> <client-secret> <redirect-uri> <tenant-id> <static-dir>
+competences-backend \
+  --port <PORT> \
+  --database <CONNSTRING> \
+  --config <CONFIG_FILE> \
+  --static <STATIC_DIR> \
+  [--init-document <INITIAL_JSON>]
 ```
 
 Example:
 ```bash
-cabal run competences-backend -- 8080 data.json "my-secret-key" \
-  "azure-client-id" "azure-client-secret" \
-  "http://localhost:8080/oauth/callback" \
-  "azure-tenant-id" \
-  "./static"
+cabal run competences-backend -- \
+  --port 8080 \
+  --database "host=localhost dbname=competences_class_9a" \
+  --config backend/config.json \
+  --static ./static \
+  --init-document data/class_9a.json  # Only for first-time initialization
 ```
+
+**Configuration file** (`config.json`):
+```json
+{
+  "jwtSecret": "your-secret-key-here-minimum-32-characters",
+  "oauth2": {
+    "clientId": "your-azure-client-id",
+    "clientSecret": "your-azure-client-secret",
+    "redirectUri": "http://localhost:8080/oauth/callback",
+    "tenantId": "your-azure-tenant-id"
+  }
+}
+```
+
+**Command-line options:**
+- `--port, -p`: Port to listen on
+- `--database, -d`: PostgreSQL connection string
+- `--config, -c`: Configuration file (JSON) containing secrets
+- `--static, -s`: Static files directory
+- `--init-document`: Initial document JSON (used only if database is empty)
 
 The server provides:
 - HTTP OAuth endpoints at `/` and `/oauth/callback`
 - Static file serving at `/static/*`
 - WebSocket connections for real-time sync
+- PostgreSQL persistence with command sourcing and snapshots
 
 ### Frontend Development
 
@@ -404,229 +435,168 @@ The project uses GHC2024 as default language with additional extensions:
 
 ## Persistence
 
-**Current implementation:** In-memory state with file-based persistence
-- `loadAppState`: Load document from JSON file on startup
-- `saveAppState`: Save document to JSON file
-- Auto-save every 60 seconds
-- Save on graceful shutdown
+**Current implementation:** PostgreSQL with command sourcing + snapshots
 
-Future options under consideration:
-- Event sourcing: store all commands, replay to rebuild state
-- Snapshot + recent commands (hybrid approach)
-- PostgreSQL with JSONB for `Document` storage
+### Command Sourcing + Snapshots Architecture
 
-Current `backend/schema.sql` only contains user table as placeholder.
+The application uses a hybrid persistence approach that provides both full audit trail and fast startup:
 
-**Lock Mechanism:**
+**Storage Strategy:**
+- **Commands table**: Every state change is stored as a command (event sourcing)
+- **Snapshots table**: Periodic full document snapshots for fast recovery
+- **Metadata table**: Tracks last snapshot generation and timestamp
+- **Schema_migrations table**: Tracks database schema version
+- **Startup_log table**: Logs backend instance starts and stops for debugging
+
+**Key Features:**
+- Full audit trail: every change is logged as a Command
+- Fast startup: load latest snapshot + replay recent commands (not entire history)
+- Point-in-time recovery: restore to any snapshot + replay to specific generation
+- Non-graceful shutdown recovery: creates snapshot on startup if needed
+
+### Database Schema
+
+Located in `backend/schema.sql`:
+
+```sql
+-- Commands table (generation = auto-incrementing sequence)
+CREATE TABLE commands (
+  generation BIGSERIAL PRIMARY KEY,
+  command_id UUID NOT NULL UNIQUE,
+  user_id UUID NOT NULL,
+  command_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Snapshots table
+CREATE TABLE snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  snapshot_id UUID NOT NULL UNIQUE,
+  generation BIGINT NOT NULL,  -- Links to commands.generation
+  document_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+**TODO (before production):** Add versioning envelope to `command_data` and `document_data` for schema evolution.
+
+### Snapshot Strategy
+
+**Snapshot triggers:**
+1. **Every 25 commands**: Checked after each command in `updateDocument`
+2. **Every 15 minutes** (if ≥1 command applied): Periodic timer in Main.hs
+3. **On graceful shutdown**: Final snapshot in `gracefulShutdown`
+4. **On startup** (non-graceful shutdown recovery): If commands newer than latest snapshot
+
+**Retention policy:**
+- Currently: keep all snapshots indefinitely
+- Future: implement GC with daily/weekly/monthly retention strategy
+
+### Database Modules
+
+**Competences.Backend.Database** (`backend/lib/Competences/Backend/Database.hs`):
+- `initPool`: Create connection pool (3 connections, 60s idle timeout)
+- `closePool`: Cleanup on shutdown
+- `checkSchemaVersion`: Validates schema version = 1, fails on mismatch
+- `saveCommand`: Saves command to DB, returns auto-generated generation number
+- `loadCommandsSince`: Loads commands after a given generation for replay
+- `saveSnapshot`: Saves document snapshot at specific generation
+- `loadLatestSnapshot`: Loads most recent snapshot
+- `shouldTakeSnapshot`: Checks if snapshot needed (25 commands OR 15 min + ≥1 command)
+- `logStartup` / `logShutdown`: Tracks backend instance lifecycle
+
+**Competences.Backend.Config** (`backend/lib/Competences/Backend/Config.hs`):
+- `loadConfig`: Loads secrets from JSON file (keeps secrets out of CLI args)
+- Config file format: see `backend/config.example.json`
+
+### Startup Sequence
+
+1. Parse command-line options (optparse-applicative)
+2. Load configuration file (secrets)
+3. Initialize database connection pool
+4. **Check schema version** (fails if mismatch)
+5. **If `--init-document` provided AND database empty:**
+   - Load document from JSON
+   - Create `SetDocument` command (with system user ID = nil UUID)
+   - Save initial snapshot at generation 1
+6. **Load document from database:**
+   - Load latest snapshot
+   - Load commands since that snapshot
+   - Replay commands to rebuild current state
+   - **Fail if no document found** (prevents accidental empty state)
+7. **Create recovery snapshot if needed:**
+   - If any commands were replayed (non-graceful shutdown)
+   - Create snapshot at current generation
+   - Avoids replaying same commands on next startup
+8. Initialize AppState with loaded document
+9. Log startup to startup_log table
+10. Start periodic snapshot timer (15 minute interval)
+11. Start HTTP + WebSocket server
+
+### Migration from File-Based Storage
+
+**For existing deployments:**
+1. Initialize PostgreSQL database: `psql < backend/schema.sql`
+2. Use `--init-document <existing-data.json>` on first startup
+3. Backend detects empty database and initializes from JSON
+4. All subsequent changes go to database
+5. Old JSON file can be kept as backup but is no longer used
+
+**Backward compatibility:**
+- `loadAppState` and `saveAppState` still exist but are deprecated
+- Main.hs no longer uses file-based loading
+
+### Lock Mechanism
+
 - Optimistic concurrency via `Lock`/`Release` commands
 - `Release` includes before/after state for conflict detection
 - Lock expiration may be added in future
 
-## Frontend WebSocket Integration (COMPLETED)
+## Frontend WebSocket Integration
 
-**Status:** ✅ Fully functional and deployed
+**Status:** ✅ Fully functional - see DEBUGGING.md for JSaddle FFI patterns and troubleshooting
 
-**Implementation:**
-The frontend successfully establishes WebSocket connections using JSaddle FFI directly (no JavaScript wrapper needed).
+## JWT Token Generation and Validation
 
-**Modules:**
-- `frontend/lib/Competences/Frontend/WebSocket.hs` - WebSocket connection management
-  - `getJWTToken :: JSM (Maybe Text)` - reads JWT from `window.COMPETENCES_JWT`
-  - `connectWebSocket` - creates WebSocket connection with event handlers
-  - `sendMessage` - sends ClientMessage to server (one at a time via pendingCommand)
+**IMPORTANT:** Never use `show` on newtypes - use proper conversion functions.
 
-- `frontend/app/Main.hs` (WASM section):
-  - Reads JWT token from `window.COMPETENCES_JWT`
-  - Establishes WebSocket connection to same host as HTTP server
-  - Handles ServerMessage types:
-    - `InitialSnapshot Document User` - sets connectedUser and remoteDocument
-    - `ApplyCommand` - calls `applyRemoteCommand` (handles echo or broadcast)
-    - `CommandRejected` - calls `rejectCommand`
-    - `KeepAliveResponse` - acknowledges keep-alive
-  - Stores WebSocket connection via `setWebSocket` for sending commands
-  - Falls back to test user if no JWT found (development mode)
+Generating JWT (in `backend/lib/Competences/Backend/Auth.hs`):
+```haskell
+-- ✅ CORRECT - import constructor and use UUID.toText
+import Competences.Document.Id (Id (..), mkId)
+import Data.UUID.Types qualified as UUID
 
-**Key Implementation Details:**
+JWT.sub = JWT.stringOrURI $ UUID.toText user.id.unId  -- NOT show user.id
+```
 
-1. **JSaddle FFI Patterns (IMPORTANT - Common pitfalls fixed):**
-   - Constructor calls: `new (jsg "WebSocket") [toJSVal url]` (NOT `jsg "WebSocket" # [url]`)
-   - Method calls: `ws # "send" $ [jsonVal]`
-   - Property access: `msgEvent ! "data"`
-   - Setting properties: `ws <# "onmessage" $ callback`
-   - Creating callbacks: `fun $ \this fn args -> case args of (arg:_) -> ... _ -> pure ()`
-     - Pattern matching on args list, NOT in lambda parameters
-     - Signature: `JSVal -> JSVal -> [JSVal] -> JSM ()`
-   - **Type annotations required:** All string literals need explicit `:: Text` to avoid type-defaulting errors with `-Werror`
-   - **Import requirements:** Need `new`, `#`, `<#`, `!`, `fun`, `jsg`, `toJSVal`, `valToText` from `Language.Javascript.JSaddle`
+Extracting from JWT:
+```haskell
+-- ✅ CORRECT - use stringOrURIToText
+import Web.JWT (stringOrURIToText)
 
-2. **WebSocket URL Construction:**
-   - Must include trailing `/` before query params: `ws://host:port/?token=<jwt>`
-   - Backend expects path format: `/?token=<jwt>` (see `backend/lib/Competences/Backend/WebSocket.hs:53`)
-   - Frontend constructs: `wsProtocol <> host <> "/" <> "?token=" <> jwtToken`
+Just uri -> Right $ stringOrURIToText uri  -- NOT show uri
+```
 
-3. **WASM Build Dependencies:**
-   - Main executable needs: `jsaddle`, `jsaddle-wasm`, `optics-core` when building with `wasm` flag
-   - Main executable needs: `OverloadedLabels` extension (for `#field` syntax)
-   - Uses `liftIO` for IO operations within JSM monad
+See DEBUGGING.md for detailed JWT debugging tips.
 
-4. **Common Compilation Errors Fixed:**
-   ```
-   ERROR: "Couldn't match expected type: JSM JSVal with actual type: args0 -> JSM JSVal"
-   FIX: Use correct operator precedence and argument passing for # operator
+## Authentication Flow
 
-   ERROR: "Defaulting the type variable 'name0' to type '[Char]'"
-   FIX: Add explicit type annotations: ("propertyName" :: Text)
+1. User visits `/` → redirected to Office365 login
+2. OAuth callback receives auth code → exchanges for access token
+3. Backend retrieves user profile from Microsoft Graph
+4. Backend matches email to existing user's `office365Id` field
+   - **Login fails if no matching user** (no auto-creation)
+5. Backend generates JWT with user claims (id, name, role, office365Id)
+6. Backend serves HTML with JWT in `window.COMPETENCES_JWT`
+7. Frontend reads JWT and connects via WebSocket: `ws://host:port/?token=<jwt>`
+8. Backend validates JWT and sends `InitialSnapshot Document User`
+9. Real-time sync begins
 
-   ERROR: "Could not load module 'jsaddle'" (in WASM build)
-   FIX: Add jsaddle and optics-core to executable build-depends under wasm flag
-
-   ERROR: "Variable not in scope: (#)"
-   FIX: Add OverloadedLabels to executable's default-extensions
-
-   ERROR: "Couldn't match type 'IO' with 'JSM'"
-   FIX: Use liftIO for IO operations: liftIO $ putStrLn "message"
-   ```
-
-5. **Connection Flow:**
-   - User authenticates via OAuth → receives JWT in `window.COMPETENCES_JWT`
-   - Frontend reads JWT, constructs WebSocket URL
-   - Connects to `ws://host:port/?token=<jwt>`
-   - Backend validates JWT, sends `InitialSnapshot Document User`
-   - Frontend sets `connectedUser` from server (authoritative)
-   - Frontend updates `remoteDocument` and replays any `localChanges` (for reconnection)
-   - Frontend stores WebSocket connection via `setWebSocket`
-   - Real-time sync begins (commands sent one at a time via `pendingCommand`)
-
-## JWT Token Generation and Validation (IMPORTANT)
-
-**Critical Bug Fixed:** The JWT generation was using `show` on the user ID, which created malformed tokens.
-
-**Correct Implementation:**
-
-1. **Import Requirements:**
-   ```haskell
-   import Competences.Document.Id (Id (..), mkId)  -- Must import constructor
-   import Data.UUID.Types qualified as UUID
-   import Web.JWT (stringOrURIToText)
-   ```
-
-2. **Generating JWT (in `backend/lib/Competences/Backend/Auth.hs`):**
-   ```haskell
-   -- ❌ WRONG - creates "Id {unId = <uuid>}"
-   JWT.sub = JWT.stringOrURI $ T.pack $ show user.id
-
-   -- ✅ CORRECT - creates just the UUID string
-   JWT.sub = JWT.stringOrURI $ UUID.toText user.id.unId
-   ```
-   - With `NoFieldSelectors` + `OverloadedRecordDot`, you MUST import `Id(..)` constructor to access `.unId`
-   - Use `UUID.toText` to convert UUID to Text (NOT `show`)
-
-3. **Extracting from JWT:**
-   ```haskell
-   -- ❌ WRONG - double-wraps the value
-   Just uri -> Right $ T.pack $ show uri
-
-   -- ✅ CORRECT - properly extracts the text
-   Just uri -> Right $ stringOrURIToText uri
-   ```
-   - Use `stringOrURIToText` from `Web.JWT` to extract Text from StringOrURI
-   - Then use `mkId` to parse the UUID string
-
-**Common Pitfalls:**
-- Using `show` on newtypes creates Haskell-formatted strings like `"Id {unId = ...}"`
-- Forgetting to import constructors with `NoFieldSelectors` prevents field access
-- Not using `stringOrURIToText` for JWT claims extraction
-- `OverloadedRecordDot` requires constructor import: `Id(..)` enables `value.unId` syntax
-
-## Backend Implementation Status
-
-**Completed modules:**
-- `Competences.Backend.State`: Application state management with STM
-  - `AppState`: Holds document (TVar) and connected clients (TVar Map)
-  - `loadAppState`/`saveAppState`: File-based persistence
-  - `updateDocument`: Apply commands with `handleCommand`
-  - `registerClient`/`unregisterClient`: Manage WebSocket connections
-  - `broadcastToUsers`: Send ServerMessage to specific users
-
-- `Competences.Backend.WebSocket`: WebSocket handler
-  - `wsHandler`: Main WebSocket application handler with JWT validation
-  - `handleClient`: Per-client connection management
-    - Sends `InitialSnapshot` on connection
-    - Handles incoming `ClientMessage` (SendCommand, KeepAlive)
-    - Cleans up on disconnect
-  - `handleClientMessage`: Routes messages and applies commands
-    - Calls `updateDocument` which uses `handleCommand`
-    - Broadcasts `ApplyCommand` to affected users on success
-    - Sends `CommandRejected` to sender on failure
-    - Triggers async save after successful command
-  - `extractUserFromRequest`: Validates JWT from query param and extracts user info
-
-- `backend/app/Main.hs`: Server entry point
-  - Command-line arguments: `<port> <data-file> <jwt-secret> <client-id> <client-secret> <redirect-uri> <tenant-id> <static-dir>`
-  - Loads state from file or initializes empty Document
-  - Creates combined WAI application using `websocketsOr`:
-    - WebSocket requests → `wsHandler`
-    - HTTP requests → Servant server (OAuth + static files)
-  - Runs both on single port via `Network.Wai.Handler.Warp`
-  - Periodic auto-save (60 seconds) in background thread
-  - Graceful shutdown with final save on Ctrl+C
-
-- `Competences.Backend.Auth`: JWT and OAuth2 implementation
-  - `OAuth2Config`: Configuration for Office365 OAuth
-  - `getAuthorizationUrl`: Generate O365 login URL
-  - `exchangeCodeForToken`: Exchange auth code for access token
-  - `getUserInfo`: Get user profile from Microsoft Graph API
-  - `generateJWT`: Create JWT tokens for users
-  - `validateJWT`: Validate JWT signatures
-  - `extractUserFromJWT`: Extract user claims from validated JWT
-
-- `Competences.Backend.HTTP`: HTTP server with OAuth and static files
-  - `AppAPI`: Servant API type definition
-  - `oauthInitHandler`: Redirects to Office365 login (GET /)
-  - `oauthCallbackHandler`: OAuth callback handler (GET /oauth/callback)
-    - Exchanges authorization code for Microsoft access token
-    - Retrieves user info from Microsoft Graph API
-    - Finds existing user by `office365Id` or creates new Student user
-    - Generates JWT token with user claims (id, name, role, office365Id)
-    - Serves dynamically generated HTML with JWT in `window.COMPETENCES_JWT`
-  - `renderFrontendHTML`: Generates HTML that loads `/static/index.js` with embedded JWT
-  - `findOrCreateUser`: Looks up user by Office365Id index or creates default Student
-  - Static file serving via Servant's `serveDirectoryWebApp`
-
-**Complete Authentication Flow:**
-1. User visits `http://localhost:8080/` → redirected to Office365 login
-2. User authenticates with Microsoft credentials
-3. Office365 redirects to `/oauth/callback?code=<auth-code>`
-4. Backend exchanges code for Microsoft Graph API access token
-5. Backend retrieves user profile (id, displayName, mail, userPrincipalName)
-6. Backend searches Document for user with matching `office365Id` (email address)
-   - Uses `mail` field, or falls back to `userPrincipalName`
-   - If found: use existing user
-   - **If not found: Login fails with HTTP 400 error** (no auto-creation)
-7. Backend generates JWT containing: `sub` (userId), `name`, `role`, `o365Id`
-8. Backend serves HTML with JWT embedded in `window.COMPETENCES_JWT` global variable
-9. Frontend JavaScript (`static/index.js`) loads and initializes WASM app
-10. Frontend reads JWT from `window.COMPETENCES_JWT`
-11. Frontend connects to WebSocket: `ws://localhost:8080/?token=<jwt>`
-12. Backend validates JWT signature, extracts user claims, accepts connection
-13. Backend sends `InitialSnapshot Document User` with current state + authenticated user
-14. Frontend sets `connectedUser` from server (authoritative source)
-15. Frontend stores WebSocket connection for sending commands
-16. Real-time sync begins
-
-**WebSocket Authentication:**
-- JWT token passed as query parameter: `ws://host:port/?token=<jwt>`
-- `extractUserFromRequest` validates JWT signature and extracts user claims
-- Invalid/missing token → connection rejected with "Authentication required"
-- JWT expires after 24 hours (configurable in `generateJWT`)
-
-**User Management:**
-- Users must be created manually via User management UI before they can log in
-- `office365Id` field stores the user's email address (editable in UI)
-- Teachers set user roles (`Student` or `Teacher`) via User management UI
-- On OAuth login, email from Microsoft Graph is matched against `office365Id`
-- Login fails if no matching user exists (no auto-creation)
-- Uses `ixset-typed` index on `Maybe Office365Id` for fast lookup
+**Key points:**
+- Users must be created manually via UI before they can log in
+- JWT passed as WebSocket query parameter
+- JWT expires after 24 hours
+- Invalid/missing token → connection rejected
 
 ## Conventions
 
@@ -697,176 +667,196 @@ To set up Office365 authentication:
    - Office365 access tokens are only used during OAuth callback (not stored)
    - User sessions persist via JWT until expiration or server restart
 
-## Lessons Learned & Debugging Guide
+## Common Pitfalls
 
-### General Development Workflow
+> **For detailed debugging help, see DEBUGGING.md** - grep that file when you encounter errors!
 
-1. **Always read files before editing** - Use the Read tool to understand existing code structure
-2. **Build incrementally** - Fix one error at a time, rebuild frequently
-3. **Check dependencies** - Missing packages in `.cabal` files are a common issue
-4. **Enable all extensions** - Ensure executable sections have same extensions as library (especially `OverloadedLabels`)
-
-### WASM Frontend Development
-
-**Build Command:**
-```bash
-./deploy_frontend.sh
+**NoFieldSelectors + OverloadedRecordDot:**
+```
+ERROR: "No instance for 'HasField "field" ...'"
+FIX: Import constructor with (..) - e.g., import Module (Type(..))
 ```
 
-**Common Issues:**
-1. **Missing dependencies in WASM build:**
-   - Check executable's `if flag(wasm)` section in `.cabal` file
-   - Need: `jsaddle`, `jsaddle-wasm`, `optics-core`
-
-2. **Type defaulting errors:**
-   - Always add explicit type annotations to string literals: `("text" :: Text)`
-   - Affects all JSaddle FFI calls (property names, method names)
-
-3. **Import errors with OverloadedRecordDot:**
-   - Import data constructors: `Type(..)` not just `Type`
-   - Example: `import Competences.Document.Id (Id(..))` enables `.unId` access
-
-### JSaddle FFI Quick Reference
-
-```haskell
--- Imports needed
-import Language.Javascript.JSaddle
-  ( JSM, JSVal, fun, jsg, new, toJSVal, valToText, (!), (#), (<#) )
-
--- Global object access
-window <- jsg ("window" :: Text)
-
--- Property access (reading)
-value <- obj ! ("propertyName" :: Text)
-
--- Property setting
-_ <- obj <# ("propertyName" :: Text) $ someValue
-
--- Constructor calls (like 'new WebSocket(url)')
-ws <- new (jsg ("WebSocket" :: Text)) [toJSVal url]
-
--- Method calls (like 'ws.send(data)')
-jsonVal <- toJSVal textData
-_ <- ws # ("send" :: Text) $ [jsonVal]
-
--- Creating callbacks
-callback <- fun $ \this fn args -> do
-  case args of
-    (firstArg:_) -> do
-      -- handle event
-      pure ()
-    _ -> pure ()
-
--- Setting event handlers
-_ <- element <# ("onclick" :: Text) $ callback
+**Type defaulting in JSaddle FFI:**
+```
+ERROR: "Defaulting the type variable 'name0' to type '[Char]'"
+FIX: Add explicit type annotations: ("text" :: Text)
 ```
 
-### Backend JWT Debugging
-
-**Check JWT contents:**
-```bash
-# Decode JWT (just the payload, base64)
-echo "eyJ..." | base64 -d
+**Missing extensions in executables:**
+```
+ERROR: HasField errors in executable but library builds fine
+FIX: Add default-extensions to executable stanza matching library
 ```
 
-**Common JWT issues:**
-- User ID not found: Check `sub` field is valid UUID (not `"Id {unId = ...}"`)
-- Authentication fails: Verify JWT secret matches between generation and validation
-- User not linked: Office365 ID must match a user in the database
-
-### WebSocket Connection Debugging
-
-**Frontend (Browser Console):**
-```javascript
-// Check if JWT is set
-console.log(window.COMPETENCES_JWT)
-
-// Check WebSocket connection
-// Should see: "WebSocket connected"
+**Pattern matching on PostgreSQL query results:**
+```
+ERROR: "No instance for 'FromField (Int64, ByteString)'"
+FIX: query_ returns [(col1, col2)], pattern match: (x, y) : _ not [(x, y) : _]
 ```
 
-**Backend (Terminal):**
+**JWT with newtypes:**
 ```
-# Should see:
-Client connected: <name> (<user-id>)
-
-# If authentication fails:
-Authentication failed: <error message>
+ERROR: JWT contains "Id {unId = ...}" instead of UUID
+FIX: Use UUID.toText userId.unId, NOT show userId
 ```
 
-**Common Connection Issues:**
-1. **400 Bad Request:**
-   - Check WebSocket URL includes `/` before query: `ws://host:port/?token=...`
-   - Verify JWT token is being passed correctly
+## Document Projection and Access Control
 
-2. **401 Unauthorized:**
-   - JWT validation failed
-   - Check JWT secret matches
-   - Check JWT hasn't expired
+**`projectDocument`** (`common/lib/Competences/Document.hs`) filters documents based on user identity:
+- Teachers: see full document
+- Students: see only own User, own Evidences (via UserId index), all public materials
+- `InitialSnapshot` sends projected documents
+- Commands broadcast only to users whose projection changes (`AffectedUsers`)
+- All commands currently require Teacher role
 
-3. **Connection refused:**
-   - Backend not running
-   - Wrong port number
-   - Firewall blocking WebSocket
+**TODO:** Add QuickCheck property tests for `AffectedUsers` correctness
 
-### NoFieldSelectors + OverloadedRecordDot Pattern
+## Testing Checklist
 
-When using both extensions together:
+### Database Persistence Testing
 
-```haskell
--- Import constructor to enable field access
-import MyModule (MyType(..))  -- Note the (..)
+Before deploying to production, verify the following:
 
--- Now you can use record dot syntax
-value = myRecord.field.nestedField
+**Schema and Initialization:**
+- [ ] PostgreSQL database created for each class
+- [ ] Schema initialized: `psql -d <dbname> < backend/schema.sql`
+- [ ] Schema version check works (rejects mismatched versions)
+- [ ] Connection pool initialization succeeds
 
--- For newtypes like Id:
-import Competences.Document.Id (Id(..))  -- Enables .unId
-uuid = userId.unId
-```
+**First-Time Initialization:**
+- [ ] `--init-document` works with empty database
+- [ ] SetDocument command created with system user ID (nil UUID)
+- [ ] Initial snapshot created at generation 1
+- [ ] Subsequent startups skip initialization (database not empty)
 
-**Why this matters:**
-- `NoFieldSelectors` disables automatic field selector generation
-- `OverloadedRecordDot` provides `.` syntax as an alternative
-- But you MUST import the constructor for GHC to know about the fields
+**Command Persistence:**
+- [ ] Commands saved to database after each state change
+- [ ] Generation numbers auto-increment correctly
+- [ ] Commands can be loaded from database
+- [ ] Command replay rebuilds correct document state
 
-## Recent Implementation: Document Projection (2025-12-19)
+**Snapshot Creation:**
+- [ ] Snapshot created every 25 commands
+- [ ] Periodic snapshot timer works (15 minute interval)
+- [ ] Snapshot created on graceful shutdown (Ctrl+C)
+- [ ] Snapshot includes correct generation number
+- [ ] Metadata table updated after snapshot
 
-Implemented document projection and access control for data privacy:
+**Non-Graceful Shutdown Recovery:**
+- [ ] Kill backend (SIGKILL) while commands exist after last snapshot
+- [ ] Restart backend
+- [ ] Verify recovery snapshot created on startup
+- [ ] Verify document state is correct after recovery
 
-### What Was Implemented
+**Document Loading:**
+- [ ] Latest snapshot loads correctly
+- [ ] Commands since snapshot are replayed
+- [ ] Final document state matches expected
+- [ ] Backend fails to start if no document exists (prevents empty state)
 
-1. **`projectDocument` function** (`common/lib/Competences/Document.hs`):
-   - Filters document based on user identity
-   - Teachers: see full document
-   - Students: see only own User, own Evidences (via UserId index), all public materials (CompetenceGrids, Competences, Resources, Templates)
-   - Locks filtered to show only accessible entities
-   - Uses efficient UserId index on Evidence for filtering
+**Startup/Shutdown Logging:**
+- [ ] Startup logged to startup_log table with instance UUID
+- [ ] Initial generation recorded correctly
+- [ ] Shutdown updates startup_log.stopped_at timestamp
 
-2. **Backend Projection** (`backend/lib/Competences/Backend/WebSocket.hs:71-74`):
-   - `InitialSnapshot` now sends projected documents
-   - Students never receive unauthorized data
-   - Frontend's `remoteDocument` is always a projection
+**Configuration and CLI:**
+- [ ] Config file loads correctly (JWT secret, OAuth credentials)
+- [ ] CLI options parsed with optparse-applicative
+- [ ] Help message displays: `--help`
+- [ ] Secrets NOT visible in process list (`ps aux | grep competences-backend`)
 
-3. **Authorization** (`backend/lib/Competences/Backend/WebSocket.hs:95-99`):
-   - All commands currently require Teacher role
-   - Non-teachers receive `CommandRejected` with error message
-   - Future: per-command authorization for student commands
+### Multi-Instance Testing
 
-4. **Deduplication** (`backend/lib/Competences/Backend/State.hs:110`):
-   - `broadcastToUsers` deduplicates user IDs
-   - Prevents sending same command multiple times to same user
+For production deployment with multiple classes:
+- [ ] Create separate databases: `competences_class_9a`, `competences_class_9b`, etc.
+- [ ] Create separate config files: `config_9a.json`, `config_9b.json`, etc.
+- [ ] Start multiple backend instances on different ports
+- [ ] Verify each instance connects to correct database
+- [ ] Verify each instance loads correct document
+- [ ] Verify instances don't interfere with each other
 
-### Key Design Decisions
+### WebSocket and Real-Time Sync:
+- [ ] Commands sent over WebSocket are persisted to database
+- [ ] Snapshots created during live sessions
+- [ ] Multiple users connected to same instance receive broadcasts
+- [ ] Projection works correctly for students (only see own evidences)
 
-- **Projection based on identity, not role**: Students see data about THEM specifically, not just "any student data"
-- **Efficient indexing**: Used UserId index on Evidence for O(log n) filtering instead of O(n) scan
-- **AffectedUsers = projection changes**: Users receive broadcasts only if their projected document changes
-- **Server authoritative**: All authorization on backend, frontend can make optimistic updates
+## Next Steps and Future Work
 
-### TODO
+### Immediate (Before Production)
 
-- **Property-based tests**: Add QuickCheck tests to verify `AffectedUsers` correctness
-  - Requires: QuickCheck dependency, Arbitrary instances
-  - Property: `AffectedUsers(cmd) = {u | project(u, doc) ≠ project(u, apply(cmd, doc))}`
-  - Location: `common/test/ProjectionProperties.hs`
+1. **Add versioning envelope to commands and snapshots:**
+   - Wrap `command_data` and `document_data` in version envelope
+   - Example: `{ "version": 1, "payload": <actual data> }`
+   - Allows schema evolution and backward compatibility
+   - Location: Update `Database.hs` and `schema.sql`
+
+2. **Test full deployment workflow:**
+   - Complete testing checklist above
+   - Document any issues found
+   - Create deployment scripts/automation
+
+3. **Production deployment setup:**
+   - Create Nix flake for multi-instance deployment
+   - Add reverse proxy configuration (nginx with subdomains)
+   - Set up HTTPS with Let's Encrypt
+   - Configure systemd services for auto-restart
+
+### Short Term
+
+4. **Snapshot garbage collection:**
+   - Implement retention policy (keep all today, 1/day current week, 1/week current month, 1/month forever)
+   - Add database maintenance job
+   - Test that old snapshots are safely removed
+
+5. **Monitoring and observability:**
+   - Add structured logging
+   - Track metrics (commands/second, snapshot creation time, replay time)
+   - Alert on database connection failures
+   - Dashboard for instance health
+
+6. **Backup and disaster recovery:**
+   - Automated PostgreSQL backups (pg_dump)
+   - Test restore from backup procedure
+   - Document recovery procedures
+   - Consider point-in-time recovery (PITR)
+
+### Medium Term
+
+7. **Student command authorization:**
+   - Currently all commands require Teacher role
+   - Add per-command authorization logic
+   - Students should be able to create/modify own evidences
+   - Server validates student can only modify own data
+
+8. **Property-based testing:**
+   - Add QuickCheck dependency
+   - Create Arbitrary instances for Document, Command, etc.
+   - Write properties for `AffectedUsers` correctness
+   - Write properties for projection correctness
+
+9. **Performance optimization:**
+   - Profile database queries
+   - Add database indexes if needed (currently has indexes on generation, created_at, user_id)
+   - Consider connection pooling tuning
+   - Benchmark snapshot creation time on large documents
+
+### Long Term
+
+10. **Command replay optimization:**
+    - Currently replays all commands since last snapshot
+    - Consider incremental snapshots or snapshot diffs
+    - Investigate CRDT-based approaches for conflict-free merges
+
+11. **Multi-tenancy in single backend:**
+    - If managing 10+ classes becomes unwieldy
+    - Refactor to support multiple documents in single backend
+    - Add tenant ID to AppState and database queries
+    - More complex but reduces operational overhead
+
+12. **Analytics and reporting:**
+    - Analyze command history for insights
+    - Student progress reports
+    - Teacher activity dashboards
+    - Export capabilities for external analysis

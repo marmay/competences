@@ -23,6 +23,8 @@ library
     exposed-modules:
         Competences.Backend.API.Auth
         Competences.Backend.Auth
+        Competences.Backend.Config
+        Competences.Backend.Database
         Competences.Backend.Eff.Db
         Competences.Backend.HTTP
         Competences.Backend.State
@@ -45,6 +47,7 @@ library
         jwt,
         ixset-typed,
         optics-core,
+        optparse-applicative,
         postgresql-simple >= 0.7.0.1,
         resource-pool,
         servant,
@@ -54,6 +57,7 @@ library
         stm,
         text,
         time,
+        uuid,
         uuid-types,
         wai,
         wai-extra,
@@ -65,16 +69,31 @@ library
 
 executable competences-backend
     import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings,
+        TypeFamilies
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
+        aeson,
         bytestring,
         competences-backend,
         competences-common,
         http-types,
+        optparse-applicative,
+        postgresql-simple,
+        resource-pool,
         servant,
         servant-server,
+        stm,
         text,
+        time,
+        uuid,
+        uuid-types,
         wai,
         wai-websockets,
         warp,

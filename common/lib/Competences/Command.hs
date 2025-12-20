@@ -50,7 +50,8 @@ data EntityCommand a
   deriving (Eq, Generic, Show)
 
 data Command
-  = OnCompetenceGrids !(EntityCommand CompetenceGrid)
+  = SetDocument !Document
+  | OnCompetenceGrids !(EntityCommand CompetenceGrid)
   | OnCompetences !(EntityCommand Competence)
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   | OnUsers !(EntityCommand User)
@@ -179,6 +180,10 @@ interpretEntityCommand ctx uid (Modify i (Release (Just (a, a')))) d = do
 
 handleCommand :: UserId -> Command -> Document -> UpdateResult
 handleCommand userId cmd d = case cmd of
+  SetDocument newDoc ->
+    -- Replace entire document, all users affected
+    let allUserIds = map (.id) $ Ix.toList $ newDoc ^. #users
+     in Right (newDoc, AffectedUsers allUserIds)
   OnCompetenceGrids c -> interpretEntityCommand competenceGridContext userId c d
   OnCompetences c -> interpretEntityCommand competenceContext userId c d
   ReorderCompetence p t -> do
