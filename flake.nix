@@ -1,9 +1,11 @@
 {
-  # This is a template created by `hix init`
+  description = "Competences tracking application with Haskell backend and WASM frontend";
+
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.ghc-wasm-meta.url = "gitlab:haskell-wasm/ghc-wasm-meta?host=gitlab.haskell.org";
+
   outputs = { self, nixpkgs, flake-utils, haskellNix, ghc-wasm-meta }:
     let
       supportedSystems = [
@@ -30,6 +32,27 @@
         flake = pkgs.hixProject.flake {};
       in flake // {
         legacyPackages = pkgs;
+
+        # Add explicit package outputs for deployment
+        packages =
+          let
+            backend = import ./nix/backend.nix {
+              inherit (pkgs) hixProject;
+            };
+            frontend = import ./nix/frontend.nix {
+              inherit pkgs;
+              src = ./.;  # Don't use cleanSource - we need the static/ directory
+            };
+          in flake.packages // {
+            competences-backend = backend;
+            competences-frontend = frontend;
+
+            # Combined package for convenience
+            default = pkgs.symlinkJoin {
+              name = "competences";
+              paths = [ backend frontend ];
+            };
+          };
       } // {
         wasmShell = pkgs.mkShell {
           name = "The miso ${system} GHC WASM 9.12.2 shell";
@@ -40,7 +63,10 @@
             pkgs.cabal-install
           ];
 	};
-      });
+      }) // {
+      # NixOS module (system-agnostic)
+      nixosModules.competences = import ./nix/module.nix;
+    };
 
   # --- Flake Local Nix Configuration ----------------------------
   nixConfig = {

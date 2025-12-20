@@ -1,10 +1,14 @@
 packages: backend common csvconvert frontend
 
+-- Pin Hackage index for reproducible builds
+-- Update this date when you intentionally want to upgrade dependencies
+index-state: 2025-08-03T22:36:05Z
+
 allow-newer:
   ixset-typed:template-haskell
 
 source-repository-package
-  --sha256: 0zkhrhdsypfw8w6dkjlcp7xgyn2y491p4smqp8mdbi8pvhl0n573
+  --sha256: sha256-4xQLKNwXxdUqurhqckMiXlj/+rmMytkMR9xdrxvMcH4=
   type: git
   location: https://github.com/sumo/syb-with-class
   tag: f67a776a4f7e8fe69ec0df35e953bd9422bb05b4

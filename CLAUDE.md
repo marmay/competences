@@ -36,6 +36,38 @@ cabal test competences-backend-test
 cabal test competences-common-test
 ```
 
+### Dependency Management
+
+**Reproducible builds:**
+The project uses two mechanisms for reproducible builds:
+
+1. **Backend (haskell.nix)**:
+   - Uses haskell.nix's materialized dependencies (fully reproducible)
+   - Managed via `cabal.project` at project root
+
+2. **Frontend (WASM)**:
+   - Separate `frontend/cabal.project` with index-state pinning
+   - `frontend/cabal.project.freeze` locks all dependencies
+   - Includes `../common` package and necessary git dependencies
+
+**Updating frontend dependencies:**
+```bash
+# Enter WASM development shell
+nix develop .#wasmShell.x86_64-linux
+
+# Update index and regenerate freeze file
+cd frontend
+wasm32-wasi-cabal update
+wasm32-wasi-cabal freeze
+cd ..
+
+# Commit the updated freeze file
+git add frontend/cabal.project.freeze
+git commit -m "Update frontend dependencies"
+```
+
+**Note:** Backend and frontend have separate cabal.project files because they use different GHC versions (native vs WASM) with incompatible boot library versions.
+
 ### Backend Development
 
 **Prerequisites:**
@@ -311,8 +343,11 @@ Server → Client:
 4. **Server Processing**:
    - Server validates **authorization** (currently: all commands require Teacher role)
    - Server validates and applies command using `handleCommand`
-   - On success: broadcasts `ApplyCommand` to `AffectedUsers` (deduplicated) including sender
-   - `AffectedUsers` = users whose projected document changes
+   - On success:
+     - Command is **automatically saved to database** (via `updateDocument`)
+     - Snapshot created if threshold reached (25 commands or 15 min + ≥1 command)
+     - Broadcasts `ApplyCommand` to `AffectedUsers` (deduplicated) including sender
+     - `AffectedUsers` = users whose projected document changes
    - On failure: sends `CommandRejected` to sender only
 
 5. **Remote Update - Echo** (ApplyCommand matches `pendingCommand`):
@@ -453,6 +488,8 @@ The application uses a hybrid persistence approach that provides both full audit
 - Fast startup: load latest snapshot + replay recent commands (not entire history)
 - Point-in-time recovery: restore to any snapshot + replay to specific generation
 - Non-graceful shutdown recovery: creates snapshot on startup if needed
+- Automatic persistence: commands saved to database immediately on application, snapshots created periodically
+- Clean architecture: deprecated file-based persistence fully removed from production code
 
 ### Database Schema
 
@@ -543,8 +580,11 @@ CREATE TABLE snapshots (
 5. Old JSON file can be kept as backup but is no longer used
 
 **Backward compatibility:**
-- `loadAppState` and `saveAppState` still exist but are deprecated
-- Main.hs no longer uses file-based loading
+- `loadAppState` and `saveAppState` functions still exist in `State.hs` for potential migration scripts
+- File-based persistence has been **fully removed** from all production code paths:
+  - `wsHandler` no longer takes a file path parameter
+  - Commands are persisted only to database (via `updateDocument`)
+  - No file saves occur during normal operation
 
 ### Lock Mechanism
 
@@ -782,6 +822,44 @@ For production deployment with multiple classes:
 - [ ] Multiple users connected to same instance receive broadcasts
 - [ ] Projection works correctly for students (only see own evidences)
 
+## Production Deployment
+
+**See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment guide.**
+
+The application includes a NixOS module for declarative deployment with:
+- Multi-instance support (one backend per class)
+- Optimized WASM frontend build (wasm-opt + wasm-tools strip)
+- Nginx reverse proxy with automatic HTTPS (Let's Encrypt)
+- PostgreSQL database management
+- Secrets management via agenix
+- Build on powerful PC, deploy to weak server via `nixos-rebuild --target-host`
+
+**Quick start:**
+```nix
+services.competences = {
+  enable = true;
+  instances.class-9a = {
+    port = 8081;
+    subdomain = "9a";
+    database = "competences_class_9a";
+    secretsFile = config.age.secrets.competences-9a.path;
+  };
+  nginx.enable = true;
+  nginx.domain = "competences.example.com";
+  postgresql.enable = true;
+};
+```
+
+**Deploy:**
+```bash
+sudo nixos-rebuild switch \
+  --flake .#yourserver \
+  --target-host root@yourserver \
+  --build-host localhost
+```
+
+See `docs/example-nixos-config.nix` for complete example and DEPLOYMENT.md for detailed documentation.
+
 ## Next Steps and Future Work
 
 ### Immediate (Before Production)
@@ -794,14 +872,10 @@ For production deployment with multiple classes:
 
 2. **Test full deployment workflow:**
    - Complete testing checklist above
+   - Test NixOS deployment on staging server
+   - Verify all instances start correctly
+   - Test secrets management with agenix
    - Document any issues found
-   - Create deployment scripts/automation
-
-3. **Production deployment setup:**
-   - Create Nix flake for multi-instance deployment
-   - Add reverse proxy configuration (nginx with subdomains)
-   - Set up HTTPS with Let's Encrypt
-   - Configure systemd services for auto-restart
 
 ### Short Term
 
