@@ -1,0 +1,9 @@
+{
+  "jwtSecret": "your-secret-key-here-minimum-32-characters-recommended",
+  "oauth2": {
+    "clientId": "your-azure-client-id",
+    "clientSecret": "your-azure-client-secret",
+    "redirectUri": "http://localhost:8080/oauth/callback",
+    "tenantId": "your-azure-tenant-id"
+  }
+}

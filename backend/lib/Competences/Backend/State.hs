@@ -1,5 +1,5 @@
 module Competences.Backend.State
-  ( AppState
+  ( AppState (..)
   , ClientConnection (..)
   , initAppState
   , loadAppState
@@ -13,16 +13,19 @@ module Competences.Backend.State
   )
 where
 
+import Competences.Backend.Database qualified as DB
 import Competences.Command (Command, handleCommand)
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Protocol (ServerMessage (..))
 import Control.Concurrent.STM (STM, TVar, atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Aeson (eitherDecodeFileStrict, encodeFile, encode)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Pool (Pool)
 import Data.Text (Text)
+import Database.PostgreSQL.Simple (Connection)
 import Network.WebSockets qualified as WS
 
 -- | Client connection information
@@ -38,19 +41,22 @@ data AppState = AppState
   -- ^ Current document state
   , clients :: !(TVar (Map UserId ClientConnection))
   -- ^ Connected WebSocket clients by user ID
+  , dbPool :: !(Pool Connection)
+  -- ^ Database connection pool for command/snapshot persistence
   }
 
 -- | Initialize empty application state
-initAppState :: IO AppState
-initAppState = do
+initAppState :: Pool Connection -> IO AppState
+initAppState pool = do
   doc <- newTVarIO emptyDocument
   conns <- newTVarIO Map.empty
-  pure $ AppState doc conns
+  pure $ AppState doc conns pool
 
--- | Load application state from file
+-- | Load application state from file (deprecated - use database loading instead)
 -- Returns empty state if file doesn't exist
-loadAppState :: FilePath -> IO AppState
-loadAppState path = do
+-- NOTE: This is kept for backward compatibility but database loading is preferred
+loadAppState :: FilePath -> Pool Connection -> IO AppState
+loadAppState path pool = do
   docResult <- eitherDecodeFileStrict path
   doc <- case docResult of
     Left err -> do
@@ -62,7 +68,7 @@ loadAppState path = do
       pure d
   docVar <- newTVarIO doc
   conns <- newTVarIO Map.empty
-  pure $ AppState docVar conns
+  pure $ AppState docVar conns pool
 
 -- | Save application state to file
 saveAppState :: FilePath -> AppState -> IO ()
@@ -77,13 +83,31 @@ getDocument = readTVarIO . (.document)
 
 -- | Update document by applying a command
 -- Returns the new document or an error
+-- Also saves command to database and triggers snapshot if needed
 updateDocument :: AppState -> UserId -> Command -> IO (Either Text (Document, AffectedUsers))
-updateDocument state uid cmd = atomically $ do
-  doc <- readTVar state.document
-  case handleCommand uid cmd doc of
+updateDocument state uid cmd = do
+  -- Apply command to in-memory document atomically
+  result <- atomically $ do
+    doc <- readTVar state.document
+    case handleCommand uid cmd doc of
+      Left err -> pure $ Left err
+      Right (doc', affected) -> do
+        writeTVar state.document doc'
+        pure $ Right (doc', affected)
+
+  -- On success, persist to database
+  case result of
     Left err -> pure $ Left err
     Right (doc', affected) -> do
-      writeTVar state.document doc'
+      -- Save command to database
+      generation <- DB.saveCommand state.dbPool uid cmd
+
+      -- Check if we should take a snapshot
+      shouldSnapshot <- DB.shouldTakeSnapshot state.dbPool generation
+      when shouldSnapshot $ do
+        putStrLn $ "Taking snapshot at generation " <> show generation
+        DB.saveSnapshot state.dbPool doc' generation
+
       pure $ Right (doc', affected)
 
 -- | Register a new client connection
