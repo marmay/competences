@@ -11,7 +11,6 @@ import Competences.Backend.State
   , broadcastToUsers
   , getDocument
   , registerClient
-  , saveAppState
   , unregisterClient
   , updateDocument
   )
@@ -33,8 +32,8 @@ import Network.WebSockets qualified as WS
 
 -- | WebSocket application handler
 -- Validates JWT and delegates to handleClient
-wsHandler :: AppState -> FilePath -> JWTSecret -> WS.ServerApp
-wsHandler state savePath jwtSecret pending = do
+wsHandler :: AppState -> JWTSecret -> WS.ServerApp
+wsHandler state jwtSecret pending = do
   case extractUserFromRequest jwtSecret pending of
     Left err -> do
       putStrLn $ "Authentication failed: " <> err
@@ -43,7 +42,7 @@ wsHandler state savePath jwtSecret pending = do
       conn <- WS.acceptRequest pending
       WS.withPingThread conn 30 (pure ()) $ do
         let user = User userId userName userRole o365Id
-        handleClient state savePath userId user conn
+        handleClient state userId user conn
 
 -- | Extract and validate user from WebSocket request
 extractUserFromRequest :: JWTSecret -> WS.PendingConnection -> Either String (UserId, Text, UserRole, Maybe Office365Id)
@@ -61,8 +60,8 @@ extractUserFromRequest jwtSecret pending = do
   extractUserFromJWT claims
 
 -- | Handle a single client connection
-handleClient :: AppState -> FilePath -> UserId -> User -> WS.Connection -> IO ()
-handleClient state savePath uid user conn = do
+handleClient :: AppState -> UserId -> User -> WS.Connection -> IO ()
+handleClient state uid user conn = do
   putStrLn $ "Client connected: " <> T.unpack user.name <> " (" <> show uid <> ")"
 
   -- Register client
@@ -81,15 +80,15 @@ handleClient state savePath uid user conn = do
         Nothing -> do
           putStrLn $ "Invalid message format from " <> show uid <> ", ignoring"
           -- Ignore invalid messages rather than disconnecting
-        Just clientMsg -> handleClientMessage state savePath uid user clientMsg conn
+        Just clientMsg -> handleClientMessage state uid user clientMsg conn
   where
     cleanup userId = do
       putStrLn $ "Client disconnected: " <> show userId
       unregisterClient state userId
 
 -- | Handle individual client messages
-handleClientMessage :: AppState -> FilePath -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
-handleClientMessage state savePath uid user clientMsg conn = case clientMsg of
+handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
+handleClientMessage state uid user clientMsg conn = case clientMsg of
   SendCommand cmd -> do
     putStrLn $ "Received command from " <> show uid <> ": " <> show cmd
     -- Authorization check: currently all commands require Teacher role
@@ -106,10 +105,8 @@ handleClientMessage state savePath uid user clientMsg conn = case clientMsg of
           Right (doc, AffectedUsers affected) -> do
             putStrLn $ "Command applied, broadcasting to " <> show (length affected) <> " users"
             -- Broadcast to all affected users (including sender)
+            -- Note: Command is already persisted to database in updateDocument
             broadcastToUsers state affected (ApplyCommand cmd)
-            -- Save document after successful command
-            -- TODO: Make this async or batched for better performance
-            void $ forkIO $ saveAppState savePath state
 
   KeepAlive -> do
     -- Respond to keep-alive

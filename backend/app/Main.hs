@@ -4,7 +4,7 @@ import Competences.Backend.Auth (JWTSecret (..), OAuth2Config (..))
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HTTP (appAPI, server)
-import Competences.Backend.State (AppState (..), initAppState, saveAppState)
+import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
 import Competences.Command (Command (..), handleCommand)
 import Competences.Document (Document)
@@ -184,7 +184,7 @@ main = do
     run opts.port $
       websocketsOr
         defaultConnectionOptions
-        (wsHandler state "<deprecated>" jwtSecret)
+        (wsHandler state jwtSecret)
         httpApp
 
 -- | Replay commands on top of a document

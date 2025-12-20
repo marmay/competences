@@ -37,16 +37,13 @@ import Competences.Command (Command)
 import Competences.Document (Document)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
-import Control.Exception (throw)
-import Data.Aeson (FromJSON, ToJSON, decode, encode)
+import Data.Aeson (Value, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy qualified as LBS
 import Data.Int (Int64)
 import Data.Pool (Pool, createPool, destroyAllResources, withResource)
 import Data.Text (Text)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
-import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Database.PostgreSQL.Simple
   ( Connection
@@ -152,8 +149,8 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
       (Only sinceGen)
   pure
     [ (gen, Id userId, cmd)
-    | (gen, userId, cmdJson) <- rows
-    , Just cmd <- [decode (LBS.fromStrict cmdJson)]
+    | (gen, userId, cmdValue :: Value) <- rows
+    , Success cmd <- [fromJSON cmdValue]
     ]
 
 -- | Save a snapshot of the document at a specific generation
@@ -205,10 +202,10 @@ loadLatestSnapshot pool = withResource pool $ \conn -> do
     |]
   case rows of
     [] -> pure Nothing
-    (generation, docJson) : _ ->
-      case decode (LBS.fromStrict docJson) of
-        Nothing -> die "Failed to decode latest snapshot from database"
-        Just doc -> pure $ Just (doc, generation)
+    (generation, docValue :: Value) : _ ->
+      case fromJSON docValue of
+        Error err -> die $ "Failed to decode latest snapshot from database: " <> err
+        Success doc -> pure $ Just (doc, generation)
 
 -- | Check if a snapshot should be taken
 --
