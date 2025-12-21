@@ -26,6 +26,7 @@ library
         Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Eff.Db
+        Competences.Backend.Envelope
         Competences.Backend.HTTP
         Competences.Backend.State
         Competences.Backend.WebSocket
@@ -39,8 +40,6 @@ library
         directory,
         effectful,
         filepath,
-        hindsight-core,
-        hindsight-postgresql-store,
         http-client,
         http-client-tls,
         http-types,

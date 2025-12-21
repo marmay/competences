@@ -489,6 +489,7 @@ The application uses a hybrid persistence approach that provides both full audit
 - Point-in-time recovery: restore to any snapshot + replay to specific generation
 - Non-graceful shutdown recovery: creates snapshot on startup if needed
 - Automatic persistence: commands saved to database immediately on application, snapshots created periodically
+- **Versioned envelopes**: Commands and snapshots use versioned JSON envelopes for schema evolution
 - Clean architecture: deprecated file-based persistence fully removed from production code
 
 ### Database Schema
@@ -501,7 +502,7 @@ CREATE TABLE commands (
   generation BIGSERIAL PRIMARY KEY,
   command_id UUID NOT NULL UNIQUE,
   user_id UUID NOT NULL,
-  command_data JSONB NOT NULL,
+  command_data JSONB NOT NULL,  -- Versioned envelope: { version, userId, payload }
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -510,12 +511,17 @@ CREATE TABLE snapshots (
   id BIGSERIAL PRIMARY KEY,
   snapshot_id UUID NOT NULL UNIQUE,
   generation BIGINT NOT NULL,  -- Links to commands.generation
-  document_data JSONB NOT NULL,
+  document_data JSONB NOT NULL,  -- Versioned envelope: { version, payload }
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
-**TODO (before production):** Add versioning envelope to `command_data` and `document_data` for schema evolution.
+**Versioning Strategy:**
+Commands and snapshots are stored with versioned JSON envelopes to support schema evolution:
+- **Command envelope**: `{ "version": 1, "userId": "<uuid>", "payload": <Command> }`
+- **Snapshot envelope**: `{ "version": 1, "payload": <Document> }`
+- Migrations applied automatically when loading old versions
+- See `Competences.Backend.Envelope` for implementation details
 
 ### Snapshot Strategy
 
@@ -531,14 +537,31 @@ CREATE TABLE snapshots (
 
 ### Database Modules
 
+**Competences.Backend.Envelope** (`backend/lib/Competences/Backend/Envelope.hs`):
+- **Versioned envelope types**: `CommandEnvelope` and `SnapshotEnvelope`
+- **Current versions**: Both at version 1
+- `wrapCommand`: Wrap Command in versioned envelope before storage
+- `unwrapCommand`: Unwrap and migrate Command from envelope
+- `wrapSnapshot`: Wrap Document in versioned envelope before storage
+- `unwrapSnapshot`: Unwrap and migrate Document from envelope
+- **Migration pattern**: When schema changes, increment version and add migration function
+- Example migration (for future use):
+  ```haskell
+  unwrapCommand env = case env.version of
+    1 -> parseJSON env.payload  -- Current version
+    2 -> do
+      cmdV1 <- parseJSON env.payload
+      pure $ migrateV1toV2 cmdV1  -- Apply migration
+  ```
+
 **Competences.Backend.Database** (`backend/lib/Competences/Backend/Database.hs`):
 - `initPool`: Create connection pool (3 connections, 60s idle timeout)
 - `closePool`: Cleanup on shutdown
 - `checkSchemaVersion`: Validates schema version = 1, fails on mismatch
-- `saveCommand`: Saves command to DB, returns auto-generated generation number
-- `loadCommandsSince`: Loads commands after a given generation for replay
-- `saveSnapshot`: Saves document snapshot at specific generation
-- `loadLatestSnapshot`: Loads most recent snapshot
+- `saveCommand`: Wraps command in envelope, saves to DB, returns generation number
+- `loadCommandsSince`: Loads and unwraps commands, applying migrations if needed
+- `saveSnapshot`: Wraps document in envelope, saves snapshot at specific generation
+- `loadLatestSnapshot`: Loads and unwraps latest snapshot, applying migrations if needed
 - `shouldTakeSnapshot`: Checks if snapshot needed (25 commands OR 15 min + ≥1 command)
 - `logStartup` / `logShutdown`: Tracks backend instance lifecycle
 
@@ -864,17 +887,18 @@ See `docs/example-nixos-config.nix` for complete example and DEPLOYMENT.md for d
 
 ### Immediate (Before Production)
 
-1. **Add versioning envelope to commands and snapshots:**
-   - Wrap `command_data` and `document_data` in version envelope
-   - Example: `{ "version": 1, "payload": <actual data> }`
-   - Allows schema evolution and backward compatibility
-   - Location: Update `Database.hs` and `schema.sql`
+1. ✅ **Versioning envelope (COMPLETED):**
+   - Commands and snapshots now use versioned JSON envelopes
+   - Supports schema evolution and backward compatibility
+   - Implemented in `Competences.Backend.Envelope`
+   - Migration pattern ready for future schema changes
 
 2. **Test full deployment workflow:**
    - Complete testing checklist above
    - Test NixOS deployment on staging server
    - Verify all instances start correctly
    - Test secrets management with agenix
+   - Test versioned envelope migrations with sample data
    - Document any issues found
 
 ### Short Term

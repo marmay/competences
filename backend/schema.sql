@@ -1,8 +1,8 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- TODO: Before production, add versioning envelope to command_data and document_data
--- This will allow schema evolution and backward compatibility as the application evolves.
--- Example: { "version": 1, "payload": <actual data> }
+-- Commands and snapshots use versioned envelopes for schema evolution
+-- Structure: { "version": <int>, "userId": <uuid>, "payload": <actual data> }
+-- This allows backward-compatible migrations when Command/Document structure changes.
 
 -- Schema version tracking
 CREATE TABLE schema_migrations (
