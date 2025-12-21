@@ -39,6 +39,8 @@ library
         directory,
         effectful,
         filepath,
+        hindsight-core,
+        hindsight-postgresql-store,
         http-client,
         http-client-tls,
         http-types,
