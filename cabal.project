@@ -20,13 +20,3 @@ source-repository-package
   type: git
   location: https://github.com/dmjio/miso
   tag: 32ddefe5d47b5ed9de435c12fc97bade8c786c42
-
-source-repository-package
-  --sha256: 0dmxdkd2b07dgs3gql49rwzba5cjxsib9d7n5g5zc4bjymavrcld
-  type: git
-  location: https://github.com/hindsight-es/hindsight
-  tag: 911d97db189ed766aca7512df2ab91abcc7c67cb
-  subdir: hindsight-core
-          hindsight-postgresql-store
-          hindsight-postgresql-projections
-          hindsight-memory-store

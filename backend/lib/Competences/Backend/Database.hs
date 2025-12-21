@@ -2,9 +2,8 @@
 
 -- | Database persistence module for command sourcing and snapshots
 --
--- TODO: Add versioning envelope for commands and snapshots before production.
--- This will allow schema evolution and backward compatibility as the
--- application evolves.
+-- Commands and snapshots are stored with versioning envelopes to support
+-- schema evolution and backward compatibility.
 module Competences.Backend.Database
   ( -- * Connection pool management
     initPool
@@ -33,6 +32,13 @@ module Competences.Backend.Database
   )
 where
 
+import Competences.Backend.Envelope
+  ( CommandEnvelope (..)
+  , unwrapCommand
+  , unwrapSnapshot
+  , wrapCommand
+  , wrapSnapshot
+  )
 import Competences.Command (Command)
 import Competences.Document (Document)
 import Competences.Document.Id (Id (..))
@@ -116,11 +122,13 @@ getMaxGeneration pool = withResource pool $ \conn -> do
 
 -- | Save a command to the database
 --
+-- The command is wrapped in a versioned envelope before storage.
 -- The generation number is auto-assigned by the database BIGSERIAL.
 saveCommand :: Pool Connection -> UserId -> Command -> IO Int64
 saveCommand pool userId cmd = withResource pool $ \conn -> do
   commandId <- UUID.nextRandom
-  let cmdJson = encode cmd
+  let envelope = wrapCommand userId cmd
+  let envelopeJson = encode envelope
   [Only generation] <-
     query
       conn
@@ -129,12 +137,13 @@ saveCommand pool userId cmd = withResource pool $ \conn -> do
       VALUES (?, ?, ?)
       RETURNING generation
     |]
-      (commandId, userId.unId, cmdJson)
+      (commandId, userId.unId, envelopeJson)
   pure generation
 
 -- | Load commands since a given generation (exclusive)
 --
 -- Returns list of (generation, userId, command) tuples ordered by generation.
+-- Commands are unwrapped from versioned envelopes, with migrations applied if needed.
 loadCommandsSince :: Pool Connection -> Int64 -> IO [(Int64, UserId, Command)]
 loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
   rows <-
@@ -146,18 +155,23 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
       WHERE generation > ?
       ORDER BY generation ASC
     |]
-      (Only sinceGen)
+      (Only sinceGen) ::
+      IO [(Int64, UUID, Value)]
   pure
-    [ (gen, Id userId, cmd)
-    | (gen, userId, cmdValue :: Value) <- rows
-    , Success cmd <- [fromJSON cmdValue]
+    [ (gen, envelope.userId, cmd)
+    | (gen, _userId, envelopeValue) <- rows
+    , Success envelope <- [fromJSON envelopeValue]
+    , Right cmd <- [unwrapCommand envelope]
     ]
 
 -- | Save a snapshot of the document at a specific generation
+--
+-- The document is wrapped in a versioned envelope before storage.
 saveSnapshot :: Pool Connection -> Document -> Int64 -> IO ()
 saveSnapshot pool doc generation = withResource pool $ \conn -> do
   snapshotId <- UUID.nextRandom
-  let docJson = encode doc
+  let envelope = wrapSnapshot doc
+  let envelopeJson = encode envelope
   _ <-
     execute
       conn
@@ -165,7 +179,7 @@ saveSnapshot pool doc generation = withResource pool $ \conn -> do
       INSERT INTO snapshots (snapshot_id, generation, document_data)
       VALUES (?, ?, ?)
     |]
-      (snapshotId, generation, docJson)
+      (snapshotId, generation, envelopeJson)
   -- Update metadata for snapshot tracking
   now <- getCurrentTime
   _ <-
@@ -191,6 +205,7 @@ saveSnapshot pool doc generation = withResource pool $ \conn -> do
 -- | Load the latest snapshot and its generation
 --
 -- Returns Nothing if no snapshots exist.
+-- The snapshot is unwrapped from a versioned envelope, with migrations applied if needed.
 loadLatestSnapshot :: Pool Connection -> IO (Maybe (Document, Int64))
 loadLatestSnapshot pool = withResource pool $ \conn -> do
   rows <-
@@ -202,10 +217,13 @@ loadLatestSnapshot pool = withResource pool $ \conn -> do
     |]
   case rows of
     [] -> pure Nothing
-    (generation, docValue :: Value) : _ ->
-      case fromJSON docValue of
-        Error err -> die $ "Failed to decode latest snapshot from database: " <> err
-        Success doc -> pure $ Just (doc, generation)
+    (generation, envelopeValue :: Value) : _ ->
+      case fromJSON envelopeValue of
+        Error err -> die $ "Failed to decode snapshot envelope from database: " <> err
+        Success envelope ->
+          case unwrapSnapshot envelope of
+            Left err -> die $ "Failed to unwrap snapshot: " <> show err
+            Right doc -> pure $ Just (doc, generation)
 
 -- | Check if a snapshot should be taken
 --
