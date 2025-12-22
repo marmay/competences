@@ -46,7 +46,6 @@ library
         binary,
         bytestring,
         containers,
-        cryptohash-sha1,
         extra,
         ixset-typed,
         optics-core,

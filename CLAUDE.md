@@ -205,14 +205,12 @@ projectDocument :: User -> Document -> Document
 -- If user.role == Teacher: return full document
 -- If user.role == Student: filter entities based on user.id
 --   - Uses UserId index on Evidence for efficient filtering
---   - Updates checksums after projection
 ```
 
 **Status**: ✅ Implemented
 - Location: `common/lib/Competences/Document.hs`
 - Students see: own User, own Evidences (via UserId index), all CompetenceGrids/Competences/Resources/Templates
 - Locks filtered to show only locks on accessible entities
-- Checksums updated after filtering
 
 **InitialSnapshot**:
 - When a user connects, backend sends `InitialSnapshot` with **projected document**
@@ -386,7 +384,6 @@ Server → Client:
 - Central data model containing all entity types
 - Uses `ixset-typed` for indexed collections of entities
 - Entities: `User`, `Competence`, `CompetenceGrid`, `Evidence`, `Resource`, `Template`
-- Maintains checksums for partial sync
 - **Document Projection**: `projectDocument :: User -> Document -> Document`
   - Filters document based on user identity for access control
   - Teachers see full document, students see filtered view
