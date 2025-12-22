@@ -1,10 +1,14 @@
 # NixOS module for Competences tracking system
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, ... }@args:
 
 with lib;
 
 let
   cfg = config.services.competences;
+
+  # Try to get competences flake from inputs (common in flake-based configs)
+  competencesFlake = args.inputs.competences or null;
+  system = pkgs.system;
 
   # Instance type definition
   instanceOpts = { name, ... }: {
@@ -75,13 +79,31 @@ in {
 
     package = mkOption {
       type = types.package;
-      default = pkgs.competences-backend or (throw "competences-backend package not found. Please ensure the flake is properly configured.");
+      default =
+        if competencesFlake != null && competencesFlake ? packages.${system}.competences-backend
+        then competencesFlake.packages.${system}.competences-backend
+        else pkgs.competences-backend or (throw ''
+          competences-backend package not found.
+
+          Please either:
+          1. Add 'inputs' to your NixOS module's specialArgs, or
+          2. Explicitly set services.competences.package = inputs.competences.packages.''${system}.competences-backend;
+        '');
       description = "The competences-backend package to use";
     };
 
     frontendPackage = mkOption {
       type = types.package;
-      default = pkgs.competences-frontend or (throw "competences-frontend package not found. Please ensure the flake is properly configured.");
+      default =
+        if competencesFlake != null && competencesFlake ? packages.${system}.competences-frontend
+        then competencesFlake.packages.${system}.competences-frontend
+        else pkgs.competences-frontend or (throw ''
+          competences-frontend package not found.
+
+          Please either:
+          1. Add 'inputs' to your NixOS module's specialArgs, or
+          2. Explicitly set services.competences.frontendPackage = inputs.competences.packages.''${system}.competences-frontend;
+        '');
       description = "The competences-frontend package to use";
     };
 
@@ -179,6 +201,9 @@ in {
       nameValuePair userName {
         isSystemUser = true;
         group = instance.group;
+        # Add all instance users to the common 'competences' group
+        # This allows sharing config files (e.g., M365 credentials)
+        extraGroups = [ "competences" ];
         description = "Competences instance ${name} user";
       }
     ) (attrNames cfg.instances));

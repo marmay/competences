@@ -24,32 +24,37 @@
               } //
 	      { shell.buildInputs = [ ghc-wasm-meta.packages.${system}.all_9_12 ]; };
           })
+          # Overlay to add competences packages to pkgs (for NixOS module)
+          (final: _prev: {
+            competences-backend = import ./nix/backend.nix {
+              inherit (final) hixProject;
+            };
+            competences-frontend = import ./nix/frontend.nix {
+              pkgs = final;
+              src = ./.;  # Don't use cleanSource - we need the static/ directory
+            };
+          })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
         flake = pkgs.hixProject.flake {};
+
+        # Get packages from pkgs (which now has our overlay applied)
+        backend = pkgs.competences-backend;
+        frontend = pkgs.competences-frontend;
       in flake // {
         legacyPackages = pkgs;
 
         # Add explicit package outputs for deployment
-        packages =
-          let
-            backend = import ./nix/backend.nix {
-              inherit (pkgs) hixProject;
-            };
-            frontend = import ./nix/frontend.nix {
-              inherit pkgs;
-              src = ./.;  # Don't use cleanSource - we need the static/ directory
-            };
-          in flake.packages // {
-            competences-backend = backend;
-            competences-frontend = frontend;
+        packages = flake.packages // {
+          competences-backend = backend;
+          competences-frontend = frontend;
 
-            # Combined package for convenience
-            default = pkgs.symlinkJoin {
-              name = "competences";
-              paths = [ backend frontend ];
-            };
+          # Combined package for convenience
+          default = pkgs.symlinkJoin {
+            name = "competences";
+            paths = [ backend frontend ];
           };
+        };
       } // {
         wasmShell = pkgs.mkShell {
           name = "The miso ${system} GHC WASM 9.12.2 shell";
