@@ -423,6 +423,87 @@ Server → Client:
 - User role-based UI (Teacher vs Student views)
 - Views: CompetenceGrid editing/viewing, Evidence editing, Statistics, User management
 
+### Assignments (replacing Templates)
+
+**Current Status**: Template exists in codebase but not used productively. Will be replaced by Assignment in Phase 2.
+
+**Purpose**: Assignments make creating evidences easier for multi-task assignments. They address two pain points:
+1. Tedious to manually select competences and tasks for each student
+2. Difficult to mentally aggregate observations across multiple tasks
+
+**Design Overview**:
+
+Assignments are concrete instances given to specific students on specific dates:
+- A collection of tasks (with rich competence metadata)
+- Assigned to specific students
+- Assignment and due dates
+- Default properties for resulting evidence (activity type, social form)
+
+**Workflow**:
+1. **Assignment Creation**: Teacher creates assignment (date, students, tasks)
+2. **Student Visibility**: Students see their assignments (phased implementation - Phase 4)
+3. **Evaluation**: Teacher uses AssignmentEvaluation (ephemeral UI state) to assess task-by-task
+4. **Automatic Aggregation**: System aggregates assessments per competence level (using max)
+5. **Review and Override**: Teacher reviews aggregated results, can modify if automatic aggregation doesn't match judgment
+6. **Finalization**: Creates regular Evidence entity(ies) with the observations
+
+**Data Model** (to be refined after Task implementation):
+
+```haskell
+-- Persisted in Document
+data Assignment = Assignment
+  { id :: !AssignmentId
+  , name :: !Text                   -- Assignment name (e.g., "Homework Week 5")
+  , assignmentDate :: !Day          -- When assigned (controls student visibility)
+  , dueDate :: !(Maybe Day)         -- Optional deadline
+  , userIds :: !(Set UserId)        -- Assigned to these students
+  , tasks :: ![TaskId]              -- Tasks to complete (reference Task entities)
+  , activityType :: !ActivityType   -- Type of activity
+  , socialForm :: !SocialForm       -- Individual, pair, group work
+  }
+
+-- Non-persistent (UI state only)
+data AssignmentEvaluation = AssignmentEvaluation
+  { assignment :: !Assignment
+  , assessments :: ![(TaskId, Maybe Ability)]  -- Teacher's assessment per task
+  }
+```
+
+**Key Design Decisions**:
+
+1. **Assignments are concrete, not reusable schemas**: Unlike templates, assignments are actual instances given to specific students on specific dates. This is more natural for a student-facing system.
+
+2. **Tasks are rich enough**: With the Task system (see TASKS-DESIGN.md), tasks carry competence metadata, making separate "aspects" unnecessary.
+
+3. **AssignmentEvaluation is non-persistent**: It's ephemeral UI state during evaluation. Only the final Evidence is persisted.
+
+4. **Evidence is self-contained**: Created evidence contains all necessary information. Assignment modifications don't affect existing evidences.
+
+5. **Multi-student evaluation**: `userIds` allows evaluating multiple students together (primarily for group assignments where all performed identically).
+
+6. **Aggregation strategy**:
+   - Multiple tasks can target the same competence level
+   - Aggregation uses `max` Ability per competence level (best performance across tasks)
+   - Teacher can override during review
+   - Example: Student makes mistakes in task 1 but succeeds in tasks 2 and 3 → gets higher ability
+
+7. **Student visibility** (phased):
+   - **Phase 2-3**: Assignments exist but filtered from student projected view
+   - **Phase 4**: Students can see their assignments (filtered by assignmentDate for tests)
+   - Students cannot see in-progress AssignmentEvaluations
+   - Students see final evidences like any other evidence
+
+**Phased Implementation**:
+- **Phase 1**: Implement Tasks and TaskGroups
+- **Phase 2**: Implement Assignment (teachers only)
+- **Phase 3**: UI polish → first semi-productive release
+- **Phase 4**: Enable student visibility of Tasks and Assignments
+- **Phase 5**: Markup language for inline task content
+
+**Implementation Status**: ⏳ Planned for Phase 2 (after Tasks complete)
+
+**See also**: `docs/TASKS-DESIGN.md` for complete task system design and rationale
+
 ### Frontend Component Pattern
 
 Components follow a pattern using Miso's component system:
