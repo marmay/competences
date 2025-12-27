@@ -25,6 +25,9 @@ library
         Competences.Command
         Competences.Command.ChangeField
         Competences.Command.Common
+        Competences.Command.Competences
+        Competences.Command.Evidences
+        Competences.Command.Users
         Competences.Common.IxSet
         Competences.Document
         Competences.Document.Assessment

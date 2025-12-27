@@ -10,6 +10,7 @@ module Competences.Document.Evidence
   , ActivityTasks (..)
   , Observation (..)
   , ObservationId
+  , ObservationIxs
   , ObservationRemark (..)
   , mkEvidence
   , socialForms
