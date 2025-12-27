@@ -12,7 +12,7 @@ import Competences.Document
   , Lock (..)
   , User (..)
   )
-import Competences.Document.Evidence (ActivityTasks (..))
+-- ActivityTasks removed - using oldTasks field now
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -25,6 +25,7 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
@@ -83,8 +84,8 @@ evidenceEditorComponent r =
                                    isStudent
                                    (selectorTransformedLens (.id) Set.fromList #userIds)
                                )
-            `TE.addNamedField` ( C.translate' C.LblActivityTasks
-                               , TE.textEditorField (#activityTasks O.% activityTasksIso)
+            `TE.addNamedField` ( "Legacy Tasks (read-only)"  -- TODO: Better label from translation
+                               , TE.textEditorField (#oldTasks O.% oldTasksIso)
                                )
             `TE.addNamedField` ( C.translate' C.LblActivityObservations
                                , TE.observationEditorField
@@ -93,5 +94,7 @@ evidenceEditorComponent r =
                                    (.id)
                                    (selectorTransformedLens id IxSet.fromList #observations)
                                )
-        activityTasksIso :: O.Iso' ActivityTasks M.MisoString
-        activityTasksIso = O.iso (\(ActivityTasks t) -> M.ms t) (ActivityTasks . M.fromMisoString)
+        oldTasksIso :: O.Iso' (Maybe Text) M.MisoString
+        oldTasksIso = O.iso
+          (\mt -> maybe "" M.ms mt)
+          (\ms -> let t = M.fromMisoString ms :: Text in if t == "" then Nothing else Just t)

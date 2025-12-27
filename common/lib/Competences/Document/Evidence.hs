@@ -21,8 +21,9 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id, nilId)
+import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
@@ -93,7 +94,10 @@ data Evidence = Evidence
   , userIds :: !(Set.Set UserId)
   , activityType :: !ActivityType
   , date :: !Day
-  , activityTasks :: !ActivityTasks
+  , tasks :: ![TaskId]
+    -- ^ Task references (new format)
+  , oldTasks :: !(Maybe Text)
+    -- ^ Legacy text-based tasks (for gradual migration from activityTasks)
   , observations :: !(Ix.IxSet ObservationIxs Observation)
   }
   deriving (Eq, Generic, Ord, Show)
@@ -111,7 +115,8 @@ nilEvidence = Evidence
   , userIds = Set.empty
   , activityType = SchoolExercise
   , date = fromGregorian 2025 1 1
-  , activityTasks = ActivityTasks ""
+  , tasks = []
+  , oldTasks = Nothing
   , observations = Ix.empty
   }
 
@@ -162,9 +167,35 @@ instance ToJSON ActivityType
 
 instance Binary ActivityType
 
-instance FromJSON Evidence
+instance FromJSON Evidence where
+  parseJSON = withObject "Evidence" $ \v -> do
+    -- Read new format fields
+    tasksList <- v .:? "tasks" .!= []
+    -- Migrate old activityTasks to oldTasks
+    legacyTasks <- v .:? "activityTasks"
+    let oldTasksValue = case legacyTasks of
+          Nothing -> v .:? "oldTasks"
+          Just (ActivityTasks t) -> pure (Just t)
+    Evidence
+      <$> v .: "id"
+      <*> v .: "userIds"
+      <*> v .: "activityType"
+      <*> v .: "date"
+      <*> pure tasksList
+      <*> oldTasksValue
+      <*> fmap Ix.fromList (v .: "observations")
 
-instance ToJSON Evidence
+instance ToJSON Evidence where
+  toJSON e =
+    object
+      [ "id" .= e.id
+      , "userIds" .= e.userIds
+      , "activityType" .= e.activityType
+      , "date" .= e.date
+      , "tasks" .= e.tasks
+      , "oldTasks" .= e.oldTasks
+      , "observations" .= Ix.toList e.observations
+      ]
 
 instance Binary Evidence
 
