@@ -7,8 +7,7 @@ import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..), UserId)
 import Competences.Document.Evidence
-  ( ActivityTasks (..)
-  , Evidence (..)
+  ( Evidence (..)
   , mkEvidence
   )
 import Competences.Document.User (isStudent)
@@ -156,13 +155,14 @@ evidenceSelectorComponent r parentLens =
                     , V.text_ (viewActivityType e.activityType)
                     ]
                     : [ viewContext [] (commaSeparated $ sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds))
-                      , viewContext [] (viewActivityTasks e.activityTasks)
+                      , viewContext [] (viewOldTasks e.oldTasks)
                       ]
                 )
             ]
         viewDate d = V.text_ (C.formatDay d)
         viewActivityType = C.translate' . C.LblActivityTypeDescription
-        viewActivityTasks (ActivityTasks t) = M.ms t
+        viewOldTasks (Just t) = M.ms t
+        viewOldTasks Nothing = ""
         viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
         commaSeparated :: [M.MisoString] -> M.MisoString
         commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)

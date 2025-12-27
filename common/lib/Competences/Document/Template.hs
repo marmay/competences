@@ -13,7 +13,6 @@ where
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence
   ( Ability
-  , ActivityTasks (..)
   , ActivityType
   , Evidence (..)
   , Observation (..)
@@ -77,7 +76,7 @@ data TemplateEvaluation = TemplateEvaluation
 mkEvidenceFromTemplateEvaluation :: (RandomGen g) => g -> TemplateEvaluation -> Evidence
 mkEvidenceFromTemplateEvaluation g t =
   let (evidenceId, g') = random g
-      activityTasks = ActivityTasks t.template.name.unTemplateName
+      oldTasksText = t.template.name.unTemplateName
       byCompetenceLevelId =
         Map.fromListWith max $
           mapMaybe
@@ -97,7 +96,8 @@ mkEvidenceFromTemplateEvaluation g t =
         , userIds = t.userIds
         , activityType = t.template.activityType
         , date = t.template.date
-        , activityTasks = activityTasks
+        , tasks = []
+        , oldTasks = Just oldTasksText
         , observations = Ix.fromList observations
         }
 

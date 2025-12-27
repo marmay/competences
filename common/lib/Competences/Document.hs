@@ -10,6 +10,7 @@ module Competences.Document
   , module Competences.Document.Evidence
   , module Competences.Document.Order
   , module Competences.Document.Resource
+  , module Competences.Document.Task
   , module Competences.Document.Template
   , module Competences.Document.User
   )
@@ -33,6 +34,7 @@ import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
+import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs)
 import Competences.Document.Template (Template(..), TemplateName(..), TemplateIxs, TemplateEvaluation(..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
@@ -47,6 +49,8 @@ data Document = Document
   , resources :: !(Ix.IxSet ResourceIxs Resource)
   , locks :: !(M.Map Lock UserId)
   , users :: !(Ix.IxSet UserIxs User)
+  , tasks :: !(Ix.IxSet TaskIxs Task)
+  , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , templates :: !(Ix.IxSet TemplateIxs Template)
   }
   deriving (Eq, Generic, Show)
@@ -60,6 +64,8 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "resources")
       <*> fmap M.fromList (v .: "locks")
       <*> fmap Ix.fromList (v .: "users")
+      <*> fmap Ix.fromList (v .: "tasks")
+      <*> fmap Ix.fromList (v .: "taskGroups")
       <*> fmap Ix.fromList (v .: "templates")
 
 instance ToJSON Document where
@@ -71,6 +77,8 @@ instance ToJSON Document where
       , "resources" .= Ix.toList d.resources
       , "locks" .= M.toList d.locks
       , "users" .= Ix.toList d.users
+      , "tasks" .= Ix.toList d.tasks
+      , "taskGroups" .= Ix.toList d.taskGroups
       , "templates" .= Ix.toList d.templates
       ]
 
@@ -83,6 +91,8 @@ emptyDocument =
     , resources = Ix.empty
     , locks = M.empty
     , users = Ix.empty
+    , tasks = Ix.empty
+    , taskGroups = Ix.empty
     , templates = Ix.empty
     }
 
@@ -98,7 +108,8 @@ projectDocument user doc
         & #users .~ Ix.fromList [user]  -- Only their own user
         & #evidences .~ (doc.evidences Ix.@= user.id)  -- Only evidences about them (via UserId index)
         & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks)  -- Only locks on entities they can see
-        -- competenceGrids, competences, resources, templates: students see all (public materials)
+        -- competenceGrids, competences, resources, tasks, taskGroups, templates: students see all (public materials)
+        -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
     -- Student can see locks on entities they have access to
     isLockVisible lock _ = case lock of
