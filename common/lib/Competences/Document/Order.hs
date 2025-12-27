@@ -222,6 +222,10 @@ instance FromJSON (OrderPosition a)
 
 instance ToJSON (OrderPosition a)
 
+instance Binary (OrderPosition a)
+
 instance FromJSON (Reorder a)
 
 instance ToJSON (Reorder a)
+
+instance Binary (Reorder a)
