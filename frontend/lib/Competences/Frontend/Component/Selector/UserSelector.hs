@@ -13,9 +13,10 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
-import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens (..))
+import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..))
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Data.Default (Default)
 import Data.Foldable (toList)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
@@ -64,21 +65,21 @@ singleUserSelectorComponent r config style =
   L.singleListSelectorComponent r (toListSelectorConfig config) (toSingleSelectionStyle style)
 
 singleUserEditorField
-  :: (Eq t, Ord p)
+  :: (Eq t, Ord p, Default patch)
   => SyncDocumentRef
   -> M.MisoString
   -> (User -> Bool)
-  -> SelectorTransformedLens p Maybe User Maybe t
-  -> EditorField p f
-singleUserEditorField r k p l =
+  -> EntityPatchTransformedLens p patch Maybe User Maybe t
+  -> EditorField p patch f
+singleUserEditorField r k p eptl =
   let config e =
         UserSelectorConfig
           { isPossibleUser = p
-          , isInitialUser = \u -> e ^. l.lens == Just (l.transform u)
+          , isInitialUser = \u -> e ^. eptl.viewLens == Just (eptl.transform u)
           }
    in selectorEditorField
         k
-        l
+        eptl
         (singleUserSelectorComponent r . config)
         (SingleUserSelectorStyleButtons, SingleUserSelectorStyleShowOnly)
 
@@ -101,22 +102,22 @@ multiUserSelectorComponent r config style =
   L.multiListSelectorComponent r (toListSelectorConfig config) (toMultiSelectionStyle style)
 
 multiUserEditorField
-  :: (Ord p, Ord t, Foldable f)
+  :: (Ord p, Ord t, Foldable f, Default patch)
   => SyncDocumentRef
   -> M.MisoString
   -> (User -> Bool)
-  -> SelectorTransformedLens p [] User f t
-  -> EditorField p f'
-multiUserEditorField r k p l =
+  -> EntityPatchTransformedLens p patch [] User f t
+  -> EditorField p patch f'
+multiUserEditorField r k p eptl =
   let config e =
-        let initialSelection = Set.fromList (toList $ e ^. l.lens)
+        let initialSelection = Set.fromList (toList $ e ^. eptl.viewLens)
          in UserSelectorConfig
               { isPossibleUser = p
-              , isInitialUser = \u -> l.transform u `Set.member` initialSelection
+              , isInitialUser = \u -> eptl.transform u `Set.member` initialSelection
               }
    in selectorEditorField
         k
-        l
+        eptl
         (multiUserSelectorComponent r . config)
         (MultiUserSelectorStyleShowOnly, MultiUserSelectorStyleButtons)
 

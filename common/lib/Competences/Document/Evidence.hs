@@ -97,7 +97,7 @@ data Evidence = Evidence
   , date :: !Day
   , tasks :: ![TaskId]
     -- ^ Task references (new format)
-  , oldTasks :: !(Maybe Text)
+  , oldTasks :: !Text
     -- ^ Legacy text-based tasks (for gradual migration from activityTasks)
   , observations :: !(Ix.IxSet ObservationIxs Observation)
   }
@@ -117,7 +117,7 @@ nilEvidence = Evidence
   , activityType = SchoolExercise
   , date = fromGregorian 2025 1 1
   , tasks = []
-  , oldTasks = Nothing
+  , oldTasks = ""
   , observations = Ix.empty
   }
 
@@ -174,16 +174,16 @@ instance FromJSON Evidence where
     tasksList <- v .:? "tasks" .!= []
     -- Migrate old activityTasks to oldTasks
     legacyTasks <- v .:? "activityTasks"
-    let oldTasksValue = case legacyTasks of
-          Nothing -> v .:? "oldTasks"
-          Just (ActivityTasks t) -> pure (Just t)
+    oldTasksValue <- case legacyTasks of
+          Nothing -> v .:? "oldTasks" .!= ""
+          Just (ActivityTasks t) -> pure t
     Evidence
       <$> v .: "id"
       <*> v .: "userIds"
       <*> v .: "activityType"
       <*> v .: "date"
       <*> pure tasksList
-      <*> oldTasksValue
+      <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
 
 instance ToJSON Evidence where

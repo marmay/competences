@@ -16,9 +16,9 @@ import GHC.Generics (Generic)
 -- at least a way to fetch the objects. Then you can add functions for
 -- modifying, deleting or reordering the objects. Not all operations
 -- are necessarily supported by all views.
-data Editable f a = Editable
+data Editable f a patch = Editable
   { get :: !(Document -> f (a, Maybe UserId))
-  , modify :: !(Maybe (a -> ModifyCommand a -> Command))
+  , modify :: !(Maybe (a -> ModifyCommand patch -> Command))
   , delete :: !(Maybe (a -> Command))
   , reorder :: !(Maybe (Document -> a -> Reorder' a -> Maybe Command))
   }
@@ -26,14 +26,14 @@ data Editable f a = Editable
 
 -- | Creates a minimal definition of an Editable; you can add
 -- definitions for modifying, deleting and reordering later.
-editable :: (Document -> f (a, Maybe UserId)) -> Editable f a
+editable :: (Document -> f (a, Maybe UserId)) -> Editable f a patch
 editable get = Editable get Nothing Nothing Nothing
 
-withModify :: Editable f a -> a -> ModifyCommand a -> Maybe Command
+withModify :: Editable f a patch -> a -> ModifyCommand patch -> Maybe Command
 withModify Editable {modify} a cmd = fmap (\f -> f a cmd) modify
 
-withDelete :: Editable f a -> a -> Maybe Command
+withDelete :: Editable f a patch -> a -> Maybe Command
 withDelete Editable {delete} a = fmap (\f -> f a) delete
 
-withReorder :: Editable f a -> Document -> a -> Reorder' a -> Maybe Command
+withReorder :: Editable f a patch -> Document -> a -> Reorder' a -> Maybe Command
 withReorder Editable {reorder} d a r = reorder >>= (\f -> f d a r)

@@ -17,7 +17,6 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence
   ( Ability (..)
-  , ActivityTasks (..)
   , ActivityType (..)
   , Observation (..)
   , ObservationId
@@ -190,13 +189,13 @@ handleCsvCommand' document command = do
         parseTimeM True defaultTimeLocale "%-d.%-m.%Y" (T.unpack command.date)
   studentId <- liftEither $ matchStudent document command.student
   competences <- liftEither $ mapM (parseCompetence document) (T.words command.competences)
-  let activityTasks = ActivityTasks command.exercises
+  let activityTasks = command.exercises
   foldM (addCompetences studentId day activityTasks) document (groupByActivityType competences)
 
 addCompetences
   :: UserId
   -> Day
-  -> ActivityTasks
+  -> Text
   -> Document
   -> (ActivityType, [(CompetenceLevelId, SocialForm, Ability)])
   -> ExceptT String IO Document
@@ -210,7 +209,8 @@ addCompetences userId day activityTasks document (activityType, observationData)
           , userIds = Set.fromList [userId]
           , activityType = activityType
           , date = day
-          , activityTasks = activityTasks
+          , oldTasks = activityTasks
+          , tasks = []
           , observations = Ix.fromList observations
           }
   unless (Ix.null $ document.evidences Ix.@= evidenceId) $

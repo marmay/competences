@@ -10,7 +10,7 @@ import Competences.Analysis.Statistics (userEvidenceByActivity, ActivityStats (.
 import Competences.Document (Document (..), User (..), emptyDocument)
 import Competences.Document.Id (nilId)
 import Competences.Document.Evidence (ActivityType (..), Ability (..))
-import Competences.Document.User (UserId, UserRole (..), isStudent, isTeacher)
+import Competences.Document.User (Office365Id (..), UserId, UserRole (..), isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef, subscribeDocument, DocumentChange (..))
 import Competences.Frontend.View qualified as V
@@ -42,7 +42,7 @@ emptyModel :: Model
 emptyModel = Model
   { document = emptyDocument
   , currentUserId = Nothing
-  , connectedUser = User nilId "" Student Nothing
+  , connectedUser = User nilId "" Student (Office365Id "")
   }
 
 -- | Statistics Viewer Component

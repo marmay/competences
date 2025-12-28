@@ -21,9 +21,10 @@ import Competences.Frontend.WebSocket
   )
 import Language.Javascript.JSaddle.Wasm (run)
 import Language.Javascript.JSaddle (jsg, valToText, (!))
-import Competences.Command (Command(..), EntityCommand (..))
+import Competences.Command (Command(..), EntityCommand (..), UsersCommand (..))
 import Competences.Document (User(..), UserRole(..))
 import Competences.Document.Id (nilId)
+import Competences.Document.User (Office365Id(..))
 import Competences.Protocol (ServerMessage(..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Text qualified as T
@@ -38,10 +39,10 @@ main = do
       Nothing -> do
         liftIO $ putStrLn "ERROR: No JWT token found in window.COMPETENCES_JWT"
         -- Fallback: use test user
-        let user = User nilId "Test User" Teacher Nothing
+        let user = User nilId "Test User" Teacher (Office365Id "")
         env <- mkSyncDocumentEnv user
         document <- mkSyncDocument env
-        modifySyncDocument document $ OnUsers (Create user)
+        modifySyncDocument document $ Users $ OnUsers $ Create user
         runApp $ withTailwindPlay $ mkApp document
 
       Just jwtToken -> do
@@ -114,7 +115,7 @@ foreign export javascript "hs_start" main :: IO ()
 #else
 
 import Competences.Document.Id (mkId, nilId)
-import Competences.Document.User (User (..), UserId, UserRole (..))
+import Competences.Document.User (User (..), UserId, UserRole (..), Office365Id (..))
 import Competences.Frontend.SyncDocument
   ( SyncDocument (..)
   , SyncDocumentRef
@@ -130,7 +131,7 @@ import Data.Text qualified as T
 
 import Language.Javascript.JSaddle.Warp (run)
 import Options.Applicative
-import Competences.Command (Command(..), EntityCommand (..))
+import Competences.Command (Command(..), EntityCommand (..), UsersCommand (..))
 import System.Random (newStdGen)
 
 data Options = Options
@@ -218,11 +219,11 @@ options =
 main :: IO ()
 main = do
   opt <- execParser $ info (options <**> helper) (fullDesc <> progDesc "Run the frontend server")
-  let user = User opt.userId opt.userName opt.userRole Nothing
+  let user = User opt.userId opt.userName opt.userRole (Office365Id "")
   env <- mkSyncDocumentEnv user
   bracket (readDocument env opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
     run opt.port $ do
-      modifySyncDocument document $ OnUsers (Create user)
+      modifySyncDocument document $ Users $ OnUsers $ Create user
       runApp $ withTailwindPlay $ mkApp document
 
 readDocument :: SyncDocumentEnv -> Maybe FilePath -> IO SyncDocumentRef

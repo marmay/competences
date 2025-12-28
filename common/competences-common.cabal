@@ -14,6 +14,7 @@ common warnings
 library
     import:           warnings
     default-extensions:
+        AllowAmbiguousTypes,
         DuplicateRecordFields,
         GADTs,
         NoFieldSelectors,
@@ -27,6 +28,7 @@ library
         Competences.Command.Common
         Competences.Command.Competences
         Competences.Command.Evidences
+        Competences.Command.Interpret
         Competences.Command.Users
         Competences.Common.IxSet
         Competences.Document
@@ -50,6 +52,7 @@ library
         binary,
         bytestring,
         containers,
+        data-default,
         extra,
         ixset-typed,
         optics-core,

@@ -4,7 +4,7 @@ module Competences.Frontend.Component.Selector.CompetenceGridSelector
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..))
+import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( CompetenceGrid (..)
@@ -64,7 +64,7 @@ competenceGridSelectorComponent r style parentLens =
     update CreateNewCompetenceGrid = M.withSink $ \s -> do
       competenceGridId <- nextId r
       let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
-      modifySyncDocument r (OnCompetenceGrids $ Create competenceGrid)
+      modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create competenceGrid)
       s (SelectCompetenceGrid competenceGrid)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
 

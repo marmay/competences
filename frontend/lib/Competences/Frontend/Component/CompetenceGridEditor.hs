@@ -5,7 +5,7 @@ module Competences.Frontend.Component.CompetenceGridEditor
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), CompetencesCommand (..), CompetenceGridPatch (..), CompetencePatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
@@ -67,8 +67,8 @@ competenceGridEditorComponent r = M.component emptyModel update view
                   , description = ""
                   , levelDescriptions = Map.empty
                   }
-          modifySyncDocument r (OnCompetences $ Create competence)
-          modifySyncDocument r (OnCompetences $ Modify competenceId Lock)
+          modifySyncDocument r (Competences $ OnCompetences $ Create competence)
+          modifySyncDocument r (Competences $ OnCompetences $ Modify competenceId Lock)
         Nothing -> pure ()
 
     view model =
@@ -89,8 +89,8 @@ competenceGridEditorComponent r = M.component emptyModel update view
                   competenceGrid' <- Ix.getOne $ (d ^. #competenceGrids) Ix.@= competenceGrid.id
                   pure (competenceGrid', (d ^. #locks) Map.!? CompetenceGridLock competenceGrid'.id)
               )
-              & (#modify ?~ (\c m -> OnCompetenceGrids (Modify c.id m)))
-              & (#delete ?~ (\c -> OnCompetenceGrids (Delete c.id)))
+              & (#modify ?~ (\c m -> Competences $ OnCompetenceGrids (Modify c.id m)))
+              & (#delete ?~ (\c -> Competences $ OnCompetenceGrids (Delete c.id)))
           competenceGridEditor =
             TE.editor
               ( TE.editorFormView'
@@ -99,10 +99,10 @@ competenceGridEditorComponent r = M.component emptyModel update view
               )
               competenceGridEditable
               `TE.addNamedField` ( C.translate' C.LblCompetenceGridTitle
-                                 , TE.textEditorField (#title % TE.msIso)
+                                 , TE.textEditorField #title #title
                                  )
               `TE.addNamedField` ( C.translate' C.LblCompetenceGridDescription
-                                 , TE.textEditorField (#description % TE.msIso)
+                                 , TE.textEditorField #description #description
                                  )
           competenceEditable =
             TE.editable
@@ -111,12 +111,12 @@ competenceGridEditorComponent r = M.component emptyModel update view
                     (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
                     (Ix.toAscList (Proxy @Order) ((d ^. #competences) Ix.@= competenceGrid.id))
               )
-              & (#modify ?~ (\c m -> OnCompetences (Modify c.id m)))
-              & (#delete ?~ (\c -> OnCompetences (Delete c.id)))
+              & (#modify ?~ (\c m -> Competences $ OnCompetences (Modify c.id m)))
+              & (#delete ?~ (\c -> Competences $ OnCompetences (Delete c.id)))
               & ( #reorder
                     ?~ ( \d c a -> do
                            p <- orderPosition d.competences c.id
-                           pure $ ReorderCompetence p (translateReorder' (.id) a)
+                           pure $ Competences $ ReorderCompetence p (translateReorder' (.id) a)
                        )
                 )
 
@@ -125,16 +125,16 @@ competenceGridEditorComponent r = M.component emptyModel update view
               TE.editorTableRowView'
               competenceEditable
               `TE.addNamedField` ( C.translate' C.LblCompetenceDescription
-                                 , TE.textEditorField (#description % TE.msIso)
+                                 , TE.textEditorField #description #description
                                  )
               `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription BasicLevel)
-                                 , TE.textEditorField (#levelDescriptions % O.at BasicLevel % O.non T.empty % TE.msIso)
+                                 , TE.textEditorField (#levelDescriptions % O.at BasicLevel % O.non T.empty) (#levelDescriptions % O.at BasicLevel % O.non Nothing)
                                  )
               `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription IntermediateLevel)
-                                 , TE.textEditorField (#levelDescriptions % O.at IntermediateLevel % O.non T.empty % TE.msIso)
+                                 , TE.textEditorField (#levelDescriptions % O.at IntermediateLevel % O.non T.empty) (#levelDescriptions % O.at IntermediateLevel % O.non Nothing)
                                  )
               `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription AdvancedLevel)
-                                 , TE.textEditorField (#levelDescriptions % O.at AdvancedLevel % O.non T.empty % TE.msIso)
+                                 , TE.textEditorField (#levelDescriptions % O.at AdvancedLevel % O.non T.empty) (#levelDescriptions % O.at AdvancedLevel % O.non Nothing)
                                  )
        in V.viewFlow
             ( V.vFlow

@@ -14,22 +14,22 @@ import Data.Foldable (toList)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 
-data Model a f = Model
+data Model a patch f = Model
   { entries :: !(Maybe (f (a, Maybe UserId)))
-  , patches :: !(Map.Map a a)
+  , patches :: !(Map.Map a patch)
   , reorderFrom :: !(Maybe a)
   , refocusTarget :: !(Maybe a)
   , users :: !(Map.Map UserId User)
   }
   deriving (Generic)
 
-instance (Eq a, Functor f, Foldable f) => Eq (Model a f) where
+instance (Eq a, Eq patch, Functor f, Foldable f) => Eq (Model a patch f) where
   a == b =
     fmap toList a.entries == fmap toList b.entries
       && a.patches == b.patches
       && a.reorderFrom == b.reorderFrom
 
-data Action a
+data Action a patch
   = StartEditing !a
   | CancelEditing !a
   | FinishEditing !a
@@ -37,7 +37,7 @@ data Action a
   | CancelMoving
   | FinishMoving !(Reorder' a)
   | Delete !a
-  | UpdatePatch !a !a
+  | UpdatePatch !a !patch
   | UpdateDocument !DocumentChange
   deriving (Eq, Show)
 

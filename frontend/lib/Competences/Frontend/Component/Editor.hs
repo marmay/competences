@@ -46,6 +46,7 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   , syncDocumentEnv
   )
+import Data.Default (Default (def))
 import Data.Foldable (for_, toList)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isNothing, listToMaybe)
@@ -54,26 +55,26 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((%), (%~), (&), (.~), (?~), (^.))
 
-data Editor a f n = Editor
-  { view :: !(EditorView a f n)
-  , editable :: !(Editable f a)
-  , fields :: ![(n, EditorField a f)]
+data Editor a patch f n = Editor
+  { view :: !(EditorView a patch f n)
+  , editable :: !(Editable f a patch)
+  , fields :: ![(n, EditorField a patch f)]
   }
   deriving (Generic)
 
-editor :: EditorView a f n -> Editable f a -> Editor a f n
+editor :: EditorView a patch f n -> Editable f a patch -> Editor a patch f n
 editor v e = Editor {editable = e, view = v, fields = []}
 
-addField :: Editor a f () -> EditorField a f -> Editor a f ()
+addField :: Editor a patch f () -> EditorField a patch f -> Editor a patch f ()
 addField e f = e & #fields %~ (<> [((), f)])
 
-addNamedField :: Editor a f n -> (n, EditorField a f) -> Editor a f n
+addNamedField :: Editor a patch f n -> (n, EditorField a patch f) -> Editor a patch f n
 addNamedField e f = e & #fields %~ (<> [f])
 
 editorComponent
-  :: forall a f n p
-   . (Functor f, Foldable f, Ord a)
-  => Editor a f n -> SyncDocumentRef -> M.Component p (Model a f) (Action a)
+  :: forall a patch f n p
+   . (Functor f, Foldable f, Ord a, Default patch)
+  => Editor a patch f n -> SyncDocumentRef -> M.Component p (Model a patch f) (Action a patch)
 editorComponent e r =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]
@@ -95,12 +96,12 @@ editorComponent e r =
       M.io_ $ do
         runCommand $ withModify e.editable a Lock
         M.focus refocusTargetString
-    update (CancelEditing a) = M.io_ $ runCommand $ withModify e.editable a (Release Nothing)
+    update (CancelEditing a) = M.io_ $ runCommand $ withModify e.editable a (Release def)
     update (FinishEditing a) = do
       patches <- (^. #patches) <$> M.get
       M.io_ $ runCommand $ do
         p <- patches Map.!? a
-        withModify e.editable a (Release $ Just (a, p))
+        withModify e.editable a (Release p)
     update (StartMoving a) = M.modify (#reorderFrom ?~ a)
     update CancelMoving = M.modify (#reorderFrom .~ Nothing)
     update (FinishMoving !reorderAction) = do
@@ -116,16 +117,16 @@ editorComponent e r =
       M.modify $ updateModel newDocument
       M.io_ $ M.focus refocusTargetString
 
-    updateModel :: Document -> Model a f -> Model a f
+    updateModel :: Document -> Model a patch f -> Model a patch f
     updateModel d (Model _ patches reorderFrom _ _) =
       let es = e.editable.get d
           myEdits = filter (\(_, u) -> u == Just (syncDocumentEnv r ^. #connectedUser % #id)) (toList es)
-          patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe e' (Map.lookup e' patches))) myEdits
+          patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe def (Map.lookup e' patches))) myEdits
           refocusTarget = listToMaybe (Map.keys (patches' `Map.difference` patches) <> Map.keys patches')
           users = Map.fromList $ map (\u -> (u ^. #id, u)) (IxSet.toList $ d ^. #users)
        in Model (Just es) patches' reorderFrom refocusTarget users
 
-    view :: Model a f -> M.View (Model a f) (Action a)
+    view :: Model a patch f -> M.View (Model a patch f) (Action a patch)
     view m = case m.entries of
       (Just entries) ->
         e.view $
@@ -135,7 +136,7 @@ editorComponent e r =
             }
       Nothing -> M.div_ [] []
 
-    viewItem :: Model a f -> (a, Maybe UserId) -> EditorViewItem a f n
+    viewItem :: Model a patch f -> (a, Maybe UserId) -> EditorViewItem a patch f n
     viewItem m (item, user) =
       let editState =
             if isNothing e.editable.modify
@@ -155,7 +156,7 @@ editorComponent e r =
             if isNothing e.editable.delete
               then DeleteNotAvailable
               else Deletable
-          item' = fromMaybe item (Map.lookup item m.patches)
+          item' = fromMaybe def (Map.lookup item m.patches)
           refocusTarget = Just item == m.refocusTarget
           fieldData
             | editState == Editing =
