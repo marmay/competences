@@ -97,7 +97,7 @@ mkEvidenceFromTemplateEvaluation g t =
         , activityType = t.template.activityType
         , date = t.template.date
         , tasks = []
-        , oldTasks = Just oldTasksText
+        , oldTasks = oldTasksText
         , observations = Ix.fromList observations
         }
 

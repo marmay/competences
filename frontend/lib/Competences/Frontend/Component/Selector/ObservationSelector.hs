@@ -31,7 +31,7 @@ import Competences.Document.Order (formatOrderNumber)
 import Competences.Frontend.Common (onClick')
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
-import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
+import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens, SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentRef
@@ -41,6 +41,7 @@ import Competences.Frontend.SyncDocument
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
+import Data.Default (Default)
 import Data.Kind (Type)
 import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
@@ -505,15 +506,15 @@ observationSelectorComponent r evidenceId style lens =
       ]
 
 observationEditorField
-  :: (Ord p)
+  :: (Ord p, Default patch)
   => SyncDocumentRef
   -> M.MisoString
   -> (p -> EvidenceId)
-  -> SelectorTransformedLens p [] Observation f t
-  -> EditorField p f'
-observationEditorField r key evidenceId lens =
+  -> EntityPatchTransformedLens p patch [] Observation f t
+  -> EditorField p patch f'
+observationEditorField r key evidenceId eptl =
   selectorEditorField
     key
-    lens
+    eptl
     (observationSelectorComponent r . evidenceId)
     (ObservationSelectorStyleDisabled, ObservationSelectorStyleEnabled)

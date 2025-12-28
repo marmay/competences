@@ -144,7 +144,7 @@ generateJWT (JWTSecret secret) user = do
         , JWT.unregisteredClaims = JWT.ClaimsMap $ Map.fromList
             [ ("name", String user.name)
             , ("role", String $ T.pack $ show user.role)
-            , ("o365Id", maybe Null (String . (\(Office365Id oid) -> oid)) user.office365Id)
+            , ("o365Id", let Office365Id oid = user.office365Id in String oid)
             ]
         }
 
@@ -159,7 +159,7 @@ validateJWT (JWTSecret secret) token =
     Just jwt -> Right $ JWT.claims jwt
 
 -- | Extract user information from validated JWT claims
-extractUserFromJWT :: JWT.JWTClaimsSet -> Either String (UserId, Text, UserRole, Maybe Office365Id)
+extractUserFromJWT :: JWT.JWTClaimsSet -> Either String (UserId, Text, UserRole, Office365Id)
 extractUserFromJWT claims = do
   -- Extract subject (user ID)
   subText <- case JWT.sub claims of
@@ -184,9 +184,9 @@ extractUserFromJWT claims = do
     _ -> Left "Missing or invalid role in JWT"
 
   o365Id <- case Map.lookup "o365Id" customClaims of
-    Just (String oid) | not (T.null oid) -> Right $ Just $ Office365Id oid
-    Just Null -> Right Nothing
-    Nothing -> Right Nothing
+    Just (String oid) -> Right $ Office365Id oid
+    Just Null -> Right $ Office365Id ""
+    Nothing -> Right $ Office365Id ""
     _ -> Left "Invalid o365Id in JWT"
 
   pure (userId, name, role, o365Id)

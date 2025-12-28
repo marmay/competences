@@ -45,7 +45,7 @@ wsHandler state jwtSecret pending = do
         handleClient state userId user conn
 
 -- | Extract and validate user from WebSocket request
-extractUserFromRequest :: JWTSecret -> WS.PendingConnection -> Either String (UserId, Text, UserRole, Maybe Office365Id)
+extractUserFromRequest :: JWTSecret -> WS.PendingConnection -> Either String (UserId, Text, UserRole, Office365Id)
 extractUserFromRequest jwtSecret pending = do
   -- Extract JWT from request path (query parameter)
   let path = WS.requestPath $ WS.pendingRequest pending

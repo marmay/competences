@@ -3,7 +3,7 @@ module Competences.Frontend.Component.UserListEditor
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), UsersCommand (..), UserPatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.User (Office365Id (..))
@@ -16,7 +16,6 @@ import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -26,20 +25,18 @@ data Action
   = NewUser
   deriving (Eq, Generic, Show)
 
--- | Iso for converting between Maybe Office365Id and MisoString
-office365IdIso :: Iso' (Maybe Office365Id) M.MisoString
-office365IdIso = iso toMiso fromMiso
-  where
-    toMiso :: Maybe Office365Id -> M.MisoString
-    toMiso (Just (Office365Id email)) = M.ms email
-    toMiso Nothing = ""
+-- | Iso for converting between Office365Id and Text
+office365IdIso :: Iso' Office365Id Text
+office365IdIso = iso (\(Office365Id t) -> t) Office365Id
 
-    fromMiso :: M.MisoString -> Maybe Office365Id
-    fromMiso s =
-      let email = M.fromMisoString s
-       in if T.null email
-            then Nothing
-            else Just (Office365Id email)
+-- | Iso for converting Change Office365Id to Change Text
+office365IdChangeIso :: Iso' (Maybe (Office365Id, Office365Id)) (Maybe (Text, Text))
+office365IdChangeIso = iso toText fromText
+  where
+    toText Nothing = Nothing
+    toText (Just (Office365Id a, Office365Id b)) = Just (a, b)
+    fromText Nothing = Nothing
+    fromText (Just (a, b)) = Just (Office365Id a, Office365Id b)
 
 userListEditorComponent :: SyncDocumentRef -> StaticComponent p Action
 userListEditorComponent r =
@@ -53,10 +50,10 @@ userListEditorComponent r =
               { id = userId
               , name = ""
               , role = Student
-              , office365Id = Nothing
+              , office365Id = Office365Id ""
               }
-      modifySyncDocument r (OnUsers $ Create user)
-      modifySyncDocument r (OnUsers $ Modify userId Lock)
+      modifySyncDocument r (Users $ OnUsers $ Create user)
+      modifySyncDocument r (Users $ OnUsers $ Modify userId Lock)
 
     view :: StaticView Action
     view =
@@ -68,15 +65,15 @@ userListEditorComponent r =
                     (\u -> (u, (d ^. #locks) Map.!? UserLock u.id))
                     (Ix.toAscList (Proxy @Text) (d ^. #users))
               )
-              & (#modify ?~ \u m -> OnUsers $ Modify u.id m)
-              & (#delete ?~ \u -> OnUsers $ Delete u.id)
+              & (#modify ?~ \u m -> Users $ OnUsers $ Modify u.id m)
+              & (#delete ?~ \u -> Users $ OnUsers $ Delete u.id)
           usersEditor =
             TE.editor
               TE.editorTableRowView'
               usersEditable
-              `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField (#name % TE.msIso))
-              `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role)
-              `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso))
+              `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField #name #name)
+              `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
+              `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
           users = M.div_ [] M.+> TE.editorComponent usersEditor r
           addButton = V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
        in V.viewFlow

@@ -78,6 +78,7 @@ library
         bytestring,
         competences-common,
         containers,
+        data-default,
         extra,
         jsaddle,
         miso >= 1.9.0,

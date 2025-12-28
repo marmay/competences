@@ -3,7 +3,7 @@ module Competences.Frontend.Component.EvidenceEditor
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..), EvidencePatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.IxSet qualified as IxSet
 import Competences.Document
@@ -17,7 +17,7 @@ import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
-import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
+import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
@@ -25,12 +25,10 @@ import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
-import Optics.Core qualified as O
-import qualified Competences.Frontend.View.Tailwind as T
+import qualified Competences.Frontend.View.Tailwind as TW
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -48,8 +46,8 @@ evidenceEditorComponent r =
 
     view m =
       V.sideMenu
-        (V.componentA "evidence-editor-selection" [T.tailwind [T.HFull]] (evidenceSelectorComponent r #evidence))
-        (V.componentA evidenceEditorId [T.tailwind [T.HFull]] (TE.editorComponent evidenceEditor r))
+        (V.componentA "evidence-editor-selection" [TW.tailwind [TW.HFull]] (evidenceSelectorComponent r #evidence))
+        (V.componentA evidenceEditorId [TW.tailwind [TW.HFull]] (TE.editorComponent evidenceEditor r))
       where
         evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
         evidenceEditable =
@@ -60,8 +58,8 @@ evidenceEditorComponent r =
                   (\c -> (c, (d ^. #locks) Map.!? EvidenceLock c.id))
                   (Ix.getOne $ d.evidences Ix.@= e.id)
             )
-            & (#modify ?~ (\e modify -> OnEvidences (Modify e.id modify)))
-            & (#delete ?~ (\e -> OnEvidences (Delete e.id)))
+            & (#modify ?~ (\e modify -> Evidences $ OnEvidences (Modify e.id modify)))
+            & (#delete ?~ (\e -> Evidences $ OnEvidences (Delete e.id)))
         evidenceEditor =
           TE.editor
             ( TE.editorFormView'
@@ -70,11 +68,12 @@ evidenceEditorComponent r =
             )
             evidenceEditable
             `TE.addNamedField` ( C.translate' C.LblEvidenceDate
-                               , TE.dayEditorField #date
+                               , TE.dayEditorField #date #date
                                )
             `TE.addNamedField` ( C.translate' C.LblActivityType
                                , TE.enumEditorField
                                    (C.translate' . C.LblActivityTypeDescription)
+                                   #activityType
                                    #activityType
                                )
             `TE.addNamedField` ( C.translate' C.LblStudents
@@ -82,19 +81,15 @@ evidenceEditorComponent r =
                                    r
                                    (evidenceEditorId <> "-users")
                                    isStudent
-                                   (selectorTransformedLens (.id) Set.fromList #userIds)
+                                   (entityPatchTransformedLens #userIds #userIds (.id) Set.fromList)
                                )
-            `TE.addNamedField` ( "Legacy Tasks (read-only)"  -- TODO: Better label from translation
-                               , TE.textEditorField (#oldTasks O.% oldTasksIso)
+            `TE.addNamedField` ( "Legacy Tasks"
+                               , TE.textEditorField #oldTasks #oldTasks
                                )
             `TE.addNamedField` ( C.translate' C.LblActivityObservations
                                , TE.observationEditorField
                                    r
                                    (evidenceEditorId <> "-observations")
                                    (.id)
-                                   (selectorTransformedLens id IxSet.fromList #observations)
+                                   (entityPatchTransformedLens #observations #observations id IxSet.fromList)
                                )
-        oldTasksIso :: O.Iso' (Maybe Text) M.MisoString
-        oldTasksIso = O.iso
-          (\mt -> maybe "" M.ms mt)
-          (\ms -> let t = M.fromMisoString ms :: Text in if t == "" then Nothing else Just t)

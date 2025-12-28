@@ -21,9 +21,9 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (.~))
 
-data EditorViewData a f n = EditorViewData
+data EditorViewData a patch f n = EditorViewData
   { fields :: ![n]
-  , items :: !(f (EditorViewItem a f n))
+  , items :: !(f (EditorViewItem a patch f n))
   }
   deriving (Generic)
 
@@ -46,21 +46,21 @@ data MoveState
   | PotentialMoveTarget
   deriving (Eq, Show)
 
-data EditorViewItem a f n = EditorViewItem
+data EditorViewItem a patch f n = EditorViewItem
   { item :: !a
-  , fieldData :: ![(n, M.View (Model a f) (Action a))]
+  , fieldData :: ![(n, M.View (Model a patch f) (Action a patch))]
   , editState :: !EditState
   , deleteState :: !DeleteState
   , moveState :: !MoveState
   }
   deriving (Generic)
 
-type EditorView a f n = EditorViewData a f n -> M.View (Model a f) (Action a)
+type EditorView a patch f n = EditorViewData a patch f n -> M.View (Model a patch f) (Action a patch)
 
-compactButtons :: EditorViewItem a f n -> [M.View (Model a f) (Action a)]
+compactButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 compactButtons = buttons Compact
 
-extendedButtons :: EditorViewItem a f n -> [M.View (Model a f) (Action a)]
+extendedButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 extendedButtons = buttons Extended
 
 data ViewButtonStyle
@@ -68,7 +68,7 @@ data ViewButtonStyle
   | Extended
   deriving (Eq, Show)
 
-buttons :: ViewButtonStyle -> EditorViewItem a f n -> [M.View (Model a f) (Action a)]
+buttons :: ViewButtonStyle -> EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 buttons s item =
   case (item.editState, item.moveState, item.deleteState) of
     (_, MoveSource, _) ->
@@ -101,7 +101,7 @@ editButton
   , moveAfterButton
   , moveToTopButton
   , moveToBottomButton
-    :: ViewButtonStyle -> a -> V.Button () (Action a)
+    :: ViewButtonStyle -> a -> V.Button () (Action a patch)
 editButton s a = V.contentsButton (mkContents s V.IcnEdit C.LblEdit) () (StartEditing a)
 finishEditButton s a = V.contentsButton (mkContents s V.IcnApply C.LblApply) () (FinishEditing a)
 cancelEditButton s a = V.contentsButton (mkContents s V.IcnCancel C.LblCancel) () (CancelEditing a)

@@ -37,8 +37,8 @@ data User = User
   -- ^ Display name of the user.
   , role :: !UserRole
   -- ^ User's role (Teacher or Student).
-  , office365Id :: !(Maybe Office365Id)
-  -- ^ Office365 user ID for authentication. Nothing for local/test users.
+  , office365Id :: !Office365Id
+  -- ^ Office365 user ID for authentication. Empty string for local/test users.
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -48,7 +48,7 @@ isStudent = (== Student) . (.role)
 isTeacher :: User -> Bool
 isTeacher = (== Teacher) . (.role)
 
-type UserIxs = '[UserId, Text, UserRole, Maybe Office365Id]
+type UserIxs = '[UserId, Text, UserRole, Office365Id]
 
 instance Ix.Indexable UserIxs User where
   indices =

@@ -3,7 +3,7 @@ module Competences.Frontend.Component.Selector.EvidenceSelector
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..), UserId)
 import Competences.Document.Evidence
@@ -81,8 +81,8 @@ evidenceSelectorComponent r parentLens =
       evidenceId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let evidence = mkEvidence evidenceId today
-      modifySyncDocument r (OnEvidences $ Create evidence)
-      modifySyncDocument r (OnEvidences $ Modify evidenceId Lock)
+      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Create evidence)
+      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Modify evidenceId Cmd.Lock)
       s (SelectEvidence evidence)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
 
@@ -161,8 +161,7 @@ evidenceSelectorComponent r parentLens =
             ]
         viewDate d = V.text_ (C.formatDay d)
         viewActivityType = C.translate' . C.LblActivityTypeDescription
-        viewOldTasks (Just t) = M.ms t
-        viewOldTasks Nothing = ""
+        viewOldTasks t = M.ms t
         viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
         commaSeparated :: [M.MisoString] -> M.MisoString
         commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)

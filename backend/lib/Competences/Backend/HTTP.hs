@@ -118,7 +118,7 @@ findUserByEmail :: AppState -> Text -> IO (Maybe User)
 findUserByEmail state email = do
   doc <- getDocument state
   let o365Id = Office365Id email
-  pure $ Ix.getOne $ doc.users Ix.@= (Just o365Id)
+  pure $ Ix.getOne $ doc.users Ix.@= o365Id
 
 -- | Render frontend HTML with JWT embedded
 renderFrontendHTML :: Text -> Html
