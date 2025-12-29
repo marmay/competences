@@ -1,6 +1,5 @@
 module Main where
 
-import Competences.Backend.Auth (JWTSecret (..), OAuth2Config (..))
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HTTP (appAPI, server)
@@ -11,7 +10,7 @@ import Competences.Document (Document)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User qualified
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
 import Control.Concurrent.STM (atomically, readTVar, writeTVar)
 import Control.Exception (finally)
 import Control.Monad (when)
