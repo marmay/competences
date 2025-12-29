@@ -46,7 +46,7 @@ import Competences.Document.User (UserId)
 import Data.Aeson (Value, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
-import Data.Pool (Pool, createPool, destroyAllResources, withResource)
+import Data.Pool (Pool, newPool, defaultPoolConfig, setNumStripes, destroyAllResources, withResource)
 import Data.Text (Text)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
@@ -74,7 +74,14 @@ expectedSchemaVersion = 1
 -- - 60 second idle timeout
 -- - 3 max connections (enough for command writes, snapshot writes, and reads)
 initPool :: ByteString -> IO (Pool Connection)
-initPool connStr = createPool (connectPostgreSQL connStr) close 1 60 3
+initPool connStr =
+  newPool $
+    setNumStripes (Just 1) $
+      defaultPoolConfig
+        (connectPostgreSQL connStr)
+        close
+        60 -- idle timeout in seconds
+        3 -- max resources per stripe
 
 -- | Close connection pool
 closePool :: Pool Connection -> IO ()

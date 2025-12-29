@@ -14,17 +14,13 @@ import Competences.Backend.State
   , unregisterClient
   , updateDocument
   )
-import Competences.Command (Command)
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Document (User (..), UserId, UserRole (..), projectDocument)
-import Competences.Document.Id (nilId)
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerMessage (..))
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Exception (SomeException, catch, finally)
-import Control.Monad (forever, void)
+import Control.Exception (finally)
+import Control.Monad (forever)
 import Data.Aeson (decode, encode)
-import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
@@ -102,7 +98,7 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
           Left err -> do
             putStrLn $ "Command rejected: " <> T.unpack err
             WS.sendTextData conn (encode $ CommandRejected cmd err)
-          Right (doc, AffectedUsers affected) -> do
+          Right (_, AffectedUsers affected) -> do
             putStrLn $ "Command applied, broadcasting to " <> show (length affected) <> " users"
             -- Broadcast to all affected users (including sender)
             -- Note: Command is already persisted to database in updateDocument

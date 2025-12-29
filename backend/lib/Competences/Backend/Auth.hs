@@ -15,18 +15,16 @@ import Competences.Document (User (..), UserId)
 import Competences.Document.Id (Id (..), mkId)
 import Competences.Document.User (Office365Id (..), UserRole (..))
 import Data.UUID.Types qualified as UUID
-import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), eitherDecode, object, withObject, (.:), (.=))
+import Data.Aeson (FromJSON (..), Value (..), eitherDecode, withObject, (.:))
 import Data.Aeson.KeyMap qualified as KM
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy qualified as BL
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
+import Data.Text.Encoding (encodeUtf8)
+import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import GHC.Generics (Generic)
-import Network.HTTP.Client (Manager, Request, RequestBody (..), httpLbs, method, parseRequest, requestBody, requestHeaders, responseBody)
+import Network.HTTP.Client (RequestBody (..), httpLbs, method, parseRequest, requestBody, requestHeaders, responseBody)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types (hContentType)
 import Web.JWT qualified as JWT
