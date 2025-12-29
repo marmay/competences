@@ -14,9 +14,16 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Frontend.Component.Selector.MultiStageSelector
   ( HList (..)
   , IncrementalParserSpec (..)
-  , StageInfo (..)
-  , hListPop
-  , hListPush
+  , Input (..)
+  , Pipeline (..)
+  , RuntimeState
+  , getCurrentInput
+  , getCurrentSuggestions
+  , handleKeyboardInput
+  , initialize
+  , makeSuggestions'
+  , mapKeyCode
+  , matchingInput
   )
 import Competences.Document
   ( Competence (..)
@@ -36,6 +43,7 @@ import Competences.Document.Evidence
   , abilities
   , socialForms
   )
+import Competences.Document.Evidence qualified as Evidence
 import Competences.Document.Order (formatOrderNumber)
 import Competences.Frontend.Common (onClick')
 import Competences.Frontend.Common qualified as C
@@ -51,123 +59,29 @@ import Competences.Frontend.SyncDocument
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Default (Default)
-import Data.Kind (Type)
 import Data.List (delete, intercalate)
-import Data.List.Extra (isInfixOf)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((%~), (&), (.~), (?~))
+import Optics.Core ((%~), (&), (.~))
 
-data State
-  = SelectingCompetenceGrid !(StageInfo '[] CompetenceGrid)
-  | SelectingCompetence !(StageInfo '[CompetenceGrid] Competence)
-  | SelectingCompetenceLevel !(StageInfo '[Competence, CompetenceGrid] Level)
-  | SelectingSocialForm !(StageInfo '[Level, Competence, CompetenceGrid] SocialForm)
-  | SelectingAbility !(StageInfo '[SocialForm, Level, Competence, CompetenceGrid] Ability)
-  deriving (Eq, Show)
-
-data Input
-  = InputKey MappedKeyCode
-  | InputRefresh
-
-data MappedKeyCode
-  = MEnter
-  | MBackspace
-  | MPeriod
-  | MChar Char
-  deriving (Eq, Show)
-
-mapKeyCode :: M.KeyCode -> Maybe MappedKeyCode
-mapKeyCode (M.KeyCode c)
-  | c == 13 = Just MEnter
-  | c == 8 = Just MBackspace
-  | c == 190 = Just MPeriod
-  | c == 48 = Just $ MChar '0'
-  | c == 49 = Just $ MChar '1'
-  | c == 50 = Just $ MChar '2'
-  | c == 51 = Just $ MChar '3'
-  | c == 52 = Just $ MChar '4'
-  | c == 53 = Just $ MChar '5'
-  | c == 54 = Just $ MChar '6'
-  | c == 55 = Just $ MChar '7'
-  | c == 56 = Just $ MChar '8'
-  | c == 57 = Just $ MChar '9'
-  | otherwise = Nothing
-
-data HandleInputResult
-  = HandleInputUpdate State
-  | HandleInputFinished (HList '[Ability, SocialForm, Level, Competence, CompetenceGrid])
-  | HandleInputError M.MisoString
-
-handleInput :: Document -> Input -> State -> HandleInputResult
-handleInput doc input (SelectingCompetenceGrid i) =
-  case handleInput' doc input competenceGridP i of
-    StateUpdatePop -> HandleInputUpdate $ SelectingCompetenceGrid $ initStageInfo i.currentContext competenceGridP doc
-    StateUpdatePush c ->
-      HandleInputUpdate $
-        SelectingCompetence $
-          initStageInfo (hListPush c i.currentContext) (competenceP c) doc
-    StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetenceGrid i'
-    StateUpdateError e -> HandleInputError e
-handleInput doc input (SelectingCompetence i@StageInfo {currentContext = competenceGrid `HCons` _}) =
-  case handleInput' doc input (competenceP competenceGrid) i of
-    StateUpdatePop ->
-      HandleInputUpdate $
-        SelectingCompetenceGrid $
-          initStageInfo (hListPop i.currentContext) competenceGridP doc
-    StateUpdatePush c ->
-      HandleInputUpdate $
-        SelectingCompetenceLevel $
-          initStageInfo (hListPush c i.currentContext) (levelP c) doc
-    StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetence i'
-    StateUpdateError e -> HandleInputError e
-handleInput doc input (SelectingCompetenceLevel i@StageInfo {currentContext = competence `HCons` competenceGrid `HCons` _}) =
-  case handleInput' doc input (levelP competence) i of
-    StateUpdatePop ->
-      HandleInputUpdate $
-        SelectingCompetence $
-          initStageInfo (hListPop i.currentContext) (competenceP competenceGrid) doc
-    StateUpdatePush l ->
-      HandleInputUpdate $ SelectingSocialForm $ initStageInfo (hListPush l i.currentContext) socialFormP doc
-    StateUpdateUpdate i' -> HandleInputUpdate $ SelectingCompetenceLevel i'
-    StateUpdateError e -> HandleInputError e
-handleInput doc input (SelectingSocialForm i@StageInfo {currentContext = _ `HCons` competence `HCons` _}) =
-  case handleInput' doc input socialFormP i of
-    StateUpdatePop ->
-      HandleInputUpdate $
-        SelectingCompetenceLevel $
-          initStageInfo (hListPop i.currentContext) (levelP competence) doc
-    StateUpdatePush s -> HandleInputUpdate $ SelectingAbility $ initStageInfo (hListPush s i.currentContext) abilityP doc
-    StateUpdateUpdate i' -> HandleInputUpdate $ SelectingSocialForm i'
-    StateUpdateError e -> HandleInputError e
-handleInput doc input (SelectingAbility i) =
-  case handleInput' doc input abilityP i of
-    StateUpdatePop ->
-      HandleInputUpdate $ SelectingSocialForm $ initStageInfo (hListPop i.currentContext) socialFormP doc
-    StateUpdatePush a -> HandleInputFinished $ hListPush a i.currentContext
-    StateUpdateUpdate i' -> HandleInputUpdate $ SelectingAbility i'
-    StateUpdateError e -> HandleInputError e
-
-data StateUpdateResult (ctx :: [Type]) a
-  = StateUpdatePop
-  | StateUpdatePush a
-  | StateUpdateUpdate (StageInfo ctx a)
-  | StateUpdateError M.MisoString
-
-deriving instance (Eq (HList ctx), Eq a) => Eq (StateUpdateResult ctx a)
-deriving instance (Show (HList ctx), Show a) => Show (StateUpdateResult ctx a)
-
-matchingInput :: String -> [(String, M.MisoString, a)] -> [(String, M.MisoString, a)]
-matchingInput s cs = filter (\(k, _, _) -> s `isInfixOf` k) cs
-
-makeSuggestions'
-  :: String -> (a -> String) -> (a -> M.MisoString) -> [a] -> [(String, M.MisoString, a)]
-makeSuggestions' s toKey toDescription as =
-  matchingInput s (map (\a -> let key = toKey a in (key, M.ms key <> ": " <> toDescription a, a)) as)
+-- | The observation pipeline: 5 stages leading to an Observation
+observationPipeline :: Pipeline '[] CompetenceGrid Observation
+observationPipeline =
+  Stage competenceGridP $ \HNil cg ->
+    Stage (competenceP cg) $ \(HCons _cg' HNil) c ->
+      Stage (levelP c) $ \(HCons _c' (HCons _cg'' HNil)) l ->
+        Stage socialFormP $ \(HCons _l' (HCons _c'' (HCons _cg''' HNil))) sf ->
+          Done abilityP $ \(HCons _sf' (HCons _l'' (HCons c''' (HCons _cg'''' HNil)))) a ->
+            Observation
+              { id = error "ID will be set after selection"
+              , competenceLevelId = (c'''.id, l)
+              , socialForm = sf
+              , ability = a
+              }
 
 competenceGridP :: IncrementalParserSpec CompetenceGrid
 competenceGridP = IncrementalParserSpec {makeSuggestions, reconstructInput}
@@ -239,45 +153,14 @@ abilityP = IncrementalParserSpec {makeSuggestions, reconstructInput}
     reconstructInput WithSupport = "3"
     reconstructInput NotYet = "4"
 
-initStageInfo :: HList ctx -> IncrementalParserSpec a -> Document -> StageInfo ctx a
-initStageInfo ctx s doc = StageInfo ctx "" (s.makeSuggestions doc "")
-
-handleInput'
-  :: Document
-  -> Input
-  -> IncrementalParserSpec a
-  -> StageInfo ctx a
-  -> StateUpdateResult ctx a
-handleInput' doc InputRefresh spec (StageInfo c s _) =
-  StateUpdateUpdate (StageInfo c s (spec.makeSuggestions doc s))
-handleInput' doc (InputKey k) spec (StageInfo c s suggestions) =
-  case k of
-    MEnter -> StateUpdateError (C.translate' C.LblPleaseCompleteObservation)
-    MBackspace ->
-      if s == ""
-        then StateUpdatePop
-        else
-          let s' = init s
-           in StateUpdateUpdate (StageInfo c s' (spec.makeSuggestions doc s'))
-    MPeriod ->
-      case suggestions of
-        (_, _, r) : _ -> StateUpdatePush r
-        _ -> StateUpdateError (C.translate' C.LblNoMatchingAlternatives)
-    MChar char ->
-      let s' = s <> [char]
-          suggestions' = spec.makeSuggestions doc s'
-       in case suggestions' of
-            [] -> StateUpdateError (C.translate' C.LblNoMatchingAlternatives)
-            _ -> StateUpdateUpdate (StageInfo c s' suggestions')
-
 data Model = Model
   { document :: Document
   , observations :: ![Observation]
   , tooltipFor :: !(Maybe Observation)
-  , state :: !State
+  , runtimeState :: !(RuntimeState Observation)
   , error :: !(Maybe M.MisoString)
   }
-  deriving (Eq, Generic, Show)
+  deriving (Eq, Generic)
 
 data Action
   = UpdateDocument !DocumentChange
@@ -310,8 +193,7 @@ observationSelectorComponent r evidenceId style lens =
         { document = emptyDocument
         , observations = []
         , tooltipFor = Nothing
-        , state =
-            SelectingCompetenceGrid $ initStageInfo HNil competenceGridP emptyDocument
+        , runtimeState = initialize observationPipeline emptyDocument
         , error = Nothing
         }
 
@@ -337,29 +219,26 @@ observationSelectorComponent r evidenceId style lens =
 
     update' :: Input -> M.Effect p Model Action
     update' input = do
-      Model {document = doc, state} <- M.get
-      case handleInput doc input state of
-        HandleInputUpdate s -> M.modify $ \m -> m & (#state .~ s) & (#error .~ Nothing)
-        HandleInputFinished
-          (ability `HCons` socialForm `HCons` level `HCons` competence `HCons` _competenceGrid' `HCons` HNil) -> do
-            M.withSink $ \sink -> do
-              observationId <- nextId r
-              sink $
-                AddObservation $
-                  Observation {id = observationId, competenceLevelId = (competence.id, level), socialForm, ability}
-            M.modify $ \m ->
-              m
-                & (#state .~ SelectingCompetenceGrid (initStageInfo HNil competenceGridP doc))
-                & (#error .~ Nothing)
-        HandleInputError e ->
-          M.modify (#error ?~ e)
+      Model {document = doc, runtimeState} <- M.get
+      case handleKeyboardInput (C.translate' C.LblPleaseCompleteObservation) doc input runtimeState of
+        Left observation -> do
+          -- Finished: observation selected
+          M.withSink $ \sink -> do
+            observationId <- nextId r
+            sink $ AddObservation $ Evidence.Observation {Evidence.id = observationId, Evidence.competenceLevelId = observation.competenceLevelId, Evidence.socialForm = observation.socialForm, Evidence.ability = observation.ability}
+          M.modify $ \m ->
+            m
+              & (#runtimeState .~ initialize observationPipeline doc)
+              & (#error .~ Nothing)
+        Right (newState, maybeError) ->
+          M.modify $ \m -> m & (#runtimeState .~ newState) & (#error .~ maybeError)
 
     view m =
       V.viewFlow
         (V.vFlow & #expandOrthogonal .~ V.Expand V.Center)
         ( [viewSelectedObservations m]
             <> ( if style == ObservationSelectorStyleEnabled
-                   then [viewCurrentInput m.state, viewCurrentSuggestions m.state]
+                   then [viewCurrentInput m, viewCurrentSuggestions m.runtimeState]
                    else []
                )
         )
@@ -420,7 +299,7 @@ observationSelectorComponent r evidenceId style lens =
                 ">"
                   <> intercalate
                     "."
-                    (viewContext m <> viewCurrentInput' m)
+                    (viewObservationContext m.runtimeState <> [getCurrentInput m.runtimeState])
                   <> "▁"
             )
         ]
@@ -429,42 +308,13 @@ observationSelectorComponent r evidenceId style lens =
       M.div_ [T.tailwind [T.TooltipBox, T.TextSm, T.H96, T.W96, T.OverflowYScroll]] $
         map
           (\v -> V.viewFlow (V.vFlow & (#gap .~ V.SmallSpace)) [M.text_ [M.ms v]])
-          (viewCurrentSuggestions' state)
+          (getCurrentSuggestions state)
 
-    onStageInfo :: (forall p a. StageInfo p a -> b) -> State -> b
-    onStageInfo f (SelectingCompetenceGrid s) = f s
-    onStageInfo f (SelectingCompetence s) = f s
-    onStageInfo f (SelectingCompetenceLevel s) = f s
-    onStageInfo f (SelectingSocialForm s) = f s
-    onStageInfo f (SelectingAbility s) = f s
-
-    viewCurrentInput' = onStageInfo (\s -> [s.currentInput])
-    viewCurrentSuggestions' = onStageInfo (\s -> map (\(_, d, _) -> d) s.currentSuggestions)
-
-    viewContext (SelectingCompetenceGrid _) = []
-    viewContext (SelectingCompetence StageInfo {currentContext = competenceGrid `HCons` HNil}) =
-      [competenceGridP.reconstructInput competenceGrid]
-    viewContext (SelectingCompetenceLevel StageInfo {currentContext = competence `HCons` competenceGrid `HCons` HNil}) =
-      [ competenceGridP.reconstructInput competenceGrid
-      , (competenceP competenceGrid).reconstructInput competence
-      ]
-    viewContext ( SelectingSocialForm
-                    StageInfo {currentContext = level `HCons` competence `HCons` competenceGrid `HCons` HNil}
-                  ) =
-      [ competenceGridP.reconstructInput competenceGrid
-      , (competenceP competenceGrid).reconstructInput competence
-      , (levelP competence).reconstructInput level
-      ]
-    viewContext ( SelectingAbility
-                    StageInfo
-                      { currentContext = socialForm `HCons` level `HCons` competence `HCons` competenceGrid `HCons` HNil
-                      }
-                  ) =
-      [ competenceGridP.reconstructInput competenceGrid
-      , (competenceP competenceGrid).reconstructInput competence
-      , (levelP competence).reconstructInput level
-      , socialFormP.reconstructInput socialForm
-      ]
+    -- Reconstruct context breadcrumb for observation pipeline
+    -- TODO: This currently returns empty list. We need to track breadcrumb separately
+    -- or find a way to extract typed values from the existential context.
+    viewObservationContext :: RuntimeState Observation -> [String]
+    viewObservationContext _state = []
 
 observationEditorField
   :: (Ord p, Default patch)
