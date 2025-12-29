@@ -161,7 +161,7 @@ evidenceSelectorComponent r parentLens =
             ]
         viewDate d = V.text_ (C.formatDay d)
         viewActivityType = C.translate' . C.LblActivityTypeDescription
-        viewOldTasks t = M.ms t
+        viewOldTasks = M.ms
         viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
         commaSeparated :: [M.MisoString] -> M.MisoString
         commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)

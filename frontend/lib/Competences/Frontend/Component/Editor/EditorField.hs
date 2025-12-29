@@ -14,7 +14,11 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
-import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens, selectorTransformedLens)
+import Competences.Frontend.Component.Selector.Common
+  ( EntityPatchTransformedLens (..)
+  , SelectorTransformedLens
+  , selectorTransformedLens
+  )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Default (Default (..))
@@ -25,7 +29,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
-import Optics.Core (Lens', lens, (&), (.~), (^.), (?~), (%), at)
+import Optics.Core (Lens', at, lens, (%), (&), (?~), (^.))
 import Optics.Core qualified as O
 
 data EditorField a patch f = EditorField
@@ -56,17 +60,16 @@ mkFieldLens
   => Lens' a field
   -> Lens' patch (Change field)
   -> (a -> Lens' (Model a patch f) field)
-mkFieldLens viewLens patchLens = \original ->
-  let
-    getter model =
-      case Map.lookup original (model ^. #patches) of
-        Nothing -> original ^. viewLens -- No patch yet, use original value
-        Just patch -> currentValue original patch viewLens patchLens
-    setter model newValue =
-      let oldPatch = Map.findWithDefault def original (model ^. #patches)
-          newPatch = oldPatch & patchLens .~ Just (original ^. viewLens, newValue)
-       in model & #patches % at original ?~ newPatch
-  in lens getter setter
+mkFieldLens viewLens patchLens original =
+  let getter model =
+        case Map.lookup original (model ^. #patches) of
+          Nothing -> original ^. viewLens -- No patch yet, use original value
+          Just patch -> currentValue original patch viewLens patchLens
+      setter model newValue =
+        let oldPatch = Map.findWithDefault def original (model ^. #patches)
+            newPatch = oldPatch & patchLens ?~ (original ^. viewLens, newValue)
+         in model & #patches % at original ?~ newPatch
+   in lens getter setter
 
 textEditorField :: Lens' a Text -> Lens' patch (Change Text) -> EditorField a patch f
 textEditorField viewLens patchLens =
@@ -78,11 +81,18 @@ textEditorField viewLens patchLens =
 textViewer :: Lens' a Text -> a -> M.View (Model a patch f) (Action a patch)
 textViewer viewLens a = V.text_ (M.ms $ a ^. viewLens)
 
-textEditor :: Lens' a Text -> Lens' patch (Change Text) -> Bool -> a -> patch -> M.View (Model a patch f) (Action a patch)
+textEditor
+  :: Lens' a Text
+  -> Lens' patch (Change Text)
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
 textEditor viewLens patchLens refocusTarget original patch =
   M.input_ $
     [ T.tailwind [T.WFull]
-    , M.onChange (\v -> UpdatePatch original (patch & patchLens .~ Just (original ^. viewLens, M.fromMisoString v)))
+    , M.onChange
+        (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
     , M.value_ (M.ms $ currentValue original patch viewLens patchLens)
     ]
       <> refocusTargetAttr refocusTarget
@@ -97,19 +107,22 @@ selectorEditorField
    . (Eq cm, Ord a, Default patch)
   => M.MisoString
   -> EntityPatchTransformedLens a patch f b f' b'
-  -> (a -> s -> SelectorTransformedLens (Model a patch ef) f b f' b' -> M.Component (Model a patch ef) cm ca)
+  -> ( a
+       -> s
+       -> SelectorTransformedLens (Model a patch ef) f b f' b'
+       -> M.Component (Model a patch ef) cm ca
+     )
   -> (s, s)
   -> EditorField a patch ef
 selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
-  let
-    mkLens = mkFieldLens eptl.viewLens eptl.patchLens
-    l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
-  in EditorField
-    { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
-    , editor = \refocusTarget a _ ->
-         M.div_ (M.key_ (k <> "-editor") : refocusTargetAttr refocusTarget)
-           M.+> mkEditorComponent a editorStyle (l' a)
-    }
+  let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
+      l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
+   in EditorField
+        { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
+        , editor = \refocusTarget a _ ->
+            M.div_ (M.key_ (k <> "-editor") : refocusTargetAttr refocusTarget)
+              M.+> mkEditorComponent a editorStyle (l' a)
+        }
 
 dayEditorField :: Lens' a Day -> Lens' patch (Change Day) -> EditorField a patch f
 dayEditorField viewLens patchLens =
@@ -124,14 +137,20 @@ dayViewer viewLens a =
   where
     showTime day = M.toMisoString $ show day
 
-dayEditor :: Lens' a Day -> Lens' patch (Change Day) -> Bool -> a -> patch -> M.View (Model a patch f) (Action a patch)
+dayEditor
+  :: Lens' a Day
+  -> Lens' patch (Change Day)
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
 dayEditor viewLens patchLens refocusTarget original patch =
   M.input_ $
     [ M.type_ "date"
     , M.value_ (showTime $ currentValue original patch viewLens patchLens)
     , M.onChange
         ( \v -> case parseTime v of
-            Just v' -> UpdatePatch original (patch & patchLens .~ Just (original ^. viewLens, v'))
+            Just v' -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, v'))
             Nothing -> UpdatePatch original patch
         )
     ]
@@ -173,7 +192,7 @@ enumEditor toText viewLens patchLens refocusTarget original patch =
   M.select_
     ( [ M.onChange
           ( \v -> case enumParseMap Map.!? v of
-              Just v' -> UpdatePatch original (patch & patchLens .~ Just (original ^. viewLens, v'))
+              Just v' -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, v'))
               Nothing -> UpdatePatch original patch
           )
       , T.tailwind [T.WFull]
