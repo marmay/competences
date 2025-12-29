@@ -191,6 +191,50 @@ PostgreSQL with command sourcing + snapshots:
 
 See [docs/DATABASE.md](docs/DATABASE.md) for complete persistence details.
 
+### Task System
+
+The task system allows teachers to create and manage learning tasks with competence associations.
+
+**Core Types** (in `common/lib/Competences/Document/Task.hs`):
+- `Task` - Atomic work unit with identifier, content, and type (SelfContained or SubTask)
+- `TaskGroup` - Organizational unit for related tasks with shared defaults
+- `TaskAttributes` - Core attributes: primary/secondary competences, purpose, displayInResources
+- `TaskPurpose` - Practice (develops competence) vs Assessment (proves competence)
+
+**Commands** (in `common/lib/Competences/Command/Tasks.hs`):
+- `OnTasks` - Create/Delete/Modify self-contained tasks (uses TaskLock)
+- `OnTaskGroups` - Create/Delete/Modify task groups (uses TaskGroupLock)
+- `OnSubTasks` - Create/Delete/Modify subtasks (uses parent TaskGroupLock)
+
+**Frontend Components**:
+- `SelfContainedTaskEditor` - Edit standalone tasks (route: `/tasks`)
+  - Three fields: identifier (TaskIdentifier → Text), content (Maybe Text → Text), purpose (enum)
+  - Lens conversions handle newtype and nested structure transformations
+  - Teacher-only feature, accessible via navigation menu
+
+**Key Patterns**:
+```haskell
+-- Create a task
+let task = Task
+      { id = taskId
+      , identifier = TaskIdentifier "Book-1.2.3"
+      , content = Just "Solve equations..."
+      , taskType = SelfContained defaultTaskAttributes
+      }
+modifySyncDocument r $ Tasks (OnTasks (Create task))
+
+-- Edit task purpose (nested in TaskType → SelfContained → TaskAttributes)
+-- Uses custom lens to extract/update purpose from nested structure
+purposeViewLens :: Lens' Task TaskPurpose
+```
+
+**Gradual Migration**:
+- Evidence now has `tasks :: [TaskId]` field
+- Old text-based tasks preserved in `oldTasks :: Maybe Text`
+- Allows smooth transition from free-text to structured tasks
+
+See [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) and [docs/TASKS-IMPLEMENTATION-PLAN.md](docs/TASKS-IMPLEMENTATION-PLAN.md) for complete design and implementation details.
+
 ## Authentication Flow
 
 1. User visits `/` → Office365 login
