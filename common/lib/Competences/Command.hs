@@ -6,12 +6,14 @@ module Competences.Command
   , module Competences.Command.Competences
   , module Competences.Command.Users
   , module Competences.Command.Evidences
+  , module Competences.Command.Tasks
   )
 where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult, EntityCommand(..), ModifyCommand(..))
 import Competences.Command.Competences (CompetencesCommand (..), CompetenceGridPatch (..), CompetencePatch (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
+import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
 import Competences.Document (Document (..), User (..))
 import Competences.Document.Id (Id)
@@ -27,6 +29,7 @@ data Command
   | Competences !CompetencesCommand
   | Users !UsersCommand
   | Evidences !EvidencesCommand
+  | Tasks !TasksCommand
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -45,3 +48,4 @@ handleCommand userId cmd d = case cmd of
   Competences c -> handleCompetencesCommand userId c d
   Users c -> handleUsersCommand userId c d
   Evidences c -> handleEvidencesCommand userId c d
+  Tasks c -> handleTasksCommand userId c d

@@ -6,6 +6,7 @@ where
 import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (EvidenceId)
+import Competences.Document.Task (TaskId, TaskGroupId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Binary (Binary (..))
@@ -19,6 +20,8 @@ data Lock
   | CompetenceLock !CompetenceId
   | UserLock !UserId
   | EvidenceLock !EvidenceId
+  | TaskLock !TaskId
+  | TaskGroupLock !TaskGroupId
   deriving (Eq, Generic, Ord, Show)
 
 instance FromJSON Lock
