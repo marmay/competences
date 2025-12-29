@@ -17,6 +17,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector
   , Input (..)
   , Pipeline (..)
   , RuntimeState
+  , SelectorModel (..)
   , getCurrentInput
   , getCurrentSuggestions
   , handleKeyboardInput
@@ -63,7 +64,6 @@ import Data.List (delete, intercalate)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Proxy (Proxy (..))
-import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core ((%~), (&), (.~))
@@ -153,14 +153,8 @@ abilityP = IncrementalParserSpec {makeSuggestions, reconstructInput}
     reconstructInput WithSupport = "3"
     reconstructInput NotYet = "4"
 
-data Model = Model
-  { document :: Document
-  , observations :: ![Observation]
-  , tooltipFor :: !(Maybe Observation)
-  , runtimeState :: !(RuntimeState Observation)
-  , error :: !(Maybe M.MisoString)
-  }
-  deriving (Eq, Generic)
+-- Type aliases for the generic model and action specialized to Observation
+type Model = SelectorModel Observation
 
 data Action
   = UpdateDocument !DocumentChange
@@ -185,13 +179,13 @@ observationSelectorComponent r evidenceId style lens =
   (M.component model update view)
     { M.events = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
     , M.subs = [subscribeDocument r UpdateDocument]
-    , M.bindings = [mkSelectorBinding lens #observations]
+    , M.bindings = [mkSelectorBinding lens #selectedResults]
     }
   where
     model =
-      Model
+      SelectorModel
         { document = emptyDocument
-        , observations = []
+        , selectedResults = []
         , tooltipFor = Nothing
         , runtimeState = initialize observationPipeline emptyDocument
         , error = Nothing
@@ -207,19 +201,19 @@ observationSelectorComponent r evidenceId style lens =
       M.modify $ \m ->
         m
           & (#document .~ d)
-          & (#observations %~ observationUpdater)
+          & (#selectedResults %~ observationUpdater)
       update' InputRefresh
     update (HandleKeyPress c) =
       case mapKeyCode c.keyCode of
         Just k -> update' (InputKey k)
         Nothing -> pure ()
-    update (AddObservation o) = M.modify (#observations %~ (<> [o]))
-    update (DeleteObservation o) = M.modify (#observations %~ delete o)
+    update (AddObservation o) = M.modify (#selectedResults %~ (<> [o]))
+    update (DeleteObservation o) = M.modify (#selectedResults %~ delete o)
     update (TooltipFor o) = M.modify (#tooltipFor .~ o)
 
     update' :: Input -> M.Effect p Model Action
     update' input = do
-      Model {document = doc, runtimeState} <- M.get
+      SelectorModel {document = doc, runtimeState} <- M.get
       case handleKeyboardInput (C.translate' C.LblPleaseCompleteObservation) doc input runtimeState of
         Left observation -> do
           -- Finished: observation selected
@@ -244,7 +238,7 @@ observationSelectorComponent r evidenceId style lens =
         )
 
     viewSelectedObservations m =
-      M.div_ [] [V.viewFlow (V.hFlow & (#gap .~ V.SmallSpace)) (map (viewObservation m) m.observations)]
+      M.div_ [] [V.viewFlow (V.hFlow & (#gap .~ V.SmallSpace)) (map (viewObservation m) m.selectedResults)]
 
     viewObservation m observation =
       let (short, tooltip) =

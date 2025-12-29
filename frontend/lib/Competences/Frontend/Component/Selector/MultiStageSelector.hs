@@ -362,6 +362,8 @@ data SelectorModel result = SelectorModel
   }
   deriving (Generic)
 
+deriving instance Eq result => Eq (SelectorModel result)
+
 -- | Generic selector actions
 data SelectorAction result
   = SelectorUpdateDocument !Document
