@@ -10,6 +10,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
+import Competences.Frontend.Component.SelfContainedTaskEditor (selfContainedTaskEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.StatisticsViewer (statisticsViewerComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
@@ -79,6 +80,7 @@ mkApp r =
                   [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
                   , V.labelButton' C.LblEditCompetenceGrid (PushURI $ M.toURI EditCompetenceGrid)
                   , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
+                  , V.labelButton' C.LblSelfContainedTasks (PushURI $ M.toURI ManageTasks)
                   , V.labelButton' C.LblStatisticsOverview (PushURI $ M.toURI StatisticsOverview)
                   , V.labelButton' C.LblStatisticsIndividual (PushURI $ M.toURI StatisticsIndividual)
                   , V.labelButton' C.LblManageUsers (PushURI $ M.toURI ManageUsers)
@@ -97,6 +99,7 @@ mkApp r =
         ViewCompetenceGrid -> viewCompetenceGrid
         EditCompetenceGrid -> editCompetenceGrid
         Evidences -> evidences
+        ManageTasks -> manageTasks
         StatisticsOverview -> statisticsOverview
         StatisticsIndividual -> statisticsIndividual
         ManageUsers -> manageUsers
@@ -104,6 +107,7 @@ mkApp r =
     viewCompetenceGrid = mounted ViewCompetenceGrid $ competenceGridViewerComponent r
     editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
     evidences = mounted Evidences $ evidenceEditorComponent r
+    manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
@@ -119,6 +123,7 @@ data Page
   = ViewCompetenceGrid
   | EditCompetenceGrid
   | Evidences
+  | ManageTasks
   | StatisticsOverview
   | StatisticsIndividual
   | ManageUsers
@@ -130,6 +135,7 @@ instance M.Router Page where
       [ M.path "view-grid" $> ViewCompetenceGrid
       , M.path "edit-grid" $> EditCompetenceGrid
       , M.path "evidences" $> Evidences
+      , M.path "tasks" $> ManageTasks
       , M.path "statistics-overview" $> StatisticsOverview
       , M.path "statistics-individual" $> StatisticsIndividual
       , M.path "users" $> ManageUsers
@@ -137,6 +143,7 @@ instance M.Router Page where
   fromRoute ViewCompetenceGrid = [M.toPath "view-grid"]
   fromRoute EditCompetenceGrid = [M.toPath "edit-grid"]
   fromRoute Evidences = [M.toPath "evidences"]
+  fromRoute ManageTasks = [M.toPath "tasks"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
   fromRoute StatisticsIndividual = [M.toPath "statistics-individual"]
   fromRoute ManageUsers = [M.toPath "users"]

@@ -18,6 +18,7 @@ where
 
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
+import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
 import Data.ByteString.Lazy (readFile, writeFile)
@@ -119,6 +120,16 @@ data Label
   | LblStatisticsIndividual
   | LblTotalExercises
   | LblTotalObservations
+  | LblSelfContainedTasks
+  | LblNewTask
+  | LblFilterTasks
+  | LblTaskIdentifier
+  | LblTaskContent
+  | LblTaskPrimaryCompetences
+  | LblTaskSecondaryCompetences
+  | LblTaskPurposeLabel
+  | LblTaskDisplayInResources
+  | LblTaskPurpose !TaskPurpose
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -188,9 +199,19 @@ labels' =
   , LblStatisticsIndividual
   , LblTotalExercises
   , LblTotalObservations
+  , LblSelfContainedTasks
+  , LblNewTask
+  , LblFilterTasks
+  , LblTaskIdentifier
+  , LblTaskContent
+  , LblTaskPrimaryCompetences
+  , LblTaskSecondaryCompetences
+  , LblTaskPurposeLabel
+  , LblTaskDisplayInResources
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
+    <> map LblTaskPurpose taskPurposes
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -267,6 +288,17 @@ defaultTranslation LblStatisticsOverview = "Statistik-Überblick"
 defaultTranslation LblStatisticsIndividual = "Meine Statistik"
 defaultTranslation LblTotalExercises = "Gesamtanzahl Übungen"
 defaultTranslation LblTotalObservations = "Gesamtanzahl Beobachtungen"
+defaultTranslation LblSelfContainedTasks = "Eigenständige Aufgaben"
+defaultTranslation LblNewTask = "+ Neue Aufgabe"
+defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
+defaultTranslation LblTaskIdentifier = "Bezeichnung"
+defaultTranslation LblTaskContent = "Inhalt"
+defaultTranslation LblTaskPrimaryCompetences = "Primäre Kompetenzen"
+defaultTranslation LblTaskSecondaryCompetences = "Sekundäre Kompetenzen"
+defaultTranslation LblTaskPurposeLabel = "Zweck"
+defaultTranslation LblTaskDisplayInResources = "In Ressourcen anzeigen"
+defaultTranslation (LblTaskPurpose Practice) = "Übung"
+defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
