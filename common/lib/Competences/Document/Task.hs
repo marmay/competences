@@ -7,9 +7,11 @@ module Competences.Document.Task
   , TaskGroupIdentifier (..)
     -- * Task Purpose
   , TaskPurpose (..)
+  , taskPurposes
     -- * Task Attributes
   , TaskAttributes (..)
   , TaskAttributesOverride (..)
+  , defaultTaskAttributes
     -- * Task Group
   , TaskGroup (..)
   , TaskGroupIxs
@@ -63,7 +65,7 @@ data TaskPurpose
     Practice
   | -- | Clearly demonstrates competence has been achieved.
     Assessment
-  deriving (Eq, Generic, Ord, Show)
+  deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
 instance FromJSON TaskPurpose where
   parseJSON = \case
@@ -76,6 +78,10 @@ instance ToJSON TaskPurpose where
   toJSON Assessment = "Assessment"
 
 instance Binary TaskPurpose
+
+-- | All task purposes
+taskPurposes :: [TaskPurpose]
+taskPurposes = [minBound .. maxBound]
 
 -- | Core attributes that define what a task tests and how it's displayed.
 data TaskAttributes = TaskAttributes
@@ -326,3 +332,13 @@ getTasksInGroup groupId tasks =
   sortOn (.identifier) $
     Ix.toList $
       Ix.getEQ (Just groupId) tasks
+
+-- | Default TaskAttributes for new tasks
+defaultTaskAttributes :: TaskAttributes
+defaultTaskAttributes =
+  TaskAttributes
+    { primary = []
+    , secondary = []
+    , purpose = Practice
+    , displayInResources = True
+    }
