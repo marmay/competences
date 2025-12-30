@@ -15,7 +15,7 @@ import Competences.Document.Id (Id)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
 import Competences.Frontend.Component.Selector.Common
-  ( EntityPatchTransformedLens
+  ( EntityPatchTransformedLens (..)
   , SelectorTransformedLens
   )
 import Competences.Frontend.Component.Selector.MultiStageSelector
@@ -43,6 +43,7 @@ import Data.List (intercalate)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Miso qualified as M
+import Optics.Core qualified as O
 
 -- | The competence-level pipeline: 3 stages leading to (Id Competence, Level)
 --
@@ -56,15 +57,33 @@ competenceLevelPipeline =
           pure (c'.id, l')
 
 -- | Configuration for competence-level selector
-competenceLevelConfig :: MultiStageSelectorStyle -> MultiStageSelectorConfig (Id Competence, Level)
-competenceLevelConfig style =
+--   Takes an initResults function to load initial values
+competenceLevelConfig
+  :: (Document -> [(Id Competence, Level)])
+  -> MultiStageSelectorStyle
+  -> MultiStageSelectorConfig (Id Competence, Level)
+competenceLevelConfig initResults style =
   MultiStageSelectorConfig
     { initialState = initialize competenceLevelPipeline
     , errorMessage = C.translate' C.LblPleaseSelectItemShort
-    , updateResults = \_ currentResults -> currentResults -- Just preserve current results
+    , initResults = initResults
+    , validateResults = validateCompetenceLevels
     , viewResult = viewCompetenceLevelResult
     , style = style
     }
+
+-- | Validate that competence-levels still exist in the document
+--   Filter out any that have been deleted
+validateCompetenceLevels :: Document -> [(Id Competence, Level)] -> [(Id Competence, Level)]
+validateCompetenceLevels doc competenceLevels =
+  filter (isValidCompetenceLevel doc) competenceLevels
+  where
+    isValidCompetenceLevel d (competenceId, level) =
+      case lookupCompetenceData d competenceId of
+        Nothing -> False -- Competence deleted
+        Just _ ->
+          -- Check if the level is valid (all three levels are always valid)
+          level `elem` [BasicLevel, IntermediateLevel, AdvancedLevel]
 
 -- | Extract competence-level display data (pure function)
 viewCompetenceLevelResult :: Document -> (Id Competence, Level) -> ResultView
@@ -102,23 +121,24 @@ lookupCompetenceData doc competenceId = do
 
 competenceLevelSelectorComponent
   :: SyncDocumentRef
+  -> (Document -> [(Id Competence, Level)]) -- Function to load initial values
   -> MultiStageSelectorStyle
   -> SelectorTransformedLens p [] (Id Competence, Level) f' a'
   -> MultiStageSelectorComponent p (Id Competence, Level)
-competenceLevelSelectorComponent r style =
-  multiStageSelectorComponent r (competenceLevelConfig style)
+competenceLevelSelectorComponent r initResults style =
+  multiStageSelectorComponent r (competenceLevelConfig initResults style)
 
 competenceLevelEditorField
   :: (Ord p, Default patch)
   => SyncDocumentRef
   -> M.MisoString
-  -> EntityPatchTransformedLens p patch [] (Id Competence, Level) f t
+  -> EntityPatchTransformedLens p patch [] (Id Competence, Level) [] (Id Competence, Level)
   -> EditorField p patch f'
 competenceLevelEditorField r key eptl =
   selectorEditorField
     key
     eptl
-    (\_ -> competenceLevelSelectorComponent r)
+    (\entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style)
     ( MultiStageSelectorDisabled
     , MultiStageSelectorEnabled
     )
