@@ -53,9 +53,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector
   , stage'
   )
 import Competences.Frontend.SyncDocument
-  ( DocumentChange (..)
-  , SyncDocumentRef
-  , isInitialUpdate
+  ( SyncDocumentRef
   , nextId
   )
 import Data.Default (Default)
@@ -161,12 +159,11 @@ observationConfig r evidenceId style =
   MultiStageSelectorConfig
     { initialState = initialize (observationPipeline r)
     , errorMessage = C.translate' C.LblPleaseCompleteObservation
-    , updateResults = \(DocumentChange doc info) currentResults ->
-        if isInitialUpdate info
-          then case Ix.getOne $ doc.evidences Ix.@= evidenceId of
-            Just e -> Ix.toList e.observations
-            Nothing -> []
-          else currentResults
+    , initResults = \doc ->
+        case Ix.getOne $ doc.evidences Ix.@= evidenceId of
+          Just e -> Ix.toList e.observations
+          Nothing -> []
+    , validateResults = \_ currentResults -> currentResults -- Keep all observations, even if competences deleted (for historical record)
     , viewResult = viewObservationResult
     , style = style
     }

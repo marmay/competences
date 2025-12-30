@@ -34,7 +34,7 @@ where
 
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
 import Data.Kind (Type)
 import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
@@ -444,7 +444,8 @@ data MultiStageSelectorStyle
 data MultiStageSelectorConfig result = MultiStageSelectorConfig
   { initialState :: Document -> RuntimeState result -- Initialize the state machine
   , errorMessage :: MisoString
-  , updateResults :: DocumentChange -> [result] -> [result] -- Update results when document changes
+  , initResults :: Document -> [result] -- Load initial results from document
+  , validateResults :: Document -> [result] -> [result] -- Validate/filter results when document changes
   , viewResult :: Document -> result -> ResultView -- Pure data extraction
   , style :: MultiStageSelectorStyle
   }
@@ -457,11 +458,15 @@ genericUpdate
   -> M.Effect p (Model result) (Action result)
 genericUpdate config action =
   case action of
-    UpdateDocument docChange@(DocumentChange doc _) -> do
+    UpdateDocument (DocumentChange doc info) -> do
       M.modify $ \m ->
         m
           & (#document .~ doc)
-          & (#selectedResults %~ config.updateResults docChange)
+          & (#selectedResults %~ \currentResults ->
+              if isInitialUpdate info
+                then config.initResults doc
+                else config.validateResults doc currentResults
+            )
       -- Refresh suggestions with the new document data
       genericUpdate' config InputRefresh
     HandleKeyPress keyInfo ->

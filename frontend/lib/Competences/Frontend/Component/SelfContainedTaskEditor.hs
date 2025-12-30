@@ -7,10 +7,13 @@ import Competences.Command (Command (..), EntityCommand (..), TaskPatch (..), Ta
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskType (..))
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task (TaskAttributes (..), TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
+import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
+import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.SelfContainedTaskSelector (selfContainedTaskSelectorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
@@ -74,6 +77,18 @@ selfContainedTaskEditorComponent r =
                                    purposeViewLens
                                    purposePatchLens
                                )
+            `TE.addNamedField` ( C.translate' C.LblTaskPrimaryCompetences
+                               , competenceLevelEditorField
+                                   r
+                                   "task-primary-competences"
+                                   (entityPatchLens primaryViewLens primaryPatchLens)
+                               )
+            `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
+                               , competenceLevelEditorField
+                                   r
+                                   "task-secondary-competences"
+                                   (entityPatchLens secondaryViewLens secondaryPatchLens)
+                               )
 
 -- Lenses for identifier (TaskIdentifier <-> Text conversion)
 taskIdentifierTextIso :: Iso' TaskIdentifier Text
@@ -129,3 +144,31 @@ purposeViewLens = lens getter setter
 
 purposePatchLens :: Lens' TaskPatch (Change TaskPurpose)
 purposePatchLens = #purpose
+
+-- Lenses for primary competences (extract from TaskType → SelfContained → TaskAttributes)
+primaryViewLens :: Lens' Task [CompetenceLevelId]
+primaryViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SelfContained attrs -> attrs.primary
+      SubTask _ _ -> [] -- fallback, shouldn't happen
+    setter task newPrimary = case task.taskType of
+      SelfContained attrs -> task & #taskType .~ SelfContained (attrs & #primary .~ newPrimary)
+      SubTask _ _ -> task -- Can't modify, shouldn't happen
+
+primaryPatchLens :: Lens' TaskPatch (Change [CompetenceLevelId])
+primaryPatchLens = #primary
+
+-- Lenses for secondary competences (extract from TaskType → SelfContained → TaskAttributes)
+secondaryViewLens :: Lens' Task [CompetenceLevelId]
+secondaryViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SelfContained attrs -> attrs.secondary
+      SubTask _ _ -> [] -- fallback, shouldn't happen
+    setter task newSecondary = case task.taskType of
+      SelfContained attrs -> task & #taskType .~ SelfContained (attrs & #secondary .~ newSecondary)
+      SubTask _ _ -> task -- Can't modify, shouldn't happen
+
+secondaryPatchLens :: Lens' TaskPatch (Change [CompetenceLevelId])
+secondaryPatchLens = #secondary
