@@ -7,9 +7,11 @@ module Competences.Command
   , module Competences.Command.Users
   , module Competences.Command.Evidences
   , module Competences.Command.Tasks
+  , module Competences.Command.Assignments
   )
 where
 
+import Competences.Command.Assignments (AssignmentsCommand (..), AssignmentPatch (..), handleAssignmentsCommand)
 import Competences.Command.Common (AffectedUsers (..), UpdateResult, EntityCommand(..), ModifyCommand(..))
 import Competences.Command.Competences (CompetencesCommand (..), CompetenceGridPatch (..), CompetencePatch (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
@@ -30,6 +32,7 @@ data Command
   | Users !UsersCommand
   | Evidences !EvidencesCommand
   | Tasks !TasksCommand
+  | Assignments !AssignmentsCommand
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -49,3 +52,4 @@ handleCommand userId cmd d = case cmd of
   Users c -> handleUsersCommand userId c d
   Evidences c -> handleEvidencesCommand userId c d
   Tasks c -> handleTasksCommand userId c d
+  Assignments c -> handleAssignmentsCommand userId c d

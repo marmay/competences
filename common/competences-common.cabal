@@ -24,6 +24,7 @@ library
     exposed-modules:
         Competences.Analysis.Statistics
         Competences.Command
+        Competences.Command.Assignments
         Competences.Command.ChangeField
         Competences.Command.Common
         Competences.Command.Competences
@@ -31,9 +32,12 @@ library
         Competences.Command.Interpret
         Competences.Command.Tasks
         Competences.Command.Users
+        Competences.Common.BinaryOrphans
         Competences.Common.IxSet
         Competences.Document
+        Competences.Document.ActivityType
         Competences.Document.Assessment
+        Competences.Document.Assignment
         Competences.Document.Competence
         Competences.Document.CompetenceGrid
         Competences.Document.Evidence
@@ -42,7 +46,6 @@ library
         Competences.Document.Order
         Competences.Document.Resource
         Competences.Document.Task
-        Competences.Document.Template
         Competences.Document.User
         Competences.Document.Verdict
         Competences.Protocol
