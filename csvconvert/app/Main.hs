@@ -212,6 +212,7 @@ addCompetences userId day activityTasks document (activityType, observationData)
           , oldTasks = activityTasks
           , tasks = []
           , observations = Ix.fromList observations
+          , assignmentId = Nothing
           }
   unless (Ix.null $ document.evidences Ix.@= evidenceId) $
     liftEither $
