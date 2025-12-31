@@ -33,6 +33,7 @@ library
         Competences.Frontend.Common.Translate,
         Competences.Frontend.Common,
         Competences.Frontend.Component.AssignmentEditor,
+        Competences.Frontend.Component.AssignmentEvaluator,
         Competences.Frontend.Component.AssignmentViewer,
         Competences.Frontend.Component.CompetenceGridEditor,
         Competences.Frontend.Component.CompetenceGridViewer,
