@@ -130,6 +130,12 @@ data Label
   | LblTaskPurposeLabel
   | LblTaskDisplayInResources
   | LblTaskPurpose !TaskPurpose
+  | LblAssignments
+  | LblNewAssignment
+  | LblEditAssignment
+  | LblAssignmentName
+  | LblAssignmentDate
+  | LblAssignmentTasks
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -208,6 +214,12 @@ labels' =
   , LblTaskSecondaryCompetences
   , LblTaskPurposeLabel
   , LblTaskDisplayInResources
+  , LblAssignments
+  , LblNewAssignment
+  , LblEditAssignment
+  , LblAssignmentName
+  , LblAssignmentDate
+  , LblAssignmentTasks
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -299,6 +311,12 @@ defaultTranslation LblTaskPurposeLabel = "Zweck"
 defaultTranslation LblTaskDisplayInResources = "In Ressourcen anzeigen"
 defaultTranslation (LblTaskPurpose Practice) = "Übung"
 defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
+defaultTranslation LblAssignments = "Aufträge"
+defaultTranslation LblNewAssignment = "+ Neuer Auftrag"
+defaultTranslation LblEditAssignment = "Auftrag bearbeiten"
+defaultTranslation LblAssignmentName = "Name"
+defaultTranslation LblAssignmentDate = "Datum"
+defaultTranslation LblAssignmentTasks = "Aufgaben"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

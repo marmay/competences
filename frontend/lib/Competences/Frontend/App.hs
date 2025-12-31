@@ -7,6 +7,7 @@ where
 
 import Competences.Document.User (User, isTeacher)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.AssignmentEditor (assignmentEditorComponent)
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
@@ -81,6 +82,7 @@ mkApp r =
                   , V.labelButton' C.LblEditCompetenceGrid (PushURI $ M.toURI EditCompetenceGrid)
                   , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
                   , V.labelButton' C.LblSelfContainedTasks (PushURI $ M.toURI ManageTasks)
+                  , V.labelButton' C.LblAssignments (PushURI $ M.toURI Assignments)
                   , V.labelButton' C.LblStatisticsOverview (PushURI $ M.toURI StatisticsOverview)
                   , V.labelButton' C.LblStatisticsIndividual (PushURI $ M.toURI StatisticsIndividual)
                   , V.labelButton' C.LblManageUsers (PushURI $ M.toURI ManageUsers)
@@ -100,6 +102,7 @@ mkApp r =
         EditCompetenceGrid -> editCompetenceGrid
         Evidences -> evidences
         ManageTasks -> manageTasks
+        Assignments -> assignments
         StatisticsOverview -> statisticsOverview
         StatisticsIndividual -> statisticsIndividual
         ManageUsers -> manageUsers
@@ -108,6 +111,7 @@ mkApp r =
     editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
     evidences = mounted Evidences $ evidenceEditorComponent r
     manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
+    assignments = mounted Assignments $ assignmentEditorComponent r
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
@@ -124,6 +128,7 @@ data Page
   | EditCompetenceGrid
   | Evidences
   | ManageTasks
+  | Assignments
   | StatisticsOverview
   | StatisticsIndividual
   | ManageUsers
@@ -136,6 +141,7 @@ instance M.Router Page where
       , M.path "edit-grid" $> EditCompetenceGrid
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
+      , M.path "assignments" $> Assignments
       , M.path "statistics-overview" $> StatisticsOverview
       , M.path "statistics-individual" $> StatisticsIndividual
       , M.path "users" $> ManageUsers
@@ -144,6 +150,7 @@ instance M.Router Page where
   fromRoute EditCompetenceGrid = [M.toPath "edit-grid"]
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
+  fromRoute Assignments = [M.toPath "assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
   fromRoute StatisticsIndividual = [M.toPath "statistics-individual"]
   fromRoute ManageUsers = [M.toPath "users"]
