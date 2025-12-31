@@ -33,22 +33,21 @@ import Miso.Html.Property qualified as M
 import Miso.String (ms)
 
 -- | Model for assignment evaluation
--- Tracks per-task observations and aggregated results
+-- Tracks per-task observations and selected students for Evidence creation
 data Model = Model
   { assignment :: !(Maybe Assignment)
   , currentDocument :: !Document
   -- Map from (TaskId, UserId, CompetenceLevelId) to Ability
   , taskObservations :: !(Map.Map (TaskId, UserId, CompetenceLevelId) Ability)
-  -- Current task being evaluated (index into assignment.tasks)
-  , currentTaskIndex :: !Int
+  -- Students selected for Evidence creation
+  , selectedStudents :: !(Set.Set UserId)
   }
   deriving (Eq, Generic, Show)
 
 data Action
   = UpdateDocument !DocumentChange
   | SetTaskObservation !TaskId !UserId !CompetenceLevelId !Ability
-  | NextTask
-  | PreviousTask
+  | ToggleStudentSelection !UserId
   | CreateEvidences
   deriving (Eq, Show)
 
@@ -63,7 +62,7 @@ assignmentEvaluatorComponent r =
         { assignment = Nothing
         , currentDocument = emptyDocument
         , taskObservations = Map.empty
-        , currentTaskIndex = 0
+        , selectedStudents = Set.empty
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -73,13 +72,12 @@ assignmentEvaluatorComponent r =
     update (SetTaskObservation taskId userId compId ability) = M.modify $ \m ->
       m{taskObservations = Map.insert (taskId, userId, compId) ability m.taskObservations}
 
-    update NextTask = M.modify $ \m ->
-      case m.assignment of
-        Nothing -> m
-        Just a -> m{currentTaskIndex = min (length a.tasks - 1) (m.currentTaskIndex + 1)}
-
-    update PreviousTask = M.modify $ \m ->
-      m{currentTaskIndex = max 0 (m.currentTaskIndex - 1)}
+    update (ToggleStudentSelection userId) = M.modify $ \m ->
+      let newSelected =
+            if Set.member userId m.selectedStudents
+              then Set.delete userId m.selectedStudents
+              else Set.insert userId m.selectedStudents
+       in m{selectedStudents = newSelected}
 
     update CreateEvidences = pure ()  -- TODO: Implement evidence creation
 
@@ -94,21 +92,20 @@ assignmentEvaluatorComponent r =
         Just a ->
           if null a.tasks
             then M.div_ [] [M.text "Dieser Auftrag hat keine Aufgaben"]
-            else viewTaskEvaluation m a
-
-    viewTaskEvaluation m a =
-      let currentTask = if m.currentTaskIndex < length a.tasks then Just (a.tasks !! m.currentTaskIndex) else Nothing
-       in case currentTask of
-            Nothing -> M.div_ [] [M.text "Keine Aufgabe ausgewählt"]
-            Just taskId ->
+            else
               M.div_
                 []
                 [ M.h2_ [] [M.text "Auftrag auswerten"]
-                , M.p_ [] [M.text $ "Aufgabe " <> ms (show (m.currentTaskIndex + 1)) <> " von " <> ms (show (length a.tasks))]
-                , viewTaskInfo m.currentDocument taskId
-                , viewStudentEvaluations m a taskId
-                , viewNavigation m a
+                , M.div_ [M.class_ "space-y-6"] (map (viewTaskSection m a) a.tasks)
+                , viewCreateEvidencesButton m
                 ]
+
+    viewTaskSection m a taskId =
+      M.div_
+        [M.class_ "border-b pb-4"]
+        [ viewTaskInfo m.currentDocument taskId
+        , viewStudentEvaluations m a taskId
+        ]
 
     viewTaskInfo doc taskId =
       let taskM = Ix.getOne (Ix.getEQ taskId doc.tasks)
@@ -116,9 +113,7 @@ assignmentEvaluatorComponent r =
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
-               in M.div_
-                    [M.class_ "border p-2 mb-4"]
-                    [M.text $ "Aufgabe: " <> ms identifier]
+               in M.h3_ [M.class_ "font-bold text-lg mt-4 mb-2"] [M.text $ "Aufgabe: " <> ms identifier]
 
     viewStudentEvaluations m a taskId =
       let taskM = Ix.getOne (Ix.getEQ taskId m.currentDocument.tasks)
@@ -141,11 +136,21 @@ assignmentEvaluatorComponent r =
     viewStudentEvaluation _m _taskId _competences Nothing =
       M.div_ [M.class_ "border p-3 rounded"] [M.text "Schüler nicht gefunden"]
     viewStudentEvaluation m taskId competences (Just student) =
-      M.div_
-        [M.class_ "border p-3 rounded"]
-        [ M.h4_ [M.class_ "font-semibold mb-2"] [M.text $ ms student.name]
-        , M.div_ [M.class_ "space-y-2"] (map (viewCompetenceEvaluation m taskId student.id) competences)
-        ]
+      let isSelected = Set.member student.id m.selectedStudents
+       in M.div_
+            [M.class_ "border p-3 rounded"]
+            [ M.div_
+                [M.class_ "flex items-center gap-2 mb-2"]
+                [ M.input_
+                    [ M.type_ "checkbox"
+                    , M.checked_ isSelected
+                    , M.onClick (ToggleStudentSelection student.id)
+                    , M.class_ "w-4 h-4"
+                    ]
+                , M.h4_ [M.class_ "font-semibold"] [M.text $ ms student.name]
+                ]
+            , M.div_ [M.class_ "space-y-2"] (map (viewCompetenceEvaluation m taskId student.id) competences)
+            ]
 
     viewCompetenceEvaluation m taskId userId compId =
       let currentAbility = Map.lookup (taskId, userId, compId) m.taskObservations
@@ -167,16 +172,17 @@ assignmentEvaluatorComponent r =
             [M.class_ buttonClass, M.onClick (SetTaskObservation taskId userId compId ability)]
             [M.text $ ms $ show ability]
 
-    viewNavigation _m _a =
-      M.div_
-        [M.class_ "flex gap-2 mt-4"]
-        [ M.button_
-            [M.onClick PreviousTask]
-            [M.text "← Vorherige Aufgabe"]
-        , M.button_
-            [M.onClick NextTask]
-            [M.text "Nächste Aufgabe →"]
-        , M.button_
-            [M.onClick CreateEvidences, M.class_ "ml-auto"]
-            [M.text "Nachweise erstellen"]
-        ]
+    viewCreateEvidencesButton m =
+      let selectedCount = Set.size m.selectedStudents
+          buttonText = "Nachweise erstellen (" <> ms (show selectedCount) <> " Schüler ausgewählt)"
+          attrs =
+            [ M.onClick CreateEvidences
+            , M.class_ $
+                if selectedCount == 0
+                  then "bg-gray-400 text-white px-4 py-2 rounded cursor-not-allowed"
+                  else "bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            ]
+              <> [M.disabled_ | selectedCount == 0]
+       in M.div_
+            [M.class_ "mt-6 flex justify-end"]
+            [M.button_ attrs [M.text buttonText]]
