@@ -133,6 +133,7 @@ data Label
   | LblAssignments
   | LblNewAssignment
   | LblEditAssignment
+  | LblEvaluateAssignments
   | LblAssignmentName
   | LblAssignmentDate
   | LblAssignmentTasks
@@ -217,6 +218,7 @@ labels' =
   , LblAssignments
   , LblNewAssignment
   , LblEditAssignment
+  , LblEvaluateAssignments
   , LblAssignmentName
   , LblAssignmentDate
   , LblAssignmentTasks
@@ -314,6 +316,7 @@ defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
 defaultTranslation LblAssignments = "Aufträge"
 defaultTranslation LblNewAssignment = "+ Neuer Auftrag"
 defaultTranslation LblEditAssignment = "Auftrag bearbeiten"
+defaultTranslation LblEvaluateAssignments = "Aufträge auswerten"
 defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
