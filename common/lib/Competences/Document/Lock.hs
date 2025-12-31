@@ -3,6 +3,7 @@ module Competences.Document.Lock
   )
 where
 
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (EvidenceId)
@@ -22,6 +23,7 @@ data Lock
   | EvidenceLock !EvidenceId
   | TaskLock !TaskId
   | TaskGroupLock !TaskGroupId
+  | AssignmentLock !AssignmentId
   deriving (Eq, Generic, Ord, Show)
 
 instance FromJSON Lock

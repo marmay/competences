@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Competences.Document.Evidence
   ( Evidence (..)
   , EvidenceId
@@ -19,7 +17,10 @@ module Competences.Document.Evidence
   )
 where
 
+import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
+import Competences.Document.ActivityType (ActivityType (..), activityTypes)
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id, nilId)
 import Competences.Document.Task (TaskId)
@@ -61,19 +62,6 @@ data Ability
     NotYet
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
--- | Different kinds of activities during which a student can demonstrate
--- they are competent.
-data ActivityType
-  = Conversation
-    -- ^ A conversation with a teacher.
-  | Exam
-    -- ^ A written or oral exam.
-  | SchoolExercise
-    -- ^ Exercising in school.
-  | HomeExercise
-    -- ^ Home exercise.
-  deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
-
 newtype ActivityTasks = ActivityTasks Text
   deriving (Eq, Generic, Ord, Show)
   deriving newtype (Binary, FromJSON, ToJSON)
@@ -100,6 +88,8 @@ data Evidence = Evidence
   , oldTasks :: !Text
     -- ^ Legacy text-based tasks (for gradual migration from activityTasks)
   , observations :: !(Ix.IxSet ObservationIxs Observation)
+  , assignmentId :: !(Maybe AssignmentId)
+    -- ^ Optional link to assignment this evidence was created from
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -119,6 +109,7 @@ nilEvidence = Evidence
   , tasks = []
   , oldTasks = ""
   , observations = Ix.empty
+  , assignmentId = Nothing
   }
 
 socialForms :: [SocialForm]
@@ -127,10 +118,9 @@ socialForms = [minBound .. maxBound]
 abilities :: [Ability]
 abilities = [minBound .. maxBound]
 
-activityTypes :: [ActivityType]
-activityTypes = [minBound .. maxBound]
+-- Note: activityTypes is re-exported from ActivityType module
 
-type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId]
+type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId, AssignmentId]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
@@ -139,6 +129,7 @@ instance Ix.Indexable EvidenceIxs Evidence where
       (Ix.ixFun $ Set.toList . (.userIds))
       (Ix.ixFun $ singleton . (.date))
       (Ix.ixFun $ map (.competenceLevelId) . Ix.toList . (.observations))
+      (Ix.ixFun $ maybe [] singleton . (.assignmentId))
 
 type ObservationIxs = '[ObservationId, CompetenceLevelId, SocialForm, Ability]
 
@@ -162,12 +153,6 @@ instance ToJSON Ability
 
 instance Binary Ability
 
-instance FromJSON ActivityType
-
-instance ToJSON ActivityType
-
-instance Binary ActivityType
-
 instance FromJSON Evidence where
   parseJSON = withObject "Evidence" $ \v -> do
     -- Read new format fields
@@ -185,6 +170,7 @@ instance FromJSON Evidence where
       <*> pure tasksList
       <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
+      <*> v .:? "assignmentId" .!= Nothing
 
 instance ToJSON Evidence where
   toJSON e =
@@ -196,6 +182,7 @@ instance ToJSON Evidence where
       , "tasks" .= e.tasks
       , "oldTasks" .= e.oldTasks
       , "observations" .= Ix.toList e.observations
+      , "assignmentId" .= e.assignmentId
       ]
 
 instance Binary Evidence
@@ -205,5 +192,3 @@ instance FromJSON Observation
 instance ToJSON Observation
 
 instance Binary Observation
-
-instance Binary Day
