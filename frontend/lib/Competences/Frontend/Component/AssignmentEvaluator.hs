@@ -13,9 +13,10 @@ import Competences.Document
   , emptyDocument
   )
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence)
+import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskId, TaskIdentifier (..), TaskType (..))
 import Competences.Document.User (UserId)
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
@@ -40,21 +41,24 @@ import Miso.String (ms)
 data Model = Model
   { assignment :: !(Maybe Assignment)
   , currentDocument :: !Document
-  -- Map from (TaskId, UserId, CompetenceLevelId) to Ability
-  , taskObservations :: !(Map.Map (TaskId, UserId, CompetenceLevelId) Ability)
+  -- Map from (TaskId, CompetenceLevelId) to Ability - applies to all selected students
+  , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
-  , aggregatedResults :: !(Map.Map (UserId, CompetenceLevelId) Ability)
+  , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
   -- Students selected for Evidence creation
   , selectedStudents :: !(Set.Set UserId)
+  -- Social form for the evaluation (Individual or Group)
+  , socialForm :: !SocialForm
   }
   deriving (Eq, Generic, Show)
 
 data Action
   = UpdateDocument !DocumentChange
-  | SetTaskObservation !TaskId !UserId !CompetenceLevelId !Ability
+  | SetTaskObservationForAll !TaskId !CompetenceLevelId !Ability
   | ToggleStudentSelection !UserId
+  | SetSocialForm !SocialForm
   | ComputeAggregation -- Compute aggregated results from task observations
-  | SetAggregatedResult !UserId !CompetenceLevelId !Ability -- Edit aggregated result
+  | SetAggregatedResult !CompetenceLevelId !Ability -- Edit aggregated result
   | CreateEvidences
   deriving (Eq, Show)
 
@@ -71,31 +75,40 @@ assignmentEvaluatorComponent r =
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
+        , socialForm = Individual
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
       let newDoc = dc.document
        in m{currentDocument = newDoc}
 
-    update (SetTaskObservation taskId userId compId ability) = M.modify $ \m ->
-      m{taskObservations = Map.insert (taskId, userId, compId) ability m.taskObservations}
+    update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
+      m{taskObservations = Map.insert (taskId, compId) ability m.taskObservations}
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
       let newSelected =
             if Set.member userId m.selectedStudents
               then Set.delete userId m.selectedStudents
               else Set.insert userId m.selectedStudents
-       in m{selectedStudents = newSelected}
+          newSocialForm = if Set.size newSelected == 1 then Individual else Group
+       in m{selectedStudents = newSelected, socialForm = newSocialForm}
+
+    update (SetSocialForm sf) = M.modify $ \m ->
+      Model
+        { assignment = m.assignment
+        , currentDocument = m.currentDocument
+        , taskObservations = m.taskObservations
+        , aggregatedResults = m.aggregatedResults
+        , selectedStudents = m.selectedStudents
+        , socialForm = sf
+        }
 
     update ComputeAggregation = M.modify $ \m ->
-      case m.assignment of
-        Nothing -> m
-        Just assignment ->
-          let aggregated = computeAggregation m assignment
-           in m{aggregatedResults = aggregated}
+      let aggregated = computeAggregation m
+       in m{aggregatedResults = aggregated}
 
-    update (SetAggregatedResult userId compId ability) = M.modify $ \m ->
-      m{aggregatedResults = Map.insert (userId, compId) ability m.aggregatedResults}
+    update (SetAggregatedResult compId ability) = M.modify $ \m ->
+      m{aggregatedResults = Map.insert compId ability m.aggregatedResults}
 
     update CreateEvidences = do
       m <- M.get
@@ -111,28 +124,19 @@ assignmentEvaluatorComponent r =
           M.modify $ \m' -> m'{selectedStudents = Set.empty}
 
     -- Compute aggregated results from task observations (pure function)
-    computeAggregation m assignment =
-      let allStudents = Set.toList assignment.studentIds
-          studentResults = concatMap (computeStudentAggregation m assignment) allStudents
-       in Map.fromList studentResults
-
-    computeStudentAggregation m assignment userId =
-      let -- Get all observations for this student across all tasks in the assignment
-          studentObs = Map.filterWithKey (\(taskId, uid, _) _ -> uid == userId && taskId `elem` assignment.tasks) m.taskObservations
-          -- Group by CompetenceLevelId and take worst (maximum) ability
-          grouped = Map.foldrWithKey groupByCompetence Map.empty studentObs
-       in map (\(compId, ability) -> ((userId, compId), ability)) (Map.toList grouped)
+    -- Takes the worst (maximum) ability per competence across all tasks
+    computeAggregation m =
+      Map.foldrWithKey groupByCompetence Map.empty m.taskObservations
       where
-        groupByCompetence (_, _, compId) ability acc =
+        groupByCompetence (_, compId) ability acc =
           Map.insertWith max compId ability acc
 
     -- Create Evidence for a single student from aggregated results
     createEvidenceForStudent m assignment userId = do
       evidenceId <- nextId @M.JSM @Evidence r
-      -- Get aggregated observations for this student
-      let studentAggregated = Map.filterWithKey (\(uid, _) _ -> uid == userId) m.aggregatedResults
+      -- Use the aggregated results (same for all students)
       -- Generate observation IDs and create Observation records
-      observations <- mapM mkObservation (Map.toList studentAggregated)
+      observations <- mapM mkObservation (Map.toList m.aggregatedResults)
       let evidence =
             (mkEvidence evidenceId assignment.assignmentDate)
               { userIds = Set.singleton userId
@@ -144,13 +148,13 @@ assignmentEvaluatorComponent r =
               }
       pure $ Evidences (OnEvidences (Create evidence))
       where
-        mkObservation ((_, compId), ability) = do
+        mkObservation (compId, ability) = do
           obsId <- nextId @M.JSM @Observation r
           pure
             Observation
               { id = obsId
               , competenceLevelId = compId
-              , socialForm = Individual -- Default to Individual for assignment evaluations
+              , socialForm = m.socialForm
               , ability = ability
               }
 
@@ -169,10 +173,44 @@ assignmentEvaluatorComponent r =
               M.div_
                 []
                 [ M.h2_ [] [M.text "Auftrag auswerten"]
+                , viewStudentSelection m a
                 , M.div_ [M.class_ "space-y-6"] (map (viewTaskSection m a) a.tasks)
                 , viewAggregationSection m a
                 , viewCreateEvidencesButton m
                 ]
+
+    viewStudentSelection m a =
+      let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.currentDocument.users)) (Set.toList a.studentIds)
+          selectedCount = Set.size m.selectedStudents
+       in M.div_
+            [M.class_ "mb-6 p-4 bg-gray-50 rounded border"]
+            [ M.h3_ [M.class_ "font-semibold mb-3"] [M.text $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
+            , M.div_ [M.class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentSelectionButton m) students)
+            , M.div_ [M.class_ "flex items-center gap-2 mt-3 pt-3 border-t"]
+                [ M.span_ [M.class_ "font-semibold text-sm"] [M.text "Sozialform:"]
+                , M.div_ [M.class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
+                ]
+            ]
+
+    viewSocialFormButton m sf =
+      let isSelected = m.socialForm == sf
+          buttonClass = if isSelected
+                          then "px-3 py-1 rounded bg-blue-500 text-white text-sm cursor-pointer hover:bg-blue-600"
+                          else "px-3 py-1 rounded bg-gray-200 text-gray-800 text-sm cursor-pointer hover:bg-gray-300"
+       in M.button_
+            [M.class_ buttonClass, M.onClick (SetSocialForm sf)]
+            [M.text $ C.translate' $ C.LblSocialForm sf]
+
+    viewStudentSelectionButton _ Nothing =
+      M.div_ [M.class_ "px-3 py-1 rounded bg-gray-300 text-gray-600 text-sm"] [M.text "Schüler nicht gefunden"]
+    viewStudentSelectionButton m (Just student) =
+      let isSelected = Set.member student.id m.selectedStudents
+          buttonClass = if isSelected
+                          then "px-3 py-1 rounded bg-blue-500 text-white text-sm cursor-pointer hover:bg-blue-600"
+                          else "px-3 py-1 rounded bg-gray-200 text-gray-800 text-sm cursor-pointer hover:bg-gray-300"
+       in M.button_
+            [M.class_ buttonClass, M.onClick (ToggleStudentSelection student.id)]
+            [M.text $ ms student.name]
 
     viewTaskSection m a taskId =
       M.div_
@@ -187,47 +225,30 @@ assignmentEvaluatorComponent r =
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
-               in M.h3_ [M.class_ "font-bold text-lg mt-4 mb-2"] [M.text $ "Aufgabe: " <> ms identifier]
+               in M.div_ [M.class_ "mt-4 mb-3"]
+                    [ M.h3_ [M.class_ "font-bold text-lg mb-1"] [M.text $ "Aufgabe: " <> ms identifier]
+                    , case task.content of
+                        Nothing -> M.text ""
+                        Just content -> M.p_ [M.class_ "text-sm text-gray-600 mb-2"] [M.text $ ms content]
+                    ]
 
     viewStudentEvaluations m a taskId =
       let taskM = Ix.getOne (Ix.getEQ taskId m.currentDocument.tasks)
-          students = map (\userId -> Ix.getOne (Ix.getEQ userId m.currentDocument.users)) (Set.toList a.studentIds)
        in case taskM of
             Nothing -> M.div_ [] [M.text "Aufgabe nicht gefunden"]
             Just task ->
               let competences = getTaskCompetences task
-               in M.div_
-                    [M.class_ "mt-4"]
-                    [ M.h3_ [M.class_ "font-bold mb-2"] [M.text "Schüler auswerten"]
-                    , M.div_ [M.class_ "space-y-4"] (map (\studentM -> viewStudentEvaluation m taskId competences studentM) students)
-                    ]
+               in if null m.selectedStudents
+                    then M.div_ [M.class_ "mt-4 text-sm text-gray-500"] [M.text "Bitte wählen Sie Schüler zur Auswertung aus"]
+                    else M.div_ [M.class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m a taskId) competences)
 
     getTaskCompetences task =
       case task.taskType of
         SelfContained attrs -> attrs.primary <> attrs.secondary
         SubTask _ _ -> []
 
-    viewStudentEvaluation _m _taskId _competences Nothing =
-      M.div_ [M.class_ "border p-3 rounded"] [M.text "Schüler nicht gefunden"]
-    viewStudentEvaluation m taskId competences (Just student) =
-      let isSelected = Set.member student.id m.selectedStudents
-       in M.div_
-            [M.class_ "border p-3 rounded"]
-            [ M.div_
-                [M.class_ "flex items-center gap-2 mb-2"]
-                [ M.input_
-                    [ M.type_ "checkbox"
-                    , M.checked_ isSelected
-                    , M.onClick (ToggleStudentSelection student.id)
-                    , M.class_ "w-4 h-4"
-                    ]
-                , M.h4_ [M.class_ "font-semibold"] [M.text $ ms student.name]
-                ]
-            , M.div_ [M.class_ "space-y-2"] (map (viewCompetenceEvaluation m taskId student.id) competences)
-            ]
-
-    viewCompetenceEvaluation m taskId userId compId =
-      let currentAbility = Map.lookup (taskId, userId, compId) m.taskObservations
+    viewCompetenceEvaluation m _ taskId compId =
+      let currentAbility = Map.lookup (taskId, compId) m.taskObservations
           (competenceId, level) = compId
           competenceM = Ix.getOne (Ix.getEQ competenceId m.currentDocument.competences)
           compLevelName = case competenceM of
@@ -236,15 +257,15 @@ assignmentEvaluatorComponent r =
        in M.div_
             [M.class_ "flex items-center gap-2"]
             [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
-            , M.div_ [M.class_ "flex gap-1"] (map (viewAbilityButton taskId userId compId currentAbility) abilities)
+            , M.div_ [M.class_ "flex gap-1"] (map (viewAbilityButton m taskId compId currentAbility) abilities)
             ]
 
-    viewAbilityButton taskId userId compId currentAbility ability =
+    viewAbilityButton _ taskId compId currentAbility ability =
       let isSelected = currentAbility == Just ability
           buttonClass = if isSelected then "bg-blue-500 text-white px-2 py-1 text-sm rounded" else "bg-gray-200 px-2 py-1 text-sm rounded hover:bg-gray-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (SetTaskObservation taskId userId compId ability)]
-            [M.text $ ms $ show ability]
+            [M.class_ buttonClass, M.onClick (SetTaskObservationForAll taskId compId ability)]
+            [M.text $ C.translate' $ C.LblAbility ability]
 
     viewAggregationSection m a =
       M.div_
@@ -262,41 +283,45 @@ assignmentEvaluatorComponent r =
             else viewAggregatedResults m a
         ]
 
-    viewAggregatedResults m a =
-      let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.currentDocument.users)) (Set.toList a.studentIds)
-       in M.div_ [M.class_ "space-y-4"] (map (viewStudentAggregatedResults m) students)
+    viewAggregatedResults m _ =
+      M.div_
+        [M.class_ "border p-3 rounded bg-gray-50"]
+        [ M.div_ [M.class_ "space-y-2"] (map (viewAggregatedCompetence m) (Map.toList m.aggregatedResults))
+        ]
 
-    viewStudentAggregatedResults _ Nothing =
-      M.div_ [M.class_ "border p-3 rounded bg-gray-50"] [M.text "Schüler nicht gefunden"]
-    viewStudentAggregatedResults m (Just student) =
-      let studentResults = Map.filterWithKey (\(uid, _) _ -> uid == student.id) m.aggregatedResults
-       in if Map.null studentResults
-            then M.div_ [] []
-            else
-              M.div_
-                [M.class_ "border p-3 rounded bg-gray-50"]
-                [ M.h4_ [M.class_ "font-semibold mb-2"] [M.text $ ms student.name]
-                , M.div_ [M.class_ "space-y-2"] (map (viewAggregatedCompetence m student.id) (Map.toList studentResults))
-                ]
-
-    viewAggregatedCompetence m userId ((_, compId), ability) =
+    viewAggregatedCompetence m (compId, ability) =
       let (competenceId, level) = compId
           competenceM = Ix.getOne (Ix.getEQ competenceId m.currentDocument.competences)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
             Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
+          contributingTasks = getContributingTasks m compId
        in M.div_
-            [M.class_ "flex items-center gap-2"]
-            [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
-            , M.div_ [M.class_ "flex gap-1"] (map (viewAggregatedAbilityButton userId compId ability) abilities)
+            [M.class_ "mb-3"]
+            [ M.div_ [M.class_ "flex items-center gap-2"]
+                [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
+                , M.div_ [M.class_ "flex gap-1"] (map (viewAggregatedAbilityButton compId ability) abilities)
+                ]
+            , if null contributingTasks
+                then M.text ""
+                else M.div_ [M.class_ "text-xs text-gray-500 mt-1 ml-1"]
+                       [M.text $ "Aufgaben: " <> ms (T.intercalate ", " contributingTasks)]
             ]
 
-    viewAggregatedAbilityButton userId compId currentAbility ability =
+    getContributingTasks m compId =
+      let taskIds = Map.keys $ Map.filterWithKey (\(_, cid) _ -> cid == compId) m.taskObservations
+          taskIdentifiers = map (\tid -> case Ix.getOne (Ix.getEQ tid m.currentDocument.tasks) of
+                                   Nothing -> T.pack (show tid)
+                                   Just task -> let TaskIdentifier ident = task.identifier in ident
+                                ) [tid | (tid, _) <- taskIds]
+       in taskIdentifiers
+
+    viewAggregatedAbilityButton compId currentAbility ability =
       let isSelected = currentAbility == ability
           buttonClass = if isSelected then "bg-blue-500 text-white px-2 py-1 text-sm rounded" else "bg-gray-200 px-2 py-1 text-sm rounded hover:bg-gray-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (SetAggregatedResult userId compId ability)]
-            [M.text $ ms $ show ability]
+            [M.class_ buttonClass, M.onClick (SetAggregatedResult compId ability)]
+            [M.text $ C.translate' $ C.LblAbility ability]
 
     viewCreateEvidencesButton m =
       let selectedCount = Set.size m.selectedStudents
