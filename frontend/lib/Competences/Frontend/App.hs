@@ -8,6 +8,7 @@ where
 import Competences.Document.User (User, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.AssignmentEditor (assignmentEditorComponent)
+import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponent)
 import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
 import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
@@ -90,6 +91,7 @@ mkApp r =
                 else
                   [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
                   , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
+                  , V.labelButton' C.LblAssignments (PushURI $ M.toURI Assignments)
                   , V.labelButton' C.LblStatisticsIndividual (PushURI $ M.toURI StatisticsIndividual)
                   ]
             )
@@ -111,7 +113,10 @@ mkApp r =
     editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
     evidences = mounted Evidences $ evidenceEditorComponent r
     manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
-    assignments = mounted Assignments $ assignmentEditorComponent r
+    assignments =
+      if isTeacher model.connectedUser
+        then mounted Assignments $ assignmentEditorComponent r
+        else mounted Assignments $ assignmentViewerComponent r model.connectedUser
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
