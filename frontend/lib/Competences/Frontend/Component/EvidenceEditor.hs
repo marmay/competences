@@ -23,12 +23,12 @@ import Competences.Frontend.Component.Selector.ObservationSelector qualified as 
 import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
-import qualified Competences.Frontend.View.Tailwind as TW
 
 data Model = Model
   { evidence :: !(Maybe Evidence)
@@ -46,8 +46,8 @@ evidenceEditorComponent r =
 
     view m =
       V.sideMenu
-        (V.componentA "evidence-editor-selection" [TW.tailwind [TW.HFull]] (evidenceSelectorComponent r #evidence))
-        (V.componentA evidenceEditorId [TW.tailwind [TW.HFull]] (TE.editorComponent evidenceEditor r))
+        (V.componentA "evidence-editor-selection" [class_ "h-full"] (evidenceSelectorComponent r #evidence))
+        (V.componentA evidenceEditorId [class_ "h-full"] (TE.editorComponent evidenceEditor r))
       where
         evidenceEditorId = "evidence-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.evidence
         evidenceEditable =

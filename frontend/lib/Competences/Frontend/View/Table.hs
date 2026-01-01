@@ -1,3 +1,9 @@
+{- |
+Module: Competences.Frontend.View.Table
+Description: Basecoat-inspired table components
+
+This module provides table components with consistent Basecoat styling.
+-}
 module Competences.Frontend.View.Table
   ( Table (..)
   , TableColumnWidth (..)
@@ -10,6 +16,7 @@ module Competences.Frontend.View.Table
   )
 where
 
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
 import Miso.Html as M
@@ -38,7 +45,9 @@ cellContents perCell cols row = tableRow $ map (perCell row) cols
 
 tableRow :: [M.View m action] -> M.View m action
 tableRow cells =
-  M.tr_ [T.tailwind []] $ map (\cell -> M.td_ [T.tailwind [T.RegularBorder]] [cell]) cells
+  M.tr_
+    [class_ "border-b border-stone-200 hover:bg-stone-50"]
+    $ map (\cell -> M.td_ [class_ "px-4 py-3 text-sm"] [cell]) cells
 
 defTable :: Table col row m action
 defTable =
@@ -51,19 +60,25 @@ defTable =
 
 viewTable :: forall col row m action. Table col row m action -> M.View m action
 viewTable t =
-  M.table_
-    [T.tailwind [T.TableFixed, T.WFull]]
-    [ M.colgroup_
-        []
-        $ map
-          (viewColumnWidth . (.width) . t.columnSpec)
-          t.columns
-    , M.thead_
-        []
-        $ map
-          (viewColumnHeader . (.title) . t.columnSpec)
-          t.columns
-    , M.tbody_ [] $ map (t.rowContents t.columns) t.rows
+  M.div_
+    [class_ "overflow-x-auto rounded-lg border border-stone-200"]
+    [ M.table_
+        [class_ "w-full border-collapse bg-white text-sm"]
+        [ M.colgroup_
+            []
+            $ map
+              (viewColumnWidth . (.width) . t.columnSpec)
+              t.columns
+        , M.thead_
+            [class_ "bg-stone-50"]
+            [ M.tr_
+                []
+                $ map
+                  (viewColumnHeader . (.title) . t.columnSpec)
+                  t.columns
+            ]
+        , M.tbody_ [] $ map (t.rowContents t.columns) t.rows
+        ]
     ]
   where
     viewColumnWidth :: TableColumnWidth -> M.View m action
@@ -75,9 +90,11 @@ viewTable t =
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =
       M.th_
-        [T.tailwind [T.RegularBorder]]
+        [class_ "px-4 py-3 text-left text-xs font-semibold text-stone-900 border-b border-stone-200"]
         [M.text_ [col]]
 
 tableHeader_ :: M.MisoString -> M.View m action
 tableHeader_ header =
-  M.th_ [] [M.text_ [header]]
+  M.th_
+    [class_ "px-4 py-3 text-left text-xs font-semibold text-stone-900"]
+    [M.text_ [header]]

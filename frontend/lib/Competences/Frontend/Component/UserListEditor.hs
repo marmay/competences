@@ -13,6 +13,7 @@ import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument, nextId)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
@@ -57,7 +58,7 @@ userListEditorComponent r =
 
     view :: StaticView Action
     view =
-      let title = V.title_ (C.translate' C.LblUserList)
+      let title = Typography.h2 (C.translate' C.LblUserList)
           usersEditable =
             TE.editable
               ( \d ->

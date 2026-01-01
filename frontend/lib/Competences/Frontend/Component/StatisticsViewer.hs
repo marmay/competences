@@ -15,6 +15,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef, subscribeDocument, DocumentChange (..))
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Table qualified as T
+import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Card qualified as Card
 import Data.Foldable (toList)
 import Data.List (find)
 import GHC.Generics (Generic)
@@ -92,14 +94,14 @@ statisticsViewerComponent docRef connectedUser' =
 noUserSelectedView :: M.View Model Action
 noUserSelectedView =
   V.viewFlow V.vFlow
-    [ V.text_ (C.translate' C.LblNoUser)
-    , V.text_ "Please select a user from the user management screen."
+    [ Typography.h2 (C.translate' C.LblNoUser)
+    , Typography.paragraph "Please select a user from the user management screen."
     ]
 
 -- | View when user is not found
 userNotFoundView :: M.View Model Action
 userNotFoundView =
-  V.text_ (C.translate' C.LblNoUser)
+  Typography.h2 (C.translate' C.LblNoUser)
 
 -- | Main statistics view showing user evidence by activity
 statisticsView :: Document -> User -> User -> M.View Model Action
@@ -135,36 +137,31 @@ statisticsView doc user _connectedUser =
           ]
       
       -- Show user selector only for teachers
-      userSelector =
+      userHeader =
         if isTeacher user
         then
           V.viewFlow V.vFlow
-            [ V.text_ "Viewing statistics for:"
-            , V.text_ (ms user.name)
-            , V.text_ " "
+            [ Typography.small "Viewing statistics for:"
+            , Typography.h2 (ms user.name)
             ]
         else
           V.viewFlow V.vFlow
-            [ V.text_ "Your statistics:"
-            , V.text_ (ms user.name)
+            [ Typography.small "Your statistics:"
+            , Typography.h2 (ms user.name)
             ]
   in V.viewFlow V.vFlow
        [ -- Header with user info
-         userSelector
+         userHeader
        , V.text_ " "  -- Simple spacing
        , -- Activity Statistics Section
-         V.viewFlow V.vFlow
-           [ V.title_ "Activity Statistics"
-           , V.viewFlow V.vFlow activityRows
-           , V.text_ " "
+         Card.cardWithHeader "Activity Statistics" Nothing
+           [ V.viewFlow V.vFlow activityRows
            , V.viewFlow V.vFlow [activityTotalRow]
            ]
        , V.text_ " "
        , -- Ability Statistics Section
-         V.viewFlow V.vFlow
-           [ V.title_ "Ability Statistics"
-           , V.viewFlow V.vFlow abilityRows
-           , V.text_ " "
+         Card.cardWithHeader "Ability Statistics" Nothing
+           [ V.viewFlow V.vFlow abilityRows
            , V.viewFlow V.vFlow [abilityTotalRow]
            ]
        ]

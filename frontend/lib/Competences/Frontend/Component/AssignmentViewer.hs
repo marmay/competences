@@ -19,11 +19,13 @@ import Competences.Frontend.SyncDocument
   , SyncDocumentRef
   , subscribeDocument
   )
+import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.Tailwind (class_)
 import Data.List (sortOn)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as M
 import Miso.String (ms)
 
 data Model = Model
@@ -54,41 +56,42 @@ assignmentViewerComponent r user =
     view m =
       M.div_
         []
-        [ M.h2_ [] [M.text $ C.translate' C.LblAssignments]
+        [ Typography.h2 (C.translate' C.LblAssignments)
         , if null myAssignments
-            then M.p_ [] [M.text "Keine Aufträge"]
-            else M.div_ [] (map (viewAssignment m.document) myAssignments)
+            then Typography.paragraph "Keine Aufträge"
+            else M.div_ [class_ "space-y-4 mt-4"] (map (viewAssignment m.document) myAssignments)
         ]
       where
         myAssignments = sortOn (.assignmentDate) $ filter isMyAssignment $ Ix.toList m.allAssignments
         isMyAssignment a = m.currentUser.id `elem` a.studentIds
 
     viewAssignment doc assignment =
-      M.div_
-        [M.class_ "border rounded p-4 mb-4"]
-        [ M.h3_ [M.class_ "font-bold text-lg mb-2"] [M.text $ assignmentNameToText assignment.name]
-        , M.p_ [M.class_ "text-sm text-gray-600 mb-2"]
-            [ M.text "Datum: "
-            , M.text $ C.formatDay assignment.assignmentDate
-            ]
-        , M.p_ [M.class_ "text-sm text-gray-600 mb-2"]
-            [ M.text "Art: "
-            , M.text $ C.translate' $ C.LblActivityTypeDescription assignment.activityType
-            ]
-        , M.div_ [M.class_ "mt-3"]
-            [ M.h4_ [M.class_ "font-semibold mb-1"] [M.text "Aufgaben:"]
-            , if null assignment.tasks
-                then M.p_ [M.class_ "text-sm text-gray-500"] [M.text "Keine Aufgaben"]
-                else M.ul_ [M.class_ "list-disc list-inside"] (map (viewTask doc) assignment.tasks)
+      Card.card
+        [ M.div_ []
+            [ Typography.h3 (assignmentNameToText assignment.name)
+            , M.p_ [class_ "text-sm text-stone-600 mt-2"]
+                [ Typography.small "Datum: "
+                , M.text $ C.formatDay assignment.assignmentDate
+                ]
+            , M.p_ [class_ "text-sm text-stone-600"]
+                [ Typography.small "Art: "
+                , M.text $ C.translate' $ C.LblActivityTypeDescription assignment.activityType
+                ]
+            , M.div_ [class_ "mt-4"]
+                [ Typography.h4 "Aufgaben:"
+                , if null assignment.tasks
+                    then Typography.muted "Keine Aufgaben"
+                    else M.ul_ [class_ "list-disc list-inside mt-2"] (map (viewTask doc) assignment.tasks)
+                ]
             ]
         ]
 
     viewTask doc taskId =
       let taskM = Ix.getOne (Ix.getEQ taskId doc.tasks)
        in case taskM of
-            Nothing -> M.li_ [] [M.text $ "Aufgabe " <> ms (show taskId)]
+            Nothing -> M.li_ [class_ "text-sm"] [M.text $ "Aufgabe " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
-               in M.li_ [M.class_ "text-sm"] [M.text $ ms identifier]
+               in M.li_ [class_ "text-sm"] [M.text $ ms identifier]
 
     assignmentNameToText (AssignmentName t) = ms t

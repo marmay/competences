@@ -17,7 +17,7 @@ import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.SelfContainedTaskSelector (selfContainedTaskSelectorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Tailwind qualified as TW
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -40,8 +40,8 @@ selfContainedTaskEditorComponent r =
 
     view m =
       V.sideMenu
-        (V.componentA "task-editor-selection" [TW.tailwind [TW.HFull]] (selfContainedTaskSelectorComponent r #task))
-        (V.componentA taskEditorId [TW.tailwind [TW.HFull]] (TE.editorComponent taskEditor r))
+        (V.componentA "task-editor-selection" [class_ "h-full"] (selfContainedTaskSelectorComponent r #task))
+        (V.componentA taskEditorId [class_ "h-full"] (TE.editorComponent taskEditor r))
       where
         taskEditorId = "task-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.task
         taskEditable =
