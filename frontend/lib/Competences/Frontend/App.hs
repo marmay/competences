@@ -128,8 +128,10 @@ mkApp r =
 
     footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 
+-- | No-op function (CSS is now loaded in HTML head via backend)
+-- Kept for backward compatibility with Main.hs
 withTailwindPlay :: App -> App
-withTailwindPlay app = app {M.scripts = M.Src "https://cdn.tailwindcss.com" : M.scripts app}
+withTailwindPlay = id
 
 data Page
   = ViewCompetenceGrid

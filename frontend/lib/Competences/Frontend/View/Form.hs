@@ -1,10 +1,28 @@
 module Competences.Frontend.View.Form
-  ( form_
+  ( -- * Form layouts
+    form_
   , formField_
+  , formLayout
+
+    -- * Input components (re-exported from View.Input for convenience)
+  , Input.textInput
+  , Input.passwordInput
+  , Input.emailInput
+  , Input.numberInput
+  , Input.dateInput
+  , Input.textarea
+  , Input.label
+  , Input.fieldWrapper
+  , Input.fieldWrapperHorizontal
+  , Input.helperText
+
+    -- * Legacy (use View.Input instead)
   , textarea_
   )
 where
 
+import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout (formLayout)
 import Competences.Frontend.View.Layout qualified as V
 import Competences.Frontend.View.Tailwind qualified as T
 import Competences.Frontend.View.Text qualified as V

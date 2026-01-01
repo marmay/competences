@@ -1,5 +1,24 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Competences.Frontend.View.Button
-  ( iconButton
+  ( -- * Basecoat-style buttons (new approach)
+    ButtonVariant (..)
+  , ButtonSize (..)
+  , button
+  , buttonPrimary
+  , buttonSecondary
+  , buttonDestructive
+  , buttonGhost
+  , buttonLink
+  , withSize
+  , withDisabled
+  , withFullWidth
+  , withIcon
+  , withClick
+  , renderButton
+
+    -- * Legacy button API (backward compatibility)
+  , iconButton
   , iconButton'
   , iconLabelButton
   , iconLabelButton'
@@ -33,14 +52,137 @@ import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Layout (FlowDirection (..))
 import Competences.Frontend.View.Layout qualified as V
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tailwind qualified as T
 import Competences.Frontend.View.Text qualified as V
+import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString)
 import Optics.Core ((&), (.~))
+
+-- ============================================================================
+-- BASECOAT-STYLE BUTTONS (New Approach)
+-- ============================================================================
+
+-- | Button variant following Basecoat design system
+data ButtonVariant
+  = Primary      -- ^ Primary action (sky-600 background)
+  | Secondary    -- ^ Secondary action (stone-200 background)
+  | Destructive  -- ^ Destructive action (red-600 background)
+  | Ghost        -- ^ Ghost button (transparent, hover background)
+  | Link         -- ^ Link-style button (underline on hover)
+  deriving (Eq, Show)
+
+-- | Button size
+data ButtonSize
+  = Small   -- ^ h-9, px-3, text-sm
+  | Medium  -- ^ h-10, px-4
+  | Large   -- ^ h-11, px-8
+  deriving (Eq, Show)
+
+-- | Basecoat-style button configuration
+data BasecoatButton model action = BasecoatButton
+  { variant :: !ButtonVariant
+  , size :: !ButtonSize
+  , disabled :: !Bool
+  , fullWidth :: !Bool
+  , iconLeft :: !(Maybe Icon)
+  , iconRight :: !(Maybe Icon)
+  , attrs :: ![M.Attribute action]
+  , onClick :: !(Maybe action)
+  , children :: ![M.View model action]
+  }
+  deriving (Generic)
+
+-- | Create a button with text content
+button :: ButtonVariant -> MisoString -> BasecoatButton model action
+button v text = BasecoatButton
+  { variant = v
+  , size = Medium
+  , disabled = False
+  , fullWidth = False
+  , iconLeft = Nothing
+  , iconRight = Nothing
+  , attrs = []
+  , onClick = Nothing
+  , children = [M.text text]
+  }
+
+-- | Convenient button constructors
+buttonPrimary, buttonSecondary, buttonDestructive, buttonGhost, buttonLink
+  :: MisoString -> BasecoatButton model action
+buttonPrimary = button Primary
+buttonSecondary = button Secondary
+buttonDestructive = button Destructive
+buttonGhost = button Ghost
+buttonLink = button Link
+
+-- | Set button size
+withSize :: ButtonSize -> BasecoatButton m a -> BasecoatButton m a
+withSize s (BasecoatButton v _ d f il ir as oc ch) = BasecoatButton v s d f il ir as oc ch
+
+-- | Set disabled state
+withDisabled :: Bool -> BasecoatButton m a -> BasecoatButton m a
+withDisabled d (BasecoatButton v s _ f il ir as oc ch) = BasecoatButton v s d f il ir as oc ch
+
+-- | Make button full width
+withFullWidth :: BasecoatButton m a -> BasecoatButton m a
+withFullWidth (BasecoatButton v s d _ il ir as oc ch) = BasecoatButton v s d True il ir as oc ch
+
+-- | Add icon to button
+withIcon :: Icon -> BasecoatButton m a -> BasecoatButton m a
+withIcon i (BasecoatButton v s d f _ ir as oc ch) = BasecoatButton v s d f (Just i) ir as oc ch
+
+-- | Add click handler
+withClick :: a -> BasecoatButton m a -> BasecoatButton m a
+withClick action (BasecoatButton v s d f il ir as _ ch) = BasecoatButton v s d f il ir as (Just action) ch
+
+-- | Render a Basecoat-style button
+renderButton :: BasecoatButton model action -> M.View model action
+renderButton b =
+  M.button_
+    ( [class_ $ Text.unwords $ filter (not . Text.null)
+          [ baseClasses
+          , variantClasses b.variant
+          , sizeClasses b.size
+          , if b.disabled then disabledClasses else ""
+          , if b.fullWidth then "w-full" else ""
+          ]
+      ] <> (if b.disabled then [MP.disabled_] else [])
+        <> maybe [] (\a -> [M.onClick a]) b.onClick
+        <> b.attrs
+    )
+    (renderChildren b)
+  where
+    -- Base classes from Basecoat
+    baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+
+    -- Variant classes (extracted from Basecoat)
+    variantClasses Primary = "bg-sky-600 text-white hover:bg-sky-700 focus-visible:ring-sky-600"
+    variantClasses Secondary = "bg-stone-200 text-stone-900 hover:bg-stone-300 focus-visible:ring-stone-400"
+    variantClasses Destructive = "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600"
+    variantClasses Ghost = "hover:bg-stone-100 focus-visible:ring-stone-400"
+    variantClasses Link = "text-sky-600 underline-offset-4 hover:underline"
+
+    -- Size classes
+    sizeClasses Small = "h-9 px-3 gap-1.5 text-sm"
+    sizeClasses Medium = "h-10 px-4 gap-2"
+    sizeClasses Large = "h-11 px-8 gap-2"
+
+    disabledClasses = "opacity-50 cursor-not-allowed"
+
+    renderChildren btn = case (btn.iconLeft, btn.iconRight) of
+      (Nothing, Nothing) -> btn.children
+      (Just i, Nothing) -> icon [] i : btn.children
+      (Nothing, Just i) -> btn.children <> [icon [] i]
+      (Just il, Just ir) -> icon [] il : btn.children <> [icon [] ir]
+
+-- ============================================================================
+-- LEGACY BUTTON API (Backward Compatibility)
+-- ============================================================================
 
 data ButtonContents
   = ButtonIcon !Icon !M.MisoString

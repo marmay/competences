@@ -127,6 +127,8 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
     H.title "Competences"
+    -- Load our generated Tailwind CSS
+    H.link ! A.rel "stylesheet" ! A.href "/static/output.css"
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';"
