@@ -1,23 +1,32 @@
 module Competences.Frontend.View.Layout
-  ( hFlow
+  ( -- * Flow Layout (Foundation)
+    hFlow
   , vFlow
   , flow
+  , viewFlow
+  , Expand (..)
+  , FlowDirection (..)
+  , LayoutSpace (..)
+  , Alignment (..)
+  , FlowLayout (..)
+
+    -- * Higher-level layouts
+  , pageLayout
+  , splitView
+  , formLayout
+  , section
+
+    -- * Utilities
   , empty
   , flowSpring
   , hBorder
   , hScrollable
   , vBorder
   , vScrollable
-  , viewFlow
   , visibleIf
   , fixedWidth
   , flexGrow
   , sideMenu
-  , Expand (..)
-  , FlowDirection (..)
-  , LayoutSpace (..)
-  , Alignment (..)
-  , FlowLayout (..)
   )
 where
 
@@ -127,3 +136,59 @@ sideMenu side main =
     [ M.div_ [T.tailwind [T.HFull]] [side]
     , M.div_ [T.tailwind [T.HFull, T.FlexGrow]] [main]
     ]
+
+-- ============================================================================
+-- HIGHER-LEVEL LAYOUT PRIMITIVES
+-- ============================================================================
+
+-- | Page layout with optional header, main content, and optional footer
+-- Provides consistent full-height layout with scrollable content area
+pageLayout
+  :: Maybe (M.View m a) -- ^ Optional header
+  -> M.View m a -- ^ Main content (scrollable)
+  -> Maybe (M.View m a) -- ^ Optional footer
+  -> M.View m a
+pageLayout maybeHeader content maybeFooter =
+  viewFlow
+    (vFlow & (#expandDirection .~ Expand Start) & (#extraAttrs .~ [T.tailwind [T.HScreen]]))
+    $ catMaybes
+      [ fmap (\h -> M.header_ [T.class_ "border-b border-stone-200 bg-white"] [h]) maybeHeader
+      , Just $ M.main_ [T.class_ "flex-1 overflow-y-auto"] [content]
+      , fmap (\f -> M.footer_ [T.class_ "border-t border-stone-200 bg-white"] [f]) maybeFooter
+      ]
+  where
+    catMaybes = foldr (\mx xs -> maybe xs (: xs) mx) []
+
+-- | Two-column split view with flexible sizing
+-- Left column has fixed/minimum width, right column grows to fill space
+splitView
+  :: Int -- ^ Left column width in pixels (or minimum width)
+  -> M.View m a -- ^ Left content
+  -> M.View m a -- ^ Right content
+  -> M.View m a
+splitView leftWidth left right =
+  viewFlow
+    (hFlow & (#gap .~ SmallSpace) & (#expandDirection .~ Expand Start))
+    [ M.div_ [T.class_ ("flex-shrink-0"), MS.style_ [("min-width", M.ms (show leftWidth) <> "px")]] [left]
+    , M.div_ [T.tailwind [T.FlexGrow]] [right]
+    ]
+
+-- | Form layout with consistent spacing and structure
+-- Stacks form fields vertically with appropriate gaps
+formLayout :: [M.View m a] -> M.View m a
+formLayout fields =
+  M.form_
+    [T.class_ "space-y-4"]
+    fields
+
+-- | Content section with optional title
+-- Provides consistent spacing and visual grouping
+section
+  :: Maybe M.MisoString -- ^ Optional section title
+  -> [M.View m a] -- ^ Section content
+  -> M.View m a
+section maybeTitle content =
+  M.section_
+    [T.class_ "space-y-3"]
+    $ maybe [] (\title -> [M.h3_ [T.class_ "text-lg font-semibold text-stone-900"] [M.text title]]) maybeTitle
+      <> content

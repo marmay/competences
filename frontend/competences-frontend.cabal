@@ -65,12 +65,15 @@ library
         Competences.Frontend.Component.UserListEditor,
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,
+        Competences.Frontend.View.Badge,
         Competences.Frontend.View.Button,
+        Competences.Frontend.View.Card,
         Competences.Frontend.View.Colors,
         Competences.Frontend.View.Component,
         Competences.Frontend.View.DesignTokens,
         Competences.Frontend.View.Form,
         Competences.Frontend.View.Icon,
+        Competences.Frontend.View.Input,
         Competences.Frontend.View.Layout,
         Competences.Frontend.View.Modal,
         Competences.Frontend.View.SidePanel,
@@ -78,6 +81,7 @@ library
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.Text,
         Competences.Frontend.View.Tooltip,
+        Competences.Frontend.View.Typography,
         Competences.Frontend.WebSocket
     build-depends:
         base ^>=4.21.0.0,
