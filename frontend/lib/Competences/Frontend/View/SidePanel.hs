@@ -1,8 +1,6 @@
 module Competences.Frontend.View.SidePanel
   ( SidePanelState (..)
   , sidePanel
-  , mounted
-  , mounted'
   )
 where
 
@@ -25,11 +23,3 @@ sidePanel state = M.div_ [T.tailwind (tailwindStyleFor state)]
     tailwindStyleFor MenuPanel = []
     tailwindStyleFor EditorPanel = []
     tailwindStyleFor LargePanel = []
-
-mounted
-  :: (Eq childModel) => M.MisoString -> M.Component model childModel childAction -> M.View model action
-mounted id' c = M.div_ [M.key_ id'] M.+> c
-
-mounted'
-  :: (Eq childModel) => M.Component model childModel childAction -> M.View model action
-mounted' c = M.div_ [] M.+> c

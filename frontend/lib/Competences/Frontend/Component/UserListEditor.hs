@@ -18,8 +18,8 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core (Iso', iso, (%), (&), (.~), (?~), (^.))
+import Competences.Frontend.View.Component (component)
 
 data Action
   = NewUser
@@ -74,7 +74,7 @@ userListEditorComponent r =
               `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField #name #name)
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
-          users = M.div_ [] M.+> TE.editorComponent usersEditor r
+          users = component "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
           addButton = V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
        in V.viewFlow
             ( V.vFlow

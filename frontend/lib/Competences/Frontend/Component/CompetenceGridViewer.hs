@@ -97,7 +97,8 @@ competenceGridViewerComponent r =
         title = V.title_ (M.ms competenceGrid.title)
         description = V.text_ (M.ms competenceGrid.description)
         userSelector =
-          V.component'
+          V.component
+            "competence-grid-viewer-user-selector"
             ( singleUserSelectorComponent
                 r
                 defaultUserSelectorConfig {isPossibleUser = isStudent}

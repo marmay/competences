@@ -29,7 +29,6 @@ module Competences.Frontend.View.Button
   )
 where
 
-import Competences.Frontend.Common.MisoExt (onClick')
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Layout (FlowDirection (..))
@@ -118,7 +117,7 @@ viewButton :: (ToTriState s) => Button s a -> M.View m a
 viewButton b =
   M.button_
     [ T.tailwind $ mconcat [rounded, colors, fill]
-    , onClick' b.onClick
+    , M.onClickWithOptions M.stopPropagation b.onClick
     ]
     [ V.viewFlow (V.hFlow & (#margin .~ V.TinySpace) & (#gap .~ V.SmallSpace)) $
         viewButtonContents b.contents

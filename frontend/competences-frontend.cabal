@@ -26,8 +26,6 @@ library
         OverloadedStrings
     exposed-modules:
         Competences.Frontend.App,
-        Competences.Frontend.Common.Effect,
-        Competences.Frontend.Common.MisoExt,
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.Reorder,
         Competences.Frontend.Common.Translate,

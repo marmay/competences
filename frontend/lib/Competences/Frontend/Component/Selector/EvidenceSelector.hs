@@ -145,7 +145,7 @@ evidenceSelectorComponent r parentLens =
       where
         viewEvidence e =
           M.a_
-            [C.onClick' (SelectEvidence e)]
+            [M.onClickWithOptions M.stopPropagation (SelectEvidence e)]
             [ V.viewFlow
                 (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
                 ( V.viewFlow

@@ -100,11 +100,11 @@ competenceGridSelectorComponent r style parentLens =
       where
         viewCompetenceGrid c =
           M.a_
-            [C.onClick' (SelectCompetenceGrid c)]
+            [M.onClickWithOptions M.stopPropagation (SelectCompetenceGrid c)]
             [ V.viewFlow
                 (V.vFlow & #expandOrthogonal .~ V.Expand V.Start)
                 [ M.a_
-                    [C.onClick' (SelectCompetenceGrid c)]
+                    [M.onClickWithOptions M.stopPropagation (SelectCompetenceGrid c)]
                     [V.text_ (M.ms $ if c.title == "" then "Ohne Titel" else c.title)]
                 ]
             ]

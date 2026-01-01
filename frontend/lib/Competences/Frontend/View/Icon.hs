@@ -40,12 +40,12 @@ data Icon
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
-iconDefs = MS.svg_ [MSP.width_ "0", MSP.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]
+iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]
 
 icon :: [Attribute a] -> Icon -> View m a
 icon attrs icn =
   MS.svg_
-    (attrs <> [MSP.viewBox_ "0 0 24 24", MSP.width_ "24", MSP.height_ "24"])
+    (attrs <> [MSP.viewBox_ "0 0 24 24", M.width_ "24", M.height_ "24"])
     [MS.use_ [M.href_ $ "#" <> iconId icn]]
 
 iconId :: Icon -> MisoString
@@ -70,7 +70,7 @@ iconId = \case
   IcnSocialFormGroup -> "icon-social-form-group"
 
 iconDefOf :: Icon -> View m a
-iconDefOf icn = MS.symbol_ [MSP.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
+iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
 
 iconDefOf' :: Icon -> [View m a]
 iconDefOf' = \case
