@@ -145,10 +145,126 @@ The project uses GHC2024 with these additional extensions:
 - Use optics-core for record manipulation (`^.`, `.~`, `%~`, `&`)
 - Entity IDs use newtype wrappers from `Competences.Document.Id`
 - Translations via `Competences.Frontend.Common.Translate`
-- Frontend styling via `Competences.Frontend.View.Tailwind`
 - When importing types with `NoFieldSelectors`, use `Type(..)` to access record fields:
   - ✓ `import Competences.Document (Document(..), User(..))`
   - ✗ `import Competences.Document (Document, User)` (won't allow `doc.users` access)
+
+## UI and View Patterns
+
+**See [docs/UI-REFACTORING-PROGRESS.md](docs/UI-REFACTORING-PROGRESS.md) for complete details.**
+
+The frontend uses Basecoat-inspired design patterns with Tailwind CSS. All View modules follow consistent styling and component patterns.
+
+### Core Principles
+
+1. **Direct CSS classes** via `class_` helper instead of TailwindCls enum
+2. **Basecoat color palette**: sky (primary), stone (neutral), red (destructive)
+3. **Builder pattern** for component configuration (`with*` functions)
+4. **Semantic components** with clear purpose and consistent API
+
+### View Module Organization
+
+**Core Components** (`Competences.Frontend.View.*`):
+- `Typography` - Headings, paragraphs, text utilities (h1-h4, paragraph, lead, small, muted, code, kbd)
+- `Badge` - Status indicators with variants (Primary, Secondary, Destructive, Outline)
+- `Card` - Content containers (card, cardWithHeader, cardWithFooter, cardFull)
+- `Button` - Interactive buttons with Basecoat styling and builder pattern
+- `Input` - Form inputs with configuration builders (text, password, email, number, date, textarea)
+
+**Layout & Structure**:
+- `Layout` - FlowLayout foundation + higher-level primitives (pageLayout, splitView, formLayout, section)
+- `Form` - Form layout helpers + Input re-exports for convenience
+- `Table` - Data tables with Basecoat styling (rounded borders, hover states)
+- `Modal` - Overlay dialogs with backdrop and proper layering
+
+**Utilities**:
+- `DesignTokens` - Basecoat constants (spacing, colors, radii, typography)
+- `Tailwind` - Enhanced with `class_` and `classes` helpers for direct CSS
+
+### Common Usage Patterns
+
+```haskell
+-- Import pattern for View modules
+import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button as Button
+import Competences.Frontend.View.Input as Input
+
+-- Using Typography
+V.h2 "Section Title"
+V.paragraph "Description text..."
+
+-- Using Buttons with builder pattern
+Button.button Button.Primary
+  & Button.withClick MyAction
+  & Button.render "Click Me"
+
+-- Using Inputs with configuration
+Input.textInput
+  & Input.withPlaceholder "Enter name..."
+  & Input.withValue model.name
+  & Input.withOnInput SetName
+  & Input.renderInput
+
+-- Using Cards
+V.cardWithHeader "Card Title" (Just "Description")
+  [ V.paragraph "Card content..."
+  , V.paragraph "More content..."
+  ]
+
+-- Using Tables
+V.viewTable $ V.defTable
+  & #columns .~ myColumns
+  & #rows .~ myRows
+  & #columnSpec .~ myColumnSpec
+  & #rowContents .~ myRowRenderer
+
+-- Using direct CSS classes
+M.div_ [V.class_ "flex gap-4 items-center bg-stone-50 p-4 rounded-lg"] [...]
+```
+
+### CSS Build System
+
+**Production CSS**: Generated via Tailwind CLI, served from `/static/output.css`
+- **Size**: ~321KB minified (includes full Basecoat color palette via safelist)
+- **Build**: `npm run build:css` (integrated into `deploy_frontend.sh`)
+- **Config**: `tailwind.config.js` with safelist for dynamic class names
+
+**Why safelist?** Tailwind's content scanner can't detect dynamically constructed class names in Haskell code (via `class_` helper), so we safelist the complete Basecoat color palette to ensure all needed classes are available.
+
+### Migration Guide
+
+When updating components to use new View patterns:
+
+1. **Replace old imports**:
+   ```haskell
+   -- Old
+   import Competences.Frontend.View.Colors qualified as C
+   import Competences.Frontend.View.Text qualified as V
+
+   -- New
+   import Competences.Frontend.View.Typography qualified as Typography
+   import Competences.Frontend.View.Button as Button
+   ```
+
+2. **Replace TailwindCls enum usage**:
+   ```haskell
+   -- Old
+   M.div_ [T.tailwind [T.Flex, T.Gap4, T.ItemsCenter]] [...]
+
+   -- New
+   M.div_ [V.class_ "flex gap-4 items-center"] [...]
+   ```
+
+3. **Use View primitives**:
+   ```haskell
+   -- Old
+   M.h2_ [T.tailwind [T.Text2xl, T.FontBold]] [M.text "Title"]
+
+   -- New
+   Typography.h2 "Title"
+   ```
+
+4. **Test thoroughly** - View changes affect rendering, verify UI looks correct
 
 ## Essential Patterns
 

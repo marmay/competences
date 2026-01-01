@@ -22,7 +22,7 @@ import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEdito
 import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Tailwind qualified as TW
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -46,8 +46,8 @@ assignmentEditorComponent r =
 
     view m =
       V.sideMenu
-        (V.componentA "assignment-editor-selection" [TW.tailwind [TW.HFull]] (assignmentSelectorComponent r #assignment))
-        (V.componentA assignmentEditorId [TW.tailwind [TW.HFull]] (TE.editorComponent assignmentEditor r))
+        (V.componentA "assignment-editor-selection" [class_ "h-full"] (assignmentSelectorComponent r #assignment))
+        (V.componentA assignmentEditorId [class_ "h-full"] (TE.editorComponent assignmentEditor r))
       where
         assignmentEditorId = "assignment-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.assignment
 

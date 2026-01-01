@@ -32,6 +32,7 @@ import Competences.Frontend.SyncDocument
   , nextId
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
@@ -79,7 +80,7 @@ competenceGridEditorComponent r = M.component emptyModel update view
             (competenceGridSelectorComponent r CompetenceGridSelectorViewAndCreateStyle #competenceGrid)
         , case model.competenceGrid of
             Just competenceGrid -> view' competenceGrid
-            Nothing -> V.text_ "..."
+            Nothing -> Typography.muted "Bitte wählen Sie einen Kompetenzraster aus"
         ]
 
     view' competenceGrid =

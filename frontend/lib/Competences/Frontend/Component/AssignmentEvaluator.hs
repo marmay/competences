@@ -26,6 +26,8 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
@@ -165,16 +167,16 @@ assignmentEvaluatorComponent r =
 
     viewEvaluator m =
       case m.assignment of
-        Nothing -> M.div_ [] [M.text "Bitte wählen Sie einen Auftrag zur Auswertung"]
+        Nothing -> Typography.paragraph "Bitte wählen Sie einen Auftrag zur Auswertung"
         Just a ->
           if null a.tasks
-            then M.div_ [] [M.text "Dieser Auftrag hat keine Aufgaben"]
+            then Typography.paragraph "Dieser Auftrag hat keine Aufgaben"
             else
               M.div_
                 []
-                [ M.h2_ [] [M.text "Auftrag auswerten"]
+                [ Typography.h2 "Auftrag auswerten"
                 , viewStudentSelection m a
-                , M.div_ [M.class_ "space-y-6"] (map (viewTaskSection m a) a.tasks)
+                , M.div_ [class_ "space-y-6"] (map (viewTaskSection m a) a.tasks)
                 , viewAggregationSection m a
                 , viewCreateEvidencesButton m
                 ]
@@ -183,38 +185,38 @@ assignmentEvaluatorComponent r =
       let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.currentDocument.users)) (Set.toList a.studentIds)
           selectedCount = Set.size m.selectedStudents
        in M.div_
-            [M.class_ "mb-6 p-4 bg-gray-50 rounded border"]
-            [ M.h3_ [M.class_ "font-semibold mb-3"] [M.text $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
-            , M.div_ [M.class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentSelectionButton m) students)
-            , M.div_ [M.class_ "flex items-center gap-2 mt-3 pt-3 border-t"]
-                [ M.span_ [M.class_ "font-semibold text-sm"] [M.text "Sozialform:"]
-                , M.div_ [M.class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
+            [class_ "mb-6 p-4 bg-stone-50 rounded border"]
+            [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
+            , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentSelectionButton m) students)
+            , M.div_ [class_ "flex items-center gap-2 mt-3 pt-3 border-t"]
+                [ M.span_ [class_ "font-semibold text-sm"] [M.text "Sozialform:"]
+                , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
                 ]
             ]
 
     viewSocialFormButton m sf =
       let isSelected = m.socialForm == sf
           buttonClass = if isSelected
-                          then "px-3 py-1 rounded bg-blue-500 text-white text-sm cursor-pointer hover:bg-blue-600"
-                          else "px-3 py-1 rounded bg-gray-200 text-gray-800 text-sm cursor-pointer hover:bg-gray-300"
+                          then "px-3 py-1 rounded bg-sky-600 text-white text-sm cursor-pointer hover:bg-sky-700"
+                          else "px-3 py-1 rounded bg-stone-200 text-stone-800 text-sm cursor-pointer hover:bg-stone-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (SetSocialForm sf)]
+            [class_ buttonClass, M.onClick (SetSocialForm sf)]
             [M.text $ C.translate' $ C.LblSocialForm sf]
 
     viewStudentSelectionButton _ Nothing =
-      M.div_ [M.class_ "px-3 py-1 rounded bg-gray-300 text-gray-600 text-sm"] [M.text "Schüler nicht gefunden"]
+      M.div_ [class_ "px-3 py-1 rounded bg-stone-300 text-stone-600 text-sm"] [M.text "Schüler nicht gefunden"]
     viewStudentSelectionButton m (Just student) =
       let isSelected = Set.member student.id m.selectedStudents
           buttonClass = if isSelected
-                          then "px-3 py-1 rounded bg-blue-500 text-white text-sm cursor-pointer hover:bg-blue-600"
-                          else "px-3 py-1 rounded bg-gray-200 text-gray-800 text-sm cursor-pointer hover:bg-gray-300"
+                          then "px-3 py-1 rounded bg-sky-600 text-white text-sm cursor-pointer hover:bg-sky-700"
+                          else "px-3 py-1 rounded bg-stone-200 text-stone-800 text-sm cursor-pointer hover:bg-stone-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (ToggleStudentSelection student.id)]
+            [class_ buttonClass, M.onClick (ToggleStudentSelection student.id)]
             [M.text $ ms student.name]
 
     viewTaskSection m a taskId =
       M.div_
-        [M.class_ "border-b pb-4"]
+        [class_ "border-b pb-4"]
         [ viewTaskInfo m.currentDocument taskId
         , viewStudentEvaluations m a taskId
         ]
@@ -225,11 +227,11 @@ assignmentEvaluatorComponent r =
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
-               in M.div_ [M.class_ "mt-4 mb-3"]
-                    [ M.h3_ [M.class_ "font-bold text-lg mb-1"] [M.text $ "Aufgabe: " <> ms identifier]
+               in M.div_ [class_ "mt-4 mb-3"]
+                    [ M.div_ [class_ "mb-1"] [Typography.h3 $ "Aufgabe: " <> ms identifier]
                     , case task.content of
                         Nothing -> M.text ""
-                        Just content -> M.p_ [M.class_ "text-sm text-gray-600 mb-2"] [M.text $ ms content]
+                        Just content -> M.div_ [class_ "mb-2"] [Typography.small $ ms content]
                     ]
 
     viewStudentEvaluations m a taskId =
@@ -239,8 +241,8 @@ assignmentEvaluatorComponent r =
             Just task ->
               let competences = getTaskCompetences task
                in if null m.selectedStudents
-                    then M.div_ [M.class_ "mt-4 text-sm text-gray-500"] [M.text "Bitte wählen Sie Schüler zur Auswertung aus"]
-                    else M.div_ [M.class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m a taskId) competences)
+                    then M.div_ [class_ "mt-4"] [Typography.muted "Bitte wählen Sie Schüler zur Auswertung aus"]
+                    else M.div_ [class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m a taskId) competences)
 
     getTaskCompetences task =
       case task.taskType of
@@ -262,31 +264,31 @@ assignmentEvaluatorComponent r =
 
     viewAbilityButton _ taskId compId currentAbility ability =
       let isSelected = currentAbility == Just ability
-          buttonClass = if isSelected then "bg-blue-500 text-white px-2 py-1 text-sm rounded" else "bg-gray-200 px-2 py-1 text-sm rounded hover:bg-gray-300"
+          buttonClass = if isSelected then "bg-sky-600 text-white px-2 py-1 text-sm rounded" else "bg-stone-200 px-2 py-1 text-sm rounded hover:bg-stone-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (SetTaskObservationForAll taskId compId ability)]
+            [class_ buttonClass, M.onClick (SetTaskObservationForAll taskId compId ability)]
             [M.text $ C.translate' $ C.LblAbility ability]
 
     viewAggregationSection m a =
       M.div_
-        [M.class_ "mt-6 border-t pt-6"]
-        [ M.div_ [M.class_ "flex items-center justify-between mb-4"]
-            [ M.h3_ [M.class_ "font-bold text-lg"] [M.text "Aggregierte Ergebnisse"]
+        [class_ "mt-6 border-t pt-6"]
+        [ M.div_ [class_ "flex items-center justify-between mb-4"]
+            [ Typography.h3 "Aggregierte Ergebnisse"
             , M.button_
                 [ M.onClick ComputeAggregation
-                , M.class_ "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                , class_ "bg-sky-600 text-white px-4 py-2 rounded hover:bg-sky-700"
                 ]
                 [M.text "Aggregation berechnen"]
             ]
         , if Map.null m.aggregatedResults
-            then M.p_ [M.class_ "text-sm text-gray-500"] [M.text "Klicken Sie auf 'Aggregation berechnen', um die Ergebnisse zu aggregieren."]
+            then Typography.muted "Klicken Sie auf 'Aggregation berechnen', um die Ergebnisse zu aggregieren."
             else viewAggregatedResults m a
         ]
 
     viewAggregatedResults m _ =
       M.div_
-        [M.class_ "border p-3 rounded bg-gray-50"]
-        [ M.div_ [M.class_ "space-y-2"] (map (viewAggregatedCompetence m) (Map.toList m.aggregatedResults))
+        [class_ "border p-3 rounded bg-stone-50"]
+        [ M.div_ [class_ "space-y-2"] (map (viewAggregatedCompetence m) (Map.toList m.aggregatedResults))
         ]
 
     viewAggregatedCompetence m (compId, ability) =
@@ -297,14 +299,14 @@ assignmentEvaluatorComponent r =
             Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
           contributingTasks = getContributingTasks m compId
        in M.div_
-            [M.class_ "mb-3"]
-            [ M.div_ [M.class_ "flex items-center gap-2"]
-                [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
-                , M.div_ [M.class_ "flex gap-1"] (map (viewAggregatedAbilityButton compId ability) abilities)
+            [class_ "mb-3"]
+            [ M.div_ [class_ "flex items-center gap-2"]
+                [ M.span_ [class_ "min-w-[200px]"] [M.text compLevelName]
+                , M.div_ [class_ "flex gap-1"] (map (viewAggregatedAbilityButton compId ability) abilities)
                 ]
             , if null contributingTasks
                 then M.text ""
-                else M.div_ [M.class_ "text-xs text-gray-500 mt-1 ml-1"]
+                else M.div_ [class_ "text-xs text-stone-500 mt-1 ml-1"]
                        [M.text $ "Aufgaben: " <> ms (T.intercalate ", " contributingTasks)]
             ]
 
@@ -318,9 +320,9 @@ assignmentEvaluatorComponent r =
 
     viewAggregatedAbilityButton compId currentAbility ability =
       let isSelected = currentAbility == ability
-          buttonClass = if isSelected then "bg-blue-500 text-white px-2 py-1 text-sm rounded" else "bg-gray-200 px-2 py-1 text-sm rounded hover:bg-gray-300"
+          buttonClass = if isSelected then "bg-sky-600 text-white px-2 py-1 text-sm rounded" else "bg-stone-200 px-2 py-1 text-sm rounded hover:bg-stone-300"
        in M.button_
-            [M.class_ buttonClass, M.onClick (SetAggregatedResult compId ability)]
+            [class_ buttonClass, M.onClick (SetAggregatedResult compId ability)]
             [M.text $ C.translate' $ C.LblAbility ability]
 
     viewCreateEvidencesButton m =
@@ -329,12 +331,12 @@ assignmentEvaluatorComponent r =
           buttonText = "Nachweise erstellen (" <> ms (show selectedCount) <> " Schüler ausgewählt)"
           attrs =
             [ M.onClick CreateEvidences
-            , M.class_ $
+            , class_ $
                 if selectedCount == 0 || not hasAggregatedResults
-                  then "bg-gray-400 text-white px-4 py-2 rounded cursor-not-allowed"
+                  then "bg-stone-400 text-white px-4 py-2 rounded cursor-not-allowed"
                   else "bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
             ]
               <> [M.disabled_ | selectedCount == 0 || not hasAggregatedResults]
        in M.div_
-            [M.class_ "mt-6 flex justify-end"]
+            [class_ "mt-6 flex justify-end"]
             [M.button_ attrs [M.text buttonText]]

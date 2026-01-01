@@ -40,6 +40,7 @@ import Competences.Frontend.Component.Selector.UserSelector
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Table qualified as C
+import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
@@ -79,7 +80,7 @@ competenceGridViewerComponent r =
     viewCompetenceGrid m =
       case m.competenceGrid of
         Just competenceGrid -> viewCompetenceGrid' m.document m.selectedUser competenceGrid
-        Nothing -> V.text_ "Bitte wähle einen Kompetenzraster aus."
+        Nothing -> Typography.paragraph "Bitte wähle einen Kompetenzraster aus."
     viewCompetenceGrid' :: Document -> Maybe User -> CompetenceGrid -> M.View Model Action
     viewCompetenceGrid' document selectedUser competenceGrid =
       V.viewFlow
@@ -94,8 +95,8 @@ competenceGridViewerComponent r =
         , competences
         ]
       where
-        title = V.title_ (M.ms competenceGrid.title)
-        description = V.text_ (M.ms competenceGrid.description)
+        title = Typography.h2 (M.ms competenceGrid.title)
+        description = Typography.paragraph (M.ms competenceGrid.description)
         userSelector =
           V.component
             "competence-grid-viewer-user-selector"
@@ -122,7 +123,7 @@ competenceGridViewerComponent r =
                   LevelDescriptionColumn l ->
                     C.TableColumnSpec C.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
               , V.rowContents = V.cellContents $ \competence -> \case
-                  DescriptionColumn -> V.text_ (M.ms competence.description)
+                  DescriptionColumn -> Typography.small (M.ms competence.description)
                   LevelDescriptionColumn level ->
                     let competenceLevelId = (competence.id, level)
                         levelDescription = M.ms $ fromMaybe "" (competence.levelDescriptions Map.!? level)
@@ -151,7 +152,7 @@ competenceGridViewerComponent r =
                                 [V.icon [MSP.stroke_ color] i | i <- [activityTypeIcn, socialFormIcn]]
                      in V.viewFlow
                           (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
-                          [ V.text_ levelDescription
+                          [ Typography.small levelDescription
                           , V.viewFlow
                               (V.hFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start))
                               (V.flowSpring : map showEvidence (Ix.toAscList (Proxy @Day) evidences'))
