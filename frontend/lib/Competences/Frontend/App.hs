@@ -19,6 +19,7 @@ import Competences.Frontend.Component.StatisticsViewer (statisticsViewerComponen
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef, syncDocumentEnv)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Functor (($>))
 import GHC.Generics (Generic)
@@ -124,7 +125,7 @@ mkApp r =
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
-    mounted key c = M.div_ [M.key_ key, T.tailwind [T.MinH0]] M.+> c
+    mounted key = componentA (M.ms $ show key) [T.tailwind [T.MinH0]]
 
     footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 

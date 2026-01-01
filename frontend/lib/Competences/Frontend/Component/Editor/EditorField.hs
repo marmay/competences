@@ -31,6 +31,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Optics.Core (Lens', at, lens, (%), (&), (?~), (^.))
 import Optics.Core qualified as O
+import Competences.Frontend.View.Component (componentA)
 
 data EditorField a patch f = EditorField
   { viewer :: !(a -> M.View (Model a patch f) (Action a patch))
@@ -120,8 +121,8 @@ selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
    in EditorField
         { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
         , editor = \refocusTarget a _ ->
-            M.div_ (M.key_ (k <> "-editor") : refocusTargetAttr refocusTarget)
-              M.+> mkEditorComponent a editorStyle (l' a)
+            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+              mkEditorComponent a editorStyle (l' a))
         }
 
 dayEditorField :: Lens' a Day -> Lens' patch (Change Day) -> EditorField a patch f
