@@ -68,6 +68,7 @@ library
         Competences.Frontend.View.Button,
         Competences.Frontend.View.Colors,
         Competences.Frontend.View.Component,
+        Competences.Frontend.View.DesignTokens,
         Competences.Frontend.View.Form,
         Competences.Frontend.View.Icon,
         Competences.Frontend.View.Layout,
@@ -86,7 +87,6 @@ library
         containers,
         data-default,
         extra,
-        jsaddle,
         miso >= 1.9.0,
         mtl,
         optics-core,
@@ -119,12 +119,9 @@ executable competences-frontend
         text
     if !flag(wasm)
         build-depends:
-            jsaddle-warp,
             optparse-applicative
     if flag(wasm)
         build-depends:
-            jsaddle,
-            jsaddle-wasm,
             optics-core
         cpp-options: -DWASM
         ghc-options:

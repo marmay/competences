@@ -1,5 +1,9 @@
 module Competences.Frontend.View.Tailwind
-  ( tailwind
+  ( -- * Direct Tailwind class helpers (new approach)
+    class_
+  , classes
+    -- * Legacy TailwindCls enum approach
+  , tailwind
   , tailwind'
   , tailwindColors
   , requiredClasses
@@ -17,12 +21,30 @@ import Data.Text qualified as T
 import Miso qualified as M
 import qualified Miso.Html.Property as M
 
+-- | Apply Tailwind classes directly using a Text string.
+--   This is the new recommended approach for flexibility and simplicity.
+--
+--   Example: class_ "flex items-center gap-2 rounded-md"
+class_ :: T.Text -> M.Attribute a
+class_ = M.class_ . M.ms
+
+-- | Combine multiple class strings into a single class attribute.
+--   Useful for breaking up long class lists for readability.
+--
+--   Example: classes ["flex items-center", "gap-2", "rounded-md"]
+classes :: [T.Text] -> M.Attribute a
+classes cs = class_ $ T.unwords cs
+
+-- | Legacy function using TailwindCls enum.
+--   Kept for backward compatibility during migration.
 tailwind :: [TailwindCls] -> M.Attribute a
 tailwind clses = M.class_ $ M.ms $ T.intercalate " " $ concatMap tailwindNames clses
 
+-- | Legacy function using single TailwindCls.
 tailwind' :: TailwindCls -> M.Attribute a
 tailwind' cls = M.class_ $ M.ms $ T.intercalate " " $ tailwindNames cls
 
+-- | Legacy function for dynamic color classes.
 tailwindColors :: [(ColorUtility, Color, ColorStep, Opacity)] -> M.Attribute a
 tailwindColors = M.class_ . M.ms . T.intercalate " " . map (\(u, c, s, o) -> useColor u c s o)
 
