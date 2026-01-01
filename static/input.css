@@ -1,0 +1,25 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  * {
+    @apply border-stone-200;
+  }
+
+  body {
+    @apply bg-white text-stone-900;
+  }
+}
+
+/* Component utilities can be added here if needed */
+@layer components {
+  /* Future: Add custom component classes here */
+}
+
+/* Custom utilities */
+@layer utilities {
+  /* Future: Add custom utility classes here */
+}

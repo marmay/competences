@@ -15,3 +15,6 @@ $($GHC --print-libdir)/post-link.mjs --input $($CABAL list-bin exe:competences-f
 cp $($CABAL list-bin exe:competences-frontend --allow-newer) static/app.wasm 
 $WASM_OPT -all -O2 static/app.wasm -o static/app.wasm
 $WASM_TOOLS strip -o static/app.wasm static/app.wasm
+
+echo "Building Tailwind CSS..."
+npm run build:css
