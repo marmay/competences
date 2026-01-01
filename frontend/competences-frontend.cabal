@@ -114,6 +114,7 @@ executable competences-frontend
         bytestring,
         competences-common,
         competences-frontend,
+        miso >= 1.9.0,
         random,
         text
     if !flag(wasm)

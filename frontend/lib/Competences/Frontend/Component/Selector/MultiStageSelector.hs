@@ -39,7 +39,6 @@ import Data.Kind (Type)
 import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
 import GHC.Generics (Generic)
-import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString, ms)
@@ -98,10 +97,10 @@ deriving instance (Show (HList ctx), Show a) => Show (StageInfo ctx a)
 -- Note: Use 'stage', 'stage'', or 'done' to construct pipelines instead of
 -- using the constructors directly.
 data Pipeline (k :: StageKind) (ctx :: [Type]) (a :: Type) result where
-  -- Final stage: no selection, just build result from context using JSM effects
+  -- Final stage: no selection, just build result from context using IO effects
   -- The 'a ~ ()' constraint indicates no value is selected at this stage
   Done
-    :: (HList ctx -> JSM result)
+    :: (HList ctx -> IO result)
     -> Pipeline 'IsDone ctx () result
   -- Intermediate stage: select 'a', continue with extended context
   -- Note: The continuation returns a pipeline of unknown kind (Stage or Done)
@@ -145,10 +144,10 @@ stage' parser continue = Stage parser (\_ a -> continue a)
 
 -- | Construct the final Done stage
 --
--- The continuation receives the full HList context and performs JSM effects
+-- The continuation receives the full HList context and performs IO effects
 -- to produce the final result.
 done
-  :: (HList ctx -> JSM result)
+  :: (HList ctx -> IO result)
   -> Pipeline 'IsDone ctx () result
 done = Done
 
@@ -361,7 +360,7 @@ handleKeyboardInput
   -> Document
   -> Input
   -> RuntimeState result
-  -> JSM (Either result (RuntimeState result, Maybe M.MisoString))
+  -> IO (Either result (RuntimeState result, Maybe M.MisoString))
 handleKeyboardInput errorMsg doc input state@(RuntimeState gen ctx (CurrentStage stageInfo pipeline) history breadcrumb) =
   case handleInput' errorMsg doc input (getParser pipeline) stageInfo of
     StateUpdatePop ->

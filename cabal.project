@@ -1,5 +1,7 @@
 packages: backend common csvconvert frontend
 
+constraints: miso +template-haskell
+
 allow-newer:
   ixset-typed:template-haskell
 
@@ -16,7 +18,7 @@ source-repository-package
   tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
 
 source-repository-package
-  --sha256: sha256-hFknrGxVYsCcEy/Bpuna8z+825McBOqkbZ9z278eUt4=
+  --sha256: sha256-j9bD+X3FY+9XAPvxxTmNGoCwxsGlt5wX9RaxlqxCfp0=
   type: git
   location: https://github.com/dmjio/miso
-  tag: 21cab91ebed0ebd654045bb2b92ed6715beb3654
+  tag: f7d66e9f0a4c56d43cb02752f81f70b635684f6d
