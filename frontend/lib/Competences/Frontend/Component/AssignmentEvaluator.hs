@@ -133,7 +133,7 @@ assignmentEvaluatorComponent r =
 
     -- Create Evidence for a single student from aggregated results
     createEvidenceForStudent m assignment userId = do
-      evidenceId <- nextId @M.JSM @Evidence r
+      evidenceId <- nextId @IO @Evidence r
       -- Use the aggregated results (same for all students)
       -- Generate observation IDs and create Observation records
       observations <- mapM mkObservation (Map.toList m.aggregatedResults)
@@ -149,7 +149,7 @@ assignmentEvaluatorComponent r =
       pure $ Evidences (OnEvidences (Create evidence))
       where
         mkObservation (compId, ability) = do
-          obsId <- nextId @M.JSM @Observation r
+          obsId <- nextId @IO @Observation r
           pure
             Observation
               { id = obsId

@@ -32,7 +32,6 @@ import Control.Monad (forM_, when)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
-import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
 import System.Random (StdGen, newStdGen, random)
@@ -101,27 +100,27 @@ mkSyncDocument' env randomGen m = do
 readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
 readSyncDocument = readMVar . (.syncDocument)
 
-subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> JSM ()
+subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> IO ()
 subscribeDocument d f s = do
   let h = ChangedHandler f s
   modifyMVar_ d.syncDocument $ \d' -> do
     s $ f (DocumentChange d'.localDocument InitialUpdate)
     pure $ d' & (#onChanged %~ (h :))
 
-modifySyncDocument :: SyncDocumentRef -> Command -> JSM ()
+modifySyncDocument :: SyncDocumentRef -> Command -> IO ()
 modifySyncDocument d c = do
   M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
   modifyMVar_ d.syncDocument $ modifySyncDocument' d.env.connectedUser.id c
   -- Try to send next command after adding to localChanges
   trySendNextCommand d
 
-setSyncDocument :: SyncDocumentRef -> Document -> JSM ()
+setSyncDocument :: SyncDocumentRef -> Document -> IO ()
 setSyncDocument d m = modifyMVar_ d.syncDocument $ setSyncDocument' d.env.connectedUser.id m
 
 emptySyncDocument :: SyncDocument
 emptySyncDocument = SyncDocument emptyDocument [] Nothing emptyDocument []
 
-modifySyncDocument' :: UserId -> Command -> SyncDocument -> JSM SyncDocument
+modifySyncDocument' :: UserId -> Command -> SyncDocument -> IO SyncDocument
 modifySyncDocument' uId c d = do
   case handleCommand uId c d.localDocument of
     Left err -> do
@@ -136,7 +135,7 @@ modifySyncDocument' uId c d = do
         issueDocumentChange (DocumentChange d'.localDocument (DocumentChanged d.localDocument c))
       pure d'
 
-setSyncDocument' :: UserId -> Document -> SyncDocument -> JSM SyncDocument
+setSyncDocument' :: UserId -> Document -> SyncDocument -> IO SyncDocument
 setSyncDocument' userId remoteDoc d = do
   -- Replay existing localChanges on the new remoteDocument
   -- This handles both initial connection (empty localChanges) and reconnection
@@ -153,10 +152,10 @@ setSyncDocument' userId remoteDoc d = do
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument DocumentReloaded)
   pure d'
 
-issueDocumentChange :: DocumentChange -> ChangedHandler -> JSM ()
+issueDocumentChange :: DocumentChange -> ChangedHandler -> IO ()
 issueDocumentChange c (ChangedHandler f sink) = sink $ f c
 
-issueInitialUpdate :: SyncDocumentRef -> JSM ()
+issueInitialUpdate :: SyncDocumentRef -> IO ()
 issueInitialUpdate r = do
   d <- readMVar r.syncDocument
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument InitialUpdate)
@@ -174,14 +173,14 @@ nextId r = do
   modifyMVar r.randomGen (pure . swap . random)
 
 -- | Set the WebSocket connection for sending commands
-setWebSocket :: SyncDocumentRef -> WebSocketConnection -> JSM ()
+setWebSocket :: SyncDocumentRef -> WebSocketConnection -> IO ()
 setWebSocket r ws = do
   modifyMVar_ r.webSocket $ \_ -> pure (Just ws)
   -- Try to send pending commands after connection is established
   trySendNextCommand r
 
 -- | Try to send the next command from localChanges if no command is pending
-trySendNextCommand :: SyncDocumentRef -> JSM ()
+trySendNextCommand :: SyncDocumentRef -> IO ()
 trySendNextCommand d = do
   maybeWs <- readMVar d.webSocket
   case maybeWs of
@@ -205,7 +204,7 @@ trySendNextCommand d = do
 
 -- | Apply a command from the server (echo or broadcast)
 -- Updates remoteDocument and replays pendingCommand + localChanges on top of it
-applyRemoteCommand :: SyncDocumentRef -> Command -> JSM ()
+applyRemoteCommand :: SyncDocumentRef -> Command -> IO ()
 applyRemoteCommand d cmd = do
   shouldSendNext <- modifyMVar d.syncDocument $ \syncDoc -> do
     -- Apply command to remoteDocument
@@ -272,7 +271,7 @@ replayLocalChanges userId doc maybePending localCmds =
 
 -- | Handle a command rejection from the server
 -- Removes the rejected command from pendingCommand and replays remaining changes
-rejectCommand :: SyncDocumentRef -> Command -> JSM ()
+rejectCommand :: SyncDocumentRef -> Command -> IO ()
 rejectCommand d cmd = do
   shouldSendNext <- modifyMVar d.syncDocument $ \syncDoc -> do
     case syncDoc.pendingCommand of

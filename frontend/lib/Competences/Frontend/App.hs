@@ -23,7 +23,6 @@ import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Functor (($>))
 import GHC.Generics (Generic)
-import Language.Javascript.JSaddle (JSM)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Router qualified as M
@@ -42,7 +41,7 @@ data Action
   | SetURI M.URI
   deriving (Eq, Show)
 
-runApp :: App -> JSM ()
+runApp :: App -> IO ()
 runApp = M.startComponent
 
 mkApp :: SyncDocumentRef -> App

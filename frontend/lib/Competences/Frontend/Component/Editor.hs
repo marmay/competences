@@ -82,11 +82,11 @@ editorComponent e r =
   where
     model = Model Nothing Map.empty Nothing Nothing Map.empty
 
-    runCommand :: Maybe Command -> M.JSM ()
+    runCommand :: Maybe Command -> IO ()
     runCommand Nothing = pure ()
     runCommand (Just c) = modifySyncDocument r c
 
-    runCommand' :: (Document -> Maybe Command) -> M.JSM ()
+    runCommand' :: (Document -> Maybe Command) -> IO ()
     runCommand' f = do
       d <- (.localDocument) <$> readSyncDocument r
       for_ (f d) $ \c -> modifySyncDocument r c
