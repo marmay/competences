@@ -222,6 +222,38 @@ V.viewTable $ V.defTable
 M.div_ [V.class_ "flex gap-4 items-center bg-stone-50 p-4 rounded-lg"] [...]
 ```
 
+### Basecoat UI Integration
+
+This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agnostic component library built on Tailwind CSS.
+
+**Architecture**:
+- **CSS**: Self-hosted from `/static/basecoat.cdn.min.css` (~134KB)
+- **JavaScript**: Available in static/ for interactive components (~10KB total)
+  - `basecoat.min.js`, `dropdown-menu.min.js`, `popover.min.js`, `tabs.min.js`, `toast.min.js`
+- **Integration**: CSS loaded via backend HTML generation in `backend/lib/Competences/Backend/HTTP.hs`
+
+**Current Status**:
+- ✅ Basecoat CSS self-hosted and integrated
+- ✅ Most View modules already use Basecoat-aligned classes (Button, Input, Card, Badge, Table)
+- ⏳ JavaScript components available but not yet integrated (testing needed)
+- ⏳ MutationObserver for re-initialization after Miso renders (pending JavaScript integration)
+
+**Testing JavaScript Integration**:
+The project currently uses CSS-only Basecoat patterns. JavaScript-powered components (dropdown, tabs, tooltips, toast) are available in static/ but not yet integrated into the Miso app. To test if JavaScript is needed:
+
+1. Start the backend: `cabal run competences-backend -- [options]`
+2. Check Network tab in browser DevTools: verify `basecoat.cdn.min.css` loads from `/static/`
+3. Inspect components: ensure no styling conflicts between Tailwind and Basecoat
+4. Test interactivity: verify current components work without Basecoat JavaScript
+
+**Adding Interactive Components** (when needed):
+1. Add JavaScript to HTML in `backend/lib/Competences/Backend/HTTP.hs`
+2. Implement MutationObserver in `static/index.js` for re-initialization
+3. Create Haskell View modules wrapping Basecoat patterns (e.g., `View/Dropdown.hs`)
+4. Let Basecoat handle presentation, Haskell handle business logic
+
+**See also**: Plan file `/home/markus/.claude/plans/dapper-fluttering-globe.md` for complete integration plan.
+
 ### CSS Build System
 
 **Production CSS**: Generated via Tailwind CLI, served from `/static/output.css`
