@@ -234,23 +234,36 @@ This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agn
 
 **Current Status**:
 - ✅ Basecoat CSS self-hosted and integrated
+- ✅ Basecoat JavaScript loaded in HTML (`basecoat.min.js`)
+- ✅ MutationObserver implemented for auto re-initialization after Miso renders
 - ✅ Most View modules already use Basecoat-aligned classes (Button, Input, Card, Badge, Table)
-- ⏳ JavaScript components available but not yet integrated (testing needed)
-- ⏳ MutationObserver for re-initialization after Miso renders (pending JavaScript integration)
+- ✅ Tooltip migrated to use `data-tooltip` pattern (CSS-only)
 
-**Testing JavaScript Integration**:
-The project currently uses CSS-only Basecoat patterns. JavaScript-powered components (dropdown, tabs, tooltips, toast) are available in static/ but not yet integrated into the Miso app. To test if JavaScript is needed:
+**JavaScript Integration**:
+Basecoat JavaScript is now fully integrated:
+- `basecoat.min.js` loaded in HTML (`backend/lib/Competences/Backend/HTTP.hs:139`)
+- MutationObserver watches for DOM changes (`static/index.js:44-68`)
+- Auto re-initialization after Miso renders (100ms debounce)
+- Console logging: `[Basecoat] Initializing components` on re-init
 
-1. Start the backend: `cabal run competences-backend -- [options]`
-2. Check Network tab in browser DevTools: verify `basecoat.cdn.min.css` loads from `/static/`
-3. Inspect components: ensure no styling conflicts between Tailwind and Basecoat
-4. Test interactivity: verify current components work without Basecoat JavaScript
+**Testing**:
+1. Start backend: `cabal run competences-backend -- [options]`
+2. Open browser DevTools Console
+3. Look for `[Basecoat] Initializing components` after page load
+4. Trigger Miso re-renders (navigate, interact) - should see re-init messages
+5. Network tab: verify `basecoat.cdn.min.css` and `basecoat.min.js` load
 
-**Adding Interactive Components** (when needed):
-1. Add JavaScript to HTML in `backend/lib/Competences/Backend/HTTP.hs`
-2. Implement MutationObserver in `static/index.js` for re-initialization
-3. Create Haskell View modules wrapping Basecoat patterns (e.g., `View/Dropdown.hs`)
+**Adding New Interactive Components** (when needed):
+1. Create Haskell View module (e.g., `View/Dropdown.hs`, `View/Tabs.hs`, `View/Toast.hs`)
+2. Use Basecoat HTML patterns with `data-*` attributes
+3. Add component-specific JS if needed (e.g., `dropdown-menu.min.js` to HTML)
 4. Let Basecoat handle presentation, Haskell handle business logic
+5. MutationObserver automatically re-initializes components after renders
+
+**Potential Use Cases**:
+- **Dropdown**: Group navigation buttons (9 items for teachers in `App.hs:81-92`)
+- **Tabs**: Multi-view editors or statistics pages
+- **Toast**: Success/error notifications for user actions
 
 **See also**: Plan file `/home/markus/.claude/plans/dapper-fluttering-globe.md` for complete integration plan.
 
