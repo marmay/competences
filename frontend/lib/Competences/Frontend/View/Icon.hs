@@ -45,7 +45,14 @@ iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [mi
 icon :: [Attribute a] -> Icon -> View m a
 icon attrs icn =
   MS.svg_
-    (attrs <> [MSP.viewBox_ "0 0 24 24", M.width_ "24", M.height_ "24"])
+    ( [ MSP.viewBox_ "0 0 24 24"
+      , M.width_ "24"
+      , M.height_ "24"
+      , MSP.fill_ "none"           -- No fill by default
+      , MSP.stroke_ "currentColor" -- Inherit text color for stroke
+      ]
+      <> attrs  -- Allow overriding defaults
+    )
     [MS.use_ [M.href_ $ "#" <> iconId icn]]
 
 iconId :: Icon -> MisoString
