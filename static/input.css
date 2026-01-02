@@ -9,84 +9,93 @@
     /* Base radius for components */
     --radius: 0.5rem;
 
-    /* Default theme (light mode) - based on Basecoat Default */
-    --background: 1 0 0;           /* white */
-    --foreground: 0.145 0.014 36;  /* stone-900 */
+    /* Default theme (light mode) - Modern Indigo/Slate palette */
+    --background: 0.985 0.002 264;      /* subtle cool gray tint */
+    --foreground: 0.205 0.015 264;      /* slate-900 */
 
-    --card: 1 0 0;
-    --card-foreground: 0.145 0.014 36;
+    --card: 1 0 0;                      /* white */
+    --card-foreground: 0.205 0.015 264;
 
     --popover: 1 0 0;
-    --popover-foreground: 0.145 0.014 36;
+    --popover-foreground: 0.205 0.015 264;
 
-    --primary: 0.588 0.158 241;    /* sky-600 */
-    --primary-foreground: 1 0 0;   /* white */
+    --primary: 0.511 0.262 276;         /* indigo-600 - professional, modern */
+    --primary-foreground: 1 0 0;        /* white */
 
-    --secondary: 0.869 0.005 36;   /* stone-200 */
-    --secondary-foreground: 0.145 0.014 36;
+    --secondary: 0.928 0.006 264;       /* slate-100 */
+    --secondary-foreground: 0.372 0.01 264;  /* slate-600 */
 
-    --muted: 0.923 0.003 36;       /* stone-100 */
-    --muted-foreground: 0.444 0.011 36;  /* stone-500 */
+    --muted: 0.968 0.003 264;           /* slate-50 */
+    --muted-foreground: 0.446 0.012 264;     /* slate-500 */
 
-    --accent: 0.923 0.003 36;      /* stone-100 */
-    --accent-foreground: 0.145 0.014 36;
+    --accent: 0.928 0.006 264;          /* slate-100 */
+    --accent-foreground: 0.205 0.015 264;
 
-    --destructive: 0.577 0.245 27; /* red-600 */
+    --destructive: 0.577 0.245 27;      /* red-600 */
     --destructive-foreground: 1 0 0;
 
-    --border: 0.869 0.005 36;      /* stone-200 */
-    --input: 0.869 0.005 36;
-    --ring: 0.588 0.158 241;       /* sky-600 */
+    --border: 0.869 0.007 264;          /* slate-200 */
+    --input: 0.869 0.007 264;
+    --ring: 0.511 0.262 276;            /* indigo-600 */
 
-    /* Ability colors - domain-specific, themable */
-    --ability-success: 0.527 0.154 150;       /* green-700 */
-    --ability-success-light: 0.627 0.194 149; /* green-500 */
+    /* Ability colors - traffic light pattern for competence levels */
+    --ability-success: 0.527 0.154 163;       /* emerald-700 */
+    --ability-success-light: 0.627 0.194 163; /* emerald-500 */
     --ability-warning: 0.666 0.179 58;        /* amber-600 */
     --ability-danger: 0.577 0.245 27;         /* red-600 */
   }
 
   /* Dark mode */
   .dark {
-    --background: 0.145 0.014 36;
-    --foreground: 0.985 0.002 36;
+    --background: 0.129 0.014 264;      /* slate-950 */
+    --foreground: 0.968 0.003 264;      /* slate-50 */
 
-    --card: 0.216 0.006 36;
-    --card-foreground: 0.985 0.002 36;
+    --card: 0.208 0.012 264;            /* slate-900 */
+    --card-foreground: 0.968 0.003 264;
 
-    --popover: 0.216 0.006 36;
-    --popover-foreground: 0.985 0.002 36;
+    --popover: 0.208 0.012 264;
+    --popover-foreground: 0.968 0.003 264;
 
-    --primary: 0.588 0.158 241;
+    --primary: 0.585 0.233 277;         /* indigo-500 */
     --primary-foreground: 1 0 0;
 
-    --secondary: 0.293 0.008 36;
-    --secondary-foreground: 0.985 0.002 36;
+    --secondary: 0.279 0.012 264;       /* slate-800 */
+    --secondary-foreground: 0.968 0.003 264;
 
-    --muted: 0.293 0.008 36;
-    --muted-foreground: 0.639 0.01 36;
+    --muted: 0.279 0.012 264;
+    --muted-foreground: 0.556 0.01 264; /* slate-400 */
 
-    --accent: 0.293 0.008 36;
-    --accent-foreground: 0.985 0.002 36;
+    --accent: 0.279 0.012 264;
+    --accent-foreground: 0.968 0.003 264;
 
     --destructive: 0.577 0.245 27;
     --destructive-foreground: 1 0 0;
 
-    --border: 0.293 0.008 36;
-    --input: 0.293 0.008 36;
-    --ring: 0.588 0.158 241;
+    --border: 0.279 0.012 264;
+    --input: 0.279 0.012 264;
+    --ring: 0.585 0.233 277;
 
-    /* Ability colors - slightly adjusted for dark mode visibility */
-    --ability-success: 0.627 0.194 149;
-    --ability-success-light: 0.723 0.219 149;
+    /* Ability colors - brighter for dark mode visibility */
+    --ability-success: 0.627 0.194 163;
+    --ability-success-light: 0.723 0.219 163;
     --ability-warning: 0.766 0.179 58;
     --ability-danger: 0.677 0.245 27;
   }
 
-  /* Claude theme */
+  /* Claude theme - warm orange accent */
   .theme-claude {
-    --primary: 0.657 0.195 41;     /* Claude orange */
+    --primary: 0.657 0.195 41;          /* Claude orange */
     --primary-foreground: 1 0 0;
     --ring: 0.657 0.195 41;
+  }
+
+  /* Ocean theme - teal/cyan accent */
+  .theme-ocean {
+    --primary: 0.541 0.154 192;         /* teal-600 */
+    --primary-foreground: 1 0 0;
+    --ring: 0.541 0.154 192;
+    --ability-success: 0.541 0.154 192; /* use teal for success too */
+    --ability-success-light: 0.641 0.184 192;
   }
 
   /* Apply base styles */
