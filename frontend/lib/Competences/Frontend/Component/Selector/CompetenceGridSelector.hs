@@ -21,6 +21,8 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -89,7 +91,10 @@ competenceGridSelectorComponent r style parentLens =
         ( [ V.title_ (C.translate' C.LblSelectCompetenceGrids)
           , viewCompetenceGrids m
           ]
-            <> [ V.viewButton (V.labelButton' C.LblAddCompetenceGrid CreateNewCompetenceGrid)
+            <> [ Button.buttonPrimary (C.translate' C.LblAddCompetenceGrid)
+                   & Button.withIcon IcnAdd
+                   & Button.withClick CreateNewCompetenceGrid
+                   & Button.renderButton
                | style == CompetenceGridSelectorViewAndCreateStyle
                ]
         )

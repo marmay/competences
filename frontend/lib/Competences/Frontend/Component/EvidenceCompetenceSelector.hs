@@ -11,6 +11,7 @@ import Competences.Document.Evidence (Ability, SocialForm (..), abilities, socia
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Data.Map qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -106,10 +107,9 @@ evidenceCompetenceSelector r parentLens =
                 : map (abilityButton competence level socialForm) abilities
             )
         abilityButton competence level socialForm ability =
-          V.viewButton $
-            V.labelButton
-              (C.LblAbility ability)
-              (m.selected Map.!? (competence.id, level) == Just (socialForm, ability))
-              (ToggleCompetenceLevel (competence.id, level) (socialForm, ability))
+          Button.toggleButton
+            (m.selected Map.!? (competence.id, level) == Just (socialForm, ability))
+            (C.translate' (C.LblAbility ability))
+            (ToggleCompetenceLevel (competence.id, level) (socialForm, ability))
         socialFormIcon Individual = V.IcnSocialFormIndividual
         socialFormIcon Group = V.IcnSocialFormGroup

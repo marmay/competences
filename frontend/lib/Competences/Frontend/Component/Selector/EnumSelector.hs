@@ -5,11 +5,11 @@ module Competences.Frontend.Component.Selector.EnumSelector
   )
 where
 
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Data.List.NonEmpty (NonEmpty (..), toList)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (Lens', (&), (.~))
+import Optics.Core (Lens', (.~))
 import Optics.Core qualified as O
 
 data SelectionStyle
@@ -54,8 +54,8 @@ enumSelectorComponent' defaultChoice choices style showValue parentLens =
 
     view m = case style of
       ButtonsCompact ->
-        V.viewButtons (V.hButtons & (#compact .~ True)) (map (mkButton m.selected) choices')
+        Button.buttonGroup (map (mkButton m.selected) choices')
 
-    mkButton s a = V.textButton (showValue a) (a == s) (Select a)
+    mkButton s a = Button.toggleButton (a == s) (showValue a) (Select a)
 
     choices' = if defaultChoice `elem` choices then choices else defaultChoice : choices
