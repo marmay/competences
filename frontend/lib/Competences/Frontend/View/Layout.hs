@@ -27,6 +27,15 @@ module Competences.Frontend.View.Layout
   , fixedWidth
   , flexGrow
   , sideMenu
+
+    -- * Sizing attributes (for extraAttrs)
+  , fullHeight
+  , fullScreen
+  , minH0
+  , shrinkAttr
+  , overflowYScroll
+  , overflowYAuto
+  , fullWidth
   )
 where
 
@@ -197,3 +206,35 @@ section maybeTitle content =
     [class_ "space-y-3"]
     $ maybe [] (\title -> [M.h3_ [class_ "text-lg font-semibold text-stone-900"] [M.text title]]) maybeTitle
       <> content
+
+-- ============================================================================
+-- SIZING ATTRIBUTES (for use with extraAttrs)
+-- ============================================================================
+
+-- | Full height (h-full)
+fullHeight :: M.Attribute a
+fullHeight = class_ "h-full"
+
+-- | Full screen height (h-screen)
+fullScreen :: M.Attribute a
+fullScreen = class_ "h-screen"
+
+-- | Minimum height 0 (for flex children to allow shrinking)
+minH0 :: M.Attribute a
+minH0 = class_ "min-h-0"
+
+-- | Shrink flex item
+shrinkAttr :: M.Attribute a
+shrinkAttr = class_ "shrink"
+
+-- | Vertical scroll overflow
+overflowYScroll :: M.Attribute a
+overflowYScroll = class_ "overflow-y-scroll"
+
+-- | Vertical auto overflow
+overflowYAuto :: M.Attribute a
+overflowYAuto = class_ "overflow-y-auto"
+
+-- | Full width (w-full)
+fullWidth :: M.Attribute a
+fullWidth = class_ "w-full"

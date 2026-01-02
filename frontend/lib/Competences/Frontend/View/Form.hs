@@ -60,7 +60,7 @@ formField_ label field =
     [label_ label, V.flexGrow field]
   where
     label_ :: M.MisoString -> M.View m a
-    label_ t = M.span_ [T.tailwind [T.WThird, T.TextRight]] [V.text_ t]
+    label_ t = M.span_ [T.class_ "w-1/3 text-right"] [V.text_ t]
 
 textarea_ :: [M.Attribute a] -> M.View m a
-textarea_ as = M.textarea_ (T.tailwind [T.FlexGrow, T.RegularBorder] : as) []
+textarea_ as = M.textarea_ (T.class_ "flex-grow border rounded border-gray-200" : as) []

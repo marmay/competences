@@ -21,7 +21,6 @@ import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef,
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
-import Competences.Frontend.View.Tailwind qualified as T
 import Data.Functor (($>))
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -58,14 +57,14 @@ mkApp r =
     view :: Model -> M.View Model Action
     view m =
       M.div_
-        [T.tailwind [T.HScreen]]
+        [V.fullScreen]
         [ V.iconDefs
         , V.viewFlow
             ( V.vFlow
                 & (#expandDirection .~ V.Expand V.Start)
                 & (#expandOrthogonal .~ V.Expand V.Center)
                 & (#gap .~ V.SmallSpace)
-                & (#extraAttrs .~ [T.tailwind [T.HFull]])
+                & (#extraAttrs .~ [V.fullHeight])
             )
             [title, topMenu, page (m ^. #uri), footer]
         ]
@@ -129,7 +128,7 @@ mkApp r =
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
-    mounted key = componentA (M.ms $ show key) [T.tailwind [T.MinH0]]
+    mounted key = componentA (M.ms $ show key) [V.minH0]
 
     footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 

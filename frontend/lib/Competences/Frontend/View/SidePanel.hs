@@ -4,7 +4,7 @@ module Competences.Frontend.View.SidePanel
   )
 where
 
-import Competences.Frontend.View.Tailwind qualified as T
+import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
 import Miso.Html qualified as M
 
@@ -18,8 +18,8 @@ sidePanel
   :: SidePanelState
   -> [M.View model action]
   -> M.View model action
-sidePanel state = M.div_ [T.tailwind (tailwindStyleFor state)]
+sidePanel state = M.div_ [class_ (styleFor state)]
   where
-    tailwindStyleFor MenuPanel = []
-    tailwindStyleFor EditorPanel = []
-    tailwindStyleFor LargePanel = []
+    styleFor MenuPanel = ""
+    styleFor EditorPanel = ""
+    styleFor LargePanel = ""

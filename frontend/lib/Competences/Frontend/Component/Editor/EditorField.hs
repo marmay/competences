@@ -20,7 +20,6 @@ import Competences.Frontend.Component.Selector.Common
   , selectorTransformedLens
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Tailwind qualified as T
 import Data.Default (Default (..))
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -91,7 +90,7 @@ textEditor
   -> M.View (Model a patch f) (Action a patch)
 textEditor viewLens patchLens refocusTarget original patch =
   M.input_ $
-    [ T.tailwind [T.WFull]
+    [ V.fullWidth
     , M.onChange
         (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
     , M.value_ (M.ms $ currentValue original patch viewLens patchLens)
@@ -196,7 +195,7 @@ enumEditor toText viewLens patchLens refocusTarget original patch =
               Just v' -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, v'))
               Nothing -> UpdatePatch original patch
           )
-      , T.tailwind [T.WFull]
+      , V.fullWidth
       ]
         <> refocusTargetAttr refocusTarget
     )
