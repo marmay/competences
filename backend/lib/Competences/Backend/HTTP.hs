@@ -129,6 +129,8 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
     H.title "Competences"
     -- Load our generated Tailwind CSS
     H.link ! A.rel "stylesheet" ! A.href "/static/output.css"
+    -- Load Basecoat UI CSS
+    H.link ! A.rel "stylesheet" ! A.href "/static/basecoat.cdn.min.css"
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';"
