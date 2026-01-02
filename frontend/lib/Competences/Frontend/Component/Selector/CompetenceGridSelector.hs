@@ -23,7 +23,6 @@ import Competences.Frontend.SyncDocument
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.Tailwind qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -100,7 +99,7 @@ competenceGridSelectorComponent r style parentLens =
         )
     viewCompetenceGrids (m :: Model) =
       V.viewFlow
-        (V.vFlow & (#extraAttrs .~ [T.tailwind [T.Shrink, T.OverflowYAuto]]))
+        (V.vFlow & (#extraAttrs .~ [V.shrinkAttr, V.overflowYAuto]))
         (map viewCompetenceGrid (Ix.toList m.allCompetenceGrids))
       where
         viewCompetenceGrid c =

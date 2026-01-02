@@ -32,7 +32,6 @@ import Competences.Frontend.SyncDocument
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.Tailwind qualified as T
 import Data.Foldable (toList)
 import Data.List (sort)
 import Data.Map qualified as Map
@@ -110,7 +109,7 @@ evidenceSelectorComponent r parentLens =
         ( V.vFlow
             & (#gap .~ V.SmallSpace)
             & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [T.tailwind [T.HFull]])
+            & (#extraAttrs .~ [V.fullHeight])
         )
         [ V.title_ (C.translate' C.LblSelectEvidences)
         , V.component
@@ -145,7 +144,7 @@ evidenceSelectorComponent r parentLens =
           filteredEvidences =
             Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.filteredUser)
        in V.viewFlow
-            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [T.tailwind [T.OverflowYScroll, T.MinH0]]))
+            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [V.overflowYScroll, V.minH0]))
             (map viewEvidence filteredEvidences)
       where
         viewEvidence e =

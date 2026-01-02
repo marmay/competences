@@ -17,7 +17,6 @@ module Competences.Frontend.View.Table
 where
 
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tailwind qualified as T
 import Miso qualified as M
 import Miso.Html as M
 
@@ -83,9 +82,9 @@ viewTable t =
   where
     viewColumnWidth :: TableColumnWidth -> M.View m action
     viewColumnWidth AutoSizedColumn = M.col_ []
-    viewColumnWidth SingleActionColumn = M.col_ [T.tailwind [T.W16]]
-    viewColumnWidth DoubleActionColumn = M.col_ [T.tailwind [T.W24]]
-    viewColumnWidth TripleActionColumn = M.col_ [T.tailwind [T.W32]]
+    viewColumnWidth SingleActionColumn = M.col_ [class_ "w-16"]
+    viewColumnWidth DoubleActionColumn = M.col_ [class_ "w-24"]
+    viewColumnWidth TripleActionColumn = M.col_ [class_ "w-32"]
 
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =
