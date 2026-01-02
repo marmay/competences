@@ -18,8 +18,7 @@ import Competences.Document
   )
 import Competences.Document.Competence (CompetenceLevelId, Level (..))
 import Competences.Document.Evidence
-  ( Ability (..)
-  , ActivityType (..)
+  ( ActivityType (..)
   , Evidence (..)
   , Observation (..)
   , SocialForm (..)
@@ -39,7 +38,9 @@ import Competences.Frontend.Component.Selector.UserSelector
   )
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.Table qualified as C
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -48,6 +49,7 @@ import Data.Set qualified as Set
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 
@@ -134,11 +136,7 @@ competenceGridViewerComponent r =
                               showSummary evidence.activityType observation.socialForm observation.ability
                             Nothing -> V.empty
                         showSummary activityType socialForm ability =
-                          let color = case ability of
-                                SelfReliant -> "#00743f"
-                                SelfReliantWithSillyMistakes -> "#42ab49"
-                                WithSupport -> "#f2a104"
-                                NotYet -> "#f25117"
+                          let abilityClass = Colors.abilityTextClass ability
                               activityTypeIcn = case activityType of
                                 Conversation -> V.IcnActivityTypeConversation
                                 Exam -> V.IcnActivityTypeExam
@@ -147,9 +145,11 @@ competenceGridViewerComponent r =
                               socialFormIcn = case socialForm of
                                 Group -> V.IcnSocialFormGroup
                                 Individual -> V.IcnSocialFormIndividual
+                              -- Use currentColor pattern: wrap icons in span with text color class
+                              coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
                            in V.viewFlow
                                 V.hFlow
-                                [V.icon [MSP.stroke_ color] i | i <- [activityTypeIcn, socialFormIcn]]
+                                [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
                      in V.viewFlow
                           (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
                           [ Typography.small levelDescription

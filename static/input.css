@@ -3,14 +3,99 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom base styles */
+/* CSS Variable Definitions for Theming */
 @layer base {
+  :root {
+    /* Base radius for components */
+    --radius: 0.5rem;
+
+    /* Default theme (light mode) - based on Basecoat Default */
+    --background: 1 0 0;           /* white */
+    --foreground: 0.145 0.014 36;  /* stone-900 */
+
+    --card: 1 0 0;
+    --card-foreground: 0.145 0.014 36;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.145 0.014 36;
+
+    --primary: 0.588 0.158 241;    /* sky-600 */
+    --primary-foreground: 1 0 0;   /* white */
+
+    --secondary: 0.869 0.005 36;   /* stone-200 */
+    --secondary-foreground: 0.145 0.014 36;
+
+    --muted: 0.923 0.003 36;       /* stone-100 */
+    --muted-foreground: 0.444 0.011 36;  /* stone-500 */
+
+    --accent: 0.923 0.003 36;      /* stone-100 */
+    --accent-foreground: 0.145 0.014 36;
+
+    --destructive: 0.577 0.245 27; /* red-600 */
+    --destructive-foreground: 1 0 0;
+
+    --border: 0.869 0.005 36;      /* stone-200 */
+    --input: 0.869 0.005 36;
+    --ring: 0.588 0.158 241;       /* sky-600 */
+
+    /* Ability colors - domain-specific, themable */
+    --ability-success: 0.527 0.154 150;       /* green-700 */
+    --ability-success-light: 0.627 0.194 149; /* green-500 */
+    --ability-warning: 0.666 0.179 58;        /* amber-600 */
+    --ability-danger: 0.577 0.245 27;         /* red-600 */
+  }
+
+  /* Dark mode */
+  .dark {
+    --background: 0.145 0.014 36;
+    --foreground: 0.985 0.002 36;
+
+    --card: 0.216 0.006 36;
+    --card-foreground: 0.985 0.002 36;
+
+    --popover: 0.216 0.006 36;
+    --popover-foreground: 0.985 0.002 36;
+
+    --primary: 0.588 0.158 241;
+    --primary-foreground: 1 0 0;
+
+    --secondary: 0.293 0.008 36;
+    --secondary-foreground: 0.985 0.002 36;
+
+    --muted: 0.293 0.008 36;
+    --muted-foreground: 0.639 0.01 36;
+
+    --accent: 0.293 0.008 36;
+    --accent-foreground: 0.985 0.002 36;
+
+    --destructive: 0.577 0.245 27;
+    --destructive-foreground: 1 0 0;
+
+    --border: 0.293 0.008 36;
+    --input: 0.293 0.008 36;
+    --ring: 0.588 0.158 241;
+
+    /* Ability colors - slightly adjusted for dark mode visibility */
+    --ability-success: 0.627 0.194 149;
+    --ability-success-light: 0.723 0.219 149;
+    --ability-warning: 0.766 0.179 58;
+    --ability-danger: 0.677 0.245 27;
+  }
+
+  /* Claude theme */
+  .theme-claude {
+    --primary: 0.657 0.195 41;     /* Claude orange */
+    --primary-foreground: 1 0 0;
+    --ring: 0.657 0.195 41;
+  }
+
+  /* Apply base styles */
   * {
-    @apply border-stone-200;
+    @apply border-border;
   }
 
   body {
-    @apply bg-white text-stone-900;
+    @apply bg-background text-foreground;
   }
 }
 

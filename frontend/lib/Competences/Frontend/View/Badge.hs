@@ -38,14 +38,14 @@ badge variant text =
     ]
     [M.text text]
   where
-    -- Base classes from Basecoat
-    baseClasses = "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium focus-visible:border-sky-600 focus-visible:ring-[3px]"
+    -- Base classes from Basecoat (using semantic CSS variables)
+    baseClasses = "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium focus-visible:border-ring focus-visible:ring-[3px]"
 
-    -- Variant classes
-    variantClasses BadgePrimary = "bg-sky-600 text-white border-sky-600"
-    variantClasses BadgeSecondary = "bg-stone-200 text-stone-900 border-stone-200"
-    variantClasses BadgeDestructive = "bg-red-600 text-white border-red-600"
-    variantClasses BadgeOutline = "text-stone-900 border-stone-300 hover:bg-stone-100"
+    -- Variant classes (using semantic CSS variables)
+    variantClasses BadgePrimary = "bg-primary text-primary-foreground border-primary"
+    variantClasses BadgeSecondary = "bg-secondary text-secondary-foreground border-secondary"
+    variantClasses BadgeDestructive = "bg-destructive text-destructive-foreground border-destructive"
+    variantClasses BadgeOutline = "text-foreground border-input hover:bg-accent"
 
 -- | Convenient badge constructors
 badgePrimary, badgeSecondary, badgeDestructive, badgeOutline

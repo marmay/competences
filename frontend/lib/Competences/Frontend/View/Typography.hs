@@ -41,28 +41,28 @@ import Miso.String (MisoString)
 h1 :: MisoString -> M.View model action
 h1 text =
   M.h1_
-    [class_ "text-3xl font-bold tracking-tight text-stone-900"]
+    [class_ "text-3xl font-bold tracking-tight text-foreground"]
     [M.text text]
 
 -- | Heading level 2
 h2 :: MisoString -> M.View model action
 h2 text =
   M.h2_
-    [class_ "text-2xl font-semibold tracking-tight text-stone-900"]
+    [class_ "text-2xl font-semibold tracking-tight text-foreground"]
     [M.text text]
 
 -- | Heading level 3
 h3 :: MisoString -> M.View model action
 h3 text =
   M.h3_
-    [class_ "text-xl font-semibold tracking-tight text-stone-900"]
+    [class_ "text-xl font-semibold tracking-tight text-foreground"]
     [M.text text]
 
 -- | Heading level 4
 h4 :: MisoString -> M.View model action
 h4 text =
   M.h4_
-    [class_ "text-lg font-semibold tracking-tight text-stone-900"]
+    [class_ "text-lg font-semibold tracking-tight text-foreground"]
     [M.text text]
 
 -- ============================================================================
@@ -73,42 +73,42 @@ h4 text =
 paragraph :: MisoString -> M.View model action
 paragraph text =
   M.p_
-    [class_ "text-base text-stone-900 leading-7"]
+    [class_ "text-base text-foreground leading-7"]
     [M.text text]
 
 -- | Lead paragraph - larger text for introductions
 lead :: MisoString -> M.View model action
 lead text =
   M.p_
-    [class_ "text-lg text-stone-600 leading-relaxed"]
+    [class_ "text-lg text-muted-foreground leading-relaxed"]
     [M.text text]
 
 -- | Small text
 small :: MisoString -> M.View model action
 small text =
   M.span_
-    [class_ "text-sm text-stone-900"]
+    [class_ "text-sm text-foreground"]
     [M.text text]
 
 -- | Muted text - for secondary information
 muted :: MisoString -> M.View model action
 muted text =
   M.span_
-    [class_ "text-sm text-stone-500"]
+    [class_ "text-sm text-muted-foreground"]
     [M.text text]
 
 -- | Inline code
 code :: MisoString -> M.View model action
 code text =
   M.code_
-    [class_ "relative rounded bg-stone-100 px-1.5 py-0.5 font-mono text-sm text-stone-900"]
+    [class_ "relative rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground"]
     [M.text text]
 
 -- | Keyboard shortcut
 kbd :: MisoString -> M.View model action
 kbd text =
   M.kbd_
-    [class_ "bg-stone-100 text-stone-600 inline-flex h-5 w-fit items-center rounded-sm px-1 text-xs font-medium select-none border border-stone-300"]
+    [class_ "bg-muted text-muted-foreground inline-flex h-5 w-fit items-center rounded-sm px-1 text-xs font-medium select-none border border-border"]
     [M.text text]
 
 -- ============================================================================
