@@ -21,7 +21,7 @@ modalHost :: [M.Attribute a] -> [M.View m a] -> M.View m a
 modalHost attrs =
   M.div_
     ( class_
-        "fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50"
+        "fixed inset-0 z-50 flex items-center justify-center bg-foreground/50"
         : attrs
     )
 
@@ -30,7 +30,7 @@ maybeModalHost :: (Eq child) => Maybe (M.Component model child action') -> M.Vie
 maybeModalHost (Just c) =
   componentA
     "modal-host"
-    [class_ "fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50"]
+    [class_ "fixed inset-0 z-50 flex items-center justify-center bg-foreground/50"]
     c
 maybeModalHost Nothing = M.div_ [] []
 
@@ -39,6 +39,6 @@ modalDialog :: [M.Attribute a] -> [M.View m a] -> M.View m a
 modalDialog attrs =
   M.div_
     ( class_
-        "bg-white rounded-xl shadow-lg max-w-96 w-full mx-4"
+        "bg-popover text-popover-foreground rounded-xl shadow-lg max-w-96 w-full mx-4"
         : attrs
     )

@@ -32,7 +32,7 @@ card content =
     [class_ cardClasses]
     [M.section_ [class_ "px-6"] content]
   where
-    cardClasses = "bg-white text-stone-900 flex flex-col gap-6 rounded-xl border border-stone-200 py-6 shadow-sm"
+    cardClasses = "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-border py-6 shadow-sm"
 
 -- | Card with header and content
 cardWithHeader :: MisoString -- ^ Title
@@ -46,7 +46,7 @@ cardWithHeader title desc content =
     , M.section_ [class_ "px-6"] content
     ]
   where
-    cardClasses = "bg-white text-stone-900 flex flex-col gap-6 rounded-xl border border-stone-200 py-6 shadow-sm"
+    cardClasses = "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-border py-6 shadow-sm"
 
 -- | Card with footer for actions
 cardWithFooter :: [M.View model action] -- ^ Content
@@ -59,7 +59,7 @@ cardWithFooter content footer =
     , cardFooter footer
     ]
   where
-    cardClasses = "bg-white text-stone-900 flex flex-col gap-6 rounded-xl border border-stone-200 py-6 shadow-sm"
+    cardClasses = "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-border py-6 shadow-sm"
 
 -- | Full card with header, content, and footer
 cardFull :: MisoString -- ^ Title
@@ -75,7 +75,7 @@ cardFull title desc content footer =
     , cardFooter footer
     ]
   where
-    cardClasses = "bg-white text-stone-900 flex flex-col gap-6 rounded-xl border border-stone-200 py-6 shadow-sm"
+    cardClasses = "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-border py-6 shadow-sm"
 
 -- | Card header with title and optional description
 cardHeader :: MisoString -> Maybe MisoString -> M.View model action
@@ -83,7 +83,7 @@ cardHeader title desc =
   M.header_
     [class_ "grid grid-rows-[auto_auto] items-start gap-1.5 px-6"]
     $ M.h2_ [class_ "text-lg font-semibold"] [M.text title]
-    : maybe [] (\d -> [M.p_ [class_ "text-sm text-stone-500"] [M.text d]]) desc
+    : maybe [] (\d -> [M.p_ [class_ "text-sm text-muted-foreground"] [M.text d]]) desc
 
 -- | Card content section
 cardContent :: [M.View model action] -> M.View model action

@@ -104,10 +104,10 @@ renderInput cfg =
         <> cfg.attrs
     )
   where
-    -- Base input classes from Basecoat
-    baseClasses = "appearance-none h-9 w-full rounded-md border border-stone-300 bg-transparent px-3 py-1 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-stone-500 selection:bg-sky-600"
+    -- Base input classes from Basecoat (using semantic CSS variables)
+    baseClasses = "appearance-none h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted-foreground selection:bg-primary"
 
-    invalidClasses = "border-red-600 focus-visible:ring-red-600"
+    invalidClasses = "border-destructive focus-visible:ring-destructive"
 
 -- ============================================================================
 -- CONVENIENT INPUT CONSTRUCTORS
@@ -207,7 +207,7 @@ textarea' rows val handler =
     ]
     []
   where
-    baseClasses = "border-stone-300 w-full rounded-md border bg-transparent px-3 py-2 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 placeholder:text-stone-500 disabled:opacity-50"
+    baseClasses = "border-input w-full rounded-md border bg-background px-3 py-2 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground disabled:opacity-50"
 
 -- | Textarea field with default 4 rows
 textarea :: MisoString -- ^ Value
@@ -259,7 +259,7 @@ fieldWrapperHorizontal labelText input =
 helperText :: MisoString -> M.View model action
 helperText text =
   M.p_
-    [class_ "text-stone-500 text-sm"]
+    [class_ "text-muted-foreground text-sm"]
     [M.text text]
 
 -- ============================================================================

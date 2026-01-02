@@ -45,7 +45,7 @@ cellContents perCell cols row = tableRow $ map (perCell row) cols
 tableRow :: [M.View m action] -> M.View m action
 tableRow cells =
   M.tr_
-    [class_ "border-b border-stone-200 hover:bg-stone-50"]
+    [class_ "border-b border-border hover:bg-muted/50"]
     $ map (\cell -> M.td_ [class_ "px-4 py-3 text-sm"] [cell]) cells
 
 defTable :: Table col row m action
@@ -60,16 +60,16 @@ defTable =
 viewTable :: forall col row m action. Table col row m action -> M.View m action
 viewTable t =
   M.div_
-    [class_ "overflow-x-auto rounded-lg border border-stone-200"]
+    [class_ "overflow-x-auto rounded-lg border border-border"]
     [ M.table_
-        [class_ "w-full border-collapse bg-white text-sm"]
+        [class_ "w-full border-collapse bg-card text-sm"]
         [ M.colgroup_
             []
             $ map
               (viewColumnWidth . (.width) . t.columnSpec)
               t.columns
         , M.thead_
-            [class_ "bg-stone-50"]
+            [class_ "bg-muted/50"]
             [ M.tr_
                 []
                 $ map
@@ -89,11 +89,11 @@ viewTable t =
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =
       M.th_
-        [class_ "px-4 py-3 text-left text-xs font-semibold text-stone-900 border-b border-stone-200"]
+        [class_ "px-4 py-3 text-left text-xs font-semibold text-foreground border-b border-border"]
         [M.text_ [col]]
 
 tableHeader_ :: M.MisoString -> M.View m action
 tableHeader_ header =
   M.th_
-    [class_ "px-4 py-3 text-left text-xs font-semibold text-stone-900"]
+    [class_ "px-4 py-3 text-left text-xs font-semibold text-foreground"]
     [M.text_ [header]]

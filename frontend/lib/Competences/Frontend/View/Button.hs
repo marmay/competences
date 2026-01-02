@@ -145,13 +145,13 @@ renderButton b =
     -- Base classes from Basecoat
     baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 
-    -- Variant classes (extracted from Basecoat)
-    variantClasses Primary = "bg-sky-600 text-white hover:bg-sky-700 focus-visible:ring-sky-600"
-    variantClasses Secondary = "bg-stone-200 text-stone-900 hover:bg-stone-300 focus-visible:ring-stone-400"
-    variantClasses Destructive = "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600"
-    variantClasses Ghost = "hover:bg-stone-100 focus-visible:ring-stone-400"
-    variantClasses Link = "text-sky-600 underline-offset-4 hover:underline"
-    variantClasses Outline = "border border-stone-300 bg-transparent text-stone-900 hover:bg-stone-100 focus-visible:ring-stone-400"
+    -- Variant classes (using semantic CSS variables)
+    variantClasses Primary = "bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring"
+    variantClasses Secondary = "bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-ring"
+    variantClasses Destructive = "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-ring"
+    variantClasses Ghost = "hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring"
+    variantClasses Link = "text-primary underline-offset-4 hover:underline"
+    variantClasses Outline = "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring"
 
     -- Size classes
     sizeClasses Small = "h-9 px-3 gap-1.5 text-sm"
