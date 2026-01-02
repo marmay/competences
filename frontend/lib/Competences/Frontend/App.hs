@@ -19,6 +19,7 @@ import Competences.Frontend.Component.StatisticsViewer (statisticsViewerComponen
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef, syncDocumentEnv)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Functor (($>))
@@ -76,28 +77,32 @@ mkApp r =
             & (#expandDirection .~ V.Expand V.Start)
             & (#gap .~ V.SmallSpace)
         )
-        [ V.viewButtons
-            (V.hButtons & (#alignment .~ V.Center))
+        [ V.viewFlow (V.hFlow & (#gap .~ V.SmallSpace))
             ( if isTeacher model.connectedUser
                 then
-                  [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
-                  , V.labelButton' C.LblEditCompetenceGrid (PushURI $ M.toURI EditCompetenceGrid)
-                  , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
-                  , V.labelButton' C.LblSelfContainedTasks (PushURI $ M.toURI ManageTasks)
-                  , V.labelButton' C.LblAssignments (PushURI $ M.toURI EditAssignments)
-                  , V.labelButton' C.LblEvaluateAssignments (PushURI $ M.toURI EvaluateAssignments)
-                  , V.labelButton' C.LblStatisticsOverview (PushURI $ M.toURI StatisticsOverview)
-                  , V.labelButton' C.LblStatisticsIndividual (PushURI $ M.toURI StatisticsIndividual)
-                  , V.labelButton' C.LblManageUsers (PushURI $ M.toURI ManageUsers)
+                  [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
+                  , navButton C.LblEditCompetenceGrid EditCompetenceGrid
+                  , navButton C.LblEvidences Evidences
+                  , navButton C.LblSelfContainedTasks ManageTasks
+                  , navButton C.LblAssignments EditAssignments
+                  , navButton C.LblEvaluateAssignments EvaluateAssignments
+                  , navButton C.LblStatisticsOverview StatisticsOverview
+                  , navButton C.LblStatisticsIndividual StatisticsIndividual
+                  , navButton C.LblManageUsers ManageUsers
                   ]
                 else
-                  [ V.labelButton' C.LblViewCompetenceGrid (PushURI $ M.toURI ViewCompetenceGrid)
-                  , V.labelButton' C.LblEvidences (PushURI $ M.toURI Evidences)
-                  , V.labelButton' C.LblAssignments (PushURI $ M.toURI ViewAssignments)
-                  , V.labelButton' C.LblStatisticsIndividual (PushURI $ M.toURI StatisticsIndividual)
+                  [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
+                  , navButton C.LblEvidences Evidences
+                  , navButton C.LblAssignments ViewAssignments
+                  , navButton C.LblStatisticsIndividual StatisticsIndividual
                   ]
             )
         ]
+      where
+        navButton lbl p =
+          Button.buttonSecondary (C.translate' lbl)
+            & Button.withClick (PushURI $ M.toURI p)
+            & Button.renderButton
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"

@@ -21,6 +21,7 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Data.List (find)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
@@ -108,10 +109,10 @@ singleListSelectorComponent r config style t =
     update Reset = M.modify (#selectedValue .~ Nothing)
 
     view m = case style of
-      SButtons -> viewButtons V.hButtons m.possibleValues config.showValue (\v -> Just v == m.selectedValue)
+      SButtons -> viewToggleButtons False m.possibleValues config.showValue (\v -> Just v == m.selectedValue)
       SButtonsCompact ->
-        viewButtons
-          (V.hButtons & (#compact .~ True))
+        viewToggleButtons
+          True
           m.possibleValues
           config.showValue
           (\v -> Just v == m.selectedValue)
@@ -169,14 +170,14 @@ multiListSelectorComponent r config style s =
 
     view m = case style of
       MButtons ->
-        viewButtons
-          V.hButtons
+        viewToggleButtons
+          False
           m.possibleValues
           config.showValue
           (`Set.member` Set.fromList m.selectedValues)
       MButtonsCompact ->
-        viewButtons
-          (V.hButtons & (#compact .~ True))
+        viewToggleButtons
+          True
           m.possibleValues
           config.showValue
           (`Set.member` Set.fromList m.selectedValues)
@@ -184,9 +185,11 @@ multiListSelectorComponent r config style s =
         [] -> ""
         _ -> foldl1 (\a b -> a <> ", " <> b) $ map config.showValue m.selectedValues
 
-viewButtons
-  :: forall a m. V.Buttons -> [a] -> (a -> M.MisoString) -> (a -> Bool) -> M.View m (Action a)
-viewButtons buttons possibleValues showValue isSelected =
-  V.viewButtons buttons $ map viewButton possibleValues
+-- | Render toggle buttons as a button group
+-- compact=True uses buttonGroup (connected edges), False uses flow layout
+viewToggleButtons
+  :: forall a m. Bool -> [a] -> (a -> M.MisoString) -> (a -> Bool) -> M.View m (Action a)
+viewToggleButtons compact possibleValues showValue isSelected =
+  (if compact then Button.buttonGroup else V.viewFlow V.hFlow) (map mkButton possibleValues)
   where
-    viewButton a = V.textButton (showValue a) (isSelected a) (Toggle a)
+    mkButton a = Button.toggleButton (isSelected a) (showValue a) (Toggle a)

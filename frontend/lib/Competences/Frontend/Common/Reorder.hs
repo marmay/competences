@@ -12,13 +12,12 @@ where
 import Competences.Command (Command)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Orderable, Reorder (..), idL)
-import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
-import Competences.Frontend.View.Button qualified as V
-import Competences.Frontend.View.Icon qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((.~), (?~), (^.), (&))
+import Optics.Core ((&), (.~), (?~), (^.))
 
 newtype ReorderModel a = ReorderModel
   { reorderFrom :: Maybe (Id a)
@@ -76,7 +75,7 @@ issueReorderCommand r f to = do
 
 viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
 viewReorderItem m item =
-  V.viewButtons (V.hButtons & #compact .~ True) $ case m.reorderFrom of
+  Button.buttonGroup $ case m.reorderFrom of
     Nothing -> [moveButton]
     Just from ->
       if from == item ^. idL
@@ -84,10 +83,18 @@ viewReorderItem m item =
         else [moveBeforeButton, moveAfterButton]
   where
     moveButton =
-      V.iconButton' V.IcnReorder C.LblMove (ReorderFrom $ item ^. idL)
+      Button.buttonIcon Button.Secondary IcnReorder
+        & Button.withClick (ReorderFrom $ item ^. idL)
+        & Button.renderButton
     cancelButton =
-      V.iconButton' V.IcnCancel C.LblCancel CancelReorder
+      Button.buttonIcon Button.Destructive IcnCancel
+        & Button.withClick CancelReorder
+        & Button.renderButton
     moveBeforeButton =
-      V.iconButton' V.IcnArrowUp C.LblInsertBefore (ReorderBefore $ item ^. idL)
+      Button.buttonIcon Button.Secondary IcnArrowUp
+        & Button.withClick (ReorderBefore $ item ^. idL)
+        & Button.renderButton
     moveAfterButton =
-      V.iconButton' V.IcnArrowDown C.LblInsertAfter (ReorderAfter $ item ^. idL)
+      Button.buttonIcon Button.Secondary IcnArrowDown
+        & Button.withClick (ReorderAfter $ item ^. idL)
+        & Button.renderButton

@@ -30,6 +30,8 @@ import Competences.Frontend.SyncDocument
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind qualified as T
 import Data.Foldable (toList)
 import Data.List (sort)
@@ -129,7 +131,10 @@ evidenceSelectorComponent r parentLens =
                 #filteredDateRange
             )
         , viewEvidences m
-        , V.viewButton (V.labelButton' C.LblAddEvidence CreateNewEvidence)
+        , Button.buttonPrimary (C.translate' C.LblAddEvidence)
+            & Button.withIcon IcnAdd
+            & Button.withClick CreateNewEvidence
+            & Button.renderButton
         ]
     viewEvidences m =
       let dateRangeFilter :: Ix.IxSet EvidenceIxs Evidence -> Ix.IxSet EvidenceIxs Evidence

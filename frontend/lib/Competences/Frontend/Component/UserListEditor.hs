@@ -13,6 +13,9 @@ import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument, nextId)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -20,7 +23,6 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core (Iso', iso, (%), (&), (.~), (?~), (^.))
-import Competences.Frontend.View.Component (component)
 
 data Action
   = NewUser
@@ -76,7 +78,11 @@ userListEditorComponent r =
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
           users = component "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
-          addButton = V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddUser NewUser
+          addButton =
+            Button.buttonPrimary (C.translate' C.LblAddUser)
+              & Button.withIcon IcnAdd
+              & Button.withClick NewUser
+              & Button.renderButton
        in V.viewFlow
             ( V.vFlow
                 & (#expandOrthogonal .~ V.Expand V.Start)

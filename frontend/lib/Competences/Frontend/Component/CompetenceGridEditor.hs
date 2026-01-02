@@ -32,6 +32,8 @@ import Competences.Frontend.SyncDocument
   , nextId
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -148,5 +150,8 @@ competenceGridEditorComponent r = M.component emptyModel update view
             , V.component
                 ("competence-grid-editor-competences-" <> M.ms (show competenceGrid.id))
                 (TE.editorComponent competencesEditor r)
-            , V.viewButton $ V.iconLabelButton' V.IcnAdd C.LblAddNewCompetence CreateNewCompetence
+            , Button.buttonPrimary (C.translate' C.LblAddNewCompetence)
+                & Button.withIcon IcnAdd
+                & Button.withClick CreateNewCompetence
+                & Button.renderButton
             ]
