@@ -7,6 +7,10 @@ module Competences.Frontend.Component.Selector.UserSelector
   , defaultUserSelectorConfig
   , SingleUserSelectorStyle (..)
   , MultiUserSelectorStyle (..)
+
+    -- * Searchable variants
+  , searchableSingleUserSelectorComponent
+  , searchableMultiUserSelectorComponent
   )
 where
 
@@ -15,6 +19,7 @@ import Competences.Document (Document (..), User (..))
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..))
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
+import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Data.Default (Default)
 import Data.Foldable (toList)
@@ -126,3 +131,25 @@ listUsers p d = filter p $ Ix.toAscList (Proxy @Text) d.users
 
 showUser :: User -> M.MisoString
 showUser u = M.ms u.name
+
+-- ============================================================================
+-- SEARCHABLE VARIANTS
+-- ============================================================================
+
+-- | Searchable single-select user component
+searchableSingleUserSelectorComponent
+  :: SyncDocumentRef
+  -> UserSelectorConfig
+  -> SelectorTransformedLens p Maybe User f t
+  -> M.Component p (SL.SearchableSingleModel User) (SL.SearchableSingleAction User)
+searchableSingleUserSelectorComponent r config =
+  SL.searchableSingleSelectorComponent r (toListSelectorConfig config)
+
+-- | Searchable multi-select user component
+searchableMultiUserSelectorComponent
+  :: SyncDocumentRef
+  -> UserSelectorConfig
+  -> SelectorTransformedLens p [] User f t
+  -> M.Component p (SL.SearchableModel User) (SL.SearchableAction User)
+searchableMultiUserSelectorComponent r config =
+  SL.searchableMultiSelectorComponent r (toListSelectorConfig config)

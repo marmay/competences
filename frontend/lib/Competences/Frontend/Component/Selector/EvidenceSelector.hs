@@ -15,10 +15,9 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Selector.UserSelector
-  ( SingleUserSelectorStyle (..)
-  , UserSelectorConfig (..)
+  ( UserSelectorConfig (..)
   , defaultUserSelectorConfig
-  , singleUserSelectorComponent
+  , searchableSingleUserSelectorComponent
   )
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
@@ -114,10 +113,9 @@ evidenceSelectorComponent r parentLens =
         [ V.title_ (C.translate' C.LblSelectEvidences)
         , V.component
             "evidence-selector-users"
-            ( singleUserSelectorComponent
+            ( searchableSingleUserSelectorComponent
                 r
                 defaultUserSelectorConfig {isPossibleUser = isStudent}
-                SingleUserSelectorStyleComboBox
                 (selectorLens #filteredUser)
             )
         , V.component

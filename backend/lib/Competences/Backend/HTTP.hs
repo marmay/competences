@@ -135,7 +135,5 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';"
   H.body $ do
-    -- Load Basecoat JavaScript for interactive components
-    H.script ! A.src "/static/basecoat.min.js" $ ""
     -- Load application code
     H.script ! A.src "/static/index.js" ! A.type_ "module" $ ""
