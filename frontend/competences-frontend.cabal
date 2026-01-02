@@ -75,6 +75,7 @@ library
         Competences.Frontend.View.Icon,
         Competences.Frontend.View.Input,
         Competences.Frontend.View.Layout,
+        Competences.Frontend.View.MainPage,
         Competences.Frontend.View.Modal,
         Competences.Frontend.View.SidePanel,
         Competences.Frontend.View.Table,

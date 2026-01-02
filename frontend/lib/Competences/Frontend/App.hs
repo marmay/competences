@@ -26,7 +26,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Router qualified as M
-import Optics.Core ((&), (.~), (^.))
+import Optics.Core ((.~), (^.), (&))
 
 type App = M.Component M.ROOT Model Action
 
@@ -57,51 +57,39 @@ mkApp r =
     view :: Model -> M.View Model Action
     view m =
       M.div_
-        [V.fullScreen]
+        []
         [ V.iconDefs
-        , V.viewFlow
-            ( V.vFlow
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#expandOrthogonal .~ V.Expand V.Center)
-                & (#gap .~ V.SmallSpace)
-                & (#extraAttrs .~ [V.fullHeight])
-            )
-            [title, topMenu, page (m ^. #uri), footer]
+        , V.mainPage
+            (C.translate' C.LblPageTitle)
+            (navButtons m)
+            (page (m ^. #uri))
+            (M.text "© 2025 Markus Mayr")
         ]
 
-    title = V.title_ $ C.translate' C.LblPageTitle
-    topMenu =
-      V.viewFlow
-        ( V.hFlow
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#gap .~ V.SmallSpace)
-        )
-        [ V.viewFlow (V.hFlow & (#gap .~ V.SmallSpace))
-            ( if isTeacher model.connectedUser
-                then
-                  [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
-                  , navButton C.LblEditCompetenceGrid EditCompetenceGrid
-                  , navButton C.LblEvidences Evidences
-                  , navButton C.LblSelfContainedTasks ManageTasks
-                  , navButton C.LblAssignments EditAssignments
-                  , navButton C.LblEvaluateAssignments EvaluateAssignments
-                  , navButton C.LblStatisticsOverview StatisticsOverview
-                  , navButton C.LblStatisticsIndividual StatisticsIndividual
-                  , navButton C.LblManageUsers ManageUsers
-                  ]
-                else
-                  [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
-                  , navButton C.LblEvidences Evidences
-                  , navButton C.LblAssignments ViewAssignments
-                  , navButton C.LblStatisticsIndividual StatisticsIndividual
-                  ]
-            )
-        ]
-      where
-        navButton lbl p =
-          Button.buttonSecondary (C.translate' lbl)
-            & Button.withClick (PushURI $ M.toURI p)
-            & Button.renderButton
+    navButtons m' =
+      if isTeacher m'.connectedUser
+        then
+          [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
+          , navButton C.LblEditCompetenceGrid EditCompetenceGrid
+          , navButton C.LblEvidences Evidences
+          , navButton C.LblSelfContainedTasks ManageTasks
+          , navButton C.LblAssignments EditAssignments
+          , navButton C.LblEvaluateAssignments EvaluateAssignments
+          , navButton C.LblStatisticsOverview StatisticsOverview
+          , navButton C.LblStatisticsIndividual StatisticsIndividual
+          , navButton C.LblManageUsers ManageUsers
+          ]
+        else
+          [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
+          , navButton C.LblEvidences Evidences
+          , navButton C.LblAssignments ViewAssignments
+          , navButton C.LblStatisticsIndividual StatisticsIndividual
+          ]
+
+    navButton lbl p =
+      Button.buttonSecondary (C.translate' lbl)
+        & Button.withClick (PushURI $ M.toURI p)
+        & Button.renderButton
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"
@@ -129,8 +117,6 @@ mkApp r =
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
     mounted key = componentA (M.ms $ show key) [V.minH0]
-
-    footer = V.viewFlow (V.hFlow & (#expandDirection .~ V.Expand V.Center)) [V.text_ "© 2025 Markus Mayr"]
 
 -- | No-op function (CSS is now loaded in HTML head via backend)
 -- Kept for backward compatibility with Main.hs
