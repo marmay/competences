@@ -169,9 +169,9 @@ pageLayout maybeHeader content maybeFooter =
   viewFlow
     (vFlow & (#expandDirection .~ Expand Start) & (#extraAttrs .~ [class_ "h-screen"]))
     $ catMaybes
-      [ fmap (\h -> M.header_ [class_ "border-b border-stone-200 bg-white"] [h]) maybeHeader
-      , Just $ M.main_ [class_ "flex-1 overflow-y-auto"] [content]
-      , fmap (\f -> M.footer_ [class_ "border-t border-stone-200 bg-white"] [f]) maybeFooter
+      [ fmap (\h -> M.header_ [class_ "border-b border-border bg-card"] [h]) maybeHeader
+      , Just $ M.main_ [class_ "flex-1 overflow-y-auto bg-background"] [content]
+      , fmap (\f -> M.footer_ [class_ "border-t border-border bg-card"] [f]) maybeFooter
       ]
   where
     catMaybes = foldr (\mx xs -> maybe xs (: xs) mx) []

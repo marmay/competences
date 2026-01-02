@@ -7,6 +7,10 @@ module.exports = {
   ],
   // Safelist ensures these classes are always included (important for Haskell string-based classes)
   safelist: [
+    // Theme classes (must be safelisted for runtime switching)
+    'dark',
+    'theme-claude',
+    'theme-ocean',
     // Semantic color classes (using CSS variables)
     { pattern: /bg-(primary|secondary|destructive|background|card|muted|accent)/ },
     { pattern: /text-(primary|secondary|destructive|foreground|muted|accent)/ },
