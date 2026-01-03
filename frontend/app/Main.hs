@@ -27,7 +27,7 @@ import Data.Text qualified as T
 import Miso.Run
 import Miso.DSL (jsg, fromJSVal, (!))
 import Miso qualified as M
-import Control.Concurrent (newEmptyMVar, putMVar, readMVar, tryTakeMVar, tryReadMVar, threadDelay)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar, tryTakeMVar, tryReadMVar)
 
 main :: IO ()
 main = do
@@ -110,12 +110,12 @@ main = do
         
         -- Wait for first InitialSnapshot to arrive, then start app
         M.consoleLog $ "Waiting for setup to complete."
-        threadDelay 1000000
         (document, user) <- readMVar initialState
         M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
         -- Set WebSocket connection after document is created
         setWebSocket document ws
         runApp $ withTailwindPlay $ mkApp document
+
 
 foreign export javascript "hs_start" main :: IO ()
 
