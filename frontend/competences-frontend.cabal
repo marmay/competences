@@ -59,6 +59,7 @@ library
         Competences.Frontend.Component.Selector.ObservationSelector,
         Competences.Frontend.Component.Selector.SelfContainedTaskSelector,
         Competences.Frontend.Component.Selector.UserSelector,
+        Competences.Frontend.Component.SelectorDetail,
         Competences.Frontend.Component.SelfContainedTaskEditor,
         Competences.Frontend.Component.Static,
         Competences.Frontend.Component.StatisticsOverview,
