@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.SelfContainedTaskEditor
   ( selfContainedTaskEditorComponent
+  , TaskMode (..)
   )
 where
 
@@ -15,80 +16,92 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.SelfContainedTaskSelector (selfContainedTaskSelectorComponent)
+import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Typography qualified as Typography
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Text (Text)
-import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
-data Model = Model
-  { task :: !(Maybe Task)
-  }
-  deriving (Eq, Generic, Show)
+-- | Mode for the task editor component (single mode, no switcher shown)
+data TaskMode = TaskEdit
+  deriving (Eq, Ord, Enum, Bounded, Show)
 
-data Action
-
-selfContainedTaskEditorComponent :: SyncDocumentRef -> M.Component p Model Action
+-- | Self-contained task editor component using SelectorDetail pattern
+selfContainedTaskEditorComponent
+  :: SyncDocumentRef
+  -> M.Component p (SD.Model Task TaskMode) (SD.Action TaskMode)
 selfContainedTaskEditorComponent r =
-  M.component model update view
-  where
-    model = Model Nothing
-    update _ = pure ()
+  SD.selectorDetailComponent
+    SD.SelectorDetailConfig
+      { SD.selectorId = "task"
+      , SD.selectorComponent = selfContainedTaskSelectorComponent r
+      , SD.detailView = \TaskEdit -> taskDetailView r
+      , SD.modeLabel = \TaskEdit -> C.translate' C.LblEdit
+      , SD.modeIcon = \TaskEdit -> Just IcnEdit
+      , SD.availableModes = TaskEdit :| []
+      , SD.defaultMode = TaskEdit
+      , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
+      }
 
-    view m =
-      V.sideMenu
-        (V.componentA "task-editor-selection" [class_ "h-full"] (selfContainedTaskSelectorComponent r #task))
-        (V.componentA taskEditorId [class_ "h-full"] (TE.editorComponent taskEditor r))
-      where
-        taskEditorId = "task-editor-editor-" <> maybe "empty" (M.ms . show . (.id)) m.task
-        taskEditable =
-          TE.editable
-            ( \d -> do
-                t <- m.task
-                -- Verify it's a SelfContained task
-                case t.taskType of
-                  SelfContained _ ->
-                    fmap
-                      (\c -> (c, (d ^. #locks) Map.!? TaskLock c.id))
-                      (Ix.getOne $ d.tasks Ix.@= t.id)
-                  SubTask _ _ -> Nothing -- Not editable in this editor
-            )
-            & (#modify ?~ (\t modify -> Tasks $ OnTasks (Modify t.id modify)))
-            & (#delete ?~ (\t -> Tasks $ OnTasks (Delete t.id)))
-        taskEditor =
-          TE.editor
-            ( TE.editorFormView'
-                (C.translate' C.LblEditEvidence)
-                id
-            )
-            taskEditable
-            `TE.addNamedField` ( C.translate' C.LblTaskIdentifier
-                               , TE.textEditorField identifierViewLens identifierPatchLens
-                               )
-            `TE.addNamedField` ( C.translate' C.LblTaskContent
-                               , TE.textEditorField contentViewLens contentPatchLens
-                               )
-            `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
-                               , TE.enumEditorField
-                                   (C.translate' . C.LblTaskPurpose)
-                                   purposeViewLens
-                                   purposePatchLens
-                               )
-            `TE.addNamedField` ( C.translate' C.LblTaskPrimaryCompetences
-                               , competenceLevelEditorField
-                                   r
-                                   "task-primary-competences"
-                                   (entityPatchLens primaryViewLens primaryPatchLens)
-                               )
-            `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
-                               , competenceLevelEditorField
-                                   r
-                                   "task-secondary-competences"
-                                   (entityPatchLens secondaryViewLens secondaryPatchLens)
-                               )
+-- | Detail view for editing a task
+taskDetailView
+  :: SyncDocumentRef
+  -> Task
+  -> M.View (SD.Model Task TaskMode) (SD.Action TaskMode)
+taskDetailView r task =
+  V.component
+    ("task-editor-" <> M.ms (show task.id))
+    (TE.editorComponent taskEditor r)
+  where
+    taskEditable =
+      TE.editable
+        ( \d -> do
+            -- Verify it's a SelfContained task
+            case task.taskType of
+              SelfContained _ ->
+                fmap
+                  (\c -> (c, (d ^. #locks) Map.!? TaskLock c.id))
+                  (Ix.getOne $ d.tasks Ix.@= task.id)
+              SubTask _ _ -> Nothing -- Not editable in this editor
+        )
+        & (#modify ?~ (\t modify -> Tasks $ OnTasks (Modify t.id modify)))
+        & (#delete ?~ (\t -> Tasks $ OnTasks (Delete t.id)))
+    taskEditor =
+      TE.editor
+        ( TE.editorFormView'
+            (C.translate' C.LblEditEvidence)
+            id
+        )
+        taskEditable
+        `TE.addNamedField` ( C.translate' C.LblTaskIdentifier
+                           , TE.textEditorField identifierViewLens identifierPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskContent
+                           , TE.textEditorField contentViewLens contentPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
+                           , TE.enumEditorField
+                               (C.translate' . C.LblTaskPurpose)
+                               purposeViewLens
+                               purposePatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskPrimaryCompetences
+                           , competenceLevelEditorField
+                               r
+                               "task-primary-competences"
+                               (entityPatchLens primaryViewLens primaryPatchLens)
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
+                           , competenceLevelEditorField
+                               r
+                               "task-secondary-competences"
+                               (entityPatchLens secondaryViewLens secondaryPatchLens)
+                           )
 
 -- Lenses for identifier (TaskIdentifier <-> Text conversion)
 taskIdentifierTextIso :: Iso' TaskIdentifier Text
