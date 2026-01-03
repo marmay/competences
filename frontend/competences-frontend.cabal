@@ -63,7 +63,6 @@ library
         Competences.Frontend.Component.SelfContainedTaskEditor,
         Competences.Frontend.Component.Static,
         Competences.Frontend.Component.StatisticsOverview,
-        Competences.Frontend.Component.StatisticsViewer,
         Competences.Frontend.Component.UserListEditor,
         Competences.Frontend.SyncDocument,
         Competences.Frontend.View,

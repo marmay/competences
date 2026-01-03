@@ -14,7 +14,6 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.SelfContainedTaskEditor (selfContainedTaskEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
-import Competences.Frontend.Component.StatisticsViewer (statisticsViewerComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef, syncDocumentEnv)
 import Competences.Frontend.View qualified as V
@@ -73,14 +72,12 @@ mkApp r =
           , navButton C.LblSelfContainedTasks ManageTasks
           , navButton C.LblAssignments ManageAssignments
           , navButton C.LblStatisticsOverview StatisticsOverview
-          , navButton C.LblStatisticsIndividual StatisticsIndividual
           , navButton C.LblManageUsers ManageUsers
           ]
         else
           [ navButton C.LblCompetenceGrid CompetenceGrid
           , navButton C.LblEvidences Evidences
           , navButton C.LblAssignments ViewAssignments
-          , navButton C.LblStatisticsIndividual StatisticsIndividual
           ]
 
     navButton lbl p =
@@ -97,7 +94,6 @@ mkApp r =
         ViewAssignments -> viewAssignments
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
-        StatisticsIndividual -> statisticsIndividual
         ManageUsers -> manageUsers
 
     competenceGrid = mounted CompetenceGrid $ competenceGridComponent r defaultGridMode availableGridModes
@@ -111,7 +107,6 @@ mkApp r =
     viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
     manageAssignments = mounted ManageAssignments $ assignmentComponent r
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
-    statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
     mounted key = componentA (M.ms $ show key) [V.minH0]
@@ -128,7 +123,6 @@ data Page
   | ViewAssignments
   | ManageAssignments
   | StatisticsOverview
-  | StatisticsIndividual
   | ManageUsers
   deriving (Eq, Show)
 
@@ -141,7 +135,6 @@ instance M.Router Page where
       , M.path "assignments" $> ViewAssignments
       , M.path "manage-assignments" $> ManageAssignments
       , M.path "statistics-overview" $> StatisticsOverview
-      , M.path "statistics-individual" $> StatisticsIndividual
       , M.path "users" $> ManageUsers
       ]
   fromRoute CompetenceGrid = [M.toPath "grid"]
@@ -150,7 +143,6 @@ instance M.Router Page where
   fromRoute ViewAssignments = [M.toPath "assignments"]
   fromRoute ManageAssignments = [M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
-  fromRoute StatisticsIndividual = [M.toPath "statistics-individual"]
   fromRoute ManageUsers = [M.toPath "users"]
 
 instance M.ToKey Page where
