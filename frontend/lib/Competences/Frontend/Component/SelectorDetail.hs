@@ -123,24 +123,32 @@ selectorDetailComponent config =
       Nothing -> config.emptyView
       Just item ->
         V.viewFlow
-          (V.vFlow & (#expandDirection .~ V.Expand V.Start) & (#expandOrthogonal .~ V.Expand V.Start))
+          ( V.vFlow
+              & (#expandDirection .~ V.Expand V.Start)
+              & (#expandOrthogonal .~ V.Expand V.Start)
+              & (#gap .~ V.MediumSpace)  -- Spacing between mode switcher and content
+          )
           [ modeSwitcher m
           , V.flexGrow (config.detailView m.activeMode item)
           ]
 
     -- Only show switcher if multiple modes available
+    -- Uses button group, centered, with spacing below
     modeSwitcher :: Model a mode -> M.View (Model a mode) (Action mode)
     modeSwitcher m = case config.availableModes of
       _ :| [] -> V.empty  -- Single mode, no switcher needed
       modes ->
         V.viewFlow
-          (V.hFlow & (#gap .~ V.SmallSpace))
-          (map (modeButton m.activeMode) (NE.toList modes))
+          ( V.hFlow
+              & (#expandDirection .~ V.Expand V.Center)  -- Center the button group
+          )
+          [Button.buttonGroup (map (modeButton m.activeMode) (NE.toList modes))]
 
     modeButton :: mode -> mode -> M.View (Model a mode) (Action mode)
     modeButton activeMode mode =
-      let variant = if mode == activeMode then Button.Primary else Button.Secondary
+      let variant = if mode == activeMode then Button.Primary else Button.Outline
           baseButton = Button.button variant (config.modeLabel mode)
+            & Button.withSize Button.Small
             & Button.withClick (SwitchMode mode)
        in case config.modeIcon mode of
             Nothing -> Button.renderButton baseButton

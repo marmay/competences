@@ -19,7 +19,8 @@ import Miso.Svg qualified as MS
 import Miso.Svg.Property qualified as MSP
 
 data Icon
-  = IcnEdit
+  = IcnView
+  | IcnEdit
   | IcnDelete
   | IcnAdd
   | IcnApply
@@ -57,6 +58,7 @@ icon attrs icn =
 
 iconId :: Icon -> MisoString
 iconId = \case
+  IcnView -> "icon-eye"
   IcnEdit -> "icon-pen"
   IcnDelete -> "icon-trash"
   IcnAdd -> "icon-plus"
@@ -81,6 +83,17 @@ iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconD
 
 iconDefOf' :: Icon -> [View m a]
 iconDefOf' = \case
+  IcnView ->
+    -- Eye icon (view/preview)
+    [ MS.path_
+        [ MSP.d_ "M12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9Z"
+        , MSP.strokeWidth_ "1.5"
+        ]
+    , MS.path_
+        [ MSP.d_ "M2.45825 12C3.73253 7.94288 7.52281 5 12.0004 5C16.4781 5 20.2684 7.94291 21.5426 12C20.2684 16.0571 16.4781 19 12.0005 19C7.52281 19 3.73251 16.0571 2.45825 12Z"
+        , MSP.strokeWidth_ "1.5"
+        ]
+    ]
   IcnEdit ->
     [ MS.path_
         [ MSP.d_
