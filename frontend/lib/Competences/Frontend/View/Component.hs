@@ -12,5 +12,4 @@ componentA name attrs c =
   M.div_ attrs [name M.+> c]
 
 component :: (Eq m) => M.MisoString -> M.Component p m a -> M.View p a'
-component name c =
-  M.div_ [] [name M.+> c]
+component name = componentA name []
