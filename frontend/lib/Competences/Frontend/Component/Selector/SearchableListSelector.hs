@@ -101,7 +101,7 @@ searchableMultiSelectorComponent r config lensBinding =
               (\v -> Combobox.ComboboxOption v (fromMisoString $ config.showValue v))
               m.possibleValues
           selectedSet = Set.fromList m.selectedValues
-       in Combobox.multiSelectCombobox "searchable-selector" SetSearchQuery Toggle SetOpen
+       in Combobox.multiSelectCombobox SetSearchQuery Toggle SetOpen
             & Combobox.withPlaceholder "Auswählen..."
             & Combobox.withOptions options
             & Combobox.withSelected selectedSet
@@ -187,7 +187,6 @@ searchableSingleSelectorComponent r config lensBinding =
           selectedSet = maybe Set.empty Set.singleton m.selectedValue
           displayTxt = fmap (fromMisoString . config.showValue) m.selectedValue
        in Combobox.singleSelectCombobox
-            "searchable-single-selector"
             SingleSetSearchQuery
             SingleToggle
             SingleSetOpen

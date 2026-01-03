@@ -8,6 +8,7 @@ module Competences.Frontend.Component.Editor.EditorField
   , msIso
   , mkFieldLens
   , selectorEditorField
+  , selectorEditorFieldNoStyle
   )
 where
 
@@ -122,6 +123,28 @@ selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
         , editor = \refocusTarget a _ ->
             componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a editorStyle (l' a))
+        }
+
+-- | Editor field for selectors without style parameter (e.g., searchable selectors)
+--   Uses the same component for both viewing and editing
+selectorEditorFieldNoStyle
+  :: forall a f b f' b' patch ef cm ca
+   . (Eq cm, Ord a, Default patch)
+  => M.MisoString
+  -> EntityPatchTransformedLens a patch f b f' b'
+  -> ( a
+       -> SelectorTransformedLens (Model a patch ef) f b f' b'
+       -> M.Component (Model a patch ef) cm ca
+     )
+  -> EditorField a patch ef
+selectorEditorFieldNoStyle k eptl mkEditorComponent =
+  let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
+      l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
+   in EditorField
+        { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a (l' a))
+        , editor = \refocusTarget a _ ->
+            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+              mkEditorComponent a (l' a))
         }
 
 dayEditorField :: Lens' a Day -> Lens' patch (Change Day) -> EditorField a patch f
