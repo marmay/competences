@@ -36,6 +36,8 @@ import Miso qualified as M
 import Optics.Core ((%~), (&), (.~))
 import System.Random (StdGen, newStdGen, random)
 import UnliftIO (MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newMVar, readMVar)
+import Miso.Subscription.Util (createSub)
+import qualified Data.Map as Map
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -47,7 +49,8 @@ data SyncDocument = SyncDocument
   , localChanges :: ![Command]
   , pendingCommand :: !(Maybe Command)
   , remoteDocument :: !Document
-  , onChanged :: ![ChangedHandler]
+  , onChanged :: !(Map.Map Int ChangedHandler)
+  , nextChangedHandlerId :: !Int
   }
   deriving (Generic)
 
@@ -101,11 +104,19 @@ readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
 readSyncDocument = readMVar . (.syncDocument)
 
 subscribeDocument :: forall a. SyncDocumentRef -> (DocumentChange -> a) -> M.Sink a -> IO ()
-subscribeDocument d f s = do
-  let h = ChangedHandler f s
-  modifyMVar_ d.syncDocument $ \d' -> do
-    s $ f (DocumentChange d'.localDocument InitialUpdate)
-    pure $ d' & (#onChanged %~ (h :))
+subscribeDocument d f s = createSub acquire release s
+  where
+    acquire = do
+      modifyMVar d.syncDocument $ \d' -> do
+        s $ f (DocumentChange d'.localDocument InitialUpdate)
+        pure (d'{ onChanged = Map.insert d'.nextChangedHandlerId (ChangedHandler f s) d'.onChanged
+                 , nextChangedHandlerId = d'.nextChangedHandlerId + 1
+                 }
+               , d'.nextChangedHandlerId
+               )
+    release changedHandlerId =
+      modifyMVar_ d.syncDocument $ \d' -> do
+        pure d'{ onChanged = Map.delete changedHandlerId d'.onChanged }
 
 modifySyncDocument :: SyncDocumentRef -> Command -> IO ()
 modifySyncDocument d c = do
@@ -118,7 +129,7 @@ setSyncDocument :: SyncDocumentRef -> Document -> IO ()
 setSyncDocument d m = modifyMVar_ d.syncDocument $ setSyncDocument' d.env.connectedUser.id m
 
 emptySyncDocument :: SyncDocument
-emptySyncDocument = SyncDocument emptyDocument [] Nothing emptyDocument []
+emptySyncDocument = SyncDocument emptyDocument [] Nothing emptyDocument Map.empty 0
 
 modifySyncDocument' :: UserId -> Command -> SyncDocument -> IO SyncDocument
 modifySyncDocument' uId c d = do
