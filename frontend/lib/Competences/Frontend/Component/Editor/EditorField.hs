@@ -9,6 +9,7 @@ module Competences.Frontend.Component.Editor.EditorField
   , mkFieldLens
   , selectorEditorField
   , selectorEditorFieldNoStyle
+  , selectorEditorFieldWithViewer
   )
 where
 
@@ -142,6 +143,35 @@ selectorEditorFieldNoStyle k eptl mkEditorComponent =
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
         { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a (l' a))
+        , editor = \refocusTarget a _ ->
+            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+              mkEditorComponent a (l' a))
+        }
+
+-- | Editor field for selectors with separate viewer and editor components
+--   Viewer: read-only display component (e.g., comma-separated list of selected items)
+--   Editor: interactive selection component (e.g., searchable combobox)
+selectorEditorFieldWithViewer
+  :: forall a f b f' b' patch ef vmm vma emm ema
+   . (Eq vmm, Eq emm, Ord a, Default patch)
+  => M.MisoString
+  -> EntityPatchTransformedLens a patch f b f' b'
+  -> ( a
+       -> SelectorTransformedLens (Model a patch ef) f b f' b'
+       -> M.Component (Model a patch ef) vmm vma
+     )
+  -- ^ Viewer component factory (read-only display)
+  -> ( a
+       -> SelectorTransformedLens (Model a patch ef) f b f' b'
+       -> M.Component (Model a patch ef) emm ema
+     )
+  -- ^ Editor component factory (interactive selection)
+  -> EditorField a patch ef
+selectorEditorFieldWithViewer k eptl mkViewerComponent mkEditorComponent =
+  let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
+      l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
+   in EditorField
+        { viewer = \a -> V.component (k <> "-viewer") (mkViewerComponent a (l' a))
         , editor = \refocusTarget a _ ->
             componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a (l' a))

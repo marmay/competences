@@ -90,13 +90,23 @@ competenceGridViewerComponent r =
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ title
+        [ header
         , description
-        , userSelector
         , competences
         ]
       where
-        title = Typography.h2 (M.ms competenceGrid.title)
+        -- Header with title (left-aligned) and user selector (right-aligned)
+        header =
+          V.viewFlow
+            ( V.hFlow
+                & (#gap .~ V.MediumSpace)
+                & (#expandDirection .~ V.Expand V.Start)
+                & (#expandOrthogonal .~ V.Expand V.Center)
+            )
+            [ Typography.h2 (M.ms competenceGrid.title)
+            , V.flowSpring  -- Push selector to the right
+            , userSelector
+            ]
         description = Typography.paragraph (M.ms competenceGrid.description)
         userSelector =
           V.component

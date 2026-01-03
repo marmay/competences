@@ -17,19 +17,24 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField, selectorEditorFieldNoStyle)
-import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..))
+import Competences.Frontend.Common.Translate qualified as C
+import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
-import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (Default)
 import Data.Foldable (toList)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((^.))
+import Miso.Html qualified as MH
+import Optics.Core ((&), (.~), (^.))
+import Optics.Core qualified as O
 
 data SingleUserSelectorStyle
   = SingleUserSelectorStyleButtons
@@ -156,6 +161,7 @@ searchableMultiUserSelectorComponent r config =
   SL.searchableMultiSelectorComponent r (toListSelectorConfig config)
 
 -- | Searchable multi-user editor field for use in editors
+-- Uses a read-only viewer (comma-separated names with count) and searchable combobox for editing
 searchableMultiUserEditorField
   :: (Ord p, Ord t, Foldable f, Default patch)
   => SyncDocumentRef
@@ -170,7 +176,67 @@ searchableMultiUserEditorField r k p eptl =
               { isPossibleUser = p
               , isInitialUser = \u -> eptl.transform u `Set.member` initialSelection
               }
-   in selectorEditorFieldNoStyle
+   in selectorEditorFieldWithViewer
         k
         eptl
+        (\e -> selectedUsersViewerComponent r (config e))
         (\e -> searchableMultiUserSelectorComponent r (config e))
+
+-- ============================================================================
+-- SELECTED USERS VIEWER (Read-only display)
+-- ============================================================================
+
+-- | Model for the selected users viewer
+data SelectedUsersViewerModel = SelectedUsersViewerModel
+  { possibleValues :: ![User]
+  , selectedValues :: ![User]
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Action for the selected users viewer
+newtype SelectedUsersViewerAction = ViewerUpdateDocument DocumentChange
+  deriving (Eq, Show)
+
+-- | Component that displays selected users as comma-separated text with count
+-- Used as the viewer in editor fields (read-only display)
+selectedUsersViewerComponent
+  :: SyncDocumentRef
+  -> UserSelectorConfig
+  -> SelectorTransformedLens p [] User f t
+  -> M.Component p SelectedUsersViewerModel SelectedUsersViewerAction
+selectedUsersViewerComponent r config lensBinding =
+  (M.component model update view)
+    { M.bindings = [mkSelectorBinding lensBinding (O.castOptic #selectedValues)]
+    , M.subs = [subscribeDocument r ViewerUpdateDocument]
+    }
+  where
+    model =
+      SelectedUsersViewerModel
+        { possibleValues = []
+        , selectedValues = []
+        }
+
+    update (ViewerUpdateDocument (DocumentChange d info)) =
+      M.modify $ \m ->
+        let listSelectorCfg = toListSelectorConfig config
+            newPossibleValues = listSelectorCfg.listValues d
+            newSelectedValues =
+              if isInitialUpdate info
+                then filter listSelectorCfg.isInitialValue newPossibleValues
+                else filter (`Set.member` Set.fromList newPossibleValues) m.selectedValues
+         in m
+              & (#possibleValues .~ newPossibleValues)
+              & (#selectedValues .~ newSelectedValues)
+
+    view m = viewSelectedUsers m.selectedValues
+
+-- | Render a list of users as comma-separated text with count in brackets
+-- Empty list shows translated placeholder text
+viewSelectedUsers :: [User] -> M.View m a
+viewSelectedUsers users =
+  case users of
+    [] -> Typography.muted (C.translate' C.LblNoStudentsSelected)
+    _ ->
+      let names = Text.intercalate ", " (map (.name) users)
+          count = Text.pack $ " (" <> show (length users) <> ")"
+       in MH.span_ [] [M.text (M.ms $ names <> count)]
