@@ -72,9 +72,10 @@ searchableMultiSelectorComponent r config lensBinding =
         , isOpen = False
         }
 
-    update (UpdateDocument (DocumentChange d info)) =
+    update (UpdateDocument (DocumentChange d info)) = do
       let newPossibleValues = config.listValues d
-       in M.modify $ \m ->
+      M.io_ $ M.consoleLog $ M.ms $ "Possible values: " <> show newPossibleValues
+      M.modify $ \m ->
             let newSelectedValues =
                   if isInitialUpdate info
                     then filter config.isInitialValue newPossibleValues
@@ -134,7 +135,7 @@ data SearchableSingleAction a
 -- Follows the same pattern as singleListSelectorComponent but with search capability
 searchableSingleSelectorComponent
   :: forall p a f t
-   . (Ord a)
+   . (Show a, Ord a)
   => SyncDocumentRef
   -> ListSelectorConfig a t
   -- ^ Configuration for getting values from document
@@ -157,7 +158,7 @@ searchableSingleSelectorComponent r config lensBinding =
 
     update (SingleUpdateDocument (DocumentChange d info)) =
       let newPossibleValues = config.listValues d
-       in M.modify $ \m ->
+      in M.modify $ \m ->
             let newSelectedValue
                   | isInitialUpdate info = find config.isInitialValue newPossibleValues
                   | otherwise = do
@@ -166,17 +167,14 @@ searchableSingleSelectorComponent r config lensBinding =
              in m
                   & (#possibleValues .~ newPossibleValues)
                   & (#selectedValue .~ newSelectedValue)
-    update (SingleToggle a) = do
-      M.io_ $ M.consoleLog "SingleToggle"
+    update (SingleToggle a) =
       M.modify $ \m ->
         m
           & (#selectedValue %~ \s -> if s == Just a then Nothing else Just a)
           & (#isOpen .~ False) -- Close dropdown after selection
-    update (SingleSetSearchQuery q) = do
-      M.io_ $ M.consoleLog "SingleSetSearchQuery"
+    update (SingleSetSearchQuery q) =
       M.modify (#searchQuery .~ q)
-    update (SingleSetOpen open) = do
-      M.io_ $ M.consoleLog "SingleSetOpen"
+    update (SingleSetOpen open) =
       M.modify (#isOpen .~ open)
 
     view m =

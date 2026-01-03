@@ -137,6 +137,7 @@ data Label
   | LblAssignmentName
   | LblAssignmentDate
   | LblAssignmentTasks
+  | LblNoStudentsSelected
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -222,6 +223,7 @@ labels' =
   , LblAssignmentName
   , LblAssignmentDate
   , LblAssignmentTasks
+  , LblNoStudentsSelected
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -320,6 +322,7 @@ defaultTranslation LblEvaluateAssignments = "Aufträge auswerten"
 defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
+defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
