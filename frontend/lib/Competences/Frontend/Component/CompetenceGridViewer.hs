@@ -31,10 +31,9 @@ import Competences.Frontend.Component.Selector.CompetenceGridSelector
   , competenceGridSelectorComponent
   )
 import Competences.Frontend.Component.Selector.UserSelector
-  ( SingleUserSelectorStyle (SingleUserSelectorStyleButtons)
-  , UserSelectorConfig (..)
+  ( UserSelectorConfig (..)
   , defaultUserSelectorConfig
-  , singleUserSelectorComponent
+  , searchableSingleUserSelectorComponent
   )
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
@@ -102,10 +101,9 @@ competenceGridViewerComponent r =
         userSelector =
           V.component
             "competence-grid-viewer-user-selector"
-            ( singleUserSelectorComponent
+            ( searchableSingleUserSelectorComponent
                 r
                 defaultUserSelectorConfig {isPossibleUser = isStudent}
-                SingleUserSelectorStyleButtons
                 (selectorLens #selectedUser)
             )
         evidences = case selectedUser of

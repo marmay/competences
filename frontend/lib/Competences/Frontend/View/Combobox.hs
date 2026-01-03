@@ -49,8 +49,7 @@ data ComboboxOption id = ComboboxOption
 -- @id@ is the type of option identifiers (must be Ord for Set operations)
 -- @a@ is the action type
 data Combobox id a = Combobox
-  { comboboxId :: !Text
-  , placeholder :: !Text
+  { placeholder :: !Text
   , displayText :: !(Maybe Text)
   -- ^ Override trigger text (for single-select: show selected label)
   , options :: ![ComboboxOption id]
@@ -66,11 +65,10 @@ data Combobox id a = Combobox
   deriving (Generic)
 
 -- | Create a multi-select combobox with default configuration
-multiSelectCombobox :: Text -> (Text -> a) -> (id -> a) -> (Bool -> a) -> Combobox id a
-multiSelectCombobox cbId onSearchAction onToggleAction onOpenAction =
+multiSelectCombobox :: (Text -> a) -> (id -> a) -> (Bool -> a) -> Combobox id a
+multiSelectCombobox onSearchAction onToggleAction onOpenAction =
   Combobox
-    { comboboxId = cbId
-    , placeholder = "Select..."
+    { placeholder = "Select..."
     , displayText = Nothing
     , options = []
     , selected = Set.empty
@@ -83,11 +81,10 @@ multiSelectCombobox cbId onSearchAction onToggleAction onOpenAction =
     }
 
 -- | Create a single-select combobox with default configuration
-singleSelectCombobox :: Text -> (Text -> a) -> (id -> a) -> (Bool -> a) -> Combobox id a
-singleSelectCombobox cbId onSearchAction onToggleAction onOpenAction =
+singleSelectCombobox :: (Text -> a) -> (id -> a) -> (Bool -> a) -> Combobox id a
+singleSelectCombobox onSearchAction onToggleAction onOpenAction =
   Combobox
-    { comboboxId = cbId
-    , placeholder = "Select..."
+    { placeholder = "Select..."
     , displayText = Nothing
     , options = []
     , selected = Set.empty
@@ -201,7 +198,6 @@ dropdown cb =
           , if cb.isOpen then "" else "hidden"
           ]
     , M.textProp "role" "listbox"
-    , M.key_ (M.Key $ ms $ cb.comboboxId <> "-dropdown")
     ]
     [ searchInput cb
     , optionsList cb
@@ -223,7 +219,6 @@ searchInput cb =
         , MP.placeholder_ "Suchen..."
         , MP.value_ (ms cb.searchQuery)
         , M.onInput (cb.onSearch . fromMisoString)
-        , M.key_ (M.Key $ ms $ cb.comboboxId <> "-search")
         ]
     ]
 
@@ -233,7 +228,6 @@ optionsList cb =
   let filtered = filterOptions cb.searchQuery cb.options
    in M.div_
         [ class_ "max-h-60 overflow-y-auto p-1"
-        , M.key_ (M.Key $ ms $ cb.comboboxId <> "-options")
         ]
         ( if null filtered
             then [emptyState]
@@ -271,7 +265,6 @@ optionItem cb opt =
         , M.onClick (cb.onToggle opt.optionId)
         , M.textProp "role" "option"
         , M.textProp "aria-checked" (if isSelected then "true" else "false")
-        , M.key_ (M.Key $ ms $ cb.comboboxId <> "-opt-" <> opt.optionLabel)
         ]
         ( (if cb.showCheckboxes then [checkbox isSelected] else [])
             ++ [M.span_ [class_ "text-sm"] [M.text $ ms opt.optionLabel]]

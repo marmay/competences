@@ -11,12 +11,13 @@ module Competences.Frontend.Component.Selector.UserSelector
     -- * Searchable variants
   , searchableSingleUserSelectorComponent
   , searchableMultiUserSelectorComponent
+  , searchableMultiUserEditorField
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
+import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField, selectorEditorFieldNoStyle)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..))
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
@@ -153,3 +154,23 @@ searchableMultiUserSelectorComponent
   -> M.Component p (SL.SearchableModel User) (SL.SearchableAction User)
 searchableMultiUserSelectorComponent r config =
   SL.searchableMultiSelectorComponent r (toListSelectorConfig config)
+
+-- | Searchable multi-user editor field for use in editors
+searchableMultiUserEditorField
+  :: (Ord p, Ord t, Foldable f, Default patch)
+  => SyncDocumentRef
+  -> M.MisoString
+  -> (User -> Bool)
+  -> EntityPatchTransformedLens p patch [] User f t
+  -> EditorField p patch f'
+searchableMultiUserEditorField r k p eptl =
+  let config e =
+        let initialSelection = Set.fromList (toList $ e ^. eptl.viewLens)
+         in UserSelectorConfig
+              { isPossibleUser = p
+              , isInitialUser = \u -> eptl.transform u `Set.member` initialSelection
+              }
+   in selectorEditorFieldNoStyle
+        k
+        eptl
+        (\e -> searchableMultiUserSelectorComponent r (config e))

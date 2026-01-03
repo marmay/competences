@@ -20,7 +20,7 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
-import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
+import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
@@ -77,7 +77,7 @@ evidenceEditorComponent r =
                                    #activityType
                                )
             `TE.addNamedField` ( C.translate' C.LblStudents
-                               , multiUserEditorField
+                               , searchableMultiUserEditorField
                                    r
                                    (evidenceEditorId <> "-users")
                                    isStudent
