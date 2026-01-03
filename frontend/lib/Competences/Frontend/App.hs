@@ -7,8 +7,7 @@ where
 
 import Competences.Document.User (User, isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.AssignmentEditor (assignmentEditorComponent)
-import Competences.Frontend.Component.AssignmentEvaluator (assignmentEvaluatorComponent)
+import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -72,8 +71,7 @@ mkApp r =
           [ navButton C.LblCompetenceGrid CompetenceGrid
           , navButton C.LblEvidences Evidences
           , navButton C.LblSelfContainedTasks ManageTasks
-          , navButton C.LblAssignments EditAssignments
-          , navButton C.LblEvaluateAssignments EvaluateAssignments
+          , navButton C.LblAssignments ManageAssignments
           , navButton C.LblStatisticsOverview StatisticsOverview
           , navButton C.LblStatisticsIndividual StatisticsIndividual
           , navButton C.LblManageUsers ManageUsers
@@ -97,8 +95,7 @@ mkApp r =
         Evidences -> evidences
         ManageTasks -> manageTasks
         ViewAssignments -> viewAssignments
-        EditAssignments -> editAssignments
-        EvaluateAssignments -> evaluateAssignments
+        ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
         StatisticsIndividual -> statisticsIndividual
         ManageUsers -> manageUsers
@@ -112,8 +109,7 @@ mkApp r =
     evidences = mounted Evidences $ evidenceEditorComponent r
     manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
     viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
-    editAssignments = mounted EditAssignments $ assignmentEditorComponent r
-    evaluateAssignments = mounted EvaluateAssignments $ assignmentEvaluatorComponent r
+    manageAssignments = mounted ManageAssignments $ assignmentComponent r
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
     statisticsIndividual = mounted StatisticsIndividual $ statisticsViewerComponent r model.connectedUser
     manageUsers = mounted ManageUsers $ userListEditorComponent r
@@ -130,8 +126,7 @@ data Page
   | Evidences
   | ManageTasks
   | ViewAssignments
-  | EditAssignments
-  | EvaluateAssignments
+  | ManageAssignments
   | StatisticsOverview
   | StatisticsIndividual
   | ManageUsers
@@ -144,8 +139,7 @@ instance M.Router Page where
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
       , M.path "assignments" $> ViewAssignments
-      , M.path "edit-assignments" $> EditAssignments
-      , M.path "evaluate-assignments" $> EvaluateAssignments
+      , M.path "manage-assignments" $> ManageAssignments
       , M.path "statistics-overview" $> StatisticsOverview
       , M.path "statistics-individual" $> StatisticsIndividual
       , M.path "users" $> ManageUsers
@@ -154,8 +148,7 @@ instance M.Router Page where
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
   fromRoute ViewAssignments = [M.toPath "assignments"]
-  fromRoute EditAssignments = [M.toPath "edit-assignments"]
-  fromRoute EvaluateAssignments = [M.toPath "evaluate-assignments"]
+  fromRoute ManageAssignments = [M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
   fromRoute StatisticsIndividual = [M.toPath "statistics-individual"]
   fromRoute ManageUsers = [M.toPath "users"]
