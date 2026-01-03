@@ -10,8 +10,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.AssignmentEditor (assignmentEditorComponent)
 import Competences.Frontend.Component.AssignmentEvaluator (assignmentEvaluatorComponent)
 import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponent)
-import Competences.Frontend.Component.CompetenceGridEditor (competenceGridEditorComponent)
-import Competences.Frontend.Component.CompetenceGridViewer (competenceGridViewerComponent)
+import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
+import Data.List.NonEmpty (NonEmpty (..))
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.SelfContainedTaskEditor (selfContainedTaskEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
@@ -49,7 +49,7 @@ mkApp r =
   (M.component model update view) {M.subs = [M.uriSub SetURI]}
   where
     env = syncDocumentEnv r
-    model = Model {uri = M.toURI EditCompetenceGrid, connectedUser = env ^. #connectedUser}
+    model = Model {uri = M.toURI CompetenceGrid, connectedUser = env ^. #connectedUser}
 
     update (SetURI uri) = M.modify $ #uri .~ uri
     update (PushURI uri) = M.io_ $ M.pushURI uri
@@ -69,8 +69,7 @@ mkApp r =
     navButtons m' =
       if isTeacher m'.connectedUser
         then
-          [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
-          , navButton C.LblEditCompetenceGrid EditCompetenceGrid
+          [ navButton C.LblCompetenceGrid CompetenceGrid
           , navButton C.LblEvidences Evidences
           , navButton C.LblSelfContainedTasks ManageTasks
           , navButton C.LblAssignments EditAssignments
@@ -80,7 +79,7 @@ mkApp r =
           , navButton C.LblManageUsers ManageUsers
           ]
         else
-          [ navButton C.LblViewCompetenceGrid ViewCompetenceGrid
+          [ navButton C.LblCompetenceGrid CompetenceGrid
           , navButton C.LblEvidences Evidences
           , navButton C.LblAssignments ViewAssignments
           , navButton C.LblStatisticsIndividual StatisticsIndividual
@@ -94,8 +93,7 @@ mkApp r =
     page uri = case M.route uri of
       Left _ -> V.text_ "404"
       Right v -> case v of
-        ViewCompetenceGrid -> viewCompetenceGrid
-        EditCompetenceGrid -> editCompetenceGrid
+        CompetenceGrid -> competenceGrid
         Evidences -> evidences
         ManageTasks -> manageTasks
         ViewAssignments -> viewAssignments
@@ -105,8 +103,12 @@ mkApp r =
         StatisticsIndividual -> statisticsIndividual
         ManageUsers -> manageUsers
 
-    viewCompetenceGrid = mounted ViewCompetenceGrid $ competenceGridViewerComponent r
-    editCompetenceGrid = mounted EditCompetenceGrid $ competenceGridEditorComponent r
+    competenceGrid = mounted CompetenceGrid $ competenceGridComponent r defaultGridMode availableGridModes
+    defaultGridMode = if isTeacher model.connectedUser then GridEdit else GridView
+    availableGridModes =
+      if isTeacher model.connectedUser
+        then GridView :| [GridEdit]
+        else GridView :| []
     evidences = mounted Evidences $ evidenceEditorComponent r
     manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
     viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
@@ -124,8 +126,7 @@ withTailwindPlay :: App -> App
 withTailwindPlay = id
 
 data Page
-  = ViewCompetenceGrid
-  | EditCompetenceGrid
+  = CompetenceGrid
   | Evidences
   | ManageTasks
   | ViewAssignments
@@ -139,8 +140,7 @@ data Page
 instance M.Router Page where
   routeParser =
     M.routes
-      [ M.path "view-grid" $> ViewCompetenceGrid
-      , M.path "edit-grid" $> EditCompetenceGrid
+      [ M.path "grid" $> CompetenceGrid
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
       , M.path "assignments" $> ViewAssignments
@@ -150,8 +150,7 @@ instance M.Router Page where
       , M.path "statistics-individual" $> StatisticsIndividual
       , M.path "users" $> ManageUsers
       ]
-  fromRoute ViewCompetenceGrid = [M.toPath "view-grid"]
-  fromRoute EditCompetenceGrid = [M.toPath "edit-grid"]
+  fromRoute CompetenceGrid = [M.toPath "grid"]
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
   fromRoute ViewAssignments = [M.toPath "assignments"]
