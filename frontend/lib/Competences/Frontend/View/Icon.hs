@@ -38,6 +38,8 @@ data Icon
   | IcnActivityTypeHomeExercise
   | IcnSocialFormIndividual
   | IcnSocialFormGroup
+  | IcnTask
+  | IcnTaskGroup
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -77,6 +79,8 @@ iconId = \case
   IcnActivityTypeHomeExercise -> "icon-activity-type-unsupervised"
   IcnSocialFormIndividual -> "icon-social-form-individual"
   IcnSocialFormGroup -> "icon-social-form-group"
+  IcnTask -> "icon-task"
+  IcnTaskGroup -> "icon-task-group"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -236,6 +240,20 @@ iconDefOf' = \case
       , "M17 10h2a2 2 0 0 1 2 2v1"
       , "M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"
       , "M3 13v-1a2 2 0 0 1 2 -2h2"
+      ]
+  -- Document/file icon for tasks
+  IcnTask ->
+    mkPathesD
+      [ "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+      , "M14 2v6h6"
+      , "M16 13H8"
+      , "M16 17H8"
+      , "M10 9H8"
+      ]
+  -- Folder icon for task groups
+  IcnTaskGroup ->
+    mkPathesD
+      [ "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

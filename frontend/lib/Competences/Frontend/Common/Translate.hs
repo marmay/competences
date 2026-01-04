@@ -122,6 +122,14 @@ data Label
   | LblTotalObservations
   | LblSelfContainedTasks
   | LblNewTask
+  | LblNewTaskGroup
+  | LblTasksAndGroups
+  | LblEditTaskGroup
+  | LblTaskGroupContentBefore
+  | LblTaskGroupContentAfter
+  | LblSubTasks
+  | LblAddSubTask
+  | LblNoSubTasks
   | LblFilterTasks
   | LblTaskIdentifier
   | LblTaskContent
@@ -211,6 +219,14 @@ labels' =
   , LblTotalObservations
   , LblSelfContainedTasks
   , LblNewTask
+  , LblNewTaskGroup
+  , LblTasksAndGroups
+  , LblEditTaskGroup
+  , LblTaskGroupContentBefore
+  , LblTaskGroupContentAfter
+  , LblSubTasks
+  , LblAddSubTask
+  , LblNoSubTasks
   , LblFilterTasks
   , LblTaskIdentifier
   , LblTaskContent
@@ -308,8 +324,16 @@ defaultTranslation LblStatisticsOverview = "Statistik-Überblick"
 defaultTranslation LblStatisticsIndividual = "Meine Statistik"
 defaultTranslation LblTotalExercises = "Gesamtanzahl Übungen"
 defaultTranslation LblTotalObservations = "Gesamtanzahl Beobachtungen"
-defaultTranslation LblSelfContainedTasks = "Eigenständige Aufgaben"
-defaultTranslation LblNewTask = "+ Neue Aufgabe"
+defaultTranslation LblSelfContainedTasks = "Aufgaben"
+defaultTranslation LblNewTask = "Neue Aufgabe"
+defaultTranslation LblNewTaskGroup = "Neue Aufgabengruppe"
+defaultTranslation LblTasksAndGroups = "Aufgaben"
+defaultTranslation LblEditTaskGroup = "Aufgabengruppe bearbeiten"
+defaultTranslation LblTaskGroupContentBefore = "Inhalt davor"
+defaultTranslation LblTaskGroupContentAfter = "Inhalt danach"
+defaultTranslation LblSubTasks = "Unteraufgaben"
+defaultTranslation LblAddSubTask = "+ Unteraufgabe"
+defaultTranslation LblNoSubTasks = "Keine Unteraufgaben"
 defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
 defaultTranslation LblTaskIdentifier = "Bezeichnung"
 defaultTranslation LblTaskContent = "Inhalt"
