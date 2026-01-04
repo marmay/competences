@@ -91,7 +91,7 @@ userListEditorComponent r =
               [title, addButton]
        in V.centeredContent $
             M.div_
-              [class_ "h-full min-h-0 flex flex-col gap-2 w-full max-w-4xl"]
+              [class_ "h-full min-h-0 flex flex-col gap-2 w-full max-w-5xl"]
               [ header
               , M.div_
                   [class_ "flex-1 min-h-0 overflow-y-auto"]

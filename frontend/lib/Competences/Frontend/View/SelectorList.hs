@@ -39,10 +39,10 @@ selectorHeader title mAddAction =
     , case mAddAction of
         Just action ->
           M.button_
-            [ class_ "btn btn-secondary h-8 px-2"
+            [ class_ "btn btn-secondary h-9 px-3"
             , M.onClick action
             ]
-            [icon [class_ "w-4 h-4"] IcnAdd]
+            [icon [class_ "w-5 h-5"] IcnAdd]
         Nothing -> M.text ""
     ]
 
@@ -64,10 +64,10 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
     , M.div_
         [class_ "relative"]
         [ M.button_
-            [ class_ "btn btn-secondary h-8 px-2"
+            [ class_ "btn btn-secondary h-9 px-3"
             , M.onClick toggleAction
             ]
-            [icon [class_ "w-4 h-4"] IcnAdd]
+            [icon [class_ "w-5 h-5"] IcnAdd]
         , if isOpen
             then
               M.div_
@@ -81,11 +81,11 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
 dropdownItem :: Icon -> MisoString -> action -> M.View m action
 dropdownItem icn label action =
   M.button_
-    [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+    [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer overflow-hidden"
     , M.onClick action
     ]
-    [ icon [class_ "w-4 h-4"] icn
-    , M.text label
+    [ icon [class_ "w-4 h-4 shrink-0"] icn
+    , M.span_ [class_ "truncate"] [M.text label]
     ]
 
 -- | Single-line selectable list item with icon

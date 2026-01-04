@@ -134,10 +134,10 @@ fixedWidth :: Int -> M.View m a -> M.View m a
 fixedWidth w v = M.div_ [MS.style_ [("width", M.ms (show w) <> "px")]] [v]
 
 flexGrow :: M.View m a -> M.View m a
-flexGrow v = M.div_ [class_ "flex-grow"] [v]
+flexGrow v = M.div_ [class_ "flex-grow w-full"] [v]
 
 centeredContent :: M.View m a -> M.View m a
-centeredContent v = M.div_ [class_ "w-full flex justify-center"] [v]
+centeredContent v = M.div_ [class_ "w-full h-full min-h-0 flex justify-center"] [v]
 
 hScrollable, vScrollable :: M.View m a -> M.View m a
 hScrollable v = M.div_ [class_ "overflow-x-auto w-full"] [v]

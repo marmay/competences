@@ -34,7 +34,7 @@ form_ :: M.MisoString -> [M.View m a] -> [M.View m a] -> M.View m a
 form_ title fields buttons =
   V.centeredContent $
     M.div_
-      [T.class_ "w-full max-w-4xl"]
+      [T.class_ "w-full min-w-[600px] max-w-5xl"]
       [ V.viewFlow
           ( V.vFlow
               & (#gap .~ V.SmallSpace)
@@ -61,10 +61,10 @@ formField_ label field =
         & (#expandDirection .~ V.Expand V.Start)
         & (#gap .~ V.SmallSpace)
     )
-    [label_ label, V.flexGrow field]
+    [label_ label, M.div_ [T.class_ "flex-1 min-w-0"] [V.flexGrow field]]
   where
     label_ :: M.MisoString -> M.View m a
-    label_ t = M.span_ [T.class_ "w-1/3 text-right"] [V.text_ t]
+    label_ t = M.span_ [T.class_ "w-48 flex-shrink-0 text-right"] [V.text_ t]
 
 textarea_ :: [M.Attribute a] -> M.View m a
 textarea_ as = M.textarea_ (T.class_ "flex-grow border rounded border-gray-200" : as) []
