@@ -125,6 +125,7 @@ data Label
   | LblNewTaskGroup
   | LblTasksAndGroups
   | LblEditTaskGroup
+  | LblEditSubTask
   | LblTaskGroupContentBefore
   | LblTaskGroupContentAfter
   | LblSubTasks
@@ -225,6 +226,7 @@ labels' =
   , LblNewTaskGroup
   , LblTasksAndGroups
   , LblEditTaskGroup
+  , LblEditSubTask
   , LblTaskGroupContentBefore
   , LblTaskGroupContentAfter
   , LblSubTasks
@@ -335,6 +337,7 @@ defaultTranslation LblNewTask = "Neue Aufgabe"
 defaultTranslation LblNewTaskGroup = "Neue Aufgabengruppe"
 defaultTranslation LblTasksAndGroups = "Aufgaben"
 defaultTranslation LblEditTaskGroup = "Aufgabengruppe bearbeiten"
+defaultTranslation LblEditSubTask = "Unteraufgabe bearbeiten"
 defaultTranslation LblTaskGroupContentBefore = "Inhalt davor"
 defaultTranslation LblTaskGroupContentAfter = "Inhalt danach"
 defaultTranslation LblSubTasks = "Unteraufgaben"

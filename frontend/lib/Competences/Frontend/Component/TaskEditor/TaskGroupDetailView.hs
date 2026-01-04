@@ -3,7 +3,7 @@ module Competences.Frontend.Component.TaskEditor.TaskGroupDetailView
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SubTaskPatch (..), TaskGroupPatch (..), TasksCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), SubTaskPatch (..), TaskGroupPatch (..), TasksCommand (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), emptyDocument)
@@ -11,6 +11,7 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task
   ( TaskAttributes (..)
   , TaskAttributesOverride (..)
+  , TaskGroupId
   , TaskGroupIdentifier (..)
   , TaskId
   , TaskIdentifier (..)
@@ -32,7 +33,6 @@ import Competences.Frontend.SyncDocument
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -41,7 +41,6 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as MP
 import Miso.String (ms)
 import Optics.Core (Iso', Lens', iso, (&), (%), (?~), (^.))
 
@@ -65,11 +64,6 @@ data TaskGroupEditorModel = TaskGroupEditorModel
 data TaskGroupEditorAction
   = UpdateDocument !DocumentChange
   | CreateSubTask
-  | DeleteSubTask !TaskId
-  | UpdateSubTaskIdentifier !TaskId !Text
-  | UpdateSubTaskContent !TaskId !Text
-  | UpdateSubTaskPurpose !TaskId !(Maybe TaskPurpose)
-  | UpdateSubTaskDisplayInResources !TaskId !(Maybe Bool)
   deriving (Eq, Show)
 
 -- | The TaskGroup editor component with SubTask management
@@ -101,62 +95,14 @@ taskGroupEditorComponent r group =
       where
         emptyOverride = TaskAttributesOverride Nothing Nothing Nothing Nothing
 
-    update (DeleteSubTask taskId) = M.io_ $ do
-      modifySyncDocument r $ Tasks (OnSubTasks (Delete taskId))
-
-    update (UpdateSubTaskIdentifier taskId newIdent) = M.io_ $ do
-      let patch = SubTaskPatch
-            { identifier = Just (TaskIdentifier "", TaskIdentifier newIdent)
-            , content = Nothing
-            , primary = Nothing
-            , secondary = Nothing
-            , purpose = Nothing
-            , displayInResources = Nothing
-            }
-      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
-
-    update (UpdateSubTaskContent taskId newContent) = M.io_ $ do
-      let contentVal = if newContent == "" then Nothing else Just newContent
-      let patch = SubTaskPatch
-            { identifier = Nothing
-            , content = Just (Nothing, contentVal)
-            , primary = Nothing
-            , secondary = Nothing
-            , purpose = Nothing
-            , displayInResources = Nothing
-            }
-      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
-
-    update (UpdateSubTaskPurpose taskId newPurpose) = M.io_ $ do
-      let patch = SubTaskPatch
-            { identifier = Nothing
-            , content = Nothing
-            , primary = Nothing
-            , secondary = Nothing
-            , purpose = Just (Nothing, newPurpose)
-            , displayInResources = Nothing
-            }
-      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
-
-    update (UpdateSubTaskDisplayInResources taskId newValue) = M.io_ $ do
-      let patch = SubTaskPatch
-            { identifier = Nothing
-            , content = Nothing
-            , primary = Nothing
-            , secondary = Nothing
-            , purpose = Nothing
-            , displayInResources = Just (Nothing, newValue)
-            }
-      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
-
     view' m =
       M.div_
         [class_ "space-y-6"]
-        [ viewGroupEditor m
+        [ viewGroupEditor
         , viewSubTasksSection m
         ]
 
-    viewGroupEditor _m =
+    viewGroupEditor =
       V.component
         ("task-group-form-" <> ms (show group.id))
         (TE.editorComponent taskGroupEditor r)
@@ -212,126 +158,54 @@ taskGroupEditorComponent r group =
                            )
 
     viewSubTasksSection m =
-      let isLocked = Map.member (TaskGroupLock group.id) m.currentDocument.locks
-       in M.div_
-            [class_ "border-t pt-4"]
-            [ M.div_
-                [class_ "flex items-center justify-between mb-4"]
-                [ Typography.h3 (C.translate' C.LblSubTasks)
-                , if isLocked
-                    then Button.buttonSecondary (C.translate' C.LblAddSubTask)
-                           & Button.withIcon IcnAdd
-                           & Button.withClick CreateSubTask
-                           & Button.renderButton
-                    else M.text ""
-                ]
-            , if null m.subTasks
-                then Typography.muted (C.translate' C.LblNoSubTasks)
-                else M.div_ [class_ "space-y-2"] (map (viewSubTaskRow isLocked) m.subTasks)
-            ]
-
-    viewSubTaskRow isLocked task =
-      let TaskIdentifier ident = task.identifier
-          contentText = fromMaybe "" task.content
-       in if isLocked
-            then viewSubTaskRowEditable task ident contentText
-            else viewSubTaskRowReadOnly ident contentText
-
-    viewSubTaskRowEditable task ident contentText =
-      let (purposeOverride, displayOverride) = case task.taskType of
-            SubTask _ override -> (override.purpose, override.displayInResources)
-            _ -> (Nothing, Nothing)
-       in M.div_
-            [class_ "p-2 bg-muted/30 rounded space-y-2"]
-            [ -- Row 1: Identifier, content, delete button
-              M.div_
-                [class_ "flex items-center gap-2"]
-                [ M.div_
-                    [class_ "flex-1 flex items-center gap-2"]
-                    [ Input.defaultInput
-                        & Input.withValue (ms ident)
-                        & Input.withPlaceholder (C.translate' C.LblTaskIdentifier)
-                        & Input.withOnInput (\v -> UpdateSubTaskIdentifier task.id (M.fromMisoString v))
-                        & Input.renderInput
-                    , Input.defaultInput
-                        & Input.withValue (ms contentText)
-                        & Input.withPlaceholder (C.translate' C.LblTaskContent)
-                        & Input.withOnInput (\v -> UpdateSubTaskContent task.id (M.fromMisoString v))
-                        & Input.renderInput
-                    ]
-                , Button.buttonDestructive ""
-                    & Button.withIcon IcnDelete
-                    & Button.withClick (DeleteSubTask task.id)
-                    & Button.renderButton
-                ]
-            , -- Row 2: Override options
-              M.div_
-                [class_ "flex items-center gap-4 text-sm"]
-                [ -- Purpose override
-                  M.div_
-                    [class_ "flex items-center gap-2"]
-                    [ M.span_ [class_ "text-muted-foreground"] [M.text (C.translate' C.LblTaskPurposeLabel <> ":")]
-                    , viewPurposeSelect task.id purposeOverride
-                    ]
-                , -- DisplayInResources override
-                  M.div_
-                    [class_ "flex items-center gap-2"]
-                    [ M.span_ [class_ "text-muted-foreground"] [M.text (C.translate' C.LblTaskDisplayInResources <> ":")]
-                    , viewDisplayInResourcesSelect task.id displayOverride
-                    ]
-                ]
-            ]
-
-    viewPurposeSelect taskId currentValue =
-      M.select_
-        [ class_ "h-8 rounded-md border border-input bg-background px-2 text-sm"
-        , M.onChange (\v -> UpdateSubTaskPurpose taskId (parsePurpose v))
-        ]
-        [ M.option_
-            [MP.value_ "inherit", MP.selected_ (currentValue == Nothing)]
-            [M.text (C.translate' C.LblInherit)]
-        , M.option_
-            [MP.value_ "practice", MP.selected_ (currentValue == Just Practice)]
-            [M.text (C.translate' (C.LblTaskPurpose Practice))]
-        , M.option_
-            [MP.value_ "assessment", MP.selected_ (currentValue == Just Assessment)]
-            [M.text (C.translate' (C.LblTaskPurpose Assessment))]
-        ]
-
-    parsePurpose v = case M.fromMisoString v :: Text of
-      "practice" -> Just Practice
-      "assessment" -> Just Assessment
-      _ -> Nothing
-
-    viewDisplayInResourcesSelect taskId currentValue =
-      M.select_
-        [ class_ "h-8 rounded-md border border-input bg-background px-2 text-sm"
-        , M.onChange (\v -> UpdateSubTaskDisplayInResources taskId (parseDisplayInResources v))
-        ]
-        [ M.option_
-            [MP.value_ "inherit", MP.selected_ (currentValue == Nothing)]
-            [M.text (C.translate' C.LblInherit)]
-        , M.option_
-            [MP.value_ "yes", MP.selected_ (currentValue == Just True)]
-            [M.text (C.translate' C.LblYes)]
-        , M.option_
-            [MP.value_ "no", MP.selected_ (currentValue == Just False)]
-            [M.text (C.translate' C.LblNo)]
-        ]
-
-    parseDisplayInResources v = case M.fromMisoString v :: Text of
-      "yes" -> Just True
-      "no" -> Just False
-      _ -> Nothing
-
-    viewSubTaskRowReadOnly ident contentText =
       M.div_
-        [class_ "flex items-center gap-2 p-2 bg-muted/30 rounded"]
-        [ M.span_ [class_ "text-sm font-medium"] [M.text (ms ident)]
-        , if contentText == ""
-            then M.text ""
-            else M.span_ [class_ "text-sm text-muted-foreground"] [M.text (ms contentText)]
+        [class_ "border-t pt-4"]
+        [ M.div_
+            [class_ "flex items-center justify-between mb-4"]
+            [ Typography.h3 (C.translate' C.LblSubTasks)
+            , Button.buttonSecondary (C.translate' C.LblAddSubTask)
+                & Button.withIcon IcnAdd
+                & Button.withClick CreateSubTask
+                & Button.renderButton
+            ]
+        , if null m.subTasks
+            then Typography.muted (C.translate' C.LblNoSubTasks)
+            else M.div_ [class_ "space-y-4"] (map viewSubTaskEditor m.subTasks)
         ]
+
+    -- Each SubTask gets its own Editor component
+    viewSubTaskEditor task =
+      V.component
+        ("subtask-editor-" <> ms (show task.id))
+        (TE.editorComponent (subTaskEditor group.id task.id) r)
+
+    -- SubTask editor definition
+    subTaskEditor :: TaskGroupId -> TaskId -> TE.Editor Task SubTaskPatch Maybe M.MisoString
+    subTaskEditor _groupId taskId =
+      TE.editor
+        ( TE.editorFormView'
+            (C.translate' C.LblEditSubTask)
+            id
+        )
+        (subTaskEditable taskId)
+        `TE.addNamedField` ( C.translate' C.LblTaskIdentifier
+                           , TE.textEditorField subTaskIdentifierViewLens subTaskIdentifierPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskContent
+                           , TE.textEditorField subTaskContentViewLens subTaskContentPatchLens
+                           )
+
+    -- Editable definition for a specific SubTask
+    subTaskEditable :: TaskId -> TE.Editable Maybe Task SubTaskPatch
+    subTaskEditable taskId =
+      TE.editable
+        ( \d ->
+            fmap
+              (\t -> (t, (d ^. #locks) Map.!? TaskLock t.id))
+              (Ix.getOne $ d.tasks Ix.@= taskId)
+        )
+        & (#modify ?~ (\t modify -> Tasks $ OnSubTasks (Modify t.id modify)))
+        & (#delete ?~ (\t -> Tasks $ OnSubTasks (Delete t.id)))
 
 -- Lenses for TaskGroup identifier
 groupIdentifierTextIso :: Iso' TaskGroupIdentifier Text
@@ -407,3 +281,32 @@ displayInResourcesViewLens = #defaultTaskAttributes % #displayInResources
 
 displayInResourcesPatchLens :: Lens' TaskGroupPatch (Change Bool)
 displayInResourcesPatchLens = #displayInResources
+
+-- ============================================================================
+-- SubTask Lenses
+-- ============================================================================
+
+-- SubTask identifier lens (reuses TaskIdentifier iso)
+taskIdentifierTextIso :: Iso' TaskIdentifier Text
+taskIdentifierTextIso = iso (\(TaskIdentifier t) -> t) TaskIdentifier
+
+changeTaskIdentifierTextIso :: Iso' (Change TaskIdentifier) (Change Text)
+changeTaskIdentifierTextIso = iso fwd bwd
+  where
+    fwd Nothing = Nothing
+    fwd (Just (TaskIdentifier a, TaskIdentifier b)) = Just (a, b)
+    bwd Nothing = Nothing
+    bwd (Just (a, b)) = Just (TaskIdentifier a, TaskIdentifier b)
+
+subTaskIdentifierViewLens :: Lens' Task Text
+subTaskIdentifierViewLens = #identifier % taskIdentifierTextIso
+
+subTaskIdentifierPatchLens :: Lens' SubTaskPatch (Change Text)
+subTaskIdentifierPatchLens = #identifier % changeTaskIdentifierTextIso
+
+-- SubTask content lens (Maybe Text -> Text)
+subTaskContentViewLens :: Lens' Task Text
+subTaskContentViewLens = #content % maybeTextIso
+
+subTaskContentPatchLens :: Lens' SubTaskPatch (Change Text)
+subTaskContentPatchLens = #content % changeMaybeTextIso
