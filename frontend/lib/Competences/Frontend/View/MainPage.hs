@@ -12,8 +12,8 @@ import Miso.String (MisoString)
 --
 -- Structure:
 -- - Nav banner at top (fixed, with title and navigation items)
--- - Scrollable area containing main content and footer
--- - Footer scrolls with content (not fixed at bottom)
+-- - Content area (flex-1, fills available space)
+-- - Footer at bottom (fixed, always visible)
 mainPage
   :: MisoString -- ^ Page title (shown in banner)
   -> [M.View m a] -- ^ Navigation items (buttons)
@@ -24,7 +24,8 @@ mainPage title navItems content footerContent =
   M.div_
     [class_ "h-screen flex flex-col"]
     [ navBanner
-    , scrollableArea
+    , contentArea
+    , footer
     ]
   where
     navBanner =
@@ -37,11 +38,12 @@ mainPage title navItems content footerContent =
             ]
         ]
 
-    scrollableArea =
-      M.div_
-        [class_ "flex-1 overflow-y-auto min-h-0"]
-        [ M.main_ [class_ "p-4"] [content]
-        , M.footer_
-            [class_ "border-t border-border px-4 py-2 text-center text-sm text-muted-foreground"]
-            [footerContent]
-        ]
+    contentArea =
+      M.main_
+        [class_ "flex-1 min-h-0 p-4 flex"]
+        [content]
+
+    footer =
+      M.footer_
+        [class_ "flex-shrink-0 border-t border-border px-4 py-2 text-center text-sm text-muted-foreground"]
+        [footerContent]

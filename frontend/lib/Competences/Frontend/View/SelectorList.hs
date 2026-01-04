@@ -144,9 +144,9 @@ selectorSearchField value placeholder onInput =
     & Input.withOnInput onInput
     & Input.renderInput
 
--- | Scrollable list container
+-- | Scrollable list container (grows to fill available space)
 selectorList :: [M.View m action] -> M.View m action
 selectorList items =
   V.viewFlow
-    (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [V.overflowYScroll, V.minH0]))
+    (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [class_ "flex-1", V.overflowYScroll, V.minH0]))
     items
