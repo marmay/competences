@@ -41,6 +41,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (ms)
 import Optics.Core (Iso', Lens', iso, (&), (%), (?~), (^.))
 
@@ -67,6 +68,8 @@ data TaskGroupEditorAction
   | DeleteSubTask !TaskId
   | UpdateSubTaskIdentifier !TaskId !Text
   | UpdateSubTaskContent !TaskId !Text
+  | UpdateSubTaskPurpose !TaskId !(Maybe TaskPurpose)
+  | UpdateSubTaskDisplayInResources !TaskId !(Maybe Bool)
   deriving (Eq, Show)
 
 -- | The TaskGroup editor component with SubTask management
@@ -121,6 +124,28 @@ taskGroupEditorComponent r group =
             , secondary = Nothing
             , purpose = Nothing
             , displayInResources = Nothing
+            }
+      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
+
+    update (UpdateSubTaskPurpose taskId newPurpose) = M.io_ $ do
+      let patch = SubTaskPatch
+            { identifier = Nothing
+            , content = Nothing
+            , primary = Nothing
+            , secondary = Nothing
+            , purpose = Just (Nothing, newPurpose)
+            , displayInResources = Nothing
+            }
+      modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
+
+    update (UpdateSubTaskDisplayInResources taskId newValue) = M.io_ $ do
+      let patch = SubTaskPatch
+            { identifier = Nothing
+            , content = Nothing
+            , primary = Nothing
+            , secondary = Nothing
+            , purpose = Nothing
+            , displayInResources = Just (Nothing, newValue)
             }
       modifySyncDocument r $ Tasks (OnSubTasks (Modify taskId (Release patch)))
 
@@ -213,26 +238,91 @@ taskGroupEditorComponent r group =
             else viewSubTaskRowReadOnly ident contentText
 
     viewSubTaskRowEditable task ident contentText =
-      M.div_
-        [class_ "flex items-center gap-2 p-2 bg-muted/30 rounded"]
-        [ M.div_
-            [class_ "flex-1 flex items-center gap-2"]
-            [ Input.defaultInput
-                & Input.withValue (ms ident)
-                & Input.withPlaceholder (C.translate' C.LblTaskIdentifier)
-                & Input.withOnInput (\v -> UpdateSubTaskIdentifier task.id (M.fromMisoString v))
-                & Input.renderInput
-            , Input.defaultInput
-                & Input.withValue (ms contentText)
-                & Input.withPlaceholder (C.translate' C.LblTaskContent)
-                & Input.withOnInput (\v -> UpdateSubTaskContent task.id (M.fromMisoString v))
-                & Input.renderInput
+      let (purposeOverride, displayOverride) = case task.taskType of
+            SubTask _ override -> (override.purpose, override.displayInResources)
+            _ -> (Nothing, Nothing)
+       in M.div_
+            [class_ "p-2 bg-muted/30 rounded space-y-2"]
+            [ -- Row 1: Identifier, content, delete button
+              M.div_
+                [class_ "flex items-center gap-2"]
+                [ M.div_
+                    [class_ "flex-1 flex items-center gap-2"]
+                    [ Input.defaultInput
+                        & Input.withValue (ms ident)
+                        & Input.withPlaceholder (C.translate' C.LblTaskIdentifier)
+                        & Input.withOnInput (\v -> UpdateSubTaskIdentifier task.id (M.fromMisoString v))
+                        & Input.renderInput
+                    , Input.defaultInput
+                        & Input.withValue (ms contentText)
+                        & Input.withPlaceholder (C.translate' C.LblTaskContent)
+                        & Input.withOnInput (\v -> UpdateSubTaskContent task.id (M.fromMisoString v))
+                        & Input.renderInput
+                    ]
+                , Button.buttonDestructive ""
+                    & Button.withIcon IcnDelete
+                    & Button.withClick (DeleteSubTask task.id)
+                    & Button.renderButton
+                ]
+            , -- Row 2: Override options
+              M.div_
+                [class_ "flex items-center gap-4 text-sm"]
+                [ -- Purpose override
+                  M.div_
+                    [class_ "flex items-center gap-2"]
+                    [ M.span_ [class_ "text-muted-foreground"] [M.text (C.translate' C.LblTaskPurposeLabel <> ":")]
+                    , viewPurposeSelect task.id purposeOverride
+                    ]
+                , -- DisplayInResources override
+                  M.div_
+                    [class_ "flex items-center gap-2"]
+                    [ M.span_ [class_ "text-muted-foreground"] [M.text (C.translate' C.LblTaskDisplayInResources <> ":")]
+                    , viewDisplayInResourcesSelect task.id displayOverride
+                    ]
+                ]
             ]
-        , Button.buttonDestructive ""
-            & Button.withIcon IcnDelete
-            & Button.withClick (DeleteSubTask task.id)
-            & Button.renderButton
+
+    viewPurposeSelect taskId currentValue =
+      M.select_
+        [ class_ "h-8 rounded-md border border-input bg-background px-2 text-sm"
+        , M.onChange (\v -> UpdateSubTaskPurpose taskId (parsePurpose v))
         ]
+        [ M.option_
+            [MP.value_ "inherit", MP.selected_ (currentValue == Nothing)]
+            [M.text (C.translate' C.LblInherit)]
+        , M.option_
+            [MP.value_ "practice", MP.selected_ (currentValue == Just Practice)]
+            [M.text (C.translate' (C.LblTaskPurpose Practice))]
+        , M.option_
+            [MP.value_ "assessment", MP.selected_ (currentValue == Just Assessment)]
+            [M.text (C.translate' (C.LblTaskPurpose Assessment))]
+        ]
+
+    parsePurpose v = case M.fromMisoString v :: Text of
+      "practice" -> Just Practice
+      "assessment" -> Just Assessment
+      _ -> Nothing
+
+    viewDisplayInResourcesSelect taskId currentValue =
+      M.select_
+        [ class_ "h-8 rounded-md border border-input bg-background px-2 text-sm"
+        , M.onChange (\v -> UpdateSubTaskDisplayInResources taskId (parseDisplayInResources v))
+        ]
+        [ M.option_
+            [MP.value_ "inherit", MP.selected_ (currentValue == Nothing)]
+            [M.text (C.translate' C.LblInherit)]
+        , M.option_
+            [MP.value_ "yes", MP.selected_ (currentValue == Just True)]
+            [M.text (C.translate' C.LblYes)]
+        , M.option_
+            [MP.value_ "no", MP.selected_ (currentValue == Just False)]
+            [M.text (C.translate' C.LblNo)]
+        ]
+
+    parseDisplayInResources v = case M.fromMisoString v :: Text of
+      "yes" -> Just True
+      "no" -> Just False
+      _ -> Nothing
 
     viewSubTaskRowReadOnly ident contentText =
       M.div_
