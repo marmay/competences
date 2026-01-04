@@ -43,6 +43,8 @@ data SearchableModel a = SearchableModel
 data SearchableAction a
   = UpdateDocument !DocumentChange
   | Toggle !a
+  | SelectAll
+  | DeselectAll
   | SetSearchQuery !Text
   | SetOpen !Bool
   deriving (Eq, Show)
@@ -93,6 +95,10 @@ searchableMultiSelectorComponent r config lensBinding =
                         else Set.insert a selected
                     )
               )
+    update SelectAll = M.modify $ \m ->
+      m & (#selectedValues .~ m.possibleValues)
+    update DeselectAll = M.modify $ \m ->
+      m & (#selectedValues .~ [])
     update (SetSearchQuery q) = M.modify (#searchQuery .~ q)
     update (SetOpen open) = M.modify (#isOpen .~ open)
 
@@ -102,12 +108,18 @@ searchableMultiSelectorComponent r config lensBinding =
               (\v -> Combobox.ComboboxOption v (fromMisoString $ config.showValue v))
               m.possibleValues
           selectedSet = Set.fromList m.selectedValues
+          allSelected = length m.selectedValues == length m.possibleValues && not (null m.possibleValues)
+          selectAllAction =
+            if config.showSelectAll
+              then Just (if allSelected then DeselectAll else SelectAll)
+              else Nothing
        in Combobox.multiSelectCombobox SetSearchQuery Toggle SetOpen
             & Combobox.withPlaceholder "Auswählen..."
             & Combobox.withOptions options
             & Combobox.withSelected selectedSet
             & Combobox.withSearchQuery m.searchQuery
             & Combobox.withIsOpen m.isOpen
+            & Combobox.withOnSelectAll selectAllAction
             & Combobox.renderCombobox
 
 -- ============================================================================

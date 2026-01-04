@@ -14,6 +14,7 @@ import Competences.Frontend.Component.Static (StaticComponent, StaticView, stati
 import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument, nextId)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Typography qualified as Typography
@@ -87,5 +88,6 @@ userListEditorComponent r =
             ( V.vFlow
                 & (#expandOrthogonal .~ V.Expand V.Start)
                 & (#gap .~ V.SmallSpace)
+                & (#extraAttrs .~ [class_ "h-full min-h-0 overflow-y-auto"])
             )
-            [title, users, addButton]
+            [V.centeredContent title, V.centeredContent users, V.centeredContent addButton]

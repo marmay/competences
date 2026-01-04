@@ -26,6 +26,7 @@ module Competences.Frontend.View.Layout
   , visibleIf
   , fixedWidth
   , flexGrow
+  , centeredContent
   , sideMenu
 
     -- * Sizing attributes (for extraAttrs)
@@ -122,7 +123,7 @@ viewFlow l =
       End -> "justify-end"
     alignO a = case a of
       Start -> "items-start"
-      Center -> "items-baseline"
+      Center -> "items-center"
       End -> "items-end"
 
 visibleIf :: Bool -> M.View m a -> M.View m a
@@ -133,7 +134,10 @@ fixedWidth :: Int -> M.View m a -> M.View m a
 fixedWidth w v = M.div_ [MS.style_ [("width", M.ms (show w) <> "px")]] [v]
 
 flexGrow :: M.View m a -> M.View m a
-flexGrow v = M.span_ [class_ "flex-grow"] [v]
+flexGrow v = M.div_ [class_ "flex-grow"] [v]
+
+centeredContent :: M.View m a -> M.View m a
+centeredContent v = M.div_ [class_ "w-full flex justify-center"] [v]
 
 hScrollable, vScrollable :: M.View m a -> M.View m a
 hScrollable v = M.div_ [class_ "overflow-x-auto w-full"] [v]

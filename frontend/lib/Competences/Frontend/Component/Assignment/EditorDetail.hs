@@ -19,7 +19,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
-import Competences.Frontend.Component.Selector.UserSelector (multiUserEditorField)
+import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
@@ -72,7 +72,7 @@ editorDetailView r assignment =
                                #activityType
                            )
         `TE.addNamedField` ( C.translate' C.LblStudents
-                           , multiUserEditorField
+                           , searchableMultiUserEditorField
                                r
                                (assignmentEditorId <> "-users")
                                isStudent
