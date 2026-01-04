@@ -137,6 +137,9 @@ data Label
   | LblTaskSecondaryCompetences
   | LblTaskPurposeLabel
   | LblTaskDisplayInResources
+  | LblInherit
+  | LblYes
+  | LblNo
   | LblTaskPurpose !TaskPurpose
   | LblAssignments
   | LblNewAssignment
@@ -234,6 +237,9 @@ labels' =
   , LblTaskSecondaryCompetences
   , LblTaskPurposeLabel
   , LblTaskDisplayInResources
+  , LblInherit
+  , LblYes
+  , LblNo
   , LblAssignments
   , LblNewAssignment
   , LblEditAssignment
@@ -341,6 +347,9 @@ defaultTranslation LblTaskPrimaryCompetences = "Primäre Kompetenzen"
 defaultTranslation LblTaskSecondaryCompetences = "Sekundäre Kompetenzen"
 defaultTranslation LblTaskPurposeLabel = "Zweck"
 defaultTranslation LblTaskDisplayInResources = "In Ressourcen anzeigen"
+defaultTranslation LblInherit = "Von Gruppe erben"
+defaultTranslation LblYes = "Ja"
+defaultTranslation LblNo = "Nein"
 defaultTranslation (LblTaskPurpose Practice) = "Übung"
 defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
 defaultTranslation LblAssignments = "Aufträge"
