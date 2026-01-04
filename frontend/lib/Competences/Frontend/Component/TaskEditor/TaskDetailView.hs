@@ -1,6 +1,5 @@
-module Competences.Frontend.Component.SelfContainedTaskEditor
-  ( selfContainedTaskEditorComponent
-  , TaskMode (..)
+module Competences.Frontend.Component.TaskEditor.TaskDetailView
+  ( taskDetailView
   )
 where
 
@@ -15,49 +14,26 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
-import Competences.Frontend.Component.Selector.SelfContainedTaskSelector (selfContainedTaskSelectorComponent)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.Typography qualified as Typography
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Miso qualified as M
 import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
--- | Mode for the task editor component (single mode, no switcher shown)
-data TaskMode = TaskEdit
-  deriving (Eq, Ord, Enum, Bounded, Show)
-
--- | Self-contained task editor component using SelectorDetail pattern
-selfContainedTaskEditorComponent
-  :: SyncDocumentRef
-  -> M.Component p (SD.Model Task TaskMode) (SD.Action TaskMode)
-selfContainedTaskEditorComponent r =
-  SD.selectorDetailComponent
-    SD.SelectorDetailConfig
-      { SD.selectorId = "task"
-      , SD.selectorComponent = selfContainedTaskSelectorComponent r
-      , SD.detailView = \TaskEdit -> taskDetailView r
-      , SD.modeLabel = \TaskEdit -> C.translate' C.LblEdit
-      , SD.modeIcon = \TaskEdit -> Just IcnEdit
-      , SD.availableModes = TaskEdit :| []
-      , SD.defaultMode = TaskEdit
-      , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
-      }
-
--- | Detail view for editing a task
+-- | Detail view for editing a SelfContained task
 taskDetailView
   :: SyncDocumentRef
   -> Task
-  -> M.View (SD.Model Task TaskMode) (SD.Action TaskMode)
+  -> M.View p a
 taskDetailView r task =
   V.component
     ("task-editor-" <> M.ms (show task.id))
     (TE.editorComponent taskEditor r)
   where
+    taskEditorId = "task-editor-" <> M.ms (show task.id)
+
     taskEditable =
       TE.editable
         ( \d -> do
@@ -71,6 +47,7 @@ taskDetailView r task =
         )
         & (#modify ?~ (\t modify -> Tasks $ OnTasks (Modify t.id modify)))
         & (#delete ?~ (\t -> Tasks $ OnTasks (Delete t.id)))
+
     taskEditor =
       TE.editor
         ( TE.editorFormView'
@@ -93,14 +70,17 @@ taskDetailView r task =
         `TE.addNamedField` ( C.translate' C.LblTaskPrimaryCompetences
                            , competenceLevelEditorField
                                r
-                               "task-primary-competences"
+                               (taskEditorId <> "-primary-competences")
                                (entityPatchLens primaryViewLens primaryPatchLens)
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
                            , competenceLevelEditorField
                                r
-                               "task-secondary-competences"
+                               (taskEditorId <> "-secondary-competences")
                                (entityPatchLens secondaryViewLens secondaryPatchLens)
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskDisplayInResources
+                           , TE.boolEditorField displayInResourcesViewLens displayInResourcesPatchLens
                            )
 
 -- Lenses for identifier (TaskIdentifier <-> Text conversion)
@@ -134,7 +114,7 @@ changeContentIso :: Iso' (Change (Maybe Text)) (Change Text)
 changeContentIso = iso fwd bwd
   where
     fwd Nothing = Nothing
-    fwd (Just (a, b)) = Just (maybe "" id a, maybe "" id b)
+    fwd (Just (a, b)) = Just (fromMaybe "" a, fromMaybe "" b)
     bwd Nothing = Nothing
     bwd (Just (a, b)) = Just (if a == "" then Nothing else Just a, if b == "" then Nothing else Just b)
 
@@ -185,3 +165,17 @@ secondaryViewLens = lens getter setter
 
 secondaryPatchLens :: Lens' TaskPatch (Change [CompetenceLevelId])
 secondaryPatchLens = #secondary
+
+-- Lenses for displayInResources (extract from TaskType → SelfContained → TaskAttributes)
+displayInResourcesViewLens :: Lens' Task Bool
+displayInResourcesViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SelfContained attrs -> attrs.displayInResources
+      SubTask _ _ -> True -- fallback, shouldn't happen
+    setter task newValue = case task.taskType of
+      SelfContained attrs -> task & #taskType .~ SelfContained (attrs & #displayInResources .~ newValue)
+      SubTask _ _ -> task -- Can't modify, shouldn't happen
+
+displayInResourcesPatchLens :: Lens' TaskPatch (Change Bool)
+displayInResourcesPatchLens = #displayInResources

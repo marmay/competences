@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Editor.EditorField
   ( EditorField (..)
   , readOnlyField
   , textEditorField
+  , boolEditorField
   , dayEditorField
   , enumEditorField
   , enumEditorField'
@@ -101,6 +102,32 @@ textEditor viewLens patchLens refocusTarget original patch =
 
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
+
+boolEditorField :: Lens' a Bool -> Lens' patch (Change Bool) -> EditorField a patch f
+boolEditorField viewLens patchLens =
+  EditorField
+    { viewer = boolViewer viewLens
+    , editor = boolEditor viewLens patchLens
+    }
+
+boolViewer :: Lens' a Bool -> a -> M.View (Model a patch f) (Action a patch)
+boolViewer viewLens a =
+  M.input_ [M.type_ "checkbox", M.checked_ (a ^. viewLens), M.disabled_]
+
+boolEditor
+  :: Lens' a Bool
+  -> Lens' patch (Change Bool)
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
+boolEditor viewLens patchLens refocusTarget original patch =
+  M.input_ $
+    [ M.type_ "checkbox"
+    , M.checked_ (currentValue original patch viewLens patchLens)
+    , M.onClick (UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, not $ currentValue original patch viewLens patchLens)))
+    ]
+      <> refocusTargetAttr refocusTarget
 
 -- | Editor field for selectors (e.g., user selection, observation selection)
 --   Takes an EntityPatchTransformedLens and transforms it to operate on the Model

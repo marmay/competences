@@ -12,7 +12,7 @@ import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponen
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Data.List.NonEmpty (NonEmpty (..))
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
-import Competences.Frontend.Component.SelfContainedTaskEditor (selfContainedTaskEditorComponent)
+import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef, syncDocumentEnv)
@@ -103,7 +103,7 @@ mkApp r =
         then GridView :| [GridEdit]
         else GridView :| []
     evidences = mounted Evidences $ evidenceEditorComponent r
-    manageTasks = mounted ManageTasks $ selfContainedTaskEditorComponent r
+    manageTasks = mounted ManageTasks $ taskEditorComponent r
     viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
     manageAssignments = mounted ManageAssignments $ assignmentComponent r
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
