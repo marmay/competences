@@ -35,6 +35,8 @@ data ListSelectorConfig a t = ListSelectorConfig
   { listValues :: !(Document -> [a])
   , showValue :: !(a -> M.MisoString)
   , isInitialValue :: !(a -> Bool)
+  , showSelectAll :: !Bool
+  -- ^ Whether to show select all button (for multi-select)
   }
 
 listSelectorConfig :: (Document -> [a]) -> (a -> M.MisoString) -> ListSelectorConfig a f
@@ -43,6 +45,7 @@ listSelectorConfig listValues showValue =
     { listValues = listValues
     , showValue = showValue
     , isInitialValue = const False
+    , showSelectAll = True
     }
 
 data SingleSelectionStyle

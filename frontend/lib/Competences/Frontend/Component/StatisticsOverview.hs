@@ -20,12 +20,14 @@ import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (sortBy)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Optics.Core ((&), (.~))
 
 -- | Statistics Overview Component Model
 -- For teacher view showing all students' statistics
@@ -89,7 +91,10 @@ statisticsOverviewComponent docRef =
       M.modify $ const $ computeStats doc
 
     view :: Model -> M.View Model Action
-    view m = V.viewFlow V.vFlow [Typography.h2 "Statistics Overview", table]
+    view m =
+      V.viewFlow
+        (V.vFlow & (#extraAttrs .~ [class_ "h-full min-h-0 overflow-y-auto"]))
+        [Typography.h2 "Statistics Overview", table]
       where
         table =
           V.viewTable $

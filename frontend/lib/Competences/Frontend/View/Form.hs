@@ -32,23 +32,27 @@ import Optics.Core ((&), (.~))
 
 form_ :: M.MisoString -> [M.View m a] -> [M.View m a] -> M.View m a
 form_ title fields buttons =
-  V.viewFlow
-    ( V.vFlow
-        & (#gap .~ V.SmallSpace)
-    )
-    [ V.title_ title
-    , V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-        )
-        fields
-    , V.viewFlow
-        ( V.hFlow
-            & (#expandDirection .~ V.Expand V.Center)
-            & (#gap .~ V.MediumSpace)
-        )
-        buttons
-    ]
+  V.centeredContent $
+    M.div_
+      [T.class_ "w-full max-w-3xl"]
+      [ V.viewFlow
+          ( V.vFlow
+              & (#gap .~ V.SmallSpace)
+          )
+          [ V.title_ title
+          , V.viewFlow
+              ( V.vFlow
+                  & (#gap .~ V.SmallSpace)
+              )
+              fields
+          , V.viewFlow
+              ( V.hFlow
+                  & (#expandDirection .~ V.Expand V.Center)
+                  & (#gap .~ V.MediumSpace)
+              )
+              buttons
+          ]
+      ]
 
 formField_ :: M.MisoString -> M.View m a -> M.View m a
 formField_ label field =

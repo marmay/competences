@@ -61,7 +61,7 @@ mkApp r =
             (C.translate' C.LblPageTitle)
             (navButtons m)
             (page (m ^. #uri))
-            (M.text "© 2025 Markus Mayr")
+            (M.text "© 2025-2026 Markus Mayr")
         ]
 
     navButtons m' =
@@ -109,7 +109,7 @@ mkApp r =
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
     manageUsers = mounted ManageUsers $ userListEditorComponent r
 
-    mounted key = componentA (M.ms $ show key) [V.minH0]
+    mounted key = componentA (M.ms $ show key) [V.minH0, V.fullWidth, V.fullHeight]
 
 -- | No-op function (CSS is now loaded in HTML head via backend)
 -- Kept for backward compatibility with Main.hs

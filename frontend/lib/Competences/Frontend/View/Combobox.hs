@@ -18,12 +18,14 @@ module Competences.Frontend.View.Combobox
   , withIsOpen
   , withDisplayText
   , withShowCheckboxes
+  , withOnSelectAll
 
     -- * Rendering
   , renderCombobox
   )
 where
 
+import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set (Set)
@@ -58,6 +60,8 @@ data Combobox id a = Combobox
   , onSearch :: !(Text -> a)
   , onToggle :: !(id -> a)
   , onOpenChange :: !(Bool -> a)
+  , onSelectAll :: !(Maybe a)
+  -- ^ Optional select-all action (Nothing = don't show button)
   , isOpen :: !Bool
   , showCheckboxes :: !Bool
   -- ^ Whether to show checkboxes (True for multi-select, False for single)
@@ -76,6 +80,7 @@ multiSelectCombobox onSearchAction onToggleAction onOpenAction =
     , onSearch = onSearchAction
     , onToggle = onToggleAction
     , onOpenChange = onOpenAction
+    , onSelectAll = Nothing
     , isOpen = False
     , showCheckboxes = True
     }
@@ -92,6 +97,7 @@ singleSelectCombobox onSearchAction onToggleAction onOpenAction =
     , onSearch = onSearchAction
     , onToggle = onToggleAction
     , onOpenChange = onOpenAction
+    , onSelectAll = Nothing
     , isOpen = False
     , showCheckboxes = False
     }
@@ -139,6 +145,10 @@ withDisplayText txt cb = cb{displayText = txt}
 -- | Set whether to show checkboxes (True for multi-select, False for single)
 withShowCheckboxes :: Bool -> Combobox id a -> Combobox id a
 withShowCheckboxes show' cb = cb{showCheckboxes = show'}
+
+-- | Set the select-all action (Nothing = don't show button)
+withOnSelectAll :: Maybe a -> Combobox id a -> Combobox id a
+withOnSelectAll action cb = cb{onSelectAll = action}
 
 -- ============================================================================
 -- RENDERING
@@ -226,12 +236,35 @@ searchInput cb =
 optionsList :: (Ord id) => Combobox id a -> M.View m a
 optionsList cb =
   let filtered = filterOptions cb.searchQuery cb.options
+      allSelected = Set.size cb.selected == length cb.options && not (null cb.options)
+      selectAllBtn = case cb.onSelectAll of
+        Nothing -> []
+        Just action ->
+          [ M.div_
+              [class_ "border-b border-border"]
+              [ M.button_
+                  [ class_ $
+                      Text.unwords
+                        [ "w-full text-left flex items-center gap-2 px-2 py-1.5 cursor-pointer"
+                        , "hover:bg-accent text-sm font-medium text-primary"
+                        ]
+                  , MP.type_ "button"
+                  , M.onClick action
+                  ]
+                  [ M.text $
+                      if allSelected
+                        then C.translate' C.LblDeselectAll
+                        else C.translate' C.LblSelectAll
+                  ]
+              ]
+          ]
    in M.div_
         [ class_ "max-h-60 overflow-y-auto p-1"
         ]
-        ( if null filtered
-            then [emptyState]
-            else map (optionItem cb) filtered
+        ( selectAllBtn
+            ++ if null filtered
+              then [emptyState]
+              else map (optionItem cb) filtered
         )
 
 -- | Filter options based on search query

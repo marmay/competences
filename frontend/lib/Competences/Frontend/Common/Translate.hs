@@ -153,6 +153,9 @@ data Label
   | LblAssignmentDate
   | LblAssignmentTasks
   | LblNoStudentsSelected
+  | LblNoTasksSelected
+  | LblSelectAll
+  | LblDeselectAll
   | LblView
   | LblEvaluate
   deriving (Eq, Ord, Show)
@@ -256,6 +259,9 @@ labels' =
   , LblAssignmentDate
   , LblAssignmentTasks
   , LblNoStudentsSelected
+  , LblNoTasksSelected
+  , LblSelectAll
+  , LblDeselectAll
   , LblView
   , LblEvaluate
   ]
@@ -372,6 +378,9 @@ defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
+defaultTranslation LblNoTasksSelected = "Keine Aufgaben ausgewählt"
+defaultTranslation LblSelectAll = "Alle auswählen"
+defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"
 defaultTranslation LblEvaluate = "Auswerten"
 
