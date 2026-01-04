@@ -21,8 +21,12 @@ import Competences.Document.Task
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
-import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
-import Competences.Frontend.Component.Selector.Common (entityPatchLens)
+import Competences.Frontend.Component.Editor.EditorField (EditorField (..), mkFieldLens)
+import Competences.Frontend.Component.Editor.Types qualified as TE
+import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField, competenceLevelSelectorComponent)
+import Competences.Frontend.Component.Selector.Common (entityPatchLens, selectorTransformedLens)
+import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
+import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentRef
@@ -41,6 +45,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html.Property (checked_, id_, type_)
 import Miso.String (ms)
 import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
@@ -179,6 +184,8 @@ taskGroupEditorComponent r group =
         ("subtask-editor-" <> ms (show task.id))
         (TE.editorComponent (subTaskEditor group.id task.id) r)
 
+    subTaskEditorId taskId = "subtask-editor-" <> ms (show taskId)
+
     -- SubTask editor definition
     subTaskEditor :: TaskGroupId -> TaskId -> TE.Editor Task SubTaskPatch Maybe M.MisoString
     subTaskEditor _groupId taskId =
@@ -205,6 +212,20 @@ taskGroupEditorComponent r group =
                                translateDisplayOverride
                                subTaskDisplayInResourcesViewLens
                                subTaskDisplayInResourcesPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskPrimaryCompetences
+                           , competenceOverrideEditorField
+                               r
+                               (subTaskEditorId taskId <> "-primary")
+                               subTaskPrimaryViewLens
+                               subTaskPrimaryPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
+                           , competenceOverrideEditorField
+                               r
+                               (subTaskEditorId taskId <> "-secondary")
+                               subTaskSecondaryViewLens
+                               subTaskSecondaryPatchLens
                            )
 
     translatePurposeOverride :: PurposeOverride -> M.MisoString
@@ -432,3 +453,145 @@ subTaskDisplayInResourcesViewLens = lens getter setter
 
 subTaskDisplayInResourcesPatchLens :: Lens' SubTaskPatch (Change DisplayOverride)
 subTaskDisplayInResourcesPatchLens = #displayInResources % changeDisplayOverrideIso
+
+-- ============================================================================
+-- Competence Override Editor Field
+-- ============================================================================
+
+-- | Override enum for competences: Inherit or Override
+data CompetenceOverrideMode
+  = InheritCompetences
+  | OverrideCompetences
+  deriving (Bounded, Enum, Eq, Show)
+
+-- | Get the override mode from Maybe [CompetenceLevelId]
+getOverrideMode :: Maybe [CompetenceLevelId] -> CompetenceOverrideMode
+getOverrideMode Nothing = InheritCompetences
+getOverrideMode (Just _) = OverrideCompetences
+
+-- | Editor field for Maybe [CompetenceLevelId] with checkbox + selector
+competenceOverrideEditorField
+  :: SyncDocumentRef
+  -> M.MisoString
+  -> Lens' Task (Maybe [CompetenceLevelId])
+  -> Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))
+  -> EditorField Task SubTaskPatch Maybe
+competenceOverrideEditorField r key viewLens patchLens =
+  EditorField
+    { viewer = competenceOverrideViewer viewLens
+    , editor = competenceOverrideEditor r key viewLens patchLens
+    }
+
+competenceOverrideViewer
+  :: Lens' Task (Maybe [CompetenceLevelId])
+  -> Task
+  -> M.View (TE.Model Task SubTaskPatch Maybe) (TE.Action Task SubTaskPatch)
+competenceOverrideViewer viewLens task =
+  case task ^. viewLens of
+    Nothing -> V.text_ (C.translate' C.LblInherit)
+    Just [] -> V.text_ (C.translate' C.LblNoCompetences)
+    Just competences ->
+      M.span_ [] [V.text_ (M.ms $ show (length competences) <> " Kompetenzen")]
+
+competenceOverrideEditor
+  :: SyncDocumentRef
+  -> M.MisoString
+  -> Lens' Task (Maybe [CompetenceLevelId])
+  -> Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))
+  -> Bool
+  -> Task
+  -> SubTaskPatch
+  -> M.View (TE.Model Task SubTaskPatch Maybe) (TE.Action Task SubTaskPatch)
+competenceOverrideEditor r key viewLens patchLens refocusTarget original patch =
+  M.div_
+    [class_ "space-y-2"]
+    [ -- Checkbox to toggle override mode
+      M.label_
+        [class_ "flex items-center gap-2 cursor-pointer"]
+        [ M.input_
+            ( [ type_ "checkbox"
+              , checked_ isOverriding
+              , M.onClick toggleOverride
+              ]
+                <> if refocusTarget then [id_ "refocusTarget"] else []
+            )
+        , V.text_ (C.translate' C.LblOverrideCompetences)
+        ]
+    , -- Show selector when overriding
+      if isOverriding
+        then
+          componentA
+            (key <> "-selector")
+            []
+            ( competenceLevelSelectorComponent
+                r
+                (\_ -> currentCompetences)
+                MultiStageSelectorEnabled
+                (selectorTransformedLens id id (mkFieldLens wrappedViewLens wrappedPatchLens original))
+            )
+        else M.div_ [] []
+    ]
+  where
+    -- Current value from patch or original
+    currentMaybe :: Maybe [CompetenceLevelId]
+    currentMaybe = case patch ^. patchLens of
+      Just (_, after) -> after
+      Nothing -> original ^. viewLens
+
+    currentCompetences :: [CompetenceLevelId]
+    currentCompetences = fromMaybe [] currentMaybe
+
+    isOverriding :: Bool
+    isOverriding = getOverrideMode currentMaybe == OverrideCompetences
+
+    -- Toggle between inherit and override
+    toggleOverride :: TE.Action Task SubTaskPatch
+    toggleOverride =
+      let newValue = if isOverriding then Nothing else Just []
+       in TE.UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, newValue))
+
+    -- Wrapped lenses that work with the list inside Maybe
+    wrappedViewLens :: Lens' Task [CompetenceLevelId]
+    wrappedViewLens = lens getter setter
+      where
+        getter t = fromMaybe [] (t ^. viewLens)
+        setter t v = t & viewLens .~ Just v
+
+    wrappedPatchLens :: Lens' SubTaskPatch (Change [CompetenceLevelId])
+    wrappedPatchLens = lens getter setter
+      where
+        getter p = case p ^. patchLens of
+          Nothing -> Nothing
+          Just (before, after) -> Just (fromMaybe [] before, fromMaybe [] after)
+        setter p Nothing = p & patchLens .~ Nothing
+        setter p (Just (before, after)) = p & patchLens ?~ (Just before, Just after)
+
+-- SubTask primary competences override lens
+subTaskPrimaryViewLens :: Lens' Task (Maybe [CompetenceLevelId])
+subTaskPrimaryViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SubTask _ override -> override.primary
+      SelfContained _ -> Nothing
+    setter task newVal = case task.taskType of
+      SubTask gid override ->
+        task & #taskType .~ SubTask gid (override & #primary .~ newVal)
+      SelfContained _ -> task
+
+subTaskPrimaryPatchLens :: Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))
+subTaskPrimaryPatchLens = #primary
+
+-- SubTask secondary competences override lens
+subTaskSecondaryViewLens :: Lens' Task (Maybe [CompetenceLevelId])
+subTaskSecondaryViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SubTask _ override -> override.secondary
+      SelfContained _ -> Nothing
+    setter task newVal = case task.taskType of
+      SubTask gid override ->
+        task & #taskType .~ SubTask gid (override & #secondary .~ newVal)
+      SelfContained _ -> task
+
+subTaskSecondaryPatchLens :: Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))
+subTaskSecondaryPatchLens = #secondary

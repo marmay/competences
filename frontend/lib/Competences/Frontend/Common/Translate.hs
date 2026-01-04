@@ -141,6 +141,8 @@ data Label
   | LblInherit
   | LblYes
   | LblNo
+  | LblOverrideCompetences
+  | LblNoCompetences
   | LblTaskPurpose !TaskPurpose
   | LblAssignments
   | LblNewAssignment
@@ -242,6 +244,8 @@ labels' =
   , LblInherit
   , LblYes
   , LblNo
+  , LblOverrideCompetences
+  , LblNoCompetences
   , LblAssignments
   , LblNewAssignment
   , LblEditAssignment
@@ -353,6 +357,8 @@ defaultTranslation LblTaskDisplayInResources = "In Ressourcen anzeigen"
 defaultTranslation LblInherit = "Von Gruppe erben"
 defaultTranslation LblYes = "Ja"
 defaultTranslation LblNo = "Nein"
+defaultTranslation LblOverrideCompetences = "Kompetenzen überschreiben"
+defaultTranslation LblNoCompetences = "Keine Kompetenzen"
 defaultTranslation (LblTaskPurpose Practice) = "Übung"
 defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
 defaultTranslation LblAssignments = "Aufträge"
