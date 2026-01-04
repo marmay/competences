@@ -40,6 +40,9 @@ data Icon
   | IcnSocialFormGroup
   | IcnTask
   | IcnTaskGroup
+  | IcnCompetenceGrid
+  | IcnEvidence
+  | IcnAssignment
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -81,6 +84,9 @@ iconId = \case
   IcnSocialFormGroup -> "icon-social-form-group"
   IcnTask -> "icon-task"
   IcnTaskGroup -> "icon-task-group"
+  IcnCompetenceGrid -> "icon-competence-grid"
+  IcnEvidence -> "icon-evidence"
+  IcnAssignment -> "icon-assignment"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -254,6 +260,26 @@ iconDefOf' = \case
   IcnTaskGroup ->
     mkPathesD
       [ "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+      ]
+  -- Grid icon for competence grids
+  IcnCompetenceGrid ->
+    mkPathesD
+      [ "M3 3h7v7H3z"
+      , "M14 3h7v7h-7z"
+      , "M3 14h7v7H3z"
+      , "M14 14h7v7h-7z"
+      ]
+  -- Clipboard/check icon for evidences
+  IcnEvidence ->
+    mkPathesD
+      [ "M9 11l3 3L22 4"
+      , "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+      ]
+  -- Clipboard icon for assignments
+  IcnAssignment ->
+    mkPathesD
+      [ "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+      , "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

@@ -29,8 +29,8 @@ import Competences.Frontend.SyncDocument
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.SelectorList qualified as SL
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Foldable (toList)
 import Data.List (sort)
 import Data.Map qualified as Map
@@ -110,7 +110,7 @@ evidenceSelectorComponent r parentLens =
             & (#expandDirection .~ V.Expand V.Start)
             & (#extraAttrs .~ [V.fullHeight])
         )
-        [ V.title_ (C.translate' C.LblSelectEvidences)
+        [ SL.selectorHeader (C.translate' C.LblSelectEvidences) (Just CreateNewEvidence)
         , V.component
             "evidence-selector-users"
             ( searchableSingleUserSelectorComponent
@@ -128,10 +128,6 @@ evidenceSelectorComponent r parentLens =
                 #filteredDateRange
             )
         , viewEvidences m
-        , Button.buttonPrimary (C.translate' C.LblAddEvidence)
-            & Button.withIcon IcnAdd
-            & Button.withClick CreateNewEvidence
-            & Button.renderButton
         ]
     viewEvidences m =
       let dateRangeFilter :: Ix.IxSet EvidenceIxs Evidence -> Ix.IxSet EvidenceIxs Evidence
@@ -141,34 +137,28 @@ evidenceSelectorComponent r parentLens =
             Today -> (Ix.@= (syncDocumentEnv r ^. #currentDay))
           filteredEvidences =
             Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.filteredUser)
-       in V.viewFlow
-            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [V.overflowYScroll, V.minH0]))
-            (map viewEvidence filteredEvidences)
-      where
-        viewEvidence e =
-          M.a_
-            [M.onClickWithOptions M.stopPropagation (SelectEvidence e)]
-            [ V.viewFlow
-                (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
-                ( V.viewFlow
-                    (V.hFlow & (#expandDirection .~ V.Expand V.Start))
-                    [ viewDate e.date
-                    , V.flowSpring
-                    , V.text_ (viewActivityType e.activityType)
-                    ]
-                    : [ viewContext [] (commaSeparated $ sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds))
-                      , viewContext [] (viewOldTasks e.oldTasks)
-                      ]
-                )
+       in SL.selectorList (map (viewEvidence m) filteredEvidences)
+
+    viewEvidence m e =
+      let isSelected = m.selectedEvidence == Just e || m.newEvidence == Just e
+          userNames = commaSeparated $ sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds)
+       in SL.selectorItemMultiLine
+            isSelected
+            [ M.div_
+                [class_ "flex items-center justify-between text-sm"]
+                [ M.text (C.formatDay e.date)
+                , M.text (C.translate' $ C.LblActivityTypeDescription e.activityType)
+                ]
+            , M.div_
+                [class_ "text-xs text-muted-foreground truncate"]
+                [M.text userNames]
             ]
-        viewDate d = V.text_ (C.formatDay d)
-        viewActivityType = C.translate' . C.LblActivityTypeDescription
-        viewOldTasks = M.ms
-        viewContext extraAttrs ms = M.span_ ([] <> extraAttrs) [V.text_ ms]
-        commaSeparated :: [M.MisoString] -> M.MisoString
-        commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)
-        commaSeparated [x] = x
-        commaSeparated [] = ""
+            (SelectEvidence e)
+
+    commaSeparated :: [M.MisoString] -> M.MisoString
+    commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)
+    commaSeparated [x] = x
+    commaSeparated [] = ""
 
     translateDateRange Today = C.translate' C.LblToday
     translateDateRange ThisWeek = C.translate' C.LblThisWeek

@@ -21,11 +21,10 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.SelectorList qualified as SL
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
 data Model = Model
@@ -86,29 +85,21 @@ competenceGridSelectorComponent r style parentLens =
 
     view (m :: Model) =
       V.viewFlow
-        (V.vFlow & (#gap .~ V.SmallSpace))
-        ( [ V.title_ (C.translate' C.LblSelectCompetenceGrids)
-          , viewCompetenceGrids m
-          ]
-            <> [ Button.buttonPrimary (C.translate' C.LblAddCompetenceGrid)
-                   & Button.withIcon IcnAdd
-                   & Button.withClick CreateNewCompetenceGrid
-                   & Button.renderButton
-               | style == CompetenceGridSelectorViewAndCreateStyle
-               ]
+        ( V.vFlow
+            & (#gap .~ V.SmallSpace)
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#extraAttrs .~ [V.fullHeight])
         )
-    viewCompetenceGrids (m :: Model) =
-      V.viewFlow
-        (V.vFlow & (#extraAttrs .~ [V.shrinkAttr, V.overflowYAuto]))
-        (map viewCompetenceGrid (Ix.toList m.allCompetenceGrids))
-      where
-        viewCompetenceGrid c =
-          M.a_
-            [M.onClickWithOptions M.stopPropagation (SelectCompetenceGrid c)]
-            [ V.viewFlow
-                (V.vFlow & #expandOrthogonal .~ V.Expand V.Start)
-                [ M.a_
-                    [M.onClickWithOptions M.stopPropagation (SelectCompetenceGrid c)]
-                    [V.text_ (M.ms $ if c.title == "" then "Ohne Titel" else c.title)]
-                ]
-            ]
+        [ SL.selectorHeader
+            (C.translate' C.LblSelectCompetenceGrids)
+            ( if style == CompetenceGridSelectorViewAndCreateStyle
+                then Just CreateNewCompetenceGrid
+                else Nothing
+            )
+        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toList m.allCompetenceGrids))
+        ]
+
+    viewCompetenceGrid m c =
+      let isSelected = m.selectedCompetenceGrid == Just c || m.newCompetenceGrid == Just c
+          label = M.ms $ if c.title == "" then "Ohne Titel" else c.title
+       in SL.selectorItem isSelected IcnCompetenceGrid label (SelectCompetenceGrid c)

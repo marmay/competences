@@ -17,16 +17,13 @@ import Competences.Frontend.SyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Icon (Icon (..), icon)
-import Competences.Frontend.View.Input qualified as Input
-import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.SelectorList qualified as SL
 import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
@@ -156,56 +153,15 @@ taskOrGroupSelectorComponent r parentLens =
             & (#expandDirection .~ V.Expand V.Start)
             & (#extraAttrs .~ [V.fullHeight])
         )
-        [ viewHeader m
-        , viewSearchField m
+        [ SL.selectorHeaderWithDropdown
+            (C.translate' C.LblTasksAndGroups)
+            m.dropdownOpen
+            ToggleDropdown
+            [ SL.dropdownItem IcnTask (C.translate' C.LblNewTask) CreateNewTask
+            , SL.dropdownItem IcnTaskGroup (C.translate' C.LblNewTaskGroup) CreateNewGroup
+            ]
+        , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterTasks) (SetSearchQuery . M.fromMisoString)
         , viewItems m
-        ]
-
-    viewSearchField m' =
-      Input.defaultInput
-        & Input.withValue (ms m'.searchQuery)
-        & Input.withPlaceholder (C.translate' C.LblFilterTasks)
-        & Input.withOnInput (\v -> SetSearchQuery (M.fromMisoString v))
-        & Input.renderInput
-
-    viewHeader m' =
-      M.div_
-        [class_ "flex items-center justify-between"]
-        [ Typography.h3 (C.translate' C.LblTasksAndGroups)
-        , viewCreateDropdown m'
-        ]
-
-    viewCreateDropdown m' =
-      M.div_
-        [class_ "relative"]
-        [ M.button_
-            [ class_ "btn btn-secondary h-8 px-2"
-            , M.onClick ToggleDropdown
-            ]
-            [ icon [class_ "w-4 h-4"] IcnAdd ]
-        , if m'.dropdownOpen
-            then viewDropdownMenu
-            else M.text ""
-        ]
-
-    viewDropdownMenu =
-      M.div_
-        [ class_ "absolute right-0 top-full mt-1 z-50 min-w-48 rounded-md border bg-popover p-1 shadow-md"
-        ]
-        [ M.button_
-            [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-            , M.onClick CreateNewTask
-            ]
-            [ icon [class_ "w-4 h-4"] IcnTask
-            , M.text (C.translate' C.LblNewTask)
-            ]
-        , M.button_
-            [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-            , M.onClick CreateNewGroup
-            ]
-            [ icon [class_ "w-4 h-4"] IcnTaskGroup
-            , M.text (C.translate' C.LblNewTaskGroup)
-            ]
         ]
 
     viewItems m =
@@ -213,28 +169,15 @@ taskOrGroupSelectorComponent r parentLens =
           groupItems = map SelectableGroup $ Ix.toList m.allGroups
           allItems = sortOn itemIdentifier (taskItems <> groupItems)
           query = T.toLower m.searchQuery
-          filteredItems = if T.null query
-            then allItems
-            else filter (\item -> query `T.isInfixOf` T.toLower (itemIdentifier item)) allItems
-       in V.viewFlow
-            (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [V.overflowYScroll, V.minH0]))
-            (map (viewItem m) filteredItems)
+          filteredItems =
+            if T.null query
+              then allItems
+              else filter (\item -> query `T.isInfixOf` T.toLower (itemIdentifier item)) allItems
+       in SL.selectorList (map (viewItem m) filteredItems)
 
     viewItem m item =
       let isSelected = m.selectedItem == Just item || m.newItem == Just item
-          baseClasses = "flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors"
-          selectedClass = if isSelected
-                          then "bg-primary/10 text-primary"
-                          else "hover:bg-muted"
-       in M.div_
-            [ class_ $ baseClasses <> " " <> selectedClass
-            , M.onClick (SelectItem item)
-            ]
-            [ viewItemIcon item
-            , M.span_ [class_ "text-sm truncate"] [M.text $ ms $ itemIdentifier item]
-            ]
-
-    viewItemIcon (SelectableTask _) =
-      M.span_ [class_ "text-muted-foreground shrink-0"] [icon [class_ "w-4 h-4"] IcnTask]
-    viewItemIcon (SelectableGroup _) =
-      M.span_ [class_ "text-muted-foreground shrink-0"] [icon [class_ "w-4 h-4"] IcnTaskGroup]
+          (icn, label) = case item of
+            SelectableTask _ -> (IcnTask, ms $ itemIdentifier item)
+            SelectableGroup _ -> (IcnTaskGroup, ms $ itemIdentifier item)
+       in SL.selectorItem isSelected icn label (SelectItem item)
