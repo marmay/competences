@@ -322,23 +322,26 @@ handleTasksCommand userId cmd d = case cmd of
             Left "TaskGroup must be locked to delete SubTasks"
           (d', task') <- subTaskContext.delete taskId d
           pure (d', subTaskContext.affectedUsers task' d)
-    Modify taskId modCmd -> case modCmd of
-      Lock -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
-      Release patch -> do
-        -- Fetch the task
-        taskCurrent <- subTaskContext.fetch taskId d
-        -- Verify it's a SubTask
-        case taskCurrent.taskType of
-          SelfContained _ -> Left "Cannot modify SelfContained tasks via OnSubTasks (use OnTasks instead)"
-          SubTask groupId _ -> do
-            -- Lock check: TaskGroup must be locked by this user
-            unless (Map.member (TaskGroupLock groupId) (d ^. #locks)) $
-              Left "TaskGroup must be locked to modify SubTasks"
+    Modify taskId modCmd -> do
+      -- Fetch the task first
+      taskCurrent <- subTaskContext.fetch taskId d
+      -- Verify it's a SubTask
+      case taskCurrent.taskType of
+        SelfContained _ -> Left "Cannot modify SelfContained tasks via OnSubTasks (use OnTasks instead)"
+        SubTask _groupId _ -> case modCmd of
+          Lock -> do
+            d' <- doLock userId (TaskLock taskId) d
+            pure (d', subTaskContext.affectedUsers taskCurrent d)
+          Release patch -> do
+            -- Lock check: TaskLock must be held by this user
+            unless (Map.member (TaskLock taskId) (d ^. #locks)) $
+              Left "SubTask must be locked to modify"
             -- Apply patch
             taskModified <- applySubTaskPatch taskCurrent patch
             (d', taskOld) <- subTaskContext.delete taskId d
             d'' <- subTaskContext.create taskModified d'
-            pure (d'', subTaskContext.affectedUsers taskModified d <> subTaskContext.affectedUsers taskOld d)
+            d''' <- doRelease userId (TaskLock taskId) d''
+            pure (d''', subTaskContext.affectedUsers taskModified d <> subTaskContext.affectedUsers taskOld d)
   where
     taskContext =
       mkEntityCommandContext
