@@ -23,9 +23,10 @@ import Competences.Document (User(..), UserRole(..))
 import Competences.Document.Id (nilId)
 import Competences.Document.User (Office365Id(..))
 import Competences.Protocol (ServerMessage(..))
+import Competences.Frontend.Common.Translate qualified as C
 import Data.Text qualified as T
 import Miso.Run
-import Miso.DSL (jsg, fromJSVal, (!))
+import Miso.DSL (jsg, fromJSVal, (!), setField)
 import Miso qualified as M
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar, tryTakeMVar, tryReadMVar)
 
@@ -114,6 +115,9 @@ main = do
         M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
         -- Set WebSocket connection after document is created
         setWebSocket document ws
+        -- Set window title with localized text
+        doc <- jsg "document"
+        setField doc "title" (C.translate' C.LblPageTitle)
         runApp $ withTailwindPlay $ mkApp document
 
 
