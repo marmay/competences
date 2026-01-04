@@ -42,7 +42,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (ms)
-import Optics.Core (Iso', Lens', iso, (&), (%), (?~), (^.))
+import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
 -- | Detail view for editing a TaskGroup and its SubTasks
 taskGroupDetailView
@@ -194,6 +194,28 @@ taskGroupEditorComponent r group =
         `TE.addNamedField` ( C.translate' C.LblTaskContent
                            , TE.textEditorField subTaskContentViewLens subTaskContentPatchLens
                            )
+        `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
+                           , TE.enumEditorField
+                               translatePurposeOverride
+                               subTaskPurposeViewLens
+                               subTaskPurposePatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskDisplayInResources
+                           , TE.enumEditorField
+                               translateDisplayOverride
+                               subTaskDisplayInResourcesViewLens
+                               subTaskDisplayInResourcesPatchLens
+                           )
+
+    translatePurposeOverride :: PurposeOverride -> M.MisoString
+    translatePurposeOverride InheritPurpose = C.translate' C.LblInherit
+    translatePurposeOverride OverridePractice = C.translate' (C.LblTaskPurpose Practice)
+    translatePurposeOverride OverrideAssessment = C.translate' (C.LblTaskPurpose Assessment)
+
+    translateDisplayOverride :: DisplayOverride -> M.MisoString
+    translateDisplayOverride InheritDisplay = C.translate' C.LblInherit
+    translateDisplayOverride DisplayYes = C.translate' C.LblYes
+    translateDisplayOverride DisplayNo = C.translate' C.LblNo
 
     -- Editable definition for a specific SubTask
     subTaskEditable :: TaskId -> TE.Editable Maybe Task SubTaskPatch
@@ -310,3 +332,103 @@ subTaskContentViewLens = #content % maybeTextIso
 
 subTaskContentPatchLens :: Lens' SubTaskPatch (Change Text)
 subTaskContentPatchLens = #content % changeMaybeTextIso
+
+-- ============================================================================
+-- Override Enums for SubTask Editors
+-- ============================================================================
+
+-- | Purpose override enum: Inherit from group or override with a specific value
+data PurposeOverride
+  = InheritPurpose
+  | OverridePractice
+  | OverrideAssessment
+  deriving (Bounded, Enum, Eq, Show)
+
+purposeOverrideIso :: Iso' (Maybe TaskPurpose) PurposeOverride
+purposeOverrideIso = iso toOverride fromOverride
+  where
+    toOverride Nothing = InheritPurpose
+    toOverride (Just Practice) = OverridePractice
+    toOverride (Just Assessment) = OverrideAssessment
+    fromOverride InheritPurpose = Nothing
+    fromOverride OverridePractice = Just Practice
+    fromOverride OverrideAssessment = Just Assessment
+
+changePurposeOverrideIso :: Iso' (Change (Maybe TaskPurpose)) (Change PurposeOverride)
+changePurposeOverrideIso = iso fwd bwd
+  where
+    toO = purposeOverrideIso
+    fwd Nothing = Nothing
+    fwd (Just (a, b)) = Just (a ^. toO, b ^. toO)
+    bwd Nothing = Nothing
+    bwd (Just (a, b)) = Just (fromOverride a, fromOverride b)
+    fromOverride InheritPurpose = Nothing
+    fromOverride OverridePractice = Just Practice
+    fromOverride OverrideAssessment = Just Assessment
+
+-- | Display in resources override enum: Inherit from group or override with Yes/No
+data DisplayOverride
+  = InheritDisplay
+  | DisplayYes
+  | DisplayNo
+  deriving (Bounded, Enum, Eq, Show)
+
+displayOverrideIso :: Iso' (Maybe Bool) DisplayOverride
+displayOverrideIso = iso toOverride fromOverride
+  where
+    toOverride Nothing = InheritDisplay
+    toOverride (Just True) = DisplayYes
+    toOverride (Just False) = DisplayNo
+    fromOverride InheritDisplay = Nothing
+    fromOverride DisplayYes = Just True
+    fromOverride DisplayNo = Just False
+
+changeDisplayOverrideIso :: Iso' (Change (Maybe Bool)) (Change DisplayOverride)
+changeDisplayOverrideIso = iso fwd bwd
+  where
+    toO = displayOverrideIso
+    fwd Nothing = Nothing
+    fwd (Just (a, b)) = Just (a ^. toO, b ^. toO)
+    bwd Nothing = Nothing
+    bwd (Just (a, b)) = Just (fromOverride a, fromOverride b)
+    fromOverride InheritDisplay = Nothing
+    fromOverride DisplayYes = Just True
+    fromOverride DisplayNo = Just False
+
+-- SubTask purpose override lens (via PurposeOverride enum)
+subTaskPurposeViewLens :: Lens' Task PurposeOverride
+subTaskPurposeViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SubTask _ override -> override.purpose ^. purposeOverrideIso
+      SelfContained _ -> InheritPurpose
+    setter task newVal = case task.taskType of
+      SubTask gid override ->
+        let maybeVal = case newVal of
+              InheritPurpose -> Nothing
+              OverridePractice -> Just Practice
+              OverrideAssessment -> Just Assessment
+         in task & #taskType .~ SubTask gid (override & #purpose .~ maybeVal)
+      SelfContained _ -> task
+
+subTaskPurposePatchLens :: Lens' SubTaskPatch (Change PurposeOverride)
+subTaskPurposePatchLens = #purpose % changePurposeOverrideIso
+
+-- SubTask displayInResources override lens (via DisplayOverride enum)
+subTaskDisplayInResourcesViewLens :: Lens' Task DisplayOverride
+subTaskDisplayInResourcesViewLens = lens getter setter
+  where
+    getter task = case task.taskType of
+      SubTask _ override -> override.displayInResources ^. displayOverrideIso
+      SelfContained _ -> InheritDisplay
+    setter task newVal = case task.taskType of
+      SubTask gid override ->
+        let maybeVal = case newVal of
+              InheritDisplay -> Nothing
+              DisplayYes -> Just True
+              DisplayNo -> Just False
+         in task & #taskType .~ SubTask gid (override & #displayInResources .~ maybeVal)
+      SelfContained _ -> task
+
+subTaskDisplayInResourcesPatchLens :: Lens' SubTaskPatch (Change DisplayOverride)
+subTaskDisplayInResourcesPatchLens = #displayInResources % changeDisplayOverrideIso
