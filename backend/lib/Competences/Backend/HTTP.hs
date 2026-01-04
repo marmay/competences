@@ -126,7 +126,7 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
-    H.title "Competences"
+    H.title "Meine Mathe-Kompetenzen"
     -- Load Basecoat UI CSS first (provides component styles and default theme)
     H.link ! A.rel "stylesheet" ! A.href "/static/basecoat.cdn.min.css"
     -- Load our Tailwind CSS last (overrides Basecoat's CSS variables with our theme)
@@ -134,6 +134,6 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';"
-  H.body $ do
+  H.body ! A.class_ "theme-claude" $ do
     -- Load application code
     H.script ! A.src "/static/index.js" ! A.type_ "module" $ ""
