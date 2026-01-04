@@ -23,7 +23,8 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (Iso', iso, (%), (&), (.~), (?~), (^.))
+import Miso.Html qualified as M
+import Optics.Core (Iso', iso, (%), (&), (?~), (^.))
 
 data Action
   = NewUser
@@ -84,10 +85,15 @@ userListEditorComponent r =
               & Button.withIcon IcnAdd
               & Button.withClick NewUser
               & Button.renderButton
-       in V.viewFlow
-            ( V.vFlow
-                & (#expandOrthogonal .~ V.Expand V.Start)
-                & (#gap .~ V.SmallSpace)
-                & (#extraAttrs .~ [class_ "h-full min-h-0 overflow-y-auto"])
-            )
-            [V.centeredContent title, V.centeredContent users, V.centeredContent addButton]
+          header =
+            M.div_
+              [class_ "flex items-center justify-between w-full"]
+              [title, addButton]
+       in V.centeredContent $
+            M.div_
+              [class_ "h-full min-h-0 flex flex-col gap-2 w-full max-w-4xl"]
+              [ header
+              , M.div_
+                  [class_ "flex-1 min-h-0 overflow-y-auto"]
+                  [users]
+              ]

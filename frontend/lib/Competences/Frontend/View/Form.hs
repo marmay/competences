@@ -34,7 +34,7 @@ form_ :: M.MisoString -> [M.View m a] -> [M.View m a] -> M.View m a
 form_ title fields buttons =
   V.centeredContent $
     M.div_
-      [T.class_ "w-full max-w-3xl"]
+      [T.class_ "w-full max-w-4xl"]
       [ V.viewFlow
           ( V.vFlow
               & (#gap .~ V.SmallSpace)
