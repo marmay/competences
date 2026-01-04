@@ -18,6 +18,7 @@ import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument (SyncDocumentEnv (..), SyncDocumentRef, syncDocumentEnv)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Component (componentA)
 import Data.Functor (($>))
 import GHC.Generics (Generic)
@@ -68,25 +69,36 @@ mkApp r =
         ]
 
     navButtons m' =
-      if isTeacher m'.connectedUser
-        then
-          [ navButton C.LblCompetenceGrid CompetenceGrid
-          , navButton C.LblEvidences Evidences
-          , navButton C.LblSelfContainedTasks ManageTasks
-          , navButton C.LblAssignments ManageAssignments
-          , navButton C.LblStatisticsOverview StatisticsOverview
-          , navButton C.LblManageUsers ManageUsers
-          ]
-        else
-          [ navButton C.LblCompetenceGrid CompetenceGrid
-          , navButton C.LblEvidences Evidences
-          , navButton C.LblAssignments ViewAssignments
-          ]
+      let currentPage = M.route (m' ^. #uri)
+          nb = navButton currentPage
+       in if isTeacher m'.connectedUser
+            then
+              [ nb C.LblCompetenceGrid CompetenceGrid
+              , nb C.LblEvidences Evidences
+              , nb C.LblSelfContainedTasks ManageTasks
+              , nb C.LblAssignments ManageAssignments
+              , nb C.LblStatisticsOverview StatisticsOverview
+              , nb C.LblManageUsers ManageUsers
+              ]
+            else
+              [ nb C.LblCompetenceGrid CompetenceGrid
+              , nb C.LblEvidences Evidences
+              , nb C.LblAssignments ViewAssignments
+              ]
 
-    navButton lbl p =
-      Button.buttonSecondary (C.translate' lbl)
-        & Button.withClick (PushURI $ M.toURI p)
-        & Button.renderButton
+    navButton currentPage lbl p =
+      let isActive = currentPage == Right p
+       in -- Active button gets a subtle white background wrapper
+          if isActive
+            then M.span_
+                   [class_ "bg-white/20 rounded-md"]
+                   [ Button.buttonGhost (C.translate' lbl)
+                       & Button.withClick (PushURI $ M.toURI p)
+                       & Button.renderButton
+                   ]
+            else Button.buttonSecondary (C.translate' lbl)
+                   & Button.withClick (PushURI $ M.toURI p)
+                   & Button.renderButton
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"
