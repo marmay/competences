@@ -21,6 +21,7 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
+import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMultiTaskEditorField)
 import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
@@ -96,6 +97,12 @@ evidenceDetailView r evidence =
                                (evidenceEditorId <> "-users")
                                isStudent
                                (entityPatchTransformedLens #userIds #userIds (.id) Set.fromList)
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTasksAndGroups
+                           , searchableMultiTaskEditorField
+                               r
+                               (evidenceEditorId <> "-tasks")
+                               (entityPatchTransformedLens #tasks #tasks id id)
                            )
         `TE.addNamedField` ( "Legacy Tasks"
                            , TE.textEditorField #oldTasks #oldTasks

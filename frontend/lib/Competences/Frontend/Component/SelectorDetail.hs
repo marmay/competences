@@ -125,7 +125,7 @@ selectorDetailComponent config =
         V.viewFlow
           ( V.vFlow
               & (#expandDirection .~ V.Expand V.Start)
-              & (#expandOrthogonal .~ V.Expand V.Center)  -- Center content horizontally
+              & (#expandOrthogonal .~ V.Expand V.Start)  -- Stretch children to full width
               & (#gap .~ V.MediumSpace)  -- Spacing between mode switcher and content
           )
           [ modeSwitcher m

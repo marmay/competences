@@ -25,6 +25,9 @@ data TableColumnWidth
   | DoubleActionColumn
   | TripleActionColumn
   | AutoSizedColumn
+  | EqualWidthColumn
+  -- ^ Equal width column - shares remaining space equally with other
+  -- EqualWidthColumn columns. When used, table switches to fixed layout.
   deriving (Eq, Show)
 
 data TableColumnSpec = TableColumnSpec
@@ -62,7 +65,7 @@ viewTable t =
   M.div_
     [class_ "overflow-x-auto rounded-lg border border-border"]
     [ M.table_
-        [class_ "w-full border-collapse bg-card text-sm"]
+        [class_ $ "w-full border-collapse bg-card text-sm" <> tableLayoutClass]
         [ M.colgroup_
             []
             $ map
@@ -80,11 +83,16 @@ viewTable t =
         ]
     ]
   where
+    -- Use table-fixed layout if any column uses EqualWidthColumn
+    hasEqualWidth = any ((== EqualWidthColumn) . (.width) . t.columnSpec) t.columns
+    tableLayoutClass = if hasEqualWidth then " table-fixed" else ""
+
     viewColumnWidth :: TableColumnWidth -> M.View m action
     viewColumnWidth AutoSizedColumn = M.col_ []
     viewColumnWidth SingleActionColumn = M.col_ [class_ "w-16"]
     viewColumnWidth DoubleActionColumn = M.col_ [class_ "w-24"]
     viewColumnWidth TripleActionColumn = M.col_ [class_ "w-32"]
+    viewColumnWidth EqualWidthColumn = M.col_ [] -- shares remaining space equally
 
     viewColumnHeader :: M.MisoString -> M.View m action
     viewColumnHeader col =

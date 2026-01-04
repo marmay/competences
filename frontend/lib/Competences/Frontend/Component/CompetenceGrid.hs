@@ -209,7 +209,7 @@ viewerComponent r grid =
                       ViewerDescriptionColumn ->
                         Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
                       ViewerLevelColumn l ->
-                        Table.TableColumnSpec Table.AutoSizedColumn (C.translate' $ C.LblCompetenceLevelDescription l)
+                        Table.TableColumnSpec Table.EqualWidthColumn (C.translate' $ C.LblCompetenceLevelDescription l)
                   , V.rowContents = V.cellContents $ \competence -> \case
                       ViewerDescriptionColumn -> Typography.small (M.ms competence.description)
                       ViewerLevelColumn level ->
@@ -289,8 +289,7 @@ editorComponent r grid =
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ header
-        , description
+        [ description
         , V.component
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
             (TE.editorComponent competenceGridEditor r)
@@ -303,10 +302,7 @@ editorComponent r grid =
             & Button.renderButton
         ]
 
-    -- Header with title (consistent with viewer)
-    header = Typography.h2 (M.ms grid.title)
-
-    -- Description (consistent with viewer)
+    -- Description
     description = Typography.paragraph (M.ms grid.description)
 
     competenceGridEditable =
