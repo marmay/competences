@@ -51,7 +51,7 @@ taskDetailView r task =
     taskEditor =
       TE.editor
         ( TE.editorFormView'
-            (C.translate' C.LblEditEvidence)
+            (C.translate' C.LblEditSelfContainedTask)
             id
         )
         taskEditable
