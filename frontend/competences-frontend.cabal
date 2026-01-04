@@ -84,6 +84,7 @@ library
         Competences.Frontend.View.SelectorList,
         Competences.Frontend.View.SidePanel,
         Competences.Frontend.View.Table,
+        Competences.Frontend.View.TagInput,
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.Text,
         Competences.Frontend.View.Tooltip,
