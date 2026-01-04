@@ -34,7 +34,11 @@ where
 
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.View.Badge (InteractiveBadgeConfig (..), interactiveBadge)
+import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
+import Competences.Frontend.View.Tailwind (class_)
 import Data.Kind (Type)
 import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
@@ -43,7 +47,6 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString, ms)
 import Optics.Core ((%~), (&), (.~))
-import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 
 -- | Heterogeneous list for storing pipeline context
 type HList :: [Type] -> Type
@@ -329,6 +332,7 @@ data Model result = Model
   , tooltipFor :: Maybe result
   , runtimeState :: RuntimeState result
   , error :: Maybe M.MisoString
+  , hasFocus :: Bool
   }
   deriving (Generic)
 
@@ -342,6 +346,8 @@ data Action result
   | DeleteResult !result
   | TooltipFor !(Maybe result)
   | UpdateState !(RuntimeState result) !(Maybe M.MisoString) -- Internal: update runtime state
+  | Focus
+  | Blur
 
 deriving instance (Eq result) => Eq (Action result)
 
@@ -353,6 +359,8 @@ instance (Show result) => Show (Action result) where
   show (DeleteResult r) = "DeleteResult " ++ show r
   show (TooltipFor r) = "TooltipFor " ++ show r
   show (UpdateState _ err) = "UpdateState <RuntimeState> " ++ show err
+  show Focus = "Focus"
+  show Blur = "Blur"
 
 -- | Handle keyboard input and advance/backtrack the state machine
 handleKeyboardInput
@@ -480,6 +488,10 @@ genericUpdate config action =
       M.modify (#tooltipFor .~ r)
     UpdateState newState maybeError ->
       M.modify $ \m -> m & (#runtimeState .~ newState) & (#error .~ maybeError)
+    Focus ->
+      M.modify (#hasFocus .~ True)
+    Blur ->
+      M.modify (#hasFocus .~ False)
 
 genericUpdate'
   :: (Eq result)
@@ -506,24 +518,24 @@ genericView
   -> Model result
   -> M.View (Model result) (Action result)
 genericView config model =
-  M.div_ [] $
-    [ viewSelectedResults config model
-    ]
-      <> ( if config.style == MultiStageSelectorEnabled
-             then [viewCurrentInput model, viewCurrentSuggestions model, viewError model]
-             else []
-         )
+  case config.style of
+    MultiStageSelectorDisabled ->
+      -- Disabled mode: just show badges, no input
+      tagInputDisabled (map (viewResultBadge config model) model.selectedResults)
+    MultiStageSelectorEnabled ->
+      -- Enabled mode: tag input with keyboard support and popover
+      tagInput
+        TagInputConfig
+          { badges = map (viewResultBadge config model) model.selectedResults
+          , inputArea = viewInputCursor model
+          , popover = Just (viewSuggestions model)
+          , hasFocus = model.hasFocus
+          , onKeyDown = Just HandleKeyPress
+          , onFocus = Just Focus
+          , onBlur = Just Blur
+          }
 
-viewSelectedResults
-  :: (Eq result)
-  => MultiStageSelectorConfig result
-  -> Model result
-  -> M.View (Model result) (Action result)
-viewSelectedResults config model =
-  M.div_ [] $
-    map (viewResultBadge config model) model.selectedResults
-
--- | Render a single result badge with delete button and tooltip
+-- | Render a single result badge with tooltip and optional delete button
 viewResultBadge
   :: (Eq result)
   => MultiStageSelectorConfig result
@@ -532,62 +544,53 @@ viewResultBadge
   -> M.View (Model result) (Action result)
 viewResultBadge config model result =
   let ResultView {badgeText, tooltipContent} = config.viewResult model.document result
-      badgeContent =
-        M.span_
-          []
-          [ M.text_ [badgeText]
-          , if config.style == MultiStageSelectorEnabled
-              then M.button_ [M.onClick (DeleteResult result)] [M.text_ ["×"]]
-              else M.text_ []
+      deleteAction = case config.style of
+        MultiStageSelectorEnabled -> Just (DeleteResult result)
+        MultiStageSelectorDisabled -> Nothing
+   in interactiveBadge
+        InteractiveBadgeConfig
+          { text = badgeText
+          , tooltip = tooltipContent
+          , onDelete = deleteAction
+          }
+
+-- | Render the current input cursor showing breadcrumb and partial input
+viewInputCursor
+  :: Model result
+  -> M.View (Model result) (Action result)
+viewInputCursor model =
+  let breadcrumbPath = getCurrentBreadcrumb model.runtimeState
+      currentInput = getCurrentInput model.runtimeState
+      displayText = case breadcrumbPath of
+        [] -> currentInput <> "▁"
+        _ -> intercalate "." breadcrumbPath <> "." <> currentInput <> "▁"
+   in M.span_
+        [class_ "text-muted-foreground font-mono text-sm"]
+        [M.text (ms displayText)]
+
+-- | Render the suggestions popover content
+viewSuggestions
+  :: Model result
+  -> M.View (Model result) (Action result)
+viewSuggestions model =
+  let suggestions = getCurrentSuggestions model.runtimeState
+      errorView = case model.error of
+        Nothing -> []
+        Just err ->
+          [ M.div_
+              [class_ "text-destructive text-sm py-1"]
+              [M.text err]
           ]
-      withTooltip content =
-        case tooltipContent of
-          Nothing -> content
-          Just tip ->
-            if model.tooltipFor == Just result
-              then
-                M.span_
-                  [M.onClick (TooltipFor Nothing)]
-                  [ content
-                  , M.span_ [] [M.text_ [tip]]
-                  ]
-              else M.span_ [M.onClick (TooltipFor (Just result))] [content]
-   in withTooltip badgeContent
+   in M.div_
+        [class_ "flex flex-col gap-0.5"]
+        (errorView <> map viewSuggestion suggestions)
 
-viewCurrentInput
-  :: Model result
-  -> M.View (Model result) (Action result)
-viewCurrentInput model =
+-- | Render a single suggestion item
+viewSuggestion :: M.MisoString -> M.View m a
+viewSuggestion suggestion =
   M.div_
-    [ M.intProp "tabindex" 0
-    , M.onKeyDownWithInfo HandleKeyPress
-    ]
-    [ M.text_
-        [ ms $
-            ">"
-              <> intercalate
-                "."
-                (getCurrentBreadcrumb model.runtimeState <> [getCurrentInput model.runtimeState])
-              <> "▁"
-        ]
-    ]
-
-viewCurrentSuggestions
-  :: Model result
-  -> M.View (Model result) (Action result)
-viewCurrentSuggestions model =
-  M.div_ [] $
-    map
-      (\v -> M.div_ [] [M.text_ [v]])
-      (getCurrentSuggestions model.runtimeState)
-
-viewError
-  :: Model result
-  -> M.View (Model result) (Action result)
-viewError model =
-  case model.error of
-    Nothing -> M.div_ [] []
-    Just err -> M.div_ [] [M.text_ ["Error: " <> err]]
+    [class_ "text-sm text-foreground py-0.5 px-1 hover:bg-accent rounded"]
+    [M.text suggestion]
 
 -- ============================================================================
 -- Generic Multi-Stage Selector Component
@@ -633,6 +636,7 @@ multiStageSelectorComponent r config lens =
         , tooltipFor = Nothing
         , runtimeState = config.initialState emptyDocument
         , error = Nothing
+        , hasFocus = False  -- Popover only shows when focused
         }
 
     update = genericUpdate config

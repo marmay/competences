@@ -21,12 +21,13 @@ withTooltip = withTooltipPosition TooltipTop
 
 -- | Add a tooltip to an element with specified position
 -- Uses Basecoat's data-tooltip attribute pattern for positioning and styling
+-- Note: Basecoat uses data-side for positioning (not data-tooltip-position)
 withTooltipPosition :: TooltipPosition -> MisoString -> M.View m a -> M.View m a
 withTooltipPosition pos tooltipText element =
   M.span_
     [ class_ "relative inline-block"
     , M.textProp "data-tooltip" tooltipText
-    , M.textProp "data-tooltip-position" (posToText pos)
+    , M.textProp "data-side" (posToText pos)
     ]
     [element]
   where

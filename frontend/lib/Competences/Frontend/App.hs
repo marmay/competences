@@ -44,7 +44,10 @@ runApp = M.startComponent
 
 mkApp :: SyncDocumentRef -> App
 mkApp r =
-  (M.component model update view) {M.subs = [M.uriSub SetURI]}
+  (M.component model update view)
+    { M.subs = [M.uriSub SetURI]
+    , M.events = M.defaultEvents <> M.keyboardEvents
+    }
   where
     env = syncDocumentEnv r
     model = Model {uri = M.toURI CompetenceGrid, connectedUser = env ^. #connectedUser}
