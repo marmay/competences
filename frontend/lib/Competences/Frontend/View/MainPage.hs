@@ -30,20 +30,20 @@ mainPage title navItems content footerContent =
   where
     navBanner =
       M.nav_
-        [class_ "bg-card border-b border-border px-4 py-3 flex-shrink-0"]
+        [class_ "bg-primary text-primary-foreground px-4 py-3 flex-shrink-0"]
         [ M.div_
-            [class_ "space-y-2"]
-            [ M.h1_ [class_ "text-xl font-bold text-foreground"] [M.text title]
-            , M.div_ [class_ "flex flex-wrap gap-2"] navItems
+            [class_ "space-y-2 text-center"]
+            [ M.h1_ [class_ "text-2xl font-bold"] [M.text title]
+            , M.div_ [class_ "flex flex-wrap gap-2 justify-center"] navItems
             ]
         ]
 
     contentArea =
       M.main_
-        [class_ "flex-1 min-h-0 p-4 flex"]
+        [class_ "flex-1 min-h-0 p-4 flex bg-background"]
         [content]
 
     footer =
       M.footer_
-        [class_ "flex-shrink-0 border-t border-border px-4 py-2 text-center text-sm text-muted-foreground"]
+        [class_ "flex-shrink-0 bg-muted px-4 py-2 text-center text-sm text-muted-foreground"]
         [footerContent]
