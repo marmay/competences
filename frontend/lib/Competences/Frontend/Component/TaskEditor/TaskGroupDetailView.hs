@@ -187,44 +187,61 @@ taskGroupEditorComponent r group =
                            )
 
     viewSubTasksSection m =
-      M.div_
-        [class_ "border-t pt-4"]
-        [ M.div_
-            [class_ "flex items-center justify-between mb-4"]
-            [ Typography.h3 (C.translate' C.LblSubTasks)
-            , Button.buttonSecondary (C.translate' C.LblAddSubTask)
-                & Button.withIcon IcnAdd
-                & Button.withClick CreateSubTask
-                & Button.renderButton
+      let isLocked = Map.member (TaskGroupLock group.id) m.currentDocument.locks
+       in M.div_
+            [class_ "border-t pt-4"]
+            [ M.div_
+                [class_ "flex items-center justify-between mb-4"]
+                [ Typography.h3 (C.translate' C.LblSubTasks)
+                , if isLocked
+                    then Button.buttonSecondary (C.translate' C.LblAddSubTask)
+                           & Button.withIcon IcnAdd
+                           & Button.withClick CreateSubTask
+                           & Button.renderButton
+                    else M.text ""
+                ]
+            , if null m.subTasks
+                then Typography.muted (C.translate' C.LblNoSubTasks)
+                else M.div_ [class_ "space-y-2"] (map (viewSubTaskRow isLocked) m.subTasks)
             ]
-        , if null m.subTasks
-            then Typography.muted (C.translate' C.LblNoSubTasks)
-            else M.div_ [class_ "space-y-2"] (map viewSubTaskRow m.subTasks)
-        ]
 
-    viewSubTaskRow task =
+    viewSubTaskRow isLocked task =
       let TaskIdentifier ident = task.identifier
           contentText = fromMaybe "" task.content
-       in M.div_
-            [class_ "flex items-center gap-2 p-2 bg-muted/30 rounded"]
-            [ M.div_
-                [class_ "flex-1 flex items-center gap-2"]
-                [ Input.defaultInput
-                    & Input.withValue (ms ident)
-                    & Input.withPlaceholder (C.translate' C.LblTaskIdentifier)
-                    & Input.withOnInput (\v -> UpdateSubTaskIdentifier task.id (M.fromMisoString v))
-                    & Input.renderInput
-                , Input.defaultInput
-                    & Input.withValue (ms contentText)
-                    & Input.withPlaceholder (C.translate' C.LblTaskContent)
-                    & Input.withOnInput (\v -> UpdateSubTaskContent task.id (M.fromMisoString v))
-                    & Input.renderInput
-                ]
-            , Button.buttonDestructive ""
-                & Button.withIcon IcnDelete
-                & Button.withClick (DeleteSubTask task.id)
-                & Button.renderButton
+       in if isLocked
+            then viewSubTaskRowEditable task ident contentText
+            else viewSubTaskRowReadOnly ident contentText
+
+    viewSubTaskRowEditable task ident contentText =
+      M.div_
+        [class_ "flex items-center gap-2 p-2 bg-muted/30 rounded"]
+        [ M.div_
+            [class_ "flex-1 flex items-center gap-2"]
+            [ Input.defaultInput
+                & Input.withValue (ms ident)
+                & Input.withPlaceholder (C.translate' C.LblTaskIdentifier)
+                & Input.withOnInput (\v -> UpdateSubTaskIdentifier task.id (M.fromMisoString v))
+                & Input.renderInput
+            , Input.defaultInput
+                & Input.withValue (ms contentText)
+                & Input.withPlaceholder (C.translate' C.LblTaskContent)
+                & Input.withOnInput (\v -> UpdateSubTaskContent task.id (M.fromMisoString v))
+                & Input.renderInput
             ]
+        , Button.buttonDestructive ""
+            & Button.withIcon IcnDelete
+            & Button.withClick (DeleteSubTask task.id)
+            & Button.renderButton
+        ]
+
+    viewSubTaskRowReadOnly ident contentText =
+      M.div_
+        [class_ "flex items-center gap-2 p-2 bg-muted/30 rounded"]
+        [ M.span_ [class_ "text-sm font-medium"] [M.text (ms ident)]
+        , if contentText == ""
+            then M.text ""
+            else M.span_ [class_ "text-sm text-muted-foreground"] [M.text (ms contentText)]
+        ]
 
 -- Lenses for TaskGroup identifier
 groupIdentifierTextIso :: Iso' TaskGroupIdentifier Text
