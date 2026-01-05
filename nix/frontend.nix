@@ -10,7 +10,7 @@
 
 pkgs.stdenv.mkDerivation {
   pname = "competences-frontend";
-  version = "0.2.1";
+  version = "0.2.2";
 
   inherit src;
 
