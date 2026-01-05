@@ -142,7 +142,7 @@ evaluatorComponent r assignment =
       observations <- mapM mkObservation (Map.toList (m ^. #aggregatedResults))
       let evidence =
             (mkEvidence evidenceId assignment.assignmentDate)
-              { userIds = Set.singleton userId
+              { userId = Just userId
               , activityType = assignment.activityType
               , tasks = assignment.tasks
               , observations = Ix.fromList observations

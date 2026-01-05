@@ -10,6 +10,7 @@ module Competences.Frontend.Component.Selector.UserSelector
 
     -- * Searchable variants
   , searchableSingleUserSelectorComponent
+  , searchableSingleUserEditorField
   , searchableMultiUserSelectorComponent
   , searchableMultiUserEditorField
   )
@@ -25,7 +26,7 @@ import Competences.Frontend.Component.Selector.SearchableListSelector qualified 
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (Default)
-import Data.Foldable (toList)
+import Data.Foldable (toList, find)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -179,8 +180,29 @@ searchableMultiUserEditorField r k p eptl =
    in selectorEditorFieldWithViewer
         k
         eptl
-        (\e -> selectedUsersViewerComponent r (config e))
-        (\e -> searchableMultiUserSelectorComponent r (config e))
+        (selectedUsersViewerComponent r . config)
+        (searchableMultiUserSelectorComponent r . config)
+
+-- | Searchable single-user editor field for use in editors
+-- Uses a read-only viewer (user name or placeholder) and searchable combobox for editing
+searchableSingleUserEditorField
+  :: (Eq t, Ord p, Default patch)
+  => SyncDocumentRef
+  -> M.MisoString
+  -> (User -> Bool)
+  -> EntityPatchTransformedLens p patch Maybe User Maybe t
+  -> EditorField p patch f
+searchableSingleUserEditorField r k p eptl =
+  let config e =
+        UserSelectorConfig
+          { isPossibleUser = p
+          , isInitialUser = \u -> e ^. eptl.viewLens == Just (eptl.transform u)
+          }
+   in selectorEditorFieldWithViewer
+        k
+        eptl
+        (selectedSingleUserViewerComponent r . config)
+        (searchableSingleUserSelectorComponent r . config)
 
 -- ============================================================================
 -- SELECTED USERS VIEWER (Read-only display)
@@ -240,3 +262,59 @@ viewSelectedUsers users =
       let names = Text.intercalate ", " (map (.name) users)
           count = Text.pack $ " (" <> show (length users) <> ")"
        in MH.span_ [] [M.text (M.ms $ names <> count)]
+
+-- ============================================================================
+-- SELECTED SINGLE USER VIEWER (Read-only display)
+-- ============================================================================
+
+-- | Model for the selected single user viewer
+data SelectedSingleUserViewerModel = SelectedSingleUserViewerModel
+  { possibleValues :: ![User]
+  , selectedValue :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Action for the selected single user viewer
+newtype SelectedSingleUserViewerAction = SingleViewerUpdateDocument DocumentChange
+  deriving (Eq, Show)
+
+-- | Component that displays selected user name or placeholder
+-- Used as the viewer in editor fields (read-only display)
+selectedSingleUserViewerComponent
+  :: SyncDocumentRef
+  -> UserSelectorConfig
+  -> SelectorTransformedLens p Maybe User f t
+  -> M.Component p SelectedSingleUserViewerModel SelectedSingleUserViewerAction
+selectedSingleUserViewerComponent r config lensBinding =
+  (M.component model update view)
+    { M.bindings = [mkSelectorBinding lensBinding (O.castOptic #selectedValue)]
+    , M.subs = [subscribeDocument r SingleViewerUpdateDocument]
+    }
+  where
+    model =
+      SelectedSingleUserViewerModel
+        { possibleValues = []
+        , selectedValue = Nothing
+        }
+
+    update (SingleViewerUpdateDocument (DocumentChange d info)) =
+      M.modify $ \m ->
+        let listSelectorCfg = toListSelectorConfig config
+            newPossibleValues = listSelectorCfg.listValues d
+            newSelectedValue =
+              if isInitialUpdate info
+                then find listSelectorCfg.isInitialValue newPossibleValues
+                else case m.selectedValue of
+                  Just u | u `elem` newPossibleValues -> Just u
+                  _ -> Nothing
+         in m
+              & (#possibleValues .~ newPossibleValues)
+              & (#selectedValue .~ newSelectedValue)
+
+    view m = viewSelectedSingleUser m.selectedValue
+
+-- | Render a single user name or placeholder text
+viewSelectedSingleUser :: Maybe User -> M.View m a
+viewSelectedSingleUser = \case
+  Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
+  Just u -> MH.span_ [] [M.text (M.ms u.name)]

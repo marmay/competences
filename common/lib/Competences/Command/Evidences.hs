@@ -22,8 +22,7 @@ import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
-import Data.Set (Set)
-import Data.Set qualified as Set
+import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -32,8 +31,8 @@ import Control.Monad ((>=>))
 
 -- | Patch for modifying an Evidence (only editable fields)
 data EvidencePatch = EvidencePatch
-  { userIds :: !(Change (Set UserId))
-    -- ^ Change userIds from old to new value
+  { userId :: !(Change (Maybe UserId))
+    -- ^ Change userId from old to new value
   , activityType :: !(Change ActivityType)
     -- ^ Change activityType from old to new value
   , date :: !(Change Day)
@@ -67,7 +66,7 @@ instance Binary EvidencesCommand
 instance Default EvidencePatch where
   def =
     EvidencePatch
-      { userIds = Nothing
+      { userId = Nothing
       , activityType = Nothing
       , date = Nothing
       , tasks = Nothing
@@ -80,7 +79,7 @@ instance Default EvidencePatch where
 applyEvidencePatch :: Evidence -> EvidencePatch -> Either Text Evidence
 applyEvidencePatch evidence patch =
   inContext "Evidence" evidence $
-    patchField' @"userIds" patch
+    patchField' @"userId" patch
       >=> patchField' @"activityType" patch
       >=> patchField' @"date" patch
       >=> patchField' @"tasks" patch
@@ -90,7 +89,7 @@ applyEvidencePatch evidence patch =
 
 -- | Handle an Evidences context command
 handleEvidencesCommand :: UserId -> EvidencesCommand -> Document -> UpdateResult
-handleEvidencesCommand userId (OnEvidences c) = interpretEntityCommand evidenceContext userId c
+handleEvidencesCommand uId (OnEvidences c) = interpretEntityCommand evidenceContext uId c
   where
     evidenceContext =
       mkEntityCommandContext
@@ -98,7 +97,7 @@ handleEvidencesCommand userId (OnEvidences c) = interpretEntityCommand evidenceC
         #id
         EvidenceLock
         applyEvidencePatch
-        (\e d' -> allTeachersAnd d' (Set.toList e.userIds))
+        (\e d' -> allTeachersAnd d' (maybeToList e.userId))
     allTeachersAnd d' us =
       AffectedUsers $
         map (.id) $

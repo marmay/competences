@@ -104,6 +104,7 @@ data Label
   | LblActivityTypeDescription !ActivityType
   | LblActivityTasks
   | LblStudents
+  | LblStudent
   | LblPleaseSelectItem
   | LblPleaseSelectItemShort
   | LblNoUser
@@ -154,6 +155,7 @@ data Label
   | LblAssignmentDate
   | LblAssignmentTasks
   | LblNoStudentsSelected
+  | LblNoStudentSelected
   | LblNoTasksSelected
   | LblSelectAll
   | LblDeselectAll
@@ -212,6 +214,7 @@ labels' =
   , LblActivityTypeDescription HomeExercise
   , LblActivityTasks
   , LblStudents
+  , LblStudent
   , LblPleaseSelectItem
   , LblPleaseSelectItemShort
   , LblNoUser
@@ -261,6 +264,7 @@ labels' =
   , LblAssignmentDate
   , LblAssignmentTasks
   , LblNoStudentsSelected
+  , LblNoStudentSelected
   , LblNoTasksSelected
   , LblSelectAll
   , LblDeselectAll
@@ -331,6 +335,7 @@ defaultTranslation (LblActivityTypeDescription HomeExercise) = "Hausübung"
 defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"
+defaultTranslation LblStudent = "Schüler"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblPleaseSelectItemShort = "Bitte Element auswählen!"
 defaultTranslation LblNoUser = "Kein Benutzer"
@@ -381,6 +386,7 @@ defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
+defaultTranslation LblNoStudentSelected = "Kein Schüler ausgewählt"
 defaultTranslation LblNoTasksSelected = "Keine Aufgaben ausgewählt"
 defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
