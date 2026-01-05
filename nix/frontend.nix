@@ -46,6 +46,14 @@ pkgs.stdenv.mkDerivation {
       cp static/basecoat.cdn.min.css $out/
     fi
 
+    # Copy WASI shim files
+    if [ -d static/wasi ]; then
+      cp -r static/wasi $out/
+    else
+      echo "ERROR: static/wasi directory not found. Run the WASI download script first."
+      exit 1
+    fi
+
     echo "Frontend static files packaged to $out"
     ls -lah $out/
   '';
