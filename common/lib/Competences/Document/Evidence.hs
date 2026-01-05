@@ -28,10 +28,10 @@ import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.Binary (Binary)
 import Data.List (singleton)
+import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian)
 import GHC.Generics (Generic)
-import qualified Data.Set as Set
 
 type EvidenceId = Id Evidence
 type ObservationId = Id Observation
@@ -80,7 +80,7 @@ data Observation = Observation
 
 data Evidence = Evidence
   { id :: !EvidenceId
-  , userIds :: !(Set.Set UserId)
+  , userId :: !(Maybe UserId)
   , activityType :: !ActivityType
   , date :: !Day
   , tasks :: ![TaskId]
@@ -103,7 +103,7 @@ mkEvidence eId date = do
 nilEvidence :: Evidence
 nilEvidence = Evidence
   { id = nilId
-  , userIds = Set.empty
+  , userId = Nothing
   , activityType = SchoolExercise
   , date = fromGregorian 2025 1 1
   , tasks = []
@@ -126,7 +126,7 @@ instance Ix.Indexable EvidenceIxs Evidence where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
-      (Ix.ixFun $ Set.toList . (.userIds))
+      (Ix.ixFun $ maybeToList . (.userId))
       (Ix.ixFun $ singleton . (.date))
       (Ix.ixFun $ map (.competenceLevelId) . Ix.toList . (.observations))
       (Ix.ixFun $ maybe [] singleton . (.assignmentId))
@@ -164,7 +164,7 @@ instance FromJSON Evidence where
           Just (ActivityTasks t) -> pure t
     Evidence
       <$> v .: "id"
-      <*> v .: "userIds"
+      <*> v .:? "userId"
       <*> v .: "activityType"
       <*> v .: "date"
       <*> pure tasksList
@@ -176,7 +176,7 @@ instance ToJSON Evidence where
   toJSON e =
     object
       [ "id" .= e.id
-      , "userIds" .= e.userIds
+      , "userId" .= e.userId
       , "activityType" .= e.activityType
       , "date" .= e.date
       , "tasks" .= e.tasks

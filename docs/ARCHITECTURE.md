@@ -19,7 +19,7 @@ The application uses a command-sourcing pattern where:
 Students see (based on their user identity):
 - **Users**: Only themselves (not other users)
 - **CompetenceGrids**: All competence grids
-- **Evidences**: Only evidences where they are a participant (their ID is in `evidence.userIds`)
+- **Evidences**: Only evidences where they are a participant (their ID matches `evidence.userId`)
 - **Other entities**: Filtered similarly based on relevance to the student
 
 Teachers see:

@@ -117,7 +117,7 @@ projectDocument user doc
       UserLock uid -> uid == user.id  -- Only their own user
       EvidenceLock eid ->
         case Ix.getOne (Ix.getEQ eid (doc ^. #evidences)) of
-          Just e -> user.id `elem` e.userIds  -- Only evidences about them
+          Just e -> Just user.id == e.userId  -- Only evidences about them
           Nothing -> False
       AssignmentLock aid ->
         case Ix.getOne (Ix.getEQ aid (doc ^. #assignments)) of

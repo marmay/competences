@@ -50,7 +50,6 @@ import Data.Foldable (maximumBy)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
@@ -206,7 +205,7 @@ addCompetences userId day activityTasks document (activityType, observationData)
   let evidence =
         Evidence
           { id = evidenceId
-          , userIds = Set.fromList [userId]
+          , userId = Just userId
           , activityType = activityType
           , date = day
           , oldTasks = activityTasks

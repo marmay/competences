@@ -22,7 +22,7 @@ import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLen
 import Competences.Frontend.Component.Selector.EvidenceSelector (evidenceSelectorComponent)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMultiTaskEditorField)
-import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
+import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (SyncDocumentRef)
 import Competences.Frontend.View qualified as V
@@ -30,7 +30,6 @@ import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
 
@@ -91,12 +90,12 @@ evidenceDetailView r evidence =
                                #activityType
                                #activityType
                            )
-        `TE.addNamedField` ( C.translate' C.LblStudents
-                           , searchableMultiUserEditorField
+        `TE.addNamedField` ( C.translate' C.LblStudent
+                           , searchableSingleUserEditorField
                                r
-                               (evidenceEditorId <> "-users")
+                               (evidenceEditorId <> "-user")
                                isStudent
-                               (entityPatchTransformedLens #userIds #userIds (.id) Set.fromList)
+                               (entityPatchTransformedLens #userId #userId (.id) id)
                            )
         `TE.addNamedField` ( C.translate' C.LblTasksAndGroups
                            , searchableMultiTaskEditorField

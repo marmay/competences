@@ -31,10 +31,8 @@ import Competences.Frontend.SyncDocument
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
-import Data.Foldable (toList)
-import Data.List (sort)
 import Data.Map qualified as Map
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -141,7 +139,7 @@ evidenceSelectorComponent r parentLens =
 
     viewEvidence m e =
       let isSelected = m.selectedEvidence == Just e || m.newEvidence == Just e
-          userNames = commaSeparated $ sort $ mapMaybe (`Map.lookup` m.userNames) (toList e.userIds)
+          userName = maybe "" (\uid -> fromMaybe "" (Map.lookup uid m.userNames)) e.userId
        in SL.selectorItemMultiLine
             isSelected
             [ M.div_
@@ -151,14 +149,9 @@ evidenceSelectorComponent r parentLens =
                 ]
             , M.div_
                 [class_ "text-xs text-muted-foreground truncate"]
-                [M.text userNames]
+                [M.text userName]
             ]
             (SelectEvidence e)
-
-    commaSeparated :: [M.MisoString] -> M.MisoString
-    commaSeparated (x : x' : xs) = x <> ", " <> commaSeparated (x' : xs)
-    commaSeparated [x] = x
-    commaSeparated [] = ""
 
     translateDateRange Today = C.translate' C.LblToday
     translateDateRange ThisWeek = C.translate' C.LblThisWeek

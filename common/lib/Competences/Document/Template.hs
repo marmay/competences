@@ -26,7 +26,6 @@ import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -66,8 +65,8 @@ data TemplateAspect = TemplateAspect
 data TemplateEvaluation = TemplateEvaluation
   { template :: !Template
   -- ^ Refers to the evaluated template.
-  , userIds :: !(Set.Set UserId)
-  -- ^ Users that the template is evaluated for.
+  , userId :: !(Maybe UserId)
+  -- ^ User that the template is evaluated for.
   , assessments :: ![(TemplateAspect, Maybe Ability)]
   -- ^ Asessments made.
   }
@@ -93,7 +92,7 @@ mkEvidenceFromTemplateEvaluation g t =
           (Map.toList byCompetenceLevelId)
    in Evidence
         { id = evidenceId
-        , userIds = t.userIds
+        , userId = t.userId
         , activityType = t.template.activityType
         , date = t.template.date
         , tasks = []
