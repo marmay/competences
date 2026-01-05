@@ -247,6 +247,14 @@ handleTasksCommand userId cmd d = case cmd of
         SubTask _ _ -> Left "Use OnSubTasks to create SubTasks"
         SelfContained _ ->
           (,taskContext.affectedUsers task d) <$> taskContext.create task d
+    CreateAndLock task -> do
+      -- Verify it's a SelfContained task
+      case task.taskType of
+        SubTask _ _ -> Left "Use OnSubTasks to create SubTasks"
+        SelfContained _ -> do
+          d' <- taskContext.create task d
+          d'' <- doLock userId (TaskLock task.id) d'
+          pure (d'', taskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences
       validateTaskNotReferencedInEvidences d taskId
@@ -280,6 +288,10 @@ handleTasksCommand userId cmd d = case cmd of
   OnTaskGroups c -> case c of
     Create group ->
       (,taskGroupContext.affectedUsers group d) <$> taskGroupContext.create group d
+    CreateAndLock group -> do
+      d' <- taskGroupContext.create group d
+      d'' <- doLock userId (TaskGroupLock group.id) d'
+      pure (d'', taskGroupContext.affectedUsers group d)
     Delete groupId -> do
       -- Cascading delete: delete all SubTasks, then delete the group
       (d', group') <- deleteTaskGroupCascading groupId d
@@ -302,13 +314,20 @@ handleTasksCommand userId cmd d = case cmd of
       -- Verify it's a SubTask
       case task.taskType of
         SelfContained _ -> Left "Use OnTasks to create SelfContained tasks"
-        SubTask groupId _ -> do
+        SubTask _ _ -> do
           -- Verify TaskGroup exists
           validateSubTaskReferencesGroup d task
-          -- Lock check: TaskGroup must be locked by this user
-          unless (Map.member (TaskGroupLock groupId) (d ^. #locks)) $
-            Left "TaskGroup must be locked to create SubTasks"
           (,subTaskContext.affectedUsers task d) <$> subTaskContext.create task d
+    CreateAndLock task -> do
+      -- Verify it's a SubTask
+      case task.taskType of
+        SelfContained _ -> Left "Use OnTasks to create SelfContained tasks"
+        SubTask _ _ -> do
+          -- Verify TaskGroup exists
+          validateSubTaskReferencesGroup d task
+          d' <- subTaskContext.create task d
+          d'' <- doLock userId (TaskLock task.id) d'
+          pure (d'', subTaskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences
       validateTaskNotReferencedInEvidences d taskId
@@ -316,10 +335,7 @@ handleTasksCommand userId cmd d = case cmd of
       task <- subTaskContext.fetch taskId d
       case task.taskType of
         SelfContained _ -> Left "Use OnTasks to delete SelfContained tasks"
-        SubTask groupId _ -> do
-          -- Lock check: TaskGroup must be locked by this user
-          unless (Map.member (TaskGroupLock groupId) (d ^. #locks)) $
-            Left "TaskGroup must be locked to delete SubTasks"
+        SubTask _ _ -> do
           (d', task') <- subTaskContext.delete taskId d
           pure (d', subTaskContext.affectedUsers task' d)
     Modify taskId modCmd -> do

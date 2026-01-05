@@ -4,7 +4,7 @@ module Competences.Frontend.Component.CompetenceGrid
   )
 where
 
-import Competences.Command (Command (..), CompetenceGridPatch (..), CompetencePatch (..), CompetencesCommand (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), CompetenceGridPatch (..), CompetencePatch (..), CompetencesCommand (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
@@ -265,8 +265,7 @@ editorComponent r grid =
               , description = ""
               , levelDescriptions = Map.empty
               }
-      modifySyncDocument r (Competences $ OnCompetences $ Create competence)
-      modifySyncDocument r (Competences $ OnCompetences $ Modify competenceId Lock)
+      modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
     view _ =
       V.viewFlow

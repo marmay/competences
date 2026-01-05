@@ -62,7 +62,7 @@ assignmentSelectorComponent r parentLens =
       assignmentId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let newAssignment = mkAssignment assignmentId (AssignmentName "") today
-      modifySyncDocument r $ Assignments (OnAssignments (Create newAssignment))
+      modifySyncDocument r $ Assignments (OnAssignments (CreateAndLock newAssignment))
       s (SelectAssignment newAssignment)
 
     update (SetSearchQuery q) = M.modify $ \m ->

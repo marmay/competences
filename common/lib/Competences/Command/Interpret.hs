@@ -31,6 +31,8 @@ data EntityCommandContext a patch = EntityCommandContext
     -- ^ Apply a patch to an entity, checking for conflicts
   , affectedUsers :: a -> Document -> AffectedUsers
   , lock :: Id a -> Lock
+  , getId :: a -> Id a
+    -- ^ Extract the ID from an entity (for CreateAndLock)
   }
   deriving (Generic)
 
@@ -98,6 +100,7 @@ mkEntityCommandContext l idOf lock applyPatch affectedUsers =
         , applyPatch = applyPatch
         , affectedUsers = affectedUsers
         , lock = lock
+        , getId = (^. idOf)
         }
 
 -- | Lock an entity
@@ -122,6 +125,10 @@ interpretEntityCommand
   :: (Eq a) => EntityCommandContext a patch -> UserId -> EntityCommand a patch -> Document -> UpdateResult
 interpretEntityCommand ctx _ (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
+interpretEntityCommand ctx uid (CreateAndLock a) d = do
+  d' <- ctx.create a d
+  d'' <- doLock uid (ctx.lock (ctx.getId a)) d'
+  pure (d'', ctx.affectedUsers a d)
 interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
