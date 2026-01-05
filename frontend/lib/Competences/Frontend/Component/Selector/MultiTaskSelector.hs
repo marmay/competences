@@ -5,7 +5,7 @@ module Competences.Frontend.Component.Selector.MultiTaskSelector
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Task (..), TaskType (..))
+import Competences.Document (Document (..), Task (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
@@ -28,13 +28,9 @@ import Optics.Core qualified as O
 -- TASK SELECTOR CONFIG
 -- ============================================================================
 
--- | Get only self-contained tasks from the document (not subtasks)
-listSelfContainedTasks :: Document -> [Task]
-listSelfContainedTasks d = filter isSelfContained $ Ix.toList d.tasks
-  where
-    isSelfContained task = case task.taskType of
-      SelfContained _ -> True
-      SubTask _ _ -> False
+-- | Get all tasks from the document (both self-contained and subtasks)
+listAllTasks :: Document -> [Task]
+listAllTasks d = Ix.toList d.tasks
 
 -- | Show task identifier for display
 showTask :: Task -> M.MisoString
@@ -46,7 +42,7 @@ showTask t =
 -- Note: showSelectAll is disabled because selecting all tasks doesn't make sense
 toListSelectorConfig :: (Task -> Bool) -> L.ListSelectorConfig Task f
 toListSelectorConfig isInitial =
-  (L.listSelectorConfig listSelfContainedTasks showTask)
+  (L.listSelectorConfig listAllTasks showTask)
     { L.isInitialValue = isInitial
     , L.showSelectAll = False
     }
