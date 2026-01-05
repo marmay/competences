@@ -275,8 +275,7 @@ editorComponent r grid =
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ description
-        , V.component
+        [ V.component
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
             (TE.editorComponent competenceGridEditor r)
         , V.component
@@ -287,9 +286,6 @@ editorComponent r grid =
             & Button.withClick CreateNewCompetence
             & Button.renderButton
         ]
-
-    -- Description
-    description = Typography.paragraph (M.ms grid.description)
 
     competenceGridEditable =
       TE.editable
