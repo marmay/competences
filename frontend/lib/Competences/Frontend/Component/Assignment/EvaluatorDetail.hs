@@ -5,17 +5,11 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document
-  ( Assignment (..)
-  , Competence (..)
-  , Document (..)
-  , User (..)
-  , emptyDocument
-  )
-import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document (Assignment (..), Competence (..), Document (..), User (..))
+import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
-import Competences.Document.Task (Task (..), TaskAttributes (..), TaskId, TaskIdentifier (..), TaskType (..))
-import Competences.Document.User (UserId)
+import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
+import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument
@@ -37,7 +31,6 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Miso.String (ms)
-import Optics.Core ((&), (.~), (^.))
 
 -- | Detail view for evaluating an assignment
 -- The mode type parameter allows this to work with any mode type
@@ -52,8 +45,12 @@ evaluatorDetailView r assignment =
 
 -- | Internal model for the evaluator component
 -- Tracks per-task observations, aggregated results, and selected students
+-- Only stores the document subsets actually needed (not the full Document)
 data EvaluatorModel = EvaluatorModel
-  { currentDocument :: !Document
+  { tasks :: !(Ix.IxSet TaskIxs Task)
+  , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
+  , users :: !(Ix.IxSet UserIxs User)
+  , competences :: !(Ix.IxSet CompetenceIxs Competence)
   -- Map from (TaskId, CompetenceLevelId) to Ability - applies to all selected students
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
@@ -61,7 +58,7 @@ data EvaluatorModel = EvaluatorModel
   -- Students selected for Evidence creation
   , selectedStudents :: !(Set.Set UserId)
   -- Social form for the evaluation (Individual or Group)
-  , socialForm :: !SocialForm
+  , selectedSocialForm :: !SocialForm
   }
   deriving (Eq, Generic, Show)
 
@@ -84,30 +81,42 @@ evaluatorComponent r assignment =
   where
     model =
       EvaluatorModel
-        { currentDocument = emptyDocument
+        { tasks = Ix.empty
+        , taskGroups = Ix.empty
+        , users = Ix.empty
+        , competences = Ix.empty
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
-        , socialForm = Individual
+        , selectedSocialForm = Individual
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
-      let newDoc = dc.document
-       in m{currentDocument = newDoc}
+      let doc = dc.document
+       in EvaluatorModel
+            { tasks = doc.tasks
+            , taskGroups = doc.taskGroups
+            , users = doc.users
+            , competences = doc.competences
+            , taskObservations = m.taskObservations
+            , aggregatedResults = m.aggregatedResults
+            , selectedStudents = m.selectedStudents
+            , selectedSocialForm = m.selectedSocialForm
+            }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
       m{taskObservations = Map.insert (taskId, compId) ability m.taskObservations}
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
       let newSelected =
-            if Set.member userId (m ^. #selectedStudents)
-              then Set.delete userId (m ^. #selectedStudents)
-              else Set.insert userId (m ^. #selectedStudents)
+            if Set.member userId m.selectedStudents
+              then Set.delete userId m.selectedStudents
+              else Set.insert userId m.selectedStudents
           newSocialForm = if Set.size newSelected == 1 then Individual else Group
-       in m & #selectedStudents .~ newSelected & #socialForm .~ newSocialForm
+       in m{selectedStudents = newSelected, selectedSocialForm = newSocialForm}
 
     update (SetSocialForm sf) = M.modify $ \m ->
-      m & #socialForm .~ sf
+      m{selectedSocialForm = sf}
 
     update ComputeAggregation = M.modify $ \m ->
       let aggregated = computeAggregation m
@@ -135,11 +144,13 @@ evaluatorComponent r assignment =
           Map.insertWith max compId ability acc
 
     -- Create Evidence for a single student from aggregated results
+    createEvidenceForStudent :: EvaluatorModel -> UserId -> IO Command
     createEvidenceForStudent m userId = do
       evidenceId <- nextId @IO @Evidence r
       -- Use the aggregated results (same for all students)
       -- Generate observation IDs and create Observation records
-      observations <- mapM mkObservation (Map.toList (m ^. #aggregatedResults))
+      let sf = m.selectedSocialForm
+      observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
       let evidence =
             (mkEvidence evidenceId assignment.assignmentDate)
               { userId = Just userId
@@ -151,13 +162,13 @@ evaluatorComponent r assignment =
               }
       pure $ Evidences (OnEvidences (Create evidence))
       where
-        mkObservation (compId, ability) = do
+        mkObservation sf (compId, ability) = do
           obsId <- nextId @IO @Observation r
           pure
             Observation
               { id = obsId
               , competenceLevelId = compId
-              , socialForm = m ^. #socialForm
+              , socialForm = sf
               , ability = ability
               }
 
@@ -175,7 +186,7 @@ evaluatorComponent r assignment =
             ]
 
     viewStudentSelection m =
-      let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.currentDocument.users)) (Set.toList assignment.studentIds)
+      let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.users)) (Set.toList assignment.studentIds)
           selectedCount = Set.size m.selectedStudents
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
@@ -188,7 +199,7 @@ evaluatorComponent r assignment =
             ]
 
     viewSocialFormButton m sf =
-      let isSelected = m.socialForm == sf
+      let isSelected = m.selectedSocialForm == sf
           buttonClass = if isSelected
                           then "px-3 py-1 rounded bg-primary text-primary-foreground text-sm cursor-pointer hover:bg-primary/90"
                           else "px-3 py-1 rounded bg-secondary text-secondary-foreground text-sm cursor-pointer hover:bg-secondary/80"
@@ -210,42 +221,42 @@ evaluatorComponent r assignment =
     viewTaskSection m taskId =
       M.div_
         [class_ "border-b pb-4"]
-        [ viewTaskInfo m.currentDocument taskId
+        [ viewTaskInfo m taskId
         , viewStudentEvaluations m taskId
         ]
 
-    viewTaskInfo doc taskId =
-      let taskM = Ix.getOne (Ix.getEQ taskId doc.tasks)
+    viewTaskInfo m taskId =
+      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
        in case taskM of
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
+                  content = getTaskContent m.taskGroups task
                in M.div_ [class_ "mt-4 mb-3"]
                     [ M.div_ [class_ "mb-1"] [Typography.h3 $ "Aufgabe: " <> ms identifier]
-                    , case task.content of
+                    , case content of
                         Nothing -> M.text ""
-                        Just content -> M.div_ [class_ "mb-2"] [Typography.small $ ms content]
+                        Just c -> M.div_ [class_ "mb-2"] [Typography.small $ ms c]
                     ]
 
     viewStudentEvaluations m taskId =
-      let taskM = Ix.getOne (Ix.getEQ taskId m.currentDocument.tasks)
+      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
        in case taskM of
             Nothing -> M.div_ [] [M.text "Aufgabe nicht gefunden"]
             Just task ->
-              let competences = getTaskCompetences task
+              let competences = getTaskCompetences m task
                in if null m.selectedStudents
                     then M.div_ [class_ "mt-4"] [Typography.muted "Bitte wählen Sie Schüler zur Auswertung aus"]
                     else M.div_ [class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m taskId) competences)
 
-    getTaskCompetences task =
-      case task.taskType of
-        SelfContained attrs -> attrs.primary <> attrs.secondary
-        SubTask _ _ -> []
+    getTaskCompetences m task =
+      let attrs = getTaskAttributes m.taskGroups task
+       in attrs.primary <> attrs.secondary
 
     viewCompetenceEvaluation m taskId compId =
       let currentAbility = Map.lookup (taskId, compId) m.taskObservations
           (competenceId, level) = compId
-          competenceM = Ix.getOne (Ix.getEQ competenceId m.currentDocument.competences)
+          competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
             Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
@@ -286,7 +297,7 @@ evaluatorComponent r assignment =
 
     viewAggregatedCompetence m (compId, ability) =
       let (competenceId, level) = compId
-          competenceM = Ix.getOne (Ix.getEQ competenceId m.currentDocument.competences)
+          competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
             Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
@@ -305,7 +316,7 @@ evaluatorComponent r assignment =
 
     getContributingTasks m compId =
       let taskIds = Map.keys $ Map.filterWithKey (\(_, cid) _ -> cid == compId) m.taskObservations
-          taskIdentifiers = map (\tid -> case Ix.getOne (Ix.getEQ tid m.currentDocument.tasks) of
+          taskIdentifiers = map (\tid -> case Ix.getOne (Ix.getEQ tid m.tasks) of
                                    Nothing -> T.pack (show tid)
                                    Just task -> let TaskIdentifier ident = task.identifier in ident
                                 ) [tid | (tid, _) <- taskIds]
