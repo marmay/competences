@@ -18,7 +18,7 @@ source-repository-package
   tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
 
 source-repository-package
-  --sha256: sha256-j9bD+X3FY+9XAPvxxTmNGoCwxsGlt5wX9RaxlqxCfp0=
+  --sha256: sha256-jLYPYRWg8bA490KqwdaoBtD+K6ZdYYHliZTKG9aAJC8=
   type: git
   location: https://github.com/dmjio/miso
-  tag: f7d66e9f0a4c56d43cb02752f81f70b635684f6d
+  tag: a138676dd0151eb13155c3e0f553eb41ae85e158
