@@ -38,6 +38,14 @@ pkgs.stdenv.mkDerivation {
       cp static/index.js $out/
     fi
 
+    if [ -f static/output.css ]; then
+      cp static/output.css $out/
+    fi
+
+    if [ -f static/basecoat.cdn.min.js ]; then
+      cp static/basecoat.cdn.min.js $out/
+    fi
+
     echo "Frontend static files packaged to $out"
     ls -lah $out/
   '';
