@@ -11,16 +11,17 @@ import Miso.String (MisoString)
 -- | Main page layout with banner, navigation, scrollable content, and footer
 --
 -- Structure:
--- - Nav banner at top (fixed, with title and navigation items)
+-- - Nav banner at top (fixed, with title, focused user view, and navigation items)
 -- - Content area (flex-1, fills available space)
 -- - Footer at bottom (fixed, always visible)
 mainPage
-  :: MisoString -- ^ Page title (shown in banner)
-  -> [M.View m a] -- ^ Navigation items (buttons)
+  :: MisoString -- ^ Page title (shown in banner, left-aligned)
+  -> M.View m a -- ^ Focused user view (right-aligned in header)
+  -> [M.View m a] -- ^ Navigation items (buttons, centered below title)
   -> M.View m a -- ^ Main content
   -> M.View m a -- ^ Footer content
   -> M.View m a
-mainPage title navItems content footerContent =
+mainPage title focusedUserView navItems content footerContent =
   M.div_
     [class_ "h-screen flex flex-col"]
     [ navBanner
@@ -31,11 +32,14 @@ mainPage title navItems content footerContent =
     navBanner =
       M.nav_
         [class_ "bg-primary text-primary-foreground px-4 py-3 flex-shrink-0"]
-        [ M.div_
-            [class_ "space-y-2 text-center"]
+        [ -- Top row: title left, focused user right (centered, max-width constrained)
+          M.div_
+            [class_ "max-w-4xl mx-auto w-full flex items-center justify-between mb-2"]
             [ M.h1_ [class_ "text-2xl font-bold"] [M.text title]
-            , M.div_ [class_ "flex flex-wrap gap-2 justify-center"] navItems
+            , focusedUserView
             ]
+        , -- Bottom row: navigation buttons centered
+          M.div_ [class_ "flex flex-wrap gap-2 justify-center"] navItems
         ]
 
     contentArea =

@@ -20,11 +20,18 @@ module Competences.Frontend.SyncDocument
   , mkSyncDocumentEnv
   , nextId
   , isInitialUpdate
+    -- * Focused User
+  , FocusedUserState (..)
+  , FocusedUserChange (..)
+  , subscribeFocusedUser
+  , setFocusedUser
+  , readFocusedUser
   )
 where
 
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
+import Competences.Document.User (isStudent)
 import Competences.Document.Id (Id (..))
 import Competences.Frontend.WebSocket (WebSocketConnection, sendMessage)
 import Competences.Protocol (ClientMessage (..))
@@ -73,11 +80,30 @@ isInitialUpdate _ = False
 data ChangedHandler where
   ChangedHandler :: forall a. (DocumentChange -> a) -> (M.Sink a) -> ChangedHandler
 
+-- | State for the focused user feature, bundled in a single MVar
+-- to avoid race conditions between handler registration and notifications
+data FocusedUserState = FocusedUserState
+  { focusedUser :: !(Maybe User)
+  , onFocusedUserChanged :: !(Map.Map Int FocusedUserHandler)
+  , nextFocusedUserHandlerId :: !Int
+  }
+  deriving (Generic)
+
+data FocusedUserHandler where
+  FocusedUserHandler :: forall a. (FocusedUserChange -> a) -> (M.Sink a) -> FocusedUserHandler
+
+data FocusedUserChange = FocusedUserChange
+  { user :: !(Maybe User)
+  , isInitial :: !Bool
+  }
+  deriving (Eq, Show, Generic)
+
 data SyncDocumentRef = SyncDocumentRef
   { syncDocument :: MVar SyncDocument
   , randomGen :: MVar StdGen
   , env :: !SyncDocumentEnv
   , webSocket :: MVar (Maybe WebSocketConnection)
+  , focusedUserState :: MVar FocusedUserState
   }
 
 data SyncDocumentEnv = SyncDocumentEnv
@@ -91,14 +117,16 @@ mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
   randomGen <- newStdGen >>= newMVar
   webSocket <- newMVar Nothing
-  pure $ SyncDocumentRef syncDocument randomGen env webSocket
+  focusedUserState <- newMVar $ mkFocusedUserState env.connectedUser
+  pure $ SyncDocumentRef syncDocument randomGen env webSocket focusedUserState
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncDocumentRef
 mkSyncDocument' env randomGen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
   randomGen' <- newMVar randomGen
   webSocket <- newMVar Nothing
-  pure $ SyncDocumentRef syncDocument randomGen' env webSocket
+  focusedUserState <- newMVar $ mkFocusedUserState env.connectedUser
+  pure $ SyncDocumentRef syncDocument randomGen' env webSocket focusedUserState
 
 readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
 readSyncDocument = readMVar . (.syncDocument)
@@ -318,3 +346,53 @@ rejectCommand d cmd = do
 
   -- If we cleared pendingCommand, try to send next
   when shouldSendNext $ trySendNextCommand d
+
+-- | Get initial focused user based on role
+initialFocusedUser :: User -> Maybe User
+initialFocusedUser u
+  | isStudent u = Just u  -- Students always focus themselves
+  | otherwise = Nothing   -- Teachers start with no focus
+
+-- | Create initial focused user state
+mkFocusedUserState :: User -> FocusedUserState
+mkFocusedUserState u = FocusedUserState
+  { focusedUser = initialFocusedUser u
+  , onFocusedUserChanged = Map.empty
+  , nextFocusedUserHandlerId = 0
+  }
+
+-- | Subscribe to focused user changes
+subscribeFocusedUser :: forall a. SyncDocumentRef -> (FocusedUserChange -> a) -> M.Sink a -> IO ()
+subscribeFocusedUser r f sink = createSub acquire release sink
+  where
+    acquire = do
+      modifyMVar r.focusedUserState $ \s -> do
+        let handlerId = s.nextFocusedUserHandlerId
+            handler = FocusedUserHandler f sink
+            newState = s
+              { onFocusedUserChanged = Map.insert handlerId handler s.onFocusedUserChanged
+              , nextFocusedUserHandlerId = handlerId + 1
+              }
+        -- Send initial value
+        sink $ f $ FocusedUserChange s.focusedUser True
+        pure (newState, handlerId)
+    release handlerId =
+      modifyMVar_ r.focusedUserState $ \s ->
+        pure s { onFocusedUserChanged = Map.delete handlerId s.onFocusedUserChanged }
+
+-- | Set the focused user (only works for teachers; no-op for students)
+setFocusedUser :: SyncDocumentRef -> Maybe User -> IO ()
+setFocusedUser r newUser = do
+  -- Check if connected user is a student (cannot change focus)
+  if isStudent r.env.connectedUser
+    then pure ()  -- No-op for students
+    else modifyMVar_ r.focusedUserState $ \s -> do
+      let change = FocusedUserChange newUser False
+      -- Notify all handlers
+      forM_ (Map.elems s.onFocusedUserChanged) $ \(FocusedUserHandler f sink) ->
+        sink (f change)
+      pure s { focusedUser = newUser }
+
+-- | Read current focused user
+readFocusedUser :: (MonadIO m) => SyncDocumentRef -> m (Maybe User)
+readFocusedUser r = liftIO $ (.focusedUser) <$> readMVar r.focusedUserState

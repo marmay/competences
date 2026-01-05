@@ -10,22 +10,18 @@ import Competences.Document.Evidence
   ( Evidence (..)
   , mkEvidence
   )
-import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
-import Competences.Frontend.Component.Selector.UserSelector
-  ( UserSelectorConfig (..)
-  , defaultUserSelectorConfig
-  , searchableSingleUserSelectorComponent
-  )
+-- Note: User selector removed - now uses global focused user from nav bar
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
+  , FocusedUserChange (..)
   , SyncDocumentEnv (..)
   , SyncDocumentRef
   , modifySyncDocument
   , nextId
   , subscribeDocument
+  , subscribeFocusedUser
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
@@ -33,12 +29,12 @@ import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy (..))
+import Data.Time (Day, addDays)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
-import Data.Time (Day, addDays)
-import Data.Proxy (Proxy(..))
 
 data DateRange
   = Today
@@ -47,7 +43,7 @@ data DateRange
   deriving (Eq, Show)
 
 data Model = Model
-  { filteredUser :: !(Maybe User)
+  { focusedUser :: !(Maybe User)  -- From global focused user subscription
   , filteredDateRange :: !DateRange
   , allEvidences :: Ix.IxSet EvidenceIxs Evidence
   , userNames :: Map.Map UserId M.MisoString
@@ -60,6 +56,7 @@ data Action
   = SelectEvidence !Evidence
   | CreateNewEvidence
   | UpdateDocument !DocumentChange
+  | FocusedUserChanged !FocusedUserChange
   deriving (Eq, Show)
 
 evidenceSelectorComponent
@@ -67,7 +64,10 @@ evidenceSelectorComponent
 evidenceSelectorComponent r parentLens =
   (M.component model update view)
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedEvidence]
-    , M.subs = [subscribeDocument r UpdateDocument]
+    , M.subs =
+        [ subscribeDocument r UpdateDocument
+        , subscribeFocusedUser r FocusedUserChanged
+        ]
     }
   where
     model = Model Nothing AllTime Ix.empty Map.empty Nothing Nothing
@@ -83,6 +83,8 @@ evidenceSelectorComponent r parentLens =
       modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Modify evidenceId Cmd.Lock)
       s (SelectEvidence evidence)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
+    update (FocusedUserChanged change) =
+      M.modify $ \m -> m & #focusedUser .~ change.user
 
     updateModel :: Document -> Model -> Model
     updateModel d m =
@@ -110,13 +112,6 @@ evidenceSelectorComponent r parentLens =
         )
         [ SL.selectorHeader (C.translate' C.LblSelectEvidences) (Just CreateNewEvidence)
         , V.component
-            "evidence-selector-users"
-            ( searchableSingleUserSelectorComponent
-                r
-                defaultUserSelectorConfig {isPossibleUser = isStudent}
-                (selectorLens #filteredUser)
-            )
-        , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'
                 AllTime
@@ -133,8 +128,9 @@ evidenceSelectorComponent r parentLens =
             AllTime -> id
             ThisWeek -> (Ix.@>= (addDays (-7) $ syncDocumentEnv r ^. #currentDay))
             Today -> (Ix.@= (syncDocumentEnv r ^. #currentDay))
+          -- Use global focused user for filtering (from nav bar)
           filteredEvidences =
-            Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.filteredUser)
+            Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.focusedUser)
        in SL.selectorList (map (viewEvidence m) filteredEvidences)
 
     viewEvidence m e =

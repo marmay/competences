@@ -94,7 +94,7 @@ statisticsOverviewComponent docRef =
     view m =
       V.viewFlow
         (V.vFlow & (#extraAttrs .~ [class_ "h-full min-h-0 overflow-y-auto"]))
-        [V.centeredContent $ Typography.h2 (C.translate' C.LblStatisticsOverview), table]
+        [Typography.h2 (C.translate' C.LblStatisticsOverview), table]
       where
         table =
           V.viewTable $
