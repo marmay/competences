@@ -41,6 +41,7 @@ data ModifyCommand patch
 -- | Generic entity command - create, delete, or modify
 data EntityCommand a patch
   = Create !a
+  | CreateAndLock !a
   | Delete !(Id a)
   | Modify !(Id a) !(ModifyCommand patch)
   deriving (Eq, Generic, Show)

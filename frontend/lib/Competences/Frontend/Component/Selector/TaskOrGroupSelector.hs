@@ -87,7 +87,7 @@ taskOrGroupSelectorComponent r parentLens =
             , content = Nothing
             , taskType = SelfContained defaultTaskAttributes
             }
-      modifySyncDocument r $ Tasks (OnTasks (Create newTask))
+      modifySyncDocument r $ Tasks (OnTasks (CreateAndLock newTask))
       s CloseDropdown
       s (SelectItem $ SelectableTask newTask)
 
@@ -100,7 +100,7 @@ taskOrGroupSelectorComponent r parentLens =
             , contentBefore = Nothing
             , contentAfter = Nothing
             }
-      modifySyncDocument r $ Tasks (OnTaskGroups (Create newGroup))
+      modifySyncDocument r $ Tasks (OnTaskGroups (CreateAndLock newGroup))
       s CloseDropdown
       s (SelectItem $ SelectableGroup newGroup)
 

@@ -3,7 +3,7 @@ module Competences.Frontend.Component.UserListEditor
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), UsersCommand (..), UserPatch (..))
+import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..), UserPatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.User (Office365Id (..))
@@ -57,8 +57,7 @@ userListEditorComponent r =
               , role = Student
               , office365Id = Office365Id ""
               }
-      modifySyncDocument r (Users $ OnUsers $ Create user)
-      modifySyncDocument r (Users $ OnUsers $ Modify userId Lock)
+      modifySyncDocument r (Users $ OnUsers $ CreateAndLock user)
 
     view :: StaticView Action
     view =

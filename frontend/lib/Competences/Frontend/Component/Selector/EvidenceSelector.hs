@@ -81,8 +81,7 @@ evidenceSelectorComponent r style parentLens =
       evidenceId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let evidence = mkEvidence evidenceId today
-      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Create evidence)
-      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Modify evidenceId Cmd.Lock)
+      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
       s (SelectEvidence evidence)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
     update (FocusedUserChanged change) =
