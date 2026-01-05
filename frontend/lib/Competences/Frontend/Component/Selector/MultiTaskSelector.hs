@@ -7,6 +7,7 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Task (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
+import Data.Proxy (Proxy (..))
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
@@ -28,9 +29,9 @@ import Optics.Core qualified as O
 -- TASK SELECTOR CONFIG
 -- ============================================================================
 
--- | Get all tasks from the document (both self-contained and subtasks)
+-- | Get all tasks from the document (both self-contained and subtasks), sorted by identifier
 listAllTasks :: Document -> [Task]
-listAllTasks d = Ix.toList d.tasks
+listAllTasks d = Ix.toAscList (Proxy @TaskIdentifier) d.tasks
 
 -- | Show task identifier for display
 showTask :: Task -> M.MisoString
