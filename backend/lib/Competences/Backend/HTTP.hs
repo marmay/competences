@@ -196,7 +196,9 @@ findUserByEmail appState email = do
   pure $ Ix.getOne $ doc.users Ix.@= o365Id
 
 -- | Content Security Policy header value
--- Restricts script/style sources to prevent XSS attacks
+-- Restricts script/style sources to prevent XSS attacks.
+-- Note: frame-ancestors must be delivered via HTTP header, not meta tag.
+-- For clickjacking protection, consider adding X-Frame-Options header.
 cspHeaderValue :: Text
 cspHeaderValue = T.intercalate "; "
   [ "default-src 'self'"
@@ -205,7 +207,6 @@ cspHeaderValue = T.intercalate "; "
   , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
   , "img-src 'self' data:"               -- Allow data URIs for images
   , "font-src 'self'"
-  , "frame-ancestors 'none'"             -- Prevent clickjacking
   , "base-uri 'self'"                    -- Prevent base tag injection
   , "form-action 'self'"                 -- Restrict form submissions
   ]
