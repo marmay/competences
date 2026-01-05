@@ -202,7 +202,7 @@ findUserByEmail appState email = do
 cspHeaderValue :: Text
 cspHeaderValue = T.intercalate "; "
   [ "default-src 'self'"
-  , "script-src 'self' 'unsafe-inline'"  -- unsafe-inline needed for embedded JWT
+  , "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"  -- unsafe-inline for JWT, wasm-unsafe-eval for WASM
   , "style-src 'self' 'unsafe-inline'"   -- unsafe-inline needed for inline styles
   , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
   , "img-src 'self' data:"               -- Allow data URIs for images
