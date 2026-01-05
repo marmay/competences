@@ -161,6 +161,9 @@ data Label
   | LblDeselectAll
   | LblView
   | LblEvaluate
+  | LblFocusedStudent
+  | LblNoStudentFocused
+  | LblAllStudents
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -270,6 +273,9 @@ labels' =
   , LblDeselectAll
   , LblView
   , LblEvaluate
+  , LblFocusedStudent
+  , LblNoStudentFocused
+  , LblAllStudents
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -392,6 +398,9 @@ defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"
 defaultTranslation LblEvaluate = "Auswerten"
+defaultTranslation LblFocusedStudent = "Fokussierter Schüler"
+defaultTranslation LblNoStudentFocused = "Kein Schüler fokussiert"
+defaultTranslation LblAllStudents = "Alle Schüler"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

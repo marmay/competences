@@ -26,29 +26,25 @@ import Competences.Document.Evidence
   , SocialForm (..)
   )
 import Competences.Document.Order (orderPosition)
-import Competences.Document.User (User (..), isStudent)
+import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (translateReorder')
-import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.CompetenceGridSelector
   ( CompetenceGridSelectorStyle (..)
   , competenceGridSelectorComponent
   )
-import Competences.Frontend.Component.Selector.UserSelector
-  ( UserSelectorConfig (..)
-  , defaultUserSelectorConfig
-  , searchableSingleUserSelectorComponent
-  )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
+  , FocusedUserChange (..)
   , SyncDocumentRef
   , modifySyncDocument
   , nextId
   , subscribeDocument
+  , subscribeFocusedUser
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
@@ -131,12 +127,14 @@ competenceGridComponent r initialMode availableModes =
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
   { document :: !Document
-  , selectedUser :: !(Maybe User)
+  , focusedUser :: !(Maybe User)  -- From global focused user subscription
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the viewer detail component
-newtype ViewerAction = ViewerUpdateDocument DocumentChange
+data ViewerAction
+  = ViewerUpdateDocument !DocumentChange
+  | ViewerFocusedUserChanged !FocusedUserChange
   deriving (Eq, Show)
 
 -- | View for the viewer detail - shows competence grid with student evidence
@@ -152,13 +150,19 @@ viewerDetailView r grid =
 viewerComponent :: SyncDocumentRef -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
 viewerComponent r grid =
   (M.component model update view)
-    { M.subs = [subscribeDocument r ViewerUpdateDocument]
+    { M.subs =
+        [ subscribeDocument r ViewerUpdateDocument
+        , subscribeFocusedUser r ViewerFocusedUserChanged
+        ]
     }
   where
     model = ViewerModel emptyDocument Nothing
 
     update (ViewerUpdateDocument (DocumentChange doc _)) =
       M.modify $ #document .~ doc
+
+    update (ViewerFocusedUserChanged change) =
+      M.modify $ #focusedUser .~ change.user
 
     view m =
       V.viewFlow
@@ -167,36 +171,18 @@ viewerComponent r grid =
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ header m
+        [ header
         , description
         , competencesTable m
         ]
       where
-        header _ =
-          V.viewFlow
-            ( V.hFlow
-                & (#gap .~ V.MediumSpace)
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#expandOrthogonal .~ V.Expand V.Center)
-            )
-            [ Typography.h2 (M.ms grid.title)
-            , V.flowSpring
-            , userSelector
-            ]
+        -- User selector removed - now uses global focused user from nav bar
+        header = Typography.h2 (M.ms grid.title)
 
         description = Typography.paragraph (M.ms grid.description)
 
-        userSelector =
-          V.component
-            "competence-grid-viewer-user-selector"
-            ( searchableSingleUserSelectorComponent
-                r
-                defaultUserSelectorConfig {isPossibleUser = isStudent}
-                (selectorLens #selectedUser)
-            )
-
         competencesTable vm =
-          let evidences = case vm.selectedUser of
+          let evidences = case vm.focusedUser of
                 Just user -> vm.document.evidences Ix.@= user.id
                 Nothing -> Ix.empty
            in V.viewTable $
