@@ -5,7 +5,7 @@ where
 
 import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..), UserId)
+import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..))
 import Competences.Document.Evidence
   ( Evidence (..)
   , mkEvidence
@@ -25,15 +25,12 @@ import Competences.Frontend.SyncDocument
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SL
-import Competences.Frontend.View.Tailwind (class_)
-import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Time (Day, addDays)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
 
 data DateRange
@@ -46,7 +43,6 @@ data Model = Model
   { focusedUser :: !(Maybe User)  -- From global focused user subscription
   , filteredDateRange :: !DateRange
   , allEvidences :: Ix.IxSet EvidenceIxs Evidence
-  , userNames :: Map.Map UserId M.MisoString
   , selectedEvidence :: !(Maybe Evidence)
   , newEvidence :: !(Maybe Evidence)
   }
@@ -70,7 +66,7 @@ evidenceSelectorComponent r parentLens =
         ]
     }
   where
-    model = Model Nothing AllTime Ix.empty Map.empty Nothing Nothing
+    model = Model Nothing AllTime Ix.empty Nothing Nothing
     update (SelectEvidence e) =
       M.modify $ \m -> case Ix.getOne (m.allEvidences Ix.@= e.id) of
         Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing)
@@ -89,7 +85,6 @@ evidenceSelectorComponent r parentLens =
     updateModel :: Document -> Model -> Model
     updateModel d m =
       let allEvidences' = d.evidences
-          userNames' = Map.fromList $ map (\u -> (u.id, M.ms u.name)) (Ix.toList d.users)
           validateEvidence e = do
             e' <- e
             Ix.getOne $ allEvidences' Ix.@= e'.id
@@ -98,7 +93,6 @@ evidenceSelectorComponent r parentLens =
             (s, n) -> (s, n)
        in m
             { allEvidences = allEvidences'
-            , userNames = userNames'
             , selectedEvidence = selectedEvidence'
             , newEvidence = newEvidence'
             }
@@ -135,19 +129,8 @@ evidenceSelectorComponent r parentLens =
 
     viewEvidence m e =
       let isSelected = m.selectedEvidence == Just e || m.newEvidence == Just e
-          userName = maybe "" (\uid -> fromMaybe "" (Map.lookup uid m.userNames)) e.userId
-       in SL.selectorItemMultiLine
-            isSelected
-            [ M.div_
-                [class_ "flex items-center justify-between text-sm"]
-                [ M.text (C.formatDay e.date)
-                , M.text (C.translate' $ C.LblActivityTypeDescription e.activityType)
-                ]
-            , M.div_
-                [class_ "text-xs text-muted-foreground truncate"]
-                [M.text userName]
-            ]
-            (SelectEvidence e)
+          label = C.formatDay e.date <> " — " <> C.translate' (C.LblActivityTypeDescription e.activityType)
+       in SL.selectorItem isSelected IcnEvidence label (SelectEvidence e)
 
     translateDateRange Today = C.translate' C.LblToday
     translateDateRange ThisWeek = C.translate' C.LblThisWeek
