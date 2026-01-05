@@ -128,7 +128,7 @@ mkApp r =
         ManageUsers -> manageUsers
 
     competenceGrid = mounted CompetenceGrid $ competenceGridComponent r defaultGridMode availableGridModes
-    defaultGridMode = if isTeacher model.connectedUser then GridEdit else GridView
+    defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
         then GridView :| [GridEdit]
