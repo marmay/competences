@@ -11,8 +11,13 @@ const fds = [
 const options = { debug: false };
 const wasi = new WASI(args, env, fds, options);
 
+// Build WASM URL with cache-busting hash if available
+const wasmHash = window.COMPETENCES_WASM_HASH || '';
+const wasmUrl = wasmHash ? `/static/app.wasm?v=${wasmHash}` : '/static/app.wasm';
+console.log(`Loading WASM from: ${wasmUrl}`);
+
 const instance_exports = {};
-const { instance } = await WebAssembly.instantiateStreaming(fetch("/static/app.wasm"), {
+const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
   wasi_snapshot_preview1: wasi.wasiImport,
   ghc_wasm_jsffi: ghc_wasm_jsffi(instance_exports),
 });

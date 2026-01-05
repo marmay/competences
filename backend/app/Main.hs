@@ -2,6 +2,7 @@ module Main where
 
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
+import Competences.Backend.HashedFile (withHashedFile)
 import Competences.Backend.HTTP (appAPI, server)
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
@@ -177,14 +178,16 @@ main = do
   putStrLn "Press Ctrl+C to stop"
   hFlush stdout
 
-  -- Run server with graceful shutdown
-  flip finally (gracefulShutdown state pool instanceId shutdown) $ do
-    let httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir)
-    run opts.port $
-      websocketsOr
-        defaultConnectionOptions
-        (wsHandler state jwtSecret)
-        httpApp
+  -- Run server with file watcher for cache busting and graceful shutdown
+  let wasmPath = opts.staticDir <> "/app.wasm"
+  withHashedFile wasmPath $ \wasmHashRef ->
+    flip finally (gracefulShutdown state pool instanceId shutdown) $ do
+      let httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir wasmHashRef)
+      run opts.port $
+        websocketsOr
+          defaultConnectionOptions
+          (wsHandler state jwtSecret)
+          httpApp
 
 -- | Replay commands on top of a document
 -- Returns error if any command fails to apply

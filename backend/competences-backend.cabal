@@ -27,6 +27,7 @@ library
         Competences.Backend.Database
         Competences.Backend.Eff.Db
         Competences.Backend.Envelope
+        Competences.Backend.HashedFile
         Competences.Backend.HTTP
         Competences.Backend.State
         Competences.Backend.WebSocket
@@ -38,9 +39,11 @@ library
         competences-common,
         containers,
         cookie,
+        cryptonite,
         directory,
         effectful,
         filepath,
+        fsnotify,
         http-client,
         http-client-tls,
         http-types,
@@ -48,6 +51,7 @@ library
         hslogger,
         jwt,
         ixset-typed,
+        memory,
         optics-core,
         optparse-applicative,
         postgresql-simple >= 0.7.0.1,

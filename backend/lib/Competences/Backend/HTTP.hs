@@ -16,6 +16,7 @@ import Competences.Backend.Auth
   , generateJWT
   , getUserInfo
   )
+import Competences.Backend.HashedFile (FileHashRef, readFileHash)
 import Competences.Backend.State (AppState, getDocument)
 import Competences.Document (Document (..), User (..))
 import Competences.Document.User (Office365Id (..))
@@ -70,10 +71,10 @@ type AppAPI =
 appAPI :: Proxy AppAPI
 appAPI = Proxy
 
-server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> Servant.Server AppAPI
-server state oauth2Config jwtSecret staticDir =
+server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FileHashRef -> Servant.Server AppAPI
+server state oauth2Config jwtSecret staticDir wasmHashRef =
   oauthInitHandler oauth2Config
-    :<|> oauthCallbackHandler state oauth2Config jwtSecret
+    :<|> oauthCallbackHandler state oauth2Config jwtSecret wasmHashRef
     :<|> serveDirectoryWebApp staticDir
 
 -- | Cookie name for OAuth state parameter
@@ -125,8 +126,8 @@ getAuthorizationUrlWithState config state =
 
 -- | OAuth callback - exchange code for token and serve frontend with JWT
 -- Validates state parameter to prevent CSRF attacks
-oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
-oauthCallbackHandler appState oauth2Config jwtSecret maybeCode maybeState maybeCookie = do
+oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FileHashRef -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
+oauthCallbackHandler appState oauth2Config jwtSecret wasmHashRef maybeCode maybeState maybeCookie = do
   -- Validate state parameter (CSRF protection)
   stateFromQuery <- case maybeState of
     Nothing -> throwError err400 {errBody = "Missing state parameter"}
@@ -173,8 +174,11 @@ oauthCallbackHandler appState oauth2Config jwtSecret maybeCode maybeState maybeC
   -- Generate JWT
   jwt <- liftIO $ generateJWT jwtSecret user
 
+  -- Read current WASM hash (may have been updated by file watcher)
+  wasmHash <- liftIO $ readFileHash wasmHashRef
+
   -- Serve frontend HTML with JWT embedded
-  pure $ renderFrontendHTML jwt
+  pure $ renderFrontendHTML jwt wasmHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -206,9 +210,9 @@ cspHeaderValue = T.intercalate "; "
   , "form-action 'self'"                 -- Restrict form submissions
   ]
 
--- | Render frontend HTML with JWT embedded
-renderFrontendHTML :: Text -> Html
-renderFrontendHTML jwt = H.docTypeHtml $ do
+-- | Render frontend HTML with JWT and WASM hash embedded
+renderFrontendHTML :: Text -> Text -> Html
+renderFrontendHTML jwt wasmHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -222,7 +226,9 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
     H.link ! A.rel "stylesheet" ! A.href "/static/output.css"
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
-      \window.COMPETENCES_JWT = '" <> jwt <> "';"
+      \window.COMPETENCES_JWT = '" <> jwt <> "';\n\
+      \// WASM hash for cache busting\n\
+      \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';"
   H.body ! A.class_ "theme-claude" $ do
     -- Load application code
     H.script ! A.src "/static/index.js" ! A.type_ "module" $ ""
