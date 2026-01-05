@@ -12,7 +12,10 @@ import GHC.Generics (Generic)
 
 -- | Messages sent from client to server over WebSocket.
 data ClientMessage
-  = -- | Send a command to be validated and applied by the server.
+  = -- | Authenticate with JWT token (must be first message after connection).
+    -- Removes token from URL to prevent logging in server logs, browser history, etc.
+    Authenticate !Text
+  | -- | Send a command to be validated and applied by the server.
     SendCommand !Command
   | -- | Keep-alive ping to prevent connection timeout.
     KeepAlive
@@ -24,7 +27,9 @@ instance ToJSON ClientMessage
 
 -- | Messages sent from server to client over WebSocket.
 data ServerMessage
-  = -- | Initial document snapshot sent upon connection establishment.
+  = -- | Authentication failed - connection will be closed after this message.
+    AuthenticationFailed !Text
+  | -- | Initial document snapshot sent upon successful authentication.
     -- Includes the authenticated user making the connection.
     InitialSnapshot !Document !User
   | -- | Command successfully applied by server (echo or broadcast).

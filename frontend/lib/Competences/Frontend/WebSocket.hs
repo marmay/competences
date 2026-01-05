@@ -6,7 +6,7 @@ module Competences.Frontend.WebSocket
   )
 where
 
-import Competences.Protocol (ClientMessage, ServerMessage)
+import Competences.Protocol (ClientMessage (..), ServerMessage)
 import Data.Aeson (decode, encode)
 import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
@@ -33,19 +33,21 @@ getJWTToken = do
   jsg "window" ! "COMPETENCES_JWT" >>= fromJSVal @Text
 
 -- | Connect to WebSocket server with JWT token
+-- Security: Token is sent as first message after connection, NOT in URL
+-- This prevents token from appearing in server logs, browser history, proxy logs
 connectWebSocket
   :: Text
   -> Text
   -> (ServerMessage -> IO ())
   -> IO WebSocketConnection
 connectWebSocket wsUrl jwtToken onMessage = do
-  -- Build WebSocket URL with token query parameter
-  let url = wsUrl <> "?token=" <> jwtToken
+  -- Connect WITHOUT token in URL (security improvement)
+  -- Token will be sent as first message after connection established
 
   -- Create WebSocket connection using 'new' constructor
   webSocket <- jsg "WebSocket"
-  M.consoleLog $ "Establishing WebSocket connection with " <> M.ms url
-  ws <- new webSocket [url]
+  M.consoleLog $ "Establishing WebSocket connection with " <> M.ms wsUrl
+  ws <- new webSocket [wsUrl]
 
   -- Set up onmessage handler
   _ <- ws `addEventListener` "message" $ \msgEvent -> do
@@ -55,9 +57,15 @@ connectWebSocket wsUrl jwtToken onMessage = do
       Nothing -> M.consoleLog $ M.ms $ "Failed to decode message: " <> T.unpack msgText
       Just serverMsg -> onMessage serverMsg
 
-  -- Set up onopen handler
+  -- Set up onopen handler - send authentication as first message
   _ <- ws `addEventListener` "open" $ \_ -> do
-    M.consoleLog "WebSocket connected"
+    M.consoleLog "WebSocket connected, sending authentication..."
+    -- Send JWT token as first message (not in URL for security)
+    let authMsg = Authenticate jwtToken
+        jsonStr = decodeUtf8 $ BL.toStrict $ encode authMsg
+    jsonVal <- toJSVal jsonStr
+    _ <- ws # "send" $ [jsonVal]
+    M.consoleLog "Authentication message sent"
 
   -- Set up onerror handler
   _ <- ws `addEventListener` "error" $ \_ -> do

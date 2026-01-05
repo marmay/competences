@@ -10,29 +10,31 @@ where
 
 import Competences.Backend.Auth
   ( JWTSecret
-  , OAuth2Config
+  , OAuth2Config (..)
   , Office365User (..)
   , exchangeCodeForToken
   , generateJWT
-  , getAuthorizationUrl
   , getUserInfo
   )
 import Competences.Backend.State (AppState, getDocument)
 import Competences.Document (Document (..), User (..))
 import Competences.Document.User (Office365Id (..))
 import Control.Monad.IO.Class (liftIO)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import Network.HTTP.Types (urlEncode)
 import Servant
   ( (:<|>) (..)
   , (:>)
   , Get
   , Handler
   , Header
-  , Headers
   , Proxy (..)
   , QueryParam
   , Raw
@@ -50,12 +52,18 @@ import Servant.API (NoContent (..))
 import Text.Blaze.Html5 (Html, (!))
 import Text.Blaze.Html5 qualified as H
 import Text.Blaze.Html5.Attributes qualified as A
+import Web.Cookie (SetCookie (..), defaultSetCookie, renderSetCookieBS, parseCookies)
 
 type AppAPI =
-  -- OAuth initiation - redirect to Office365
-  Get '[HTML] (Headers '[Header "Location" Text] NoContent)
+  -- OAuth initiation - redirect to Office365 with state parameter for CSRF protection
+  -- (Headers set via throwError err302 with custom errHeaders)
+  Get '[HTML] NoContent
     -- OAuth callback - exchange code for token and serve frontend
-    :<|> "oauth" :> "callback" :> QueryParam "code" Text :> Get '[HTML] Html
+    :<|> "oauth" :> "callback"
+           :> QueryParam "code" Text
+           :> QueryParam "state" Text
+           :> Header "Cookie" Text
+           :> Get '[HTML] Html
     -- Static files
     :<|> "static" :> Raw
 
@@ -68,15 +76,70 @@ server state oauth2Config jwtSecret staticDir =
     :<|> oauthCallbackHandler state oauth2Config jwtSecret
     :<|> serveDirectoryWebApp staticDir
 
--- | Redirect to Office365 login
-oauthInitHandler :: OAuth2Config -> Handler (Headers '[Header "Location" Text] NoContent)
+-- | Cookie name for OAuth state parameter
+oauthStateCookieName :: BS.ByteString
+oauthStateCookieName = "oauth_state"
+
+-- | Redirect to Office365 login with CSRF protection via state parameter
+oauthInitHandler :: OAuth2Config -> Handler NoContent
 oauthInitHandler config = do
-  let authUrl = getAuthorizationUrl config
-  throwError err302 {errHeaders = [("Location", encodeUtf8 authUrl)]}
+  -- Generate random state for CSRF protection
+  state <- liftIO $ UUID.toText <$> UUID.nextRandom
+
+  -- Build authorization URL with state parameter
+  let authUrl = getAuthorizationUrlWithState config state
+
+  -- Create cookie with state value (HttpOnly for security)
+  -- Note: SameSite=Lax is the browser default for cookies without SameSite set
+  let cookie = defaultSetCookie
+        { setCookieName = oauthStateCookieName
+        , setCookieValue = encodeUtf8 state
+        , setCookiePath = Just "/oauth/callback"
+        , setCookieHttpOnly = True
+        }
+      cookieBS = renderSetCookieBS cookie
+
+  -- Redirect with state cookie
+  throwError err302
+    { errHeaders =
+        [ ("Location", encodeUtf8 authUrl)
+        , ("Set-Cookie", cookieBS)
+        ]
+    }
+
+
+-- | Build OAuth authorization URL with state parameter
+getAuthorizationUrlWithState :: OAuth2Config -> Text -> Text
+getAuthorizationUrlWithState config state =
+  T.concat
+    [ "https://login.microsoftonline.com/"
+    , config.tenantId
+    , "/oauth2/v2.0/authorize?"
+    , "client_id=" <> config.clientId
+    , "&response_type=code"
+    , "&redirect_uri=" <> config.redirectUri
+    , "&response_mode=query"
+    , "&scope=openid%20profile%20email%20User.Read"
+    , "&state=" <> decodeUtf8 (urlEncode False (encodeUtf8 state))
+    ]
 
 -- | OAuth callback - exchange code for token and serve frontend with JWT
-oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> Maybe Text -> Handler Html
-oauthCallbackHandler state oauth2Config jwtSecret maybeCode = do
+-- Validates state parameter to prevent CSRF attacks
+oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
+oauthCallbackHandler appState oauth2Config jwtSecret maybeCode maybeState maybeCookie = do
+  -- Validate state parameter (CSRF protection)
+  stateFromQuery <- case maybeState of
+    Nothing -> throwError err400 {errBody = "Missing state parameter"}
+    Just s -> pure s
+
+  stateFromCookie <- case extractStateFromCookie maybeCookie of
+    Nothing -> throwError err400 {errBody = "Missing or invalid state cookie"}
+    Just s -> pure s
+
+  if stateFromQuery /= stateFromCookie
+    then throwError err400 {errBody = "State mismatch - possible CSRF attack"}
+    else pure ()
+
   code <- case maybeCode of
     Nothing -> throwError err400 {errBody = "Missing authorization code"}
     Just c -> pure c
@@ -98,7 +161,7 @@ oauthCallbackHandler state oauth2Config jwtSecret maybeCode = do
         Just m -> m
         Nothing -> o365User.userPrincipalName
 
-  userResult <- liftIO $ findUserByEmail state email
+  userResult <- liftIO $ findUserByEmail appState email
   user <- case userResult of
     Just u -> pure u
     Nothing -> throwError err400
@@ -113,12 +176,35 @@ oauthCallbackHandler state oauth2Config jwtSecret maybeCode = do
   -- Serve frontend HTML with JWT embedded
   pure $ renderFrontendHTML jwt
 
+-- | Extract state value from Cookie header
+-- Parses the Cookie header and looks for the oauth_state cookie
+extractStateFromCookie :: Maybe Text -> Maybe Text
+extractStateFromCookie Nothing = Nothing
+extractStateFromCookie (Just cookieHeader) =
+  let cookies = parseCookies (encodeUtf8 cookieHeader)
+   in decodeUtf8 <$> lookup oauthStateCookieName cookies
+
 -- | Find existing user by email address stored in office365Id field
 findUserByEmail :: AppState -> Text -> IO (Maybe User)
-findUserByEmail state email = do
-  doc <- getDocument state
+findUserByEmail appState email = do
+  doc <- getDocument appState
   let o365Id = Office365Id email
   pure $ Ix.getOne $ doc.users Ix.@= o365Id
+
+-- | Content Security Policy header value
+-- Restricts script/style sources to prevent XSS attacks
+cspHeaderValue :: Text
+cspHeaderValue = T.intercalate "; "
+  [ "default-src 'self'"
+  , "script-src 'self' 'unsafe-inline'"  -- unsafe-inline needed for embedded JWT
+  , "style-src 'self' 'unsafe-inline'"   -- unsafe-inline needed for inline styles
+  , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
+  , "img-src 'self' data:"               -- Allow data URIs for images
+  , "font-src 'self'"
+  , "frame-ancestors 'none'"             -- Prevent clickjacking
+  , "base-uri 'self'"                    -- Prevent base tag injection
+  , "form-action 'self'"                 -- Restrict form submissions
+  ]
 
 -- | Render frontend HTML with JWT embedded
 renderFrontendHTML :: Text -> Html
@@ -126,6 +212,9 @@ renderFrontendHTML jwt = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
+    -- Content Security Policy via meta tag
+    -- Prevents XSS attacks by restricting script/style sources
+    H.meta ! A.httpEquiv "Content-Security-Policy" ! A.content (H.toValue cspHeaderValue)
     H.title "Meine Mathe-Kompetenzen"
     -- Load Basecoat UI CSS first (provides component styles and default theme)
     H.link ! A.rel "stylesheet" ! A.href "/static/basecoat.cdn.min.css"

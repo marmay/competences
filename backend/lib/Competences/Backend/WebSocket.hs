@@ -1,7 +1,7 @@
 module Competences.Backend.WebSocket
   ( wsHandler
   , handleClient
-  , extractUserFromRequest
+  , extractUserFromJWT'
   )
 where
 
@@ -23,35 +23,42 @@ import Control.Monad (forever)
 import Data.Aeson (decode, encode)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8)
 import Network.WebSockets qualified as WS
 
 -- | WebSocket application handler
--- Validates JWT and delegates to handleClient
+-- Accepts connection first, then waits for authentication message
+-- This prevents JWT from appearing in URL (server logs, browser history, proxy logs)
 wsHandler :: AppState -> JWTSecret -> WS.ServerApp
 wsHandler state jwtSecret pending = do
-  case extractUserFromRequest jwtSecret pending of
-    Left err -> do
-      putStrLn $ "Authentication failed: " <> err
-      WS.rejectRequest pending "Authentication required"
-    Right (userId, userName, userRole, o365Id) -> do
-      conn <- WS.acceptRequest pending
-      WS.withPingThread conn 30 (pure ()) $ do
-        let user = User userId userName userRole o365Id
-        handleClient state userId user conn
+  -- Accept connection without authentication (auth will happen via first message)
+  conn <- WS.acceptRequest pending
+  WS.withPingThread conn 30 (pure ()) $ do
+    -- Wait for authentication message as first message
+    putStrLn "Waiting for authentication message..."
+    authMsg <- WS.receiveData conn
+    case decode authMsg of
+      Just (Authenticate token) -> do
+        case extractUserFromJWT' jwtSecret token of
+          Left err -> do
+            putStrLn $ "Authentication failed: " <> err
+            WS.sendTextData conn (encode $ AuthenticationFailed $ T.pack err)
+            -- Close connection after failed auth
+          Right (userId, userName, userRole, o365Id) -> do
+            let user = User userId userName userRole o365Id
+            putStrLn $ "Authentication successful for: " <> T.unpack userName
+            handleClient state userId user conn
+      Just _otherMsg -> do
+        putStrLn "First message must be Authenticate"
+        WS.sendTextData conn (encode $ AuthenticationFailed "First message must be authentication")
+      Nothing -> do
+        putStrLn "Invalid message format for authentication"
+        WS.sendTextData conn (encode $ AuthenticationFailed "Invalid message format")
 
--- | Extract and validate user from WebSocket request
-extractUserFromRequest :: JWTSecret -> WS.PendingConnection -> Either String (UserId, Text, UserRole, Office365Id)
-extractUserFromRequest jwtSecret pending = do
-  -- Extract JWT from request path (query parameter)
-  let path = WS.requestPath $ WS.pendingRequest pending
-  token <- case T.stripPrefix "/?token=" (decodeUtf8 path) of
-    Nothing -> Left "Missing token in request"
-    Just t -> Right t
-
-  -- Validate JWT
+-- | Validate JWT and extract user information
+extractUserFromJWT' :: JWTSecret -> Text -> Either String (UserId, Text, UserRole, Office365Id)
+extractUserFromJWT' jwtSecret token = do
+  -- Validate JWT signature
   claims <- validateJWT jwtSecret token
-
   -- Extract user info from claims
   extractUserFromJWT claims
 
@@ -85,6 +92,11 @@ handleClient state uid user conn = do
 -- | Handle individual client messages
 handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
 handleClientMessage state uid user clientMsg conn = case clientMsg of
+  Authenticate _ -> do
+    -- Authentication should only happen as the first message before handleClient is called
+    putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
+    -- Ignore - user is already authenticated
+
   SendCommand cmd -> do
     putStrLn $ "Received command from " <> show uid <> ": " <> show cmd
     -- Authorization check: currently all commands require Teacher role
