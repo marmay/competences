@@ -108,7 +108,11 @@ main = do
               -- Acknowledge keep-alive
               pure ()
 
-        
+            AuthenticationFailed reason -> do
+              M.consoleError $ M.ms $ "Authentication failed: " <> T.unpack reason
+              -- Redirect to root to trigger re-authentication
+              setField location "href" ("/" :: T.Text)
+
         -- Wait for first InitialSnapshot to arrive, then start app
         M.consoleLog $ "Waiting for setup to complete."
         (document, user) <- readMVar initialState
