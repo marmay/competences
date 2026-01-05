@@ -24,6 +24,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -176,14 +177,17 @@ evaluatorComponent r assignment =
       if null assignment.tasks
         then Typography.paragraph "Dieser Auftrag hat keine Aufgaben"
         else
-          M.div_
-            []
-            [ Typography.h2 "Auftrag auswerten"
-            , viewStudentSelection m
-            , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) assignment.tasks)
-            , viewAggregationSection m
-            , viewCreateEvidencesButton m
-            ]
+          let -- Sort tasks by identifier for consistent display order
+              sortedTaskIds = map (.id) $
+                Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ assignment.tasks
+           in M.div_
+                []
+                [ Typography.h2 "Auftrag auswerten"
+                , viewStudentSelection m
+                , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
+                , viewAggregationSection m
+                , viewCreateEvidencesButton m
+                ]
 
     viewStudentSelection m =
       let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.users)) (Set.toList assignment.studentIds)
