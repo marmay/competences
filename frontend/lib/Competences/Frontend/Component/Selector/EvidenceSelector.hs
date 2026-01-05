@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Selector.EvidenceSelector
   ( evidenceSelectorComponent
+  , EvidenceSelectorStyle (..)
   )
 where
 
@@ -33,6 +34,11 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
 
+data EvidenceSelectorStyle
+  = EvidenceSelectorViewOnly
+  | EvidenceSelectorViewAndCreate
+  deriving (Eq, Show)
+
 data DateRange
   = Today
   | ThisWeek
@@ -56,8 +62,8 @@ data Action
   deriving (Eq, Show)
 
 evidenceSelectorComponent
-  :: SyncDocumentRef -> Lens' p (Maybe Evidence) -> M.Component p Model Action
-evidenceSelectorComponent r parentLens =
+  :: SyncDocumentRef -> EvidenceSelectorStyle -> Lens' p (Maybe Evidence) -> M.Component p Model Action
+evidenceSelectorComponent r style parentLens =
   (M.component model update view)
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedEvidence]
     , M.subs =
@@ -104,7 +110,9 @@ evidenceSelectorComponent r parentLens =
             & (#expandDirection .~ V.Expand V.Start)
             & (#extraAttrs .~ [V.fullHeight])
         )
-        [ SL.selectorHeader (C.translate' C.LblSelectEvidences) (Just CreateNewEvidence)
+        [ SL.selectorHeader
+            (C.translate' C.LblSelectEvidences)
+            (if style == EvidenceSelectorViewAndCreate then Just CreateNewEvidence else Nothing)
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'
