@@ -37,6 +37,7 @@ library
         bytestring,
         competences-common,
         containers,
+        cookie,
         directory,
         effectful,
         filepath,
