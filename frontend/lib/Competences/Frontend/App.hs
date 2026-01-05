@@ -133,7 +133,7 @@ mkApp r =
       if isTeacher model.connectedUser
         then GridView :| [GridEdit]
         else GridView :| []
-    evidences = mounted Evidences $ evidenceEditorComponent r
+    evidences = mounted Evidences $ evidenceEditorComponent r (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent r
     viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
     manageAssignments = mounted ManageAssignments $ assignmentComponent r
