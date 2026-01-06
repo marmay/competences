@@ -96,7 +96,7 @@ taskGroupEditorComponent r group =
             , content = Nothing
             , taskType = SubTask group.id emptyOverride
             }
-      modifySyncDocument r $ Tasks (OnSubTasks (Create newSubTask))
+      modifySyncDocument r $ Tasks (OnSubTasks (CreateAndLock newSubTask))
       where
         emptyOverride = TaskAttributesOverride Nothing Nothing Nothing Nothing
 
