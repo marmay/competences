@@ -154,7 +154,7 @@ sideMenu :: M.View m a -> M.View m a -> M.View m a
 sideMenu side main =
   viewFlow
     (hFlow & (#extraAttrs .~ [class_ "flex-1 h-full"]))
-    [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 border-r border-border pr-4"] [side]
+    [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4"] [side]
     , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4"] [main]
     ]
 
