@@ -39,9 +39,9 @@ import Competences.Frontend.Component.Editor.View
   )
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
+  , SyncDocumentRef
   , SyncDocument (..)
   , SyncDocumentEnv (..)
-  , SyncDocumentRef
   , modifySyncDocument
   , readSyncDocument
   , subscribeDocument

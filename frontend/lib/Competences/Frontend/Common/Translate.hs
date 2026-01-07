@@ -164,6 +164,12 @@ data Label
   | LblFocusedStudent
   | LblNoStudentFocused
   | LblAllStudents
+    -- Connection status
+  | LblConnected
+  | LblDisconnected
+  | LblReconnecting !Int
+  | LblPendingChanges !Int
+  | LblUnsavedChanges !Int
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -276,6 +282,12 @@ labels' =
   , LblFocusedStudent
   , LblNoStudentFocused
   , LblAllStudents
+    -- Connection status
+  , LblConnected
+  , LblDisconnected
+  , LblReconnecting 0
+  , LblPendingChanges 0
+  , LblUnsavedChanges 0
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -401,6 +413,12 @@ defaultTranslation LblEvaluate = "Auswerten"
 defaultTranslation LblFocusedStudent = "Fokussierter Schüler"
 defaultTranslation LblNoStudentFocused = "Kein Schüler fokussiert"
 defaultTranslation LblAllStudents = "Alle Schüler"
+-- Connection status
+defaultTranslation LblConnected = "Verbunden"
+defaultTranslation LblDisconnected = "Getrennt"
+defaultTranslation (LblReconnecting n) = "Verbinde... (Versuch " <> ms (show n) <> ")"
+defaultTranslation (LblPendingChanges n) = ms (show n) <> " Änderungen werden gesendet"
+defaultTranslation (LblUnsavedChanges n) = ms (show n) <> " ungespeicherte Änderungen"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

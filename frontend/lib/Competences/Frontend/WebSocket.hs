@@ -1,6 +1,7 @@
 module Competences.Frontend.WebSocket
   ( WebSocketConnection
-  , connectWebSocket
+  , WebSocketCallbacks (..)
+  , connectWebSocketRaw
   , sendMessage
   , getJWTToken
   )
@@ -27,26 +28,29 @@ import Miso.FFI (addEventListener)
 -- | Represents a WebSocket connection
 newtype WebSocketConnection = WebSocketConnection JSVal
 
+-- | Callbacks for WebSocket connection state changes
+data WebSocketCallbacks = WebSocketCallbacks
+  { onOpen :: IO ()
+  , onClose :: IO ()
+  , onError :: IO ()
+  }
+
 -- | Get JWT token from window.COMPETENCES_JWT
 getJWTToken :: IO (Maybe Text)
 getJWTToken = do
   jsg "window" ! "COMPETENCES_JWT" >>= fromJSVal @Text
 
--- | Connect to WebSocket server with JWT token
--- Security: Token is sent as first message after connection, NOT in URL
--- This prevents token from appearing in server logs, browser history, proxy logs
-connectWebSocket
+-- | Connect to WebSocket server WITHOUT sending authentication
+-- This is used by the blocking protocol layer which handles auth itself
+connectWebSocketRaw
   :: Text
-  -> Text
+  -> WebSocketCallbacks
   -> (ServerMessage -> IO ())
   -> IO WebSocketConnection
-connectWebSocket wsUrl jwtToken onMessage = do
-  -- Connect WITHOUT token in URL (security improvement)
-  -- Token will be sent as first message after connection established
-
+connectWebSocketRaw wsUrl callbacks onMessage = do
   -- Create WebSocket connection using 'new' constructor
   webSocket <- jsg "WebSocket"
-  M.consoleLog $ "Establishing WebSocket connection with " <> M.ms wsUrl
+  M.consoleLog $ "Establishing raw WebSocket connection with " <> M.ms wsUrl
   ws <- new webSocket [wsUrl]
 
   -- Set up onmessage handler
@@ -57,23 +61,20 @@ connectWebSocket wsUrl jwtToken onMessage = do
       Nothing -> M.consoleLog $ M.ms $ "Failed to decode message: " <> T.unpack msgText
       Just serverMsg -> onMessage serverMsg
 
-  -- Set up onopen handler - send authentication as first message
+  -- Set up onopen handler - NO authentication, just call callback
   _ <- ws `addEventListener` "open" $ \_ -> do
-    M.consoleLog "WebSocket connected, sending authentication..."
-    -- Send JWT token as first message (not in URL for security)
-    let authMsg = Authenticate jwtToken
-        jsonStr = decodeUtf8 $ BL.toStrict $ encode authMsg
-    jsonVal <- toJSVal jsonStr
-    _ <- ws # "send" $ [jsonVal]
-    M.consoleLog "Authentication message sent"
+    M.consoleLog "WebSocket connected (raw, no auto-auth)"
+    callbacks.onOpen
 
   -- Set up onerror handler
   _ <- ws `addEventListener` "error" $ \_ -> do
     M.consoleError "WebSocket error"
+    callbacks.onError
 
   -- Set up onclose handler
   _ <- ws `addEventListener` "close" $ \_ -> do
     M.consoleLog "WebSocket closed"
+    callbacks.onClose
 
   pure $ WebSocketConnection ws
 
