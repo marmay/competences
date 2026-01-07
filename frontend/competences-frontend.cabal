@@ -35,6 +35,7 @@ library
         Competences.Frontend.Component.Assignment.EvaluatorDetail,
         Competences.Frontend.Component.AssignmentViewer,
         Competences.Frontend.Component.CompetenceGrid,
+        Competences.Frontend.Component.ConnectionStatus,
         Competences.Frontend.Component.Editor,
         Competences.Frontend.Component.Editor.Editable,
         Competences.Frontend.Component.Editor.EditorField,
@@ -89,7 +90,10 @@ library
         Competences.Frontend.View.Text,
         Competences.Frontend.View.Tooltip,
         Competences.Frontend.View.Typography,
-        Competences.Frontend.WebSocket
+        Competences.Frontend.WebSocket,
+        Competences.Frontend.WebSocket.CommandSender,
+        Competences.Frontend.WebSocket.Handlers,
+        Competences.Frontend.WebSocket.Protocol
     build-depends:
         base ^>=4.21.0.0,
         aeson,

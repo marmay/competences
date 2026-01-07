@@ -1,0 +1,150 @@
+module Competences.Frontend.WebSocket.Handlers
+  ( -- * Building Blocks
+    sendAuth
+  , waitForSnapshot
+  , operationLoop
+    -- * Composed Handlers
+  , mkInitialHandler
+  , mkReconnectHandler
+    -- * Re-exports for handler state
+  , CommandSender
+  )
+where
+
+import Competences.Document (Document, User (..))
+import Competences.Frontend.SyncDocument
+  ( ConnectionState (..)
+  , SyncDocumentRef
+  , applyRemoteCommand
+  , mkSyncDocument
+  , mkSyncDocumentEnv
+  , rejectCommand
+  , setConnectionState
+  , setSyncDocument
+  , trySendNextCommand
+  )
+import Competences.Frontend.WebSocket.CommandSender
+  ( CommandSender
+  , clearWebSocket
+  , mkCommandSender
+  , sendCommand
+  , updateWebSocket
+  )
+import Competences.Frontend.WebSocket.Protocol
+  ( AuthenticationException (..)
+  , DisconnectedException (..)
+  , WebSocket (..)
+  )
+import Competences.Protocol (ClientMessage (..), ServerMessage (..))
+import Control.Exception (catch, throwIO)
+import Control.Monad (forever)
+import Data.Text (Text)
+import Data.Text qualified as T
+import Miso qualified as M
+
+-- ============================================================================
+-- BUILDING BLOCKS
+-- ============================================================================
+
+-- | Send authentication message
+sendAuth :: Text -> WebSocket -> IO ()
+sendAuth token ws = ws.send (Authenticate token)
+
+-- | Wait for InitialSnapshot, throws AuthenticationException on failure
+waitForSnapshot :: WebSocket -> IO (Document, User)
+waitForSnapshot ws = do
+  msg <- ws.receive
+  case msg of
+    InitialSnapshot doc user -> pure (doc, user)
+    AuthenticationFailed reason -> throwIO (AuthenticationException reason)
+    other -> throwIO (AuthenticationException $ "Unexpected message during handshake: " <> T.pack (show other))
+
+-- | Operation loop - runs until disconnect
+-- Catches DisconnectedException internally and returns cleanly
+operationLoop :: SyncDocumentRef -> WebSocket -> IO ()
+operationLoop ref ws = loop `catch` handleDisconnect
+  where
+    handleDisconnect :: DisconnectedException -> IO ()
+    handleDisconnect _ = do
+      setConnectionState ref Disconnected
+
+    loop :: IO ()
+    loop = forever $ do
+      msg <- ws.receive
+      case msg of
+        ApplyCommand cmd -> applyRemoteCommand ref cmd
+        CommandRejected cmd err -> do
+          M.consoleLog $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
+          rejectCommand ref cmd
+        KeepAliveResponse -> pure ()
+        other -> M.consoleWarn $ M.ms $ "Unexpected message during operation: " <> show other
+
+-- ============================================================================
+-- COMPOSED HANDLERS
+-- ============================================================================
+
+-- | Initial handler: authenticate, create state, fork app, run operation
+-- Returns (SyncDocumentRef, CommandSender) for reconnection
+mkInitialHandler
+  :: Text                         -- ^ JWT token
+  -> (SyncDocumentRef -> IO ())   -- ^ Fork action (starts Miso app)
+  -> WebSocket
+  -> IO (SyncDocumentRef, CommandSender)
+mkInitialHandler token forkApp ws = do
+  -- Create CommandSender for safe command sending
+  sender <- mkCommandSender
+
+  -- Authenticate
+  sendAuth token ws
+  (doc, user) <- waitForSnapshot ws
+
+  -- Update sender with new connection
+  updateWebSocket sender ws
+
+  -- Create SyncDocumentRef with sendCommand bound to sender
+  env <- mkSyncDocumentEnv user (sendCommand sender)
+  ref <- mkSyncDocument env
+  setSyncDocument ref doc
+  setConnectionState ref Connected
+  trySendNextCommand ref  -- Start sending any queued commands
+
+  -- Fork the Miso application
+  M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
+  forkApp ref
+
+  -- Run operation loop until disconnect
+  operationLoop ref ws
+
+  -- Disconnect happened, clear sender
+  clearWebSocket sender
+
+  pure (ref, sender)
+
+-- | Reconnection handler: re-authenticate, update state, run operation
+mkReconnectHandler
+  :: Text                            -- ^ JWT token
+  -> (SyncDocumentRef, CommandSender)  -- ^ Previous state and sender
+  -> WebSocket
+  -> IO (SyncDocumentRef, CommandSender)
+mkReconnectHandler token (ref, sender) ws = do
+  -- Re-authenticate
+  sendAuth token ws
+  (doc, _user) <- waitForSnapshot ws
+
+  -- Update sender with new connection
+  updateWebSocket sender ws
+
+  -- Update SyncDocument with new document from server
+  setSyncDocument ref doc
+  setConnectionState ref Connected
+  trySendNextCommand ref  -- Resume sending queued commands
+
+  M.consoleLog "Reconnected and synchronized"
+
+  -- Run operation loop until disconnect
+  operationLoop ref ws
+
+  -- Disconnect happened, clear sender
+  clearWebSocket sender
+
+  pure (ref, sender)

@@ -12,6 +12,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
+import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
@@ -19,8 +20,8 @@ import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , FocusedUserChange (..)
-  , SyncDocumentEnv (..)
   , SyncDocumentRef
+  , SyncDocumentEnv (..)
   , setFocusedUser
   , subscribeDocument
   , subscribeFocusedUser
@@ -59,13 +60,13 @@ runApp :: App -> IO ()
 runApp = M.startComponent
 
 mkApp :: SyncDocumentRef -> App
-mkApp r =
+mkApp ir =
   (M.component model update view)
     { M.subs = [M.uriSub SetURI]
     , M.events = M.defaultEvents <> M.keyboardEvents
     }
   where
-    env = syncDocumentEnv r
+    env = syncDocumentEnv ir
     model = Model {uri = M.toURI CompetenceGrid, connectedUser = env ^. #connectedUser}
 
     update (SetURI uri) = M.modify $ #uri .~ uri
@@ -78,10 +79,17 @@ mkApp r =
         [ V.iconDefs
         , V.mainPage
             (C.translate' C.LblPageTitle)
-            (focusedUserView r)
+            (focusedUserView ir)
             (navButtons m)
             (page (m ^. #uri))
-            (M.text "© 2025-2026 Markus Mayr")
+            (footerView ir)
+        ]
+
+    footerView ir' =
+      M.div_
+        [class_ "flex items-center justify-between w-full"]
+        [ M.span_ [] [M.text "© 2025-2026 Markus Mayr"]
+        , connectionStatusView ir'
         ]
 
     navButtons m' =
@@ -127,18 +135,18 @@ mkApp r =
         StatisticsOverview -> statisticsOverview
         ManageUsers -> manageUsers
 
-    competenceGrid = mounted CompetenceGrid $ competenceGridComponent r defaultGridMode availableGridModes
+    competenceGrid = mounted CompetenceGrid $ competenceGridComponent ir defaultGridMode availableGridModes
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
         then GridView :| [GridEdit]
         else GridView :| []
-    evidences = mounted Evidences $ evidenceEditorComponent r (isTeacher model.connectedUser)
-    manageTasks = mounted ManageTasks $ taskEditorComponent r
-    viewAssignments = mounted ViewAssignments $ assignmentViewerComponent r model.connectedUser
-    manageAssignments = mounted ManageAssignments $ assignmentComponent r
-    statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent r
-    manageUsers = mounted ManageUsers $ userListEditorComponent r
+    evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
+    manageTasks = mounted ManageTasks $ taskEditorComponent ir
+    viewAssignments = mounted ViewAssignments $ assignmentViewerComponent ir model.connectedUser
+    manageAssignments = mounted ManageAssignments $ assignmentComponent ir
+    statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
+    manageUsers = mounted ManageUsers $ userListEditorComponent ir
 
     mounted key = componentA (M.ms $ show key) [V.minH0, V.fullWidth, V.fullHeight]
 
@@ -187,7 +195,7 @@ instance M.ToKey Page where
 -- For students: displays their name as static text
 -- For teachers: shows a searchable selector for choosing any student
 focusedUserView :: SyncDocumentRef -> M.View p a
-focusedUserView r = V.component "focused-user" (focusedUserComponent r)
+focusedUserView ir = V.component "focused-user" (focusedUserComponent ir)
 
 -- | Model for the focused user component
 data FocusedUserModel = FocusedUserModel
@@ -211,15 +219,15 @@ data FocusedUserAction
 
 -- | Focused user component that shows a selector for teachers
 focusedUserComponent :: SyncDocumentRef -> M.Component p FocusedUserModel FocusedUserAction
-focusedUserComponent r =
+focusedUserComponent ir =
   (M.component model update view)
     { M.subs =
-        [ subscribeFocusedUser r FocusedUserChanged
-        , subscribeDocument r DocumentUpdated
+        [ subscribeFocusedUser ir FocusedUserChanged
+        , subscribeDocument ir DocumentUpdated
         ]
     }
   where
-    env = syncDocumentEnv r
+    env = syncDocumentEnv ir
 
     model =
       FocusedUserModel
@@ -248,7 +256,7 @@ focusedUserComponent r =
       M.modify $ \m -> m & #isDropdownOpen .~ False & #searchText .~ ""
 
     update (SelectUser maybeUser) = do
-      M.io_ $ setFocusedUser r maybeUser
+      M.io_ $ setFocusedUser ir maybeUser
       M.modify $ \m -> m & #isDropdownOpen .~ False & #searchText .~ ""
 
     view m

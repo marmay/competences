@@ -4,31 +4,28 @@ module Main (main) where
 
 #ifdef WASM
 
+import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..))
+import Competences.Document (User (..), UserRole (..), emptyDocument)
+import Competences.Document.Id (nilId)
+import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
+import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncDocument
   ( mkSyncDocument
   , mkSyncDocumentEnv
   , modifySyncDocument
   , setSyncDocument
-  , setWebSocket
-  , applyRemoteCommand
-  , rejectCommand
   )
-import Competences.Frontend.WebSocket
-  ( getJWTToken
-  , connectWebSocket
-  )
-import Competences.Command (Command(..), EntityCommand (..), UsersCommand (..))
-import Competences.Document (User(..), UserRole(..))
-import Competences.Document.Id (nilId)
-import Competences.Document.User (Office365Id(..))
-import Competences.Protocol (ServerMessage(..))
-import Competences.Frontend.Common.Translate qualified as C
+import Competences.Frontend.WebSocket (getJWTToken)
+import Competences.Frontend.WebSocket.Handlers (mkInitialHandler, mkReconnectHandler)
+import Competences.Frontend.WebSocket.Protocol (AuthenticationException (..), withWebSocket)
+import Control.Concurrent (forkIO)
+import Control.Exception (catch)
+import Control.Monad (void)
 import Data.Text qualified as T
-import Miso.Run
-import Miso.DSL (jsg, fromJSVal, (!), setField)
 import Miso qualified as M
-import Control.Concurrent (newEmptyMVar, putMVar, readMVar, tryTakeMVar, tryReadMVar)
+import Miso.DSL (jsg, fromJSVal, (!), setField)
+import Miso.Run (run)
 
 main :: IO ()
 main = do
@@ -39,12 +36,14 @@ main = do
     case maybeToken of
       Nothing -> do
         M.consoleError "No JWT token found in window.COMPETENCES_JWT"
-        -- Fallback: use test user
+        -- Fallback: use test user with no-op sendCommand
         let user = User nilId "Test User" Teacher (Office365Id "")
-        env <- mkSyncDocumentEnv user
-        document <- mkSyncDocument env
-        modifySyncDocument document $ Users $ OnUsers $ Create user
-        runApp $ withTailwindPlay $ mkApp document
+            noOpSendCommand _ = pure () -- No WebSocket, just ignore sends
+        env <- mkSyncDocumentEnv user noOpSendCommand
+        ref <- mkSyncDocument env
+        setSyncDocument ref emptyDocument
+        modifySyncDocument ref $ Users $ OnUsers $ Create user
+        runApp $ withTailwindPlay $ mkApp ref
 
       Just jwtToken -> do
         M.consoleLog $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
@@ -56,73 +55,26 @@ main = do
         let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
         let wsUrl = wsProtocol <> host <> "/"
 
-        -- MVar that will be filled when we receive the first InitialSnapshot
-        initialState <- newEmptyMVar
+        -- Fork action that starts the Miso app
+        let forkApp ref = void $ forkIO $ do
+              -- Set window title with localized text
+              htmlDoc <- jsg "document"
+              setField htmlDoc "title" (C.translate' C.LblPageTitle)
+              runApp $ withTailwindPlay $ mkApp ref
 
-        ws <- connectWebSocket wsUrl jwtToken $ \serverMsg -> do
-          case serverMsg of
-            InitialSnapshot doc user -> do
-              M.consoleLog "Trying to take MVar."
-              maybeState <- tryTakeMVar initialState
+        -- Connect and run with automatic reconnection
+        M.consoleLog "Connecting to server..."
+        let initial = mkInitialHandler jwtToken forkApp
+            reconnect = mkReconnectHandler jwtToken
 
-              case maybeState of
-                Nothing -> do
-                  -- First connection: create document with authenticated user and signal ready
-                  M.consoleLog $ M.ms $ "Initial connection for user: " <> T.unpack user.name <> " (" <> show user.id <> ")"
-                  env <- mkSyncDocumentEnv user
-                  document <- mkSyncDocument env
-                  setSyncDocument document doc
-                  putMVar initialState (document, user)
-                  M.consoleLog "Set up completed; put stuff to MVar."
-                  _ <- readMVar initialState
-                  M.consoleLog "MVar read back successfully."
+        withWebSocket wsUrl initial reconnect
+          `catch` handleAuthFailure location
 
-                Just (existingDoc, existingUser) -> do
-                  -- Reconnection: verify user matches and update document
-                  putMVar initialState (existingDoc, existingUser)  -- Put it back
-                  if user.id /= existingUser.id
-                    then do
-                      M.consoleError $ M.ms $ "User mismatch on reconnect! Expected "
-                        <> T.unpack existingUser.name <> " (" <> show existingUser.id
-                        <> ") but got " <> T.unpack user.name <> " (" <> show user.id <> ")"
-                      -- This should never happen - indicates serious auth problem
-                      -- TODO: Show error message to user and/or reload page
-                    else do
-                      M.consoleLog "Reconnection: updating document"
-                      setSyncDocument existingDoc doc
-
-            ApplyCommand cmd -> do
-              maybeState <- tryReadMVar initialState
-              case maybeState of
-                Just (document, _) -> applyRemoteCommand document cmd
-                Nothing -> M.consoleWarn "Received ApplyCommand before initialization"
-
-            CommandRejected cmd err -> do
-              M.consoleLog $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
-              maybeState <- tryReadMVar initialState
-              case maybeState of
-                Just (document, _) -> rejectCommand document cmd
-                Nothing -> M.consoleWarn "Received CommandRejected before initialization"
-
-            KeepAliveResponse -> do
-              -- Acknowledge keep-alive
-              pure ()
-
-            AuthenticationFailed reason -> do
-              M.consoleError $ M.ms $ "Authentication failed: " <> T.unpack reason
-              -- Redirect to root to trigger re-authentication
-              setField location "href" ("/" :: T.Text)
-
-        -- Wait for first InitialSnapshot to arrive, then start app
-        M.consoleLog $ "Waiting for setup to complete."
-        (document, user) <- readMVar initialState
-        M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
-        -- Set WebSocket connection after document is created
-        setWebSocket document ws
-        -- Set window title with localized text
-        doc <- jsg "document"
-        setField doc "title" (C.translate' C.LblPageTitle)
-        runApp $ withTailwindPlay $ mkApp document
+-- | Handle authentication failure by redirecting to login
+handleAuthFailure :: M.JSVal -> AuthenticationException -> IO ()
+handleAuthFailure location (AuthenticationException reason) = do
+  M.consoleError $ M.ms $ "Authentication failed: " <> T.unpack reason
+  setField location "href" ("/" :: T.Text)
 
 
 foreign export javascript "hs_start" main :: IO ()
