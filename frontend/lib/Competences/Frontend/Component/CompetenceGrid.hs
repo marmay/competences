@@ -40,7 +40,8 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , FocusedUserChange (..)
-  , SyncDocumentRef
+  , SyncContext
+  , getFocusedUserRef
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -88,7 +89,7 @@ data CompetenceGridMode
 -- - View mode: displays competence grid with student evidence
 -- - Edit mode: allows editing grid and competences
 competenceGridComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> CompetenceGridMode
   -- ^ Initial mode (GridView or GridEdit)
   -> NonEmpty CompetenceGridMode
@@ -139,7 +140,7 @@ data ViewerAction
 
 -- | View for the viewer detail - shows competence grid with student evidence
 viewerDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 viewerDetailView r grid =
@@ -147,12 +148,12 @@ viewerDetailView r grid =
     ("competence-grid-viewer-" <> M.ms (show grid.id))
     (viewerComponent r grid)
 
-viewerComponent :: SyncDocumentRef -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
+viewerComponent :: SyncContext -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
 viewerComponent r grid =
   (M.component model update view)
     { M.subs =
         [ subscribeDocument r ViewerUpdateDocument
-        , subscribeFocusedUser r ViewerFocusedUserChanged
+        , subscribeFocusedUser (getFocusedUserRef r) ViewerFocusedUserChanged
         ]
     }
   where
@@ -243,7 +244,7 @@ data EditorAction = CreateNewCompetence
 
 -- | View for the editor detail - allows editing grid and competences
 editorDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 editorDetailView r grid =
@@ -251,7 +252,7 @@ editorDetailView r grid =
     ("competence-grid-editor-" <> M.ms (show grid.id))
     (editorComponent r grid)
 
-editorComponent :: SyncDocumentRef -> CompetenceGrid -> M.Component p () EditorAction
+editorComponent :: SyncContext -> CompetenceGrid -> M.Component p () EditorAction
 editorComponent r grid =
   M.component () update view
   where

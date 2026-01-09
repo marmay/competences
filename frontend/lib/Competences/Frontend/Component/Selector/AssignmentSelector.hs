@@ -11,7 +11,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , SyncDocumentEnv (..)
-  , SyncDocumentRef
+  , SyncContext
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -44,7 +44,7 @@ data Action
   deriving (Eq, Show)
 
 assignmentSelectorComponent
-  :: SyncDocumentRef -> Lens' p (Maybe Assignment) -> M.Component p Model Action
+  :: SyncContext -> Lens' p (Maybe Assignment) -> M.Component p Model Action
 assignmentSelectorComponent r parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedAssignment]

@@ -39,7 +39,7 @@ import Competences.Frontend.Component.Editor.View
   )
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , SyncDocument (..)
   , SyncDocumentEnv (..)
   , modifySyncDocument
@@ -75,7 +75,7 @@ addNamedField e f = e & #fields %~ (<> [f])
 editorComponent
   :: forall a patch f n p
    . (Functor f, Foldable f, Ord a, Default patch)
-  => Editor a patch f n -> SyncDocumentRef -> M.Component p (Model a patch f) (Action a patch)
+  => Editor a patch f n -> SyncContext -> M.Component p (Model a patch f) (Action a patch)
 editorComponent e r =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]

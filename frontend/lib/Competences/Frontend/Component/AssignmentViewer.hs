@@ -16,7 +16,7 @@ import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.View.Typography qualified as Typography
@@ -39,7 +39,7 @@ data Action
   = UpdateDocument !DocumentChange
   deriving (Eq, Show)
 
-assignmentViewerComponent :: SyncDocumentRef -> User -> M.Component p Model Action
+assignmentViewerComponent :: SyncContext -> User -> M.Component p Model Action
 assignmentViewerComponent r user =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]

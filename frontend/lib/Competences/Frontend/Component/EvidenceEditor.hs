@@ -27,7 +27,7 @@ import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMult
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
@@ -48,7 +48,7 @@ data EvidenceMode
 
 -- | Evidence editor component using SelectorDetail pattern
 evidenceEditorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> Bool
   -- ^ Can edit evidences? (True for teachers, False for students)
   -> M.Component p (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
@@ -90,7 +90,7 @@ newtype ViewerAction = ViewerUpdateDocument DocumentChange
 
 -- | Read-only view for an evidence
 evidenceViewerDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> Evidence
   -> M.View (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
 evidenceViewerDetailView r evidence =
@@ -98,7 +98,7 @@ evidenceViewerDetailView r evidence =
     ("evidence-viewer-" <> M.ms (show evidence.id))
     (viewerComponent r evidence)
 
-viewerComponent :: SyncDocumentRef -> Evidence -> M.Component p ViewerModel ViewerAction
+viewerComponent :: SyncContext -> Evidence -> M.Component p ViewerModel ViewerAction
 viewerComponent r evidence =
   (M.component model update view)
     { M.subs = [subscribeDocument r ViewerUpdateDocument]
@@ -168,7 +168,7 @@ viewerComponent r evidence =
 
 -- | Detail view for editing an evidence
 evidenceEditorDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> Evidence
   -> M.View (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
 evidenceEditorDetailView r evidence =

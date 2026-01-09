@@ -12,7 +12,7 @@ where
 import Competences.Command (Command)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Orderable, Reorder (..), idL)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument)
+import Competences.Frontend.SyncDocument (SyncContext, modifySyncDocument)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import GHC.Generics (Generic)
@@ -41,7 +41,7 @@ data ReorderAction a
 type MkReorderCommand a = Id a -> Reorder a -> Maybe Command
 
 updateReorderModel
-  :: SyncDocumentRef
+  :: SyncContext
   -> MkReorderCommand a
   -> ReorderAction a
   -> M.Effect p (ReorderModel a) (ReorderAction a)
@@ -58,7 +58,7 @@ updateReorderModel r f (ReorderAfter id') = issueReorderCommand r f (After id')
 
 issueReorderCommand
   :: forall a p
-   . SyncDocumentRef -> MkReorderCommand a -> Reorder a -> M.Effect p (ReorderModel a) (ReorderAction a)
+   . SyncContext -> MkReorderCommand a -> Reorder a -> M.Effect p (ReorderModel a) (ReorderAction a)
 issueReorderCommand r f to = do
   M.get
     >>= mapM_

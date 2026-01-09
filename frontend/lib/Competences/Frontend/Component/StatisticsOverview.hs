@@ -18,7 +18,7 @@ import Competences.Document.Evidence
   )
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -76,7 +76,7 @@ data StatColumn
   deriving (Eq, Ord, Show)
 
 -- | Statistics Overview Component
-statisticsOverviewComponent :: SyncDocumentRef -> M.Component p Model Action
+statisticsOverviewComponent :: SyncContext -> M.Component p Model Action
 statisticsOverviewComponent docRef =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]

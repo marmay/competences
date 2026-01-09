@@ -15,7 +15,7 @@ import Competences.Document
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -46,7 +46,7 @@ data CompetenceGridSelectorStyle
   deriving (Eq, Show)
 
 competenceGridSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> CompetenceGridSelectorStyle
   -> Lens' p (Maybe CompetenceGrid)
   -> M.Component p Model Action

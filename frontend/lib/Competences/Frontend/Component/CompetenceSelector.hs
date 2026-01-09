@@ -11,7 +11,7 @@ where
 import Competences.Document (Competence (..), Document (..), Level (..), levels, ordered)
 import Competences.Document.Competence (CompetenceLevelId, competenceLevelIdsOf)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -38,7 +38,7 @@ emptyModel =
     , selected = Set.empty
     }
 
-subscriptions :: SyncDocumentRef -> [M.Sub Action]
+subscriptions :: SyncContext -> [M.Sub Action]
 subscriptions r = [subscribeDocument r UpdateDocument]
 
 update :: Action -> M.Effect p Model Action

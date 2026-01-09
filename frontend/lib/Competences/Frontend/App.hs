@@ -20,8 +20,9 @@ import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , FocusedUserChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , SyncDocumentEnv (..)
+  , getFocusedUserRef
   , setFocusedUser
   , subscribeDocument
   , subscribeFocusedUser
@@ -59,7 +60,7 @@ data Action
 runApp :: App -> IO ()
 runApp = M.startComponent
 
-mkApp :: SyncDocumentRef -> App
+mkApp :: SyncContext -> App
 mkApp ir =
   (M.component model update view)
     { M.subs = [M.uriSub SetURI]
@@ -194,7 +195,7 @@ instance M.ToKey Page where
 -- | View for the focused user in the nav bar
 -- For students: displays their name as static text
 -- For teachers: shows a searchable selector for choosing any student
-focusedUserView :: SyncDocumentRef -> M.View p a
+focusedUserView :: SyncContext -> M.View p a
 focusedUserView ir = V.component "focused-user" (focusedUserComponent ir)
 
 -- | Model for the focused user component
@@ -218,11 +219,11 @@ data FocusedUserAction
   deriving (Eq, Show)
 
 -- | Focused user component that shows a selector for teachers
-focusedUserComponent :: SyncDocumentRef -> M.Component p FocusedUserModel FocusedUserAction
+focusedUserComponent :: SyncContext -> M.Component p FocusedUserModel FocusedUserAction
 focusedUserComponent ir =
   (M.component model update view)
     { M.subs =
-        [ subscribeFocusedUser ir FocusedUserChanged
+        [ subscribeFocusedUser (getFocusedUserRef ir) FocusedUserChanged
         , subscribeDocument ir DocumentUpdated
         ]
     }
@@ -256,7 +257,7 @@ focusedUserComponent ir =
       M.modify $ \m -> m & #isDropdownOpen .~ False & #searchText .~ ""
 
     update (SelectUser maybeUser) = do
-      M.io_ $ setFocusedUser ir maybeUser
+      M.io_ $ setFocusedUser (getFocusedUserRef ir) maybeUser
       M.modify $ \m -> m & #isDropdownOpen .~ False & #searchText .~ ""
 
     view m

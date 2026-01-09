@@ -35,7 +35,7 @@ where
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Badge (InteractiveBadgeConfig (..), interactiveBadge)
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
@@ -618,7 +618,7 @@ type MultiStageSelectorComponent p result = M.Component p (Model result) (Action
 --       bindings = [resultBinding]
 multiStageSelectorComponent
   :: (Eq result, Show result)
-  => SyncDocumentRef
+  => SyncContext
   -> MultiStageSelectorConfig result
   -> SelectorTransformedLens p [] result f' a'
   -> MultiStageSelectorComponent p result

@@ -10,7 +10,7 @@ import Competences.Frontend.Component.Selector.TaskOrGroupSelector
   )
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
 import Competences.Frontend.Component.TaskEditor.TaskGroupDetailView (taskGroupDetailView)
-import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Competences.Frontend.SyncDocument (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
@@ -29,7 +29,7 @@ data Action
 
 -- | Unified task editor component
 -- Shows Tasks and TaskGroups in a single selector, with type-appropriate detail views
-taskEditorComponent :: SyncDocumentRef -> M.Component p Model Action
+taskEditorComponent :: SyncContext -> M.Component p Model Action
 taskEditorComponent r =
   M.component model update view'
   where

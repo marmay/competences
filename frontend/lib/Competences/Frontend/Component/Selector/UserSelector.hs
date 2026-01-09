@@ -23,7 +23,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (Default)
 import Data.Foldable (toList, find)
@@ -68,7 +68,7 @@ toSingleSelectionStyle SingleUserSelectorStyleComboBox = L.SComboBox
 toSingleSelectionStyle SingleUserSelectorStyleShowOnly = L.SShow
 
 singleUserSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> SingleUserSelectorStyle
   -> SelectorTransformedLens p Maybe User f t
@@ -78,7 +78,7 @@ singleUserSelectorComponent r config style =
 
 singleUserEditorField
   :: (Eq t, Ord p, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> (User -> Bool)
   -> EntityPatchTransformedLens p patch Maybe User Maybe t
@@ -105,7 +105,7 @@ toMultiSelectionStyle MultiUserSelectorStyleButtons = L.MButtons
 toMultiSelectionStyle MultiUserSelectorStyleShowOnly = L.MShow
 
 multiUserSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> MultiUserSelectorStyle
   -> SelectorTransformedLens p [] User f t
@@ -115,7 +115,7 @@ multiUserSelectorComponent r config style =
 
 multiUserEditorField
   :: (Ord p, Ord t, Foldable f, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> (User -> Bool)
   -> EntityPatchTransformedLens p patch [] User f t
@@ -145,7 +145,7 @@ showUser u = M.ms u.name
 
 -- | Searchable single-select user component
 searchableSingleUserSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> SelectorTransformedLens p Maybe User f t
   -> M.Component p (SL.SearchableSingleModel User) (SL.SearchableSingleAction User)
@@ -154,7 +154,7 @@ searchableSingleUserSelectorComponent r config =
 
 -- | Searchable multi-select user component
 searchableMultiUserSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> SelectorTransformedLens p [] User f t
   -> M.Component p (SL.SearchableModel User) (SL.SearchableAction User)
@@ -165,7 +165,7 @@ searchableMultiUserSelectorComponent r config =
 -- Uses a read-only viewer (comma-separated names with count) and searchable combobox for editing
 searchableMultiUserEditorField
   :: (Ord p, Ord t, Foldable f, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> (User -> Bool)
   -> EntityPatchTransformedLens p patch [] User f t
@@ -187,7 +187,7 @@ searchableMultiUserEditorField r k p eptl =
 -- Uses a read-only viewer (user name or placeholder) and searchable combobox for editing
 searchableSingleUserEditorField
   :: (Eq t, Ord p, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> (User -> Bool)
   -> EntityPatchTransformedLens p patch Maybe User Maybe t
@@ -222,7 +222,7 @@ newtype SelectedUsersViewerAction = ViewerUpdateDocument DocumentChange
 -- | Component that displays selected users as comma-separated text with count
 -- Used as the viewer in editor fields (read-only display)
 selectedUsersViewerComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> SelectorTransformedLens p [] User f t
   -> M.Component p SelectedUsersViewerModel SelectedUsersViewerAction
@@ -281,7 +281,7 @@ newtype SelectedSingleUserViewerAction = SingleViewerUpdateDocument DocumentChan
 -- | Component that displays selected user name or placeholder
 -- Used as the viewer in editor fields (read-only display)
 selectedSingleUserViewerComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> UserSelectorConfig
   -> SelectorTransformedLens p Maybe User f t
   -> M.Component p SelectedSingleUserViewerModel SelectedSingleUserViewerAction
