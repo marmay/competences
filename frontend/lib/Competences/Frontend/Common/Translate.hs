@@ -161,6 +161,7 @@ data Label
   | LblDeselectAll
   | LblView
   | LblEvaluate
+  | LblAssess
   | LblFocusedStudent
   | LblNoStudentFocused
   | LblAllStudents
@@ -279,6 +280,7 @@ labels' =
   , LblDeselectAll
   , LblView
   , LblEvaluate
+  , LblAssess
   , LblFocusedStudent
   , LblNoStudentFocused
   , LblAllStudents
@@ -410,6 +412,7 @@ defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"
 defaultTranslation LblEvaluate = "Auswerten"
+defaultTranslation LblAssess = "Beurteilen"
 defaultTranslation LblFocusedStudent = "Fokussierter Schüler"
 defaultTranslation LblNoStudentFocused = "Kein Schüler fokussiert"
 defaultTranslation LblAllStudents = "Alle Schüler"

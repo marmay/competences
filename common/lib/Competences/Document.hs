@@ -59,7 +59,7 @@ import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.List (sortOn)
 import Data.Map qualified as M
 import Data.Maybe (listToMaybe)
@@ -94,8 +94,8 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "tasks")
       <*> fmap Ix.fromList (v .: "taskGroups")
       <*> fmap Ix.fromList (v .: "assignments")
-      <*> fmap Ix.fromList (v .: "competenceAssessments")
-      <*> fmap Ix.fromList (v .: "competenceGridGrades")
+      <*> fmap Ix.fromList (v .:? "competenceAssessments" .!= [])
+      <*> fmap Ix.fromList (v .:? "competenceGridGrades" .!= [])
 
 instance ToJSON Document where
   toJSON d =
