@@ -4,11 +4,17 @@ module Competences.Document
   ( Document (..)
   , emptyDocument
   , projectDocument
-  -- * Staleness computation
+  -- * Staleness computation for CompetenceAssessment
   , isCompetenceAssessmentStale
   , getActiveAssessment
   , getAssessmentHistory
+  -- * Staleness computation for CompetenceGridGrade
+  , isCompetenceGridGradeStale
+  , getActiveGridGrade
+  , getGridGradeHistory
   , module Competences.Document.Assessment
+  , module Competences.Document.CompetenceGridGrade
+  , module Competences.Document.Grade
   , module Competences.Document.Lock
   , module Competences.Document.Competence
   , module Competences.Document.CompetenceGrid
@@ -41,7 +47,13 @@ import Competences.Document.CompetenceGrid
   , CompetenceGridIxs
   , emptyCompetenceGrid
   )
+import Competences.Document.CompetenceGridGrade
+  ( CompetenceGridGrade (..)
+  , CompetenceGridGradeId
+  , CompetenceGridGradeIxs
+  )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Observation (..))
+import Competences.Document.Grade (Grade (..), grades, gradeToText)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
@@ -66,6 +78,7 @@ data Document = Document
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , assignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
+  , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
   }
   deriving (Eq, Generic, Show)
 
@@ -82,6 +95,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "taskGroups")
       <*> fmap Ix.fromList (v .: "assignments")
       <*> fmap Ix.fromList (v .: "competenceAssessments")
+      <*> fmap Ix.fromList (v .: "competenceGridGrades")
 
 instance ToJSON Document where
   toJSON d =
@@ -96,6 +110,7 @@ instance ToJSON Document where
       , "taskGroups" .= Ix.toList d.taskGroups
       , "assignments" .= Ix.toList d.assignments
       , "competenceAssessments" .= Ix.toList d.competenceAssessments
+      , "competenceGridGrades" .= Ix.toList d.competenceGridGrades
       ]
 
 emptyDocument :: Document
@@ -111,6 +126,7 @@ emptyDocument =
     , taskGroups = Ix.empty
     , assignments = Ix.empty
     , competenceAssessments = Ix.empty
+    , competenceGridGrades = Ix.empty
     }
 
 
@@ -126,6 +142,7 @@ projectDocument user doc
         & #evidences .~ (doc.evidences Ix.@= user.id) -- Only evidences about them (via UserId index)
         & #assignments .~ (doc.assignments Ix.@= user.id) -- Only assignments assigned to them (via UserId index)
         & #competenceAssessments .~ (doc.competenceAssessments Ix.@= user.id) -- Only assessments about them
+        & #competenceGridGrades .~ (doc.competenceGridGrades Ix.@= user.id) -- Only grid grades about them
         & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks) -- Only locks on entities they can see
         -- competenceGrids, competences, resources, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
@@ -144,6 +161,10 @@ projectDocument user doc
       CompetenceAssessmentLock aid ->
         case Ix.getOne (Ix.getEQ aid (doc ^. #competenceAssessments)) of
           Just a -> user.id == a.userId -- Only assessments about them
+          Nothing -> False
+      CompetenceGridGradeLock gid ->
+        case Ix.getOne (Ix.getEQ gid (doc ^. #competenceGridGrades)) of
+          Just g -> user.id == g.userId -- Only grid grades about them
           Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
 
@@ -180,3 +201,41 @@ getAssessmentHistory doc userId competenceId =
   sortOn (Down . (.date)) $
     filter (\a -> a.competenceId == competenceId) $
       Ix.toList (doc.competenceAssessments Ix.@= userId)
+
+-- ============================================================================
+-- STALENESS COMPUTATION FOR COMPETENCE GRID GRADES
+-- ============================================================================
+
+-- | Check if a competence grid grade is stale.
+-- A grid grade is stale if:
+-- - Any competence assessment for this (user, grid) is updated after the grid grade date
+-- - Any competence assessment for this (user, grid) is itself stale
+isCompetenceGridGradeStale :: Document -> CompetenceGridGrade -> Bool
+isCompetenceGridGradeStale doc gridGrade =
+  let -- Get all competences in this grid
+      gridCompetences = Ix.toList $ doc.competences Ix.@= gridGrade.competenceGridId
+      competenceIds = map (.id) gridCompetences
+      -- Get all assessments for this user that are newer than the grid grade
+      newerUserAssessments = Ix.toList $ (doc.competenceAssessments Ix.@= gridGrade.userId) Ix.@> gridGrade.date
+      -- Check if any newer assessment is for a competence in this grid
+      hasNewerAssessmentInGrid = any (\a -> a.competenceId `elem` competenceIds) newerUserAssessments
+      -- Get all assessments for this user in this grid (any date)
+      allUserAssessments = Ix.toList $ doc.competenceAssessments Ix.@= gridGrade.userId
+      assessmentsInGrid = filter (\a -> a.competenceId `elem` competenceIds) allUserAssessments
+      -- Check if any assessment in this grid is itself stale
+      hasStaleAssessmentInGrid = any (isCompetenceAssessmentStale doc) assessmentsInGrid
+   in hasNewerAssessmentInGrid || hasStaleAssessmentInGrid
+
+-- | Get the active (most recent) grid grade for a student/grid pair.
+-- Returns Nothing if no grade exists.
+getActiveGridGrade :: Document -> UserId -> CompetenceGridId -> Maybe CompetenceGridGrade
+getActiveGridGrade doc userId gridId =
+  listToMaybe $ getGridGradeHistory doc userId gridId
+
+-- | Get all grid grades for a student/grid pair, sorted by date descending.
+-- The first element (if any) is the active grade.
+getGridGradeHistory :: Document -> UserId -> CompetenceGridId -> [CompetenceGridGrade]
+getGridGradeHistory doc userId gridId =
+  sortOn (Down . (.date)) $
+    filter (\g -> g.competenceGridId == gridId) $
+      Ix.toList (doc.competenceGridGrades Ix.@= userId)

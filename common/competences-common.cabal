@@ -28,6 +28,7 @@ library
         Competences.Command.ChangeField
         Competences.Command.Common
         Competences.Command.CompetenceAssessments
+        Competences.Command.CompetenceGridGrades
         Competences.Command.Competences
         Competences.Command.Evidences
         Competences.Command.Interpret
@@ -41,6 +42,7 @@ library
         Competences.Document.Assignment
         Competences.Document.Competence
         Competences.Document.CompetenceGrid
+        Competences.Document.CompetenceGridGrade
         Competences.Document.Evidence
         Competences.Document.Grade
         Competences.Document.Id
