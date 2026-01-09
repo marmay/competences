@@ -4,6 +4,11 @@ module Competences.Document
   ( Document (..)
   , emptyDocument
   , projectDocument
+  -- * Staleness computation
+  , isCompetenceAssessmentStale
+  , getActiveAssessment
+  , getAssessmentHistory
+  , module Competences.Document.Assessment
   , module Competences.Document.Lock
   , module Competences.Document.Competence
   , module Competences.Document.CompetenceGrid
@@ -17,6 +22,12 @@ module Competences.Document
 where
 
 import Competences.Common.IxSet qualified as Ix
+import Competences.Document.Assessment
+  ( CompetenceAssessment (..)
+  , CompetenceAssessmentId
+  , CompetenceAssessmentIxs
+  )
+import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentIxs)
 import Competences.Document.Competence
   ( Competence (..)
   , CompetenceId
@@ -30,15 +41,17 @@ import Competences.Document.CompetenceGrid
   , CompetenceGridIxs
   , emptyCompetenceGrid
   )
-import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentIxs)
-import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs)
+import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Observation (..))
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+import Data.List (sortOn)
 import Data.Map qualified as M
+import Data.Maybe (listToMaybe)
+import Data.Ord (Down (..))
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (^.))
 
@@ -52,6 +65,7 @@ data Document = Document
   , tasks :: !(Ix.IxSet TaskIxs Task)
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , assignments :: !(Ix.IxSet AssignmentIxs Assignment)
+  , competenceAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
   }
   deriving (Eq, Generic, Show)
 
@@ -67,6 +81,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "tasks")
       <*> fmap Ix.fromList (v .: "taskGroups")
       <*> fmap Ix.fromList (v .: "assignments")
+      <*> fmap Ix.fromList (v .: "competenceAssessments")
 
 instance ToJSON Document where
   toJSON d =
@@ -80,6 +95,7 @@ instance ToJSON Document where
       , "tasks" .= Ix.toList d.tasks
       , "taskGroups" .= Ix.toList d.taskGroups
       , "assignments" .= Ix.toList d.assignments
+      , "competenceAssessments" .= Ix.toList d.competenceAssessments
       ]
 
 emptyDocument :: Document
@@ -94,6 +110,7 @@ emptyDocument =
     , tasks = Ix.empty
     , taskGroups = Ix.empty
     , assignments = Ix.empty
+    , competenceAssessments = Ix.empty
     }
 
 
@@ -101,26 +118,65 @@ emptyDocument =
 -- Teachers see full document, students see filtered view
 projectDocument :: User -> Document -> Document
 projectDocument user doc
-  | user.role == Teacher = doc  -- Teachers see everything
+  | user.role == Teacher = doc -- Teachers see everything
   | otherwise =
       -- Students see filtered view based on their identity
       doc
-        & #users .~ Ix.fromList [user]  -- Only their own user
-        & #evidences .~ (doc.evidences Ix.@= user.id)  -- Only evidences about them (via UserId index)
-        & #assignments .~ (doc.assignments Ix.@= user.id)  -- Only assignments assigned to them (via UserId index)
-        & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks)  -- Only locks on entities they can see
+        & #users .~ Ix.fromList [user] -- Only their own user
+        & #evidences .~ (doc.evidences Ix.@= user.id) -- Only evidences about them (via UserId index)
+        & #assignments .~ (doc.assignments Ix.@= user.id) -- Only assignments assigned to them (via UserId index)
+        & #competenceAssessments .~ (doc.competenceAssessments Ix.@= user.id) -- Only assessments about them
+        & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks) -- Only locks on entities they can see
         -- competenceGrids, competences, resources, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
     -- Student can see locks on entities they have access to
     isLockVisible lock _ = case lock of
-      UserLock uid -> uid == user.id  -- Only their own user
+      UserLock uid -> uid == user.id -- Only their own user
       EvidenceLock eid ->
         case Ix.getOne (Ix.getEQ eid (doc ^. #evidences)) of
-          Just e -> Just user.id == e.userId  -- Only evidences about them
+          Just e -> Just user.id == e.userId -- Only evidences about them
           Nothing -> False
       AssignmentLock aid ->
         case Ix.getOne (Ix.getEQ aid (doc ^. #assignments)) of
-          Just a -> user.id `elem` a.studentIds  -- Only assignments assigned to them
+          Just a -> user.id `elem` a.studentIds -- Only assignments assigned to them
           Nothing -> False
-      _ -> True  -- Other locks (competence, grid, etc.) are visible (public materials)
+      CompetenceAssessmentLock aid ->
+        case Ix.getOne (Ix.getEQ aid (doc ^. #competenceAssessments)) of
+          Just a -> user.id == a.userId -- Only assessments about them
+          Nothing -> False
+      _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
+
+-- ============================================================================
+-- STALENESS COMPUTATION
+-- ============================================================================
+
+-- | Check if a competence assessment is stale.
+-- An assessment is stale if there is any evidence for this (user, competence)
+-- pair that has a date newer than the assessment date.
+isCompetenceAssessmentStale :: Document -> CompetenceAssessment -> Bool
+isCompetenceAssessmentStale doc assessment =
+  let -- Get evidences for this user that are newer than the assessment date
+      -- Uses both UserId and Day indexes for efficient filtering
+      newerUserEvidences = Ix.toList $ (doc.evidences Ix.@= assessment.userId) Ix.@> assessment.date
+      -- Check if any have an observation for this competence
+   in any (hasObservationForCompetence assessment.competenceId) newerUserEvidences
+
+-- | Helper: check if an evidence has an observation for the given competence
+hasObservationForCompetence :: CompetenceId -> Evidence -> Bool
+hasObservationForCompetence competenceId evidence =
+  any (\obs -> fst obs.competenceLevelId == competenceId) (Ix.toList evidence.observations)
+
+-- | Get the active (most recent) assessment for a student/competence pair.
+-- Returns Nothing if no assessment exists.
+getActiveAssessment :: Document -> UserId -> CompetenceId -> Maybe CompetenceAssessment
+getActiveAssessment doc userId competenceId =
+  listToMaybe $ getAssessmentHistory doc userId competenceId
+
+-- | Get all assessments for a student/competence pair, sorted by date descending.
+-- The first element (if any) is the active assessment.
+getAssessmentHistory :: Document -> UserId -> CompetenceId -> [CompetenceAssessment]
+getAssessmentHistory doc userId competenceId =
+  sortOn (Down . (.date)) $
+    filter (\a -> a.competenceId == competenceId) $
+      Ix.toList (doc.competenceAssessments Ix.@= userId)
