@@ -5,21 +5,22 @@ module Competences.Command.CompetenceAssessments
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assessment (CompetenceAssessment (..))
-import Competences.Document.Competence (Level)
+import Competences.Document.Competence (CompetenceId, Level)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as Ix
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
+import Optics.Core ((%~), (&), (^.))
 
 -- | Patch for modifying a CompetenceAssessment.
 -- Note: userId and competenceId are NOT patchable - they define the assessment subject.
@@ -62,8 +63,16 @@ applyCompetenceAssessmentPatch assessment patch =
       >=> patchField' @"comment" patch
 
 -- | Handle a CompetenceAssessments command
+--
+-- Special handling for Create: enforces one-assessment-per-day constraint.
+-- If an assessment already exists for the same (userId, competenceId, date),
+-- the existing assessment is updated instead of creating a duplicate.
 handleCompetenceAssessmentsCommand :: UserId -> CompetenceAssessmentsCommand -> Document -> UpdateResult
-handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) = interpretEntityCommand assessmentContext userId c
+handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) d = case c of
+  -- Special Create handling: one-per-day constraint
+  Create assessment -> handleCreateWithConstraint assessment d
+  -- All other commands use standard interpretation
+  _ -> interpretEntityCommand assessmentContext userId c d
   where
     assessmentContext =
       mkEntityCommandContext
@@ -72,6 +81,35 @@ handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) = interpre
         CompetenceAssessmentLock
         applyCompetenceAssessmentPatch
         affectedUsers
+
+    -- Handle Create with one-per-day constraint:
+    -- If assessment exists for same (userId, competenceId, date), update it instead
+    handleCreateWithConstraint :: CompetenceAssessment -> Document -> UpdateResult
+    handleCreateWithConstraint newAssessment doc =
+      case findExistingForDay doc newAssessment.userId newAssessment.competenceId newAssessment.date of
+        Just existing ->
+          -- Update existing assessment's level and comment
+          let updated =
+                CompetenceAssessment
+                  { id = existing.id
+                  , userId = existing.userId
+                  , competenceId = existing.competenceId
+                  , level = newAssessment.level
+                  , date = existing.date
+                  , comment = newAssessment.comment
+                  }
+              doc' = doc & #competenceAssessments %~ Ix.updateIx existing.id updated
+           in Right (doc', affectedUsers updated doc')
+        Nothing ->
+          -- No existing assessment for this day, create new
+          interpretEntityCommand assessmentContext userId (Create newAssessment) doc
+
+    -- Find an existing assessment for the same (userId, competenceId, date)
+    findExistingForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe CompetenceAssessment
+    findExistingForDay doc uid cid day =
+      listToMaybe $
+        filter (\a -> a.competenceId == cid && a.date == day) $
+          Ix.toList (doc.competenceAssessments Ix.@= uid)
 
     -- Teachers see all assessments; students only see assessments about themselves
     affectedUsers :: CompetenceAssessment -> Document -> AffectedUsers
