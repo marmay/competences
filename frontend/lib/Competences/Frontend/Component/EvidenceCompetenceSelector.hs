@@ -9,7 +9,7 @@ import Competences.Document (Competence (..), Document (..), Level (..), levels,
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability, SocialForm (..), abilities, socialForms)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Data.Map qualified as Map
@@ -42,7 +42,7 @@ flatSelectedL = lens getter setter
     unflatten (l, s, a) = (l, (s, a))
 
 evidenceCompetenceSelector
-  :: SyncDocumentRef -> Lens' p [(CompetenceLevelId, SocialForm, Ability)] -> M.Component p Model Action
+  :: SyncContext -> Lens' p [(CompetenceLevelId, SocialForm, Ability)] -> M.Component p Model Action
 evidenceCompetenceSelector r parentLens =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]

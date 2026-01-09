@@ -29,7 +29,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -51,7 +51,7 @@ import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
 -- | Detail view for editing a TaskGroup and its SubTasks
 taskGroupDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> TaskGroup
   -> M.View p a
 taskGroupDetailView r group =
@@ -72,7 +72,7 @@ data TaskGroupEditorAction
   deriving (Eq, Show)
 
 -- | The TaskGroup editor component with SubTask management
-taskGroupEditorComponent :: SyncDocumentRef -> TaskGroup -> M.Component p TaskGroupEditorModel TaskGroupEditorAction
+taskGroupEditorComponent :: SyncContext -> TaskGroup -> M.Component p TaskGroupEditorModel TaskGroupEditorAction
 taskGroupEditorComponent r group =
   (M.component model update view')
     { M.subs = [subscribeDocument r UpdateDocument]
@@ -471,7 +471,7 @@ getOverrideMode (Just _) = OverrideCompetences
 
 -- | Editor field for Maybe [CompetenceLevelId] with checkbox + selector
 competenceOverrideEditorField
-  :: SyncDocumentRef
+  :: SyncContext
   -> M.MisoString
   -> Lens' Task (Maybe [CompetenceLevelId])
   -> Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))
@@ -494,7 +494,7 @@ competenceOverrideViewer viewLens task =
       M.span_ [] [V.text_ (M.ms $ show (length competences) <> " Kompetenzen")]
 
 competenceOverrideEditor
-  :: SyncDocumentRef
+  :: SyncContext
   -> M.MisoString
   -> Lens' Task (Maybe [CompetenceLevelId])
   -> Lens' SubTaskPatch (Change (Maybe [CompetenceLevelId]))

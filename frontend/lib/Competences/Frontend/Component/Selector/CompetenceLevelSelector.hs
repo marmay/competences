@@ -37,7 +37,7 @@ import Competences.Frontend.Component.Selector.ObservationSelector
   , competenceP
   , levelP
   )
-import Competences.Frontend.SyncDocument (SyncDocumentRef)
+import Competences.Frontend.SyncDocument (SyncContext)
 import Data.Default (Default)
 import Data.List (intercalate)
 import Data.Map qualified as Map
@@ -120,7 +120,7 @@ lookupCompetenceData doc competenceId = do
   pure (competence, competenceGrid)
 
 competenceLevelSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> (Document -> [(Id Competence, Level)]) -- Function to load initial values
   -> MultiStageSelectorStyle
   -> SelectorTransformedLens p [] (Id Competence, Level) f' a'
@@ -130,7 +130,7 @@ competenceLevelSelectorComponent r initResults style =
 
 competenceLevelEditorField
   :: (Ord p, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> EntityPatchTransformedLens p patch [] (Id Competence, Level) [] (Id Competence, Level)
   -> EditorField p patch f'

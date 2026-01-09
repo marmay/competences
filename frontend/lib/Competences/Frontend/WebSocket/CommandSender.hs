@@ -6,9 +6,10 @@ module Competences.Frontend.WebSocket.CommandSender
     -- * Construction
   , mkCommandSender
     -- * Command Operations
-  , pushCommand
+  , enqueueCommand
   , acknowledgeCommand
   , getPending
+  , getAllPending
   , pendingCount
     -- * Connection Operations
   , updateWebSocket
@@ -22,9 +23,10 @@ where
 import Competences.Command (Command)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
 import Competences.Protocol (ClientMessage (..))
-import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newMVar, readMVar)
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, readMVar, takeMVar, tryPutMVar)
 import Control.Exception (SomeException, catch)
-import Control.Monad (forM_)
+import Control.Monad (forM_, forever, void)
 import Data.Map.Strict qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -47,79 +49,100 @@ data ConnectionChange = ConnectionChange
 data ConnectionHandler where
   ConnectionHandler :: forall a. (ConnectionChange -> a) -> (M.Sink a) -> ConnectionHandler
 
+-- | Internal state for pending and queued commands
+-- Combined in single MVar for atomic operations
+data SendState = SendState
+  { pending :: !(Maybe Command)
+  , queue :: ![Command]
+  }
+  deriving (Eq, Show, Generic)
+
 -- | CommandSender owns the send queue, pending command, and connection state.
+-- A background thread handles actual sending, triggered by signals.
 -- Fully self-contained - no dependency on SyncDocument.
 data CommandSender = CommandSender
   { wsRef :: !(MVar (Maybe WebSocket))
-  , pendingCommand :: !(MVar (Maybe Command))
-  , commandQueue :: !(MVar [Command])
+  , sendState :: !(MVar SendState)
+  , sendSignal :: !(MVar ())  -- Empty = waiting, Full = wake up
   , connectionHandlers :: !(MVar (Map.Map Int ConnectionHandler))
   , nextHandlerId :: !(MVar Int)
   }
 
 -- | Create a new CommandSender (initially disconnected)
+-- Spawns a background thread that handles sending commands
 mkCommandSender :: IO CommandSender
 mkCommandSender = do
   wsRef' <- newMVar Nothing
-  pendingCommand' <- newMVar Nothing
-  commandQueue' <- newMVar []
+  sendState' <- newMVar (SendState Nothing [])
+  sendSignal' <- newEmptyMVar
   connectionHandlers' <- newMVar Map.empty
   nextHandlerId' <- newMVar 0
-  pure CommandSender
-    { wsRef = wsRef'
-    , pendingCommand = pendingCommand'
-    , commandQueue = commandQueue'
-    , connectionHandlers = connectionHandlers'
-    , nextHandlerId = nextHandlerId'
-    }
+  let sender = CommandSender
+        { wsRef = wsRef'
+        , sendState = sendState'
+        , sendSignal = sendSignal'
+        , connectionHandlers = connectionHandlers'
+        , nextHandlerId = nextHandlerId'
+        }
+  -- Start background sender thread
+  void $ forkIO $ senderThread sender
+  pure sender
 
--- | Push a command to the queue and try to send
--- If nothing is pending and connected, sends immediately
-pushCommand :: CommandSender -> Command -> IO ()
-pushCommand sender cmd = do
-  -- Add to queue
-  modifyMVar_ sender.commandQueue $ \queue -> pure (queue ++ [cmd])
-  -- Try to send
-  trySendNext sender
-  -- Notify pending count changed
+-- | Enqueue a command and return the authoritative list of all pending commands.
+-- The background thread will send it when ready.
+enqueueCommand :: CommandSender -> Command -> IO [Command]
+enqueueCommand sender cmd = do
+  -- Add to queue atomically and return full pending list
+  allPending <- modifyMVar sender.sendState $ \s ->
+    let s' = s{queue = s.queue ++ [cmd]}
+        all' = getAllPendingFromState s'
+    in pure (s', all')
+  -- Signal background thread to check for work
+  signalSender sender
+  -- Notify subscribers about pending count change
   notifyConnectionChange sender
+  pure allPending
 
--- | Acknowledge that the pending command was confirmed (echo or reject)
--- Clears pending and tries to send next
-acknowledgeCommand :: CommandSender -> IO ()
+-- | Acknowledge that the pending command was confirmed (echo or reject).
+-- Returns the remaining pending commands.
+-- The background thread will send the next command.
+acknowledgeCommand :: CommandSender -> IO [Command]
 acknowledgeCommand sender = do
-  modifyMVar_ sender.pendingCommand $ \_ -> pure Nothing
-  -- Try to send next from queue
-  trySendNext sender
-  -- Notify pending count changed
+  -- Clear pending atomically and return remaining
+  allPending <- modifyMVar sender.sendState $ \s ->
+    let s' = s{pending = Nothing}
+        all' = getAllPendingFromState s'
+    in pure (s', all')
+  -- Signal background thread to send next
+  signalSender sender
+  -- Notify subscribers about pending count change
   notifyConnectionChange sender
+  pure allPending
 
 -- | Get the currently pending command (for echo detection)
 getPending :: CommandSender -> IO (Maybe Command)
-getPending sender = readMVar sender.pendingCommand
+getPending sender = (.pending) <$> readMVar sender.sendState
+
+-- | Get all pending commands (pending + queue)
+getAllPending :: CommandSender -> IO [Command]
+getAllPending sender = getAllPendingFromState <$> readMVar sender.sendState
 
 -- | Get total pending count (pending + queue length)
 pendingCount :: CommandSender -> IO Int
-pendingCount sender = do
-  pending <- readMVar sender.pendingCommand
-  queue <- readMVar sender.commandQueue
-  let pendingN = case pending of
-        Just _ -> 1
-        Nothing -> 0
-  pure (pendingN + length queue)
+pendingCount sender = length <$> getAllPending sender
 
 -- | Update the WebSocket connection (called after successful authentication)
--- Resends pending command if any
+-- Resends pending command if any, then signals thread for queue
 updateWebSocket :: CommandSender -> WebSocket -> IO ()
 updateWebSocket sender ws = do
   modifyMVar_ sender.wsRef $ \_ -> pure (Just ws)
-  -- Resend pending if any
-  pending <- readMVar sender.pendingCommand
-  case pending of
-    Just cmd -> do
-      M.consoleLog $ M.ms $ "Resending pending command: " <> show cmd
-      ws.send (SendCommand cmd) `catch` \(_ :: SomeException) -> pure ()
-    Nothing -> trySendNext sender
+  -- Resend pending if any (reconnection case)
+  s <- readMVar sender.sendState
+  forM_ s.pending $ \cmd -> do
+    M.consoleLog $ M.ms $ "Resending pending command: " <> show cmd
+    ws.send (SendCommand cmd) `catch` \(_ :: SomeException) -> pure ()
+  -- Signal thread to send from queue if no pending
+  signalSender sender
   -- Notify connection state changed
   notifyConnectionChange sender
 
@@ -158,23 +181,40 @@ subscribeConnection sender f sink = createSub acquire release sink
 -- INTERNAL HELPERS
 -- ============================================================================
 
+-- | Get all pending commands from state (pending : queue)
+getAllPendingFromState :: SendState -> [Command]
+getAllPendingFromState s = case s.pending of
+  Just cmd -> cmd : s.queue
+  Nothing -> s.queue
+
+-- | Signal the background thread to check for work
+signalSender :: CommandSender -> IO ()
+signalSender sender = void $ tryPutMVar sender.sendSignal ()
+
+-- | Background thread that handles sending commands
+-- Blocks on signal, then tries to send one command from queue
+senderThread :: CommandSender -> IO ()
+senderThread sender = forever $ do
+  -- Block until signaled
+  takeMVar sender.sendSignal
+  -- Try to send from queue
+  trySendFromQueue sender
+
 -- | Try to send the next command from queue if nothing is pending
-trySendNext :: CommandSender -> IO ()
-trySendNext sender = do
+-- Atomically pops from queue and sets as pending in a single MVar operation
+trySendFromQueue :: CommandSender -> IO ()
+trySendFromQueue sender = do
   maybeWs <- readMVar sender.wsRef
   case maybeWs of
-    Nothing -> pure ()  -- Not connected
+    Nothing -> pure ()  -- Not connected, wait for next signal
     Just ws -> do
-      -- Try to pop from queue and send
-      maybeCmd <- modifyMVar sender.pendingCommand $ \pending ->
-        case pending of
-          Just _ -> pure (pending, Nothing)  -- Already have pending
-          Nothing -> do
-            popped <- modifyMVar sender.commandQueue $ \queue ->
-              case queue of
-                [] -> pure ([], Nothing)
-                (cmd : rest) -> pure (rest, Just cmd)
-            pure (popped, popped)
+      -- Atomically: if no pending, pop from queue and set as pending
+      maybeCmd <- modifyMVar sender.sendState $ \s ->
+        case s.pending of
+          Just _ -> pure (s, Nothing)  -- Already have pending, wait for ack
+          Nothing -> case s.queue of
+            [] -> pure (s, Nothing)  -- Queue empty
+            (cmd : rest) -> pure (SendState (Just cmd) rest, Just cmd)
       case maybeCmd of
         Just cmd -> do
           M.consoleLog $ M.ms $ "Sending command: " <> show cmd
@@ -185,10 +225,11 @@ trySendNext sender = do
 getCurrentChange :: CommandSender -> IO ConnectionChange
 getCurrentChange sender = do
   maybeWs <- readMVar sender.wsRef
+  s <- readMVar sender.sendState
   let connState = case maybeWs of
         Just _ -> Connected
         Nothing -> Disconnected
-  count <- pendingCount sender
+      count = length (getAllPendingFromState s)
   pure $ ConnectionChange connState count
 
 -- | Notify all subscribers about connection/pending change

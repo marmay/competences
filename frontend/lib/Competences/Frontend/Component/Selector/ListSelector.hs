@@ -16,7 +16,7 @@ import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , isInitialUpdate
   , subscribeDocument
   )
@@ -83,7 +83,7 @@ data Action a
 singleListSelectorComponent
   :: forall p a f t
    . (Eq a)
-  => SyncDocumentRef
+  => SyncContext
   -> ListSelectorConfig a t
   -> SingleSelectionStyle
   -> SelectorTransformedLens p Maybe a f t
@@ -135,7 +135,7 @@ singleListSelectorComponent r config style t =
 multiListSelectorComponent
   :: forall p a f t
    . (Ord a, Show a)
-  => SyncDocumentRef
+  => SyncContext
   -> ListSelectorConfig a t
   -> MultiSelectionStyle
   -> SelectorTransformedLens p [] a f t

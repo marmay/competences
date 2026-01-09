@@ -15,7 +15,7 @@ import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, 
 import Competences.Frontend.Component.Selector.ListSelector (ListSelectorConfig (..))
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , isInitialUpdate
   , subscribeDocument
   )
@@ -54,7 +54,7 @@ data SearchableAction a
 searchableMultiSelectorComponent
   :: forall p a f t
    . (Ord a, Show a)
-  => SyncDocumentRef
+  => SyncContext
   -> ListSelectorConfig a t
   -- ^ Configuration for getting values from document
   -> SelectorTransformedLens p [] a f t
@@ -148,7 +148,7 @@ data SearchableSingleAction a
 searchableSingleSelectorComponent
   :: forall p a f t
    . (Show a, Ord a)
-  => SyncDocumentRef
+  => SyncContext
   -> ListSelectorConfig a t
   -- ^ Configuration for getting values from document
   -> SelectorTransformedLens p Maybe a f t

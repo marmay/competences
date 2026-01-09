@@ -13,7 +13,7 @@ where
 
 import Competences.Document (Document, User (..))
 import Competences.Frontend.SyncDocument
-  ( SyncDocumentRef
+  ( SyncContext
   , applyRemoteCommand
   , mkSyncDocument
   , mkSyncDocumentEnv
@@ -58,7 +58,7 @@ waitForSnapshot ws = do
 -- | Operation loop - runs until disconnect
 -- Catches DisconnectedException internally and returns cleanly
 -- Note: Connection state is updated by clearWebSocket in the handlers
-operationLoop :: SyncDocumentRef -> WebSocket -> IO ()
+operationLoop :: SyncContext -> WebSocket -> IO ()
 operationLoop ref ws = loop `catch` handleDisconnect
   where
     handleDisconnect :: DisconnectedException -> IO ()
@@ -80,12 +80,12 @@ operationLoop ref ws = loop `catch` handleDisconnect
 -- ============================================================================
 
 -- | Initial handler: authenticate, create state, fork app, run operation
--- Returns (SyncDocumentRef, CommandSender) for reconnection
+-- Returns (SyncContext, CommandSender) for reconnection
 mkInitialHandler
   :: Text                         -- ^ JWT token
-  -> (SyncDocumentRef -> IO ())   -- ^ Fork action (starts Miso app)
+  -> (SyncContext -> IO ())   -- ^ Fork action (starts Miso app)
   -> WebSocket
-  -> IO (SyncDocumentRef, CommandSender)
+  -> IO (SyncContext, CommandSender)
 mkInitialHandler token forkApp ws = do
   -- Create CommandSender for safe command sending
   sender <- mkCommandSender
@@ -97,7 +97,7 @@ mkInitialHandler token forkApp ws = do
   -- Update sender with new connection (this also notifies subscribers of Connected state)
   updateWebSocket sender ws
 
-  -- Create SyncDocumentRef with CommandSender reference
+  -- Create SyncContext with CommandSender reference
   env <- mkSyncDocumentEnv user sender
   ref <- mkSyncDocument env
   setSyncDocument ref doc
@@ -117,9 +117,9 @@ mkInitialHandler token forkApp ws = do
 -- | Reconnection handler: re-authenticate, update state, run operation
 mkReconnectHandler
   :: Text                            -- ^ JWT token
-  -> (SyncDocumentRef, CommandSender)  -- ^ Previous state and sender
+  -> (SyncContext, CommandSender)  -- ^ Previous state and sender
   -> WebSocket
-  -> IO (SyncDocumentRef, CommandSender)
+  -> IO (SyncContext, CommandSender)
 mkReconnectHandler token (ref, sender) ws = do
   -- Re-authenticate
   sendAuth token ws

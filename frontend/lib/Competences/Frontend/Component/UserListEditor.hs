@@ -11,7 +11,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
-import Competences.Frontend.SyncDocument (SyncDocumentRef, modifySyncDocument, nextId)
+import Competences.Frontend.SyncDocument (SyncContext, modifySyncDocument, nextId)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
@@ -43,7 +43,7 @@ office365IdChangeIso = iso toText fromText
     fromText Nothing = Nothing
     fromText (Just (a, b)) = Just (Office365Id a, Office365Id b)
 
-userListEditorComponent :: SyncDocumentRef -> StaticComponent p Action
+userListEditorComponent :: SyncContext -> StaticComponent p Action
 userListEditorComponent r =
   staticComponent update view
   where

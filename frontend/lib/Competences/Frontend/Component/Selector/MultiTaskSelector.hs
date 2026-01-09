@@ -13,7 +13,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncDocumentRef, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (Default)
 import Data.Foldable (toList)
@@ -54,7 +54,7 @@ toListSelectorConfig isInitial =
 
 -- | Searchable multi-task selector component
 searchableMultiTaskSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> (Task -> Bool)  -- ^ Is task initially selected?
   -> SelectorTransformedLens p [] Task f t
   -> M.Component p (SL.SearchableModel Task) (SL.SearchableAction Task)
@@ -65,7 +65,7 @@ searchableMultiTaskSelectorComponent r isInitial =
 -- Uses a read-only viewer (comma-separated identifiers with count) and searchable combobox for editing
 searchableMultiTaskEditorField
   :: (Default patch, Ord entity)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> EntityPatchTransformedLens entity patch [] TaskId [] TaskId
   -> EditorField entity patch f'
@@ -109,7 +109,7 @@ newtype SelectedTasksViewerAction = ViewerUpdateDocument DocumentChange
 -- | Component that displays selected tasks as comma-separated text with count
 -- Used as the viewer in editor fields (read-only display)
 selectedTasksViewerComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> (Task -> Bool)
   -> SelectorTransformedLens p [] Task f t
   -> M.Component p SelectedTasksViewerModel SelectedTasksViewerAction
@@ -159,7 +159,7 @@ viewSelectedTasks tasks =
 -- | Legacy editor field - now delegates to searchable version
 multiTaskEditorField
   :: (Default patch, Ord entity)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> EntityPatchTransformedLens entity patch [] TaskId [] TaskId
   -> EditorField entity patch f

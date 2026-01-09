@@ -11,7 +11,7 @@ import Competences.Document.Task (TaskGroupIdentifier (..), TaskIdentifier (..),
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -61,7 +61,7 @@ data Action
   deriving (Eq, Show)
 
 taskOrGroupSelectorComponent
-  :: SyncDocumentRef -> Lens' p (Maybe TaskOrGroup) -> M.Component p Model Action
+  :: SyncContext -> Lens' p (Maybe TaskOrGroup) -> M.Component p Model Action
 taskOrGroupSelectorComponent r parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]

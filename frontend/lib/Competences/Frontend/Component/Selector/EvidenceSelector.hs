@@ -18,7 +18,8 @@ import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
   , FocusedUserChange (..)
   , SyncDocumentEnv (..)
-  , SyncDocumentRef
+  , SyncContext
+  , getFocusedUserRef
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -62,13 +63,13 @@ data Action
   deriving (Eq, Show)
 
 evidenceSelectorComponent
-  :: SyncDocumentRef -> EvidenceSelectorStyle -> Lens' p (Maybe Evidence) -> M.Component p Model Action
+  :: SyncContext -> EvidenceSelectorStyle -> Lens' p (Maybe Evidence) -> M.Component p Model Action
 evidenceSelectorComponent r style parentLens =
   (M.component model update view)
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedEvidence]
     , M.subs =
         [ subscribeDocument r UpdateDocument
-        , subscribeFocusedUser r FocusedUserChanged
+        , subscribeFocusedUser (getFocusedUserRef r) FocusedUserChanged
         ]
     }
   where

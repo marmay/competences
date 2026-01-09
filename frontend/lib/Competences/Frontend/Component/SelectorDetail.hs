@@ -72,7 +72,7 @@ newtype Action mode
 -- data GridMode = GridView | GridEdit
 --   deriving (Eq, Ord, Enum, Bounded, Show)
 --
--- competenceGridComponent :: SyncDocumentRef -> User -> M.Component p (SD.Model CompetenceGrid GridMode) (SD.Action GridMode)
+-- competenceGridComponent :: SyncContext -> User -> M.Component p (SD.Model CompetenceGrid GridMode) (SD.Action GridMode)
 -- competenceGridComponent r user =
 --   SD.selectorDetailComponent
 --     SD.SelectorDetailConfig

@@ -4,7 +4,7 @@ module Competences.Frontend.Component.ConnectionStatus
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
-import Competences.Frontend.SyncDocument (SyncDocumentRef, getCommandSender)
+import Competences.Frontend.SyncDocument (SyncContext, getCommandSender)
 import Competences.Frontend.WebSocket.CommandSender
   ( ConnectionChange (..)
   , ConnectionState (..)
@@ -20,7 +20,7 @@ import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
 
 -- | Connection status indicator for footer
-connectionStatusView :: SyncDocumentRef -> M.View p a
+connectionStatusView :: SyncContext -> M.View p a
 connectionStatusView ir = V.component "connection-status" (connectionStatusComponent ir)
 
 data Model = Model
@@ -32,7 +32,7 @@ data Model = Model
 newtype Action = ConnectionChanged ConnectionChange
   deriving (Eq, Show)
 
-connectionStatusComponent :: SyncDocumentRef -> M.Component p Model Action
+connectionStatusComponent :: SyncContext -> M.Component p Model Action
 connectionStatusComponent ir =
   (M.component model update view)
     { M.subs = [subscribeConnection (getCommandSender ir) ConnectionChanged]

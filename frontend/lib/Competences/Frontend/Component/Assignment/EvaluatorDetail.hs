@@ -14,7 +14,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument
   ( DocumentChange (..)
-  , SyncDocumentRef
+  , SyncContext
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -36,7 +36,7 @@ import Miso.String (ms)
 -- | Detail view for evaluating an assignment
 -- The mode type parameter allows this to work with any mode type
 evaluatorDetailView
-  :: SyncDocumentRef
+  :: SyncContext
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 evaluatorDetailView r assignment =
@@ -74,7 +74,7 @@ data EvaluatorAction
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
-evaluatorComponent :: SyncDocumentRef -> Assignment -> M.Component p EvaluatorModel EvaluatorAction
+evaluatorComponent :: SyncContext -> Assignment -> M.Component p EvaluatorModel EvaluatorAction
 evaluatorComponent r assignment =
   (M.component model update view')
     { M.subs = [subscribeDocument r UpdateDocument]

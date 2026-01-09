@@ -53,7 +53,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector
   , stage'
   )
 import Competences.Frontend.SyncDocument
-  ( SyncDocumentRef
+  ( SyncContext
   , nextId
   )
 import Data.Default (Default)
@@ -65,8 +65,8 @@ import Miso qualified as M
 
 -- | The observation pipeline: 5 stages leading to an Observation
 --
--- Takes a SyncDocumentRef to generate IDs for new observations
-observationPipeline :: SyncDocumentRef -> Pipeline 'IsStage '[] CompetenceGrid Observation
+-- Takes a SyncContext to generate IDs for new observations
+observationPipeline :: SyncContext -> Pipeline 'IsStage '[] CompetenceGrid Observation
 observationPipeline r =
   stage' competenceGridP $ \cg ->
     stage' (competenceP cg) $ \c ->
@@ -154,7 +154,7 @@ abilityP = IncrementalParserSpec {makeSuggestions, reconstructInput}
     reconstructInput NotYet = "4"
 
 -- Configuration for observation selector
-observationConfig :: SyncDocumentRef -> EvidenceId -> MultiStageSelectorStyle -> MultiStageSelectorConfig Observation
+observationConfig :: SyncContext -> EvidenceId -> MultiStageSelectorStyle -> MultiStageSelectorConfig Observation
 observationConfig r evidenceId style =
   MultiStageSelectorConfig
     { initialState = initialize (observationPipeline r)
@@ -213,7 +213,7 @@ lookupObservationData doc observation = do
   pure (competence, competenceGrid)
 
 observationSelectorComponent
-  :: SyncDocumentRef
+  :: SyncContext
   -> EvidenceId
   -> MultiStageSelectorStyle
   -> SelectorTransformedLens p [] Observation f' a'
@@ -223,7 +223,7 @@ observationSelectorComponent r evidenceId style =
 
 observationEditorField
   :: (Ord p, Default patch)
-  => SyncDocumentRef
+  => SyncContext
   -> M.MisoString
   -> (p -> EvidenceId)
   -> EntityPatchTransformedLens p patch [] Observation f t
