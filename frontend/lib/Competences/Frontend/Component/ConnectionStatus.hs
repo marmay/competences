@@ -4,10 +4,10 @@ module Competences.Frontend.Component.ConnectionStatus
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncDocument (SyncDocumentRef, getCommandSender)
+import Competences.Frontend.WebSocket.CommandSender
   ( ConnectionChange (..)
   , ConnectionState (..)
-  , SyncDocumentRef
   , subscribeConnection
   )
 import Competences.Frontend.View qualified as V
@@ -35,7 +35,7 @@ newtype Action = ConnectionChanged ConnectionChange
 connectionStatusComponent :: SyncDocumentRef -> M.Component p Model Action
 connectionStatusComponent ir =
   (M.component model update view)
-    { M.subs = [subscribeConnection ir ConnectionChanged]
+    { M.subs = [subscribeConnection (getCommandSender ir) ConnectionChanged]
     }
   where
     model = Model Disconnected 0
@@ -56,8 +56,7 @@ connectionStatusComponent ir =
 -- | Dot color and animation classes based on connection state
 dotClasses :: ConnectionState -> Text
 dotClasses Connected = "bg-green-500"
-dotClasses Disconnected = "bg-red-500"
-dotClasses (Reconnecting _) = "bg-amber-500 animate-pulse"
+dotClasses Disconnected = "bg-red-500 animate-pulse"
 
 -- | Tooltip text based on state and pending count
 tooltipText :: Model -> M.MisoString
@@ -67,7 +66,6 @@ tooltipText Model{connectionState, pendingCount} =
     stateText = case connectionState of
       Connected -> translate' LblConnected
       Disconnected -> translate' LblDisconnected
-      Reconnecting n -> translate' (LblReconnecting n)
 
     pendingText
       | pendingCount == 0 = ""

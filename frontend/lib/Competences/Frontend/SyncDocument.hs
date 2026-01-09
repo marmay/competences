@@ -1,6 +1,6 @@
 module Competences.Frontend.SyncDocument
   ( -- * SyncDocument Reference
-    SyncDocumentRef
+    SyncDocumentRef (..)
   , SyncDocumentEnv (..)
   , SyncDocument (..)
   , DocumentChange (..)
@@ -18,6 +18,7 @@ module Competences.Frontend.SyncDocument
   , issueInitialUpdate
   , mkSyncDocumentEnv
   , syncDocumentEnv
+  , getCommandSender
   , nextId
   , isInitialUpdate
     -- * Focused User
@@ -26,30 +27,29 @@ module Competences.Frontend.SyncDocument
   , subscribeFocusedUser
   , setFocusedUser
   , readFocusedUser
-    -- * Connection State
-  , ConnectionState (..)
-  , ConnectionChange (..)
-  , subscribeConnection
-  , setConnectionState
-  , notifyPendingChange
-  , trySendNextCommand
   )
 where
 
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
-import Competences.Document.User (isStudent)
 import Competences.Document.Id (Id (..))
+import Competences.Document.User (isStudent)
+import Competences.Frontend.WebSocket.CommandSender
+  ( CommandSender
+  , acknowledgeCommand
+  , getPending
+  , pushCommand
+  )
 import Control.Monad (forM_, when)
+import Data.Map qualified as Map
 import Data.Time (Day, UTCTime (..), getCurrentTime)
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Subscription.Util (createSub)
 import Optics.Core ((%~), (&), (.~))
 import System.Random (StdGen, newStdGen, random)
 import UnliftIO (MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newMVar, readMVar)
-import Miso.Subscription.Util (createSub)
-import qualified Data.Map as Map
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -58,8 +58,7 @@ import qualified Data.Map as Map
 -- persisted.
 data SyncDocument = SyncDocument
   { localDocument :: !Document
-  , localChanges :: ![Command]
-  , pendingCommand :: !(Maybe Command)
+  , localChanges :: ![Command]  -- All unconfirmed commands (including in-flight)
   , remoteDocument :: !Document
   , onChanged :: !(Map.Map Int ChangedHandler)
   , nextChangedHandlerId :: !Int
@@ -103,47 +102,25 @@ data FocusedUserChange = FocusedUserChange
   }
   deriving (Eq, Show, Generic)
 
--- | Connection state for WebSocket
-data ConnectionState
-  = Connected
-  | Disconnected
-  | Reconnecting !Int  -- Attempt number
-  deriving (Eq, Show, Generic)
-
--- | Connection change notification
-data ConnectionChange = ConnectionChange
-  { state :: !ConnectionState
-  , pendingCount :: !Int
-  }
-  deriving (Eq, Show, Generic)
-
--- | State for connection status tracking
-data ConnectionStateData = ConnectionStateData
-  { connectionState :: !ConnectionState
-  , onConnectionChanged :: !(Map.Map Int ConnectionHandler)
-  , nextConnectionHandlerId :: !Int
-  }
-  deriving (Generic)
-
-data ConnectionHandler where
-  ConnectionHandler :: forall a. (ConnectionChange -> a) -> (M.Sink a) -> ConnectionHandler
-
 data SyncDocumentRef = SyncDocumentRef
   { syncDocument :: MVar SyncDocument
   , randomGen :: MVar StdGen
   , env :: !SyncDocumentEnv
   , focusedUserState :: MVar FocusedUserState
-  , connectionStateData :: MVar ConnectionStateData
   }
 
 -- | Get the environment from a SyncDocumentRef
 syncDocumentEnv :: SyncDocumentRef -> SyncDocumentEnv
 syncDocumentEnv r = r.env
 
+-- | Get the CommandSender from a SyncDocumentRef
+getCommandSender :: SyncDocumentRef -> CommandSender
+getCommandSender r = r.env.commandSender
+
 data SyncDocumentEnv = SyncDocumentEnv
   { currentDay :: !Day
   , connectedUser :: !User
-  , sendCommand :: !(Command -> IO ())  -- Injected by connection layer
+  , commandSender :: !CommandSender  -- Reference to CommandSender for network operations
   }
   deriving (Generic)
 
@@ -152,16 +129,14 @@ mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
   randomGen <- newStdGen >>= newMVar
   focusedUserState <- newMVar $ mkFocusedUserState env.connectedUser
-  connectionStateData <- newMVar mkConnectionStateData
-  pure $ SyncDocumentRef syncDocument randomGen env focusedUserState connectionStateData
+  pure $ SyncDocumentRef syncDocument randomGen env focusedUserState
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncDocumentRef
-mkSyncDocument' env randomGen m = do
+mkSyncDocument' env rgen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
-  randomGen' <- newMVar randomGen
+  randomGen' <- newMVar rgen
   focusedUserState <- newMVar $ mkFocusedUserState env.connectedUser
-  connectionStateData <- newMVar mkConnectionStateData
-  pure $ SyncDocumentRef syncDocument randomGen' env focusedUserState connectionStateData
+  pure $ SyncDocumentRef syncDocument randomGen' env focusedUserState
 
 readSyncDocument :: (MonadIO m) => SyncDocumentRef -> m SyncDocument
 readSyncDocument d = readMVar d.syncDocument
@@ -185,21 +160,17 @@ modifySyncDocument :: SyncDocumentRef -> Command -> IO ()
 modifySyncDocument r c = do
   M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
   modifyMVar_ r.syncDocument $ modifySyncDocument' r.env.connectedUser.id c
-  -- Notify pending count changed
-  notifyPendingChange r
-  -- Try to send next command (respects at-most-one-in-flight)
-  trySendNextCommand r
+  -- Push command to CommandSender (it handles at-most-one-in-flight)
+  pushCommand r.env.commandSender c
 
 setSyncDocument :: SyncDocumentRef -> Document -> IO ()
 setSyncDocument r m = do
-  modifyMVar_ r.syncDocument $ setSyncDocument' r.env.connectedUser.id m
-  -- Notify pending count may have changed
-  notifyPendingChange r
-  -- Note: trySendNextCommand is NOT called here because connection state
-  -- is not yet Connected. The handler will call it after setConnectionState.
+  -- Get pending from CommandSender to include in replay
+  pending <- getPending r.env.commandSender
+  modifyMVar_ r.syncDocument $ setSyncDocument' r.env.connectedUser.id pending m
 
 emptySyncDocument :: SyncDocument
-emptySyncDocument = SyncDocument emptyDocument [] Nothing emptyDocument Map.empty 0
+emptySyncDocument = SyncDocument emptyDocument [] emptyDocument Map.empty 0
 
 modifySyncDocument' :: UserId -> Command -> SyncDocument -> IO SyncDocument
 modifySyncDocument' uId c d = do
@@ -210,28 +181,28 @@ modifySyncDocument' uId c d = do
     Right m' -> do
       let d' =
             d
-              & (#localChanges %~ (c :))
+              & (#localChanges %~ (++ [c]))  -- Add at end (FIFO queue)
               & (#localDocument .~ fst m')
       forM_ d.onChanged $
         issueDocumentChange (DocumentChange d'.localDocument (DocumentChanged d.localDocument c))
       pure d'
 
-setSyncDocument' :: UserId -> Document -> SyncDocument -> IO SyncDocument
-setSyncDocument' userId remoteDoc d = do
-  -- Put pendingCommand back at front of localChanges for replay
-  -- This preserves commands that were in-flight when connection dropped
-  let allLocalChanges = maybe d.localChanges (: d.localChanges) d.pendingCommand
-
-  -- Replay all local changes on the new remoteDocument
-  -- This handles both initial connection (empty localChanges) and reconnection
-  let (localDoc', validChanges, _) = replayLocalChanges userId remoteDoc Nothing allLocalChanges
+-- | Set the sync document from server state, replaying local changes
+-- The pending command (from CommandSender) is passed in to include in replay
+setSyncDocument' :: UserId -> Maybe Command -> Document -> SyncDocument -> IO SyncDocument
+setSyncDocument' userId maybePending remoteDoc d = do
+  -- Replay local changes on the new remoteDocument
+  -- Include pending command at the front (it was the first to be sent)
+  let allLocalChanges = case maybePending of
+        Nothing -> d.localChanges
+        Just pending -> pending : d.localChanges
+  let (localDoc', validChanges) = replayLocalChanges userId remoteDoc allLocalChanges
 
   let d' =
         d
           & (#remoteDocument .~ remoteDoc)
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
-          & (#pendingCommand .~ Nothing)  -- Clear pending - commands are now in localChanges
 
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument DocumentReloaded)
   pure d'
@@ -244,40 +215,27 @@ issueInitialUpdate r = do
   d <- readMVar r.syncDocument
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument InitialUpdate)
 
-mkSyncDocumentEnv :: (MonadIO m) => User -> (Command -> IO ()) -> m SyncDocumentEnv
-mkSyncDocumentEnv u sendCmd = do
+mkSyncDocumentEnv :: (MonadIO m) => User -> CommandSender -> m SyncDocumentEnv
+mkSyncDocumentEnv u sender = do
   d <- (.utctDay) <$> liftIO getCurrentTime
-  pure $ SyncDocumentEnv d u sendCmd
+  pure $ SyncDocumentEnv d u sender
 
 nextId :: (MonadUnliftIO m) => SyncDocumentRef -> m (Id a)
 nextId r = modifyMVar r.randomGen (pure . swap . random)
 
--- | Try to send the next command from localChanges if connected and no command is pending
--- This maintains the at-most-one-command-in-flight invariant
-trySendNextCommand :: SyncDocumentRef -> IO ()
-trySendNextCommand r = do
-  connState <- (.connectionState) <$> readMVar r.connectionStateData
-  case connState of
-    Connected -> do
-      maybeCmd <- modifyMVar r.syncDocument $ \syncDoc ->
-        case (syncDoc.pendingCommand, syncDoc.localChanges) of
-          (Nothing, cmd : rest) ->
-            let syncDoc' = syncDoc
-                  & (#pendingCommand .~ Just cmd)
-                  & (#localChanges .~ rest)
-            in pure (syncDoc', Just cmd)
-          _ -> pure (syncDoc, Nothing)
-      case maybeCmd of
-        Just cmd -> do
-          M.consoleLog $ M.ms $ "Sending command: " <> show cmd
-          r.env.sendCommand cmd
-        Nothing -> pure ()
-    _ -> pure ()  -- Not connected, don't send
-
 -- | Apply a command from the server (echo or broadcast)
--- Updates remoteDocument and replays pendingCommand + localChanges on top of it
+-- Updates remoteDocument and replays localChanges on top of it
 applyRemoteCommand :: SyncDocumentRef -> Command -> IO ()
 applyRemoteCommand d cmd = do
+  -- Check if this is an echo of our pending command
+  pending <- getPending d.env.commandSender
+  let isEcho = pending == Just cmd
+
+  when isEcho $ do
+    M.consoleLog $ M.ms $ "Received echo of our command: " <> show cmd
+    -- Acknowledge the command (clears pending, sends next)
+    acknowledgeCommand d.env.commandSender
+
   modifyMVar_ d.syncDocument $ \syncDoc -> do
     -- Apply command to remoteDocument
     remoteDoc' <- case handleCommand d.env.connectedUser.id cmd syncDoc.remoteDocument of
@@ -287,29 +245,25 @@ applyRemoteCommand d cmd = do
         pure syncDoc.remoteDocument
       Right (doc, _) -> pure doc
 
-    -- Check if this is an echo of OUR pending command
-    pendingCommand' <- case syncDoc.pendingCommand of
-      Just pending | pending == cmd -> do
-        M.consoleLog $ M.ms $ "Received echo of our command: " <> show cmd
-        pure Nothing  -- Clear pending, this is our echo
-      _ -> pure syncDoc.pendingCommand  -- Different command, keep pending
+    -- If echo, remove from head of localChanges
+    let localChanges' = if isEcho
+          then drop 1 syncDoc.localChanges
+          else syncDoc.localChanges
 
-    -- Replay pendingCommand and localChanges on top of the new remote document
-    let (localDoc', validChanges, validPending) = replayLocalChanges
+    -- Replay remaining localChanges on top of the new remote document
+    let (localDoc', validChanges) = replayLocalChanges
           d.env.connectedUser.id
           remoteDoc'
-          pendingCommand'
-          syncDoc.localChanges
+          localChanges'
 
-    when (length validChanges < length syncDoc.localChanges) $ do
+    when (length validChanges < length localChanges') $ do
       M.consoleLog $ M.ms $ "WARNING: Conflict detected - "
-        <> show (length syncDoc.localChanges - length validChanges) <> " local commands were dropped"
+        <> show (length localChanges' - length validChanges) <> " local commands were dropped"
 
     let syncDoc' = syncDoc
           & (#remoteDocument .~ remoteDoc')
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
-          & (#pendingCommand .~ validPending)
 
     -- Notify subscribers
     forM_ syncDoc.onChanged $
@@ -317,26 +271,11 @@ applyRemoteCommand d cmd = do
 
     pure syncDoc'
 
-  -- Notify that pending count may have changed
-  notifyPendingChange d
-  -- Try to send next command (may have been unblocked by echo clearing pendingCommand)
-  trySendNextCommand d
-
--- | Replay pending command and local changes on top of a document, filtering out invalid ones
--- Returns (resulting document, valid localChanges, valid pendingCommand)
-replayLocalChanges :: UserId -> Document -> Maybe Command -> [Command] -> (Document, [Command], Maybe Command)
-replayLocalChanges userId doc maybePending localCmds =
-  -- First apply pending command (if exists)
-  let (docAfterPending, validPending) = case maybePending of
-        Nothing -> (doc, Nothing)
-        Just pending -> case handleCommand userId pending doc of
-          Left _err -> (doc, Nothing)  -- Pending command no longer valid
-          Right (doc', _) -> (doc', Just pending)
-
-  -- Then apply local changes on top
-      (finalDoc, validLocalCmds) = foldr applyOne (docAfterPending, []) (reverse localCmds)
-
-   in (finalDoc, validLocalCmds, validPending)
+-- | Replay local changes on top of a document, filtering out invalid ones
+-- Returns (resulting document, valid localChanges)
+replayLocalChanges :: UserId -> Document -> [Command] -> (Document, [Command])
+replayLocalChanges userId doc localCmds =
+  foldr applyOne (doc, []) (reverse localCmds)
   where
     applyOne cmd (currentDoc, validCmds) =
       case handleCommand userId cmd currentDoc of
@@ -344,45 +283,43 @@ replayLocalChanges userId doc maybePending localCmds =
         Right (newDoc, _) -> (newDoc, cmd : validCmds)
 
 -- | Handle a command rejection from the server
--- Removes the rejected command from pendingCommand and replays remaining changes
+-- Removes the rejected command from localChanges
 rejectCommand :: SyncDocumentRef -> Command -> IO ()
 rejectCommand d cmd = do
+  -- Check if this is our pending command
+  pending <- getPending d.env.commandSender
+  let isOurPending = pending == Just cmd
+
+  when isOurPending $ do
+    M.consoleLog $ M.ms $ "Our command was rejected by server: " <> show cmd
+    -- Acknowledge the command (clears pending, sends next)
+    acknowledgeCommand d.env.commandSender
+
   modifyMVar_ d.syncDocument $ \syncDoc -> do
-    case syncDoc.pendingCommand of
-      Just pending | pending == cmd -> do
-        -- Expected: our pending command was rejected
-        M.consoleLog $ M.ms $ "Our command was rejected by server: " <> show cmd
+    -- Remove the rejected command from localChanges
+    let localChanges' = if isOurPending
+          then drop 1 syncDoc.localChanges  -- Remove from head
+          else filter (/= cmd) syncDoc.localChanges  -- Remove if found elsewhere
 
-        -- Remove from localChanges if it's there
-        let localChanges' = filter (/= cmd) syncDoc.localChanges
+    -- Replay remaining local changes on remote document
+    let (localDoc', validChanges) = replayLocalChanges
+          d.env.connectedUser.id
+          syncDoc.remoteDocument
+          localChanges'
 
-        -- Replay remaining local changes on remote document (no pending now)
-        let (localDoc', validChanges, _) = replayLocalChanges
-              d.env.connectedUser.id
-              syncDoc.remoteDocument
-              Nothing  -- pendingCommand cleared
-              localChanges'
+    let syncDoc' = syncDoc
+          & (#localDocument .~ localDoc')
+          & (#localChanges .~ validChanges)
 
-        let syncDoc' = syncDoc
-              & (#pendingCommand .~ Nothing)  -- Clear pending
-              & (#localDocument .~ localDoc')
-              & (#localChanges .~ validChanges)
+    -- Notify subscribers
+    forM_ syncDoc.onChanged $
+      issueDocumentChange (DocumentChange localDoc' DocumentReloaded)
 
-        -- Notify subscribers
-        forM_ syncDoc.onChanged $
-          issueDocumentChange (DocumentChange localDoc' DocumentReloaded)
+    pure syncDoc'
 
-        pure syncDoc'
-
-      _ -> do
-        -- Unexpected: rejection for command we didn't send
-        M.consoleLog $ M.ms $ "WARNING: Received rejection for non-pending command: " <> show cmd
-        pure syncDoc  -- Keep state
-
-  -- Notify that pending count may have changed
-  notifyPendingChange d
-  -- Try to send next command (pendingCommand was cleared)
-  trySendNextCommand d
+-- ============================================================================
+-- FOCUSED USER
+-- ============================================================================
 
 -- | Get initial focused user based on role
 initialFocusedUser :: User -> Maybe User
@@ -433,63 +370,3 @@ setFocusedUser r newUser = do
 -- | Read current focused user
 readFocusedUser :: (MonadIO m) => SyncDocumentRef -> m (Maybe User)
 readFocusedUser r = liftIO $ (.focusedUser) <$> readMVar r.focusedUserState
-
--- ============================================================================
--- CONNECTION STATE
--- ============================================================================
-
--- | Create initial connection state data
-mkConnectionStateData :: ConnectionStateData
-mkConnectionStateData = ConnectionStateData
-  { connectionState = Disconnected
-  , onConnectionChanged = Map.empty
-  , nextConnectionHandlerId = 0
-  }
-
--- | Subscribe to connection state changes
-subscribeConnection :: forall a. SyncDocumentRef -> (ConnectionChange -> a) -> M.Sink a -> IO ()
-subscribeConnection r f sink = createSub acquire release sink
-  where
-    acquire = do
-      modifyMVar r.connectionStateData $ \s -> do
-        let handlerId = s.nextConnectionHandlerId
-            handler = ConnectionHandler f sink
-            newState = s
-              { onConnectionChanged = Map.insert handlerId handler s.onConnectionChanged
-              , nextConnectionHandlerId = handlerId + 1
-              }
-        -- Get pending count for initial notification
-        syncDoc <- readMVar r.syncDocument
-        let pendingCount = length syncDoc.localChanges + (if syncDoc.pendingCommand == Nothing then 0 else 1)
-        -- Send initial value
-        sink $ f $ ConnectionChange s.connectionState pendingCount
-        pure (newState, handlerId)
-    release handlerId =
-      modifyMVar_ r.connectionStateData $ \s ->
-        pure s { onConnectionChanged = Map.delete handlerId s.onConnectionChanged }
-
--- | Set the connection state and notify subscribers
-setConnectionState :: SyncDocumentRef -> ConnectionState -> IO ()
-setConnectionState r newState = do
-  modifyMVar_ r.connectionStateData $ \s -> do
-    -- Get pending count for notification
-    syncDoc <- readMVar r.syncDocument
-    let pendingCount = length syncDoc.localChanges + (if syncDoc.pendingCommand == Nothing then 0 else 1)
-    let change = ConnectionChange newState pendingCount
-    -- Notify all handlers
-    forM_ (Map.elems s.onConnectionChanged) $ \(ConnectionHandler f sink) ->
-      sink (f change)
-    pure s { connectionState = newState }
-
--- | Notify subscribers about pending count change (without changing connection state)
-notifyPendingChange :: SyncDocumentRef -> IO ()
-notifyPendingChange r = do
-  modifyMVar_ r.connectionStateData $ \s -> do
-    -- Get pending count for notification
-    syncDoc <- readMVar r.syncDocument
-    let pendingCount = length syncDoc.localChanges + (if syncDoc.pendingCommand == Nothing then 0 else 1)
-    let change = ConnectionChange s.connectionState pendingCount
-    -- Notify all handlers
-    forM_ (Map.elems s.onConnectionChanged) $ \(ConnectionHandler f sink) ->
-      sink (f change)
-    pure s  -- State unchanged
