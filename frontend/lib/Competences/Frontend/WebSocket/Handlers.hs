@@ -13,21 +13,17 @@ where
 
 import Competences.Document (Document, User (..))
 import Competences.Frontend.SyncDocument
-  ( ConnectionState (..)
-  , SyncDocumentRef
+  ( SyncDocumentRef
   , applyRemoteCommand
   , mkSyncDocument
   , mkSyncDocumentEnv
   , rejectCommand
-  , setConnectionState
   , setSyncDocument
-  , trySendNextCommand
   )
 import Competences.Frontend.WebSocket.CommandSender
   ( CommandSender
   , clearWebSocket
   , mkCommandSender
-  , sendCommand
   , updateWebSocket
   )
 import Competences.Frontend.WebSocket.Protocol
@@ -61,12 +57,12 @@ waitForSnapshot ws = do
 
 -- | Operation loop - runs until disconnect
 -- Catches DisconnectedException internally and returns cleanly
+-- Note: Connection state is updated by clearWebSocket in the handlers
 operationLoop :: SyncDocumentRef -> WebSocket -> IO ()
 operationLoop ref ws = loop `catch` handleDisconnect
   where
     handleDisconnect :: DisconnectedException -> IO ()
-    handleDisconnect _ = do
-      setConnectionState ref Disconnected
+    handleDisconnect _ = pure ()  -- Just return cleanly, handlers will call clearWebSocket
 
     loop :: IO ()
     loop = forever $ do
@@ -98,15 +94,13 @@ mkInitialHandler token forkApp ws = do
   sendAuth token ws
   (doc, user) <- waitForSnapshot ws
 
-  -- Update sender with new connection
+  -- Update sender with new connection (this also notifies subscribers of Connected state)
   updateWebSocket sender ws
 
-  -- Create SyncDocumentRef with sendCommand bound to sender
-  env <- mkSyncDocumentEnv user (sendCommand sender)
+  -- Create SyncDocumentRef with CommandSender reference
+  env <- mkSyncDocumentEnv user sender
   ref <- mkSyncDocument env
   setSyncDocument ref doc
-  setConnectionState ref Connected
-  trySendNextCommand ref  -- Start sending any queued commands
 
   -- Fork the Miso application
   M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
@@ -131,13 +125,11 @@ mkReconnectHandler token (ref, sender) ws = do
   sendAuth token ws
   (doc, _user) <- waitForSnapshot ws
 
-  -- Update sender with new connection
+  -- Update sender with new connection (resends pending, notifies subscribers)
   updateWebSocket sender ws
 
   -- Update SyncDocument with new document from server
   setSyncDocument ref doc
-  setConnectionState ref Connected
-  trySendNextCommand ref  -- Resume sending queued commands
 
   M.consoleLog "Reconnected and synchronized"
 

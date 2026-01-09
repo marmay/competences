@@ -17,6 +17,7 @@ import Competences.Frontend.SyncDocument
   , setSyncDocument
   )
 import Competences.Frontend.WebSocket (getJWTToken)
+import Competences.Frontend.WebSocket.CommandSender (mkCommandSender)
 import Competences.Frontend.WebSocket.Handlers (mkInitialHandler, mkReconnectHandler)
 import Competences.Frontend.WebSocket.Protocol (AuthenticationException (..), withWebSocket)
 import Control.Concurrent (forkIO)
@@ -36,10 +37,10 @@ main = do
     case maybeToken of
       Nothing -> do
         M.consoleError "No JWT token found in window.COMPETENCES_JWT"
-        -- Fallback: use test user with no-op sendCommand
+        -- Fallback: use test user with disconnected CommandSender
         let user = User nilId "Test User" Teacher (Office365Id "")
-            noOpSendCommand _ = pure () -- No WebSocket, just ignore sends
-        env <- mkSyncDocumentEnv user noOpSendCommand
+        sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
+        env <- mkSyncDocumentEnv user sender
         ref <- mkSyncDocument env
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user
