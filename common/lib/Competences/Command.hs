@@ -3,6 +3,7 @@ module Competences.Command
   , CommandId
   , handleCommand
   , module Competences.Command.Common
+  , module Competences.Command.CompetenceAssessments
   , module Competences.Command.Competences
   , module Competences.Command.Users
   , module Competences.Command.Evidences
@@ -11,9 +12,10 @@ module Competences.Command
   )
 where
 
-import Competences.Command.Assignments (AssignmentsCommand (..), AssignmentPatch (..), handleAssignmentsCommand)
-import Competences.Command.Common (AffectedUsers (..), UpdateResult, EntityCommand(..), ModifyCommand(..))
-import Competences.Command.Competences (CompetencesCommand (..), CompetenceGridPatch (..), CompetencePatch (..), handleCompetencesCommand)
+import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..), handleAssignmentsCommand)
+import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
+import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..), CompetenceAssessmentsCommand (..), handleCompetenceAssessmentsCommand)
+import Competences.Command.Competences (CompetenceGridPatch (..), CompetencePatch (..), CompetencesCommand (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
@@ -33,6 +35,7 @@ data Command
   | Evidences !EvidencesCommand
   | Tasks !TasksCommand
   | Assignments !AssignmentsCommand
+  | CompetenceAssessments !CompetenceAssessmentsCommand
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -53,3 +56,4 @@ handleCommand userId cmd d = case cmd of
   Evidences c -> handleEvidencesCommand userId c d
   Tasks c -> handleTasksCommand userId c d
   Assignments c -> handleAssignmentsCommand userId c d
+  CompetenceAssessments c -> handleCompetenceAssessmentsCommand userId c d

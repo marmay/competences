@@ -3,11 +3,12 @@ module Competences.Document.Lock
   )
 where
 
+import Competences.Document.Assessment (CompetenceAssessmentId)
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (EvidenceId)
-import Competences.Document.Task (TaskId, TaskGroupId)
+import Competences.Document.Task (TaskGroupId, TaskId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Binary (Binary (..))
@@ -24,6 +25,7 @@ data Lock
   | TaskLock !TaskId
   | TaskGroupLock !TaskGroupId
   | AssignmentLock !AssignmentId
+  | CompetenceAssessmentLock !CompetenceAssessmentId
   deriving (Eq, Generic, Ord, Show)
 
 instance FromJSON Lock
