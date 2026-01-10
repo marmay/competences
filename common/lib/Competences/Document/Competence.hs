@@ -4,20 +4,26 @@ module Competences.Document.Competence
   , CompetenceLevelId
   , CompetenceIxs
   , Level (..)
-  , levels
+  , LevelInfo (..)
+  , allLevels
   , competenceLevelIdsOf
+  , levelDescription
+  , isLevelLocked
+  , hasLevelContent
   )
 where
 
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Order, Orderable)
-import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON, ToJSONKey, (.:), (.:?), (.!=), withObject)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Map qualified as M
+import Data.Set qualified as S
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 
 type CompetenceId = Id Competence
@@ -33,22 +39,42 @@ data Level
     AdvancedLevel
   deriving (Eq, Generic, Ord, Show)
 
+-- | Information about a competence level (description and locked status).
+-- A level entry exists in the map iff it has a non-empty description.
+data LevelInfo = LevelInfo
+  { description :: !Text
+  , locked :: !Bool
+  }
+  deriving (Eq, Generic, Ord, Show)
+
 data Competence = Competence
   { id :: !CompetenceId
   , competenceGridId :: !CompetenceGridId
   , order :: !Order
   , description :: !Text
-  , levelDescriptions :: !(M.Map Level Text)
+  , levels :: !(M.Map Level LevelInfo)
   }
   deriving (Eq, Generic, Ord, Show)
 
 -- | List of all levels in increasing order of competence.
-levels :: [Level]
-levels = [BasicLevel, IntermediateLevel, AdvancedLevel]
+allLevels :: [Level]
+allLevels = [BasicLevel, IntermediateLevel, AdvancedLevel]
 
 competenceLevelIdsOf :: Competence -> [CompetenceLevelId]
 competenceLevelIdsOf competence =
-   map (competence.id,) $ M.keys competence.levelDescriptions
+   map (competence.id,) $ M.keys competence.levels
+
+-- | Get description for a level (empty if not present)
+levelDescription :: Level -> Competence -> Text
+levelDescription lvl c = maybe T.empty (.description) (c.levels M.!? lvl)
+
+-- | Check if level is locked
+isLevelLocked :: Level -> Competence -> Bool
+isLevelLocked lvl c = maybe False (.locked) (c.levels M.!? lvl)
+
+-- | Check if level has content (description)
+hasLevelContent :: Level -> Competence -> Bool
+hasLevelContent lvl c = M.member lvl c.levels
 
 type CompetenceLevelId = (CompetenceId, Level)
 
@@ -71,7 +97,30 @@ instance FromJSONKey Level
 
 instance ToJSONKey Level
 
-instance FromJSON Competence
+instance FromJSON LevelInfo
+
+instance ToJSON LevelInfo
+
+instance Binary LevelInfo
+
+-- | Custom instance for backward-compatible parsing.
+-- Handles both old format (levelDescriptions + lockedLevels) and new format (levels).
+instance FromJSON Competence where
+  parseJSON = withObject "Competence" $ \v -> do
+    cId <- v .: "id"
+    gridId <- v .: "competenceGridId"
+    cOrder <- v .: "order"
+    desc <- v .: "description"
+    -- Try new format first, fall back to old format
+    mLevels <- v .:? "levels"
+    lvls <- case mLevels of
+      Just l -> pure l
+      Nothing -> do
+        -- Old format: convert levelDescriptions + lockedLevels to levels
+        levelDescs <- v .: "levelDescriptions"
+        lockedSet <- v .:? "lockedLevels" .!= S.empty
+        pure $ M.mapWithKey (\lvl d -> LevelInfo d (S.member lvl lockedSet)) levelDescs
+    pure $ Competence cId gridId cOrder desc lvls
 
 instance ToJSON Competence
 

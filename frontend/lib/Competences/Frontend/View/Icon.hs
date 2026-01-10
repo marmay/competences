@@ -44,6 +44,8 @@ data Icon
   | IcnEvidence
   | IcnAssignment
   | IcnInfo
+  | IcnLock
+  | IcnLockOpen
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -89,6 +91,8 @@ iconId = \case
   IcnEvidence -> "icon-evidence"
   IcnAssignment -> "icon-assignment"
   IcnInfo -> "icon-info"
+  IcnLock -> "icon-lock"
+  IcnLockOpen -> "icon-lock-open"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -289,6 +293,18 @@ iconDefOf' = \case
       [ "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
       , "M12 16v-4"
       , "M12 8h.01"
+      ]
+  -- Lock icon (closed)
+  IcnLock ->
+    mkPathesDR
+      [ "M5 13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6z"
+      , "M8 11V7a4 4 0 1 1 8 0v4"
+      ]
+  -- Lock open icon
+  IcnLockOpen ->
+    mkPathesDR
+      [ "M5 13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6z"
+      , "M8 11V7a4 4 0 1 1 8 0"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

@@ -8,7 +8,7 @@ module Competences.Frontend.Component.EvidenceCompetenceSelector
   )
 where
 
-import Competences.Document (Competence (..), Document (..), Level (..), levels, ordered)
+import Competences.Document (Competence (..), Document (..), Level (..), LevelInfo (..), allLevels, ordered)
 import Competences.Document.Competence (CompetenceLevelId, competenceLevelIdsOf)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
@@ -43,7 +43,7 @@ subscriptions r = [subscribeDocument r UpdateDocument]
 
 update :: Action -> M.Effect p Model Action
 update (ToggleCompetence c V.TriStateOn) =
-  M.modify (#selected %~ \s -> foldr Set.delete s [(c.id, l) | l <- levels])
+  M.modify (#selected %~ \s -> foldr Set.delete s [(c.id, l) | l <- allLevels])
 update (ToggleCompetence c _) =
   M.modify (#selected %~ \s -> foldr Set.insert s $ competenceLevelIdsOf c)
 update (ToggleCompetenceLevel l True) =
@@ -63,7 +63,7 @@ view m =
   V.viewTable $
     V.defTable
       { V.columns =
-          [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn levels
+          [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn allLevels
       , V.rows = m.document
       , V.columnHeader = \case
           CompetenceDescriptionColumn -> C.translate' C.LblCompetenceDescription
@@ -73,7 +73,7 @@ view m =
               levelsSelected =
                 Map.fromList
                   [ (l, (competence.id, l) `Set.member` m.selected)
-                  | l <- Map.keys competence.levelDescriptions
+                  | l <- Map.keys competence.levels
                   ]
            in \case
                 CompetenceDescriptionColumn ->
@@ -88,7 +88,7 @@ view m =
                     Just s ->
                       V.viewButton $
                         V.textButton
-                          (M.ms (competence.levelDescriptions Map.! l))
+                          (M.ms (competence.levels Map.! l).description)
                           s
                           (ToggleCompetenceLevel (competence.id, l) s)
                     Nothing -> V.text_ ""

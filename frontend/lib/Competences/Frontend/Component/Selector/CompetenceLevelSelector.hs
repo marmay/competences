@@ -10,6 +10,7 @@ import Competences.Document
   , CompetenceGrid
   , Document (..)
   , Level (..)
+  , LevelInfo (..)
   )
 import Competences.Document.Id (Id)
 import Competences.Frontend.Common qualified as C
@@ -41,7 +42,6 @@ import Competences.Frontend.SyncDocument (SyncContext)
 import Data.Default (Default)
 import Data.List (intercalate)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Optics.Core qualified as O
 
@@ -106,7 +106,7 @@ viewCompetenceLevelResult doc (competenceId, level) =
               <> "\n"
               <> M.ms levelLabel
               <> ": "
-              <> M.ms (fromMaybe "" (competence.levelDescriptions Map.!? level))
+              <> M.ms (maybe ("" :: M.MisoString) (M.ms . (.description)) (competence.levels Map.!? level))
        in ResultView
             { badgeText = label
             , tooltipContent = Just tooltipText

@@ -9,8 +9,9 @@ import Competences.Document
   , CompetenceGrid (..)
   , Document (..)
   , Level (..)
+  , LevelInfo (..)
+  , allLevels
   , emptyDocument
-  , levels
   , ordered
   )
 import Competences.Document.Evidence
@@ -32,17 +33,18 @@ import Competences.Frontend.SyncDocument
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Colors qualified as Colors
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
+import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.Html.Property qualified as MP
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 
@@ -117,7 +119,7 @@ viewerComponent r grid =
                 V.defTable
                   { V.columns =
                       [ViewerDescriptionColumn]
-                        <> map ViewerLevelColumn levels
+                        <> map ViewerLevelColumn allLevels
                   , V.rows = ordered (vm.document.competences Ix.@= grid.id)
                   , V.columnSpec = \case
                       ViewerDescriptionColumn ->
@@ -127,8 +129,8 @@ viewerComponent r grid =
                   , V.rowContents = V.cellContents $ \competence -> \case
                       ViewerDescriptionColumn -> Typography.small (M.ms competence.description)
                       ViewerLevelColumn level ->
-                        let competenceLevelId = (competence.id, level)
-                            levelDescription = M.ms $ fromMaybe "" (competence.levelDescriptions Map.!? level)
+                        let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level competence.levels
+                            competenceLevelId = (competence.id, level)
                             evidences' = evidences Ix.@= competenceLevelId
                             showEvidence evidence =
                               case Ix.getOne (evidence.observations Ix.@= competenceLevelId) of
@@ -147,13 +149,31 @@ viewerComponent r grid =
                                     Individual -> IcnSocialFormIndividual
                                   coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
                                in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
-                         in V.viewFlow
-                              (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
-                              [ Typography.small levelDescription
-                              , V.viewFlow
-                                  (V.hFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start))
-                                  (V.flowSpring : map showEvidence (Ix.toAscList (Proxy @Day) evidences'))
-                              ]
+                            -- Cell content (text and evidence)
+                            cellContent =
+                              V.viewFlow
+                                (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
+                                [ Typography.small (M.ms levelInfo.description)
+                                , V.viewFlow
+                                    (V.hFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start))
+                                    (V.flowSpring : map showEvidence (Ix.toAscList (Proxy @Day) evidences'))
+                                ]
+                         in if levelInfo.locked
+                              then
+                                -- Locked: prominent indicator with lock icon and label
+                                MH.div_
+                                  [class_ "relative bg-stone-100 border border-stone-200 rounded-lg p-2 -m-1"]
+                                  [ -- Lock badge in top-right corner
+                                    MH.div_
+                                      [class_ "absolute -top-2 -right-2 flex items-center gap-0.5 bg-stone-200 text-stone-600 text-xs px-1.5 py-0.5 rounded-full"]
+                                      [ icon [MP.width_ "10", MP.height_ "10"] IcnLock
+                                      , M.text "Locked"
+                                      ]
+                                  , MH.div_
+                                      [class_ "text-stone-500 mt-1"]
+                                      [cellContent]
+                                  ]
+                              else cellContent
                   }
 
 data ViewerColumn

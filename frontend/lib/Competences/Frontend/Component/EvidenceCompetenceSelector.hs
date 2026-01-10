@@ -5,7 +5,7 @@ module Competences.Frontend.Component.EvidenceCompetenceSelector
   )
 where
 
-import Competences.Document (Competence (..), Document (..), Level (..), levels, ordered)
+import Competences.Document (Competence (..), Document (..), Level (..), LevelInfo (..), allLevels, ordered)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability, SocialForm (..), abilities, socialForms)
 import Competences.Frontend.Common.Translate qualified as C
@@ -72,7 +72,7 @@ evidenceCompetenceSelector r parentLens =
       V.viewTable $
         V.defTable
           { V.columns =
-              [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn levels
+              [CompetenceDescriptionColumn] <> map CompetenceLevelDescriptionColumn allLevels
           , V.rows = m.competences
           , V.columnSpec = \case
               CompetenceDescriptionColumn ->
@@ -83,12 +83,12 @@ evidenceCompetenceSelector r parentLens =
               \case
                 CompetenceDescriptionColumn -> V.text_ (M.ms competence.description)
                 CompetenceLevelDescriptionColumn l ->
-                  case competence.levelDescriptions Map.!? l of
+                  case competence.levels Map.!? l of
                     Nothing -> V.empty
-                    Just levelDescription ->
+                    Just levelInfo ->
                       V.viewFlow
                         V.vFlow
-                        [ V.text_ (M.ms levelDescription)
+                        [ V.text_ (M.ms levelInfo.description)
                         , V.flowSpring
                         , allButtons competence l
                         ]

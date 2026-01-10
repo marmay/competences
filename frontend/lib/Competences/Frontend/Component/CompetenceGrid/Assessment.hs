@@ -12,6 +12,7 @@ import Competences.Document
   , CompetenceId
   , Document (..)
   , Level (..)
+  , LevelInfo (..)
   , UserId
   , emptyDocument
   , getAssessmentHistory
@@ -44,9 +45,9 @@ import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.List (nub, sortOn)
+import Data.List (find, nub, sortOn)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe, isJust, listToMaybe)
+import Data.Maybe (isNothing, listToMaybe)
 import Data.Text qualified as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
@@ -191,12 +192,17 @@ assessmentComponent r grid =
             ]
 
         -- | Assessment buttons - levels without descriptions are disabled/grayed out
+        -- Locked levels show a lock icon indicator but remain clickable
         -- currentLevel: Nothing = no assessment, Just Nothing = not achieved, Just (Just level) = achieved at level
         assessmentButtons competence currentLevel todayAssessment =
-          let -- Check if level has a description (empty = not achievable)
-              hasDescription lvl = case competence.levelDescriptions Map.!? lvl of
-                Just desc -> not (T.null desc)
-                Nothing -> False
+          let -- Get level info
+              getLevelInfo lvl = Map.findWithDefault (LevelInfo T.empty False) lvl competence.levels
+
+              -- Check if level has a description (empty = not achievable)
+              hasDescription lvl = not $ T.null (getLevelInfo lvl).description
+
+              -- Check if level is locked
+              isLocked lvl = (getLevelInfo lvl).locked
 
               -- "Not Achieved" button
               notAchievedBtn =
@@ -205,14 +211,17 @@ assessmentComponent r grid =
                   & Button.withClick (SetAssessmentLevel competence Nothing)
                   & Button.renderButton
 
-              -- Level buttons - disabled if no description
+              -- Level buttons - disabled only if no description
+              -- Locked levels show a lock icon indicator but remain clickable
               levelBtn lvl =
                 let isActive = currentLevel == Just (Just lvl)
                     isEnabled = hasDescription lvl
+                    locked = isLocked lvl
                     baseBtn = if isActive then Button.buttonPrimary else Button.buttonOutline
                  in baseBtn (C.translate' $ C.LblCompetenceLevelDescription lvl)
                       & Button.withClick (SetAssessmentLevel competence (Just lvl))
                       & Button.withDisabled (not isEnabled)
+                      & (if locked then Button.withIconRight IcnLock else id)
                       & Button.renderButton
 
               -- Delete button (red trash icon)
@@ -220,7 +229,7 @@ assessmentComponent r grid =
                 Button.buttonDestructive ""
                   & Button.withIcon IcnDelete
                   & Button.withClick (ClearAssessment competence)
-                  & Button.withDisabled (not $ isJust todayAssessment)
+                  & Button.withDisabled (isNothing todayAssessment)
                   & Button.renderButton
            in V.viewFlow
                 (V.hFlow & (#gap .~ V.TinySpace))
@@ -321,37 +330,44 @@ assessmentComponent r grid =
             -- | One horizontal lane for a level
             -- Iterates through ALL columns and shows appropriate content
             levelLane lvl evidenceMap assessmentDates isInRangeEvidence allColumns =
-              let levelDesc = fromMaybe "" (competence.levelDescriptions Map.!? lvl)
-                  hasDesc = not (T.null levelDesc)
+              let levelInfo = Map.findWithDefault (LevelInfo T.empty False) lvl competence.levels
+                  hasDesc = not (T.null levelInfo.description)
                   levelName = C.translate' (C.LblCompetenceLevelDescription lvl)
-                  -- Gray out if no description
-                  textClass = if hasDesc then "text-stone-600" else "text-stone-400"
+                  -- Gray out if no description or locked
+                  textClass = if hasDesc && not levelInfo.locked then "text-stone-600" else "text-stone-400"
 
                   -- Label with info icon and CSS-based tooltip (group-hover pattern)
+                  -- If locked, show lock icon instead of info icon
                   labelWithTooltip =
                     MH.div_ [class_ "w-28 flex items-center gap-1 shrink-0"]
                       [ MH.span_ [class_ $ "text-xs font-medium " <> textClass] [M.text levelName]
-                      , if hasDesc
-                          then MH.span_ [class_ "group relative cursor-help"]
-                                 [ V.icon [class_ "text-stone-400"] IcnInfo
-                                 , -- Tooltip shown on hover via CSS
-                                   MH.span_
-                                     [ class_
-                                         "absolute bottom-full left-0 mb-1 px-2 py-1 \
-                                         \bg-stone-800 text-white text-xs rounded \
-                                         \whitespace-pre-line min-w-48 max-w-64 \
-                                         \opacity-0 group-hover:opacity-100 \
-                                         \pointer-events-none transition-opacity z-50"
-                                     ]
-                                     [M.text (M.ms levelDesc)]
-                                 ]
-                          else V.empty
+                      , if levelInfo.locked
+                          then MH.span_ [class_ "text-stone-400"] [V.icon [] IcnLock]
+                          else if hasDesc
+                            then MH.span_ [class_ "group relative cursor-help"]
+                                   [ V.icon [class_ "text-stone-400"] IcnInfo
+                                   , -- Tooltip shown on hover via CSS
+                                     MH.span_
+                                       [ class_
+                                           "absolute bottom-full left-0 mb-1 px-2 py-1 \
+                                           \bg-stone-800 text-white text-xs rounded \
+                                           \whitespace-pre-line min-w-48 max-w-64 \
+                                           \opacity-0 group-hover:opacity-100 \
+                                           \pointer-events-none transition-opacity z-50"
+                                       ]
+                                       [M.text (M.ms levelInfo.description)]
+                                   ]
+                            else V.empty
                       ]
 
                   -- Build cells for each column
                   columnCells = map (cellForColumn hasDesc evidenceMap assessmentDates isInRangeEvidence lvl) allColumns
 
-               in MH.div_ [class_ "flex items-center min-h-[28px] border-b border-stone-100"]
+                  -- Lane background: muted for locked levels
+                  laneClass = "flex items-center min-h-[28px] border-b border-stone-100"
+                    <> if levelInfo.locked then " bg-stone-50" else ""
+
+               in MH.div_ [class_ laneClass]
                     (labelWithTooltip : columnCells)
 
             -- | Cell for a specific column in a level lane
@@ -420,7 +436,7 @@ assessmentComponent r grid =
               let date = case col of
                     Left (d, _) -> d
                     Right d -> d
-                  dateStr = M.ms $ take 5 $ (M.fromMisoString (C.formatDay date) :: String)
+                  dateStr = M.ms $ take 5 (M.fromMisoString (C.formatDay date) :: String)
                in MH.div_ [class_ "text-xs text-stone-500 w-12 text-center"] [M.text dateStr]
 
             -- | Show evidence icon for a single evidence entry
@@ -452,6 +468,5 @@ assessmentComponent r grid =
 -- | Find assessment for specific day
 findAssessmentForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe CompetenceAssessment
 findAssessmentForDay doc userId competenceId day =
-  listToMaybe $
-    filter (\a -> a.competenceId == competenceId && a.date == day) $
-      Ix.toList (doc.competenceAssessments Ix.@= userId)
+  find (\a -> a.competenceId == competenceId && a.date == day) $
+    Ix.toList (doc.competenceAssessments Ix.@= userId)

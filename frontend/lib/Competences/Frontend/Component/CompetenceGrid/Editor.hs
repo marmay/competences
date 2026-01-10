@@ -3,13 +3,14 @@ module Competences.Frontend.Component.CompetenceGrid.Editor
   )
 where
 
-import Competences.Command (Command (..), CompetenceGridPatch (..), CompetencePatch (..), CompetencesCommand (..), EntityCommand (..))
+import Competences.Command (Command (..), CompetenceGridPatch (..), CompetencePatch (..), LevelInfoPatch (..), CompetencesCommand (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
   , Document (..)
   , Level (..)
+  , LevelInfo (..)
   , Lock (..)
   , Order
   , orderMax
@@ -17,9 +18,10 @@ import Competences.Document
 import Competences.Document.Order (orderPosition)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
-import Competences.Frontend.Component.Editor.Types (translateReorder')
+import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument
   ( SyncContext
@@ -28,12 +30,16 @@ import Competences.Frontend.SyncDocument
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Tailwind (class_)
+import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
+import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (?~), (^.), (.~), (%))
 import Optics.Core qualified as O
 
@@ -69,7 +75,7 @@ editorComponent r grid =
               , competenceGridId = grid.id
               , order = orderMax
               , description = ""
-              , levelDescriptions = Map.empty
+              , levels = Map.empty
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
@@ -139,11 +145,99 @@ editorComponent r grid =
                            , TE.textEditorField #description #description
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription BasicLevel)
-                           , TE.textEditorField (#levelDescriptions % O.at BasicLevel % O.non T.empty) (#levelDescriptions % O.at BasicLevel % O.non Nothing)
+                           , levelDescriptionWithLockField BasicLevel
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription IntermediateLevel)
-                           , TE.textEditorField (#levelDescriptions % O.at IntermediateLevel % O.non T.empty) (#levelDescriptions % O.at IntermediateLevel % O.non Nothing)
+                           , levelDescriptionWithLockField IntermediateLevel
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription AdvancedLevel)
-                           , TE.textEditorField (#levelDescriptions % O.at AdvancedLevel % O.non T.empty) (#levelDescriptions % O.at AdvancedLevel % O.non Nothing)
+                           , levelDescriptionWithLockField AdvancedLevel
                            )
+
+-- | Combined editor field for level description with lock toggle
+-- Shows text input with a lock button next to it
+-- Lock button is only enabled when description is non-empty
+levelDescriptionWithLockField :: Level -> EditorField Competence CompetencePatch f
+levelDescriptionWithLockField lvl =
+  EditorField
+    { viewer = levelDescriptionWithLockViewer lvl
+    , editor = levelDescriptionWithLockEditor lvl
+    }
+
+-- | Get current level info, considering pending patch
+currentLevelInfo :: Competence -> CompetencePatch -> Level -> LevelInfo
+currentLevelInfo original patch lvl =
+  let origInfo = Map.findWithDefault (LevelInfo T.empty False) lvl original.levels
+      levelPatch = Map.findWithDefault def lvl patch.levels
+      desc = case levelPatch.description of
+        Just (_, after) -> after
+        Nothing -> origInfo.description
+      lck = case levelPatch.locked of
+        Just (_, after) -> after
+        Nothing -> origInfo.locked
+   in LevelInfo desc lck
+
+-- | Viewer for level description with lock indicator
+levelDescriptionWithLockViewer :: Level -> Competence -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
+levelDescriptionWithLockViewer lvl c =
+  let info = Map.findWithDefault (LevelInfo T.empty False) lvl c.levels
+   in MH.div_ [class_ "flex items-center gap-2"]
+        [ MH.span_ [class_ "flex-1"] [V.text_ (M.ms info.description)]
+        , if info.locked
+            then MH.span_ [class_ "text-stone-400"] [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+            else V.empty
+        ]
+
+-- | Editor for level description with lock toggle
+levelDescriptionWithLockEditor
+  :: Level
+  -> Bool
+  -> Competence
+  -> CompetencePatch
+  -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
+levelDescriptionWithLockEditor lvl _refocusTarget original patch =
+  let currentInfo = currentLevelInfo original patch lvl
+      origInfo = Map.findWithDefault (LevelInfo T.empty False) lvl original.levels
+      hasDescription = not (T.null currentInfo.description)
+      -- Update description patch
+      updateDesc v =
+        let newDesc = M.fromMisoString v
+            levelPatch = Map.findWithDefault def lvl patch.levels
+            newLevelPatch = levelPatch & #description ?~ (origInfo.description, newDesc)
+            newPatch = patch & #levels % O.at lvl ?~ newLevelPatch
+         in UpdatePatch original newPatch
+      -- Toggle lock
+      toggleLock =
+        let newLocked = not currentInfo.locked
+            levelPatch = Map.findWithDefault def lvl patch.levels
+            newLevelPatch = levelPatch & #locked ?~ (origInfo.locked, newLocked)
+            newPatch = patch & #levels % O.at lvl ?~ newLevelPatch
+         in UpdatePatch original newPatch
+   in MH.div_ [class_ "flex items-center gap-1"]
+        [ MH.input_
+            [ class_ "flex-1 px-2 py-1 border border-stone-300 rounded text-sm"
+            , MH.onChange updateDesc
+            , MP.value_ (M.ms currentInfo.description)
+            ]
+        , MH.button_
+            ( [ class_ $
+                  "w-7 h-7 flex items-center justify-center rounded border transition-colors "
+                    <> if not hasDescription
+                         then "bg-stone-50 border-stone-200 text-stone-300 cursor-not-allowed"
+                         else if currentInfo.locked
+                           then "bg-stone-200 border-stone-400 text-stone-700 hover:bg-stone-300 cursor-pointer"
+                           else "bg-white border-stone-200 text-stone-400 hover:bg-stone-50 cursor-pointer"
+              , MP.type_ "button"
+              , MH.onClick toggleLock
+              , MP.title_ $
+                  if not hasDescription
+                    then "Add description to enable locking"
+                    else if currentInfo.locked
+                      then "Unlock this level"
+                      else "Lock this level"
+              ]
+                <> [MP.disabled_ | not hasDescription]
+            )
+            [ icon [MP.width_ "14", MP.height_ "14"] (if currentInfo.locked then IcnLock else IcnLockOpen)
+            ]
+        ]

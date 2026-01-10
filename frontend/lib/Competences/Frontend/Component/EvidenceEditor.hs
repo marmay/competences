@@ -11,6 +11,7 @@ import Competences.Document
   ( Competence (..)
   , Document (..)
   , Evidence (..)
+  , LevelInfo (..)
   , Lock (..)
   , User (..)
   , emptyDocument
@@ -157,8 +158,8 @@ viewerComponent r evidence =
     getCompetenceName m (competenceId, level) =
       case Ix.getOne (m.document.competences Ix.@= competenceId) of
         Just comp ->
-          case comp.levelDescriptions Map.!? level of
-            Just desc -> desc
+          case comp.levels Map.!? level of
+            Just levelInfo -> levelInfo.description
             Nothing -> comp.description <> " - " <> T.pack (show level)
         Nothing -> T.pack $ show (competenceId, level)
 

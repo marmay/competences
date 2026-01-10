@@ -302,7 +302,7 @@ resolveCompetenceLevel d competenceGridChar competenceNumber levelNumber = do
           <> "!"
       )
       $ Ix.getOne (d.competences Ix.@= competenceGrid.id Ix.@= competenceOrder)
-  unless (level `Map.member` competence.levelDescriptions) $
+  unless (level `Map.member` competence.levels) $
     Left ("Level " <> show level <> " does not exist within competence " <> show competence.id <> "!")
   pure (competence.id, level)
 
