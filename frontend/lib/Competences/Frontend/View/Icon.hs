@@ -46,6 +46,7 @@ data Icon
   | IcnInfo
   | IcnLock
   | IcnLockOpen
+  | IcnProgress
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -93,6 +94,7 @@ iconId = \case
   IcnInfo -> "icon-info"
   IcnLock -> "icon-lock"
   IcnLockOpen -> "icon-lock-open"
+  IcnProgress -> "icon-progress"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -305,6 +307,11 @@ iconDefOf' = \case
     mkPathesDR
       [ "M5 13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6z"
       , "M8 11V7a4 4 0 1 1 8 0"
+      ]
+  -- Progress icon: zig-zag line going up (growth/learning)
+  IcnProgress ->
+    mkPathesDR
+      [ "M3 18l4 -4l3 3l4 -5l4 4l3 -6"  -- zig-zag line trending upward
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
