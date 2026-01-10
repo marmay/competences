@@ -26,7 +26,8 @@ import Optics.Core ((%~), (&), (^.))
 -- Note: userId and competenceId are NOT patchable - they define the assessment subject.
 -- To change these, delete the assessment and create a new one.
 data CompetenceAssessmentPatch = CompetenceAssessmentPatch
-  { level :: !(Change Level)
+  { level :: !(Change (Maybe Level))
+  -- ^ Nothing = "Not Achieved", Just level = achieved at that level
   , date :: !(Change Day)
   , comment :: !(Change (Maybe Text))
   }

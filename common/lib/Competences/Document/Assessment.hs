@@ -34,8 +34,10 @@ data CompetenceAssessment = CompetenceAssessment
   -- ^ The student being assessed
   , competenceId :: !CompetenceId
   -- ^ The competence being assessed
-  , level :: !Level
-  -- ^ The level the student has demonstrated (Basic/Intermediate/Advanced)
+  , level :: !(Maybe Level)
+  -- ^ The level the student has demonstrated:
+  --   Nothing = "Not Achieved" (student does not achieve this competence)
+  --   Just level = achieved at Basic/Intermediate/Advanced
   , date :: !Day
   -- ^ When this assessment was created
   , comment :: !(Maybe Text)
@@ -65,7 +67,7 @@ nilCompetenceAssessment =
     { id = nilId
     , userId = nilId
     , competenceId = nilId
-    , level = BasicLevel
+    , level = Nothing  -- Not achieved by default
     , date = fromGregorian 2025 1 1
     , comment = Nothing
     }

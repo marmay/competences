@@ -72,6 +72,7 @@ data Label
   | LblCompetenceDescription
   | LblCompetenceLevelDescription !Level
   | LblCompetenceLevelPlaceholder !Level
+  | LblNotAchieved
   | LblEditCompetence
   | LblEditEvidence
   | LblAddNewCompetence
@@ -191,6 +192,7 @@ labels' =
   , LblCompetenceLevelPlaceholder BasicLevel
   , LblCompetenceLevelPlaceholder IntermediateLevel
   , LblCompetenceLevelPlaceholder AdvancedLevel
+  , LblNotAchieved
   , LblEditCompetence
   , LblEditEvidence
   , LblAddNewCompetence
@@ -315,6 +317,7 @@ defaultTranslation (LblCompetenceLevelDescription AdvancedLevel) = "Fortgeschrit
 defaultTranslation (LblCompetenceLevelPlaceholder BasicLevel) = "..."
 defaultTranslation (LblCompetenceLevelPlaceholder IntermediateLevel) = "..."
 defaultTranslation (LblCompetenceLevelPlaceholder AdvancedLevel) = "..."
+defaultTranslation LblNotAchieved = "Nicht erreicht"
 defaultTranslation LblEditCompetence = "Kompetenz bearbeiten"
 defaultTranslation LblEditEvidence = "Aufzeichnung bearbeiten"
 defaultTranslation LblAddNewCompetence = "Neue Kompetenz hinzufügen"
