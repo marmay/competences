@@ -51,6 +51,7 @@ library
         Competences.Frontend.Component.Editor.View,
         Competences.Frontend.Component.EvidenceCompetenceSelector,
         Competences.Frontend.Component.EvidenceEditor,
+        Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor,
         Competences.Frontend.Component.Selector.AssignmentSelector,
         Competences.Frontend.Component.Selector.Common,
         Competences.Frontend.Component.Selector.CompetenceGridSelector,

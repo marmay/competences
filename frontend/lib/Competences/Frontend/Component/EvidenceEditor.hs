@@ -1,6 +1,8 @@
 module Competences.Frontend.Component.EvidenceEditor
   ( evidenceEditorComponent
   , EvidenceMode (..)
+  , EvidenceEditorModel (..)
+  , EvidenceEditorAction (..)
   )
 where
 
@@ -23,17 +25,20 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
-import Competences.Frontend.Component.Selector.EvidenceSelector (EvidenceSelectorStyle (..), evidenceSelectorComponent)
+import Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor (bulkEvidenceEditorComponent)
+import Competences.Frontend.Component.Selector.EvidenceSelector
+  ( EvidenceSelectorStyle (..)
+  , evidenceSelectorComponent
+  )
 import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMultiTaskEditorField)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -47,33 +52,104 @@ data EvidenceMode
   | EvidenceEdit
   deriving (Eq, Ord, Enum, Bounded, Show)
 
--- | Evidence editor component using SelectorDetail pattern
+-- | Model for the evidence editor component
+data EvidenceEditorModel = EvidenceEditorModel
+  { selectedEvidence :: !(Maybe Evidence)
+  , bulkEditorActive :: !Bool
+  , activeMode :: !EvidenceMode
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Action for the evidence editor component
+data EvidenceEditorAction
+  = SwitchMode !EvidenceMode
+  deriving (Eq, Show)
+
+-- | Evidence editor component with support for bulk editing
 evidenceEditorComponent
   :: SyncContext
   -> Bool
   -- ^ Can edit evidences? (True for teachers, False for students)
-  -> M.Component p (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
+  -> M.Component p EvidenceEditorModel EvidenceEditorAction
 evidenceEditorComponent r canEdit =
   let style = if canEdit then EvidenceSelectorViewAndCreate else EvidenceSelectorViewOnly
-      (defaultMode, availableModes, detailView) =
-        if canEdit
-          then (EvidenceEdit, EvidenceEdit :| [], evidenceEditorDetailView r)
-          else (EvidenceView, EvidenceView :| [], evidenceViewerDetailView r)
-   in SD.selectorDetailComponent
-        SD.SelectorDetailConfig
-          { SD.selectorId = "evidence"
-          , SD.selectorComponent = evidenceSelectorComponent r style
-          , SD.detailView = const detailView
-          , SD.modeLabel = \case
-              EvidenceView -> C.translate' C.LblView
-              EvidenceEdit -> C.translate' C.LblEdit
-          , SD.modeIcon = \case
-              EvidenceView -> Just IcnView
-              EvidenceEdit -> Just IcnEdit
-          , SD.availableModes = availableModes
-          , SD.defaultMode = defaultMode
-          , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
-          }
+      defaultMode = if canEdit then EvidenceEdit else EvidenceView
+   in M.component model update (mainView r style canEdit defaultMode)
+  where
+    model = EvidenceEditorModel Nothing False (if canEdit then EvidenceEdit else EvidenceView)
+    update (SwitchMode mode) = M.modify $ #activeMode .~ mode
+
+-- | Main view with selector on left and detail/bulk editor on right
+mainView
+  :: SyncContext
+  -> EvidenceSelectorStyle
+  -> Bool
+  -> EvidenceMode
+  -> EvidenceEditorModel
+  -> M.View EvidenceEditorModel EvidenceEditorAction
+mainView r style canEdit defaultMode m =
+  V.sideMenu
+    ( V.componentA
+        "evidence-selector"
+        [class_ "h-full"]
+        (evidenceSelectorComponent r style #selectedEvidence #bulkEditorActive)
+    )
+    (detailPanel r canEdit defaultMode m)
+
+-- | Detail panel - shows bulk editor or normal detail view
+detailPanel
+  :: SyncContext
+  -> Bool
+  -> EvidenceMode
+  -> EvidenceEditorModel
+  -> M.View EvidenceEditorModel EvidenceEditorAction
+detailPanel r canEdit _defaultMode m
+  | m.bulkEditorActive =
+      V.component "bulk-evidence-editor" (bulkEvidenceEditorComponent r)
+  | otherwise = case m.selectedEvidence of
+      Nothing -> Typography.muted (C.translate' C.LblPleaseSelectItem)
+      Just evidence ->
+        V.viewFlow
+          ( V.vFlow
+              & (#expandDirection .~ V.Expand V.Start)
+              & (#expandOrthogonal .~ V.Expand V.Start)
+              & (#gap .~ V.MediumSpace)
+          )
+          [ if canEdit then modeSwitcher m else V.empty
+          , V.flexGrow $
+              if canEdit
+                then evidenceEditorDetailView r evidence
+                else evidenceViewerDetailView r evidence
+          ]
+
+-- | Mode switcher buttons
+modeSwitcher :: EvidenceEditorModel -> M.View EvidenceEditorModel EvidenceEditorAction
+modeSwitcher m =
+  V.viewFlow
+    ( V.hFlow
+        & (#expandDirection .~ V.Expand V.Center)
+    )
+    [ Button.buttonGroup
+        [ modeButton m.activeMode EvidenceView (C.translate' C.LblView) (Just IcnView)
+        , modeButton m.activeMode EvidenceEdit (C.translate' C.LblEdit) (Just IcnEdit)
+        ]
+    ]
+
+modeButton
+  :: EvidenceMode
+  -> EvidenceMode
+  -> M.MisoString
+  -> Maybe Icon
+  -> M.View EvidenceEditorModel EvidenceEditorAction
+modeButton activeMode mode label mIcon =
+  let variant = if mode == activeMode then Button.Primary else Button.Outline
+      baseButton =
+        Button.button variant label
+          & Button.withSize Button.Small
+          & Button.withClick (SwitchMode mode)
+   in case mIcon of
+        Nothing -> Button.renderButton baseButton
+        Just icon -> Button.renderButton (Button.withIcon icon baseButton)
 
 -- ============================================================================
 -- VIEW MODE DETAIL (Read-only)
@@ -93,7 +169,7 @@ newtype ViewerAction = ViewerUpdateDocument DocumentChange
 evidenceViewerDetailView
   :: SyncContext
   -> Evidence
-  -> M.View (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
+  -> M.View EvidenceEditorModel EvidenceEditorAction
 evidenceViewerDetailView r evidence =
   V.component
     ("evidence-viewer-" <> M.ms (show evidence.id))
@@ -171,7 +247,7 @@ viewerComponent r evidence =
 evidenceEditorDetailView
   :: SyncContext
   -> Evidence
-  -> M.View (SD.Model Evidence EvidenceMode) (SD.Action EvidenceMode)
+  -> M.View EvidenceEditorModel EvidenceEditorAction
 evidenceEditorDetailView r evidence =
   V.component
     ("evidence-editor-" <> M.ms (show evidence.id))

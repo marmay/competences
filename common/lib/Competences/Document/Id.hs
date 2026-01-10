@@ -2,6 +2,7 @@ module Competences.Document.Id
   ( Id (..)
   , mkId
   , nilId
+  , idToText
   )
 where
 
@@ -19,6 +20,10 @@ nilId = Id nil
 
 mkId :: Text -> Maybe (Id a)
 mkId t = Id <$> fromText t
+
+-- | Convert an Id to its Text representation (UUID)
+idToText :: Id a -> Text
+idToText i = toText i.unId
 
 instance FromJSON (Id a) where
   parseJSON = withText "Id" $ \t -> case fromText t of

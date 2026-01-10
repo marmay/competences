@@ -1,6 +1,8 @@
 module Competences.Frontend.Component.Selector.EvidenceSelector
   ( evidenceSelectorComponent
   , EvidenceSelectorStyle (..)
+  , Model (..)
+  , Action (..)
   )
 where
 
@@ -52,6 +54,8 @@ data Model = Model
   , allEvidences :: Ix.IxSet EvidenceIxs Evidence
   , selectedEvidence :: !(Maybe Evidence)
   , newEvidence :: !(Maybe Evidence)
+  , dropdownOpen :: !Bool
+  , bulkEditorActive :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -60,33 +64,54 @@ data Action
   | CreateNewEvidence
   | UpdateDocument !DocumentChange
   | FocusedUserChanged !FocusedUserChange
+  | ToggleDropdown
+  | CloseDropdown
+  | ActivateBulkEditor
+  | DeactivateBulkEditor
   deriving (Eq, Show)
 
+-- | Evidence selector component with dropdown menu for normal and bulk creation
 evidenceSelectorComponent
-  :: SyncContext -> EvidenceSelectorStyle -> Lens' p (Maybe Evidence) -> M.Component p Model Action
-evidenceSelectorComponent r style parentLens =
+  :: SyncContext
+  -> EvidenceSelectorStyle
+  -> Lens' p (Maybe Evidence)
+  -> Lens' p Bool  -- ^ Lens for bulkEditorActive state in parent
+  -> M.Component p Model Action
+evidenceSelectorComponent r style parentLens bulkEditorLens =
   (M.component model update view)
-    { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedEvidence]
+    { M.bindings =
+        [ toLensVL parentLens M.<--- toLensVL #selectedEvidence
+        , toLensVL bulkEditorLens M.<--- toLensVL #bulkEditorActive
+        ]
     , M.subs =
         [ subscribeDocument r UpdateDocument
         , subscribeFocusedUser (getFocusedUserRef r) FocusedUserChanged
         ]
     }
   where
-    model = Model Nothing AllTime Ix.empty Nothing Nothing
+    model = Model Nothing AllTime Ix.empty Nothing Nothing False False
     update (SelectEvidence e) =
       M.modify $ \m -> case Ix.getOne (m.allEvidences Ix.@= e.id) of
-        Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing)
-        Nothing -> m & (#newEvidence ?~ e)
+        Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing) & (#bulkEditorActive .~ False)
+        Nothing -> m & (#newEvidence ?~ e) & (#bulkEditorActive .~ False)
     update CreateNewEvidence = M.withSink $ \s -> do
       evidenceId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let evidence = mkEvidence evidenceId today
       modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
+      s CloseDropdown
       s (SelectEvidence evidence)
     update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
     update (FocusedUserChanged change) =
       M.modify $ \m -> m & #focusedUser .~ change.user
+    update ToggleDropdown =
+      M.modify $ \m -> m & #dropdownOpen .~ not m.dropdownOpen
+    update CloseDropdown =
+      M.modify $ \m -> m & #dropdownOpen .~ False
+    update ActivateBulkEditor =
+      M.modify $ \m -> m & #bulkEditorActive .~ True & #selectedEvidence .~ Nothing & #newEvidence .~ Nothing & #dropdownOpen .~ False
+    update DeactivateBulkEditor =
+      M.modify $ \m -> m & #bulkEditorActive .~ False
 
     updateModel :: Document -> Model -> Model
     updateModel d m =
@@ -110,9 +135,17 @@ evidenceSelectorComponent r style parentLens =
             & (#expandDirection .~ V.Expand V.Start)
             & (#extraAttrs .~ [V.fullHeight])
         )
-        [ SL.selectorHeader
-            (C.translate' C.LblSelectEvidences)
-            (if style == EvidenceSelectorViewAndCreate then Just CreateNewEvidence else Nothing)
+        [ if style == EvidenceSelectorViewAndCreate
+            then
+              SL.selectorHeaderWithDropdown
+                (C.translate' C.LblSelectEvidences)
+                m.dropdownOpen
+                ToggleDropdown
+                [ SL.dropdownItem IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
+                , SL.dropdownItem IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
+                ]
+            else
+              SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'

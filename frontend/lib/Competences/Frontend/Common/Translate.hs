@@ -106,6 +106,8 @@ data Label
   | LblActivityTasks
   | LblStudents
   | LblStudent
+  | LblStudentOverview
+  | LblAddToSelectedStudents
   | LblPleaseSelectItem
   | LblPleaseSelectItemShort
   | LblNoUser
@@ -178,6 +180,15 @@ data Label
   | LblGradeHistory
   | LblEnterGrade
   | LblGradeComment
+    -- Bulk evidence editor
+  | LblNewEvidence
+  | LblBulkEntry
+  | LblBulkEvidenceEntry
+  | LblAddObservation
+  | LblSaveAll
+  | LblNoObservationsYet
+  | LblCompetence
+  | LblLevel
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -233,6 +244,8 @@ labels' =
   , LblActivityTasks
   , LblStudents
   , LblStudent
+  , LblStudentOverview
+  , LblAddToSelectedStudents
   , LblPleaseSelectItem
   , LblPleaseSelectItemShort
   , LblNoUser
@@ -304,6 +317,15 @@ labels' =
   , LblGradeHistory
   , LblEnterGrade
   , LblGradeComment
+    -- Bulk evidence editor
+  , LblNewEvidence
+  , LblBulkEntry
+  , LblBulkEvidenceEntry
+  , LblAddObservation
+  , LblSaveAll
+  , LblNoObservationsYet
+  , LblCompetence
+  , LblLevel
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -371,6 +393,8 @@ defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"
 defaultTranslation LblStudent = "Schüler"
+defaultTranslation LblStudentOverview = "Schülerübersicht"
+defaultTranslation LblAddToSelectedStudents = "Zu ausgewählten Schülern hinzufügen"
 defaultTranslation LblPleaseSelectItem = "Bitte wählen Sie ein zu bearbeitendes Element aus!"
 defaultTranslation LblPleaseSelectItemShort = "Bitte Element auswählen!"
 defaultTranslation LblNoUser = "Kein Benutzer"
@@ -443,6 +467,15 @@ defaultTranslation LblGrade = "Benotung"
 defaultTranslation LblGradeHistory = "Notenhistorie"
 defaultTranslation LblEnterGrade = "Note eingeben"
 defaultTranslation LblGradeComment = "Kommentar..."
+-- Bulk evidence editor
+defaultTranslation LblNewEvidence = "Neue Aufzeichnung"
+defaultTranslation LblBulkEntry = "Sammelerfassung"
+defaultTranslation LblBulkEvidenceEntry = "Sammelerfassung"
+defaultTranslation LblAddObservation = "+ Beobachtung"
+defaultTranslation LblSaveAll = "Alle speichern"
+defaultTranslation LblNoObservationsYet = "Noch keine Beobachtungen"
+defaultTranslation LblCompetence = "Kompetenz"
+defaultTranslation LblLevel = "Stufe"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
