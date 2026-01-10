@@ -173,6 +173,11 @@ data Label
   | LblPendingChanges !Int
   | LblUnsavedChanges !Int
   | LblLockedLevels
+    -- Grid grading
+  | LblGrade
+  | LblGradeHistory
+  | LblEnterGrade
+  | LblGradeComment
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -294,6 +299,11 @@ labels' =
   , LblPendingChanges 0
   , LblUnsavedChanges 0
   , LblLockedLevels
+    -- Grid grading
+  , LblGrade
+  , LblGradeHistory
+  , LblEnterGrade
+  , LblGradeComment
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -428,6 +438,11 @@ defaultTranslation (LblReconnecting n) = "Verbinde... (Versuch " <> ms (show n) 
 defaultTranslation (LblPendingChanges n) = ms (show n) <> " Änderungen werden gesendet"
 defaultTranslation (LblUnsavedChanges n) = ms (show n) <> " ungespeicherte Änderungen"
 defaultTranslation LblLockedLevels = "Gesperrt"
+-- Grid grading
+defaultTranslation LblGrade = "Benotung"
+defaultTranslation LblGradeHistory = "Notenhistorie"
+defaultTranslation LblEnterGrade = "Note eingeben"
+defaultTranslation LblGradeComment = "Kommentar..."
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
