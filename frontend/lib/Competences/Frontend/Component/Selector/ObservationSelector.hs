@@ -22,6 +22,7 @@ import Competences.Document
   , LevelInfo (..)
   , Order
   , allLevels
+  , levelDescription
   )
 import Competences.Document.Evidence
   ( Ability (..)
@@ -192,7 +193,7 @@ viewObservationResult doc observation =
               <> "\n"
               <> M.ms levelLabel
               <> ": "
-              <> M.ms (maybe "" (.description) (competence.levels Map.!? snd observation.competenceLevelId))
+              <> M.ms (levelDescription (snd observation.competenceLevelId) competence)
               <> "\n"
               <> M.ms socialFormLabel
               <> ": "
