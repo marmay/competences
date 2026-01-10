@@ -40,7 +40,7 @@ data Level
   deriving (Eq, Generic, Ord, Show)
 
 -- | Information about a competence level (description and locked status).
--- A level entry exists in the map iff it has a non-empty description.
+-- Invariant: A level entry exists in the map iff it has a non-empty description.
 data LevelInfo = LevelInfo
   { description :: !Text
   , locked :: !Bool

@@ -8,16 +8,23 @@ module Competences.Frontend.View.Table
   ( Table (..)
   , TableColumnWidth (..)
   , TableColumnSpec (..)
+  , TableCellSpec (..)
   , cellContents
+  , cellContentsWithSpec
+  , defCellSpec
   , defTable
   , viewTable
   , tableHeader_
   , tableRow
+  , tableRowWithSpec
   )
 where
 
 import Competences.Frontend.View.Tailwind (class_)
+import Data.Text (Text)
+import Data.Text qualified as T
 import Miso qualified as M
+import Miso.CSS qualified as MC
 import Miso.Html as M
 
 data TableColumnWidth
@@ -35,6 +42,20 @@ data TableColumnSpec = TableColumnSpec
   , title :: !M.MisoString
   } deriving (Eq, Show)
 
+-- | Specification for a single table cell including styling
+data TableCellSpec m action = TableCellSpec
+  { cellClasses :: !Text
+  -- ^ Additional CSS classes for the td element
+  , cellStyle :: ![(M.MisoString, M.MisoString)]
+  -- ^ Inline styles for the td element
+  , cellContent :: M.View m action
+  -- ^ The content to render inside the td
+  }
+
+-- | Create a default cell spec with just content (no extra classes/styles)
+defCellSpec :: M.View m action -> TableCellSpec m action
+defCellSpec = TableCellSpec T.empty []
+
 data Table col row m action = Table
   { columns :: [col]
   , rows :: [row]
@@ -45,11 +66,32 @@ data Table col row m action = Table
 cellContents :: (row -> col -> M.View m action) -> [col] -> row -> M.View m action
 cellContents perCell cols row = tableRow $ map (perCell row) cols
 
+-- | Like cellContents but allows per-cell styling on the td element
+cellContentsWithSpec :: (row -> col -> TableCellSpec m action) -> [col] -> row -> M.View m action
+cellContentsWithSpec perCell cols row = tableRowWithSpec $ map (perCell row) cols
+
 tableRow :: [M.View m action] -> M.View m action
 tableRow cells =
   M.tr_
-    [class_ "border-b border-border hover:bg-muted/50"]
-    $ map (\cell -> M.td_ [class_ "px-4 py-3 text-sm"] [cell]) cells
+    [class_ "border-b border-border"]
+    -- No padding on td - let cell content control full styling via wrapper div
+    $ map (\cell -> M.td_ [class_ "text-sm align-middle"] [cell]) cells
+
+-- | Like tableRow but with per-cell styling support
+tableRowWithSpec :: [TableCellSpec m action] -> M.View m action
+tableRowWithSpec cells =
+  M.tr_
+    [class_ "border-b border-border"]
+    $ map renderCell cells
+  where
+    renderCell spec =
+      let baseClasses = "text-sm align-middle" :: Text
+          allClasses = if T.null spec.cellClasses
+                       then baseClasses
+                       else baseClasses <> " " <> spec.cellClasses
+          attrs = [class_ allClasses]
+                  <> if null spec.cellStyle then [] else [MC.style_ spec.cellStyle]
+       in M.td_ attrs [spec.cellContent]
 
 defTable :: Table col row m action
 defTable =

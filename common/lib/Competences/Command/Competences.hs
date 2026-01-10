@@ -131,10 +131,10 @@ applyCompetencePatch competence patch =
           Right after
       Right $ Map.insert level (LevelInfo newDesc newLocked) currentMap
 
-    -- Remove entries where description is empty and not locked (invariant enforcement)
+    -- Remove entries where description is empty (invariant enforcement)
     cleanupLevels :: Competence -> Competence
     cleanupLevels c =
-      c & #levels .~ Map.filter (\info -> not (T.null info.description) || info.locked) c.levels
+      c & #levels .~ Map.filter (\info -> not (T.null info.description)) c.levels
 
 -- | Handle a Competences context command
 handleCompetencesCommand :: UserId -> CompetencesCommand -> Document -> UpdateResult

@@ -35,6 +35,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
+import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -126,12 +127,19 @@ viewerComponent r grid =
                         Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
                       ViewerLevelColumn l ->
                         Table.TableColumnSpec Table.EqualWidthColumn (C.translate' $ C.LblCompetenceLevelDescription l)
-                  , V.rowContents = V.cellContents $ \competence -> \case
-                      ViewerDescriptionColumn -> Typography.small (M.ms competence.description)
+                  , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
+                      ViewerDescriptionColumn ->
+                        -- Description cell with standard padding
+                        TableCellSpec
+                          { cellClasses = "px-4 py-3"
+                          , cellStyle = []
+                          , cellContent = Typography.small (M.ms competence.description)
+                          }
                       ViewerLevelColumn level ->
                         let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level competence.levels
                             competenceLevelId = (competence.id, level)
                             evidences' = evidences Ix.@= competenceLevelId
+                            evidenceList = Ix.toAscList (Proxy @Day) evidences'
                             showEvidence evidence =
                               case Ix.getOne (evidence.observations Ix.@= competenceLevelId) of
                                 Just observation ->
@@ -149,31 +157,56 @@ viewerComponent r grid =
                                     Individual -> IcnSocialFormIndividual
                                   coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
                                in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
-                            -- Cell content (text and evidence)
-                            cellContent =
-                              V.viewFlow
-                                (V.vFlow & (#expandOrthogonal .~ V.Expand V.Start))
-                                [ Typography.small (M.ms levelInfo.description)
-                                , V.viewFlow
-                                    (V.hFlow & (#gap .~ V.SmallSpace) & (#expandDirection .~ V.Expand V.Start))
-                                    (V.flowSpring : map showEvidence (Ix.toAscList (Proxy @Day) evidences'))
-                                ]
-                         in if levelInfo.locked
-                              then
-                                -- Locked: prominent indicator with lock icon and label
-                                MH.div_
-                                  [class_ "relative bg-stone-100 border border-stone-200 rounded-lg p-2 -m-1"]
-                                  [ -- Lock badge in top-right corner
-                                    MH.div_
-                                      [class_ "absolute -top-2 -right-2 flex items-center gap-0.5 bg-stone-200 text-stone-600 text-xs px-1.5 py-0.5 rounded-full"]
-                                      [ icon [MP.width_ "10", MP.height_ "10"] IcnLock
-                                      , M.text "Locked"
-                                      ]
-                                  , MH.div_
-                                      [class_ "text-stone-500 mt-1"]
-                                      [cellContent]
+                            hasDescription = not (T.null levelInfo.description)
+                            -- Cell background color based on state (applied to td)
+                            -- TODO: Add competent (green-100) and not-yet-competent (yellow-100) states
+                            bgClass =
+                              if not hasDescription
+                                then "" -- Empty: will use striped background via inline style
+                                else if levelInfo.locked
+                                  then "bg-stone-200" -- Locked: gray
+                                  else "bg-white" -- Normal: white (or could be based on assessment)
+                            -- Striped background for empty cells
+                            stripeStyle :: [(M.MisoString, M.MisoString)]
+                            stripeStyle =
+                              if not hasDescription
+                                then
+                                  [ ("background",
+                                     "repeating-linear-gradient(135deg, rgb(245 245 244) 0px, rgb(245 245 244) 4px, rgb(231 229 228) 4px, rgb(231 229 228) 8px)")
                                   ]
-                              else cellContent
+                                else []
+                            -- Status icon in top-right corner
+                            statusIcon =
+                              if levelInfo.locked && hasDescription
+                                then
+                                  MH.div_
+                                    [class_ "absolute top-1 right-1 text-stone-500"]
+                                    [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+                                else V.empty
+                            -- Cell classes: relative for icon positioning, padding, and vertical centering
+                            tdClasses = "relative px-4 py-3 " <> bgClass
+                            -- Cell content wrapper for vertical centering
+                            cellContent =
+                              MH.div_
+                                [class_ "flex flex-col justify-center min-h-[44px]"]
+                                [ statusIcon
+                                , -- Description text (only if present)
+                                  if hasDescription
+                                    then Typography.small (M.ms levelInfo.description)
+                                    else V.empty
+                                , -- Evidence icons (wrap to multiple lines as needed)
+                                  if not (null evidenceList)
+                                    then
+                                      MH.div_
+                                        [class_ "flex flex-wrap gap-1 mt-1"]
+                                        (map showEvidence evidenceList)
+                                    else V.empty
+                                ]
+                         in TableCellSpec
+                              { cellClasses = tdClasses
+                              , cellStyle = stripeStyle
+                              , cellContent = cellContent
+                              }
                   }
 
 data ViewerColumn

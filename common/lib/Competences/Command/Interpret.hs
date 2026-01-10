@@ -33,6 +33,8 @@ data EntityCommandContext a patch = EntityCommandContext
   , lock :: Id a -> Lock
   , getId :: a -> Id a
     -- ^ Extract the ID from an entity (for CreateAndLock)
+  , update :: a -> Document -> Document
+    -- ^ Update an entity in-place without reordering (for modify operations)
   }
   deriving (Generic)
 
@@ -93,6 +95,7 @@ mkEntityCommandContext l idOf lock applyPatch affectedUsers =
       delete i d = do
         a <- fetch i d
         pure (d & l %~ Ix.delete a, a)
+      update a d = d & l %~ Ix.insert a . Ix.deleteIx (a ^. idOf)
    in EntityCommandContext
         { create = create
         , delete = delete
@@ -101,6 +104,7 @@ mkEntityCommandContext l idOf lock applyPatch affectedUsers =
         , affectedUsers = affectedUsers
         , lock = lock
         , getId = (^. idOf)
+        , update = update
         }
 
 -- | Lock an entity
@@ -140,6 +144,6 @@ interpretEntityCommand ctx uid (Modify i (Release patch)) d = do
   d' <- doRelease uid (ctx.lock i) d
   aCurrent <- ctx.fetch i d'
   aModified <- ctx.applyPatch aCurrent patch
-  (d'', aOld) <- ctx.delete i d'
-  d''' <- ctx.create aModified d''
-  pure (d''', ctx.affectedUsers aModified d <> ctx.affectedUsers aOld d)
+  -- Use in-place update to preserve ordering (avoid delete+create reorder effects)
+  let d'' = ctx.update aModified d'
+  pure (d'', ctx.affectedUsers aModified d <> ctx.affectedUsers aCurrent d)
