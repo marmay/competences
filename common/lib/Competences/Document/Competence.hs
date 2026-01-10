@@ -37,7 +37,7 @@ data Level
   | -- | Advanced level; mastering the given competence in terms
     -- of the current curriculum.
     AdvancedLevel
-  deriving (Eq, Generic, Ord, Show)
+  deriving (Eq, Generic, Ord, Read, Show)
 
 -- | Information about a competence level (description and locked status).
 -- Invariant: A level entry exists in the map iff it has a non-empty description.
