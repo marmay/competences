@@ -19,8 +19,9 @@ import Competences.Document
   , Evidence (..)
   , EvidenceId
   , Level (..)
+  , LevelInfo (..)
   , Order
-  , levels
+  , allLevels
   )
 import Competences.Document.Evidence
   ( Ability (..)
@@ -59,7 +60,7 @@ import Competences.Frontend.SyncDocument
 import Data.Default (Default)
 import Data.List (intercalate)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
 import Miso qualified as M
 
@@ -113,10 +114,10 @@ levelP competence = IncrementalParserSpec {makeSuggestions, reconstructInput}
         mapMaybe
           ( \level -> do
               let label = reconstructInput level
-              description <- competence.levelDescriptions Map.!? level
-              pure (label, M.ms label <> ": " <> M.ms description, level)
+              levelInfo <- competence.levels Map.!? level
+              pure (label, M.ms label <> ": " <> M.ms levelInfo.description, level)
           )
-          levels
+          allLevels
     reconstructInput BasicLevel = "1"
     reconstructInput IntermediateLevel = "2"
     reconstructInput AdvancedLevel = "3"
@@ -191,7 +192,7 @@ viewObservationResult doc observation =
               <> "\n"
               <> M.ms levelLabel
               <> ": "
-              <> M.ms (fromMaybe "" (competence.levelDescriptions Map.!? snd observation.competenceLevelId))
+              <> M.ms (maybe "" (.description) (competence.levels Map.!? snd observation.competenceLevelId))
               <> "\n"
               <> M.ms socialFormLabel
               <> ": "

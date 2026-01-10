@@ -5,7 +5,7 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Competence (..), Document (..), User (..))
+import Competences.Document (Assignment (..), Competence (..), Document (..), LevelInfo (..), User (..))
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
@@ -23,7 +23,6 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -263,7 +262,7 @@ evaluatorComponent r assignment =
           competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
-            Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
+            Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
        in M.div_
             [M.class_ "flex items-center gap-2"]
             [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
@@ -304,7 +303,7 @@ evaluatorComponent r assignment =
           competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
-            Just comp -> ms $ fromMaybe (comp.description <> " - " <> T.pack (show level)) (comp.levelDescriptions Map.!? level)
+            Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
           contributingTasks = getContributingTasks m compId
        in M.div_
             [class_ "mb-3"]

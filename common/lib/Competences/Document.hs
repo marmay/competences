@@ -39,7 +39,11 @@ import Competences.Document.Competence
   , CompetenceId
   , CompetenceIxs
   , Level (..)
-  , levels
+  , LevelInfo (..)
+  , allLevels
+  , levelDescription
+  , isLevelLocked
+  , hasLevelContent
   )
 import Competences.Document.CompetenceGrid
   ( CompetenceGrid (..)

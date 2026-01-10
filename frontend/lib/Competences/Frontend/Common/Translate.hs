@@ -172,6 +172,7 @@ data Label
   | LblReconnecting !Int
   | LblPendingChanges !Int
   | LblUnsavedChanges !Int
+  | LblLockedLevels
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -292,6 +293,7 @@ labels' =
   , LblReconnecting 0
   , LblPendingChanges 0
   , LblUnsavedChanges 0
+  , LblLockedLevels
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -425,6 +427,7 @@ defaultTranslation LblDisconnected = "Getrennt"
 defaultTranslation (LblReconnecting n) = "Verbinde... (Versuch " <> ms (show n) <> ")"
 defaultTranslation (LblPendingChanges n) = ms (show n) <> " Änderungen werden gesendet"
 defaultTranslation (LblUnsavedChanges n) = ms (show n) <> " ungespeicherte Änderungen"
+defaultTranslation LblLockedLevels = "Gesperrt"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
