@@ -8,4 +8,5 @@ data CompetenceGridMode
   = GridView
   | GridEdit
   | GridAssessment
+  | GridGrading
   deriving (Eq, Ord, Enum, Bounded, Show)

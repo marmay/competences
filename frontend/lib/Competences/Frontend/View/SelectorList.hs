@@ -7,6 +7,7 @@ module Competences.Frontend.View.SelectorList
   , dropdownItem
     -- * List Items
   , selectorItem
+  , selectorItemWithBadge
   , selectorItemMultiLine
     -- * Search
   , selectorSearchField
@@ -108,6 +109,33 @@ selectorItem isSelected icn label action =
     ]
     [ icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
     , M.span_ [class_ "text-sm truncate"] [M.text label]
+    ]
+
+-- | Single-line selectable list item with icon and optional badge on the right
+selectorItemWithBadge
+  :: Bool
+  -- ^ Is selected?
+  -> Icon
+  -- ^ Item icon
+  -> MisoString
+  -- ^ Label text
+  -> Maybe (M.View m action)
+  -- ^ Optional badge view on the right
+  -> action
+  -- ^ Click action
+  -> M.View m action
+selectorItemWithBadge isSelected icn label mBadge action =
+  M.div_
+    [ class_ $
+        "flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors "
+          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+    , M.onClick action
+    ]
+    [ icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
+    , M.span_ [class_ "text-sm truncate flex-1"] [M.text label]
+    , case mBadge of
+        Just badgeView -> badgeView
+        Nothing -> M.text ""
     ]
 
 -- | Multi-line selectable list item (e.g., for Evidence with date + type + users)

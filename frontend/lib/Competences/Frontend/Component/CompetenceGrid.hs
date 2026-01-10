@@ -8,6 +8,7 @@ import Competences.Document (CompetenceGrid (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Assessment (assessmentDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Editor (editorDetailView)
+import Competences.Frontend.Component.CompetenceGrid.Grading (gradingDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode (..))
 import Competences.Frontend.Component.CompetenceGrid.Viewer (viewerDetailView)
 import Competences.Frontend.Component.Selector.CompetenceGridSelector
@@ -56,14 +57,17 @@ competenceGridComponent r initialMode availableModes =
             GridView -> viewerDetailView r grid
             GridEdit -> editorDetailView r grid
             GridAssessment -> assessmentDetailView r grid
+            GridGrading -> gradingDetailView r grid
       , SD.modeLabel = \case
           GridView -> C.translate' C.LblView
           GridEdit -> C.translate' C.LblEdit
           GridAssessment -> C.translate' C.LblAssess
+          GridGrading -> C.translate' C.LblGrade
       , SD.modeIcon = \case
           GridView -> Just IcnView
           GridEdit -> Just IcnEdit
           GridAssessment -> Just IcnApply
+          GridGrading -> Just IcnEvidence
       , SD.availableModes = availableModes
       , SD.defaultMode = initialMode
       , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)

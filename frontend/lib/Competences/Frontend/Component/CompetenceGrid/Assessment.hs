@@ -15,6 +15,7 @@ import Competences.Document
   , LevelInfo (..)
   , UserId
   , emptyDocument
+  , getActiveGridGrade
   , getAssessmentHistory
   , ordered
   )
@@ -25,6 +26,8 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   )
+import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
+import Competences.Document.Grade (Grade (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -154,12 +157,20 @@ assessmentComponent r grid =
               & (#expandOrthogonal .~ V.Expand V.Center)
               & (#gap .~ V.SmallSpace)
           )
-          [ header
+          [ header m user
           , description
           , competenceAssessmentList m user
           ]
       where
-        header = Typography.h2 (M.ms grid.title)
+        -- Header with title on left and grade badge on right
+        header am u =
+          MH.div_
+            [class_ "flex items-center justify-between w-full"]
+            [ Typography.h2 (M.ms grid.title)
+            , case getActiveGridGrade am.document u.id grid.id of
+                Just gridGrade -> gradeBadgeView gridGrade.grade
+                Nothing -> V.empty
+            ]
         description = Typography.paragraph (M.ms grid.description)
 
         competenceAssessmentList am u =
@@ -470,3 +481,40 @@ findAssessmentForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe Compe
 findAssessmentForDay doc userId competenceId day =
   find (\a -> a.competenceId == competenceId && a.date == day) $
     Ix.toList (doc.competenceAssessments Ix.@= userId)
+
+-- | Create a colored badge for a grade
+-- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
+gradeBadgeView :: Grade -> M.View m action
+gradeBadgeView g =
+  let (bgClass, textClass) = gradeColorClasses g
+      shortLabel = gradeShortLabel g
+   in MH.span_
+        [ class_ $ "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-sm font-medium " <> bgClass <> " " <> textClass
+        ]
+        [M.text (M.ms shortLabel)]
+
+-- | Get background and text color classes for a grade
+gradeColorClasses :: Grade -> (T.Text, T.Text)
+gradeColorClasses g = case g of
+  Grade1 -> ("bg-green-100", "text-green-700")
+  Grade1_2 -> ("bg-green-100", "text-green-700")
+  Grade2 -> ("bg-green-100", "text-green-700")
+  Grade2_3 -> ("bg-green-100", "text-green-700")
+  Grade3 -> ("bg-green-100", "text-green-700")
+  Grade3_4 -> ("bg-yellow-100", "text-yellow-700")
+  Grade4 -> ("bg-yellow-100", "text-yellow-700")
+  Grade4_5 -> ("bg-yellow-100", "text-yellow-700")
+  Grade5 -> ("bg-red-100", "text-red-700")
+
+-- | Short label for grade (just the number part)
+gradeShortLabel :: Grade -> T.Text
+gradeShortLabel g = case g of
+  Grade1 -> "1"
+  Grade1_2 -> "1-2"
+  Grade2 -> "2"
+  Grade2_3 -> "2-3"
+  Grade3 -> "3"
+  Grade3_4 -> "3-4"
+  Grade4 -> "4"
+  Grade4_5 -> "4-5"
+  Grade5 -> "5"

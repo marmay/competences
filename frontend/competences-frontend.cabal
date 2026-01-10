@@ -37,6 +37,7 @@ library
         Competences.Frontend.Component.CompetenceGrid,
         Competences.Frontend.Component.CompetenceGrid.Assessment,
         Competences.Frontend.Component.CompetenceGrid.Editor,
+        Competences.Frontend.Component.CompetenceGrid.Grading,
         Competences.Frontend.Component.CompetenceGrid.Types,
         Competences.Frontend.Component.CompetenceGrid.Viewer,
         Competences.Frontend.Component.ConnectionStatus,

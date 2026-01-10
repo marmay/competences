@@ -6,7 +6,7 @@ module Competences.Command.CompetenceGridGrades
 where
 
 import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
-import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
+import Competences.Command.Interpret (EntityCommandContext (..), interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Grade (Grade)
@@ -19,7 +19,7 @@ import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
+import Optics.Core ((&), (%~), (^.))
 
 -- | Patch for modifying a CompetenceGridGrade.
 -- Note: userId and competenceGridId are NOT patchable - they define the grade subject.
@@ -65,13 +65,24 @@ applyCompetenceGridGradePatch gridGrade patch =
 handleCompetenceGridGradesCommand :: UserId -> CompetenceGridGradesCommand -> Document -> UpdateResult
 handleCompetenceGridGradesCommand userId (OnCompetenceGridGrades c) = interpretEntityCommand gradeContext userId c
   where
-    gradeContext =
+    baseContext =
       mkEntityCommandContext
         #competenceGridGrades
         #id
         CompetenceGridGradeLock
         applyCompetenceGridGradePatch
         affectedUsers
+
+    -- Custom context that replaces existing grade on same (userId, competenceGridId, date)
+    gradeContext = baseContext {create = createWithReplace}
+
+    -- Create a new grade, silently replacing any existing grade on the same date
+    createWithReplace :: CompetenceGridGrade -> Document -> Either Text Document
+    createWithReplace newGrade d =
+      let existingGrades = (d ^. #competenceGridGrades) Ix.@= newGrade.userId Ix.@= newGrade.competenceGridId Ix.@= newGrade.date
+          -- Remove any existing grade with same (userId, competenceGridId, date)
+          d' = d & #competenceGridGrades %~ \grades -> foldr Ix.delete grades (Ix.toList existingGrades)
+       in baseContext.create newGrade d'
 
     -- Teachers see all grades; students only see grades about themselves
     affectedUsers :: CompetenceGridGrade -> Document -> AffectedUsers
