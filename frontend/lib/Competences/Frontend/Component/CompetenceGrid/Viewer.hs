@@ -6,12 +6,14 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
+  , CompetenceAssessment (..)
   , CompetenceGrid (..)
   , Document (..)
   , Level (..)
   , LevelInfo (..)
   , allLevels
   , emptyDocument
+  , getActiveAssessment
   , ordered
   )
 import Competences.Document.Evidence
@@ -129,12 +131,20 @@ viewerComponent r grid =
                         Table.TableColumnSpec Table.EqualWidthColumn (C.translate' $ C.LblCompetenceLevelDescription l)
                   , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
                       ViewerDescriptionColumn ->
-                        -- Description cell with standard padding
-                        TableCellSpec
-                          { cellClasses = "px-4 py-3"
-                          , cellStyle = []
-                          , cellContent = Typography.small (M.ms competence.description)
-                          }
+                        -- Description cell: green if achieved, yellow if not achieved, white if no assessment
+                        let mAssessment = case vm.focusedUser of
+                              Just user -> getActiveAssessment vm.document user.id competence.id
+                              Nothing -> Nothing
+                            bgClass = case mAssessment of
+                              Nothing -> "" -- No assessment: white
+                              Just assessment -> case assessment.level of
+                                Nothing -> "bg-yellow-100" -- Not achieved at all
+                                Just _ -> "bg-green-100" -- Achieved at some level
+                         in TableCellSpec
+                              { cellClasses = "px-4 py-3 " <> bgClass
+                              , cellStyle = []
+                              , cellContent = Typography.small (M.ms competence.description)
+                              }
                       ViewerLevelColumn level ->
                         let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level competence.levels
                             competenceLevelId = (competence.id, level)
@@ -158,14 +168,32 @@ viewerComponent r grid =
                                   coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
                                in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
                             hasDescription = not (T.null levelInfo.description)
-                            -- Cell background color based on state (applied to td)
-                            -- TODO: Add competent (green-100) and not-yet-competent (yellow-100) states
-                            bgClass =
-                              if not hasDescription
-                                then "" -- Empty: will use striped background via inline style
-                                else if levelInfo.locked
-                                  then "bg-stone-200" -- Locked: gray
-                                  else "bg-white" -- Normal: white (or could be based on assessment)
+
+                            -- Get active assessment for focused user + competence
+                            mAssessment = case vm.focusedUser of
+                              Just user -> getActiveAssessment vm.document user.id competence.id
+                              Nothing -> Nothing
+
+                            -- Determine cell assessment status
+                            cellStatus :: CellAssessmentStatus
+                            cellStatus = case mAssessment of
+                              Nothing -> NoAssessment -- Fall back to locked/normal
+                              Just assessment -> case assessment.level of
+                                Nothing -> NotYetAchieved -- Assessed but not achieved
+                                Just assessedLevel ->
+                                  if level <= assessedLevel
+                                    then Achieved
+                                    else NotYetAchieved
+
+                            -- Cell background color based on status
+                            -- Only "Achieved" overrides locked; "NotYetAchieved" does not
+                            bgClass
+                              | not hasDescription = "" -- Empty: will use striped background
+                              | cellStatus == Achieved = "bg-green-100"
+                              | levelInfo.locked = "bg-stone-200" -- Locked takes precedence over NotYetAchieved
+                              | cellStatus == NotYetAchieved = "bg-yellow-100"
+                              | otherwise = "bg-white" -- Normal: white
+
                             -- Striped background for empty cells
                             stripeStyle :: [(M.MisoString, M.MisoString)]
                             stripeStyle =
@@ -175,14 +203,26 @@ viewerComponent r grid =
                                      "repeating-linear-gradient(135deg, rgb(245 245 244) 0px, rgb(245 245 244) 4px, rgb(231 229 228) 4px, rgb(231 229 228) 8px)")
                                   ]
                                 else []
+
                             -- Status icon in top-right corner
-                            statusIcon =
-                              if levelInfo.locked && hasDescription
-                                then
+                            -- No icons on cells without description
+                            -- Only "Achieved" overrides locked status
+                            statusIcon
+                              | not hasDescription = V.empty
+                              | cellStatus == Achieved =
+                                  MH.div_
+                                    [class_ "absolute top-1 right-1 text-green-600"]
+                                    [icon [MP.width_ "14", MP.height_ "14"] IcnApply]
+                              | levelInfo.locked =
                                   MH.div_
                                     [class_ "absolute top-1 right-1 text-stone-500"]
                                     [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
-                                else V.empty
+                              | cellStatus == NotYetAchieved =
+                                  MH.div_
+                                    [class_ "absolute top-1 right-1 text-yellow-600"]
+                                    [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
+                              | otherwise = V.empty
+
                             -- Cell classes: relative for icon positioning, padding, and vertical centering
                             tdClasses = "relative px-4 py-3 " <> bgClass
                             -- Cell content wrapper for vertical centering
@@ -212,4 +252,11 @@ viewerComponent r grid =
 data ViewerColumn
   = ViewerDescriptionColumn
   | ViewerLevelColumn !Level
+  deriving (Eq, Show)
+
+-- | Assessment status for a cell in the viewer
+data CellAssessmentStatus
+  = Achieved       -- ^ Cell level is at or below the assessed level
+  | NotYetAchieved -- ^ Cell level is above the assessed level, or assessment is "Not Achieved"
+  | NoAssessment   -- ^ No assessment exists for this competence
   deriving (Eq, Show)
