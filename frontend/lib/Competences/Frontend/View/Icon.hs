@@ -43,6 +43,7 @@ data Icon
   | IcnCompetenceGrid
   | IcnEvidence
   | IcnAssignment
+  | IcnInfo
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -87,6 +88,7 @@ iconId = \case
   IcnCompetenceGrid -> "icon-competence-grid"
   IcnEvidence -> "icon-evidence"
   IcnAssignment -> "icon-assignment"
+  IcnInfo -> "icon-info"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -280,6 +282,13 @@ iconDefOf' = \case
     mkPathesD
       [ "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
       , "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"
+      ]
+  -- Info icon (circle with i)
+  IcnInfo ->
+    mkPathesDR
+      [ "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+      , "M12 16v-4"
+      , "M12 8h.01"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
