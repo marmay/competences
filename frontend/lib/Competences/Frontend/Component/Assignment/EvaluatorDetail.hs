@@ -47,7 +47,8 @@ evaluatorDetailView r assignment =
 -- Tracks per-task observations, aggregated results, and selected students
 -- Only stores the document subsets actually needed (not the full Document)
 data EvaluatorModel = EvaluatorModel
-  { tasks :: !(Ix.IxSet TaskIxs Task)
+  { assignment :: !Assignment
+  , tasks :: !(Ix.IxSet TaskIxs Task)
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , users :: !(Ix.IxSet UserIxs User)
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
@@ -81,7 +82,8 @@ evaluatorComponent r assignment =
   where
     model =
       EvaluatorModel
-        { tasks = Ix.empty
+        { assignment = assignment
+        , tasks = Ix.empty
         , taskGroups = Ix.empty
         , users = Ix.empty
         , competences = Ix.empty
@@ -93,8 +95,11 @@ evaluatorComponent r assignment =
 
     update (UpdateDocument dc) = M.modify $ \m ->
       let doc = dc.document
+          -- Look up the current assignment from the document (in case it was edited)
+          updatedAssignment = maybe m.assignment id $ Ix.getOne (doc.assignments Ix.@= m.assignment.id)
        in EvaluatorModel
-            { tasks = doc.tasks
+            { assignment = updatedAssignment
+            , tasks = doc.tasks
             , taskGroups = doc.taskGroups
             , users = doc.users
             , competences = doc.competences
@@ -150,14 +155,15 @@ evaluatorComponent r assignment =
       -- Use the aggregated results (same for all students)
       -- Generate observation IDs and create Observation records
       let sf = m.selectedSocialForm
+          asmt = m.assignment
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
       let evidence =
-            (mkEvidence evidenceId assignment.assignmentDate)
+            (mkEvidence evidenceId asmt.assignmentDate)
               { userId = Just userId
-              , activityType = assignment.activityType
-              , tasks = assignment.tasks
+              , activityType = asmt.activityType
+              , tasks = asmt.tasks
               , observations = Ix.fromList observations
-              , assignmentId = Just assignment.id
+              , assignmentId = Just asmt.id
               , oldTasks = ""
               }
       pure $ Evidences (OnEvidences (Create evidence))
@@ -173,12 +179,12 @@ evaluatorComponent r assignment =
               }
 
     view' m =
-      if null assignment.tasks
+      if null m.assignment.tasks
         then Typography.paragraph "Dieser Auftrag hat keine Aufgaben"
         else
           let -- Sort tasks by identifier for consistent display order
               sortedTaskIds = map (.id) $
-                Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ assignment.tasks
+                Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ m.assignment.tasks
            in M.div_
                 []
                 [ Typography.h2 "Auftrag auswerten"
@@ -189,7 +195,7 @@ evaluatorComponent r assignment =
                 ]
 
     viewStudentSelection m =
-      let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList assignment.studentIds
+      let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList m.assignment.studentIds
           selectedCount = Set.size m.selectedStudents
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
