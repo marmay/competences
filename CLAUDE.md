@@ -149,6 +149,81 @@ The project uses GHC2024 with these additional extensions:
   - ✓ `import Competences.Document (Document(..), User(..))`
   - ✗ `import Competences.Document (Document, User)` (won't allow `doc.users` access)
 
+## IxSet-typed Patterns
+
+The codebase uses `ixset-typed` for efficient indexed data storage. Follow these patterns for performance:
+
+### Filtering by Index
+
+Use `@=` to filter by a single index value:
+```haskell
+-- Get all evidences for a user
+doc.evidences Ix.@= userId
+
+-- Chain multiple filters (like AND in SQL)
+doc.competences Ix.@= gridId Ix.@= competenceOrder
+```
+
+### Filtering by Multiple Values
+
+Use `@+` to filter by multiple values (like IN in SQL):
+```haskell
+-- Get tasks matching a list of IDs
+m.tasks Ix.@+ taskIdList
+
+-- Get users from a set of IDs
+m.users Ix.@+ Set.toList userIdSet
+```
+
+### Sorted Retrieval
+
+Use `toAscList`/`toDescList` with `Proxy @IndexType` instead of `sortOn`:
+```haskell
+-- GOOD: Sort by Order index
+Ix.toAscList (Proxy @Order) doc.competences
+
+-- GOOD: Sort by Day (descending for most recent first)
+Ix.toDescList (Proxy @Day) doc.evidences
+
+-- GOOD: Filter then sort
+Ix.toAscList (Proxy @Text) $ m.users Ix.@+ userIdList
+
+-- BAD: Don't do this
+sortOn (.order) $ Ix.toList doc.competences
+```
+
+### Single Element Lookup
+
+Use `getOne` after filtering for unique lookups:
+```haskell
+-- Get a single user by ID
+Ix.getOne $ doc.users Ix.@= userId
+
+-- Returns Maybe - Nothing if not found or multiple matches
+```
+
+### Anti-patterns to Avoid
+
+```haskell
+-- BAD: filter + toList
+filter (\g -> g.userId == userId) $ Ix.toList grades
+
+-- GOOD: Use index
+grades Ix.@= userId
+
+-- BAD: sortOn after toList
+sortOn (Down . (.date)) $ Ix.toList evidences
+
+-- GOOD: Use toDescList
+Ix.toDescList (Proxy @Day) evidences
+
+-- BAD: Multiple list operations
+listToMaybe $ sortOn (Down . (.date)) $ filter (...) $ Ix.toList xs
+
+-- GOOD: Chain IxSet operations, then toDescList
+listToMaybe $ Ix.toDescList (Proxy @Day) $ xs Ix.@= userId Ix.@= gridId
+```
+
 ## UI and View Patterns
 
 **See [docs/UI-REFACTORING-PROGRESS.md](docs/UI-REFACTORING-PROGRESS.md) for complete details.**
@@ -265,8 +340,6 @@ Basecoat JavaScript is now fully integrated:
 - **Tabs**: Multi-view editors or statistics pages
 - **Toast**: Success/error notifications for user actions
 
-**See also**: Plan file `/home/markus/.claude/plans/dapper-fluttering-globe.md` for complete integration plan.
-
 ### CSS Build System
 
 **Production CSS**: Generated via Tailwind CLI, served from `/static/output.css`
@@ -332,15 +405,47 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details on:
 - Client-server communication
 - Conflict resolution
 
-### Frontend SyncDocument
+### Frontend SyncContext
 
-The frontend maintains local and remote document state:
+The frontend synchronization is managed by modules in `Competences.Frontend.SyncContext`:
+
+**SyncDocument** (`SyncContext/SyncDocument.hs`):
 - `remoteDocument`: Server's authoritative state (projected for students)
-- `localDocument`: `remoteDocument + pendingCommand + localChanges`
-- `pendingCommand`: Command sent to server, awaiting acknowledgment
-- `localChanges`: Queue of commands not yet sent
+- `localDocument`: `remoteDocument` + pending commands
+- `localChanges`: Queue of unconfirmed commands
+- Use `subscribeDocument` for document change notifications
 
-See `frontend/lib/Competences/Frontend/SyncDocument.hs`.
+**Focused User State** (`SyncContext/UIState.hs`):
+- Tracks which user the teacher is currently viewing
+- Students always focus on themselves
+- Use `subscribeFocusedUser` for focus change notifications
+
+**Projected Subscriptions** (`SyncContext/ProjectedSubscription.hs`):
+- Combines document + focused user subscriptions
+- Allows components to define efficient projections
+- Deduplicates updates when projection hasn't changed
+
+```haskell
+-- Define a projection type with only needed data
+data MyProjection = MyProjection
+  { userEvidences :: !(Ix.IxSet EvidenceIxs Evidence)
+  , focusedUser :: !(Maybe User)
+  }
+
+-- Projection function filters data by focused user
+myProjection :: Document -> Maybe User -> MyProjection
+myProjection doc mUser = MyProjection
+  { userEvidences = case mUser of
+      Nothing -> Ix.empty
+      Just u -> doc.evidences Ix.@= u.id
+  , focusedUser = mUser
+  }
+
+-- Subscribe with projection in component
+M.subs = [subscribeWithProjection r myProjection ProjectionChanged]
+```
+
+Import via the re-export module: `import Competences.Frontend.SyncContext`
 
 ### Database Persistence
 
