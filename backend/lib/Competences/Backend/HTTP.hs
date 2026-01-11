@@ -5,6 +5,7 @@ module Competences.Backend.HTTP
   ( AppAPI
   , appAPI
   , server
+  , FrontendHashes (..)
   )
 where
 
@@ -48,12 +49,19 @@ import Servant
   , serveDirectoryWebApp
   , throwError
   )
-import Servant.HTML.Blaze (HTML)
 import Servant.API (NoContent (..))
+import Servant.HTML.Blaze (HTML)
 import Text.Blaze.Html5 (Html, (!))
 import Text.Blaze.Html5 qualified as H
 import Text.Blaze.Html5.Attributes qualified as A
-import Web.Cookie (SetCookie (..), defaultSetCookie, renderSetCookieBS, parseCookies)
+import Web.Cookie (SetCookie (..), defaultSetCookie, parseCookies, renderSetCookieBS)
+
+-- | Hashes for frontend cache busting
+data FrontendHashes = FrontendHashes
+  { wasmHash :: !FileHashRef
+  , indexJsHash :: !FileHashRef
+  , jsffiHash :: !FileHashRef
+  }
 
 type AppAPI =
   -- OAuth initiation - redirect to Office365 with state parameter for CSRF protection
@@ -71,10 +79,10 @@ type AppAPI =
 appAPI :: Proxy AppAPI
 appAPI = Proxy
 
-server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FileHashRef -> Servant.Server AppAPI
-server state oauth2Config jwtSecret staticDir wasmHashRef =
+server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FrontendHashes -> Servant.Server AppAPI
+server state oauth2Config jwtSecret staticDir hashes =
   oauthInitHandler oauth2Config
-    :<|> oauthCallbackHandler state oauth2Config jwtSecret wasmHashRef
+    :<|> oauthCallbackHandler state oauth2Config jwtSecret hashes
     :<|> serveDirectoryWebApp staticDir
 
 -- | Cookie name for OAuth state parameter
@@ -126,8 +134,8 @@ getAuthorizationUrlWithState config state =
 
 -- | OAuth callback - exchange code for token and serve frontend with JWT
 -- Validates state parameter to prevent CSRF attacks
-oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FileHashRef -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
-oauthCallbackHandler appState oauth2Config jwtSecret wasmHashRef maybeCode maybeState maybeCookie = do
+oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FrontendHashes -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
+oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState maybeCookie = do
   -- Validate state parameter (CSRF protection)
   stateFromQuery <- case maybeState of
     Nothing -> throwError err400 {errBody = "Missing state parameter"}
@@ -174,11 +182,13 @@ oauthCallbackHandler appState oauth2Config jwtSecret wasmHashRef maybeCode maybe
   -- Generate JWT
   jwt <- liftIO $ generateJWT jwtSecret user
 
-  -- Read current WASM hash (may have been updated by file watcher)
-  wasmHash <- liftIO $ readFileHash wasmHashRef
+  -- Read current file hashes (may have been updated by file watcher)
+  wasmHash <- liftIO $ readFileHash hashes.wasmHash
+  indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
+  jsffiHash <- liftIO $ readFileHash hashes.jsffiHash
 
-  -- Serve frontend HTML with JWT embedded
-  pure $ renderFrontendHTML jwt wasmHash
+  -- Serve frontend HTML with JWT and hashes embedded
+  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -212,8 +222,8 @@ cspHeaderValue = T.intercalate "; "
   ]
 
 -- | Render frontend HTML with JWT and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Html
-renderFrontendHTML jwt wasmHash = H.docTypeHtml $ do
+renderFrontendHTML :: Text -> Text -> Text -> Text -> Html
+renderFrontendHTML jwt wasmHash indexJsHash jsffiHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -228,8 +238,10 @@ renderFrontendHTML jwt wasmHash = H.docTypeHtml $ do
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';\n\
-      \// WASM hash for cache busting\n\
-      \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';"
+      \// File hashes for cache busting\n\
+      \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';\n\
+      \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';"
   H.body ! A.class_ "theme-claude" $ do
-    -- Load application code
-    H.script ! A.src "/static/index.js" ! A.type_ "module" $ ""
+    -- Load application code (with cache-busting hash)
+    let indexJsUrl = "/static/index.js?v=" <> indexJsHash
+    H.script ! A.src (H.toValue indexJsUrl) ! A.type_ "module" $ ""

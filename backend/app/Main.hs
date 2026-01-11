@@ -2,8 +2,8 @@ module Main where
 
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
-import Competences.Backend.HashedFile (withHashedFile)
-import Competences.Backend.HTTP (appAPI, server)
+import Competences.Backend.HashedFile (withHashedFiles)
+import Competences.Backend.HTTP (FrontendHashes (..), appAPI, server)
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
 import Competences.Command (Command (..), handleCommand)
@@ -19,6 +19,7 @@ import Data.Aeson (eitherDecodeFileStrict)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BS
 import Data.Int (Int64)
+import Data.Map.Strict qualified as Map
 import Data.Pool (Pool)
 import Data.Text qualified as T
 import Data.UUID qualified as UUID
@@ -178,11 +179,20 @@ main = do
   putStrLn "Press Ctrl+C to stop"
   hFlush stdout
 
-  -- Run server with file watcher for cache busting and graceful shutdown
-  let wasmPath = opts.staticDir <> "/app.wasm"
-  withHashedFile wasmPath $ \wasmHashRef ->
+  -- Run server with file watchers for cache busting and graceful shutdown
+  let frontendFiles =
+        [ opts.staticDir <> "/app.wasm"
+        , opts.staticDir <> "/index.js"
+        , opts.staticDir <> "/ghc_wasm_jsffi.js"
+        ]
+  withHashedFiles frontendFiles $ \hashRefs ->
     flip finally (gracefulShutdown state pool instanceId shutdown) $ do
-      let httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir wasmHashRef)
+      let hashes = FrontendHashes
+            { wasmHash = hashRefs Map.! (opts.staticDir <> "/app.wasm")
+            , indexJsHash = hashRefs Map.! (opts.staticDir <> "/index.js")
+            , jsffiHash = hashRefs Map.! (opts.staticDir <> "/ghc_wasm_jsffi.js")
+            }
+          httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir hashes)
       run opts.port $
         websocketsOr
           defaultConnectionOptions

@@ -89,6 +89,7 @@ executable competences-backend
         bytestring,
         competences-backend,
         competences-common,
+        containers,
         http-types,
         optparse-applicative,
         postgresql-simple,

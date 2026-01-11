@@ -1,5 +1,12 @@
 import { WASI, OpenFile, File, ConsoleStdout } from "/static/wasi/index.js";
-import ghc_wasm_jsffi from "/static/ghc_wasm_jsffi.js";
+
+// Build ghc_wasm_jsffi URL with cache-busting hash if available
+const jsffiHash = window.COMPETENCES_JSFFI_HASH || '';
+const jsffiUrl = jsffiHash ? `/static/ghc_wasm_jsffi.js?v=${jsffiHash}` : '/static/ghc_wasm_jsffi.js';
+console.log(`Loading JSFFI from: ${jsffiUrl}`);
+
+// Dynamic import for cache-busting support
+const { default: ghc_wasm_jsffi } = await import(jsffiUrl);
 
 const args = [];
 const env = ["GHCRTS=-H64m"];
