@@ -189,12 +189,12 @@ evaluatorComponent r assignment =
                 ]
 
     viewStudentSelection m =
-      let students = map (\userId -> Ix.getOne (Ix.getEQ userId m.users)) (Set.toList assignment.studentIds)
+      let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList assignment.studentIds
           selectedCount = Set.size m.selectedStudents
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
             [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
-            , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentSelectionButton m) students)
+            , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentButton m) students)
             , M.div_ [class_ "flex items-center gap-2 mt-3 pt-3 border-t"]
                 [ M.span_ [class_ "font-semibold text-sm"] [M.text "Sozialform:"]
                 , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
@@ -210,9 +210,7 @@ evaluatorComponent r assignment =
             [class_ buttonClass, M.onClick (SetSocialForm sf)]
             [M.text $ C.translate' $ C.LblSocialForm sf]
 
-    viewStudentSelectionButton _ Nothing =
-      M.div_ [class_ "px-3 py-1 rounded bg-muted text-muted-foreground text-sm"] [M.text "Schüler nicht gefunden"]
-    viewStudentSelectionButton m (Just student) =
+    viewStudentButton m student =
       let isSelected = Set.member student.id m.selectedStudents
           buttonClass = if isSelected
                           then "px-3 py-1 rounded bg-primary text-primary-foreground text-sm cursor-pointer hover:bg-primary/90"
