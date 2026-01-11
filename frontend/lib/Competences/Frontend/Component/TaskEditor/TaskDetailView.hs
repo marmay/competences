@@ -14,7 +14,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
-import Competences.Frontend.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)

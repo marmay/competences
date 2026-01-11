@@ -10,7 +10,7 @@ import Competences.Frontend.Component.Selector.TaskOrGroupSelector
   )
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
 import Competences.Frontend.Component.TaskEditor.TaskGroupDetailView (taskGroupDetailView)
-import Competences.Frontend.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)

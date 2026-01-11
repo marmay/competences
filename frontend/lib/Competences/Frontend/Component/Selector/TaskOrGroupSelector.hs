@@ -9,7 +9,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Task (..), TaskGroup (..), TaskGroupIxs, TaskIxs, TaskType (..))
 import Competences.Document.Task (TaskGroupIdentifier (..), TaskIdentifier (..), defaultTaskAttributes)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , modifySyncDocument

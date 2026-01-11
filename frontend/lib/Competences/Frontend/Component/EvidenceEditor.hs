@@ -33,7 +33,7 @@ import Competences.Frontend.Component.Selector.EvidenceSelector
 import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMultiTaskEditorField)
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))

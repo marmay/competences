@@ -17,7 +17,7 @@ import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , FocusedUserChange (..)
   , SyncContext

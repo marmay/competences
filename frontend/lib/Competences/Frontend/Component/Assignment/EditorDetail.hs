@@ -21,7 +21,7 @@ import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLen
 import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
 import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Set qualified as Set

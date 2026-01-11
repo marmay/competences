@@ -13,7 +13,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector qualified as L
 import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (Default)
 import Data.Foldable (toList)

@@ -10,7 +10,7 @@ import Competences.Document.Id (nilId)
 import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( mkSyncDocument
   , mkSyncDocumentEnv
   , modifySyncDocument
@@ -84,7 +84,7 @@ foreign export javascript "hs_start" main :: IO ()
 
 -- import Competences.Document.Id (mkId, nilId)
 -- import Competences.Document.User (User (..), UserId, UserRole (..), Office365Id (..))
--- import Competences.Frontend.SyncDocument
+-- import Competences.Frontend.SyncContext
 --   ( SyncDocument (..)
 --   , SyncDocumentRef
 --   , mkSyncDocument

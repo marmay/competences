@@ -13,7 +13,7 @@ where
 
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector (ListSelectorConfig (..))
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , isInitialUpdate

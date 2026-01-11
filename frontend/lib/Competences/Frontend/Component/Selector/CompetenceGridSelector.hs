@@ -12,23 +12,21 @@ import Competences.Document
   , CompetenceGridIxs
   , Document (..)
   , orderMax
+  , User (..)
   )
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
 import Competences.Document.Grade (Grade (..))
-import Competences.Document.User (User (..), UserId)
+import Competences.Document.User (UserId)
 import Data.List (sortOn)
 import Data.Maybe (listToMaybe)
 import Data.Ord (Down (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+import Competences.Frontend.SyncContext
+  ( ProjectedChange (..)
   , SyncContext
-  , getFocusedUserRef
   , modifySyncDocument
   , nextId
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Icon (Icon (..))
@@ -40,20 +38,37 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
+-- | Projection type: extracts only the data needed for this component.
+-- Grid grades are filtered to only the focused user's grades.
+data GridSelectorProjection = GridSelectorProjection
+  { allGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
+  , userGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Compute the projection from document and focused user.
+-- Filters grid grades to only those for the focused user.
+gridSelectorProjection :: Document -> Maybe User -> GridSelectorProjection
+gridSelectorProjection doc mUser = GridSelectorProjection
+  { allGrids = doc.competenceGrids
+  , userGridGrades = case mUser of
+      Nothing -> Ix.empty
+      Just u -> doc.competenceGridGrades Ix.@= u.id
+  , focusedUser = mUser
+  }
+
 data Model = Model
-  { allCompetenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
-  , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
+  { projection :: !GridSelectorProjection
   , selectedCompetenceGrid :: !(Maybe CompetenceGrid)
   , newCompetenceGrid :: !(Maybe CompetenceGrid)
-  , focusedUser :: !(Maybe User)
   }
   deriving (Eq, Generic, Show)
 
 data Action
   = SelectCompetenceGrid !CompetenceGrid
   | CreateNewCompetenceGrid
-  | UpdateDocument !DocumentChange
-  | FocusedUserChanged !FocusedUserChange
+  | ProjectionChanged !(ProjectedChange GridSelectorProjection)
   deriving (Eq, Show)
 
 data CompetenceGridSelectorStyle
@@ -69,29 +84,27 @@ competenceGridSelectorComponent
 competenceGridSelectorComponent r style parentLens =
   (M.component model update view)
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedCompetenceGrid]
-    , M.subs =
-        [ subscribeDocument r UpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) FocusedUserChanged
-        ]
+    , M.subs = [subscribeWithProjection r gridSelectorProjection ProjectionChanged]
     }
   where
-    model = Model Ix.empty Ix.empty Nothing Nothing Nothing
+    model = Model (GridSelectorProjection Ix.empty Ix.empty Nothing) Nothing Nothing
+
     update (SelectCompetenceGrid c) =
-      M.modify $ \m -> case Ix.getOne (m.allCompetenceGrids Ix.@= c.id) of
+      M.modify $ \m -> case Ix.getOne (m.projection.allGrids Ix.@= c.id) of
         Just c' -> m & (#selectedCompetenceGrid ?~ c') & (#newCompetenceGrid .~ Nothing)
         Nothing -> m & (#newCompetenceGrid ?~ c)
+
     update CreateNewCompetenceGrid = M.withSink $ \s -> do
       competenceGridId <- nextId r
       let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
       modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create competenceGrid)
       s (SelectCompetenceGrid competenceGrid)
-    update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
-    update (FocusedUserChanged change) = M.modify $ #focusedUser .~ change.user
 
-    updateModel :: Document -> Model -> Model
-    updateModel d m =
-      let grids = d.competenceGrids
-          grades = d.competenceGridGrades
+    update (ProjectionChanged change) = M.modify $ updateFromProjection change.projection
+
+    updateFromProjection :: GridSelectorProjection -> Model -> Model
+    updateFromProjection proj m =
+      let grids = proj.allGrids
           validateCompetenceGrid c = do
             c' <- c
             Ix.getOne $ grids Ix.@= c'.id
@@ -99,8 +112,7 @@ competenceGridSelectorComponent r style parentLens =
             (_, Just e) -> (Just e, Nothing)
             (s, n) -> (s, n)
        in m
-            { allCompetenceGrids = grids
-            , competenceGridGrades = grades
+            { projection = proj
             , selectedCompetenceGrid = selected'
             , newCompetenceGrid = new'
             }
@@ -118,16 +130,17 @@ competenceGridSelectorComponent r style parentLens =
                 then Just CreateNewCompetenceGrid
                 else Nothing
             )
-        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toList m.allCompetenceGrids))
+        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toList m.projection.allGrids))
         ]
 
     viewCompetenceGrid m c =
       let isSelected = m.selectedCompetenceGrid == Just c || m.newCompetenceGrid == Just c
           label = M.ms $ if c.title == "" then "Ohne Titel" else c.title
           -- Get active grade for this grid and focused user
+          -- userGridGrades is already filtered to the focused user
           mGrade = do
-            user <- m.focusedUser
-            gridGrade <- getActiveGridGrade' m.competenceGridGrades user.id c.id
+            user <- m.projection.focusedUser
+            gridGrade <- getActiveGridGrade' m.projection.userGridGrades user.id c.id
             pure gridGrade.grade
           gradeBadge = gradeBadgeView <$> mGrade
        in SL.selectorItemWithBadge isSelected IcnCompetenceGrid label gradeBadge (SelectCompetenceGrid c)

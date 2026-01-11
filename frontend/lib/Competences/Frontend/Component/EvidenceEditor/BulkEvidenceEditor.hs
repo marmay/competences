@@ -55,7 +55,7 @@ import Competences.Frontend.Component.Selector.UserSelector
   ( UserSelectorConfig (..)
   , searchableMultiUserSelectorComponent
   )
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , SyncDocumentEnv (..)

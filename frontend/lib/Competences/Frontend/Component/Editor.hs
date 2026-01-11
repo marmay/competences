@@ -37,7 +37,7 @@ import Competences.Frontend.Component.Editor.View
   , MoveState (..)
   , refocusTargetString
   )
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , SyncDocument (..)

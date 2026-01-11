@@ -35,7 +35,7 @@ where
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Badge (InteractiveBadgeConfig (..), interactiveBadge)
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)

@@ -4,7 +4,7 @@ module Competences.Frontend.Component.ConnectionStatus
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
-import Competences.Frontend.SyncDocument (SyncContext, getCommandSender)
+import Competences.Frontend.SyncContext (SyncContext, getCommandSender)
 import Competences.Frontend.WebSocket.CommandSender
   ( ConnectionChange (..)
   , ConnectionState (..)

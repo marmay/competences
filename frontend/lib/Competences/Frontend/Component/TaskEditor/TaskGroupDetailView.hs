@@ -27,7 +27,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.Common (entityPatchLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.View.Component (componentA)
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , modifySyncDocument

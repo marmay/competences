@@ -16,7 +16,7 @@ import Competences.Document.Evidence
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 -- Note: User selector removed - now uses global focused user from nav bar
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , FocusedUserChange (..)
   , SyncDocumentEnv (..)

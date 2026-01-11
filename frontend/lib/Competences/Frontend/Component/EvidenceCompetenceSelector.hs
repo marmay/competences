@@ -9,7 +9,7 @@ import Competences.Document (Competence (..), Document (..), Level (..), LevelIn
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability, SocialForm (..), abilities, socialForms)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Data.Map qualified as Map
