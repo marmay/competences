@@ -1,7 +1,7 @@
 -- | File watching with content hashing for cache busting.
 --
--- Provides a bracket-style API that watches a file for changes and
--- maintains a TVar with the current content hash.
+-- Provides a bracket-style API that watches files for changes and
+-- maintains TVars with the current content hashes.
 --
 -- Example usage:
 --
@@ -11,9 +11,18 @@
 --   putStrLn $ "Current hash: " <> Text.unpack hash
 --   -- ... run server that reads hashRef on each request ...
 -- @
+--
+-- For multiple files, use 'withHashedFiles':
+--
+-- @
+-- withHashedFiles ["static/app.wasm", "static/index.js"] $ \hashRefs -> do
+--   let wasmHash = hashRefs Map.! "static/app.wasm"
+--   ...
+-- @
 module Competences.Backend.HashedFile
   ( FileHashRef
   , withHashedFile
+  , withHashedFiles
   , readFileHash
   )
 where
@@ -26,6 +35,8 @@ import Crypto.Hash (Digest, MD5, hash)
 import Data.ByteArray.Encoding (Base (Base16), convertToBase)
 import Data.ByteString qualified as BS
 import Data.IORef (atomicModifyIORef', newIORef, readIORef)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8)
@@ -110,3 +121,15 @@ computeHash path = do
       let digest :: Digest MD5 = hash contents
           hashHex = decodeUtf8 $ convertToBase Base16 digest
       pure $ Text.take 8 hashHex
+
+-- | Watch multiple files and maintain their content hashes.
+--
+-- Returns a Map from file path to hash TVar.
+-- Cleans up all watchers when the action completes.
+withHashedFiles :: [FilePath] -> (Map FilePath FileHashRef -> IO a) -> IO a
+withHashedFiles paths action = go paths Map.empty
+  where
+    go [] refs = action refs
+    go (p : ps) refs =
+      withHashedFile p $ \hashRef ->
+        go ps (Map.insert p hashRef refs)
