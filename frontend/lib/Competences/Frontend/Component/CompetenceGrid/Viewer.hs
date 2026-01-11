@@ -7,14 +7,14 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceAssessment (..)
+  , CompetenceAssessmentIxs
   , CompetenceGrid (..)
+  , CompetenceIxs
   , Document (..)
+  , EvidenceIxs
   , Level (..)
   , LevelInfo (..)
   , allLevels
-  , emptyDocument
-  , getActiveAssessment
-  , getActiveGridGrade
   , ordered
   )
 import Competences.Document.Evidence
@@ -23,27 +23,26 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   )
+import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
-import Competences.Document.Grade (Grade (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+  ( ProjectedChange (..)
   , SyncContext
-  , getFocusedUserRef
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Colors qualified as Colors
+import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
+import Data.Maybe (listToMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import Data.Time (Day)
@@ -60,17 +59,30 @@ import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 -- VIEW MODE DETAIL
 -- ============================================================================
 
+-- | Projection type for the viewer - contains only the data needed for this view.
+-- This is grid-specific: all data is pre-filtered for this grid and focused user.
+data ViewerProjection = ViewerProjection
+  { competences :: !(Ix.IxSet CompetenceIxs Competence)
+  -- ^ Competences for this grid only
+  , userEvidences :: !(Ix.IxSet EvidenceIxs Evidence)
+  -- ^ Evidences for focused user only
+  , userAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
+  -- ^ Assessments for focused user only
+  , activeGridGrade :: !(Maybe CompetenceGridGrade)
+  -- ^ Pre-computed: most recent grid grade for this grid and focused user
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
-  { document :: !Document
-  , focusedUser :: !(Maybe User)  -- From global focused user subscription
+  { projection :: !ViewerProjection
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the viewer detail component
 data ViewerAction
-  = ViewerUpdateDocument !DocumentChange
-  | ViewerFocusedUserChanged !FocusedUserChange
+  = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
   deriving (Eq, Show)
 
 -- | View for the viewer detail - shows competence grid with student evidence
@@ -86,19 +98,33 @@ viewerDetailView r grid =
 viewerComponent :: SyncContext -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
 viewerComponent r grid =
   (M.component model update view)
-    { M.subs =
-        [ subscribeDocument r ViewerUpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) ViewerFocusedUserChanged
-        ]
+    { M.subs = [subscribeWithProjection r viewerProjection ViewerProjectionChanged]
     }
   where
-    model = ViewerModel emptyDocument Nothing
+    -- Projection function captures the grid parameter
+    -- Pre-computes activeGridGrade so the view doesn't need to search
+    viewerProjection :: Document -> Maybe User -> ViewerProjection
+    viewerProjection doc mUser = ViewerProjection
+      { competences = doc.competences Ix.@= grid.id
+      , userEvidences = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.evidences Ix.@= u.id
+      , userAssessments = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.competenceAssessments Ix.@= u.id
+      , activeGridGrade = case mUser of
+          Nothing -> Nothing
+          -- Use IxSet indexing (@=) and toDescList for efficient sorted access
+          Just u -> listToMaybe $ Ix.toDescList (Proxy @Day) $
+            doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
+      , focusedUser = mUser
+      }
 
-    update (ViewerUpdateDocument (DocumentChange doc _)) =
-      M.modify $ #document .~ doc
+    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing
+    model = ViewerModel emptyProjection
 
-    update (ViewerFocusedUserChanged change) =
-      M.modify $ #focusedUser .~ change.user
+    update (ViewerProjectionChanged change) =
+      M.modify $ #projection .~ change.projection
 
     view m =
       V.viewFlow
@@ -112,31 +138,28 @@ viewerComponent r grid =
         , competencesTable m
         ]
       where
+        proj = m.projection
+
         -- Header with title on left and grade badge on right
-        header vm =
+        header _vm =
           MH.div_
             [class_ "flex items-center justify-between w-full"]
             [ Typography.h2 (M.ms grid.title)
-            , case vm.focusedUser of
-                Just user ->
-                  case getActiveGridGrade vm.document user.id grid.id of
-                    Just gridGrade -> gradeBadgeView gridGrade.grade
-                    Nothing -> V.empty
+            , case proj.activeGridGrade of
+                Just gridGrade -> gradeBadgeView gridGrade.grade
                 Nothing -> V.empty
             ]
 
         description = Typography.paragraph (M.ms grid.description)
 
         competencesTable vm =
-          let evidences = case vm.focusedUser of
-                Just user -> vm.document.evidences Ix.@= user.id
-                Nothing -> Ix.empty
+          let evidences = vm.projection.userEvidences
            in V.viewTable $
                 V.defTable
                   { V.columns =
                       [ViewerDescriptionColumn]
                         <> map ViewerLevelColumn allLevels
-                  , V.rows = ordered (vm.document.competences Ix.@= grid.id)
+                  , V.rows = ordered vm.projection.competences
                   , V.columnSpec = \case
                       ViewerDescriptionColumn ->
                         Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
@@ -145,9 +168,8 @@ viewerComponent r grid =
                   , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
                       ViewerDescriptionColumn ->
                         -- Description cell: green if achieved, yellow if not achieved, white if no assessment
-                        let mAssessment = case vm.focusedUser of
-                              Just user -> getActiveAssessment vm.document user.id competence.id
-                              Nothing -> Nothing
+                        -- userAssessments is already filtered to user (empty if no focused user)
+                        let mAssessment = getActiveAssessment' proj.userAssessments competence.id
                             bgClass = case mAssessment of
                               Nothing -> "" -- No assessment: white
                               Just assessment -> case assessment.level of
@@ -182,10 +204,8 @@ viewerComponent r grid =
                                in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
                             hasDescription = not (T.null levelInfo.description)
 
-                            -- Get active assessment for focused user + competence
-                            mAssessment = case vm.focusedUser of
-                              Just user -> getActiveAssessment vm.document user.id competence.id
-                              Nothing -> Nothing
+                            -- Get active assessment (userAssessments already filtered to focused user)
+                            mAssessment = getActiveAssessment' proj.userAssessments competence.id
 
                             -- Determine cell assessment status
                             cellStatus :: CellAssessmentStatus
@@ -274,39 +294,14 @@ data CellAssessmentStatus
   | NoAssessment   -- ^ No assessment exists for this competence
   deriving (Eq, Show)
 
--- | Create a colored badge for a grade
--- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
-gradeBadgeView :: Grade -> M.View m action
-gradeBadgeView g =
-  let (bgClass, textClass) = gradeColorClasses g
-      shortLabel = gradeShortLabel g
-   in MH.span_
-        [ class_ $ "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-sm font-medium " <> bgClass <> " " <> textClass
-        ]
-        [M.text (M.ms shortLabel)]
-
--- | Get background and text color classes for a grade
-gradeColorClasses :: Grade -> (T.Text, T.Text)
-gradeColorClasses g = case g of
-  Grade1 -> ("bg-green-100", "text-green-700")
-  Grade1_2 -> ("bg-green-100", "text-green-700")
-  Grade2 -> ("bg-green-100", "text-green-700")
-  Grade2_3 -> ("bg-green-100", "text-green-700")
-  Grade3 -> ("bg-green-100", "text-green-700")
-  Grade3_4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4_5 -> ("bg-yellow-100", "text-yellow-700")
-  Grade5 -> ("bg-red-100", "text-red-700")
-
--- | Short label for grade (just the number part)
-gradeShortLabel :: Grade -> T.Text
-gradeShortLabel g = case g of
-  Grade1 -> "1"
-  Grade1_2 -> "1-2"
-  Grade2 -> "2"
-  Grade2_3 -> "2-3"
-  Grade3 -> "3"
-  Grade3_4 -> "3-4"
-  Grade4 -> "4"
-  Grade4_5 -> "4-5"
-  Grade5 -> "5"
+-- | Get the most recent (active) assessment for a user and competence.
+-- Uses IxSet indexing for efficient lookup:
+-- 1. Filter by userId and competenceId using @= (index-based)
+-- 2. Get descending list by Day to find most recent
+getActiveAssessment'
+  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
+  -> CompetenceId
+  -> Maybe CompetenceAssessment
+getActiveAssessment' assessments competenceId =
+  -- assessments is already filtered to user, just filter by competenceId
+  listToMaybe $ Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId

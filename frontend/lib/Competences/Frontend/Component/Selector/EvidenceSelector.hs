@@ -15,17 +15,13 @@ import Competences.Document.Evidence
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
--- Note: User selector removed - now uses global focused user from nav bar
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+  ( ProjectedChange (..)
   , SyncDocumentEnv (..)
   , SyncContext
-  , getFocusedUserRef
   , modifySyncDocument
   , nextId
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
@@ -42,6 +38,25 @@ data EvidenceSelectorStyle
   | EvidenceSelectorViewAndCreate
   deriving (Eq, Show)
 
+-- | Projection type: extracts only the data needed for this component.
+-- Evidence is pre-filtered to the focused user.
+data EvidenceSelectorProjection = EvidenceSelectorProjection
+  { userEvidences :: !(Ix.IxSet EvidenceIxs Evidence)
+  -- ^ Evidences filtered to focused user only
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Compute the projection from document and focused user.
+-- Pre-filters evidences to the focused user for efficient view rendering.
+evidenceSelectorProjection :: Document -> Maybe User -> EvidenceSelectorProjection
+evidenceSelectorProjection doc mUser = EvidenceSelectorProjection
+  { userEvidences = case mUser of
+      Nothing -> Ix.empty
+      Just u -> doc.evidences Ix.@= u.id
+  , focusedUser = mUser
+  }
+
 data DateRange
   = Today
   | ThisWeek
@@ -49,9 +64,8 @@ data DateRange
   deriving (Eq, Show)
 
 data Model = Model
-  { focusedUser :: !(Maybe User)  -- From global focused user subscription
+  { projection :: !EvidenceSelectorProjection
   , filteredDateRange :: !DateRange
-  , allEvidences :: Ix.IxSet EvidenceIxs Evidence
   , selectedEvidence :: !(Maybe Evidence)
   , newEvidence :: !(Maybe Evidence)
   , dropdownOpen :: !Bool
@@ -62,8 +76,7 @@ data Model = Model
 data Action
   = SelectEvidence !Evidence
   | CreateNewEvidence
-  | UpdateDocument !DocumentChange
-  | FocusedUserChanged !FocusedUserChange
+  | ProjectionChanged !(ProjectedChange EvidenceSelectorProjection)
   | ToggleDropdown
   | CloseDropdown
   | ActivateBulkEditor
@@ -83,15 +96,12 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
         [ toLensVL parentLens M.<--- toLensVL #selectedEvidence
         , toLensVL bulkEditorLens M.<--- toLensVL #bulkEditorActive
         ]
-    , M.subs =
-        [ subscribeDocument r UpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) FocusedUserChanged
-        ]
+    , M.subs = [subscribeWithProjection r evidenceSelectorProjection ProjectionChanged]
     }
   where
-    model = Model Nothing AllTime Ix.empty Nothing Nothing False False
+    model = Model (EvidenceSelectorProjection Ix.empty Nothing) AllTime Nothing Nothing False False
     update (SelectEvidence e) =
-      M.modify $ \m -> case Ix.getOne (m.allEvidences Ix.@= e.id) of
+      M.modify $ \m -> case Ix.getOne (m.projection.userEvidences Ix.@= e.id) of
         Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing) & (#bulkEditorActive .~ False)
         Nothing -> m & (#newEvidence ?~ e) & (#bulkEditorActive .~ False)
     update CreateNewEvidence = M.withSink $ \s -> do
@@ -101,9 +111,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
       modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
       s CloseDropdown
       s (SelectEvidence evidence)
-    update (UpdateDocument (DocumentChange d _)) = M.modify $ updateModel d
-    update (FocusedUserChanged change) =
-      M.modify $ \m -> m & #focusedUser .~ change.user
+    update (ProjectionChanged change) = M.modify $ updateFromProjection change.projection
     update ToggleDropdown =
       M.modify $ \m -> m & #dropdownOpen .~ not m.dropdownOpen
     update CloseDropdown =
@@ -113,17 +121,17 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
     update DeactivateBulkEditor =
       M.modify $ \m -> m & #bulkEditorActive .~ False
 
-    updateModel :: Document -> Model -> Model
-    updateModel d m =
-      let allEvidences' = d.evidences
+    updateFromProjection :: EvidenceSelectorProjection -> Model -> Model
+    updateFromProjection proj m =
+      let evidences = proj.userEvidences
           validateEvidence e = do
             e' <- e
-            Ix.getOne $ allEvidences' Ix.@= e'.id
+            Ix.getOne $ evidences Ix.@= e'.id
           (selectedEvidence', newEvidence') = case (validateEvidence m.selectedEvidence, validateEvidence m.newEvidence) of
             (_, Just e) -> (Just e, Nothing)
             (s, n) -> (s, n)
        in m
-            { allEvidences = allEvidences'
+            { projection = proj
             , selectedEvidence = selectedEvidence'
             , newEvidence = newEvidence'
             }
@@ -163,9 +171,9 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
             AllTime -> id
             ThisWeek -> (Ix.@>= (addDays (-7) $ syncDocumentEnv r ^. #currentDay))
             Today -> (Ix.@= (syncDocumentEnv r ^. #currentDay))
-          -- Use global focused user for filtering (from nav bar)
+          -- userEvidences is already filtered to focused user in projection
           filteredEvidences =
-            Ix.toDescList (Proxy @Day) (dateRangeFilter $ m.allEvidences Ix.@=! fmap (.id) m.focusedUser)
+            Ix.toDescList (Proxy @Day) (dateRangeFilter m.projection.userEvidences)
        in SL.selectorList (map (viewEvidence m) filteredEvidences)
 
     viewEvidence m e =

@@ -8,15 +8,15 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceAssessment (..)
+  , CompetenceAssessmentIxs
   , CompetenceGrid (..)
+  , CompetenceGridId
   , CompetenceId
+  , CompetenceIxs
   , Document (..)
+  , EvidenceIxs
   , Level (..)
   , LevelInfo (..)
-  , UserId
-  , emptyDocument
-  , getActiveGridGrade
-  , getAssessmentHistory
   , ordered
   )
 import Competences.Document.Evidence
@@ -26,29 +26,27 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   )
-import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
-import Competences.Document.Grade (Grade (..))
+import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
+import Data.Proxy (Proxy (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+  ( ProjectedChange (..)
   , SyncContext
-  , getFocusedUserRef
   , modifySyncDocument
   , nextId
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Colors qualified as Colors
+import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.List (find, nub, sortOn)
+import Data.List (nub, sortOn)
 import Data.Map qualified as Map
 import Data.Maybe (isNothing, listToMaybe)
 import Data.Text qualified as T
@@ -66,18 +64,31 @@ import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 -- ASSESSMENT MODE DETAIL
 -- ============================================================================
 
+-- | Projection type for the assessment view - contains only the data needed for this view.
+-- This is grid-specific: competences are filtered to the grid, user data filtered to focused user.
+data AssessmentProjection = AssessmentProjection
+  { competences :: !(Ix.IxSet CompetenceIxs Competence)
+  -- ^ Competences for this grid only
+  , userEvidences :: !(Ix.IxSet EvidenceIxs Evidence)
+  -- ^ Evidences for focused user only
+  , userAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
+  -- ^ Assessments for focused user only
+  , userGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
+  -- ^ Grid grades for focused user only
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
 -- | Model for the assessment detail component
 data AssessmentModel = AssessmentModel
-  { document :: !Document
-  , focusedUser :: !(Maybe User)
+  { projection :: !AssessmentProjection
   , today :: !(Maybe Day) -- Current date for creating/deleting assessments
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the assessment detail component
 data AssessmentAction
-  = AssessmentUpdateDocument !DocumentChange
-  | AssessmentFocusedUserChanged !FocusedUserChange
+  = AssessmentProjectionChanged !(ProjectedChange AssessmentProjection)
   | SetAssessmentLevel !Competence !(Maybe Level) -- Set level for competence (Nothing = not achieved, creates/updates today's assessment)
   | ClearAssessment !Competence -- Remove today's assessment
   | InitToday !Day -- Initialize today's date
@@ -96,31 +107,42 @@ assessmentDetailView r grid =
 assessmentComponent :: SyncContext -> CompetenceGrid -> M.Component p AssessmentModel AssessmentAction
 assessmentComponent r grid =
   (M.component model update view)
-    { M.subs =
-        [ subscribeDocument r AssessmentUpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) AssessmentFocusedUserChanged
-        ]
+    { M.subs = [subscribeWithProjection r assessmentProjection AssessmentProjectionChanged]
     , M.initialAction = Just initTodayAction
     }
   where
-    model = AssessmentModel emptyDocument Nothing Nothing
+    -- Projection function captures the grid parameter
+    assessmentProjection :: Document -> Maybe User -> AssessmentProjection
+    assessmentProjection doc mUser = AssessmentProjection
+      { competences = doc.competences Ix.@= grid.id
+      , userEvidences = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.evidences Ix.@= u.id
+      , userAssessments = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.competenceAssessments Ix.@= u.id
+      , userGridGrades = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.competenceGridGrades Ix.@= u.id
+      , focusedUser = mUser
+      }
+
+    emptyProjection = AssessmentProjection Ix.empty Ix.empty Ix.empty Ix.empty Nothing
+    model = AssessmentModel emptyProjection Nothing
 
     -- Initialize today's date on mount
     initTodayAction :: AssessmentAction
     initTodayAction = InitToday $ unsafePerformIO $ utctDay <$> getCurrentTime
 
-    update (AssessmentUpdateDocument (DocumentChange doc _)) =
-      M.modify $ #document .~ doc
-
-    update (AssessmentFocusedUserChanged change) =
-      M.modify $ #focusedUser .~ change.user
+    update (AssessmentProjectionChanged change) =
+      M.modify $ #projection .~ change.projection
 
     update (InitToday day) =
       M.modify $ #today .~ Just day
 
     update (SetAssessmentLevel competence level) = do
       m <- M.get
-      case (m.focusedUser, m.today) of
+      case (m.projection.focusedUser, m.today) of
         (Just user, Just day) -> M.io_ $ do
           assessmentId <- nextId r
           let assessment =
@@ -138,57 +160,59 @@ assessmentComponent r grid =
 
     update (ClearAssessment competence) = do
       m <- M.get
-      case (m.focusedUser, m.today) of
-        (Just user, Just day) -> do
+      case (m.projection.focusedUser, m.today) of
+        (Just _, Just day) -> do
           -- Find today's assessment to delete
-          let existingToday = findAssessmentForDay m.document user.id competence.id day
+          let existingToday = findAssessmentForDay' m.projection.userAssessments competence.id day
           case existingToday of
             Just assessment ->
               M.io_ $ modifySyncDocument r $ CompetenceAssessments $ OnCompetenceAssessments $ Delete assessment.id
             Nothing -> pure () -- No-op
         _ -> pure ()
 
-    view m = case m.focusedUser of
+    view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
-      Just user ->
+      Just _ ->
         V.viewFlow
           ( V.vFlow
               & (#expandDirection .~ V.Expand V.Start)
               & (#expandOrthogonal .~ V.Expand V.Center)
               & (#gap .~ V.SmallSpace)
           )
-          [ header m user
+          [ header
           , description
-          , competenceAssessmentList m user
+          , competenceAssessmentList m
           ]
       where
+        proj = m.projection
+
         -- Header with title on left and grade badge on right
-        header am u =
+        header =
           MH.div_
             [class_ "flex items-center justify-between w-full"]
             [ Typography.h2 (M.ms grid.title)
-            , case getActiveGridGrade am.document u.id grid.id of
+            , case getActiveGridGrade' proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
                 Nothing -> V.empty
             ]
         description = Typography.paragraph (M.ms grid.description)
 
-        competenceAssessmentList am u =
+        competenceAssessmentList am =
           V.viewFlow
             (V.vFlow & (#gap .~ V.MediumSpace))
-            [ competenceAssessmentCard am u c
-            | c <- ordered (am.document.competences Ix.@= grid.id)
+            [ competenceAssessmentCard am c
+            | c <- ordered proj.competences
             ]
 
-        competenceAssessmentCard am u competence =
-          let evidences = am.document.evidences Ix.@= u.id
+        competenceAssessmentCard am competence =
+          let evidences = proj.userEvidences
               -- Get all assessments for this competence (historical)
-              assessments = getAssessmentHistory am.document u.id competence.id
+              assessments = getAssessmentHistory' proj.userAssessments competence.id
               currentAssessment = listToMaybe assessments
               -- currentLevel is Maybe (Maybe Level): Nothing = no assessment, Just Nothing = not achieved, Just (Just lvl) = achieved at level
               currentLevel = fmap (.level) currentAssessment
               todayAssessment = case am.today of
-                Just day -> findAssessmentForDay am.document u.id competence.id day
+                Just day -> findAssessmentForDay' proj.userAssessments competence.id day
                 Nothing -> Nothing
            in Card.card
                 [ competenceHeaderWithButtons competence currentLevel todayAssessment
@@ -476,45 +500,33 @@ assessmentComponent r grid =
               MH.div_ [class_ "flex items-center justify-center w-12"]
                 [MH.span_ [class_ "text-red-500"] [V.icon [MSP.stroke_ "currentColor"] IcnCancel]]
 
--- | Find assessment for specific day
-findAssessmentForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe CompetenceAssessment
-findAssessmentForDay doc userId competenceId day =
-  find (\a -> a.competenceId == competenceId && a.date == day) $
-    Ix.toList (doc.competenceAssessments Ix.@= userId)
+-- | Find assessment for specific day.
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+findAssessmentForDay'
+  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
+  -> CompetenceId
+  -> Day
+  -> Maybe CompetenceAssessment
+findAssessmentForDay' assessments competenceId day =
+  Ix.getOne $ assessments Ix.@= competenceId Ix.@= day
 
--- | Create a colored badge for a grade
--- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
-gradeBadgeView :: Grade -> M.View m action
-gradeBadgeView g =
-  let (bgClass, textClass) = gradeColorClasses g
-      shortLabel = gradeShortLabel g
-   in MH.span_
-        [ class_ $ "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-sm font-medium " <> bgClass <> " " <> textClass
-        ]
-        [M.text (M.ms shortLabel)]
+-- | Get the most recent (active) grid grade for a competence grid.
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+getActiveGridGrade'
+  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
+  -> CompetenceGridId
+  -> Maybe CompetenceGridGrade
+getActiveGridGrade' gridGrades gridId =
+  listToMaybe $ Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
 
--- | Get background and text color classes for a grade
-gradeColorClasses :: Grade -> (T.Text, T.Text)
-gradeColorClasses g = case g of
-  Grade1 -> ("bg-green-100", "text-green-700")
-  Grade1_2 -> ("bg-green-100", "text-green-700")
-  Grade2 -> ("bg-green-100", "text-green-700")
-  Grade2_3 -> ("bg-green-100", "text-green-700")
-  Grade3 -> ("bg-green-100", "text-green-700")
-  Grade3_4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4_5 -> ("bg-yellow-100", "text-yellow-700")
-  Grade5 -> ("bg-red-100", "text-red-700")
-
--- | Short label for grade (just the number part)
-gradeShortLabel :: Grade -> T.Text
-gradeShortLabel g = case g of
-  Grade1 -> "1"
-  Grade1_2 -> "1-2"
-  Grade2 -> "2"
-  Grade2_3 -> "2-3"
-  Grade3 -> "3"
-  Grade3_4 -> "3-4"
-  Grade4 -> "4"
-  Grade4_5 -> "4-5"
-  Grade5 -> "5"
+-- | Get the assessment history for a competence (sorted by date descending).
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+getAssessmentHistory'
+  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
+  -> CompetenceId
+  -> [CompetenceAssessment]
+getAssessmentHistory' assessments competenceId =
+  Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId

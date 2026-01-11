@@ -8,42 +8,42 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceAssessment (..)
+  , CompetenceAssessmentIxs
   , CompetenceGrid (..)
+  , CompetenceGridId
+  , CompetenceIxs
   , Document (..)
   , Level (..)
   , LevelInfo (..)
   , allLevels
-  , emptyDocument
-  , getActiveAssessment
-  , getActiveGridGrade
-  , getGridGradeHistory
   , ordered
   )
-import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeId)
+import Competences.Document.Competence (CompetenceId)
+import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeId, CompetenceGridGradeIxs)
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
+import Data.Proxy (Proxy (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+  ( ProjectedChange (..)
   , SyncContext
-  , getFocusedUserRef
   , modifySyncDocument
   , nextId
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
+import Data.Maybe (listToMaybe)
 import Data.Text qualified as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
@@ -57,10 +57,22 @@ import System.IO.Unsafe (unsafePerformIO)
 -- GRADING MODE DETAIL
 -- ============================================================================
 
+-- | Projection type for the grading view - contains only the data needed for this view.
+-- This is grid-specific: competences are filtered to the grid, user data filtered to focused user.
+data GradingProjection = GradingProjection
+  { competences :: !(Ix.IxSet CompetenceIxs Competence)
+  -- ^ Competences for this grid only
+  , userAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
+  -- ^ Assessments for focused user only
+  , userGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
+  -- ^ Grid grades for focused user only (for history)
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
 -- | Model for the grading detail component
 data GradingModel = GradingModel
-  { document :: !Document
-  , focusedUser :: !(Maybe User)
+  { projection :: !GradingProjection
   , selectedGrade :: !(Maybe Grade) -- Currently selected grade for entry
   , gradeComment :: !T.Text -- Comment for new grade
   , today :: !(Maybe Day) -- Current date for creating grades
@@ -69,8 +81,7 @@ data GradingModel = GradingModel
 
 -- | Action for the grading detail component
 data GradingAction
-  = GradingUpdateDocument !DocumentChange
-  | GradingFocusedUserChanged !FocusedUserChange
+  = GradingProjectionChanged !(ProjectedChange GradingProjection)
   | SelectGrade !(Maybe Grade)
   | SetGradeComment !M.MisoString
   | SubmitGrade
@@ -91,23 +102,31 @@ gradingDetailView r grid =
 gradingComponent :: SyncContext -> CompetenceGrid -> M.Component p GradingModel GradingAction
 gradingComponent r grid =
   (M.component model update view)
-    { M.subs =
-        [ subscribeDocument r GradingUpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) GradingFocusedUserChanged
-        ]
+    { M.subs = [subscribeWithProjection r gradingProjection GradingProjectionChanged]
     , M.initialAction = Just initTodayAction
     }
   where
-    model = GradingModel emptyDocument Nothing Nothing T.empty Nothing
+    -- Projection function captures the grid parameter
+    gradingProjection :: Document -> Maybe User -> GradingProjection
+    gradingProjection doc mUser = GradingProjection
+      { competences = doc.competences Ix.@= grid.id
+      , userAssessments = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.competenceAssessments Ix.@= u.id
+      , userGridGrades = case mUser of
+          Nothing -> Ix.empty
+          Just u -> doc.competenceGridGrades Ix.@= u.id
+      , focusedUser = mUser
+      }
+
+    emptyProjection = GradingProjection Ix.empty Ix.empty Ix.empty Nothing
+    model = GradingModel emptyProjection Nothing T.empty Nothing
 
     initTodayAction :: GradingAction
     initTodayAction = InitToday $ unsafePerformIO $ utctDay <$> getCurrentTime
 
-    update (GradingUpdateDocument (DocumentChange doc _)) =
-      M.modify $ #document .~ doc
-
-    update (GradingFocusedUserChanged change) =
-      M.modify $ #focusedUser .~ change.user
+    update (GradingProjectionChanged change) =
+      M.modify $ #projection .~ change.projection
 
     update (InitToday day) =
       M.modify $ #today .~ Just day
@@ -120,7 +139,7 @@ gradingComponent r grid =
 
     update SubmitGrade = do
       m <- M.get
-      case (m.focusedUser, m.selectedGrade, m.today) of
+      case (m.projection.focusedUser, m.selectedGrade, m.today) of
         (Just user, Just grade, Just day) -> do
           M.io_ $ do
             gradeId <- nextId r
@@ -141,41 +160,43 @@ gradingComponent r grid =
     update (DeleteGrade gradeId) =
       M.io_ $ modifySyncDocument r $ CompetenceGridGrades $ OnCompetenceGridGrades $ Delete gradeId
 
-    view m = case m.focusedUser of
+    view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
-      Just user ->
+      Just _ ->
         V.viewFlow
           ( V.vFlow
               & (#expandDirection .~ V.Expand V.Start)
               & (#expandOrthogonal .~ V.Expand V.Center)
               & (#gap .~ V.SmallSpace)
           )
-          [ header m user
+          [ header
           , description
-          , competencesTable m user
+          , competencesTable
           , gradeEntrySection m
-          , gradeHistorySection m user
+          , gradeHistorySection
           ]
       where
+        proj = m.projection
+
         -- Header with title on left and grade badge on right
-        header gm u =
+        header =
           MH.div_
             [class_ "flex items-center justify-between w-full"]
             [ Typography.h2 (M.ms grid.title)
-            , case getActiveGridGrade gm.document u.id grid.id of
+            , case getActiveGridGrade' proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
                 Nothing -> V.empty
             ]
         description = Typography.paragraph (M.ms grid.description)
 
         -- Condensed competence table showing assessment status
-        competencesTable gm u =
+        competencesTable =
           V.viewTable $
             V.defTable
               { V.columns =
                   [GradingDescriptionColumn]
                     <> map GradingLevelColumn allLevels
-              , V.rows = ordered (gm.document.competences Ix.@= grid.id)
+              , V.rows = ordered proj.competences
               , V.columnSpec = \case
                   GradingDescriptionColumn ->
                     Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
@@ -184,7 +205,7 @@ gradingComponent r grid =
               , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
                   GradingDescriptionColumn ->
                     -- Description cell: shows overall competence status
-                    let mAssessment = getActiveAssessment gm.document u.id competence.id
+                    let mAssessment = getActiveAssessment' proj.userAssessments competence.id
                         bgClass = case mAssessment of
                           Nothing -> "" -- No assessment: white
                           Just assessment -> case assessment.level of
@@ -200,7 +221,7 @@ gradingComponent r grid =
                         hasDescription = not (T.null levelInfo.description)
 
                         -- Get active assessment for focused user + competence
-                        mAssessment = getActiveAssessment gm.document u.id competence.id
+                        mAssessment = getActiveAssessment' proj.userAssessments competence.id
 
                         -- Determine cell assessment status
                         cellStatus = case mAssessment of
@@ -298,8 +319,8 @@ gradingComponent r grid =
                 & Button.renderButton
 
         -- Grade history section
-        gradeHistorySection gm u =
-          let history = getGridGradeHistory gm.document u.id grid.id
+        gradeHistorySection =
+          let history = getGridGradeHistory' proj.userGridGrades grid.id
            in if null history
                 then V.empty
                 else
@@ -350,39 +371,32 @@ data CellAssessmentStatus
   | NoAssessment
   deriving (Eq, Show)
 
--- | Create a colored badge for a grade
--- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
-gradeBadgeView :: Grade -> M.View m action
-gradeBadgeView g =
-  let (bgClass, textClass) = gradeColorClasses g
-      shortLabel = gradeShortLabel g
-   in MH.span_
-        [ class_ $ "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-sm font-medium " <> bgClass <> " " <> textClass
-        ]
-        [M.text (M.ms shortLabel)]
+-- | Get the most recent (active) grid grade for a competence grid.
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+getActiveGridGrade'
+  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
+  -> CompetenceGridId
+  -> Maybe CompetenceGridGrade
+getActiveGridGrade' gridGrades gridId =
+  listToMaybe $ Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
 
--- | Get background and text color classes for a grade
-gradeColorClasses :: Grade -> (T.Text, T.Text)
-gradeColorClasses g = case g of
-  Grade1 -> ("bg-green-100", "text-green-700")
-  Grade1_2 -> ("bg-green-100", "text-green-700")
-  Grade2 -> ("bg-green-100", "text-green-700")
-  Grade2_3 -> ("bg-green-100", "text-green-700")
-  Grade3 -> ("bg-green-100", "text-green-700")
-  Grade3_4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4_5 -> ("bg-yellow-100", "text-yellow-700")
-  Grade5 -> ("bg-red-100", "text-red-700")
+-- | Get the grade history for a competence grid (sorted by date descending).
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+getGridGradeHistory'
+  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
+  -> CompetenceGridId
+  -> [CompetenceGridGrade]
+getGridGradeHistory' gridGrades gridId =
+  Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
 
--- | Short label for grade (just the number part)
-gradeShortLabel :: Grade -> T.Text
-gradeShortLabel g = case g of
-  Grade1 -> "1"
-  Grade1_2 -> "1-2"
-  Grade2 -> "2"
-  Grade2_3 -> "2-3"
-  Grade3 -> "3"
-  Grade3_4 -> "3-4"
-  Grade4 -> "4"
-  Grade4_5 -> "4-5"
-  Grade5 -> "5"
+-- | Get the most recent (active) assessment for a competence.
+-- Input IxSet must be pre-filtered to the focused user.
+-- Uses IxSet indexing for efficient lookup.
+getActiveAssessment'
+  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
+  -> CompetenceId
+  -> Maybe CompetenceAssessment
+getActiveAssessment' assessments competenceId =
+  listToMaybe $ Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId
