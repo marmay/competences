@@ -7,6 +7,8 @@ module Competences.Frontend.SyncContext.UIState
   , mkFocusedUserRef
     -- * Operations
   , subscribeFocusedUser
+  , registerFocusedUserHandler
+  , unregisterFocusedUserHandler
   , setFocusedUser
   , readFocusedUser
   )
@@ -71,20 +73,32 @@ subscribeFocusedUser :: forall a. FocusedUserRef -> (FocusedUserChange -> a) -> 
 subscribeFocusedUser ref f sink = createSub acquire release sink
   where
     acquire = do
-      modifyMVar ref.state $ \s -> do
-        let handlerId = s.nextFocusedUserHandlerId
-            handler = FocusedUserHandler f sink
-            newState =
-              s
-                { onFocusedUserChanged = Map.insert handlerId handler s.onFocusedUserChanged
-                , nextFocusedUserHandlerId = handlerId + 1
-                }
-        -- Send initial value
-        sink $ f $ FocusedUserChange s.focusedUser True
-        pure (newState, handlerId)
-    release handlerId =
-      modifyMVar_ ref.state $ \s ->
-        pure s{onFocusedUserChanged = Map.delete handlerId s.onFocusedUserChanged}
+      (handlerId, initialUser) <- registerFocusedUserHandler ref f sink
+      -- Send initial notification (outside MVar lock)
+      sink $ f $ FocusedUserChange initialUser True
+      pure handlerId
+    release = unregisterFocusedUserHandler ref
+
+-- | Register a focused user handler directly without using createSub.
+-- This is for use within other subscriptions that need to compose handlers.
+-- Returns (handler ID, current focused user) - caller should send initial notification
+-- outside this call to avoid deadlock.
+registerFocusedUserHandler :: forall a. FocusedUserRef -> (FocusedUserChange -> a) -> M.Sink a -> IO (Int, Maybe User)
+registerFocusedUserHandler ref f sink = do
+  modifyMVar ref.state $ \s ->
+    let handlerId = s.nextFocusedUserHandlerId
+        handler = FocusedUserHandler f sink
+        newState = s
+          { onFocusedUserChanged = Map.insert handlerId handler s.onFocusedUserChanged
+          , nextFocusedUserHandlerId = handlerId + 1
+          }
+     in pure (newState, (handlerId, s.focusedUser))
+
+-- | Unregister a focused user handler by ID.
+unregisterFocusedUserHandler :: FocusedUserRef -> Int -> IO ()
+unregisterFocusedUserHandler ref handlerId =
+  modifyMVar_ ref.state $ \s ->
+    pure s{onFocusedUserChanged = Map.delete handlerId s.onFocusedUserChanged}
 
 -- | Set the focused user (only works for teachers; no-op for students)
 setFocusedUser :: FocusedUserRef -> Maybe User -> IO ()

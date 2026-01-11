@@ -87,6 +87,7 @@ library
         Competences.Frontend.View.DesignTokens,
         Competences.Frontend.View.Form,
         Competences.Frontend.View.Icon,
+        Competences.Frontend.View.GradeBadge,
         Competences.Frontend.View.Input,
         Competences.Frontend.View.Layout,
         Competences.Frontend.View.MainPage,

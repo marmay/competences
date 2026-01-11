@@ -7,6 +7,8 @@ module Competences.Frontend.SyncContext.SyncDocument
   , mkSyncDocument
   , mkSyncDocument'
   , subscribeDocument
+  , registerDocumentHandler
+  , unregisterDocumentHandler
   , modifySyncDocument
   , setSyncDocument
   , applyRemoteCommand
@@ -26,6 +28,8 @@ module Competences.Frontend.SyncContext.SyncDocument
   , FocusedUserState (..)
   , FocusedUserChange (..)
   , subscribeFocusedUser
+  , registerFocusedUserHandler
+  , unregisterFocusedUserHandler
   , setFocusedUser
   , readFocusedUser
   )
@@ -40,8 +44,10 @@ import Competences.Frontend.SyncContext.UIState
   , FocusedUserState (..)
   , mkFocusedUserRef
   , readFocusedUser
+  , registerFocusedUserHandler
   , setFocusedUser
   , subscribeFocusedUser
+  , unregisterFocusedUserHandler
   )
 import Competences.Frontend.WebSocket.CommandSender
   ( CommandSender
@@ -141,16 +147,30 @@ subscribeDocument :: forall a. SyncContext -> (DocumentChange -> a) -> M.Sink a 
 subscribeDocument d f s = createSub acquire release s
   where
     acquire = do
-      modifyMVar d.syncDocument $ \d' -> do
-        s $ f (DocumentChange d'.localDocument InitialUpdate)
-        pure (d'{ onChanged = Map.insert d'.nextChangedHandlerId (ChangedHandler f s) d'.onChanged
-                 , nextChangedHandlerId = d'.nextChangedHandlerId + 1
-                 }
-               , d'.nextChangedHandlerId
-               )
-    release changedHandlerId =
-      modifyMVar_ d.syncDocument $ \d' -> do
-        pure d'{ onChanged = Map.delete changedHandlerId d'.onChanged }
+      (handlerId, initialDoc) <- registerDocumentHandler d f s
+      -- Send initial notification (outside MVar lock)
+      s $ f (DocumentChange initialDoc InitialUpdate)
+      pure handlerId
+    release = unregisterDocumentHandler d
+
+-- | Register a document handler directly without using createSub.
+-- This is for use within other subscriptions that need to compose handlers.
+-- Returns (handler ID, initial document) - caller should send initial notification
+-- outside this call to avoid deadlock.
+registerDocumentHandler :: forall a. SyncContext -> (DocumentChange -> a) -> M.Sink a -> IO (Int, Document)
+registerDocumentHandler d f s = do
+  modifyMVar d.syncDocument $ \d' ->
+    pure (d'{ onChanged = Map.insert d'.nextChangedHandlerId (ChangedHandler f s) d'.onChanged
+            , nextChangedHandlerId = d'.nextChangedHandlerId + 1
+            }
+          , (d'.nextChangedHandlerId, d'.localDocument)
+          )
+
+-- | Unregister a document handler by ID.
+unregisterDocumentHandler :: SyncContext -> Int -> IO ()
+unregisterDocumentHandler d handlerId =
+  modifyMVar_ d.syncDocument $ \d' ->
+    pure d'{ onChanged = Map.delete handlerId d'.onChanged }
 
 modifySyncDocument :: SyncContext -> Command -> IO ()
 modifySyncDocument r c = do

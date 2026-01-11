@@ -41,16 +41,18 @@ import Competences.Document (Document, User)
 import Competences.Frontend.SyncContext.SyncDocument
   ( SyncContext (..)
   , SyncDocument (..)
-  , readSyncDocument
-  , subscribeDocument
   , DocumentChange (..)
   , getFocusedUserRef
+  , readSyncDocument
+  , registerDocumentHandler
+  , unregisterDocumentHandler
   )
 import Competences.Frontend.SyncContext.UIState
   ( FocusedUserChange (..)
   , FocusedUserRef
   , readFocusedUser
-  , subscribeFocusedUser
+  , registerFocusedUserHandler
+  , unregisterFocusedUserHandler
   )
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import GHC.Generics (Generic)
@@ -79,8 +81,12 @@ data ChangeInfo
   deriving (Eq, Show, Generic)
 
 -- | Internal state for tracking the combined subscription.
--- Stores the last projection to enable deduplication.
-newtype CombinedState a = CombinedState (Maybe a)
+-- Stores the last projection and handler IDs for cleanup.
+data CombinedState a = CombinedState
+  { lastProjection :: !(Maybe a)
+  , documentHandlerId :: !Int
+  , focusedUserHandlerId :: !Int
+  }
 
 -- | Subscribe to document and focused user changes with a projection function.
 --
@@ -113,63 +119,62 @@ subscribeWithProjection ctx project toAction sink = createSub acquire release si
 
     acquire :: IO (IORef (CombinedState a))
     acquire = do
-      -- Create state ref to track last projection
-      stateRef <- newIORef $ CombinedState Nothing
+      -- Create state ref to track last projection (initially empty)
+      stateRef <- newIORef $ CombinedState Nothing 0 0
 
-      -- Compute and send initial projection
-      syncDoc <- readSyncDocument ctx
-      mUser <- readFocusedUser focusedUserRef
-      let initialProj = project syncDoc.localDocument mUser
-      writeIORef stateRef $ CombinedState (Just initialProj)
+      -- Register handlers using direct registration (no nested createSub)
+      -- These return initial values outside the MVar lock
+      (docHandlerId, initialDoc) <- registerDocumentHandler ctx (handleDocumentChange stateRef) id
+      (userHandlerId, initialUser) <- registerFocusedUserHandler focusedUserRef (handleFocusedUserChange stateRef) id
+
+      -- Compute initial projection and update state
+      let initialProj = project initialDoc initialUser
+      writeIORef stateRef $ CombinedState (Just initialProj) docHandlerId userHandlerId
+
+      -- Send initial snapshot (outside MVar locks)
       sink $ toAction $ ProjectedChange initialProj InitialSnapshot
-
-      -- Set up document subscription
-      -- Note: We don't actually need to track handler IDs since createSub
-      -- handles cleanup. We just need to register the handlers.
-      subscribeDocument ctx (handleDocumentChange stateRef) (const $ pure ())
-
-      -- Set up focused user subscription
-      subscribeFocusedUser focusedUserRef (handleFocusedUserChange stateRef) (const $ pure ())
 
       pure stateRef
 
     release :: IORef (CombinedState a) -> IO ()
-    release _stateRef = do
-      -- Note: The individual subscriptions are managed by their own createSub
-      -- instances and will be cleaned up when the component unmounts.
-      -- This is a limitation - we can't easily unsubscribe from the inner
-      -- subscriptions without more complex state management.
-      pure ()
+    release stateRef = do
+      -- Unregister handlers to prevent memory leaks
+      st <- readIORef stateRef
+      unregisterDocumentHandler ctx st.documentHandlerId
+      unregisterFocusedUserHandler focusedUserRef st.focusedUserHandlerId
 
     handleDocumentChange :: IORef (CombinedState a) -> DocumentChange -> IO ()
-    handleDocumentChange stateRef _docChange = do
-      -- Read current state
+    handleDocumentChange stateRef docChange = do
+      -- Use the document from the change notification (avoids re-reading MVar)
+      -- Read focused user from its MVar (different MVar, so safe)
       mUser <- readFocusedUser focusedUserRef
-      syncDoc <- readSyncDocument ctx
-      let newProj = project syncDoc.localDocument mUser
+      let newProj = project docChange.document mUser
 
       -- Check if projection changed
-      CombinedState mLastProj <- readIORef stateRef
-      case mLastProj of
+      st <- readIORef stateRef
+      case st.lastProjection of
         Just lastProj | lastProj == newProj -> pure () -- No change, skip
         _ -> do
           -- Update state and send notification
-          writeIORef stateRef $ CombinedState (Just newProj)
+          writeIORef stateRef $ st { lastProjection = Just newProj }
           sink $ toAction $ ProjectedChange newProj DocumentOnly
 
     handleFocusedUserChange :: IORef (CombinedState a) -> FocusedUserChange -> IO ()
-    handleFocusedUserChange stateRef userChange
-      | userChange.isInitial = pure () -- Skip initial, we handle it in acquire
-      | otherwise = do
-          -- Read current state
+    handleFocusedUserChange stateRef userChange = do
+      -- Skip initial notification (we already sent our own initial snapshot)
+      if userChange.isInitial
+        then pure ()
+        else do
+          -- Read current document from its MVar (different MVar, so safe)
           syncDoc <- readSyncDocument ctx
+          -- Use the user from the change notification directly
           let newProj = project syncDoc.localDocument userChange.user
 
           -- Check if projection changed
-          CombinedState mLastProj <- readIORef stateRef
-          case mLastProj of
-            Just lastProj | lastProj == newProj -> pure () -- No change, skip
+          st <- readIORef stateRef
+          case st.lastProjection of
+            Just lastProj | lastProj == newProj -> pure ()
             _ -> do
               -- Update state and send notification
-              writeIORef stateRef $ CombinedState (Just newProj)
+              writeIORef stateRef $ st { lastProjection = Just newProj }
               sink $ toAction $ ProjectedChange newProj FocusedUserOnly

@@ -15,11 +15,10 @@ import Competences.Document
   , User (..)
   )
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
-import Competences.Document.Grade (Grade (..))
 import Competences.Document.User (UserId)
-import Data.List (sortOn)
 import Data.Maybe (listToMaybe)
-import Data.Ord (Down (..))
+import Data.Proxy (Proxy (..))
+import Data.Time (Day)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -29,13 +28,11 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SL
-import Competences.Frontend.View.Tailwind (class_)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as MH
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
 -- | Projection type: extracts only the data needed for this component.
@@ -145,50 +142,13 @@ competenceGridSelectorComponent r style parentLens =
           gradeBadge = gradeBadgeView <$> mGrade
        in SL.selectorItemWithBadge isSelected IcnCompetenceGrid label gradeBadge (SelectCompetenceGrid c)
 
--- | Get the most recent (active) grid grade for a user and competence grid
+-- | Get the most recent (active) grid grade for a user and competence grid.
+-- Uses IxSet indexing for efficient lookup.
 getActiveGridGrade'
   :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
   -> UserId
   -> CompetenceGridId
   -> Maybe CompetenceGridGrade
 getActiveGridGrade' grades userId gridId =
-  listToMaybe $ sortOn (Down . (.date)) $
-    filter (\g -> g.competenceGridId == gridId) $
-      Ix.toList (grades Ix.@= userId)
-
--- | Create a colored badge for a grade
--- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
-gradeBadgeView :: Grade -> M.View m action
-gradeBadgeView g =
-  let (bgClass, textClass) = gradeColorClasses g
-      shortLabel = gradeShortLabel g
-   in MH.span_
-        [ class_ $ "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium " <> bgClass <> " " <> textClass
-        ]
-        [M.text (M.ms shortLabel)]
-
--- | Get background and text color classes for a grade
-gradeColorClasses :: Grade -> (T.Text, T.Text)
-gradeColorClasses g = case g of
-  Grade1 -> ("bg-green-100", "text-green-700")
-  Grade1_2 -> ("bg-green-100", "text-green-700")
-  Grade2 -> ("bg-green-100", "text-green-700")
-  Grade2_3 -> ("bg-green-100", "text-green-700")
-  Grade3 -> ("bg-green-100", "text-green-700")
-  Grade3_4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4 -> ("bg-yellow-100", "text-yellow-700")
-  Grade4_5 -> ("bg-yellow-100", "text-yellow-700")
-  Grade5 -> ("bg-red-100", "text-red-700")
-
--- | Short label for grade (just the number part)
-gradeShortLabel :: Grade -> T.Text
-gradeShortLabel g = case g of
-  Grade1 -> "1"
-  Grade1_2 -> "1-2"
-  Grade2 -> "2"
-  Grade2_3 -> "2-3"
-  Grade3 -> "3"
-  Grade3_4 -> "3-4"
-  Grade4 -> "4"
-  Grade4_5 -> "4-5"
-  Grade5 -> "5"
+  listToMaybe $ Ix.toDescList (Proxy @Day) $
+    grades Ix.@= userId Ix.@= gridId
