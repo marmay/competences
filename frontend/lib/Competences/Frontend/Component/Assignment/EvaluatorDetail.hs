@@ -137,8 +137,12 @@ evaluatorComponent r assignment =
         evidenceCommands <- mapM (createEvidenceForStudent m) (Set.toList m.selectedStudents)
         -- Send all commands
         mapM_ (modifySyncDocument r) evidenceCommands
-      -- Clear selections after creating evidences
-      M.modify $ \m' -> m'{selectedStudents = Set.empty}
+      -- Reset all evaluation state after creating evidences
+      M.modify $ \m' -> m'
+        { taskObservations = Map.empty
+        , aggregatedResults = Map.empty
+        , selectedStudents = Set.empty
+        }
 
     -- Compute aggregated results from task observations (pure function)
     -- Takes the worst (maximum) ability per competence across all tasks
