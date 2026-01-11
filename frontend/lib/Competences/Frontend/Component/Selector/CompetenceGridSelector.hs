@@ -11,6 +11,7 @@ import Competences.Document
   , CompetenceGridId
   , CompetenceGridIxs
   , Document (..)
+  , Order
   , orderMax
   , User (..)
   )
@@ -127,7 +128,7 @@ competenceGridSelectorComponent r style parentLens =
                 then Just CreateNewCompetenceGrid
                 else Nothing
             )
-        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toList m.projection.allGrids))
+        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
         ]
 
     viewCompetenceGrid m c =
