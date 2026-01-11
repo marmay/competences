@@ -9,7 +9,7 @@ where
 import Competences.Document (User, UserId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Reorder (..))
-import Competences.Frontend.SyncDocument (DocumentChange)
+import Competences.Frontend.SyncContext (DocumentChange)
 import Data.Foldable (toList)
 import Data.Map qualified as Map
 import GHC.Generics (Generic)

@@ -14,7 +14,7 @@ import Competences.Document
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , subscribeDocument

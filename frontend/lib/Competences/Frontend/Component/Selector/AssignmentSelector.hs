@@ -8,7 +8,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..))
 import Competences.Document.Assignment (AssignmentName (..), mkAssignment)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncDocumentEnv (..)
   , SyncContext

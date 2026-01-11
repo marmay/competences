@@ -14,7 +14,7 @@ where
 import Competences.Document (Document)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , isInitialUpdate

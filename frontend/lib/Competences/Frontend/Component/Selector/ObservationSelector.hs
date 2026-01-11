@@ -54,7 +54,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector
   , multiStageSelectorComponent
   , stage'
   )
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( SyncContext
   , nextId
   )

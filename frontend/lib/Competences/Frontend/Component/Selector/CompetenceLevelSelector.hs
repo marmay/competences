@@ -38,7 +38,7 @@ import Competences.Frontend.Component.Selector.ObservationSelector
   , competenceP
   , levelP
   )
-import Competences.Frontend.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext)
 import Data.Default (Default)
 import Data.List (intercalate)
 import Miso qualified as M

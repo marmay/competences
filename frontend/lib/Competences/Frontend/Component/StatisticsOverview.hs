@@ -18,7 +18,7 @@ import Competences.Document.Evidence
   )
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography

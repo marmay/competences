@@ -12,7 +12,7 @@ module Competences.Frontend.WebSocket.Handlers
 where
 
 import Competences.Document (Document, User (..))
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( SyncContext
   , applyRemoteCommand
   , mkSyncDocument

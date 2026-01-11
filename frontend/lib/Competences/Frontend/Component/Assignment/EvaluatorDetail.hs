@@ -12,7 +12,7 @@ import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, Tas
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , modifySyncDocument

@@ -10,7 +10,7 @@ import Competences.Frontend.Component.Assignment.EditorDetail (editorDetailView)
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorDetailView)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty (..))

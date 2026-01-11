@@ -7,7 +7,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Template, TemplateEvaluation (..), TemplateName)
 import Competences.Document.Evidence (Ability)
 import Competences.Document.Template (TemplateAspect)
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)

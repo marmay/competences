@@ -23,7 +23,7 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncDocument
+import Competences.Frontend.SyncContext
   ( SyncContext
   , modifySyncDocument
   , nextId

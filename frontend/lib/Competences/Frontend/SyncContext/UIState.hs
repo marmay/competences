@@ -1,4 +1,4 @@
-module Competences.Frontend.UIState
+module Competences.Frontend.SyncContext.UIState
   ( -- * Focused User State
     FocusedUserState (..)
   , FocusedUserChange (..)

@@ -1,4 +1,4 @@
-module Competences.Frontend.SyncDocument
+module Competences.Frontend.SyncContext.SyncDocument
   ( -- * SyncDocument Reference
     SyncContext (..)
   , SyncDocumentEnv (..)
@@ -34,7 +34,7 @@ where
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
-import Competences.Frontend.UIState
+import Competences.Frontend.SyncContext.UIState
   ( FocusedUserChange (..)
   , FocusedUserRef
   , FocusedUserState (..)
@@ -297,4 +297,3 @@ rejectCommand d cmd = do
       issueDocumentChange (DocumentChange localDoc' DocumentReloaded)
 
     pure syncDoc'
-

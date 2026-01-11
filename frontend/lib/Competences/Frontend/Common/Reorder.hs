@@ -12,7 +12,7 @@ where
 import Competences.Command (Command)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Orderable, Reorder (..), idL)
-import Competences.Frontend.SyncDocument (SyncContext, modifySyncDocument)
+import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import GHC.Generics (Generic)

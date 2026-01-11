@@ -11,7 +11,7 @@ where
 import Competences.Document (Competence (..), Document (..), Level (..), LevelInfo (..), allLevels, ordered)
 import Competences.Document.Competence (CompetenceLevelId, competenceLevelIdsOf)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.SyncDocument (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Data.Map qualified as Map
 import Data.Set qualified as Set
