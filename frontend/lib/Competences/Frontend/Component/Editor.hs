@@ -4,6 +4,7 @@ module Competences.Frontend.Component.Editor
   , addField
   , addNamedField
   , textEditorField
+  , richTextEditorField
   , boolEditorField
   , dayEditorField
   , enumEditorField

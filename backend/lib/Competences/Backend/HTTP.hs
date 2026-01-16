@@ -61,6 +61,7 @@ data FrontendHashes = FrontendHashes
   { wasmHash :: !FileHashRef
   , indexJsHash :: !FileHashRef
   , jsffiHash :: !FileHashRef
+  , mathjaxHash :: !FileHashRef
   }
 
 type AppAPI =
@@ -186,9 +187,10 @@ oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState
   wasmHash <- liftIO $ readFileHash hashes.wasmHash
   indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
   jsffiHash <- liftIO $ readFileHash hashes.jsffiHash
+  mathjaxHash <- liftIO $ readFileHash hashes.mathjaxHash
 
   -- Serve frontend HTML with JWT and hashes embedded
-  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash
+  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -222,8 +224,8 @@ cspHeaderValue = T.intercalate "; "
   ]
 
 -- | Render frontend HTML with JWT and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Text -> Text -> Html
-renderFrontendHTML jwt wasmHash indexJsHash jsffiHash = H.docTypeHtml $ do
+renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Html
+renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -235,6 +237,17 @@ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash = H.docTypeHtml $ do
     H.link ! A.rel "stylesheet" ! A.href "/static/basecoat.cdn.min.css"
     -- Load our Tailwind CSS last (overrides Basecoat's CSS variables with our theme)
     H.link ! A.rel "stylesheet" ! A.href "/static/output.css"
+    -- MathJax configuration (must come before loading MathJax)
+    H.script $ H.toHtml
+      ("window.MathJax = {\
+        \startup: { typeset: false },\
+        \tex: { packages: ['base', 'ams'] },\
+        \svg: { fontCache: 'none' },\
+        \options: { enableMenu: false }\
+      \};" :: Text)
+    -- Load MathJax 4 for LaTeX rendering (async to not block page load)
+    let mathjaxUrl = "/static/mathjax-tex-svg.js?v=" <> mathjaxHash
+    H.script ! A.src (H.toValue mathjaxUrl) ! H.customAttribute "async" "" $ ""
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';\n\

@@ -52,9 +52,12 @@ library
         Competences.Document.Task
         Competences.Document.User
         Competences.Protocol
+        Competences.TaskContent.AST
+        Competences.TaskContent.Parser
     build-depends:
         base ^>=4.21.0.0,
         aeson,
+        attoparsec,
         base64-bytestring,
         binary,
         bytestring,

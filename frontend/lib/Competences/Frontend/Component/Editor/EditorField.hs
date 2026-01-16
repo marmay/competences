@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Editor.EditorField
   ( EditorField (..)
   , readOnlyField
   , textEditorField
+  , richTextEditorField
   , boolEditorField
   , dayEditorField
   , enumEditorField
@@ -17,6 +18,8 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
+import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
   , SelectorTransformedLens
@@ -102,6 +105,61 @@ textEditor viewLens patchLens refocusTarget original patch =
 
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
+
+-- | Rich text editor field with markup rendering
+--   Viewer: renders task content markup (paragraphs, emphasis, math, lists)
+--   Editor: textarea for entering markup
+richTextEditorField :: Lens' a Text -> Lens' patch (Change Text) -> EditorField a patch f
+richTextEditorField viewLens patchLens =
+  EditorField
+    { viewer = richTextViewer viewLens
+    , editor = richTextEditor viewLens patchLens
+    }
+
+richTextViewer :: Lens' a Text -> a -> M.View (Model a patch f) (Action a patch)
+richTextViewer viewLens a =
+  let content = a ^. viewLens
+   in if content == ""
+        then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
+        else renderTaskContentText content
+
+richTextEditor
+  :: Lens' a Text
+  -> Lens' patch (Change Text)
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
+richTextEditor viewLens patchLens refocusTarget original patch =
+  let currentContent = currentValue original patch viewLens patchLens
+   in M.div_
+        [class_ "flex gap-4 w-full"]
+        [ -- Editor panel (left)
+          M.div_
+            [class_ "flex-1 min-w-0"]
+            [ M.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Markup"]
+            , M.textarea_
+                ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
+                  , M.onChange
+                      (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
+                  , M.value_ (M.ms currentContent)
+                  ]
+                    <> refocusTargetAttr refocusTarget
+                )
+                []
+            ]
+        , -- Preview panel (right)
+          M.div_
+            [class_ "flex-1 min-w-0"]
+            [ M.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Preview"]
+            , M.div_
+                [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
+                [ if currentContent == ""
+                    then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
+                    else renderTaskContentText currentContent
+                ]
+            ]
+        ]
 
 boolEditorField :: Lens' a Bool -> Lens' patch (Change Bool) -> EditorField a patch f
 boolEditorField viewLens patchLens =
