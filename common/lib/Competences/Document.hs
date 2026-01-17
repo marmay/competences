@@ -21,6 +21,7 @@ module Competences.Document
   , module Competences.Document.Evidence
   , module Competences.Document.Order
   , module Competences.Document.Resource
+  , module Competences.Document.Solution
   , module Competences.Document.Task
   , module Competences.Document.Assignment
   , module Competences.Document.User
@@ -61,6 +62,7 @@ import Competences.Document.Grade (Grade (..), grades, gradeToText)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
+import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
@@ -83,6 +85,7 @@ data Document = Document
   , assignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
   , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
+  , solutions :: !(Ix.IxSet SolutionIxs Solution)
   }
   deriving (Eq, Generic, Show)
 
@@ -100,6 +103,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "assignments")
       <*> fmap Ix.fromList (v .:? "competenceAssessments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceGridGrades" .!= [])
+      <*> fmap Ix.fromList (v .:? "solutions" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -115,6 +119,7 @@ instance ToJSON Document where
       , "assignments" .= Ix.toList d.assignments
       , "competenceAssessments" .= Ix.toList d.competenceAssessments
       , "competenceGridGrades" .= Ix.toList d.competenceGridGrades
+      , "solutions" .= Ix.toList d.solutions
       ]
 
 emptyDocument :: Document
@@ -131,6 +136,7 @@ emptyDocument =
     , assignments = Ix.empty
     , competenceAssessments = Ix.empty
     , competenceGridGrades = Ix.empty
+    , solutions = Ix.empty
     }
 
 
@@ -170,6 +176,7 @@ projectDocument user doc
         case Ix.getOne (Ix.getEQ gid (doc ^. #competenceGridGrades)) of
           Just g -> user.id == g.userId -- Only grid grades about them
           Nothing -> False
+      SolutionLock _ -> True -- Solutions are visible to all users
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
 
 -- ============================================================================

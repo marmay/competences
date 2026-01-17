@@ -32,6 +32,7 @@ library
         Competences.Command.Competences
         Competences.Command.Evidences
         Competences.Command.Interpret
+        Competences.Command.Solutions
         Competences.Command.Tasks
         Competences.Command.Users
         Competences.Common.BinaryOrphans
@@ -49,6 +50,7 @@ library
         Competences.Document.Lock
         Competences.Document.Order
         Competences.Document.Resource
+        Competences.Document.Solution
         Competences.Document.Task
         Competences.Document.User
         Competences.Protocol
