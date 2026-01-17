@@ -52,6 +52,7 @@ library
         Competences.Document.Task
         Competences.Document.User
         Competences.Protocol
+        Competences.Query.Assignment
         Competences.TaskContent.AST
         Competences.TaskContent.Parser
     build-depends:

@@ -19,6 +19,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -247,7 +248,10 @@ evaluatorComponent r assignment =
                     [ M.div_ [class_ "mb-1"] [Typography.h3 $ "Aufgabe: " <> ms identifier]
                     , case content of
                         Nothing -> M.text ""
-                        Just c -> M.div_ [class_ "mb-2"] [Typography.small $ ms c]
+                        Just c ->
+                          if T.null c
+                            then M.text ""
+                            else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderTaskContentText c]
                     ]
 
     viewStudentEvaluations m taskId =

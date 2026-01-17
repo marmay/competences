@@ -5,24 +5,19 @@ where
 
 import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..), emptyDocument)
-import Competences.Document.Assignment (AssignmentName (..), mkAssignment)
+import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
+import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Assignment.ViewerDetail
-  ( AssignmentStatus (..)
-  , assignmentStatus
-  , statusLabel
-  )
+import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
+import Competences.Query.Assignment qualified as Q
+import Data.Map.Strict qualified as Map
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , FocusedUserChange (..)
+  ( ProjectedChange (..)
   , SyncDocumentEnv (..)
   , SyncContext
-  , getFocusedUserRef
   , modifySyncDocument
   , nextId
-  , subscribeDocument
-  , subscribeFocusedUser
+  , subscribeWithProjection
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
@@ -39,14 +34,40 @@ import Miso qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
 
-data Model = Model
-  { allAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
-  , selectedAssignment :: !(Maybe Assignment)
-  , newAssignment :: !(Maybe Assignment)
-  , searchQuery :: !Text
-  , document :: !Document
+-- | Projection from document + focused user
+data SelectorProjection = SelectorProjection
+  { assignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , focusedUser :: !(Maybe User)
-  , statusFilter :: !(Maybe AssignmentStatus)
+    -- | Pre-computed status for each assignment (only when focusedUser is set)
+  , statusMap :: !(Map.Map AssignmentId AssignmentStatus)
+  }
+  deriving (Eq, Generic, Show)
+
+emptyProjection :: SelectorProjection
+emptyProjection = SelectorProjection Ix.empty Nothing Map.empty
+
+-- | Projection function - pre-computes all assignment statuses
+selectorProjection :: Document -> Maybe User -> SelectorProjection
+selectorProjection doc mUser =
+  let assignments = doc.assignments
+      statusMap = case mUser of
+        Nothing -> Map.empty
+        Just user -> Map.fromList
+          [ (a.id, assignmentStatus doc user.id a.id)
+          | a <- Ix.toList assignments
+          ]
+   in SelectorProjection
+        { assignments
+        , focusedUser = mUser
+        , statusMap
+        }
+
+data Model = Model
+  { projection :: !SelectorProjection
+  , selectedAssignment :: !(Maybe Assignment)  -- bound to parent
+  , newAssignment :: !(Maybe Assignment)       -- temporary for new assignments
+  , searchQuery :: !Text
+  , showIncompleteOnly :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -54,9 +75,8 @@ data Action
   = SelectAssignment !Assignment
   | CreateNewAssignment
   | SetSearchQuery !Text
-  | SetStatusFilter !(Maybe AssignmentStatus)
-  | UpdateDocument !DocumentChange
-  | FocusedUserChanged !FocusedUserChange
+  | SetShowIncompleteOnly !Bool
+  | ProjectionChanged !(ProjectedChange SelectorProjection)
   deriving (Eq, Show)
 
 assignmentSelectorComponent
@@ -64,16 +84,19 @@ assignmentSelectorComponent
 assignmentSelectorComponent r parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedAssignment]
-    , M.subs =
-        [ subscribeDocument r UpdateDocument
-        , subscribeFocusedUser (getFocusedUserRef r) FocusedUserChanged
-        ]
+    , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
     }
   where
-    model = Model Ix.empty Nothing Nothing "" emptyDocument Nothing Nothing
+    model = Model
+      { projection = emptyProjection
+      , selectedAssignment = Nothing
+      , newAssignment = Nothing
+      , searchQuery = ""
+      , showIncompleteOnly = False
+      }
 
     update (SelectAssignment a) =
-      M.modify $ \m -> case Ix.getOne (m.allAssignments Ix.@= a.id) of
+      M.modify $ \m -> case Ix.getOne (m.projection.assignments Ix.@= a.id) of
         Just a' -> m & (#selectedAssignment ?~ a') & (#newAssignment .~ Nothing)
         Nothing -> m & (#newAssignment ?~ a)
 
@@ -87,15 +110,11 @@ assignmentSelectorComponent r parentLens =
     update (SetSearchQuery q) = M.modify $ \m ->
       m & #searchQuery .~ q
 
-    update (SetStatusFilter sf) = M.modify $ \m ->
-      m & #statusFilter .~ sf
+    update (SetShowIncompleteOnly b) = M.modify $ \m ->
+      m & #showIncompleteOnly .~ b
 
-    update (UpdateDocument dc) = M.modify $ \m ->
-      m & #allAssignments .~ dc.document.assignments
-        & #document .~ dc.document
-
-    update (FocusedUserChanged fc) = M.modify $ \m ->
-      m & #focusedUser .~ fc.user
+    update (ProjectionChanged change) =
+      M.modify $ #projection .~ change.projection
 
     view' m =
       V.viewFlow
@@ -111,52 +130,55 @@ assignmentSelectorComponent r parentLens =
         ]
 
     viewStatusFilters m =
-      case m.focusedUser of
+      case m.projection.focusedUser of
         Nothing -> M.text "" -- No filters when no user is focused
         Just _ ->
           M.div_
-            [class_ "flex flex-wrap gap-1"]
-            [ filterButton m Nothing "Alle"
-            , filterButton m (Just NotGraded) (statusLabel NotGraded)
-            , filterButton m (Just NeedsWork) (statusLabel NeedsWork)
-            , filterButton m (Just Completed) (statusLabel Completed)
+            [class_ "flex gap-1"]
+            [ filterButton m False "Alle"
+            , filterButton m True "Nicht erledigt"
             ]
 
     filterButton m filterValue label =
-      let isActive = m.statusFilter == filterValue
+      let isActive = m.showIncompleteOnly == filterValue
           baseClass = "px-2 py-1 text-xs rounded-full cursor-pointer transition-colors "
           activeClass = if isActive then "bg-primary text-primary-foreground" else "bg-muted hover:bg-muted/80"
        in M.button_
             [ class_ (baseClass <> activeClass)
-            , M.onClick (SetStatusFilter filterValue)
+            , M.onClick (SetShowIncompleteOnly filterValue)
             ]
             [M.text label]
 
     filteredAssignments m =
-      let query = T.toLower m.searchQuery
-          sorted = sortOn (.assignmentDate) $ Ix.toList m.allAssignments
+      let proj = m.projection
+          query = T.toLower m.searchQuery
+          sorted = sortOn (.assignmentDate) $ Ix.toList proj.assignments
           textFiltered =
             if T.null query
               then sorted
               else filter (\a -> query `T.isInfixOf` T.toLower (unAssignmentName a.name)) sorted
-       in case (m.focusedUser, m.statusFilter) of
-            (Just user, Just sf) ->
-              filter (\a -> assignmentStatus m.document user.id a.id == sf) textFiltered
+          -- Check if assignment is incomplete using pre-computed status
+          isIncomplete a = case Map.lookup a.id proj.statusMap of
+            Just Completed -> False
+            _ -> True  -- NotGraded or NeedsWork count as incomplete
+       in case (proj.focusedUser, m.showIncompleteOnly) of
+            (Just _, True) -> filter isIncomplete textFiltered
             _ -> textFiltered
 
     unAssignmentName (AssignmentName t) = t
 
     viewAssignment m a =
-      let isSelected = m.selectedAssignment == Just a || m.newAssignment == Just a
+      let proj = m.projection
+          isSelected = m.selectedAssignment == Just a || m.newAssignment == Just a
           mBadge = do
-            user <- m.focusedUser
-            let status = assignmentStatus m.document user.id a.id
+            _ <- proj.focusedUser  -- Only show badge if user is focused
+            status <- Map.lookup a.id proj.statusMap
             pure $ statusBadge status
        in SL.selectorItemWithBadge isSelected IcnAssignment (ms $ unAssignmentName a.name) mBadge (SelectAssignment a)
 
     statusBadge :: AssignmentStatus -> M.View Model Action
     statusBadge status =
-      Badge.badge (statusBadgeVariant status) (statusLabel status)
+      Badge.badge (statusBadgeVariant status) (ms $ Q.statusLabel status)
 
     statusBadgeVariant NotGraded = Badge.BadgeSecondary
     statusBadgeVariant NeedsWork = Badge.BadgeOutline

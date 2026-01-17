@@ -47,6 +47,10 @@ data Icon
   | IcnLock
   | IcnLockOpen
   | IcnProgress
+  | IcnAbilitySelfReliant
+  | IcnAbilitySillyMistakes
+  | IcnAbilityWithSupport
+  | IcnAbilityNotYet
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -95,6 +99,10 @@ iconId = \case
   IcnLock -> "icon-lock"
   IcnLockOpen -> "icon-lock-open"
   IcnProgress -> "icon-progress"
+  IcnAbilitySelfReliant -> "icon-ability-self-reliant"
+  IcnAbilitySillyMistakes -> "icon-ability-silly-mistakes"
+  IcnAbilityWithSupport -> "icon-ability-with-support"
+  IcnAbilityNotYet -> "icon-ability-not-yet"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -312,6 +320,33 @@ iconDefOf' = \case
   IcnProgress ->
     mkPathesDR
       [ "M3 18l4 -4l3 3l4 -5l4 4l3 -6"  -- zig-zag line trending upward
+      ]
+  -- Ability icons (for observation display)
+  -- Double checkmark: SelfReliant (fully mastered)
+  IcnAbilitySelfReliant ->
+    mkPathesDR
+      [ "M4 12l4 4l8 -8"     -- First checkmark
+      , "M8 16l4 4l8 -8"     -- Second checkmark (offset down-right)
+      ]
+  -- Single checkmark: SelfReliantWithSillyMistakes (mastered with minor errors)
+  IcnAbilitySillyMistakes ->
+    mkPathesDR
+      [ "M5 12l5 5l9 -9"
+      ]
+  -- Half circle: WithSupport (partial mastery, needs help)
+  IcnAbilityWithSupport ->
+    [ MS.path_
+        [ MSP.d_ "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.fill_ "none"
+        , MSP.strokeLinecap_ "round"
+        ]
+    ]
+  -- X mark: NotYet (not mastered)
+  IcnAbilityNotYet ->
+    mkPathesDR
+      [ "M18 6L6 18"
+      , "M6 6l12 12"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
