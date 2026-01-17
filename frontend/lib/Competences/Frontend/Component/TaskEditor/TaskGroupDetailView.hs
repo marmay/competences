@@ -135,10 +135,10 @@ taskGroupEditorComponent r group =
                            , TE.textEditorField groupIdentifierViewLens groupIdentifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskGroupContentBefore
-                           , TE.textEditorField contentBeforeViewLens contentBeforePatchLens
+                           , TE.richTextEditorField contentBeforeViewLens contentBeforePatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskGroupContentAfter
-                           , TE.textEditorField contentAfterViewLens contentAfterPatchLens
+                           , TE.richTextEditorField contentAfterViewLens contentAfterPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField
@@ -199,7 +199,7 @@ taskGroupEditorComponent r group =
                            , TE.textEditorField subTaskIdentifierViewLens subTaskIdentifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
-                           , TE.textEditorField subTaskContentViewLens subTaskContentPatchLens
+                           , TE.richTextEditorField subTaskContentViewLens subTaskContentPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField

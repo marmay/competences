@@ -10,7 +10,6 @@ import Competences.Document (Document (..), User (..))
 import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
-import Competences.Frontend.Component.AssignmentViewer (assignmentViewerComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
@@ -144,8 +143,10 @@ mkApp ir =
         else GridView :| []
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent ir
-    viewAssignments = mounted ViewAssignments $ assignmentViewerComponent ir model.connectedUser
-    manageAssignments = mounted ManageAssignments $ assignmentComponent ir
+    -- Both routes use the unified assignment component
+    -- Teachers see Edit/Evaluate/View modes, students see View mode only
+    viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
+    manageAssignments = mounted ManageAssignments $ assignmentComponent ir model.connectedUser
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
 

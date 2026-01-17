@@ -33,7 +33,7 @@ library
         Competences.Frontend.Component.Assignment,
         Competences.Frontend.Component.Assignment.EditorDetail,
         Competences.Frontend.Component.Assignment.EvaluatorDetail,
-        Competences.Frontend.Component.AssignmentViewer,
+        Competences.Frontend.Component.Assignment.ViewerDetail,
         Competences.Frontend.Component.CompetenceGrid,
         Competences.Frontend.Component.CompetenceGrid.Assessment,
         Competences.Frontend.Component.MathJax,
