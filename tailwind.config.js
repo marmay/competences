@@ -11,6 +11,12 @@ module.exports = {
     'dark',
     'theme-claude',
     'theme-ocean',
+    // Modal size classes (arbitrary values need explicit safelist)
+    '!w-[66vw]',
+    '!min-w-[66vw]',
+    '!max-w-none',
+    '!h-[90vh]',
+    'flex-shrink-0',
     // Semantic color classes (using CSS variables)
     { pattern: /bg-(primary|secondary|destructive|background|card|muted|accent)/ },
     { pattern: /text-(primary|secondary|destructive|foreground|muted|accent)/ },

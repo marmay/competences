@@ -19,14 +19,23 @@ import Competences.Document.Competence (CompetenceIxs, LevelInfo (..))
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.Task
   ( Task (..)
-  , TaskId
+  , TaskAttributes (..)
   , TaskIdentifier (..)
+  , getTaskAttributes
   , getTaskContent
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskResourceList
+  ( TaskResourceList
+  , TaskWithSolutions (..)
+  , DisplayMode (..)
+  , initialState
+  , taskResourceListView
+  , updateTaskResourceList
+  )
+import Competences.Frontend.Component.TaskResourceList qualified as TRL
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -42,15 +51,13 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
 import Competences.Query.Assignment qualified as Q
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
-import Optics.Core ((.~))
+import Optics.Core ((&), (.~))
 
 -- ============================================================================
 -- Status Helpers (delegate to Query module)
@@ -73,10 +80,8 @@ statusBadgeVariant Completed = Badge.BadgePrimary
 -- | Pre-computed projection for the viewer
 -- All expensive queries are done once per document/user change
 data ViewerProjection = ViewerProjection
-  { -- | Pre-filtered and sorted tasks for this assignment
-    relevantTasks :: ![Task]
-    -- | Pre-computed: task content from task groups
-  , taskContents :: !(Map.Map TaskId (Maybe Text))
+  { -- | Pre-filtered and sorted tasks with solutions for this assignment
+    tasksWithSolutions :: ![TaskWithSolutions]
     -- | Pre-computed: all observations from linked evidences (at assignment level)
   , observations :: ![Observation]
     -- | Competences for looking up level descriptions
@@ -93,8 +98,7 @@ data ViewerProjection = ViewerProjection
 -- | Empty projection for initial state
 emptyProjection :: Assignment -> ViewerProjection
 emptyProjection assignment = ViewerProjection
-  { relevantTasks = []
-  , taskContents = Map.empty
+  { tasksWithSolutions = []
   , observations = []
   , competences = Ix.empty
   , status = NotGraded
@@ -118,14 +122,16 @@ viewerDetailView r user assignment =
     ("assignment-viewer-" <> M.ms (show assignment.id))
     (viewerComponent r user assignment)
 
--- | Minimal model - only stores the projection
+-- | Model with projection and task list state
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
+  , taskListState :: !TaskResourceList
   }
   deriving (Eq, Generic, Show)
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
+  | TaskListAction !TRL.Action
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -137,6 +143,7 @@ viewerComponent r user assignment =
   where
     model = ViewerModel
       { projection = emptyProjection assignment
+      , taskListState = initialState TasksExpanded []
       }
 
     -- Projection function captures assignment and currentUserId from closure
@@ -152,9 +159,15 @@ viewerComponent r user assignment =
           relevantTasks = Ix.toAscList (Proxy @TaskIdentifier) $
             doc.tasks Ix.@+ updatedAssignment.tasks
 
-          -- Pre-compute task contents
-          taskContents = Map.fromList
-            [ (task.id, getTaskContent doc.taskGroups task)
+          -- Build TaskWithSolutions for each task
+          taskGroups = doc.taskGroups
+          tasksWithSolutions =
+            [ TaskWithSolutions
+                { task = task
+                , taskContent = getTaskContent taskGroups task
+                , taskPurpose = (getTaskAttributes taskGroups task).purpose
+                , solutions = Ix.toList $ doc.solutions Ix.@= task.id
+                }
             | task <- relevantTasks
             ]
 
@@ -173,8 +186,7 @@ viewerComponent r user assignment =
           status = assignmentStatus doc effectiveUserId updatedAssignment.id
 
        in ViewerProjection
-            { relevantTasks
-            , taskContents
+            { tasksWithSolutions
             , observations
             , competences
             , status
@@ -183,7 +195,15 @@ viewerComponent r user assignment =
             }
 
     update (ProjectionChanged change) =
-      M.modify $ #projection .~ change.projection
+      M.modify $ \m ->
+        let newTasks = change.projection.tasksWithSolutions
+            -- Re-initialize task list state with new tasks, keeping expanded state
+            newTaskListState = initialState TasksExpanded newTasks
+         in m & #projection .~ change.projection
+              & #taskListState .~ newTaskListState
+
+    update (TaskListAction action) =
+      M.modify $ \m -> m & #taskListState .~ updateTaskResourceList action m.taskListState
 
     view' m =
       M.div_
@@ -197,15 +217,17 @@ viewerComponent r user assignment =
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
-                [ -- Line 1: Title
-                  Typography.h2 (assignmentNameToText proj.currentAssignment.name)
-                , -- Line 2: Date + Status
+                [ -- Title line with date + status on the right
                   M.div_
-                    [class_ "flex items-center gap-4 text-sm"]
-                    [ M.span_
-                        [class_ "text-muted-foreground"]
-                        [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
-                    , Badge.badge (statusBadgeVariant proj.status) (statusLabel proj.status)
+                    [class_ "flex items-center justify-between"]
+                    [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
+                    , M.div_
+                        [class_ "flex items-center gap-3 text-sm"]
+                        [ M.span_
+                            [class_ "text-muted-foreground"]
+                            [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
+                        , Badge.badge (statusBadgeVariant proj.status) (statusLabel proj.status)
+                        ]
                     ]
                 , -- Observations list (one per line)
                   viewObservationList proj
@@ -252,27 +274,7 @@ viewerComponent r user assignment =
        in M.div_
             [class_ "space-y-4"]
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , if null proj.relevantTasks
-                then Typography.muted "Keine Aufgaben"
-                else M.div_ [class_ "space-y-4"] (map (viewTask m) proj.relevantTasks)
-            ]
-
-    viewTask m task =
-      let content = fromMaybe Nothing $ Map.lookup task.id m.projection.taskContents
-          TaskIdentifier identifier = task.identifier
-       in Card.card
-            [ M.div_
-                [class_ "space-y-2"]
-                [ -- Task identifier
-                  M.div_ [class_ "font-semibold text-foreground"] [M.text $ ms identifier]
-                , -- Task content rendered with MathJax
-                  case content of
-                    Nothing -> Typography.muted "Kein Inhalt"
-                    Just c ->
-                      if c == ""
-                        then Typography.muted "Kein Inhalt"
-                        else M.div_ [class_ "prose prose-stone max-w-none"] [renderTaskContentText c]
-                ]
+            , taskResourceListView proj.tasksWithSolutions m.taskListState TaskListAction
             ]
 
     assignmentNameToText (AssignmentName t) = ms t

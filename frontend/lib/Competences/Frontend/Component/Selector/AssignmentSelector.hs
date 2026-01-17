@@ -170,11 +170,26 @@ assignmentSelectorComponent r parentLens =
     viewAssignment m a =
       let proj = m.projection
           isSelected = m.selectedAssignment == Just a || m.newAssignment == Just a
-          mBadge = do
-            _ <- proj.focusedUser  -- Only show badge if user is focused
-            status <- Map.lookup a.id proj.statusMap
-            pure $ statusBadge status
-       in SL.selectorItemWithBadge isSelected IcnAssignment (ms $ unAssignmentName a.name) mBadge (SelectAssignment a)
+          mStatus = do
+            _ <- proj.focusedUser  -- Only show status if user is focused
+            Map.lookup a.id proj.statusMap
+       in SL.selectorItemMultiLine isSelected
+            [ -- Line 1: Icon + Name
+              M.div_
+                [class_ "flex items-center gap-2"]
+                [ V.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] IcnAssignment
+                , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unAssignmentName a.name]
+                ]
+            , -- Line 2: Date + Status
+              M.div_
+                [class_ "flex items-center gap-2 text-xs text-muted-foreground"]
+                [ M.span_ [] [M.text $ C.formatDay a.assignmentDate]
+                , case mStatus of
+                    Just status -> statusBadge status
+                    Nothing -> M.text ""
+                ]
+            ]
+            (SelectAssignment a)
 
     statusBadge :: AssignmentStatus -> M.View Model Action
     statusBadge status =
