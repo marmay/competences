@@ -3,6 +3,7 @@ module Competences.Document.Solution
   , SolutionId
   , SolutionIxs
   , SolutionType (..)
+  , solutionTypes
   , mkSolution
   )
 where
@@ -26,6 +27,10 @@ instance FromJSON SolutionType
 instance ToJSON SolutionType
 
 instance Binary SolutionType
+
+-- | All solution types
+solutionTypes :: [SolutionType]
+solutionTypes = [minBound .. maxBound]
 
 -- | Solution ID
 type SolutionId = Id Solution

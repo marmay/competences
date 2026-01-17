@@ -14,8 +14,11 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
+import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Tailwind (class_)
+import Miso.Html qualified as MH
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -23,14 +26,21 @@ import Miso qualified as M
 import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 
 -- | Detail view for editing a SelfContained task
+-- Includes the task editor form and a solutions list below it
 taskDetailView
   :: SyncContext
   -> Task
   -> M.View p a
 taskDetailView r task =
-  V.component
-    ("task-editor-" <> M.ms (show task.id))
-    (TE.editorComponent taskEditor r)
+  MH.div_
+    [class_ "space-y-6"]
+    [ V.component
+        ("task-editor-" <> M.ms (show task.id))
+        (TE.editorComponent taskEditor r)
+    , V.component
+        ("task-solutions-" <> M.ms (show task.id))
+        (taskSolutionsListComponent r task.id)
+    ]
   where
     taskEditorId = "task-editor-" <> M.ms (show task.id)
 

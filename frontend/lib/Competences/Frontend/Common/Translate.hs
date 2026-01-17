@@ -18,6 +18,7 @@ where
 
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
+import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Control.Exception (SomeException, catch)
 import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
@@ -189,6 +190,21 @@ data Label
   | LblNoObservationsYet
   | LblCompetence
   | LblLevel
+    -- Solutions
+  | LblSolutions
+  | LblFilterSolutions
+  | LblEditSolution
+  | LblSolutionTask
+  | LblSolutionTypeLabel
+  | LblSolutionContent
+  | LblSolutionType !SolutionType
+  | LblAddSolution
+  | LblNoSolutions
+    -- Resources
+  | LblResources
+  | LblTasks
+  | LblLearningResources
+  | LblNoTasksAvailable
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -326,10 +342,25 @@ labels' =
   , LblNoObservationsYet
   , LblCompetence
   , LblLevel
+    -- Solutions
+  , LblSolutions
+  , LblFilterSolutions
+  , LblEditSolution
+  , LblSolutionTask
+  , LblSolutionTypeLabel
+  , LblSolutionContent
+  , LblAddSolution
+  , LblNoSolutions
+    -- Resources
+  , LblResources
+  , LblTasks
+  , LblLearningResources
+  , LblNoTasksAvailable
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
     <> map LblTaskPurpose taskPurposes
+    <> map LblSolutionType solutionTypes
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -476,6 +507,23 @@ defaultTranslation LblSaveAll = "Alle speichern"
 defaultTranslation LblNoObservationsYet = "Noch keine Beobachtungen"
 defaultTranslation LblCompetence = "Kompetenz"
 defaultTranslation LblLevel = "Stufe"
+-- Solutions
+defaultTranslation LblSolutions = "Lösungen"
+defaultTranslation LblFilterSolutions = "Nach Aufgabe filtern..."
+defaultTranslation LblEditSolution = "Lösung bearbeiten"
+defaultTranslation LblSolutionTask = "Aufgabe"
+defaultTranslation LblSolutionTypeLabel = "Lösungstyp"
+defaultTranslation LblSolutionContent = "Inhalt"
+defaultTranslation (LblSolutionType Hint) = "Hinweis"
+defaultTranslation (LblSolutionType Results) = "Ergebnis"
+defaultTranslation (LblSolutionType Complete) = "Vollständig"
+defaultTranslation LblAddSolution = "+ Lösung"
+defaultTranslation LblNoSolutions = "Keine Lösungen"
+-- Resources
+defaultTranslation LblResources = "Ressourcen"
+defaultTranslation LblTasks = "Aufgaben"
+defaultTranslation LblLearningResources = "Lernmaterial"
+defaultTranslation LblNoTasksAvailable = "Keine Aufgaben verfügbar"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

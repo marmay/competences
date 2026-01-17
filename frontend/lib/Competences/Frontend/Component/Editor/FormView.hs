@@ -2,10 +2,13 @@ module Competences.Frontend.Component.Editor.FormView
   ( editorFormView
   , editorFormView'
   , editorFormViewS
+  , editorFormViewInline
   )
 where
 
 import Competences.Frontend.Component.Editor.View
+import Competences.Frontend.View.Tailwind (class_)
+import Miso.Html qualified as MH
 import Competences.Frontend.View.Form qualified as V
 import Data.Tuple (Solo (..))
 import Miso qualified as M
@@ -33,3 +36,22 @@ showForm title toText item =
         title
         (map (\(n, f) -> V.formField_ (toText n) f) item.fieldData)
         (extendedButtons item)
+
+-- | Inline editor form view - shows just the form fields without header/buttons
+-- Used for embedding editors in lists or other compact contexts
+editorFormViewInline :: Foldable f => (n -> M.MisoString) -> EditorView a patch f n
+editorFormViewInline toText viewData =
+  let maybeFirst = foldr (\x _ -> Just x) Nothing viewData.items
+   in maybe V.empty (showFormInline toText) maybeFirst
+
+showFormInline :: (n -> M.MisoString) -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
+showFormInline toText item =
+  MH.div_
+    [class_ "space-y-3"]
+    [ V.formInline_
+        (map (\(n, f) -> V.formField_ (toText n) f) item.fieldData)
+    , -- Compact buttons row
+      MH.div_
+        [class_ "flex justify-end gap-2"]
+        (buttons Compact item)
+    ]

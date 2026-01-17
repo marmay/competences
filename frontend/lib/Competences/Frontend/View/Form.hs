@@ -1,6 +1,7 @@
 module Competences.Frontend.View.Form
   ( -- * Form layouts
     form_
+  , formInline_
   , formField_
   , formLayout
 
@@ -53,6 +54,14 @@ form_ title fields buttons =
               buttons
           ]
       ]
+
+-- | Inline form - just the fields without title or buttons
+-- Used for embedding forms in lists or other compact contexts
+formInline_ :: [M.View m a] -> M.View m a
+formInline_ fields =
+  M.div_
+    [T.class_ "space-y-3"]
+    fields
 
 formField_ :: M.MisoString -> M.View m a -> M.View m a
 formField_ label field =

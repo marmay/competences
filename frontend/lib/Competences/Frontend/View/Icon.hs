@@ -51,6 +51,8 @@ data Icon
   | IcnAbilitySillyMistakes
   | IcnAbilityWithSupport
   | IcnAbilityNotYet
+  | IcnSolution
+  | IcnResources
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -103,6 +105,8 @@ iconId = \case
   IcnAbilitySillyMistakes -> "icon-ability-silly-mistakes"
   IcnAbilityWithSupport -> "icon-ability-with-support"
   IcnAbilityNotYet -> "icon-ability-not-yet"
+  IcnSolution -> "icon-solution"
+  IcnResources -> "icon-resources"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -347,6 +351,19 @@ iconDefOf' = \case
     mkPathesDR
       [ "M18 6L6 18"
       , "M6 6l12 12"
+      ]
+  -- Lightbulb icon for solutions (hints, answers)
+  IcnSolution ->
+    mkPathesD
+      [ "M9 21h6"
+      , "M12 3a6 6 0 0 0-6 6c0 1.8 .8 3.4 2 4.5V15a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1.5c1.2-1.1 2-2.7 2-4.5a6 6 0 0 0-6-6z"
+      , "M9 18h6"
+      ]
+  -- Book/resources icon
+  IcnResources ->
+    mkPathesD
+      [ "M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+      , "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

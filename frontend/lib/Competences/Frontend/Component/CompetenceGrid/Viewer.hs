@@ -14,6 +14,7 @@ import Competences.Document
   , EvidenceIxs
   , Level (..)
   , LevelInfo (..)
+  , Task (..)
   , allLevels
   , ordered
   )
@@ -23,8 +24,24 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   )
-import Competences.Document.Competence (CompetenceId)
+import Competences.Document.Competence (CompetenceId, CompetenceLevelId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
+import Competences.Document.Task
+  ( TaskAttributes (..)
+  , getTaskAttributes
+  , getTaskContent
+  , getTaskPrimaryCompetences
+  , isResourceTask
+  )
+import Competences.Frontend.Component.TaskResourceList
+  ( TaskResourceList
+  , TaskWithSolutions (..)
+  , DisplayMode (..)
+  , initialState
+  , taskResourceListView
+  , updateTaskResourceList
+  )
+import Competences.Frontend.Component.TaskResourceList qualified as TRL
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -34,9 +51,11 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.Tailwind (class_)
@@ -48,7 +67,9 @@ import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Event.Types (stopPropagation)
 import Miso.Html qualified as MH
+import Miso.Html.Event (onClickWithOptions)
 import Miso.Html.Property qualified as MP
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
@@ -71,18 +92,41 @@ data ViewerProjection = ViewerProjection
   , activeGridGrade :: !(Maybe CompetenceGridGrade)
   -- ^ Pre-computed: most recent grid grade for this grid and focused user
   , focusedUser :: !(Maybe User)
+  , resourceTasks :: !(Map.Map CompetenceLevelId [TaskWithSolutions])
+  -- ^ Tasks with displayInResources=true, grouped by primary competence level
   }
   deriving (Eq, Generic, Show)
 
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
+  , modalState :: !(Maybe ResourceModalState)
+  -- ^ Nothing = modal closed, Just = modal open for a specific competence level
+  }
+  deriving (Eq, Generic, Show)
+
+-- | View mode for the resource modal
+data ResourceViewMode
+  = ViewTasks           -- ^ Show tasks
+  | ViewLearningResources  -- ^ Show learning resources (placeholder for future)
+  deriving (Eq, Generic, Show)
+
+-- | State for the resource modal when open
+data ResourceModalState = ResourceModalState
+  { competenceLevelId :: !CompetenceLevelId
+  , taskListState :: !TaskResourceList
+  , viewMode :: !ResourceViewMode
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the viewer detail component
 data ViewerAction
   = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
+  | OpenResourceModal !CompetenceLevelId
+  | CloseResourceModal
+  | ResourceModalAction !TRL.Action
+  | SwitchResourceViewMode !ResourceViewMode
+  | NoOp  -- ^ Used for stopping event propagation
   deriving (Eq, Show)
 
 -- | View for the viewer detail - shows competence grid with student evidence
@@ -105,7 +149,7 @@ viewerComponent r grid =
     -- Pre-computes activeGridGrade so the view doesn't need to search
     viewerProjection :: Document -> Maybe User -> ViewerProjection
     viewerProjection doc mUser = ViewerProjection
-      { competences = doc.competences Ix.@= grid.id
+      { competences = gridCompetences
       , userEvidences = case mUser of
           Nothing -> Ix.empty
           Just u -> doc.evidences Ix.@= u.id
@@ -118,27 +162,149 @@ viewerComponent r grid =
           Just u -> listToMaybe $ Ix.toDescList (Proxy @Day) $
             doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
       , focusedUser = mUser
+      , resourceTasks = computeResourceTasks doc gridCompetences
       }
+      where
+        gridCompetences = doc.competences Ix.@= grid.id
 
-    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing
-    model = ViewerModel emptyProjection
+    -- Compute resource tasks grouped by competence level
+    -- Only includes tasks with displayInResources=true for competences in this grid
+    computeResourceTasks :: Document -> Ix.IxSet CompetenceIxs Competence -> Map.Map CompetenceLevelId [TaskWithSolutions]
+    computeResourceTasks doc gridCompetences =
+      let taskGroups = doc.taskGroups
+          -- Get all competence IDs in this grid
+          competenceIds = [c.id | c <- Ix.toList gridCompetences]
+          -- Get all resource tasks (displayInResources=true)
+          resourceTasksList = filter (isResourceTask taskGroups) $ Ix.toList doc.tasks
+          -- Build TaskWithSolutions for each task
+          buildTaskWithSolutions :: Task -> TaskWithSolutions
+          buildTaskWithSolutions task = TaskWithSolutions
+            { task = task
+            , taskContent = getTaskContent taskGroups task
+            , taskPurpose = (getTaskAttributes taskGroups task).purpose
+            , solutions = Ix.toList $ doc.solutions Ix.@= task.id
+            }
+          -- Group tasks by their primary competence levels (filtering to this grid)
+          groupByCompetenceLevel :: [TaskWithSolutions] -> Map.Map CompetenceLevelId [TaskWithSolutions]
+          groupByCompetenceLevel tasks =
+            foldr insertTask Map.empty tasks
+            where
+              insertTask tws acc =
+                let primaryLevels = getTaskPrimaryCompetences taskGroups tws.task
+                    -- Only include levels for competences in this grid
+                    relevantLevels = filter (\(cid, _) -> cid `elem` competenceIds) primaryLevels
+                 in foldr (\lvl -> Map.insertWith (++) lvl [tws]) acc relevantLevels
+       in groupByCompetenceLevel $ map buildTaskWithSolutions resourceTasksList
+
+    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty
+    model = ViewerModel emptyProjection Nothing
 
     update (ViewerProjectionChanged change) =
       M.modify $ #projection .~ change.projection
 
+    update (OpenResourceModal clId) =
+      M.modify $ \m ->
+        let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
+            taskListState = initialState TasksCollapsed tasks
+         in m & #modalState .~ Just (ResourceModalState clId taskListState ViewTasks)
+
+    update CloseResourceModal =
+      M.modify $ #modalState .~ Nothing
+
+    update (ResourceModalAction action) =
+      M.modify $ \m -> case m.modalState of
+        Nothing -> m
+        Just ms ->
+          m & #modalState .~ Just (ms & #taskListState .~ updateTaskResourceList action ms.taskListState)
+
+    update (SwitchResourceViewMode newMode) =
+      M.modify $ \m -> case m.modalState of
+        Nothing -> m
+        Just ms -> m & #modalState .~ Just (ms & #viewMode .~ newMode)
+
+    update NoOp = pure ()
+
     view m =
-      V.viewFlow
-        ( V.vFlow
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#expandOrthogonal .~ V.Expand V.Center)
-            & (#gap .~ V.SmallSpace)
-        )
-        [ header m
-        , description
-        , competencesTable m
+      MH.div_
+        []
+        [ V.viewFlow
+            ( V.vFlow
+                & (#expandDirection .~ V.Expand V.Start)
+                & (#expandOrthogonal .~ V.Expand V.Center)
+                & (#gap .~ V.SmallSpace)
+            )
+            [ header m
+            , description
+            , competencesTable m
+            ]
+        , resourceModal m
         ]
       where
         proj = m.projection
+
+        -- Resource modal
+        resourceModal vm = case vm.modalState of
+          Nothing -> V.empty
+          Just ms ->
+            let tasks = Map.findWithDefault [] ms.competenceLevelId vm.projection.resourceTasks
+                hasTasks = not (null tasks)
+                -- Learning resources placeholder - will be populated later
+                hasLearningResources = False
+                -- Only show mode switch when both types have content
+                showModeSwitch = hasTasks && hasLearningResources
+             in Modal.modalHost
+                  [MH.onClick CloseResourceModal]
+                  [ Modal.modalDialog
+                      [ onClickWithOptions stopPropagation NoOp
+                      -- Use !important to override modalDialog's default max-w-96 and w-full
+                      -- flex-shrink-0 prevents the flex container from shrinking this element
+                      , class_ "!w-[66vw] !min-w-[66vw] !max-w-none !h-[90vh] flex flex-col flex-shrink-0"
+                      ]
+                      [ -- Header with title, mode switch, and close button
+                        MH.div_
+                          [class_ "flex items-center justify-between border-b px-8 py-6 shrink-0"]
+                          [ Typography.h3 $ C.translate' C.LblResources
+                          , MH.div_
+                              [class_ "flex items-center gap-4"]
+                              [ -- Mode switch (only shown when both types have content)
+                                if showModeSwitch
+                                  then modeSwitcher ms.viewMode
+                                  else V.empty
+                              , -- Close button
+                                MH.button_
+                                  [ class_ "text-muted-foreground hover:text-foreground transition-colors"
+                                  , MH.onClick CloseResourceModal
+                                  ]
+                                  [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
+                              ]
+                          ]
+                      , -- Scrollable content area
+                        MH.div_
+                          [class_ "flex-1 overflow-y-auto px-8 py-6"]
+                          [ case ms.viewMode of
+                              ViewTasks ->
+                                taskResourceListView tasks ms.taskListState ResourceModalAction
+                              ViewLearningResources ->
+                                -- Placeholder for future learning resources view
+                                Typography.muted "Keine Lernmaterialien vorhanden"
+                          ]
+                      ]
+                  ]
+
+        -- Mode switcher using button group (same style as competence grid)
+        modeSwitcher :: ResourceViewMode -> M.View ViewerModel ViewerAction
+        modeSwitcher currentMode =
+          Button.buttonGroup
+            [ modeButton ViewTasks (C.translate' C.LblTasks)
+            , modeButton ViewLearningResources (C.translate' C.LblLearningResources)
+            ]
+          where
+            modeButton mode label =
+              let variant = if mode == currentMode then Button.Primary else Button.Outline
+               in Button.button variant label
+                    & Button.withSize Button.Small
+                    & Button.withClick (SwitchResourceViewMode mode)
+                    & Button.renderButton
 
         -- Header with title on left and grade badge on right
         header _vm =
@@ -256,12 +422,33 @@ viewerComponent r grid =
                                     [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
                               | otherwise = V.empty
 
+                            -- Check if there are resource tasks for this cell
+                            hasResources = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
+
+                            -- Resource icon in bottom-right corner
+                            resourceIcon =
+                              if hasResources
+                                then
+                                  MH.div_
+                                    [class_ "absolute bottom-1 right-1 text-sky-600"]
+                                    [icon [MP.width_ "14", MP.height_ "14"] IcnResources]
+                                else V.empty
+
                             -- Cell classes: relative for icon positioning, padding, and vertical centering
-                            tdClasses = "relative px-4 py-3 " <> bgClass
+                            -- Add cursor-pointer when clickable (has resources)
+                            cursorClass = if hasResources then " cursor-pointer hover:bg-opacity-80" else ""
+                            tdClasses = "relative px-4 py-3 " <> bgClass <> cursorClass
+
+                            -- Cell click handler (only when there are resources)
+                            clickHandler =
+                              if hasResources
+                                then [MH.onClick (OpenResourceModal competenceLevelId)]
+                                else []
+
                             -- Cell content wrapper for vertical centering
                             cellContent =
                               MH.div_
-                                [class_ "flex flex-col justify-center min-h-[44px]"]
+                                (class_ "flex flex-col justify-center min-h-[44px]" : clickHandler)
                                 [ statusIcon
                                 , -- Description text (only if present)
                                   if hasDescription
@@ -274,6 +461,8 @@ viewerComponent r grid =
                                         [class_ "flex flex-wrap gap-1 mt-1"]
                                         (map showEvidence evidenceList)
                                     else V.empty
+                                , -- Resource icon
+                                  resourceIcon
                                 ]
                          in TableCellSpec
                               { cellClasses = tdClasses
