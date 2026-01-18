@@ -46,6 +46,10 @@ pkgs.stdenv.mkDerivation {
       cp static/basecoat.cdn.min.css $out/
     fi
 
+    if [ -f static/mathjax-tex-svg.js ]; then
+      cp static/mathjax-tex-svg.js $out/
+    fi
+
     # Copy WASI shim files
     if [ -d static/wasi ]; then
       cp -r static/wasi $out/
