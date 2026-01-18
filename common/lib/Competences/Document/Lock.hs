@@ -9,6 +9,7 @@ import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGradeId)
 import Competences.Document.Evidence (EvidenceId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskGroupId, TaskId)
 import Competences.Document.User (UserId)
@@ -30,6 +31,7 @@ data Lock
   | CompetenceAssessmentLock !CompetenceAssessmentId
   | CompetenceGridGradeLock !CompetenceGridGradeId
   | SolutionLock !SolutionId
+  | ResourceLock !ResourceId
   deriving (Eq, Generic, Ord, Show)
 
 instance FromJSON Lock

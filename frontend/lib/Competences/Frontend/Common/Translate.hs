@@ -202,9 +202,23 @@ data Label
   | LblNoSolutions
     -- Resources
   | LblResources
+  | LblMaterials
   | LblTasks
   | LblLearningResources
   | LblNoTasksAvailable
+    -- Resource Editor
+  | LblEditResource
+  | LblResourceIdentifier
+  | LblResourceCompetenceLevels
+  | LblResourceContent
+  | LblInlineContent
+  | LblWebLink
+  | LblVideoLink
+  | LblAddResource
+  | LblNoResources
+  | LblManageResources
+  | LblUrl
+  | LblDescription
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -353,9 +367,23 @@ labels' =
   , LblNoSolutions
     -- Resources
   , LblResources
+  , LblMaterials
   , LblTasks
   , LblLearningResources
   , LblNoTasksAvailable
+    -- Resource Editor
+  , LblEditResource
+  , LblResourceIdentifier
+  , LblResourceCompetenceLevels
+  , LblResourceContent
+  , LblInlineContent
+  , LblWebLink
+  , LblVideoLink
+  , LblAddResource
+  , LblNoResources
+  , LblManageResources
+  , LblUrl
+  , LblDescription
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -451,7 +479,7 @@ defaultTranslation LblEditSelfContainedTask = "Aufgabe bearbeiten"
 defaultTranslation LblTaskGroupContentBefore = "Inhalt davor"
 defaultTranslation LblTaskGroupContentAfter = "Inhalt danach"
 defaultTranslation LblSubTasks = "Unteraufgaben"
-defaultTranslation LblAddSubTask = "+ Unteraufgabe"
+defaultTranslation LblAddSubTask = "Unteraufgabe"
 defaultTranslation LblNoSubTasks = "Keine Unteraufgaben"
 defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
 defaultTranslation LblFilterAssignments = "Nach Name filtern..."
@@ -469,7 +497,7 @@ defaultTranslation LblNoCompetences = "Keine Kompetenzen"
 defaultTranslation (LblTaskPurpose Practice) = "Übung"
 defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"
 defaultTranslation LblAssignments = "Aufträge"
-defaultTranslation LblNewAssignment = "+ Neuer Auftrag"
+defaultTranslation LblNewAssignment = "Neuer Auftrag"
 defaultTranslation LblEditAssignment = "Auftrag bearbeiten"
 defaultTranslation LblEvaluateAssignments = "Aufträge auswerten"
 defaultTranslation LblAssignmentName = "Name"
@@ -502,7 +530,7 @@ defaultTranslation LblGradeComment = "Kommentar..."
 defaultTranslation LblNewEvidence = "Neue Aufzeichnung"
 defaultTranslation LblBulkEntry = "Sammelerfassung"
 defaultTranslation LblBulkEvidenceEntry = "Sammelerfassung"
-defaultTranslation LblAddObservation = "+ Beobachtung"
+defaultTranslation LblAddObservation = "Beobachtung hinzufügen"
 defaultTranslation LblSaveAll = "Alle speichern"
 defaultTranslation LblNoObservationsYet = "Noch keine Beobachtungen"
 defaultTranslation LblCompetence = "Kompetenz"
@@ -517,13 +545,27 @@ defaultTranslation LblSolutionContent = "Inhalt"
 defaultTranslation (LblSolutionType Hint) = "Hinweis"
 defaultTranslation (LblSolutionType Results) = "Ergebnis"
 defaultTranslation (LblSolutionType Complete) = "Vollständig"
-defaultTranslation LblAddSolution = "+ Lösung"
+defaultTranslation LblAddSolution = "Lösung hinzufügen"
 defaultTranslation LblNoSolutions = "Keine Lösungen"
 -- Resources
 defaultTranslation LblResources = "Ressourcen"
+defaultTranslation LblMaterials = "Materialien"
 defaultTranslation LblTasks = "Aufgaben"
 defaultTranslation LblLearningResources = "Lernmaterial"
 defaultTranslation LblNoTasksAvailable = "Keine Aufgaben verfügbar"
+-- Resource Editor
+defaultTranslation LblEditResource = "Ressource bearbeiten"
+defaultTranslation LblResourceIdentifier = "Bezeichnung"
+defaultTranslation LblResourceCompetenceLevels = "Kompetenzstufen"
+defaultTranslation LblResourceContent = "Inhalt"
+defaultTranslation LblInlineContent = "Inline-Inhalt"
+defaultTranslation LblWebLink = "Web-Link"
+defaultTranslation LblVideoLink = "Video-Link"
+defaultTranslation LblAddResource = "Ressource hinzufügen"
+defaultTranslation LblNoResources = "Keine Ressourcen"
+defaultTranslation LblManageResources = "Ressourcen verwalten"
+defaultTranslation LblUrl = "URL"
+defaultTranslation LblDescription = "Beschreibung"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

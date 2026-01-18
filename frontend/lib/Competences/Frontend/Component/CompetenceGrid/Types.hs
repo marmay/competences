@@ -7,6 +7,7 @@ where
 data CompetenceGridMode
   = GridView
   | GridEdit
+  | GridResources
   | GridAssessment
   | GridGrading
   deriving (Eq, Ord, Enum, Bounded, Show)

@@ -11,10 +11,12 @@ module Competences.Command
   , module Competences.Command.Tasks
   , module Competences.Command.Assignments
   , module Competences.Command.Solutions
+  , module Competences.Command.Resources
   )
 where
 
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..), handleAssignmentsCommand)
+import Competences.Command.Resources (ResourcePatch (..), ResourcesCommand (..), handleResourcesCommand)
 import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Command.Solutions (SolutionPatch (..), SolutionsCommand (..), handleSolutionsCommand)
 import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..), CompetenceAssessmentsCommand (..), handleCompetenceAssessmentsCommand)
@@ -42,6 +44,7 @@ data Command
   | CompetenceAssessments !CompetenceAssessmentsCommand
   | CompetenceGridGrades !CompetenceGridGradesCommand
   | Solutions !SolutionsCommand
+  | Resources !ResourcesCommand
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -65,3 +68,4 @@ handleCommand userId cmd d = case cmd of
   CompetenceAssessments c -> handleCompetenceAssessmentsCommand userId c d
   CompetenceGridGrades c -> handleCompetenceGridGradesCommand userId c d
   Solutions c -> handleSolutionsCommand userId c d
+  Resources c -> handleResourcesCommand userId c d

@@ -61,7 +61,14 @@ import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Ob
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
-import Competences.Document.Resource (Resource (..), ResourceId, ResourceIxs)
+import Competences.Document.Resource
+  ( Resource (..)
+  , ResourceContent (..)
+  , ResourceId
+  , ResourceIdentifier (..)
+  , ResourceIxs
+  , mkResource
+  )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
@@ -177,6 +184,7 @@ projectDocument user doc
           Just g -> user.id == g.userId -- Only grid grades about them
           Nothing -> False
       SolutionLock _ -> True -- Solutions are visible to all users
+      ResourceLock _ -> True -- Resources are visible to all users
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
 
 -- ============================================================================

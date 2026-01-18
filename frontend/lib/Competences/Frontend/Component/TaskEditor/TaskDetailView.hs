@@ -81,12 +81,14 @@ taskDetailView r task =
                            , competenceLevelEditorField
                                r
                                (taskEditorId <> "-primary-competences")
+                               0  -- minResults=0: tasks can have no competences
                                (entityPatchLens primaryViewLens primaryPatchLens)
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
                            , competenceLevelEditorField
                                r
                                (taskEditorId <> "-secondary-competences")
+                               0  -- minResults=0: tasks can have no competences
                                (entityPatchLens secondaryViewLens secondaryPatchLens)
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskDisplayInResources

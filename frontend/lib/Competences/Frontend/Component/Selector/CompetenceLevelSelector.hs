@@ -57,11 +57,13 @@ competenceLevelPipeline =
 
 -- | Configuration for competence-level selector
 --   Takes an initResults function to load initial values
+--   minResultsCount specifies the minimum number of results required (delete button hidden when at minimum)
 competenceLevelConfig
   :: (Document -> [(Id Competence, Level)])
   -> MultiStageSelectorStyle
+  -> Int  -- ^ Minimum number of results required
   -> MultiStageSelectorConfig (Id Competence, Level)
-competenceLevelConfig initResults style =
+competenceLevelConfig initResults style minResultsCount =
   MultiStageSelectorConfig
     { initialState = initialize competenceLevelPipeline
     , errorMessage = C.translate' C.LblPleaseSelectItemShort
@@ -69,6 +71,7 @@ competenceLevelConfig initResults style =
     , validateResults = validateCompetenceLevels
     , viewResult = viewCompetenceLevelResult
     , style = style
+    , minResults = minResultsCount
     }
 
 -- | Validate that competence-levels still exist in the document
@@ -122,22 +125,24 @@ competenceLevelSelectorComponent
   :: SyncContext
   -> (Document -> [(Id Competence, Level)]) -- Function to load initial values
   -> MultiStageSelectorStyle
+  -> Int  -- ^ Minimum number of results required
   -> SelectorTransformedLens p [] (Id Competence, Level) f' a'
   -> MultiStageSelectorComponent p (Id Competence, Level)
-competenceLevelSelectorComponent r initResults style =
-  multiStageSelectorComponent r (competenceLevelConfig initResults style)
+competenceLevelSelectorComponent r initResults style minResultsCount =
+  multiStageSelectorComponent r (competenceLevelConfig initResults style minResultsCount)
 
 competenceLevelEditorField
   :: (Ord p, Default patch)
   => SyncContext
   -> M.MisoString
+  -> Int  -- ^ Minimum number of results required
   -> EntityPatchTransformedLens p patch [] (Id Competence, Level) [] (Id Competence, Level)
   -> EditorField p patch f'
-competenceLevelEditorField r key eptl =
+competenceLevelEditorField r key minResultsCount eptl =
   selectorEditorField
     key
     eptl
-    (\entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style)
+    (\entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style minResultsCount)
     ( MultiStageSelectorDisabled
     , MultiStageSelectorEnabled
     )

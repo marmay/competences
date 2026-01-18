@@ -9,6 +9,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Assessment (assessmentDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Editor (editorDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Grading (gradingDetailView)
+import Competences.Frontend.Component.CompetenceGrid.Resources (resourcesDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode (..))
 import Competences.Frontend.Component.CompetenceGrid.Viewer (viewerDetailView)
 import Competences.Frontend.Component.Selector.CompetenceGridSelector
@@ -56,16 +57,19 @@ competenceGridComponent r initialMode availableModes =
           case mode of
             GridView -> viewerDetailView r grid
             GridEdit -> editorDetailView r grid
+            GridResources -> resourcesDetailView r grid
             GridAssessment -> assessmentDetailView r grid
             GridGrading -> gradingDetailView r grid
       , SD.modeLabel = \case
           GridView -> C.translate' C.LblView
           GridEdit -> C.translate' C.LblEdit
+          GridResources -> C.translate' C.LblResources
           GridAssessment -> C.translate' C.LblAssess
           GridGrading -> C.translate' C.LblGrade
       , SD.modeIcon = \case
           GridView -> Just IcnView
           GridEdit -> Just IcnEdit
+          GridResources -> Just IcnResources
           GridAssessment -> Just IcnApply
           GridGrading -> Just IcnEvidence
       , SD.availableModes = availableModes

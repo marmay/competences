@@ -14,6 +14,9 @@ import Competences.Document
   , EvidenceIxs
   , Level (..)
   , LevelInfo (..)
+  , Resource (..)
+  , ResourceContent (..)
+  , ResourceIdentifier (..)
   , Task (..)
   , allLevels
   , ordered
@@ -25,9 +28,11 @@ import Competences.Document.Evidence
   , SocialForm (..)
   )
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Task
   ( TaskAttributes (..)
+  , TaskIdentifier (..)
   , getTaskAttributes
   , getTaskContent
   , getTaskPrimaryCompetences
@@ -60,9 +65,11 @@ import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.List (sortOn)
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
 import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -94,6 +101,8 @@ data ViewerProjection = ViewerProjection
   , focusedUser :: !(Maybe User)
   , resourceTasks :: !(Map.Map CompetenceLevelId [TaskWithSolutions])
   -- ^ Tasks with displayInResources=true, grouped by primary competence level
+  , learningResources :: !(Map.Map CompetenceLevelId [Resource])
+  -- ^ Learning resources grouped by competence level
   }
   deriving (Eq, Generic, Show)
 
@@ -116,6 +125,8 @@ data ResourceModalState = ResourceModalState
   { competenceLevelId :: !CompetenceLevelId
   , taskListState :: !TaskResourceList
   , viewMode :: !ResourceViewMode
+  , expandedResources :: !(Set.Set ResourceId)
+  -- ^ Set of resource IDs with expanded inline content (collapsed by default)
   }
   deriving (Eq, Generic, Show)
 
@@ -126,6 +137,8 @@ data ViewerAction
   | CloseResourceModal
   | ResourceModalAction !TRL.Action
   | SwitchResourceViewMode !ResourceViewMode
+  | ToggleResourceExpanded !ResourceId
+  -- ^ Toggle collapsed/expanded state for inline content of a resource
   | NoOp  -- ^ Used for stopping event propagation
   deriving (Eq, Show)
 
@@ -163,12 +176,14 @@ viewerComponent r grid =
             doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
       , focusedUser = mUser
       , resourceTasks = computeResourceTasks doc gridCompetences
+      , learningResources = computeLearningResources doc gridCompetences
       }
       where
         gridCompetences = doc.competences Ix.@= grid.id
 
     -- Compute resource tasks grouped by competence level
     -- Only includes tasks with displayInResources=true for competences in this grid
+    -- Tasks are sorted alphabetically by identifier within each level
     computeResourceTasks :: Document -> Ix.IxSet CompetenceIxs Competence -> Map.Map CompetenceLevelId [TaskWithSolutions]
     computeResourceTasks doc gridCompetences =
       let taskGroups = doc.taskGroups
@@ -184,10 +199,14 @@ viewerComponent r grid =
             , taskPurpose = (getTaskAttributes taskGroups task).purpose
             , solutions = Ix.toList $ doc.solutions Ix.@= task.id
             }
+          -- Sort key for tasks: by identifier
+          taskSortKey :: TaskWithSolutions -> T.Text
+          taskSortKey tws = let TaskIdentifier ident = tws.task.identifier in ident
           -- Group tasks by their primary competence levels (filtering to this grid)
+          -- Then sort each group by identifier
           groupByCompetenceLevel :: [TaskWithSolutions] -> Map.Map CompetenceLevelId [TaskWithSolutions]
           groupByCompetenceLevel tasks =
-            foldr insertTask Map.empty tasks
+            Map.map (sortOn taskSortKey) $ foldr insertTask Map.empty tasks
             where
               insertTask tws acc =
                 let primaryLevels = getTaskPrimaryCompetences taskGroups tws.task
@@ -196,7 +215,38 @@ viewerComponent r grid =
                  in foldr (\lvl -> Map.insertWith (++) lvl [tws]) acc relevantLevels
        in groupByCompetenceLevel $ map buildTaskWithSolutions resourceTasksList
 
-    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty
+    -- Compute learning resources grouped by competence level
+    -- Only includes resources for competences in this grid
+    -- Resources are sorted by type (Inline, Video, Web) then alphabetically by identifier
+    computeLearningResources :: Document -> Ix.IxSet CompetenceIxs Competence -> Map.Map CompetenceLevelId [Resource]
+    computeLearningResources doc gridCompetences =
+      let -- Get all competence IDs in this grid
+          competenceIds = [c.id | c <- Ix.toList gridCompetences]
+          -- Get all resources
+          allResources = Ix.toList doc.resources
+          -- Sort key for resources: (content type order, identifier)
+          -- InlineContent = 0, VideoLink = 1, WebLink = 2
+          resourceSortKey :: Resource -> (Int, T.Text)
+          resourceSortKey res =
+            let ResourceIdentifier ident = res.identifier
+                typeOrder = case res.content of
+                  InlineContent _ -> 0
+                  VideoLink _ _ -> 1
+                  WebLink _ _ -> 2
+             in (typeOrder, ident)
+          -- Group resources by their competence levels (filtering to this grid)
+          -- Then sort each group by type and identifier
+          groupByCompetenceLevel :: [Resource] -> Map.Map CompetenceLevelId [Resource]
+          groupByCompetenceLevel resources =
+            Map.map (sortOn resourceSortKey) $ foldr insertResource Map.empty resources
+            where
+              insertResource res acc =
+                let -- Only include levels for competences in this grid
+                    relevantLevels = filter (\(cid, _) -> cid `elem` competenceIds) res.competenceLevels
+                 in foldr (\lvl -> Map.insertWith (++) lvl [res]) acc relevantLevels
+       in groupByCompetenceLevel allResources
+
+    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty Map.empty
     model = ViewerModel emptyProjection Nothing
 
     update (ViewerProjectionChanged change) =
@@ -205,8 +255,13 @@ viewerComponent r grid =
     update (OpenResourceModal clId) =
       M.modify $ \m ->
         let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
+            resources = Map.findWithDefault [] clId m.projection.learningResources
             taskListState = initialState TasksCollapsed tasks
-         in m & #modalState .~ Just (ResourceModalState clId taskListState ViewTasks)
+            -- Default to resources tab if no tasks but have resources
+            defaultMode = if null tasks && not (null resources)
+                            then ViewLearningResources
+                            else ViewTasks
+         in m & #modalState .~ Just (ResourceModalState clId taskListState defaultMode Set.empty)
 
     update CloseResourceModal =
       M.modify $ #modalState .~ Nothing
@@ -221,6 +276,15 @@ viewerComponent r grid =
       M.modify $ \m -> case m.modalState of
         Nothing -> m
         Just ms -> m & #modalState .~ Just (ms & #viewMode .~ newMode)
+
+    update (ToggleResourceExpanded resId) =
+      M.modify $ \m -> case m.modalState of
+        Nothing -> m
+        Just ms ->
+          let newExpanded = if Set.member resId ms.expandedResources
+                              then Set.delete resId ms.expandedResources
+                              else Set.insert resId ms.expandedResources
+           in m & #modalState .~ Just (ms & #expandedResources .~ newExpanded)
 
     update NoOp = pure ()
 
@@ -247,11 +311,7 @@ viewerComponent r grid =
           Nothing -> V.empty
           Just ms ->
             let tasks = Map.findWithDefault [] ms.competenceLevelId vm.projection.resourceTasks
-                hasTasks = not (null tasks)
-                -- Learning resources placeholder - will be populated later
-                hasLearningResources = False
-                -- Only show mode switch when both types have content
-                showModeSwitch = hasTasks && hasLearningResources
+                resources = Map.findWithDefault [] ms.competenceLevelId vm.projection.learningResources
              in Modal.modalHost
                   [MH.onClick CloseResourceModal]
                   [ Modal.modalDialog
@@ -263,13 +323,11 @@ viewerComponent r grid =
                       [ -- Header with title, mode switch, and close button
                         MH.div_
                           [class_ "flex items-center justify-between border-b px-8 py-6 shrink-0"]
-                          [ Typography.h3 $ C.translate' C.LblResources
+                          [ Typography.h3 $ C.translate' C.LblMaterials
                           , MH.div_
                               [class_ "flex items-center gap-4"]
-                              [ -- Mode switch (only shown when both types have content)
-                                if showModeSwitch
-                                  then modeSwitcher ms.viewMode
-                                  else V.empty
+                              [ -- Mode switch (always shown)
+                                modeSwitcher ms.viewMode (not $ null tasks) (not $ null resources)
                               , -- Close button
                                 MH.button_
                                   [ class_ "text-muted-foreground hover:text-foreground transition-colors"
@@ -285,24 +343,93 @@ viewerComponent r grid =
                               ViewTasks ->
                                 taskResourceListView tasks ms.taskListState ResourceModalAction
                               ViewLearningResources ->
-                                -- Placeholder for future learning resources view
-                                Typography.muted "Keine Lernmaterialien vorhanden"
+                                resourcesListView resources ms.expandedResources
                           ]
                       ]
                   ]
 
+        -- View for displaying learning resources
+        resourcesListView :: [Resource] -> Set.Set ResourceId -> M.View ViewerModel ViewerAction
+        resourcesListView resources expandedSet =
+          if null resources
+            then Typography.muted $ C.translate' C.LblNoResources
+            else MH.div_ [class_ "space-y-2"] (map resourceCard resources)
+          where
+            resourceCard res =
+              let ResourceIdentifier ident = res.identifier
+                  displayName = if T.null ident then "(Unbenannt)" else ident
+               in case res.content of
+                    -- Inline content: expandable card
+                    InlineContent txt ->
+                      let isExpanded = Set.member res.id expandedSet
+                          hasContent = not (T.null txt)
+                          headerClasses = if hasContent
+                            then "flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                            else "flex items-center gap-2 px-4 py-3"
+                          headerAttrs = if hasContent
+                            then [class_ headerClasses, MH.onClick (ToggleResourceExpanded res.id)]
+                            else [class_ headerClasses]
+                       in MH.div_
+                            [class_ "border rounded-lg overflow-hidden"]
+                            [ -- Header (clickable if has content)
+                              MH.div_
+                                headerAttrs
+                                [ -- Expand/collapse icon (only if has content)
+                                  if hasContent
+                                    then icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
+                                    else V.empty
+                                , icon [class_ "text-sky-600"] IcnResources
+                                , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
+                                ]
+                            , -- Content (shown when expanded)
+                              if isExpanded && hasContent
+                                then MH.div_
+                                       [class_ "px-4 py-3 border-t"]
+                                       [MH.div_ [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"] [M.text (M.ms txt)]]
+                                else V.empty
+                            ]
+                    -- Web link: direct link card
+                    WebLink url title ->
+                      MH.a_
+                        [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                        , MP.href_ (M.ms url)
+                        , MP.target_ "_blank"
+                        , MP.rel_ "noopener noreferrer"
+                        ]
+                        [ icon [class_ "text-sky-600"] IcnLink
+                        , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
+                        , if T.null title || title == ident
+                            then V.empty
+                            else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
+                        ]
+                    -- Video link: direct link card
+                    VideoLink url title ->
+                      MH.a_
+                        [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                        , MP.href_ (M.ms url)
+                        , MP.target_ "_blank"
+                        , MP.rel_ "noopener noreferrer"
+                        ]
+                        [ icon [class_ "text-sky-600"] IcnVideo
+                        , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
+                        , if T.null title || title == ident
+                            then V.empty
+                            else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
+                        ]
+
         -- Mode switcher using button group (same style as competence grid)
-        modeSwitcher :: ResourceViewMode -> M.View ViewerModel ViewerAction
-        modeSwitcher currentMode =
+        modeSwitcher :: ResourceViewMode -> Bool -> Bool -> M.View ViewerModel ViewerAction
+        modeSwitcher currentMode hasTasks hasResources =
           Button.buttonGroup
-            [ modeButton ViewTasks (C.translate' C.LblTasks)
-            , modeButton ViewLearningResources (C.translate' C.LblLearningResources)
+            [ modeButton ViewTasks (C.translate' C.LblTasks) hasTasks
+            , modeButton ViewLearningResources (C.translate' C.LblLearningResources) hasResources
             ]
           where
-            modeButton mode label =
+            modeButton mode label hasContent =
               let variant = if mode == currentMode then Button.Primary else Button.Outline
                in Button.button variant label
                     & Button.withSize Button.Small
+                    & Button.withDisabled (not hasContent)
                     & Button.withClick (SwitchResourceViewMode mode)
                     & Button.renderButton
 
@@ -422,8 +549,10 @@ viewerComponent r grid =
                                     [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
                               | otherwise = V.empty
 
-                            -- Check if there are resource tasks for this cell
-                            hasResources = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
+                            -- Check if there are resources (tasks or learning resources) for this cell
+                            hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
+                            hasLearningResources' = not $ null $ Map.findWithDefault [] competenceLevelId proj.learningResources
+                            hasResources = hasResourceTasks || hasLearningResources'
 
                             -- Resource icon in bottom-right corner
                             resourceIcon =

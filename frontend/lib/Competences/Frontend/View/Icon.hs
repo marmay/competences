@@ -53,6 +53,8 @@ data Icon
   | IcnAbilityNotYet
   | IcnSolution
   | IcnResources
+  | IcnLink
+  | IcnVideo
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -107,6 +109,8 @@ iconId = \case
   IcnAbilityNotYet -> "icon-ability-not-yet"
   IcnSolution -> "icon-solution"
   IcnResources -> "icon-resources"
+  IcnLink -> "icon-link"
+  IcnVideo -> "icon-video"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -364,6 +368,18 @@ iconDefOf' = \case
     mkPathesD
       [ "M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
       , "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+      ]
+  -- Link/chain icon
+  IcnLink ->
+    mkPathesDR
+      [ "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+      , "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+      ]
+  -- Video/play icon
+  IcnVideo ->
+    mkPathesDR
+      [ "M23 7l-7 5 7 5V7z"
+      , "M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

@@ -360,6 +360,7 @@ bulkObservationConfig r =
     , validateResults = \_ results -> results
     , viewResult = viewBulkObservationResult
     , style = MultiStageSelectorEnabled
+    , minResults = 0
     }
 
 -- | Pipeline for bulk observation creation (same as regular)

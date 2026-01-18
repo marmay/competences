@@ -49,8 +49,13 @@ import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 -- EDIT MODE DETAIL
 -- ============================================================================
 
+-- | Model for the editor detail component
+data EditorModel = EditorModel
+  deriving (Eq, Generic, Show)
+
 -- | Action for the editor detail component
-data EditorAction = CreateNewCompetence
+data EditorAction
+  = CreateNewCompetence
   deriving (Eq, Generic, Show)
 
 -- | View for the editor detail - allows editing grid and competences
@@ -63,10 +68,11 @@ editorDetailView r grid =
     ("competence-grid-editor-" <> M.ms (show grid.id))
     (editorComponent r grid)
 
-editorComponent :: SyncContext -> CompetenceGrid -> M.Component p () EditorAction
-editorComponent r grid =
-  M.component () update view
+editorComponent :: SyncContext -> CompetenceGrid -> M.Component p EditorModel EditorAction
+editorComponent r grid = M.component initialModel update view
   where
+    initialModel = EditorModel
+
     update CreateNewCompetence = M.io_ $ do
       competenceId <- nextId r
       let competence =
@@ -79,7 +85,7 @@ editorComponent r grid =
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
-    view _ =
+    view _m =
       V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
@@ -241,3 +247,4 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             [ icon [MP.width_ "14", MP.height_ "14"] (if currentInfo.locked then IcnLock else IcnLockOpen)
             ]
         ]
+

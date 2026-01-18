@@ -455,6 +455,7 @@ data MultiStageSelectorConfig result = MultiStageSelectorConfig
   , validateResults :: Document -> [result] -> [result] -- Validate/filter results when document changes
   , viewResult :: Document -> result -> ResultView -- Pure data extraction
   , style :: MultiStageSelectorStyle
+  , minResults :: Int -- Minimum number of results required (delete button hidden when at minimum)
   }
 
 -- Generic update function
@@ -544,9 +545,11 @@ viewResultBadge
   -> M.View (Model result) (Action result)
 viewResultBadge config model result =
   let ResultView {badgeText, tooltipContent} = config.viewResult model.document result
+      -- Only show delete button if enabled AND we have more than minResults
+      canDelete = length model.selectedResults > config.minResults
       deleteAction = case config.style of
-        MultiStageSelectorEnabled -> Just (DeleteResult result)
-        MultiStageSelectorDisabled -> Nothing
+        MultiStageSelectorEnabled | canDelete -> Just (DeleteResult result)
+        _ -> Nothing
    in interactiveBadge
         InteractiveBadgeConfig
           { text = badgeText

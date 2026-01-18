@@ -168,6 +168,7 @@ observationConfig r evidenceId style =
     , validateResults = \_ currentResults -> currentResults -- Keep all observations, even if competences deleted (for historical record)
     , viewResult = viewObservationResult
     , style = style
+    , minResults = 0
     }
 
 -- | Extract observation display data (pure function)

@@ -150,12 +150,14 @@ taskGroupEditorComponent r group =
                            , competenceLevelEditorField
                                r
                                (taskGroupEditorId <> "-primary-competences")
+                               0  -- minResults=0: tasks can have no competences
                                (entityPatchLens primaryViewLens primaryPatchLens)
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskSecondaryCompetences
                            , competenceLevelEditorField
                                r
                                (taskGroupEditorId <> "-secondary-competences")
+                               0  -- minResults=0: tasks can have no competences
                                (entityPatchLens secondaryViewLens secondaryPatchLens)
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskDisplayInResources
@@ -527,6 +529,7 @@ competenceOverrideEditor r key viewLens patchLens refocusTarget original patch =
                 r
                 (\_ -> currentCompetences)
                 MultiStageSelectorEnabled
+                0  -- minResults=0: subtasks can have no competences
                 (selectorTransformedLens id id (mkFieldLens wrappedViewLens wrappedPatchLens original))
             )
         else M.div_ [] []
