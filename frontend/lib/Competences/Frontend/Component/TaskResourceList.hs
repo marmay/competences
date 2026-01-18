@@ -79,12 +79,15 @@ initialState mode tasks =
 
 -- | Render a task resource list
 -- This is a pure view function that takes state and returns a view with actions
+-- The showPurposeBadge parameter controls whether to display Practice/Assessment badges
+-- (typically hidden for students, shown for teachers)
 taskResourceListView
-  :: [TaskWithSolutions]
+  :: Bool  -- ^ Show purpose badge (Practice/Assessment)
+  -> [TaskWithSolutions]
   -> TaskResourceList
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView tasks state liftAction =
+taskResourceListView showPurposeBadge tasks state liftAction =
   if null tasks
     then
       MH.div_
@@ -93,11 +96,11 @@ taskResourceListView tasks state liftAction =
     else
       MH.div_
         [class_ "space-y-2"]
-        (map (viewTask state liftAction) tasks)
+        (map (viewTask showPurposeBadge state liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask state liftAction tws =
+viewTask :: Bool -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask showPurposeBadge state liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       -- Check if task has any expandable content
@@ -129,8 +132,10 @@ viewTask state liftAction tws =
                 , -- Task identifier
                   MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
                 ]
-            , -- Purpose badge
-              purposeBadge tws.taskPurpose
+            , -- Purpose badge (only shown for teachers)
+              if showPurposeBadge
+                then purposeBadge tws.taskPurpose
+                else V.empty
             ]
         , -- Task content and solutions (shown when expanded)
           if isExpanded && isExpandable

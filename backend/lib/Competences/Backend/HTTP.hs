@@ -62,6 +62,8 @@ data FrontendHashes = FrontendHashes
   , indexJsHash :: !FileHashRef
   , jsffiHash :: !FileHashRef
   , mathjaxHash :: !FileHashRef
+  , basecoatCssHash :: !FileHashRef
+  , outputCssHash :: !FileHashRef
   }
 
 type AppAPI =
@@ -188,9 +190,11 @@ oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState
   indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
   jsffiHash <- liftIO $ readFileHash hashes.jsffiHash
   mathjaxHash <- liftIO $ readFileHash hashes.mathjaxHash
+  basecoatCssHash <- liftIO $ readFileHash hashes.basecoatCssHash
+  outputCssHash <- liftIO $ readFileHash hashes.outputCssHash
 
   -- Serve frontend HTML with JWT and hashes embedded
-  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash
+  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash basecoatCssHash outputCssHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -224,8 +228,8 @@ cspHeaderValue = T.intercalate "; "
   ]
 
 -- | Render frontend HTML with JWT and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Html
-renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash = H.docTypeHtml $ do
+renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Text -> Html
+renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash basecoatCssHash outputCssHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -234,9 +238,11 @@ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash = H.docTypeHtm
     H.meta ! A.httpEquiv "Content-Security-Policy" ! A.content (H.toValue cspHeaderValue)
     H.title "Meine Mathe-Kompetenzen"
     -- Load Basecoat UI CSS first (provides component styles and default theme)
-    H.link ! A.rel "stylesheet" ! A.href "/static/basecoat.cdn.min.css"
+    let basecoatCssUrl = "/static/basecoat.cdn.min.css?v=" <> basecoatCssHash
+    H.link ! A.rel "stylesheet" ! A.href (H.toValue basecoatCssUrl)
     -- Load our Tailwind CSS last (overrides Basecoat's CSS variables with our theme)
-    H.link ! A.rel "stylesheet" ! A.href "/static/output.css"
+    let outputCssUrl = "/static/output.css?v=" <> outputCssHash
+    H.link ! A.rel "stylesheet" ! A.href (H.toValue outputCssUrl)
     -- MathJax configuration (must come before loading MathJax)
     H.script $ H.toHtml
       ("window.MathJax = {\

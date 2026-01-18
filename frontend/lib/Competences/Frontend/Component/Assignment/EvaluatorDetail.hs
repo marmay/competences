@@ -61,6 +61,8 @@ data EvaluatorModel = EvaluatorModel
   , selectedStudents :: !(Set.Set UserId)
   -- Social form for the evaluation (Individual or Group)
   , selectedSocialForm :: !SocialForm
+  -- Tasks excluded from evaluation (toggled off by teacher)
+  , excludedTasks :: !(Set.Set TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -72,6 +74,7 @@ data EvaluatorAction
   | ComputeAggregation -- Compute aggregated results from task observations
   | SetAggregatedResult !CompetenceLevelId !Ability -- Edit aggregated result
   | CreateEvidences
+  | ToggleTaskIncluded !TaskId -- Toggle whether a task is included in evaluation
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -92,6 +95,7 @@ evaluatorComponent r assignment =
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
         , selectedSocialForm = Individual
+        , excludedTasks = Set.empty
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -108,10 +112,15 @@ evaluatorComponent r assignment =
             , aggregatedResults = m.aggregatedResults
             , selectedStudents = m.selectedStudents
             , selectedSocialForm = m.selectedSocialForm
+            , excludedTasks = m.excludedTasks
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
-      m{taskObservations = Map.insert (taskId, compId) ability m.taskObservations}
+      let current = Map.lookup (taskId, compId) m.taskObservations
+       in m{taskObservations =
+              if current == Just ability
+                then Map.delete (taskId, compId) m.taskObservations  -- Toggle off
+                else Map.insert (taskId, compId) ability m.taskObservations}
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
       let newSelected =
@@ -129,7 +138,11 @@ evaluatorComponent r assignment =
        in m{aggregatedResults = aggregated}
 
     update (SetAggregatedResult compId ability) = M.modify $ \m ->
-      m{aggregatedResults = Map.insert compId ability m.aggregatedResults}
+      let current = Map.lookup compId m.aggregatedResults
+       in m{aggregatedResults =
+              if current == Just ability
+                then Map.delete compId m.aggregatedResults  -- Toggle off
+                else Map.insert compId ability m.aggregatedResults}
 
     update CreateEvidences = do
       m <- M.get
@@ -144,6 +157,12 @@ evaluatorComponent r assignment =
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
         }
+
+    update (ToggleTaskIncluded taskId) = M.modify $ \m ->
+      m{excludedTasks =
+          if Set.member taskId m.excludedTasks
+            then Set.delete taskId m.excludedTasks  -- Re-include
+            else Set.insert taskId m.excludedTasks}  -- Exclude
 
     -- Compute aggregated results from task observations (pure function)
     -- Takes the worst (maximum) ability per competence across all tasks
@@ -161,12 +180,14 @@ evaluatorComponent r assignment =
       -- Generate observation IDs and create Observation records
       let sf = m.selectedSocialForm
           asmt = m.assignment
+          -- Filter out excluded tasks from the evidence
+          includedTasks = filter (`Set.notMember` m.excludedTasks) asmt.tasks
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
       let evidence =
             (mkEvidence evidenceId asmt.assignmentDate)
               { userId = Just userId
               , activityType = asmt.activityType
-              , tasks = asmt.tasks
+              , tasks = includedTasks
               , observations = Ix.fromList observations
               , assignmentId = Just asmt.id
               , oldTasks = ""
@@ -231,27 +252,40 @@ evaluatorComponent r assignment =
             [M.text $ ms student.name]
 
     viewTaskSection m taskId =
-      M.div_
-        [class_ "border-b pb-4"]
-        [ viewTaskInfo m taskId
-        , viewStudentEvaluations m taskId
-        ]
+      let isExcluded = Set.member taskId m.excludedTasks
+       in M.div_
+            [class_ "border-b pb-4"]
+            [ viewTaskHeader m taskId isExcluded
+            , if isExcluded
+                then M.text ""  -- Collapsed when excluded
+                else viewStudentEvaluations m taskId
+            ]
 
-    viewTaskInfo m taskId =
+    viewTaskHeader m taskId isExcluded =
       let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
        in case taskM of
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
                   content = getTaskContent m.taskGroups task
+                  toggleClass = if isExcluded
+                    then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
+                    else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
                in M.div_ [class_ "mt-4 mb-3"]
-                    [ M.div_ [class_ "mb-1"] [Typography.h3 $ "Aufgabe: " <> ms identifier]
-                    , case content of
-                        Nothing -> M.text ""
-                        Just c ->
-                          if T.null c
-                            then M.text ""
-                            else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderTaskContentText c]
+                    [ M.div_ [class_ "mb-1 flex items-center justify-between"]
+                        [ Typography.h3 $ "Aufgabe: " <> ms identifier
+                        , M.button_
+                            [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
+                            [M.text $ if isExcluded then "Einbeziehen" else "Ausschließen"]
+                        ]
+                    , if isExcluded
+                        then M.text ""  -- Hide content when excluded
+                        else case content of
+                               Nothing -> M.text ""
+                               Just c ->
+                                 if T.null c
+                                   then M.text ""
+                                   else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderTaskContentText c]
                     ]
 
     viewStudentEvaluations m taskId =
@@ -277,8 +311,8 @@ evaluatorComponent r assignment =
             Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
        in M.div_
             [M.class_ "flex items-center gap-2"]
-            [ M.span_ [M.class_ "min-w-[200px]"] [M.text compLevelName]
-            , M.div_ [M.class_ "flex gap-1"] (map (viewAbilityButton taskId compId currentAbility) abilities)
+            [ M.span_ [M.class_ "flex-1"] [M.text compLevelName]  -- Takes remaining space
+            , M.div_ [M.class_ "flex gap-1 shrink-0"] (map (viewAbilityButton taskId compId currentAbility) abilities)  -- Right-aligned
             ]
 
     viewAbilityButton taskId compId currentAbility ability =
@@ -320,8 +354,8 @@ evaluatorComponent r assignment =
        in M.div_
             [class_ "mb-3"]
             [ M.div_ [class_ "flex items-center gap-2"]
-                [ M.span_ [class_ "min-w-[200px]"] [M.text compLevelName]
-                , M.div_ [class_ "flex gap-1"] (map (viewAggregatedAbilityButton compId ability) abilities)
+                [ M.span_ [class_ "flex-1"] [M.text compLevelName]  -- Takes remaining space
+                , M.div_ [class_ "flex gap-1 shrink-0"] (map (viewAggregatedAbilityButton compId ability) abilities)  -- Right-aligned
                 ]
             , if null contributingTasks
                 then M.text ""

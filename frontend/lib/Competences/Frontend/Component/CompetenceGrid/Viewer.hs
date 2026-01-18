@@ -47,13 +47,15 @@ import Competences.Frontend.Component.TaskResourceList
   , updateTaskResourceList
   )
 import Competences.Frontend.Component.TaskResourceList qualified as TRL
-import Competences.Document.User (User (..))
+import Competences.Document.User (User (..), UserRole (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
+  , SyncDocumentEnv (..)
   , subscribeWithProjection
+  , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
@@ -103,6 +105,8 @@ data ViewerProjection = ViewerProjection
   -- ^ Tasks with displayInResources=true, grouped by primary competence level
   , learningResources :: !(Map.Map CompetenceLevelId [Resource])
   -- ^ Learning resources grouped by competence level
+  , connectedUserRole :: !UserRole
+  -- ^ Role of the connected user (for conditional display)
   }
   deriving (Eq, Generic, Show)
 
@@ -155,13 +159,16 @@ viewerDetailView r grid =
 viewerComponent :: SyncContext -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
 viewerComponent r grid =
   (M.component model update view)
-    { M.subs = [subscribeWithProjection r viewerProjection ViewerProjectionChanged]
+    { M.subs = [subscribeWithProjection r (viewerProjection connectedRole) ViewerProjectionChanged]
     }
   where
-    -- Projection function captures the grid parameter
+    -- Capture connected user role from SyncContext
+    connectedRole = (syncDocumentEnv r).connectedUser.role
+
+    -- Projection function captures the grid parameter and connected user role
     -- Pre-computes activeGridGrade so the view doesn't need to search
-    viewerProjection :: Document -> Maybe User -> ViewerProjection
-    viewerProjection doc mUser = ViewerProjection
+    viewerProjection :: UserRole -> Document -> Maybe User -> ViewerProjection
+    viewerProjection role doc mUser = ViewerProjection
       { competences = gridCompetences
       , userEvidences = case mUser of
           Nothing -> Ix.empty
@@ -177,6 +184,7 @@ viewerComponent r grid =
       , focusedUser = mUser
       , resourceTasks = computeResourceTasks doc gridCompetences
       , learningResources = computeLearningResources doc gridCompetences
+      , connectedUserRole = role
       }
       where
         gridCompetences = doc.competences Ix.@= grid.id
@@ -246,7 +254,7 @@ viewerComponent r grid =
                  in foldr (\lvl -> Map.insertWith (++) lvl [res]) acc relevantLevels
        in groupByCompetenceLevel allResources
 
-    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty Map.empty
+    emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty Map.empty connectedRole
     model = ViewerModel emptyProjection Nothing
 
     update (ViewerProjectionChanged change) =
@@ -312,6 +320,7 @@ viewerComponent r grid =
           Just ms ->
             let tasks = Map.findWithDefault [] ms.competenceLevelId vm.projection.resourceTasks
                 resources = Map.findWithDefault [] ms.competenceLevelId vm.projection.learningResources
+                showPurposeBadge = vm.projection.connectedUserRole == Teacher
              in Modal.modalHost
                   [MH.onClick CloseResourceModal]
                   [ Modal.modalDialog
@@ -341,7 +350,7 @@ viewerComponent r grid =
                           [class_ "flex-1 overflow-y-auto px-8 py-6"]
                           [ case ms.viewMode of
                               ViewTasks ->
-                                taskResourceListView tasks ms.taskListState ResourceModalAction
+                                taskResourceListView showPurposeBadge tasks ms.taskListState ResourceModalAction
                               ViewLearningResources ->
                                 resourcesListView resources ms.expandedResources
                           ]

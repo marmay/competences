@@ -39,7 +39,7 @@ taskEditorComponent r =
 
     view' m =
       V.sideMenu
-        (V.component "task-or-group-selector" $ taskOrGroupSelectorComponent r #selected)
+        (V.componentA "task-or-group-selector" [V.fullHeight] $ taskOrGroupSelectorComponent r #selected)
         (detailView m.selected)
 
     detailView Nothing =

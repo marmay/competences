@@ -16,7 +16,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Competence (CompetenceIxs, LevelInfo (..))
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
+import Competences.Document.Evidence (Ability (..))
 import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
@@ -42,14 +42,16 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Colors (abilityTextClass)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
+import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.User (UserRole (..))
+import Competences.Query.Assignment (AssignmentStatus (..), accumulatedObservations, assignmentStatus)
 import Competences.Query.Assignment qualified as Q
+import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
@@ -67,11 +69,11 @@ import Optics.Core ((&), (.~))
 statusLabel :: AssignmentStatus -> MisoString
 statusLabel = ms . Q.statusLabel
 
--- | Status badge variant
-statusBadgeVariant :: AssignmentStatus -> Badge.BadgeVariant
-statusBadgeVariant NotGraded = Badge.BadgeSecondary
-statusBadgeVariant NeedsWork = Badge.BadgeOutline
-statusBadgeVariant Completed = Badge.BadgePrimary
+-- | Status icon display: growing icon (yellow) for NeedsWork, checkmark (green) for Completed
+statusIcon :: AssignmentStatus -> M.View model a
+statusIcon NotGraded = M.text ""  -- No icon for not graded
+statusIcon NeedsWork = icon [class_ "w-5 h-5 text-yellow-500"] IcnProgress
+statusIcon Completed = icon [class_ "w-5 h-5 text-green-600"] IcnApply
 
 -- ============================================================================
 -- Viewer Projection (pre-computed data)
@@ -82,8 +84,8 @@ statusBadgeVariant Completed = Badge.BadgePrimary
 data ViewerProjection = ViewerProjection
   { -- | Pre-filtered and sorted tasks with solutions for this assignment
     tasksWithSolutions :: ![TaskWithSolutions]
-    -- | Pre-computed: all observations from linked evidences (at assignment level)
-  , observations :: ![Observation]
+    -- | Pre-computed: accumulated observations (later assessments override earlier)
+  , accumulatedObs :: !(Map CompetenceLevelId Ability)
     -- | Competences for looking up level descriptions
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
     -- | Pre-computed: assignment status for the effective user
@@ -92,18 +94,21 @@ data ViewerProjection = ViewerProjection
   , currentAssignment :: !Assignment
     -- | Focused user (for header display, can be Nothing for students)
   , focusedUser :: !(Maybe User)
+    -- | Connected user role (for conditional display)
+  , connectedUserRole :: !UserRole
   }
   deriving (Eq, Generic, Show)
 
 -- | Empty projection for initial state
-emptyProjection :: Assignment -> ViewerProjection
-emptyProjection assignment = ViewerProjection
+emptyProjection :: UserRole -> Assignment -> ViewerProjection
+emptyProjection role assignment = ViewerProjection
   { tasksWithSolutions = []
-  , observations = []
+  , accumulatedObs = Map.empty
   , competences = Ix.empty
   , status = NotGraded
   , currentAssignment = assignment
   , focusedUser = Nothing
+  , connectedUserRole = role
   }
 
 -- ============================================================================
@@ -138,17 +143,17 @@ data ViewerAction
 viewerComponent :: SyncContext -> User -> Assignment -> M.Component p ViewerModel ViewerAction
 viewerComponent r user assignment =
   (M.component model update view')
-    { M.subs = [subscribeWithProjection r (viewerProjection assignment user.id) ProjectionChanged]
+    { M.subs = [subscribeWithProjection r (viewerProjection assignment user.id user.role) ProjectionChanged]
     }
   where
     model = ViewerModel
-      { projection = emptyProjection assignment
+      { projection = emptyProjection user.role assignment
       , taskListState = initialState TasksExpanded []
       }
 
-    -- Projection function captures assignment and currentUserId from closure
-    viewerProjection :: Assignment -> UserId -> Document -> Maybe User -> ViewerProjection
-    viewerProjection asmt currentUserId doc mUser =
+    -- Projection function captures assignment, currentUserId, and role from closure
+    viewerProjection :: Assignment -> UserId -> UserRole -> Document -> Maybe User -> ViewerProjection
+    viewerProjection asmt currentUserId role doc mUser =
       let -- Determine effective user (focused or fallback to connected)
           effectiveUserId = maybe currentUserId (.id) mUser
 
@@ -171,15 +176,11 @@ viewerComponent r user assignment =
             | task <- relevantTasks
             ]
 
-          -- Find evidences linked to this assignment for effective user
-          linkedEvidence = filter (\e -> e.assignmentId == Just updatedAssignment.id) $
-            Ix.toList $ doc.evidences Ix.@= effectiveUserId
-
-          -- Extract all observations at assignment level (from linked evidences)
-          observations = concatMap (Ix.toList . (.observations)) linkedEvidence
+          -- Get accumulated observations (later assessments override earlier)
+          accumulated = accumulatedObservations doc effectiveUserId updatedAssignment.id
 
           -- Get competence IDs referenced by observations (for level description lookup)
-          referencedCompetenceIds = map (fst . (.competenceLevelId)) observations
+          referencedCompetenceIds = map fst $ Map.keys accumulated
           competences = doc.competences Ix.@+ referencedCompetenceIds
 
           -- Pre-compute status
@@ -187,11 +188,12 @@ viewerComponent r user assignment =
 
        in ViewerProjection
             { tasksWithSolutions
-            , observations
+            , accumulatedObs = accumulated
             , competences
             , status
             , currentAssignment = updatedAssignment
             , focusedUser = mUser
+            , connectedUserRole = role
             }
 
     update (ProjectionChanged change) =
@@ -226,26 +228,26 @@ viewerComponent r user assignment =
                         [ M.span_
                             [class_ "text-muted-foreground"]
                             [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
-                        , Badge.badge (statusBadgeVariant proj.status) (statusLabel proj.status)
+                        , statusIcon proj.status
                         ]
                     ]
-                , -- Observations list (one per line)
+                , -- Accumulated observations list (one per competence level)
                   viewObservationList proj
                 ]
             ]
 
     viewObservationList proj =
-      if null proj.observations
+      if Map.null proj.accumulatedObs
         then M.text ""
         else M.div_
                [class_ "mt-2 space-y-1"]
-               (map (viewObservationDetail proj.competences) proj.observations)
+               (map (viewObservationDetail proj.competences) (Map.toList proj.accumulatedObs))
 
-    viewObservationDetail competences obs =
-      let (competenceId, level) = obs.competenceLevelId
-          abilityClass = abilityTextClass obs.ability
-          abilityIcn = abilityIcon obs.ability
-          abilityLabel = C.translate' (C.LblAbility obs.ability)
+    viewObservationDetail competences (compLevelId, ability) =
+      let (competenceId, level) = compLevelId
+          abilityClass = abilityTextClass ability
+          abilityIcn = abilityIcon ability
+          abilityLabel = C.translate' (C.LblAbility ability)
           levelDesc = case Ix.getOne (competences Ix.@= competenceId) of
             Nothing -> ""
             Just comp -> maybe "" (.description) (comp.levels Map.!? level)
@@ -271,10 +273,12 @@ viewerComponent r user assignment =
 
     viewTaskList m =
       let proj = m.projection
+          -- Only show purpose badges for teachers
+          showPurposeBadge = proj.connectedUserRole == Teacher
        in M.div_
             [class_ "space-y-4"]
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , taskResourceListView proj.tasksWithSolutions m.taskListState TaskListAction
+            , taskResourceListView showPurposeBadge proj.tasksWithSolutions m.taskListState TaskListAction
             ]
 
     assignmentNameToText (AssignmentName t) = ms t

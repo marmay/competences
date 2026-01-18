@@ -185,6 +185,8 @@ main = do
         , opts.staticDir <> "/index.js"
         , opts.staticDir <> "/ghc_wasm_jsffi.js"
         , opts.staticDir <> "/mathjax-tex-svg.js"
+        , opts.staticDir <> "/basecoat.cdn.min.css"
+        , opts.staticDir <> "/output.css"
         ]
   withHashedFiles frontendFiles $ \hashRefs ->
     flip finally (gracefulShutdown state pool instanceId shutdown) $ do
@@ -193,6 +195,8 @@ main = do
             , indexJsHash = hashRefs Map.! (opts.staticDir <> "/index.js")
             , jsffiHash = hashRefs Map.! (opts.staticDir <> "/ghc_wasm_jsffi.js")
             , mathjaxHash = hashRefs Map.! (opts.staticDir <> "/mathjax-tex-svg.js")
+            , basecoatCssHash = hashRefs Map.! (opts.staticDir <> "/basecoat.cdn.min.css")
+            , outputCssHash = hashRefs Map.! (opts.staticDir <> "/output.css")
             }
           httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir hashes)
       run opts.port $

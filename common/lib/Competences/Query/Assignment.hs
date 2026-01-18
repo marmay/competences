@@ -4,6 +4,7 @@
 module Competences.Query.Assignment
   ( AssignmentStatus (..)
   , assignmentStatus
+  , accumulatedObservations
   , isAssignmentCompleted
   , statusLabel
   )
@@ -12,9 +13,14 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
+import Data.Time (Day)
 
 -- | Assignment completion status for a user
 data AssignmentStatus
@@ -25,18 +31,29 @@ data AssignmentStatus
 
 -- | Determine assignment status for a user
 -- Uses the direct assignmentId link on Evidence
+-- Considers all linked evidences ordered by date, with later observations overriding earlier ones
+-- for the same competence level. This allows re-assessment to "fix" earlier failures.
 assignmentStatus :: Document -> UserId -> AssignmentId -> AssignmentStatus
 assignmentStatus doc userId assignmentId =
-  let userEvidences = Ix.toList $ doc.evidences Ix.@= userId
-      linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) userEvidences
-   in case linkedEvidences of
-        [] -> NotGraded
-        evidences ->
-          let allAbilities = concatMap (map (.ability) . Ix.toList . (.observations)) evidences
-              hasNeedsWork = any (`elem` [WithSupport, NotYet]) allAbilities
-           in if null allAbilities
-                then NotGraded
-                else if hasNeedsWork then NeedsWork else Completed
+  let accumulated = accumulatedObservations doc userId assignmentId
+   in if Map.null accumulated
+        then NotGraded
+        else
+          let hasNeedsWork = any (`elem` [WithSupport, NotYet]) (Map.elems accumulated)
+           in if hasNeedsWork then NeedsWork else Completed
+
+-- | Get accumulated observations for an assignment
+-- Orders evidences by date and accumulates observations into a Map where later observations
+-- override earlier ones for the same competence level.
+accumulatedObservations :: Document -> UserId -> AssignmentId -> Map CompetenceLevelId Ability
+accumulatedObservations doc userId assignmentId =
+  let -- Get evidences sorted by date (ascending, so later dates come last and override)
+      sortedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= userId
+      linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) sortedEvidences
+      -- Accumulate observations: later evidences override earlier for same competence level
+      accumulateObs acc ev =
+        foldl' (\m obs -> Map.insert obs.competenceLevelId obs.ability m) acc (Ix.toList ev.observations)
+   in foldl' accumulateObs Map.empty linkedEvidences
 
 -- | Convenience predicate for filtering
 isAssignmentCompleted :: Document -> UserId -> AssignmentId -> Bool

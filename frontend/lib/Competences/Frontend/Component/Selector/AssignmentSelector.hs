@@ -9,7 +9,6 @@ import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
 import Competences.Frontend.Common qualified as C
 import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
-import Competences.Query.Assignment qualified as Q
 import Data.Map.Strict qualified as Map
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -21,7 +20,6 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
@@ -92,7 +90,7 @@ assignmentSelectorComponent r parentLens =
       , selectedAssignment = Nothing
       , newAssignment = Nothing
       , searchQuery = ""
-      , showIncompleteOnly = False
+      , showIncompleteOnly = True  -- Default to showing only not-graded assignments
       }
 
     update (SelectAssignment a) =
@@ -136,7 +134,7 @@ assignmentSelectorComponent r parentLens =
           M.div_
             [class_ "flex gap-1"]
             [ filterButton m False "Alle"
-            , filterButton m True "Nicht erledigt"
+            , filterButton m True "Nicht korrigiert"
             ]
 
     filterButton m filterValue label =
@@ -157,12 +155,12 @@ assignmentSelectorComponent r parentLens =
             if T.null query
               then sorted
               else filter (\a -> query `T.isInfixOf` T.toLower (unAssignmentName a.name)) sorted
-          -- Check if assignment is incomplete using pre-computed status
-          isIncomplete a = case Map.lookup a.id proj.statusMap of
-            Just Completed -> False
-            _ -> True  -- NotGraded or NeedsWork count as incomplete
+          -- Check if assignment is not graded (no evidence linked)
+          isNotGraded a = case Map.lookup a.id proj.statusMap of
+            Just NotGraded -> True
+            _ -> False  -- NeedsWork and Completed are both "graded"
        in case (proj.focusedUser, m.showIncompleteOnly) of
-            (Just _, True) -> filter isIncomplete textFiltered
+            (Just _, True) -> filter isNotGraded textFiltered
             _ -> textFiltered
 
     unAssignmentName (AssignmentName t) = t
@@ -185,16 +183,14 @@ assignmentSelectorComponent r parentLens =
                 [class_ "flex items-center gap-2 text-xs text-muted-foreground"]
                 [ M.span_ [] [M.text $ C.formatDay a.assignmentDate]
                 , case mStatus of
-                    Just status -> statusBadge status
+                    Just status -> statusIcon status
                     Nothing -> M.text ""
                 ]
             ]
             (SelectAssignment a)
 
-    statusBadge :: AssignmentStatus -> M.View Model Action
-    statusBadge status =
-      Badge.badge (statusBadgeVariant status) (ms $ Q.statusLabel status)
-
-    statusBadgeVariant NotGraded = Badge.BadgeSecondary
-    statusBadgeVariant NeedsWork = Badge.BadgeOutline
-    statusBadgeVariant Completed = Badge.BadgePrimary
+    -- | Status icon display: growing icon (yellow) for NeedsWork, checkmark (green) for Completed
+    statusIcon :: AssignmentStatus -> M.View Model Action
+    statusIcon NotGraded = M.text ""  -- No icon for not graded
+    statusIcon NeedsWork = V.icon [class_ "w-4 h-4 text-yellow-500"] IcnProgress
+    statusIcon Completed = V.icon [class_ "w-4 h-4 text-green-600"] IcnApply
