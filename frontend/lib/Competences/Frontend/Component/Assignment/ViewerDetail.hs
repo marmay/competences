@@ -27,6 +27,7 @@ import Competences.Document.Task
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
+import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
 import Competences.Frontend.Component.TaskResourceList
   ( TaskResourceList
   , TaskWithSolutions (..)
@@ -54,6 +55,7 @@ import Competences.Query.Assignment qualified as Q
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -216,6 +218,7 @@ viewerComponent r user assignment =
 
     viewAssignmentHeader m =
       let proj = m.projection
+          desc = proj.currentAssignment.description
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
@@ -231,6 +234,12 @@ viewerComponent r user assignment =
                         , statusIcon proj.status
                         ]
                     ]
+                , -- Description (if present, supports math syntax)
+                  if T.null desc
+                    then M.text ""
+                    else M.div_
+                           [class_ "prose prose-stone prose-sm max-w-none"]
+                           [renderTaskContentText desc]
                 , -- Accumulated observations list (one per competence level)
                   viewObservationList proj
                 ]

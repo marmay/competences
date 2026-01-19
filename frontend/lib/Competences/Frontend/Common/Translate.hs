@@ -156,6 +156,7 @@ data Label
   | LblEditAssignment
   | LblEvaluateAssignments
   | LblAssignmentName
+  | LblAssignmentDescription
   | LblAssignmentDate
   | LblAssignmentTasks
   | LblNoStudentsSelected
@@ -324,6 +325,7 @@ labels' =
   , LblEditAssignment
   , LblEvaluateAssignments
   , LblAssignmentName
+  , LblAssignmentDescription
   , LblAssignmentDate
   , LblAssignmentTasks
   , LblNoStudentsSelected
@@ -505,6 +507,7 @@ defaultTranslation LblNewAssignment = "Neuer Auftrag"
 defaultTranslation LblEditAssignment = "Auftrag bearbeiten"
 defaultTranslation LblEvaluateAssignments = "Aufträge auswerten"
 defaultTranslation LblAssignmentName = "Name"
+defaultTranslation LblAssignmentDescription = "Beschreibung"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"

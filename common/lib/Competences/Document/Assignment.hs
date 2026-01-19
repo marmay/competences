@@ -12,7 +12,7 @@ import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Id (Id)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
 import Data.Binary (Binary)
 import Data.IxSet.Typed (Indexable (..), ixFun, ixList)
 import Data.Set (Set)
@@ -33,6 +33,8 @@ newtype AssignmentName = AssignmentName Text
 data Assignment = Assignment
   { id :: !AssignmentId
   , name :: !AssignmentName
+  , description :: !Text
+    -- ^ Description/instructions for the assignment (supports LaTeX math syntax)
   , assignmentDate :: !Day
   , activityType :: !ActivityType
   , studentIds :: !(Set UserId)
@@ -41,7 +43,17 @@ data Assignment = Assignment
   deriving (Eq, Generic, Ord, Show)
 
 -- JSON and Binary instances
-instance FromJSON Assignment
+instance FromJSON Assignment where
+  parseJSON = withObject "Assignment" $ \v ->
+    Assignment
+      <$> v .: "id"
+      <*> v .: "name"
+      <*> v .:? "description" .!= ""  -- Default to empty for backward compatibility
+      <*> v .: "assignmentDate"
+      <*> v .: "activityType"
+      <*> v .: "studentIds"
+      <*> v .: "tasks"
+
 instance ToJSON Assignment
 instance Binary Assignment
 
@@ -62,10 +74,11 @@ instance Indexable AssignmentIxs Assignment where
 
 -- | Helper to create an assignment with default values
 mkAssignment :: AssignmentId -> AssignmentName -> Day -> Assignment
-mkAssignment aid name date =
+mkAssignment aid aname date =
   Assignment
     { id = aid
-    , name = name
+    , name = aname
+    , description = ""
     , assignmentDate = date
     , activityType = SchoolExercise
     , studentIds = mempty

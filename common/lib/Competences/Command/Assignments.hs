@@ -30,6 +30,7 @@ import Optics.Core ((&), (^.))
 -- | Patch for modifying an Assignment
 data AssignmentPatch = AssignmentPatch
   { name :: !(Change AssignmentName)
+  , description :: !(Change Text)
   , assignmentDate :: !(Change Day)
   , activityType :: !(Change ActivityType)
   , studentIds :: !(Change (Set UserId))
@@ -56,6 +57,7 @@ instance Default AssignmentPatch where
   def =
     AssignmentPatch
       { name = Nothing
+      , description = Nothing
       , assignmentDate = Nothing
       , activityType = Nothing
       , studentIds = Nothing
@@ -67,6 +69,7 @@ applyAssignmentPatch :: Assignment -> AssignmentPatch -> Either Text Assignment
 applyAssignmentPatch assignment patch =
   inContext "Assignment" assignment $
     patchField' @"name" patch
+      >=> patchField' @"description" patch
       >=> patchField' @"assignmentDate" patch
       >=> patchField' @"activityType" patch
       >=> patchField' @"studentIds" patch
