@@ -161,6 +161,8 @@ data Label
   | LblNoStudentsSelected
   | LblNoStudentSelected
   | LblNoTasksSelected
+  | LblNoAssignmentSelected
+  | LblSelectAssignment
   | LblSelectAll
   | LblDeselectAll
   | LblView
@@ -327,6 +329,8 @@ labels' =
   , LblNoStudentsSelected
   , LblNoStudentSelected
   , LblNoTasksSelected
+  , LblNoAssignmentSelected
+  , LblSelectAssignment
   , LblSelectAll
   , LblDeselectAll
   , LblView
@@ -506,6 +510,8 @@ defaultTranslation LblAssignmentTasks = "Aufgaben"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
 defaultTranslation LblNoStudentSelected = "Kein Schüler ausgewählt"
 defaultTranslation LblNoTasksSelected = "Keine Aufgaben ausgewählt"
+defaultTranslation LblNoAssignmentSelected = "Kein Auftrag ausgewählt"
+defaultTranslation LblSelectAssignment = "Auftrag auswählen..."
 defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"

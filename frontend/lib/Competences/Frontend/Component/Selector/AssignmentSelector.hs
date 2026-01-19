@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Selector.AssignmentSelector
   ( assignmentSelectorComponent
+  , searchableSingleAssignmentEditorField
   )
 where
 
@@ -8,21 +9,30 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
+import Data.Default (Default)
 import Data.Map.Strict qualified as Map
 import Competences.Frontend.SyncContext
-  ( ProjectedChange (..)
+  ( DocumentChange (..)
+  , ProjectedChange (..)
   , SyncDocumentEnv (..)
   , SyncContext
   , modifySyncDocument
   , nextId
+  , subscribeDocument
   , subscribeWithProjection
   , syncDocumentEnv
+  , isInitialUpdate
   )
+import Competences.Frontend.Component.Selector.ListSelector qualified as L
+import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.SelectorList qualified as SL
+import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Typography qualified as Typography
 import Miso.Html qualified as M
 import Data.List (sortOn)
 import Data.Text (Text)
@@ -30,7 +40,7 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String (ms)
-import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
+import Optics.Core (Lens', castOptic, toLensVL, (&), (.~), (?~), (^.))
 
 -- | Projection from document + focused user
 data SelectorProjection = SelectorProjection
@@ -121,10 +131,10 @@ assignmentSelectorComponent r parentLens =
             & (#expandDirection .~ V.Expand V.Start)
             & (#extraAttrs .~ [V.fullHeight])
         )
-        [ SL.selectorHeader (C.translate' C.LblAssignments) (Just CreateNewAssignment)
-        , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
+        [ SelectorList.selectorHeader (C.translate' C.LblAssignments) (Just CreateNewAssignment)
+        , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
         , viewStatusFilters m
-        , SL.selectorList (map (viewAssignment m) (filteredAssignments m))
+        , SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
         ]
 
     viewStatusFilters m =
@@ -171,7 +181,7 @@ assignmentSelectorComponent r parentLens =
           mStatus = do
             _ <- proj.focusedUser  -- Only show status if user is focused
             Map.lookup a.id proj.statusMap
-       in SL.selectorItemMultiLine isSelected
+       in SelectorList.selectorItemMultiLine isSelected
             [ -- Line 1: Icon + Name
               M.div_
                 [class_ "flex items-center gap-2"]
@@ -194,3 +204,108 @@ assignmentSelectorComponent r parentLens =
     statusIcon NotGraded = M.text ""  -- No icon for not graded
     statusIcon NeedsWork = V.icon [class_ "w-4 h-4 text-yellow-500"] IcnProgress
     statusIcon Completed = V.icon [class_ "w-4 h-4 text-green-600"] IcnApply
+
+-- ============================================================================
+-- ASSIGNMENT EDITOR FIELD (for use in Evidence editor etc.)
+-- ============================================================================
+
+-- | Searchable single-assignment editor field for use in editors
+-- Uses a read-only viewer (assignment name or placeholder) and searchable combobox for editing
+searchableSingleAssignmentEditorField
+  :: (Eq t, Ord p, Default patch)
+  => SyncContext
+  -> M.MisoString
+  -> EntityPatchTransformedLens p patch Maybe Assignment Maybe t
+  -> EditorField p patch f
+searchableSingleAssignmentEditorField r k eptl =
+  let config e =
+        AssignmentEditorConfig
+          { isInitialAssignment = \a -> e ^. eptl.viewLens == Just (eptl.transform a)
+          }
+   in selectorEditorFieldWithViewer
+        k
+        eptl
+        (selectedAssignmentViewerComponent r . config)
+        (searchableSingleAssignmentSelectorComponent r . config)
+
+-- | Configuration for assignment editor components
+data AssignmentEditorConfig = AssignmentEditorConfig
+  { isInitialAssignment :: Assignment -> Bool
+  }
+
+-- ============================================================================
+-- VIEWER COMPONENT (Read-only display)
+-- ============================================================================
+
+-- | Model for the selected assignment viewer
+data SelectedAssignmentViewerModel = SelectedAssignmentViewerModel
+  { possibleValues :: ![Assignment]
+  , selectedValue :: !(Maybe Assignment)
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Action for the selected assignment viewer
+newtype SelectedAssignmentViewerAction = AssignmentViewerUpdateDocument DocumentChange
+  deriving (Eq, Show)
+
+-- | Component that displays selected assignment name or placeholder
+selectedAssignmentViewerComponent
+  :: SyncContext
+  -> AssignmentEditorConfig
+  -> SelectorTransformedLens p Maybe Assignment f t
+  -> M.Component p SelectedAssignmentViewerModel SelectedAssignmentViewerAction
+selectedAssignmentViewerComponent r config lensBinding =
+  (M.component model update view)
+    { M.bindings = [mkSelectorBinding lensBinding (castOptic #selectedValue)]
+    , M.subs = [subscribeDocument r AssignmentViewerUpdateDocument]
+    }
+  where
+    model =
+      SelectedAssignmentViewerModel
+        { possibleValues = []
+        , selectedValue = Nothing
+        }
+
+    update (AssignmentViewerUpdateDocument (DocumentChange d info)) =
+      M.modify $ \m ->
+        let newPossibleValues = sortOn (.assignmentDate) $ Ix.toList d.assignments
+            newSelectedValue =
+              if isInitialUpdate info
+                then case filter config.isInitialAssignment newPossibleValues of
+                       (a : _) -> Just a
+                       [] -> Nothing
+                else m.selectedValue >>= \sel -> Ix.getOne (d.assignments Ix.@= sel.id)
+         in m
+              & (#possibleValues .~ newPossibleValues)
+              & (#selectedValue .~ newSelectedValue)
+
+    view m = viewSelectedAssignment m.selectedValue
+
+-- | Render assignment name or placeholder
+viewSelectedAssignment :: Maybe Assignment -> M.View m a
+viewSelectedAssignment = \case
+  Nothing -> Typography.muted (C.translate' C.LblNoAssignmentSelected)
+  Just a -> M.span_ [] [M.text $ ms $ unAssignmentName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"]
+  where
+    unAssignmentName (AssignmentName t) = t
+
+-- ============================================================================
+-- SELECTOR COMPONENT (Searchable dropdown)
+-- ============================================================================
+
+-- | Searchable single-select assignment component
+searchableSingleAssignmentSelectorComponent
+  :: SyncContext
+  -> AssignmentEditorConfig
+  -> SelectorTransformedLens p Maybe Assignment f t
+  -> M.Component p (SL.SearchableSingleModel Assignment) (SL.SearchableSingleAction Assignment)
+searchableSingleAssignmentSelectorComponent r config =
+  SL.searchableSingleSelectorComponent r listConfig
+  where
+    listConfig = L.ListSelectorConfig
+      { L.listValues = \d -> sortOn (.assignmentDate) $ Ix.toList d.assignments
+      , L.isInitialValue = config.isInitialAssignment
+      , L.showValue = \a -> ms $ unAssignmentName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"
+      , L.showSelectAll = False
+      }
+    unAssignmentName (AssignmentName t) = t

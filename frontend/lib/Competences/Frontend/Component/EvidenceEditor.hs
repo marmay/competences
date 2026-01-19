@@ -10,7 +10,8 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.IxSet qualified as IxSet
 import Competences.Document
-  ( Competence (..)
+  ( Assignment (..)
+  , Competence (..)
   , Document (..)
   , Evidence (..)
   , LevelInfo (..)
@@ -26,6 +27,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor (bulkEvidenceEditorComponent)
+import Competences.Frontend.Component.Selector.AssignmentSelector (searchableSingleAssignmentEditorField)
 import Competences.Frontend.Component.Selector.EvidenceSelector
   ( EvidenceSelectorStyle (..)
   , evidenceSelectorComponent
@@ -291,6 +293,12 @@ evidenceEditorDetailView r evidence =
                                r
                                (evidenceEditorId <> "-tasks")
                                (entityPatchTransformedLens #tasks #tasks id id)
+                           )
+        `TE.addNamedField` ( C.translate' C.LblAssignments
+                           , searchableSingleAssignmentEditorField
+                               r
+                               (evidenceEditorId <> "-assignment")
+                               (entityPatchTransformedLens #assignmentId #assignmentId (.id) id)
                            )
         `TE.addNamedField` ( "Legacy Tasks"
                            , TE.textEditorField #oldTasks #oldTasks
