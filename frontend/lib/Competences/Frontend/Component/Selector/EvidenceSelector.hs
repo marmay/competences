@@ -19,11 +19,13 @@ import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncDocumentEnv (..)
   , SyncContext
+  , getFocusedUserRef
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
   , syncDocumentEnv
   )
+import Competences.Frontend.SyncContext.UIState (readFocusedUser)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -105,12 +107,17 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
         Just e' -> m & (#selectedEvidence ?~ e') & (#newEvidence .~ Nothing) & (#bulkEditorActive .~ False)
         Nothing -> m & (#newEvidence ?~ e) & (#bulkEditorActive .~ False)
     update CreateNewEvidence = M.withSink $ \s -> do
-      evidenceId <- nextId r
-      let today = syncDocumentEnv r ^. #currentDay
-      let evidence = mkEvidence evidenceId today
-      modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
-      s CloseDropdown
-      s (SelectEvidence evidence)
+      -- Read focused user from SyncContext
+      mUser <- readFocusedUser (getFocusedUserRef r)
+      case mUser of
+        Nothing -> pure ()  -- No focused user, do nothing
+        Just user -> do
+          evidenceId <- nextId r
+          let today = syncDocumentEnv r ^. #currentDay
+          let evidence = (mkEvidence evidenceId today) { userId = Just user.id }
+          modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
+          s CloseDropdown
+          s (SelectEvidence evidence)
     update (ProjectionChanged change) = M.modify $ updateFromProjection change.projection
     update ToggleDropdown =
       M.modify $ \m -> m & #dropdownOpen .~ not m.dropdownOpen
@@ -137,23 +144,24 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
             }
 
     view m =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [V.fullHeight])
-        )
-        [ if style == EvidenceSelectorViewAndCreate
-            then
-              SL.selectorHeaderWithDropdown
-                (C.translate' C.LblSelectEvidences)
-                m.dropdownOpen
-                ToggleDropdown
-                [ SL.dropdownItem IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
-                , SL.dropdownItem IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
-                ]
-            else
-              SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
+      let hasFocusedUser = m.projection.focusedUser /= Nothing
+       in V.viewFlow
+            ( V.vFlow
+                & (#gap .~ V.SmallSpace)
+                & (#expandDirection .~ V.Expand V.Start)
+                & (#extraAttrs .~ [V.fullHeight])
+            )
+            [ if style == EvidenceSelectorViewAndCreate && hasFocusedUser
+                then
+                  SL.selectorHeaderWithDropdown
+                    (C.translate' C.LblSelectEvidences)
+                    m.dropdownOpen
+                    ToggleDropdown
+                    [ SL.dropdownItem IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
+                    , SL.dropdownItem IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
+                    ]
+                else
+                  SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
         , V.component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'
