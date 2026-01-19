@@ -15,32 +15,30 @@ import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
 import Data.Default (Default)
 import Data.Map.Strict qualified as Map
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
+  ( ChangeInfo (..)
   , ProjectedChange (..)
   , SyncDocumentEnv (..)
   , SyncContext
   , modifySyncDocument
   , nextId
-  , subscribeDocument
   , subscribeWithProjection
   , syncDocumentEnv
-  , isInitialUpdate
   )
-import Competences.Frontend.Component.Selector.ListSelector qualified as L
-import Competences.Frontend.Component.Selector.SearchableListSelector qualified as SL
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Miso.Html qualified as M
-import Data.List (sortOn)
+import Data.List (find, sortOn)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.String (ms)
-import Optics.Core (Lens', castOptic, toLensVL, (&), (.~), (?~), (^.))
+import Miso.Html qualified as M
+import Miso.String (fromMisoString, ms)
+import Optics.Core (Lens', castOptic, toLensVL, (&), (.~), (%~), (?~), (^.))
 
 -- | Projection from document + focused user
 data SelectorProjection = SelectorProjection
@@ -55,9 +53,13 @@ emptyProjection :: SelectorProjection
 emptyProjection = SelectorProjection Ix.empty Nothing Map.empty
 
 -- | Projection function - pre-computes all assignment statuses
+-- Filters assignments by focused user if set (shows only assignments assigned to that user)
 selectorProjection :: Document -> Maybe User -> SelectorProjection
 selectorProjection doc mUser =
-  let assignments = doc.assignments
+  let -- Filter assignments by focused user if set
+      assignments = case mUser of
+        Nothing -> doc.assignments  -- No focused user, show all
+        Just user -> doc.assignments Ix.@= user.id  -- Filter by focused user's studentIds
       statusMap = case mUser of
         Nothing -> Map.empty
         Just user -> Map.fromList
@@ -234,6 +236,31 @@ data AssignmentEditorConfig = AssignmentEditorConfig
   }
 
 -- ============================================================================
+-- EDITOR FIELD PROJECTION (for viewer and selector)
+-- ============================================================================
+
+-- | Projection for assignment editor field components
+-- Filters assignments by focused user if set
+data EditorFieldProjection = EditorFieldProjection
+  { assignments :: ![Assignment]
+  , focusedUser :: !(Maybe User)
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Projection function for editor field - filters by focused user
+editorFieldProjection :: Document -> Maybe User -> EditorFieldProjection
+editorFieldProjection doc mUser =
+  let -- Filter assignments by focused user if set
+      filteredAssignments = case mUser of
+        Nothing -> Ix.toList doc.assignments  -- No focused user, show all
+        Just user -> Ix.toList $ doc.assignments Ix.@= user.id  -- Filter by focused user
+      sorted = sortOn (.assignmentDate) filteredAssignments
+   in EditorFieldProjection
+        { assignments = sorted
+        , focusedUser = mUser
+        }
+
+-- ============================================================================
 -- VIEWER COMPONENT (Read-only display)
 -- ============================================================================
 
@@ -245,7 +272,7 @@ data SelectedAssignmentViewerModel = SelectedAssignmentViewerModel
   deriving (Eq, Generic, Show)
 
 -- | Action for the selected assignment viewer
-newtype SelectedAssignmentViewerAction = AssignmentViewerUpdateDocument DocumentChange
+newtype SelectedAssignmentViewerAction = AssignmentViewerProjectionChanged (ProjectedChange EditorFieldProjection)
   deriving (Eq, Show)
 
 -- | Component that displays selected assignment name or placeholder
@@ -257,7 +284,7 @@ selectedAssignmentViewerComponent
 selectedAssignmentViewerComponent r config lensBinding =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding lensBinding (castOptic #selectedValue)]
-    , M.subs = [subscribeDocument r AssignmentViewerUpdateDocument]
+    , M.subs = [subscribeWithProjection r editorFieldProjection AssignmentViewerProjectionChanged]
     }
   where
     model =
@@ -266,15 +293,15 @@ selectedAssignmentViewerComponent r config lensBinding =
         , selectedValue = Nothing
         }
 
-    update (AssignmentViewerUpdateDocument (DocumentChange d info)) =
+    update (AssignmentViewerProjectionChanged change) =
       M.modify $ \m ->
-        let newPossibleValues = sortOn (.assignmentDate) $ Ix.toList d.assignments
+        let newPossibleValues = change.projection.assignments
             newSelectedValue =
-              if isInitialUpdate info
+              if change.changeInfo == InitialSnapshot
                 then case filter config.isInitialAssignment newPossibleValues of
                        (a : _) -> Just a
                        [] -> Nothing
-                else m.selectedValue >>= \sel -> Ix.getOne (d.assignments Ix.@= sel.id)
+                else m.selectedValue >>= \sel -> find (\a -> a.id == sel.id) newPossibleValues
          in m
               & (#possibleValues .~ newPossibleValues)
               & (#selectedValue .~ newSelectedValue)
@@ -290,22 +317,83 @@ viewSelectedAssignment = \case
     unAssignmentName (AssignmentName t) = t
 
 -- ============================================================================
--- SELECTOR COMPONENT (Searchable dropdown)
+-- SELECTOR COMPONENT (Searchable dropdown with focused user filtering)
 -- ============================================================================
 
--- | Searchable single-select assignment component
+-- | Model for searchable single-select assignment selector
+data AssignmentSelectorModel = AssignmentSelectorModel
+  { possibleValues :: ![Assignment]
+  , selectedValue :: !(Maybe Assignment)
+  , searchQuery :: !Text
+  , isOpen :: !Bool
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Actions for searchable single-select assignment selector
+data AssignmentSelectorAction
+  = SelectorProjectionChanged !(ProjectedChange EditorFieldProjection)
+  | SelectorToggle !Assignment
+  | SelectorSetSearchQuery !Text
+  | SelectorSetOpen !Bool
+  deriving (Eq, Show)
+
+-- | Searchable single-select assignment component with focused user filtering
 searchableSingleAssignmentSelectorComponent
   :: SyncContext
   -> AssignmentEditorConfig
   -> SelectorTransformedLens p Maybe Assignment f t
-  -> M.Component p (SL.SearchableSingleModel Assignment) (SL.SearchableSingleAction Assignment)
-searchableSingleAssignmentSelectorComponent r config =
-  SL.searchableSingleSelectorComponent r listConfig
+  -> M.Component p AssignmentSelectorModel AssignmentSelectorAction
+searchableSingleAssignmentSelectorComponent r config lensBinding =
+  (M.component model update view)
+    { M.bindings = [mkSelectorBinding lensBinding #selectedValue]
+    , M.subs = [subscribeWithProjection r editorFieldProjection SelectorProjectionChanged]
+    }
   where
-    listConfig = L.ListSelectorConfig
-      { L.listValues = \d -> sortOn (.assignmentDate) $ Ix.toList d.assignments
-      , L.isInitialValue = config.isInitialAssignment
-      , L.showValue = \a -> ms $ unAssignmentName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"
-      , L.showSelectAll = False
-      }
+    model =
+      AssignmentSelectorModel
+        { possibleValues = []
+        , selectedValue = Nothing
+        , searchQuery = ""
+        , isOpen = False
+        }
+
+    update (SelectorProjectionChanged change) =
+      M.modify $ \m ->
+        let newPossibleValues = change.projection.assignments
+            newSelectedValue
+              | change.changeInfo == InitialSnapshot = find config.isInitialAssignment newPossibleValues
+              | otherwise = m.selectedValue >>= \v -> find (\a -> a.id == v.id) newPossibleValues
+         in m
+              & (#possibleValues .~ newPossibleValues)
+              & (#selectedValue .~ newSelectedValue)
+    update (SelectorToggle a) =
+      M.modify $ \m ->
+        m
+          & (#selectedValue %~ \s -> if (fmap (.id) s) == Just a.id then Nothing else Just a)
+          & (#isOpen .~ False) -- Close dropdown after selection
+    update (SelectorSetSearchQuery q) =
+      M.modify (#searchQuery .~ q)
+    update (SelectorSetOpen open) =
+      M.modify (#isOpen .~ open)
+
+    view m =
+      let options =
+            map
+              (\v -> Combobox.ComboboxOption v (fromMisoString $ showAssignment v))
+              m.possibleValues
+          selectedSet = maybe Set.empty Set.singleton m.selectedValue
+          displayTxt = fmap (fromMisoString . showAssignment) m.selectedValue
+       in Combobox.singleSelectCombobox
+            SelectorSetSearchQuery
+            SelectorToggle
+            SelectorSetOpen
+            & Combobox.withPlaceholder (fromMisoString $ C.translate' C.LblSelectAssignment)
+            & Combobox.withOptions options
+            & Combobox.withSelected selectedSet
+            & Combobox.withDisplayText displayTxt
+            & Combobox.withSearchQuery m.searchQuery
+            & Combobox.withIsOpen m.isOpen
+            & Combobox.renderCombobox
+
+    showAssignment a = ms $ unAssignmentName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"
     unAssignmentName (AssignmentName t) = t
