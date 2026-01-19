@@ -26,6 +26,7 @@ import Competences.Frontend.Component.Editor.Types qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField, competenceLevelSelectorComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
+import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -180,11 +181,17 @@ taskGroupEditorComponent r group =
             else M.div_ [class_ "space-y-4"] (map viewSubTaskEditor m.subTasks)
         ]
 
-    -- Each SubTask gets its own Editor component
+    -- Each SubTask gets its own Editor component and solutions list
     viewSubTaskEditor task =
-      V.component
-        ("subtask-editor-" <> ms (show task.id))
-        (TE.editorComponent (subTaskEditor group.id task.id) r)
+      M.div_
+        [class_ "space-y-4"]
+        [ V.component
+            ("subtask-editor-" <> ms (show task.id))
+            (TE.editorComponent (subTaskEditor group.id task.id) r)
+        , V.component
+            ("subtask-solutions-" <> ms (show task.id))
+            (taskSolutionsListComponent r task.id)
+        ]
 
     subTaskEditorId taskId = "subtask-editor-" <> ms (show taskId)
 
