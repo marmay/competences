@@ -81,9 +81,7 @@ startWatcher path hashRef = do
   putStrLn $ "Starting file watcher: " <> path
 
   mgr <- FS.startManager
-  void $ FS.watchDir mgr dir (isTargetFile filename) $ \event -> do
-    putStrLn $ "File change detected: " <> show event
-
+  void $ FS.watchDir mgr dir (isTargetFile filename) $ \_event -> do
     -- Assign unique ID and debounce
     myEventId <- atomicModifyIORef' eventIdRef (\n -> (n + 1, n + 1))
 
