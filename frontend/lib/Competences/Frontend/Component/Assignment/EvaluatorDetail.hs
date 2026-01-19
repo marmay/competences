@@ -21,17 +21,19 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
-import Miso.String (ms)
+import Miso.String (MisoString, ms)
 
 -- | Detail view for evaluating an assignment
 -- The mode type parameter allows this to work with any mode type
@@ -63,6 +65,8 @@ data EvaluatorModel = EvaluatorModel
   , selectedSocialForm :: !SocialForm
   -- Tasks excluded from evaluation (toggled off by teacher)
   , excludedTasks :: !(Set.Set TaskId)
+  -- Date for the evidence (defaults to assignment date, can be overridden)
+  , evaluationDate :: !Day
   }
   deriving (Eq, Generic, Show)
 
@@ -75,6 +79,7 @@ data EvaluatorAction
   | SetAggregatedResult !CompetenceLevelId !Ability -- Edit aggregated result
   | CreateEvidences
   | ToggleTaskIncluded !TaskId -- Toggle whether a task is included in evaluation
+  | SetEvaluationDate !MisoString -- Set the date for evidence creation (YYYY-MM-DD format)
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -96,6 +101,7 @@ evaluatorComponent r assignment =
         , selectedStudents = Set.empty
         , selectedSocialForm = Individual
         , excludedTasks = Set.empty
+        , evaluationDate = assignment.assignmentDate
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -113,6 +119,7 @@ evaluatorComponent r assignment =
             , selectedStudents = m.selectedStudents
             , selectedSocialForm = m.selectedSocialForm
             , excludedTasks = m.excludedTasks
+            , evaluationDate = m.evaluationDate
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
@@ -164,6 +171,11 @@ evaluatorComponent r assignment =
             then Set.delete taskId m.excludedTasks  -- Re-include
             else Set.insert taskId m.excludedTasks}  -- Exclude
 
+    update (SetEvaluationDate dateStr) = M.modify $ \m ->
+      case parseTimeM True defaultTimeLocale "%Y-%m-%d" (M.fromMisoString dateStr) of
+        Just day -> m{evaluationDate = day}
+        Nothing -> m  -- Keep old date if parsing fails
+
     -- Compute aggregated results from task observations (pure function)
     -- Takes the worst (maximum) ability per competence across all tasks
     computeAggregation m =
@@ -184,7 +196,7 @@ evaluatorComponent r assignment =
           includedTasks = filter (`Set.notMember` m.excludedTasks) asmt.tasks
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
       let evidence =
-            (mkEvidence evidenceId asmt.assignmentDate)
+            (mkEvidence evidenceId m.evaluationDate)  -- Use evaluationDate instead of assignmentDate
               { userId = Just userId
               , activityType = asmt.activityType
               , tasks = includedTasks
@@ -223,13 +235,20 @@ evaluatorComponent r assignment =
     viewStudentSelection m =
       let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList m.assignment.studentIds
           selectedCount = Set.size m.selectedStudents
+          dateValue = ms $ formatTime defaultTimeLocale "%Y-%m-%d" m.evaluationDate
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
             [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
             , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentButton m) students)
-            , M.div_ [class_ "flex items-center gap-2 mt-3 pt-3 border-t"]
-                [ M.span_ [class_ "font-semibold text-sm"] [M.text "Sozialform:"]
-                , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
+            , M.div_ [class_ "flex items-center gap-4 mt-3 pt-3 border-t"]
+                [ M.div_ [class_ "flex items-center gap-2"]
+                    [ M.span_ [class_ "font-semibold text-sm"] [M.text "Sozialform:"]
+                    , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
+                    ]
+                , M.div_ [class_ "flex items-center gap-2"]
+                    [ M.span_ [class_ "font-semibold text-sm"] [M.text "Datum:"]
+                    , Input.dateInput dateValue SetEvaluationDate
+                    ]
                 ]
             ]
 
