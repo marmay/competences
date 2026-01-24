@@ -56,14 +56,18 @@ data Action
   | SetURI M.URI
   deriving (Eq, Show)
 
+-- | Events configuration for the application
+-- Includes defaultEvents, keyboardEvents, and mouseEvents for full event support
+appEvents :: M.Events
+appEvents = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
+
 runApp :: App -> IO ()
-runApp = M.startComponent
+runApp = M.startComponent appEvents
 
 mkApp :: SyncContext -> App
 mkApp ir =
   (M.component model update view)
     { M.subs = [M.uriSub SetURI]
-    , M.events = M.defaultEvents <> M.keyboardEvents
     }
   where
     env = syncDocumentEnv ir

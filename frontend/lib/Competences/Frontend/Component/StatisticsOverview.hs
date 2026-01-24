@@ -80,7 +80,6 @@ statisticsOverviewComponent :: SyncContext -> M.Component p Model Action
 statisticsOverviewComponent docRef =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]
-    , M.events = mempty
     , M.initialAction = Nothing
     }
   where

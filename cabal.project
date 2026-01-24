@@ -17,8 +17,8 @@ source-repository-package
   location: https://github.com/well-typed/ixset-typed
   tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
 
+-- Local miso checkout with scheduler tracing for debugging
 source-repository-package
-  --sha256: sha256-jLYPYRWg8bA490KqwdaoBtD+K6ZdYYHliZTKG9aAJC8=
   type: git
-  location: https://github.com/dmjio/miso
-  tag: a138676dd0151eb13155c3e0f553eb41ae85e158
+  location: file:///home/markus/devel/hs/miso
+  tag: 9f6f085a1f0f5daab437803640e86600c0296c6c

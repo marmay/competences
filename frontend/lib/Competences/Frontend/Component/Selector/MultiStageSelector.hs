@@ -627,8 +627,7 @@ multiStageSelectorComponent
   -> MultiStageSelectorComponent p result
 multiStageSelectorComponent r config lens =
   (M.component model update view)
-    { M.events = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
-    , M.subs = [subscribeDocument r UpdateDocument]
+    { M.subs = [subscribeDocument r UpdateDocument]
     , M.bindings = [mkSelectorBinding lens #selectedResults]
     }
   where
