@@ -14,7 +14,7 @@ import Competences.Document.Solution (SolutionType (..))
 import Competences.Document.Task (TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -153,7 +153,7 @@ viewerComponent r solution =
                     then Typography.muted "Kein Inhalt"
                     else M.div_
                            [class_ "prose prose-stone max-w-none"]
-                           [renderTaskContentText sol.content]
+                           [renderRichText sol.content]
                 ]
             ]
 

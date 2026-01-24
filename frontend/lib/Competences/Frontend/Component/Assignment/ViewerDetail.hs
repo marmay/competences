@@ -27,7 +27,7 @@ import Competences.Document.Task
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.Component.TaskResourceList
   ( TaskResourceList
   , TaskWithSolutions (..)
@@ -239,7 +239,7 @@ viewerComponent r user assignment =
                     then M.text ""
                     else M.div_
                            [class_ "prose prose-stone prose-sm max-w-none"]
-                           [renderTaskContentText desc]
+                           [renderRichText desc]
                 , -- Accumulated observations list (one per competence level)
                   viewObservationList proj
                 ]

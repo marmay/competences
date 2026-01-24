@@ -19,7 +19,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
@@ -304,7 +304,7 @@ evaluatorComponent r assignment =
                                Just c ->
                                  if T.null c
                                    then M.text ""
-                                   else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderTaskContentText c]
+                                   else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderRichText c]
                     ]
 
     viewStudentEvaluations m taskId =

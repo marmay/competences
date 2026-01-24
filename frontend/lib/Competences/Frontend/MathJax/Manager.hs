@@ -186,11 +186,13 @@ renderFormula (ComponentContainerId cid) display latex = do
         then extractSymbolDimensions fid existing -- Already rendered (cached symbol)
         else do
           -- Render with MathJax
+          -- Wrap in braces to ensure the entire expression is treated as a group
+          let wrappedLatex = "{" <> latex <> "}"
           mathJax <- jsg ("MathJax" :: MisoString)
           options <- create
           displayVal <- toJSVal (display == Block)
           setProp ("display" :: MisoString) displayVal options
-          latexVal <- toJSVal (ms latex :: MisoString)
+          latexVal <- toJSVal (ms wrappedLatex :: MisoString)
           result <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
           resultIsNull <- isNull result
           if resultIsNull

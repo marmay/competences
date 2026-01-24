@@ -13,7 +13,7 @@ import Competences.Document (Solution (..), Task (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon (Icon (..))
@@ -151,7 +151,7 @@ viewTask showPurposeBadge state liftAction tws =
                         else
                           MH.div_
                             [class_ "prose prose-stone prose-sm max-w-none"]
-                            [renderTaskContentText content]
+                            [renderRichText content]
                 , -- Solutions section
                   if null tws.solutions
                     then V.empty
@@ -196,7 +196,7 @@ viewSolution state liftAction sol =
                     else
                       MH.div_
                         [class_ "prose prose-stone prose-sm max-w-none"]
-                        [renderTaskContentText sol.content]
+                        [renderRichText sol.content]
                 ]
             else V.empty
         ]

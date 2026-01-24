@@ -18,7 +18,7 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
@@ -121,7 +121,7 @@ richTextViewer viewLens a =
   let content = a ^. viewLens
    in if content == ""
         then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
-        else renderTaskContentText content
+        else renderRichText content
 
 richTextEditor
   :: Lens' a Text
@@ -156,7 +156,7 @@ richTextEditor viewLens patchLens refocusTarget original patch =
                 [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
                 [ if currentContent == ""
                     then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
-                    else renderTaskContentText currentContent
+                    else renderRichText currentContent
                 ]
             ]
         ]

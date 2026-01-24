@@ -11,10 +11,10 @@
 --
 -- @
 -- import Competences.TaskContent.Parser (parseTaskContent)
--- import Competences.Frontend.Component.TaskContentView (taskContentView, renderTaskContentText)
+-- import Competences.Frontend.Component.TaskContentView (taskContentView, renderRichText)
 --
 -- -- Parse and render in one step
--- renderTaskContentText "Solve $x + 1 = 2$"
+-- renderRichText "Solve $x + 1 = 2$"
 --
 -- -- Or parse separately
 -- case parseTaskContent content of
@@ -24,7 +24,7 @@
 module Competences.Frontend.Component.TaskContentView
   ( -- * Rendering functions
     taskContentView
-  , renderTaskContentText
+  , renderRichText
   )
 where
 
@@ -54,8 +54,8 @@ taskContentView ast =
 -- | Convenience function to parse and render text in one step
 --
 -- On parse failure, shows the raw text in a code block with error styling.
-renderTaskContentText :: Text -> M.View p a
-renderTaskContentText content =
+renderRichText :: Text -> M.View p a
+renderRichText content =
   case parseTaskContent content of
     Left _err ->
       -- Parse error - show raw text as fallback

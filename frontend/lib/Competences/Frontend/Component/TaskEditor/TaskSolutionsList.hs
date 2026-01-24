@@ -10,7 +10,7 @@ import Competences.Document.Solution (SolutionId, SolutionIxs, SolutionType (..)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -203,7 +203,7 @@ taskSolutionsListComponent r taskId =
                             else
                               MH.div_
                                 [class_ "prose prose-stone prose-sm max-w-none"]
-                                [renderTaskContentText sol.content]
+                                [renderRichText sol.content]
                     ]
                 else V.empty
             ]

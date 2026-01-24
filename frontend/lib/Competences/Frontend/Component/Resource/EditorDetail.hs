@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderTaskContentText)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
@@ -152,7 +152,7 @@ resourceContentEditorField =
         if text == ""
           then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
           else MH.div_ [class_ "prose prose-stone prose-sm max-w-none"]
-                 [renderTaskContentText text]
+                 [renderRichText text]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
           [ MH.div_ [class_ "flex items-center gap-2"]
@@ -215,7 +215,7 @@ resourceContentEditorField =
                         , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
                             [ if text == ""
                                 then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
-                                else renderTaskContentText text
+                                else renderRichText text
                             ]
                         ]
                     ]
