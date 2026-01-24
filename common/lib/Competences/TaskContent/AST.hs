@@ -40,19 +40,22 @@ data Block
     SubTaskList ![ListItem]
   | -- | Numbered list for sub-questions (1., 2., 3.)
     SubQuestionList ![ListItem]
-  | -- | Display math block ($$...$$)
+  | -- | Display math block ($$...$$ or \[...\])
     MathBlock !Text
+  | -- | Heading with level (1-6) and inline content
+    Heading !Int ![Inline]
   deriving (Eq, Show, Generic)
 
 instance ToJSON Block
 instance FromJSON Block
 
 -- | List item for both subtasks and subquestions
+-- Content can span multiple lines/paragraphs using indentation
 data ListItem = ListItem
   { marker :: !Text
   -- ^ The marker text (e.g., "a." or "1.")
-  , content :: ![Inline]
-  -- ^ Item content as inline elements
+  , content :: ![Block]
+  -- ^ Item content as block elements (allows multiple paragraphs, math blocks, etc.)
   }
   deriving (Eq, Show, Generic)
 

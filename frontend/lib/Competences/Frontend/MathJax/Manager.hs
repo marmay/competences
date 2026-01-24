@@ -173,67 +173,41 @@ clearComponentContainer (ComponentContainerId cid) = do
 -- If the formula already exists in this container, returns its info without re-rendering
 renderFormula :: ComponentContainerId -> MathDisplay -> Text -> IO (Maybe RenderedFormula)
 renderFormula (ComponentContainerId cid) display latex = do
-  consoleLog $ "[renderFormula] Starting for cid=" <> ms cid <> ", latex=" <> ms latex
   ready <- isMathJaxReady
-  consoleLog $ "[renderFormula] MathJax ready=" <> ms (show ready)
   if not ready
     then pure Nothing
     else do
       let fid = hashLatex display latex
-      consoleLog $ "[renderFormula] Formula ID=" <> ms fid.unFormulaId
-      -- Check if formula already exists in this component's container
       document <- jsg ("document" :: MisoString)
+      -- Check if formula already exists
       existing <- document # ("getElementById" :: MisoString) $ [toJSVal (ms fid.unFormulaId :: MisoString)]
-      -- Note: getElementById returns null for non-existent elements, but fromJSVal @JSVal
-      -- will return Just for null. We need to check if it's actually null.
       existingIsNull <- isNull existing
       if not existingIsNull
-        then do
-          consoleLog "[renderFormula] Formula already exists, extracting dimensions..."
-          -- Extract dimensions from existing SVG
-          extractFormulaDimensions fid existing
+        then extractSymbolDimensions fid existing -- Already rendered (cached symbol)
         else do
-          consoleLog "[renderFormula] Rendering new formula..."
-          -- Get MathJax and render
+          -- Render with MathJax
           mathJax <- jsg ("MathJax" :: MisoString)
-          -- Create options object: {display: true/false}
           options <- create
           displayVal <- toJSVal (display == Block)
           setProp ("display" :: MisoString) displayVal options
-          -- Convert latex to JSVal
           latexVal <- toJSVal (ms latex :: MisoString)
-          -- Call MathJax.tex2svg(latex, options)
-          consoleLog "[renderFormula] Calling MathJax.tex2svg..."
           result <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
-          -- The result is an mjx-container element containing an SVG
-          -- We need to extract the SVG and set its id
           resultIsNull <- isNull result
           if resultIsNull
-            then do
-              consoleLog "[renderFormula] tex2svg returned null/undefined"
-              pure Nothing
+            then pure Nothing
             else do
               let mjxContainer = result
-              consoleLog "[renderFormula] Got mjx-container, extracting SVG..."
-              -- Get the SVG element inside the container
               svgElement <- mjxContainer # ("querySelector" :: MisoString) $ [toJSVal ("svg" :: MisoString)]
               svgIsNull <- isNull svgElement
               if svgIsNull
-                then do
-                  consoleLog "[renderFormula] No SVG found in mjx-container"
-                  pure Nothing
+                then pure Nothing
                 else do
                   let svg = svgElement
-                  consoleLog "[renderFormula] Found SVG, converting to symbol..."
-                  -- Extract dimensions before converting
-                  mDims <- extractFormulaDimensions fid svg
+                  mDims <- extractSvgDimensions fid svg -- Fresh SVG from MathJax
                   case mDims of
-                    Nothing -> do
-                      consoleLog "[renderFormula] Failed to extract dimensions"
-                      pure Nothing
+                    Nothing -> pure Nothing
                     Just dims -> do
                       -- Create a <symbol> element (can be referenced by <use>)
-                      -- Note: <use> cannot reference an entire <svg>, only <symbol>, <g>, etc.
                       symbol <- document # ("createElementNS" :: MisoString) $
                         [toJSVal ("http://www.w3.org/2000/svg" :: MisoString), toJSVal ("symbol" :: MisoString)]
                       -- Set the id on the symbol
@@ -265,81 +239,64 @@ renderFormula (ComponentContainerId cid) display latex = do
                       moveChildren
                       -- Get the component's container SVG and its defs element
                       let containerId = "mathjax-" <> cid
-                      consoleLog $ "[renderFormula] Looking for container: " <> ms containerId
                       container <- document # ("getElementById" :: MisoString) $ [toJSVal (ms containerId :: MisoString)]
                       containerIsNull <- isNull container
                       if containerIsNull
-                        then do
-                          consoleLog "[renderFormula] Container not found!"
-                          pure Nothing
+                        then pure Nothing
                         else do
                           -- Get the <defs> element inside the container SVG
                           defsEl <- container # ("querySelector" :: MisoString) $ [toJSVal ("defs" :: MisoString)]
                           defsIsNull <- isNull defsEl
                           if defsIsNull
-                            then do
-                              consoleLog "[renderFormula] Defs element not found in container!"
-                              pure Nothing
+                            then pure Nothing
                             else do
-                              -- Append the symbol to defs
                               _ <- defsEl # ("appendChild" :: MisoString) $ [symbol]
-                              consoleLog "[renderFormula] Symbol appended to defs successfully"
                               pure (Just dims)
 
--- | Extract dimensions from an SVG or symbol element
--- For SVG elements (freshly rendered), reads width/height/viewBox attributes and style.verticalAlign
--- For symbol elements (cached), reads data-width/data-height/data-vertical-align and viewBox
-extractFormulaDimensions :: FormulaId -> JSVal -> IO (Maybe RenderedFormula)
-extractFormulaDimensions fid element = do
-  -- Try to get width from attribute (SVG) or data attribute (symbol)
-  widthVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
+-- | Extract dimensions from a fresh MathJax SVG element
+-- Reads width/height/viewBox attributes and style.verticalAlign
+extractSvgDimensions :: FormulaId -> JSVal -> IO (Maybe RenderedFormula)
+extractSvgDimensions fid svg = do
+  widthVal <- svg # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
   mWidth <- fromJSVal @MisoString widthVal
-  mWidth' <- case mWidth of
-    Just w -> pure (Just w)
-    Nothing -> do
-      -- Try data attribute (for symbols)
-      dataWidthVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("data-width" :: MisoString)]
-      fromJSVal @MisoString dataWidthVal
-  -- Try to get height from attribute (SVG) or data attribute (symbol)
-  heightVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
+  heightVal <- svg # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
   mHeight <- fromJSVal @MisoString heightVal
-  mHeight' <- case mHeight of
-    Just h -> pure (Just h)
-    Nothing -> do
-      dataHeightVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("data-height" :: MisoString)]
-      fromJSVal @MisoString dataHeightVal
-  -- Get viewBox attribute (same for both SVG and symbol)
-  viewBoxVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("viewBox" :: MisoString)]
+  viewBoxVal <- svg # ("getAttribute" :: MisoString) $ [toJSVal ("viewBox" :: MisoString)]
   mViewBox <- fromJSVal @MisoString viewBoxVal
-  -- Try to get verticalAlign from style (SVG) or data attribute (symbol)
-  styleObj <- element ! ("style" :: MisoString)
+  styleObj <- svg ! ("style" :: MisoString)
   vertAlignVal <- styleObj ! ("verticalAlign" :: MisoString)
   mVertAlign <- fromJSVal @MisoString vertAlignVal
-  mVertAlign' <- case mVertAlign of
-    Just va | fromMisoString va /= ("" :: Text) -> pure (Just va)
-    _ -> do
-      dataVertAlignVal <- element # ("getAttribute" :: MisoString) $ [toJSVal ("data-vertical-align" :: MisoString)]
-      fromJSVal @MisoString dataVertAlignVal
-  case (mWidth', mHeight', mViewBox) of
-    (Just w, Just h, Just vb) -> do
-      let rendered = RenderedFormula
-            { formulaId = fid
-            , width = fromMisoString w
-            , height = fromMisoString h
-            , viewBox = fromMisoString vb
-            , verticalAlign = maybe "0" fromMisoString mVertAlign'
-            }
-      consoleLog $ "[extractFormulaDimensions] Got dimensions: " <> ms (show rendered)
-      pure (Just rendered)
-    _ -> do
-      consoleLog "[extractFormulaDimensions] Failed to get dimensions"
-      pure Nothing
+  case (mWidth, mHeight, mViewBox) of
+    (Just w, Just h, Just vb) ->
+      pure $ Just RenderedFormula
+        { formulaId = fid
+        , width = fromMisoString w
+        , height = fromMisoString h
+        , viewBox = fromMisoString vb
+        , verticalAlign = maybe "0" fromMisoString mVertAlign
+        }
+    _ -> pure Nothing
 
--- | Log to browser console
-consoleLog :: MisoString -> IO ()
-consoleLog msg = do
-  console <- jsg ("console" :: MisoString)
-  msgVal <- toJSVal msg
-  _ <- console # ("log" :: MisoString) $ [msgVal]
-  pure ()
+-- | Extract dimensions from a cached symbol element
+-- Reads data-width/data-height/data-vertical-align and viewBox attributes
+extractSymbolDimensions :: FormulaId -> JSVal -> IO (Maybe RenderedFormula)
+extractSymbolDimensions fid symbol = do
+  widthVal <- symbol # ("getAttribute" :: MisoString) $ [toJSVal ("data-width" :: MisoString)]
+  mWidth <- fromJSVal @MisoString widthVal
+  heightVal <- symbol # ("getAttribute" :: MisoString) $ [toJSVal ("data-height" :: MisoString)]
+  mHeight <- fromJSVal @MisoString heightVal
+  viewBoxVal <- symbol # ("getAttribute" :: MisoString) $ [toJSVal ("viewBox" :: MisoString)]
+  mViewBox <- fromJSVal @MisoString viewBoxVal
+  vertAlignVal <- symbol # ("getAttribute" :: MisoString) $ [toJSVal ("data-vertical-align" :: MisoString)]
+  mVertAlign <- fromJSVal @MisoString vertAlignVal
+  case (mWidth, mHeight, mViewBox) of
+    (Just w, Just h, Just vb) ->
+      pure $ Just RenderedFormula
+        { formulaId = fid
+        , width = fromMisoString w
+        , height = fromMisoString h
+        , viewBox = fromMisoString vb
+        , verticalAlign = maybe "0" fromMisoString mVertAlign
+        }
+    _ -> pure Nothing
 

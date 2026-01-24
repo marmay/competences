@@ -148,7 +148,7 @@ richContentComponent key content' =
 
     view m = case m.renderState of
       Pending -> M.text "" -- Empty during render
-      Ready -> renderContentWithCleanup m.containerId m.renderedFormulas m.content
+      Ready -> renderContent m.renderedFormulas m.content
 
 -- | Extract all math formulas from content AST
 extractFormulas :: TaskContent -> [(MathDisplay, Text)]
@@ -157,9 +157,10 @@ extractFormulas (TaskContent blocks) = concatMap extractFromBlock blocks
 extractFromBlock :: Block -> [(MathDisplay, Text)]
 extractFromBlock = \case
   Paragraph inlines -> concatMap extractFromInline inlines
-  SubTaskList items -> concatMap (concatMap extractFromInline . (.content)) items
-  SubQuestionList items -> concatMap (concatMap extractFromInline . (.content)) items
+  SubTaskList items -> concatMap (concatMap extractFromBlock . (.content)) items
+  SubQuestionList items -> concatMap (concatMap extractFromBlock . (.content)) items
   MathBlock latex -> [(Block, latex)]
+  Heading _ inlines -> concatMap extractFromInline inlines
 
 extractFromInline :: Inline -> [(MathDisplay, Text)]
 extractFromInline = \case
@@ -173,8 +174,8 @@ renderSingleFormula :: ComponentContainerId -> (MathDisplay, Text) -> IO (Maybe 
 renderSingleFormula cid (display, latex) = renderFormula cid display latex
 
 -- | Render content AST with SVG references for math, including cleanup hook
-renderContentWithCleanup :: ComponentContainerId -> Map FormulaId RenderedFormula -> TaskContent -> M.View RichContentModel RichContentAction
-renderContentWithCleanup _cid formulas (TaskContent blocks) =
+renderContent :: Map FormulaId RenderedFormula -> TaskContent -> M.View RichContentModel RichContentAction
+renderContent formulas (TaskContent blocks) =
   M.div_
     [ class_ "rich-content space-y-4"
     , onUnmounted Unmounted -- Trigger cleanup when this element is removed
@@ -196,11 +197,23 @@ renderBlock formulas = \case
       $ map (renderListItem formulas) items
   MathBlock latex ->
     svgUseRef formulas (hashLatex Block latex) Block
+  Heading level inlines ->
+    let (tag, classes) = headingStyle level
+     in tag [class_ classes] $ map (renderInline formulas) inlines
+
+-- | Get HTML tag and CSS classes for heading level
+headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
+headingStyle 1 = (M.h1_, "text-2xl font-bold text-stone-900 mb-4")
+headingStyle 2 = (M.h2_, "text-xl font-semibold text-stone-800 mb-3")
+headingStyle 3 = (M.h3_, "text-lg font-semibold text-stone-800 mb-2")
+headingStyle 4 = (M.h4_, "text-base font-semibold text-stone-700 mb-2")
+headingStyle 5 = (M.h5_, "text-sm font-semibold text-stone-700 mb-1")
+headingStyle _ = (M.h6_, "text-sm font-medium text-stone-600 mb-1")
 
 renderListItem :: Map FormulaId RenderedFormula -> ListItem -> M.View RichContentModel RichContentAction
 renderListItem formulas item =
   M.li_ [class_ "text-stone-800 leading-relaxed pl-1"] $
-    map (renderInline formulas) item.content
+    map (renderBlock formulas) item.content
 
 renderInline :: Map FormulaId RenderedFormula -> Inline -> M.View RichContentModel RichContentAction
 renderInline formulas = \case

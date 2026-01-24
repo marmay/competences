@@ -67,15 +67,35 @@ blocksP = do
   where
     blankLine = many1' (satisfy (== '\n')) *> skipSpaces
 
--- | Parse a single block (tries list markers first, then paragraph)
+-- | Parse a single block (tries heading, math, list, then paragraph)
 blockP :: Parser Block
-blockP = mathBlockP <|> listBlockP <|> paragraphP
+blockP = headingP <|> mathBlockP <|> listBlockP <|> paragraphP
 
--- | Parse display math block: $$...$$
+-- | Parse heading: # ... (1-6 hashes at start of line)
+headingP :: Parser Block
+headingP = do
+  hashes <- takeWhile1 (== '#')
+  let level = min 6 (T.length hashes)
+  skipSpaces
+  content <- inlineListP
+  pure $ Heading level content
+
+-- | Parse display math block: $$...$$ or \[...\]
 mathBlockP :: Parser Block
-mathBlockP = do
+mathBlockP = dollarBlockP <|> bracketBlockP
+
+-- | Parse display math with $$ delimiters
+dollarBlockP :: Parser Block
+dollarBlockP = do
   _ <- string "$$"
   latex <- manyTill' anyChar (string "$$")
+  pure $ MathBlock (T.pack latex)
+
+-- | Parse display math with \[...\] delimiters
+bracketBlockP :: Parser Block
+bracketBlockP = do
+  _ <- string "\\["
+  latex <- manyTill' anyChar (string "\\]")
   pure $ MathBlock (T.pack latex)
 
 -- | Try to parse a list block (subtask or subquestion)
@@ -91,12 +111,26 @@ listBlockP = do
     isLetterMarker m = T.length m == 2 && isLower (T.head m)
 
 -- | Parse a single list item (either letter or number marker)
+-- Content is wrapped in a Paragraph block for the [Block] type
+-- Multi-line items use indentation-based continuation
 listItemP :: Parser ListItem
 listItemP = do
   marker <- letterMarkerP <|> numberMarkerP
   skipSpaces
-  content <- inlineListP
-  pure $ ListItem marker content
+  firstLine <- inlineListP
+  -- Collect continuation lines (indented content)
+  continuations <- many' continuationLineP
+  let allInlines = firstLine ++ concat continuations
+  -- Wrap all inlines in a single Paragraph for now
+  -- TODO: Support multiple paragraphs with blank line + indentation
+  pure $ ListItem marker [Paragraph allInlines]
+
+-- | Parse a continuation line (starts with whitespace after newline)
+continuationLineP :: Parser [Inline]
+continuationLineP = do
+  _ <- char '\n'
+  _ <- many1' (satisfy (\c -> c == ' ' || c == '\t')) -- At least one space/tab
+  inlineListP
 
 -- | Parse letter marker: a. b. c. etc. (lowercase only)
 letterMarkerP :: Parser Text
@@ -147,13 +181,17 @@ emphP = do
 inlineInDelimP :: Parser Inline
 inlineInDelimP = mathInlineP <|> plainInDelimP
 
--- | Plain text inside delimiters (no * allowed)
+-- | Plain text inside delimiters (no *, $, or \ allowed)
 plainInDelimP :: Parser Inline
-plainInDelimP = Plain <$> takeWhile1 (\c -> c /= '*' && c /= '$' && c /= '\n')
+plainInDelimP = Plain <$> takeWhile1 (\c -> c /= '*' && c /= '$' && c /= '\\' && c /= '\n')
 
--- | Parse inline math: $...$
+-- | Parse inline math: $...$ or \(...\)
 mathInlineP :: Parser Inline
-mathInlineP = do
+mathInlineP = dollarInlineP <|> parenInlineP
+
+-- | Parse inline math with $ delimiters
+dollarInlineP :: Parser Inline
+dollarInlineP = do
   _ <- char '$'
   -- Make sure it's not $$ (block math)
   next <- peekChar
@@ -161,6 +199,13 @@ mathInlineP = do
     Just '$' -> fail "not inline math"
     _ -> pure ()
   latex <- manyTill' anyChar (char '$')
+  pure $ MathInline (T.pack latex)
+
+-- | Parse inline math with \(...\) delimiters
+parenInlineP :: Parser Inline
+parenInlineP = do
+  _ <- string "\\("
+  latex <- manyTill' anyChar (string "\\)")
   pure $ MathInline (T.pack latex)
 
 -- | Parse plain text (everything that's not a special marker)
@@ -175,10 +220,11 @@ plainP = Plain <$> (chunk <|> singleChar)
       case c of
         Just '*' -> fail "not plain"
         Just '$' -> fail "not plain"
+        Just '\\' -> fail "not plain"
         Just '\n' -> fail "not plain"
         _ -> T.singleton <$> anyChar
 
-    isPlainChar c = not (c `elem` ("*$\n" :: String)) && not (isSpace c && c /= ' ')
+    isPlainChar c = not (c `elem` ("*$\\\n" :: String)) && not (isSpace c && c /= ' ')
 
 -- | Skip horizontal spaces (not newlines)
 skipSpaces :: Parser ()
