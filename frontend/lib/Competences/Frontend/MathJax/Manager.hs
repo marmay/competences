@@ -187,12 +187,11 @@ renderFormula (ComponentContainerId cid) display latex = do
         else do
           -- Render with MathJax
           -- Wrap in braces to ensure the entire expression is treated as a group
-          let wrappedLatex = "{" <> latex <> "}"
           mathJax <- jsg ("MathJax" :: MisoString)
           options <- create
           displayVal <- toJSVal (display == Block)
           setProp ("display" :: MisoString) displayVal options
-          latexVal <- toJSVal (ms wrappedLatex :: MisoString)
+          latexVal <- toJSVal (ms latex :: MisoString)
           result <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
           resultIsNull <- isNull result
           if resultIsNull

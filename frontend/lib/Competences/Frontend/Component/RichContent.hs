@@ -53,7 +53,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Event (onUnmounted)
+import Miso.Event (onBeforeDestroyed)
 import Miso.Html qualified as M
 import Miso.Html.Property (height_, href_, width_)
 import Miso.String (ms)
@@ -178,7 +178,7 @@ renderContent :: Map FormulaId RenderedFormula -> TaskContent -> M.View RichCont
 renderContent formulas (TaskContent blocks) =
   M.div_
     [ class_ "rich-content space-y-4"
-    , onUnmounted Unmounted -- Trigger cleanup when this element is removed
+    , onBeforeDestroyed Unmounted -- Trigger cleanup BEFORE component unmounts
     ]
     $ map (renderBlock formulas) blocks
 
