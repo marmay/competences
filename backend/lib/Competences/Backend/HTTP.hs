@@ -218,7 +218,7 @@ findUserByEmail appState email = do
 cspHeaderValue :: Text
 cspHeaderValue = T.intercalate "; "
   [ "default-src 'self'"
-  , "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"  -- unsafe-inline for JWT, wasm-unsafe-eval for WASM
+  , "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:"  -- unsafe-inline for JWT, wasm-unsafe-eval for WASM, blob: for MathJax workers
   , "style-src 'self' 'unsafe-inline'"   -- unsafe-inline needed for inline styles
   , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
   , "img-src 'self' data:"               -- Allow data URIs for images
@@ -261,6 +261,9 @@ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash basecoatCssHas
       \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';\n\
       \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';"
   H.body ! A.class_ "theme-claude" $ do
+    -- MathJax SVG definitions container (hidden, managed outside Miso's virtual DOM)
+    -- Each RichContent component creates a sub-SVG here for its rendered formulas
+    H.div ! A.id "mathjax-defs" ! A.style "position:absolute; width:0; height:0; overflow:hidden" $ ""
     -- Load application code (with cache-busting hash)
     let indexJsUrl = "/static/index.js?v=" <> indexJsHash
     H.script ! A.src (H.toValue indexJsUrl) ! A.type_ "module" $ ""

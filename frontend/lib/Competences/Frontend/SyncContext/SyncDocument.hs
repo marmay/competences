@@ -174,7 +174,7 @@ unregisterDocumentHandler d handlerId =
 
 modifySyncDocument :: SyncContext -> Command -> IO ()
 modifySyncDocument r c = do
-  M.consoleLog $ "modifySyncDocument: " <> M.ms (show c)
+  M.consoleLog $ "[SyncDoc] modifySyncDocument: " <> M.ms (show c)
   -- Enqueue command and get authoritative list from CommandSender
   allPending <- enqueueCommand r.env.commandSender c
   -- Update SyncDocument with the authoritative list
@@ -184,6 +184,9 @@ modifySyncDocument r c = do
     let d' = d
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
+    -- Log handler count for leak detection
+    let handlerCount = Map.size d.onChanged
+    M.consoleLog $ "[SyncDoc] Notifying " <> M.ms handlerCount <> " handlers"
     -- Notify subscribers
     forM_ d.onChanged $
       issueDocumentChange (DocumentChange d'.localDocument (DocumentChanged d.localDocument c))
@@ -211,6 +214,9 @@ setSyncDocument' userId allPending remoteDoc d = do
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
 
+  -- Log handler count for leak detection
+  let handlerCount = Map.size d.onChanged
+  M.consoleLog $ "[SyncDoc] setSyncDocument' notifying " <> M.ms handlerCount <> " handlers"
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument DocumentReloaded)
   pure d'
 
@@ -269,6 +275,9 @@ applyRemoteCommand d cmd = do
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
 
+    -- Log handler count for leak detection
+    let handlerCount = Map.size syncDoc.onChanged
+    M.consoleLog $ "[SyncDoc] applyRemoteCommand notifying " <> M.ms handlerCount <> " handlers"
     -- Notify subscribers
     forM_ syncDoc.onChanged $
       issueDocumentChange (DocumentChange localDoc' (DocumentChanged syncDoc.localDocument cmd))
