@@ -28,7 +28,6 @@ import Competences.Document.Evidence
   , SocialForm (..)
   )
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId)
-import Competences.Document.Resource (ResourceId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Task
   ( TaskAttributes (..)
@@ -38,31 +37,23 @@ import Competences.Document.Task
   , getTaskPrimaryCompetences
   , isResourceTask
   )
-import Competences.Frontend.Component.TaskResourceList
-  ( TaskResourceList
-  , TaskWithSolutions (..)
-  , DisplayMode (..)
-  , initialState
-  , taskResourceListView
-  , updateTaskResourceList
-  )
-import Competences.Frontend.Component.TaskResourceList qualified as TRL
+import Competences.Frontend.Component.ResourceModal qualified as ResourceModal
+import Competences.Frontend.Component.TaskResourceList (TaskWithSolutions (..))
 import Competences.Document.User (User (..), UserRole (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , SyncDocumentEnv (..)
+  , openModal
   , subscribeWithProjection
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.Tailwind (class_)
@@ -71,14 +62,11 @@ import Data.List (sortOn)
 import Data.Map qualified as Map
 import Data.Maybe (listToMaybe)
 import Data.Proxy (Proxy (..))
-import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Event.Types (stopPropagation)
 import Miso.Html qualified as MH
-import Miso.Html.Event (onClickWithOptions)
 import Miso.Html.Property qualified as MP
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
@@ -113,24 +101,6 @@ data ViewerProjection = ViewerProjection
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
-  , modalState :: !(Maybe ResourceModalState)
-  -- ^ Nothing = modal closed, Just = modal open for a specific competence level
-  }
-  deriving (Eq, Generic, Show)
-
--- | View mode for the resource modal
-data ResourceViewMode
-  = ViewTasks           -- ^ Show tasks
-  | ViewLearningResources  -- ^ Show learning resources (placeholder for future)
-  deriving (Eq, Generic, Show)
-
--- | State for the resource modal when open
-data ResourceModalState = ResourceModalState
-  { competenceLevelId :: !CompetenceLevelId
-  , taskListState :: !TaskResourceList
-  , viewMode :: !ResourceViewMode
-  , expandedResources :: !(Set.Set ResourceId)
-  -- ^ Set of resource IDs with expanded inline content (collapsed by default)
   }
   deriving (Eq, Generic, Show)
 
@@ -138,12 +108,6 @@ data ResourceModalState = ResourceModalState
 data ViewerAction
   = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
   | OpenResourceModal !CompetenceLevelId
-  | CloseResourceModal
-  | ResourceModalAction !TRL.Action
-  | SwitchResourceViewMode !ResourceViewMode
-  | ToggleResourceExpanded !ResourceId
-  -- ^ Toggle collapsed/expanded state for inline content of a resource
-  | NoOp  -- ^ Used for stopping event propagation
   deriving (Eq, Show)
 
 -- | View for the viewer detail - shows competence grid with student evidence
@@ -255,192 +219,32 @@ viewerComponent r grid =
        in groupByCompetenceLevel allResources
 
     emptyProjection = ViewerProjection Ix.empty Ix.empty Ix.empty Nothing Nothing Map.empty Map.empty connectedRole
-    model = ViewerModel emptyProjection Nothing
+    model = ViewerModel emptyProjection
 
     update (ViewerProjectionChanged change) =
       M.modify $ #projection .~ change.projection
 
-    update (OpenResourceModal clId) =
-      M.modify $ \m ->
-        let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
-            resources = Map.findWithDefault [] clId m.projection.learningResources
-            taskListState = initialState TasksCollapsed tasks
-            -- Default to resources tab if no tasks but have resources
-            defaultMode = if null tasks && not (null resources)
-                            then ViewLearningResources
-                            else ViewTasks
-         in m & #modalState .~ Just (ResourceModalState clId taskListState defaultMode Set.empty)
-
-    update CloseResourceModal =
-      M.modify $ #modalState .~ Nothing
-
-    update (ResourceModalAction action) =
-      M.modify $ \m -> case m.modalState of
-        Nothing -> m
-        Just ms ->
-          m & #modalState .~ Just (ms & #taskListState .~ updateTaskResourceList action ms.taskListState)
-
-    update (SwitchResourceViewMode newMode) =
-      M.modify $ \m -> case m.modalState of
-        Nothing -> m
-        Just ms -> m & #modalState .~ Just (ms & #viewMode .~ newMode)
-
-    update (ToggleResourceExpanded resId) =
-      M.modify $ \m -> case m.modalState of
-        Nothing -> m
-        Just ms ->
-          let newExpanded = if Set.member resId ms.expandedResources
-                              then Set.delete resId ms.expandedResources
-                              else Set.insert resId ms.expandedResources
-           in m & #modalState .~ Just (ms & #expandedResources .~ newExpanded)
-
-    update NoOp = pure ()
+    update (OpenResourceModal clId) = do
+      m <- M.get
+      let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
+          resources = Map.findWithDefault [] clId m.projection.learningResources
+          showPurposeBadge = m.projection.connectedUserRole == Teacher
+          cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge r.modalManager
+      M.io_ $ openModal r.modalManager (ResourceModal.resourceModalComponent cfg)
 
     view m =
-      MH.div_
-        []
-        [ V.viewFlow
-            ( V.vFlow
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#expandOrthogonal .~ V.Expand V.Center)
-                & (#gap .~ V.SmallSpace)
-            )
-            [ header m
-            , description
-            , competencesTable m
-            ]
-        , resourceModal m
+      V.viewFlow
+        ( V.vFlow
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#expandOrthogonal .~ V.Expand V.Center)
+            & (#gap .~ V.SmallSpace)
+        )
+        [ header m
+        , description
+        , competencesTable m
         ]
       where
         proj = m.projection
-
-        -- Resource modal
-        resourceModal vm = case vm.modalState of
-          Nothing -> V.empty
-          Just ms ->
-            let tasks = Map.findWithDefault [] ms.competenceLevelId vm.projection.resourceTasks
-                resources = Map.findWithDefault [] ms.competenceLevelId vm.projection.learningResources
-                showPurposeBadge = vm.projection.connectedUserRole == Teacher
-             in Modal.modalHost
-                  [MH.onClick CloseResourceModal]
-                  [ Modal.modalDialog
-                      [ onClickWithOptions stopPropagation NoOp
-                      -- Use !important to override modalDialog's default max-w-96 and w-full
-                      -- flex-shrink-0 prevents the flex container from shrinking this element
-                      , class_ "!w-[66vw] !min-w-[66vw] !max-w-none !h-[90vh] flex flex-col flex-shrink-0"
-                      ]
-                      [ -- Header with title, mode switch, and close button
-                        MH.div_
-                          [class_ "flex items-center justify-between border-b px-8 py-6 shrink-0"]
-                          [ Typography.h3 $ C.translate' C.LblMaterials
-                          , MH.div_
-                              [class_ "flex items-center gap-4"]
-                              [ -- Mode switch (always shown)
-                                modeSwitcher ms.viewMode (not $ null tasks) (not $ null resources)
-                              , -- Close button
-                                MH.button_
-                                  [ class_ "text-muted-foreground hover:text-foreground transition-colors"
-                                  , MH.onClick CloseResourceModal
-                                  ]
-                                  [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
-                              ]
-                          ]
-                      , -- Scrollable content area
-                        MH.div_
-                          [class_ "flex-1 overflow-y-auto px-8 py-6"]
-                          [ case ms.viewMode of
-                              ViewTasks ->
-                                taskResourceListView showPurposeBadge tasks ms.taskListState ResourceModalAction
-                              ViewLearningResources ->
-                                resourcesListView resources ms.expandedResources
-                          ]
-                      ]
-                  ]
-
-        -- View for displaying learning resources
-        resourcesListView :: [Resource] -> Set.Set ResourceId -> M.View ViewerModel ViewerAction
-        resourcesListView resources expandedSet =
-          if null resources
-            then Typography.muted $ C.translate' C.LblNoResources
-            else MH.div_ [class_ "space-y-2"] (map resourceCard resources)
-          where
-            resourceCard res =
-              let ResourceIdentifier ident = res.identifier
-                  displayName = if T.null ident then "(Unbenannt)" else ident
-               in case res.content of
-                    -- Inline content: expandable card
-                    InlineContent txt ->
-                      let isExpanded = Set.member res.id expandedSet
-                          hasContent = not (T.null txt)
-                          headerClasses = if hasContent
-                            then "flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                            else "flex items-center gap-2 px-4 py-3"
-                          headerAttrs = if hasContent
-                            then [class_ headerClasses, MH.onClick (ToggleResourceExpanded res.id)]
-                            else [class_ headerClasses]
-                       in MH.div_
-                            [class_ "border rounded-lg overflow-hidden"]
-                            [ -- Header (clickable if has content)
-                              MH.div_
-                                headerAttrs
-                                [ -- Expand/collapse icon (only if has content)
-                                  if hasContent
-                                    then icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
-                                    else V.empty
-                                , icon [class_ "text-sky-600"] IcnResources
-                                , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-                                ]
-                            , -- Content (shown when expanded)
-                              if isExpanded && hasContent
-                                then MH.div_
-                                       [class_ "px-4 py-3 border-t"]
-                                       [MH.div_ [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"] [M.text (M.ms txt)]]
-                                else V.empty
-                            ]
-                    -- Web link: direct link card
-                    WebLink url title ->
-                      MH.a_
-                        [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                        , MP.href_ (M.ms url)
-                        , MP.target_ "_blank"
-                        , MP.rel_ "noopener noreferrer"
-                        ]
-                        [ icon [class_ "text-sky-600"] IcnLink
-                        , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-                        , if T.null title || title == ident
-                            then V.empty
-                            else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
-                        ]
-                    -- Video link: direct link card
-                    VideoLink url title ->
-                      MH.a_
-                        [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                        , MP.href_ (M.ms url)
-                        , MP.target_ "_blank"
-                        , MP.rel_ "noopener noreferrer"
-                        ]
-                        [ icon [class_ "text-sky-600"] IcnVideo
-                        , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-                        , if T.null title || title == ident
-                            then V.empty
-                            else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
-                        ]
-
-        -- Mode switcher using button group (same style as competence grid)
-        modeSwitcher :: ResourceViewMode -> Bool -> Bool -> M.View ViewerModel ViewerAction
-        modeSwitcher currentMode hasTasks hasResources =
-          Button.buttonGroup
-            [ modeButton ViewTasks (C.translate' C.LblTasks) hasTasks
-            , modeButton ViewLearningResources (C.translate' C.LblLearningResources) hasResources
-            ]
-          where
-            modeButton mode label hasContent =
-              let variant = if mode == currentMode then Button.Primary else Button.Outline
-               in Button.button variant label
-                    & Button.withSize Button.Small
-                    & Button.withDisabled (not hasContent)
-                    & Button.withClick (SwitchResourceViewMode mode)
-                    & Button.renderButton
 
         -- Header with title on left and grade badge on right
         header _vm =

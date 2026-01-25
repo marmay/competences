@@ -14,13 +14,14 @@ import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), c
 import Competences.Frontend.Component.CompetenceGridImport (competenceGridImportComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
+import Competences.Frontend.Component.ModalHost (modalHostComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , FocusedUserChange (..)
-  , SyncContext
+  , SyncContext (..)
   , SyncDocumentEnv (..)
   , getFocusedUserRef
   , setFocusedUser
@@ -88,6 +89,7 @@ mkApp ir =
             (navButtons m)
             (page (m ^. #uri))
             (footerView ir)
+        , V.component "modal-host" (modalHostComponent ir.modalManager)
         ]
 
     footerView ir' =

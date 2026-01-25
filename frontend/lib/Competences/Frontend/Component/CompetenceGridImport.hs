@@ -325,6 +325,7 @@ applyCompetenceAction r gridId ca = case ca.action of
             }
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Create newComp)
   Update old new -> do
+    modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id Lock)
     let patch = buildCompetencePatch old new
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()

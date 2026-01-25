@@ -1,40 +1,24 @@
 {- |
 Module: Competences.Frontend.View.Modal
-Description: Basecoat-inspired modal/dialog components
+Description: Basecoat-inspired modal/dialog styling helpers
 
-This module provides modal and dialog components with consistent Basecoat styling.
+Note: The primary modal system is now handled by the ModalManager and ModalHost
+components in Competences.Frontend.SyncContext.ModalManager and
+Competences.Frontend.Component.ModalHost.
+
+This module provides optional styling helpers for modal content.
 -}
 module Competences.Frontend.View.Modal
-  ( modalHost
-  , maybeModalHost
-  , modalDialog
+  ( modalDialog
   )
 where
 
-import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
 import Miso.Html qualified as M
 
--- | Modal host - full-screen overlay with backdrop
-modalHost :: [M.Attribute a] -> [M.View m a] -> M.View m a
-modalHost attrs =
-  M.div_
-    ( class_
-        "fixed inset-0 z-50 flex items-center justify-center bg-foreground/50"
-        : attrs
-    )
-
--- | Optional modal host for use with components
-maybeModalHost :: (Eq child) => Maybe (M.Component model child action') -> M.View model action
-maybeModalHost (Just c) =
-  componentA
-    "modal-host"
-    [class_ "fixed inset-0 z-50 flex items-center justify-center bg-foreground/50"]
-    c
-maybeModalHost Nothing = M.div_ [] []
-
--- | Modal dialog - the actual dialog box with shadow and rounded corners
+-- | Modal dialog - styling helper for modal content with shadow and rounded corners
+-- This is an optional styling wrapper; modal components can also style themselves directly.
 modalDialog :: [M.Attribute a] -> [M.View m a] -> M.View m a
 modalDialog attrs =
   M.div_

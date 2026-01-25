@@ -14,17 +14,20 @@ module Competences.Frontend.Component.AssignmentImportModal
 where
 
 import Competences.Command qualified as Cmd
+import Competences.Command (AssignmentPatch (..), ModifyCommand (..), SolutionPatch (..), TaskPatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
-import Competences.Document.Task (Task (..), TaskIdentifier (..))
+import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Document.User (User (..), isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
+  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -32,7 +35,6 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
-import Competences.Frontend.View.Modal (modalHost)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.AssignmentParser (parseAssignmentImport)
@@ -46,7 +48,7 @@ import Competences.Import.Types
   , levelToGerman
   )
 import Data.List (sortBy)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -130,17 +132,19 @@ assignmentImportModalComponent r =
     update ApplyImport = do
       m <- M.get
       case m.parseResult of
-        Right previews -> M.io_ $ applyPreviews r m.document previews
+        Right previews -> M.io_ $ do
+          applyPreviews r m.document previews
+          closeModal r.modalManager
         Left _ -> pure ()
 
-    update CloseModal = pure () -- Parent handles this
+    update CloseModal =
+      M.io_ $ closeModal r.modalManager
 
     view :: Model -> M.View Model Action
     view m =
-      modalHost
-        []
-        [ M.div_
-            [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
+      -- Note: No modalHost wrapper - the parent ModalHost component provides the backdrop
+      M.div_
+        [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ -- Header
               M.div_
                 [class_ "flex items-center justify-between p-4 border-b border-border"]
@@ -193,7 +197,6 @@ assignmentImportModalComponent r =
                     _ -> M.text ""
                 ]
             ]
-        ]
 
 placeholderText :: M.MisoString
 placeholderText =
@@ -367,10 +370,10 @@ applyAssignmentPreview r doc preview = do
               , tasks = taskIds
               }
       modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
-    Update _ _ -> do
-      -- For updates, we'd need to modify the assignment
-      -- Currently not implemented
-      pure ()
+    Update old new -> do
+      modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id Lock)
+      let patch = buildAssignmentPatch old new taskIds
+      modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()
 
 -- | Apply a task preview and return its ID
@@ -380,19 +383,34 @@ applyTaskAndGetId r doc preview = do
   let teachers = filter isTeacher $ Ix.toList doc.users
       mTeacherId = (.id) <$> listToMaybe teachers
 
+  -- Extract matched competence IDs from competence matches
+  let matchedCompetences = mapMaybe (\cm -> cm.matched) preview.competenceMatches
+
   taskId <- case preview.taskAction of
     Create t -> do
       newId <- nextId r
-      let newTask =
+      -- Set matched competences as primary competences
+      let taskAttrs =
+            TaskAttributes
+              { primary = matchedCompetences
+              , secondary = []
+              , purpose = defaultTaskAttributes.purpose
+              , displayInResources = defaultTaskAttributes.displayInResources
+              }
+          newTask =
             Task
               { id = newId
               , identifier = t.identifier
               , content = t.content
-              , taskType = t.taskType
+              , taskType = SelfContained taskAttrs
               }
       modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
       pure newId
-    Update _old new -> pure new.id
+    Update old new -> do
+      modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id Lock)
+      let patch = buildTaskPatch old new matchedCompetences
+      modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
+      pure old.id
     NoChange t -> pure t.id
 
   -- Apply solutions
@@ -416,5 +434,51 @@ applySolutionAction r taskId mTeacherId action = case action of
               }
       modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Create newSolution)
     Nothing -> pure ()
-  Update _ _ -> pure ()
+  Update old new -> do
+    modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id Lock)
+    let patch = buildSolutionPatch old new
+    modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()
+
+-- ============================================================================
+-- Patch Builders
+-- ============================================================================
+
+-- | Build assignment patch from old and new values
+buildAssignmentPatch :: Assignment -> Assignment -> [Id Task] -> AssignmentPatch
+buildAssignmentPatch old new taskIds =
+  AssignmentPatch
+    { name = if old.name == new.name then Nothing else Just (old.name, new.name)
+    , description = if old.description == new.description then Nothing else Just (old.description, new.description)
+    , assignmentDate = if old.assignmentDate == new.assignmentDate then Nothing else Just (old.assignmentDate, new.assignmentDate)
+    , activityType = if old.activityType == new.activityType then Nothing else Just (old.activityType, new.activityType)
+    , studentIds = Nothing -- Don't change student assignments during import
+    , tasks = if old.tasks == taskIds then Nothing else Just (old.tasks, taskIds)
+    }
+
+-- | Build task patch from old and new values, with matched competences
+buildTaskPatch :: Task -> Task -> [CompetenceLevelId] -> TaskPatch
+buildTaskPatch old new matchedCompetences =
+  let oldPrimary = getTaskPrimary old
+   in TaskPatch
+        { identifier = if old.identifier == new.identifier then Nothing else Just (old.identifier, new.identifier)
+        , content = if old.content == new.content then Nothing else Just (old.content, new.content)
+        , primary = if oldPrimary == matchedCompetences then Nothing else Just (oldPrimary, matchedCompetences)
+        , secondary = Nothing -- Keep secondary unchanged
+        , purpose = Nothing -- Preserve existing purpose
+        , displayInResources = Nothing
+        }
+
+-- | Extract primary competences from a task
+getTaskPrimary :: Task -> [CompetenceLevelId]
+getTaskPrimary task = case task.taskType of
+  SelfContained attrs -> attrs.primary
+  SubTask _ _ -> [] -- SubTasks handled differently, not expected in import
+
+-- | Build solution patch from old and new values
+buildSolutionPatch :: Solution -> Solution -> SolutionPatch
+buildSolutionPatch old new =
+  SolutionPatch
+    { solutionType = if old.solutionType == new.solutionType then Nothing else Just (old.solutionType, new.solutionType)
+    , content = if old.content == new.content then Nothing else Just (old.content, new.content)
+    }
