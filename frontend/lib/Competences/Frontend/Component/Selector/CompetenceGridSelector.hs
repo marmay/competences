@@ -204,27 +204,24 @@ competenceGridSelectorComponent r style parentLens =
             }
 
     view (m :: Model) =
-      M.div_
-        []
-        [ V.viewFlow
-            ( V.vFlow
-                & (#gap .~ V.SmallSpace)
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#extraAttrs .~ [V.fullHeight])
-            )
-            [ case style of
-                CompetenceGridSelectorViewOnlyStyle ->
-                  SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing
-                CompetenceGridSelectorViewAndCreateStyle ->
-                  SL.selectorHeaderWithDropdown
-                    (C.translate' C.LblSelectCompetenceGrids)
-                    m.isDropdownOpen
-                    ToggleDropdown
-                    [ SL.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
-                    , SL.dropdownItem IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
-                    ]
-            , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
-            ]
+      V.viewFlow
+        ( V.vFlow
+            & (#gap .~ V.SmallSpace)
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#extraAttrs .~ [V.fullHeight])
+        )
+        [ case style of
+            CompetenceGridSelectorViewOnlyStyle ->
+              SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing
+            CompetenceGridSelectorViewAndCreateStyle ->
+              SL.selectorHeaderWithDropdown
+                (C.translate' C.LblSelectCompetenceGrids)
+                m.isDropdownOpen
+                ToggleDropdown
+                [ SL.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
+                , SL.dropdownItem IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
+                ]
+        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
         , if m.showImportModal then importModalView m else M.text ""
         ]
 

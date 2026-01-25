@@ -38,6 +38,7 @@ import Competences.Document.Solution (Solution (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Import.Types
 import Data.List (find)
+import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
@@ -82,10 +83,14 @@ matchSingleGrid doc parsed =
       existingCompetences =
         Ix.toAscList (Proxy @Order) $
           doc.competences Ix.@= gridId
-      competenceActions = matchCompetences existingCompetences parsed.competences
+      (competenceActions, matchedIds) = matchCompetencesWithTracking existingCompetences parsed.competences
+
+      -- Find competences that exist but weren't matched (to be deleted)
+      toDelete = filter (\c -> c.id `notElem` matchedIds) existingCompetences
    in GridImportPreview
         { gridAction = gridAction
         , competenceActions = competenceActions
+        , competencesToDelete = toDelete
         }
 
 -- | Find grid by title (case-insensitive)
@@ -104,9 +109,18 @@ makeNewGrid parsed =
     , description = ""
     }
 
--- | Match parsed competences against existing ones
-matchCompetences :: [Competence] -> [ParsedCompetence] -> [CompetenceImportAction]
-matchCompetences existing = map (matchSingleCompetence existing)
+-- | Match parsed competences against existing ones, tracking which were matched
+matchCompetencesWithTracking :: [Competence] -> [ParsedCompetence] -> ([CompetenceImportAction], [Id Competence])
+matchCompetencesWithTracking existing parsed =
+  let results = map (matchSingleCompetence existing) parsed
+      matchedIds = mapMaybe getMatchedId results
+   in (results, matchedIds)
+  where
+    getMatchedId :: CompetenceImportAction -> Maybe (Id Competence)
+    getMatchedId ca = case ca.action of
+      Create _ -> Nothing
+      Update old _ -> Just old.id
+      NoChange c -> Just c.id
 
 -- | Match a single parsed competence
 matchSingleCompetence :: [Competence] -> ParsedCompetence -> CompetenceImportAction

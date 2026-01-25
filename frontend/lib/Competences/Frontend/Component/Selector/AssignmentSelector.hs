@@ -212,25 +212,22 @@ assignmentSelectorComponent r parentLens =
       }
 
     view' m =
-      M.div_
-        []
-        [ V.viewFlow
-            ( V.vFlow
-                & (#gap .~ V.SmallSpace)
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#extraAttrs .~ [V.fullHeight])
-            )
-            [ SelectorList.selectorHeaderWithDropdown
-                (C.translate' C.LblAssignments)
-                m.isDropdownOpen
-                ToggleDropdown
-                [ SelectorList.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
-                , SelectorList.dropdownItem IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
-                ]
-            , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
-            , viewStatusFilters m
-            , SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
+      V.viewFlow
+        ( V.vFlow
+            & (#gap .~ V.SmallSpace)
+            & (#expandDirection .~ V.Expand V.Start)
+            & (#extraAttrs .~ [V.fullHeight])
+        )
+        [ SelectorList.selectorHeaderWithDropdown
+            (C.translate' C.LblAssignments)
+            m.isDropdownOpen
+            ToggleDropdown
+            [ SelectorList.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
+            , SelectorList.dropdownItem IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
             ]
+        , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
+        , viewStatusFilters m
+        , SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
         , if m.showImportModal then importModalView m else M.text ""
         ]
 

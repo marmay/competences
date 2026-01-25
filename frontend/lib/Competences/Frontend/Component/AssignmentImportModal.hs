@@ -45,7 +45,9 @@ import Competences.Import.Types
   , activityTypeToGerman
   , levelToGerman
   )
+import Data.List (sortBy)
 import Data.Maybe (listToMaybe)
+import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -243,14 +245,21 @@ previewAssignmentView preview =
         [class_ "text-sm text-muted-foreground mb-2"]
         [ M.text $ M.ms $ formatMetadata preview.assignmentAction
         ]
-    , -- Tasks
+    , -- Tasks (sorted by identifier)
       if null preview.taskPreviews
         then M.text ""
         else
           M.div_
             [class_ "pl-4 border-l-2 border-border space-y-2"]
-            (map previewTaskView preview.taskPreviews)
+            (map previewTaskView $ sortBy (comparing taskIdentifier) preview.taskPreviews)
     ]
+
+-- | Extract task identifier from TaskImportPreview for sorting
+taskIdentifier :: TaskImportPreview -> TaskIdentifier
+taskIdentifier tp = case tp.taskAction of
+  Create t -> t.identifier
+  Update _ t -> t.identifier
+  NoChange t -> t.identifier
 
 assignmentName :: ImportAction Assignment -> Text
 assignmentName (Create a) = let AssignmentName n = a.name in n

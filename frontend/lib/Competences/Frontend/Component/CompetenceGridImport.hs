@@ -12,10 +12,11 @@ module Competences.Frontend.Component.CompetenceGridImport
   )
 where
 
+import Competences.Command (CompetencePatch (..), LevelInfoPatch (..), ModifyCommand (..))
 import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
-import Competences.Document.Competence (Competence (..), Level (..))
+import Competences.Document.Competence (Competence (..), Level (..), LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Order (orderMax)
@@ -201,7 +202,23 @@ previewGridView preview =
         ]
     , M.div_
         [class_ "flex flex-col gap-2"]
-        (map previewCompetenceView preview.competenceActions)
+        ( map previewCompetenceView preview.competenceActions
+            ++ map previewDeletedCompetence preview.competencesToDelete
+        )
+    ]
+
+-- | Preview for a competence that will be deleted
+previewDeletedCompetence :: Competence -> M.View Model Action
+previewDeletedCompetence c =
+  M.div_
+    [class_ "pl-4 border-l-2 border-destructive/50"]
+    [ M.div_
+        [class_ "flex items-center gap-2"]
+        [ M.span_
+            [class_ "font-medium text-muted-foreground line-through"]
+            [M.text $ M.ms c.description]
+        , badge BadgeDestructive "Löschen"
+        ]
     ]
 
 gridTitle :: ImportAction CompetenceGrid -> Text
@@ -253,6 +270,7 @@ hasChanges :: GridImportPreview -> Bool
 hasChanges preview =
   isChange preview.gridAction
     || any (\ca -> isChange ca.action) preview.competenceActions
+    || not (null preview.competencesToDelete)
   where
     isChange (Create _) = True
     isChange (Update _ _) = True
@@ -263,7 +281,6 @@ applyPreviews :: SyncContext -> Document -> [GridImportPreview] -> IO ()
 applyPreviews r doc previews = mapM_ (applyGridPreview r doc) previews
 
 -- | Apply a single grid import preview
--- Note: Currently only handles Create actions. Update is not yet implemented.
 applyGridPreview :: SyncContext -> Document -> GridImportPreview -> IO ()
 applyGridPreview r _doc preview = do
   -- Handle grid action
@@ -279,14 +296,21 @@ applyGridPreview r _doc preview = do
               }
       modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create newGrid)
       pure newId
-    Update _old new -> pure new.id -- Updates not yet implemented
+    Update _old new -> pure new.id -- Grid updates not yet implemented
     NoChange g -> pure g.id
 
-  -- Handle competence actions
+  -- Handle competence actions (create/update)
   mapM_ (applyCompetenceAction r gridId) preview.competenceActions
 
+  -- Delete competences not in the import
+  mapM_ (deleteCompetence r) preview.competencesToDelete
+
+-- | Delete a competence
+deleteCompetence :: SyncContext -> Competence -> IO ()
+deleteCompetence r c =
+  modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Delete c.id)
+
 -- | Apply a single competence import action
--- Note: Currently only handles Create actions. Update is not yet implemented.
 applyCompetenceAction :: SyncContext -> Id CompetenceGrid -> CompetenceImportAction -> IO ()
 applyCompetenceAction r gridId ca = case ca.action of
   Create c -> do
@@ -300,5 +324,61 @@ applyCompetenceAction r gridId ca = case ca.action of
             , levels = c.levels
             }
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Create newComp)
-  Update _ _ -> pure () -- Updates not yet implemented
+  Update old new -> do
+    let patch = buildCompetencePatch old new
+    modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()
+
+-- | Build a CompetencePatch from old and new Competence values
+buildCompetencePatch :: Competence -> Competence -> CompetencePatch
+buildCompetencePatch old new =
+  CompetencePatch
+    { description =
+        if old.description == new.description
+          then Nothing
+          else Just (old.description, new.description)
+    , levels = buildLevelPatches old.levels new.levels
+    }
+
+-- | Build level patches for all levels that have changes
+buildLevelPatches :: Map.Map Level LevelInfo -> Map.Map Level LevelInfo -> Map.Map Level LevelInfoPatch
+buildLevelPatches oldLevels newLevels =
+  Map.mapMaybe id $
+    Map.unionWith mergeLevelPatch
+      (Map.mapWithKey (buildLevelPatch oldLevels) newLevels)
+      (Map.mapWithKey (buildDeletedLevelPatch newLevels) oldLevels)
+  where
+    -- Build patch for level present in new (may need update)
+    buildLevelPatch :: Map.Map Level LevelInfo -> Level -> LevelInfo -> Maybe LevelInfoPatch
+    buildLevelPatch olds lvl newInfo =
+      let oldInfo = Map.findWithDefault emptyLevelInfo lvl olds
+          descChange =
+            if oldInfo.description == newInfo.description
+              then Nothing
+              else Just (oldInfo.description, newInfo.description)
+          lockChange =
+            if oldInfo.locked == newInfo.locked
+              then Nothing
+              else Just (oldInfo.locked, newInfo.locked)
+       in if descChange == Nothing && lockChange == Nothing
+            then Nothing
+            else Just LevelInfoPatch {description = descChange, locked = lockChange}
+
+    -- Handle levels that exist in old but not in new (clear them)
+    buildDeletedLevelPatch :: Map.Map Level LevelInfo -> Level -> LevelInfo -> Maybe LevelInfoPatch
+    buildDeletedLevelPatch news lvl oldInfo =
+      if Map.member lvl news
+        then Nothing -- Will be handled by buildLevelPatch
+        else
+          Just
+            LevelInfoPatch
+              { description = Just (oldInfo.description, T.empty)
+              , locked = Just (oldInfo.locked, False)
+              }
+
+    -- Merge patches (prefer non-Nothing)
+    mergeLevelPatch :: Maybe LevelInfoPatch -> Maybe LevelInfoPatch -> Maybe LevelInfoPatch
+    mergeLevelPatch (Just p) _ = Just p
+    mergeLevelPatch _ p = p
+
+    emptyLevelInfo = LevelInfo {description = T.empty, locked = False}

@@ -38,8 +38,10 @@ import Competences.Document.Task
   , TaskType (..)
   )
 import Competences.Import.Types (activityTypeToGerman, levelToGerman)
+import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
+import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -126,7 +128,7 @@ exportAssignment doc assignment =
           <> "Type: "
           <> activityTypeToGerman assignment.activityType
           <> "\n"
-      tasks = mapMaybe (lookupTask doc) assignment.tasks
+      tasks = sortBy (comparing (.identifier)) $ mapMaybe (lookupTask doc) assignment.tasks
       taskSections = T.intercalate "\n" $ map (exportTaskAsSubsection doc) tasks
    in header <> descSection <> metaSection <> "\n" <> taskSections
 

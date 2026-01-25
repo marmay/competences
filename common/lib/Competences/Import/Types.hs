@@ -146,6 +146,8 @@ data GridImportPreview = GridImportPreview
   -- ^ Action for the grid itself
   , competenceActions :: ![CompetenceImportAction]
   -- ^ Actions for each competence in the grid
+  , competencesToDelete :: ![Competence]
+  -- ^ Existing competences not in import (will be deleted)
   }
   deriving (Eq, Show, Generic)
 
