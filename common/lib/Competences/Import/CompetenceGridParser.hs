@@ -129,7 +129,7 @@ levelItemP = do
   desc <- takeLineContent
   -- Collect continuation lines (indented)
   continuations <- many' continuationLine
-  let fullDesc = T.intercalate " " (T.strip desc : map T.strip continuations)
+  let fullDesc = T.strip $ T.intercalate " " (T.strip desc : map T.strip continuations)
   skipBlankLines
   case levelFromGerman (T.strip levelName) of
     Just level -> pure (level, fullDesc)

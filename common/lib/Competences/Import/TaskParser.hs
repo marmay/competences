@@ -130,7 +130,7 @@ sectionP = do
 sectionContentP :: Parser Text
 sectionContentP = do
   lines' <- many' contentLineP
-  pure (T.intercalate "\n" lines')
+  pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with # or ##)
 contentLineP :: Parser Text

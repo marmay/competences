@@ -84,7 +84,7 @@ exportLevel levels lvl =
   case Map.lookup lvl levels of
     Just info
       | not (T.null info.description) ->
-          Just $ "- " <> levelToGerman lvl <> ": " <> info.description
+          Just $ "- " <> levelToGerman lvl <> ": " <> T.strip info.description
     _ -> Nothing
 
 -- ============================================================================
@@ -119,7 +119,7 @@ exportAssignment :: Document -> Assignment -> Text
 exportAssignment doc assignment =
   let AssignmentName name = assignment.name
       header = "# " <> name <> "\n"
-      descSection = "\n## Beschreibung\n" <> assignment.description <> "\n"
+      descSection = "\n## Beschreibung\n" <> T.strip assignment.description <> "\n"
       metaSection =
         "\n## Angaben\n"
           <> "Date: "
@@ -146,7 +146,7 @@ exportTaskAsSubsection doc task =
   let TaskIdentifier ident = task.identifier
       header = "### " <> ident <> "\n"
       contentSection = case task.content of
-        Just c | not (T.null c) -> "\n#### Angabe\n" <> c <> "\n"
+        Just c | not (T.null (T.strip c)) -> "\n#### Angabe\n" <> T.strip c <> "\n"
         _ -> ""
       -- Get competence references for this task
       competenceSection = exportTaskCompetences doc task
@@ -189,6 +189,6 @@ exportSolution sol =
         Hint -> "Hinweis"
         Results -> "Ergebnis"
         Complete -> "Komplettlösung"
-   in if T.null sol.content
+   in if T.null (T.strip sol.content)
         then ""
-        else "\n#### " <> sectionName <> "\n" <> sol.content <> "\n"
+        else "\n#### " <> sectionName <> "\n" <> T.strip sol.content <> "\n"

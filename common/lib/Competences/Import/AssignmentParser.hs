@@ -149,7 +149,7 @@ assignmentSectionP = do
 sectionContentP :: Parser Text
 sectionContentP = do
   lines' <- many' contentLineP
-  pure (T.intercalate "\n" lines')
+  pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with #)
 contentLineP :: Parser Text
@@ -245,7 +245,7 @@ taskSectionP = do
 taskSectionContentP :: Parser Text
 taskSectionContentP = do
   lines' <- many' taskContentLineP
-  pure (T.intercalate "\n" lines')
+  pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with # or ##)
 taskContentLineP :: Parser Text
