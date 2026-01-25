@@ -16,7 +16,6 @@ import Competences.Document
   , orderMax
   )
 import Competences.Document.Order (orderPosition)
-import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Component.Editor qualified as TE
@@ -24,6 +23,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
+import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -37,7 +37,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportCompetenceGrid)
-import Control.Concurrent (forkIO, threadDelay)
 import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -54,9 +53,8 @@ import Optics.Core qualified as O
 -- ============================================================================
 
 -- | Model for the editor detail component
-data EditorModel = EditorModel
-  { document :: !Document
-  , exportSuccess :: !Bool
+newtype EditorModel = EditorModel
+  { document :: Document
   }
   deriving (Eq, Generic, Show)
 
@@ -64,8 +62,6 @@ data EditorModel = EditorModel
 data EditorAction
   = CreateNewCompetence
   | DocumentUpdated !DocumentChange
-  | ExportGrid
-  | ClearExportSuccess
   deriving (Eq, Show)
 
 -- | View for the editor detail - allows editing grid and competences
@@ -84,7 +80,7 @@ editorComponent r grid =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = EditorModel {document = emptyDocument, exportSuccess = False}
+    initialModel = EditorModel {document = emptyDocument}
 
     emptyDocument =
       Document
@@ -116,21 +112,7 @@ editorComponent r grid =
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
-    update ExportGrid = do
-      m <- M.get
-      let exportText = exportCompetenceGrid m.document grid
-      M.modify $ #exportSuccess .~ True
-      M.withSink $ \sink -> do
-        copyToClipboard exportText
-        _ <- forkIO $ do
-          threadDelay 3000000  -- 3 seconds
-          sink ClearExportSuccess
-        pure ()
-
-    update ClearExportSuccess =
-      M.modify $ #exportSuccess .~ False
-
-    view m =
+    view _m =
       V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
@@ -149,17 +131,9 @@ editorComponent r grid =
                 & Button.withIcon IcnAdd
                 & Button.withClick CreateNewCompetence
                 & Button.renderButton
-            , if m.exportSuccess
-                then
-                  Button.buttonSecondary ""
-                    & Button.withIcon IcnApply
-                    & Button.withDisabled True
-                    & Button.renderButton
-                else
-                  Button.buttonSecondary (C.translate' C.LblExport)
-                    & Button.withIcon IcnExport
-                    & Button.withClick ExportGrid
-                    & Button.renderButton
+            , V.component
+                ("export-btn-" <> M.ms (show grid.id))
+                (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))
             ]
         ]
 

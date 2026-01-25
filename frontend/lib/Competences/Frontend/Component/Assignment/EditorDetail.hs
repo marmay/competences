@@ -14,7 +14,6 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.User (isStudent)
-import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -28,11 +27,9 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Import.Export (exportAssignment)
-import Control.Concurrent (forkIO, threadDelay)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -45,16 +42,13 @@ import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.), (.~))
 -- Wrapper Model and Actions
 -- ============================================================================
 
-data EditorModel = EditorModel
-  { document :: !Document
-  , exportSuccess :: !Bool
+newtype EditorModel = EditorModel
+  { document :: Document
   }
   deriving (Eq, Generic, Show)
 
-data EditorAction
-  = DocumentUpdated !DocumentChange
-  | ExportAssignment
-  | ClearExportSuccess
+newtype EditorAction
+  = DocumentUpdated DocumentChange
   deriving (Eq, Show)
 
 -- | Detail view for editing an assignment
@@ -74,7 +68,7 @@ editorWrapperComponent r assignment =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = EditorModel {document = emptyDocument, exportSuccess = False}
+    initialModel = EditorModel {document = emptyDocument}
 
     emptyDocument =
       Document
@@ -94,21 +88,7 @@ editorWrapperComponent r assignment =
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
 
-    update ExportAssignment = do
-      m <- M.get
-      let exportText = exportAssignment m.document assignment
-      M.modify $ #exportSuccess .~ True
-      M.withSink $ \sink -> do
-        copyToClipboard exportText
-        _ <- forkIO $ do
-          threadDelay 3000000  -- 3 seconds
-          sink ClearExportSuccess
-        pure ()
-
-    update ClearExportSuccess =
-      M.modify $ #exportSuccess .~ False
-
-    view m =
+    view _m =
       MH.div_
         [class_ "flex flex-col gap-4"]
         [ V.component
@@ -116,17 +96,9 @@ editorWrapperComponent r assignment =
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end"]
-            [ if m.exportSuccess
-                then
-                  Button.buttonSecondary ""
-                    & Button.withIcon IcnApply
-                    & Button.withDisabled True
-                    & Button.renderButton
-                else
-                  Button.buttonSecondary (C.translate' C.LblExport)
-                    & Button.withIcon IcnExport
-                    & Button.withClick ExportAssignment
-                    & Button.renderButton
+            [ V.component
+                ("export-btn-" <> M.ms (show assignment.id))
+                (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
             ]
         ]
 
