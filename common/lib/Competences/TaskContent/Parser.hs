@@ -63,6 +63,7 @@ blocksP = do
   first <- blockP
   rest <- many' (blankLine *> blockP)
   skipSpaces
+  _ <- many' (satisfy (== '\n'))  -- Consume trailing newlines
   pure (first : rest)
   where
     blankLine = many1' (satisfy (== '\n')) *> skipSpaces

@@ -37,6 +37,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportCompetenceGrid)
+import Control.Concurrent (forkIO, threadDelay)
 import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -55,6 +56,7 @@ import Optics.Core qualified as O
 -- | Model for the editor detail component
 data EditorModel = EditorModel
   { document :: !Document
+  , exportSuccess :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -63,6 +65,7 @@ data EditorAction
   = CreateNewCompetence
   | DocumentUpdated !DocumentChange
   | ExportGrid
+  | ClearExportSuccess
   deriving (Eq, Show)
 
 -- | View for the editor detail - allows editing grid and competences
@@ -81,7 +84,7 @@ editorComponent r grid =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = EditorModel {document = emptyDocument}
+    initialModel = EditorModel {document = emptyDocument, exportSuccess = False}
 
     emptyDocument =
       Document
@@ -116,9 +119,18 @@ editorComponent r grid =
     update ExportGrid = do
       m <- M.get
       let exportText = exportCompetenceGrid m.document grid
-      M.io_ $ copyToClipboard exportText
+      M.modify $ #exportSuccess .~ True
+      M.withSink $ \sink -> do
+        copyToClipboard exportText
+        _ <- forkIO $ do
+          threadDelay 3000000  -- 3 seconds
+          sink ClearExportSuccess
+        pure ()
 
-    view _m =
+    update ClearExportSuccess =
+      M.modify $ #exportSuccess .~ False
+
+    view m =
       V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
@@ -137,10 +149,17 @@ editorComponent r grid =
                 & Button.withIcon IcnAdd
                 & Button.withClick CreateNewCompetence
                 & Button.renderButton
-            , Button.buttonSecondary (C.translate' C.LblExport)
-                & Button.withIcon IcnExport
-                & Button.withClick ExportGrid
-                & Button.renderButton
+            , if m.exportSuccess
+                then
+                  Button.buttonSecondary ""
+                    & Button.withIcon IcnApply
+                    & Button.withDisabled True
+                    & Button.renderButton
+                else
+                  Button.buttonSecondary (C.translate' C.LblExport)
+                    & Button.withIcon IcnExport
+                    & Button.withClick ExportGrid
+                    & Button.renderButton
             ]
         ]
 

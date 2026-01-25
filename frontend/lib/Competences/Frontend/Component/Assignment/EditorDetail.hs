@@ -32,6 +32,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
+import Control.Concurrent (forkIO, threadDelay)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -46,12 +47,14 @@ import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.), (.~))
 
 data EditorModel = EditorModel
   { document :: !Document
+  , exportSuccess :: !Bool
   }
   deriving (Eq, Generic, Show)
 
 data EditorAction
   = DocumentUpdated !DocumentChange
   | ExportAssignment
+  | ClearExportSuccess
   deriving (Eq, Show)
 
 -- | Detail view for editing an assignment
@@ -71,7 +74,7 @@ editorWrapperComponent r assignment =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = EditorModel {document = emptyDocument}
+    initialModel = EditorModel {document = emptyDocument, exportSuccess = False}
 
     emptyDocument =
       Document
@@ -94,9 +97,18 @@ editorWrapperComponent r assignment =
     update ExportAssignment = do
       m <- M.get
       let exportText = exportAssignment m.document assignment
-      M.io_ $ copyToClipboard exportText
+      M.modify $ #exportSuccess .~ True
+      M.withSink $ \sink -> do
+        copyToClipboard exportText
+        _ <- forkIO $ do
+          threadDelay 3000000  -- 3 seconds
+          sink ClearExportSuccess
+        pure ()
 
-    view _m =
+    update ClearExportSuccess =
+      M.modify $ #exportSuccess .~ False
+
+    view m =
       MH.div_
         [class_ "flex flex-col gap-4"]
         [ V.component
@@ -104,10 +116,17 @@ editorWrapperComponent r assignment =
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end"]
-            [ Button.buttonSecondary (C.translate' C.LblExport)
-                & Button.withIcon IcnExport
-                & Button.withClick ExportAssignment
-                & Button.renderButton
+            [ if m.exportSuccess
+                then
+                  Button.buttonSecondary ""
+                    & Button.withIcon IcnApply
+                    & Button.withDisabled True
+                    & Button.renderButton
+                else
+                  Button.buttonSecondary (C.translate' C.LblExport)
+                    & Button.withIcon IcnExport
+                    & Button.withClick ExportAssignment
+                    & Button.renderButton
             ]
         ]
 

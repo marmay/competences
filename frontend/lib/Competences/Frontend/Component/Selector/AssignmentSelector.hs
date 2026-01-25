@@ -10,7 +10,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
 import Competences.Document.Id (Id (..))
-import Competences.Document.Solution (Solution (..))
+import Competences.Document.Solution (Solution (..), SolutionType (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
@@ -238,7 +238,7 @@ assignmentSelectorComponent r parentLens =
       modalHost
         [M.onClick CloseImportModal]
         [ M.div_
-            [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col"
+            [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"
             , onClickWithOptions stopPropagation NoOp
             ]
             [ -- Header
@@ -252,10 +252,10 @@ assignmentSelectorComponent r parentLens =
                 ]
             , -- Content
               M.div_
-                [class_ "flex-1 min-h-0 grid grid-cols-2 gap-4 p-4 overflow-hidden"]
+                [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
                 [ -- Left: Input area
                   M.div_
-                    [class_ "flex flex-col gap-2 min-h-0"]
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
                     [ Typography.h3 "Eingabe"
                     , M.textarea_
                         [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
@@ -267,7 +267,7 @@ assignmentSelectorComponent r parentLens =
                     ]
                 , -- Right: Preview area
                   M.div_
-                    [class_ "flex flex-col gap-2 min-h-0"]
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
                     [ Typography.h3 "Vorschau"
                     , M.div_
                         [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
@@ -632,19 +632,28 @@ formatDay = T.pack . formatTime defaultTimeLocale "%Y-%m-%d"
 previewTaskView :: TaskImportPreview -> M.View Model Action
 previewTaskView preview =
   M.div_
-    [class_ "py-1"]
-    [ M.div_
+    [class_ "py-2 border-l-2 border-border pl-3"]
+    [ -- Task header with action badge
+      M.div_
         [class_ "flex items-center gap-2"]
         [ M.span_ [class_ "font-medium text-sm"] [M.text $ M.ms $ taskTitle preview.taskAction]
         , assignmentActionBadge preview.taskAction
         ]
-    , -- Solutions count
+    , -- Task content preview
+      case taskContent preview.taskAction of
+        Just content
+          | not (T.null content) ->
+              M.div_
+                [class_ "mt-1 text-xs text-muted-foreground line-clamp-2"]
+                [M.text $ M.ms $ T.take 150 content <> if T.length content > 150 then "..." else ""]
+        _ -> M.text ""
+    , -- Solutions with content
       if null preview.solutionActions
         then M.text ""
         else
           M.div_
-            [class_ "text-xs text-muted-foreground mt-1"]
-            [M.text $ M.ms $ "Lösungen: " <> T.pack (show (length preview.solutionActions))]
+            [class_ "mt-2 space-y-1"]
+            (map solutionPreviewView preview.solutionActions)
     , -- Competence matches
       if null preview.competenceMatches
         then M.text ""
@@ -658,6 +667,29 @@ taskTitle :: ImportAction Task -> Text
 taskTitle (Import.Create t) = let TaskIdentifier ident = t.identifier in ident
 taskTitle (Import.Update _ t) = let TaskIdentifier ident = t.identifier in ident
 taskTitle (Import.NoChange t) = let TaskIdentifier ident = t.identifier in ident
+
+taskContent :: ImportAction Task -> Maybe Text
+taskContent (Import.Create t) = t.content
+taskContent (Import.Update _ t) = t.content
+taskContent (Import.NoChange t) = t.content
+
+solutionPreviewView :: ImportAction Solution -> M.View Model Action
+solutionPreviewView action =
+  let (sType, content) = case action of
+        Import.Create s -> (s.solutionType, s.content)
+        Import.Update _ s -> (s.solutionType, s.content)
+        Import.NoChange s -> (s.solutionType, s.content)
+      typeLabel = case sType of
+        Hint -> "Hinweis"
+        Results -> "Ergebnis"
+        Complete -> "Komplettlösung"
+   in M.div_
+        [class_ "text-xs pl-2 border-l border-muted flex items-center gap-2"]
+        [ M.span_ [class_ "font-medium"] [M.text typeLabel]
+        , M.span_ [class_ "text-muted-foreground truncate max-w-[200px]"]
+            [M.text $ M.ms $ T.take 50 content <> if T.length content > 50 then "..." else ""]
+        , assignmentActionBadge action
+        ]
 
 competenceMatchView :: CompetenceMatch -> M.View Model Action
 competenceMatchView cm =

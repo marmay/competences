@@ -108,7 +108,6 @@ mkApp ir =
               , nb C.LblAssignments ManageAssignments
               , nb C.LblStatisticsOverview StatisticsOverview
               , nb C.LblManageUsers ManageUsers
-              , nb C.LblImportCompetenceGrids ImportCompetenceGrids
               ]
             else
               [ nb C.LblCompetenceGrid CompetenceGrid

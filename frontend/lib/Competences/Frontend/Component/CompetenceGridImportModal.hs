@@ -134,7 +134,7 @@ competenceGridImportModalComponent r =
       modalHost
         []
         [ M.div_
-            [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col"]
+            [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ -- Header
               M.div_
                 [class_ "flex items-center justify-between p-4 border-b border-border"]
@@ -146,10 +146,10 @@ competenceGridImportModalComponent r =
                 ]
             , -- Content
               M.div_
-                [class_ "flex-1 min-h-0 grid grid-cols-2 gap-4 p-4 overflow-hidden"]
+                [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
                 [ -- Left: Input area
                   M.div_
-                    [class_ "flex flex-col gap-2 min-h-0"]
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
                     [ Typography.h3 "Eingabe"
                     , M.textarea_
                         [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
@@ -161,7 +161,7 @@ competenceGridImportModalComponent r =
                     ]
                 , -- Right: Preview area
                   M.div_
-                    [class_ "flex flex-col gap-2 min-h-0"]
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
                     [ Typography.h3 "Vorschau"
                     , M.div_
                         [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
