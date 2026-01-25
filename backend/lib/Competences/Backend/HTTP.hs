@@ -257,6 +257,8 @@ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash basecoatCssHas
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';\n\
+      \// Debug logging flag (set to true for verbose console output)\n\
+      \window.COMPETENCES_DEBUG = false;\n\
       \// File hashes for cache busting\n\
       \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';\n\
       \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';"

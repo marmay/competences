@@ -10,6 +10,7 @@ module Competences.Frontend.WebSocket.Protocol
   )
 where
 
+import Competences.Frontend.Logging (logInfo)
 import Competences.Frontend.WebSocket
   ( WebSocketCallbacks (..)
   , connectWebSocketRaw
@@ -113,7 +114,7 @@ withWebSocket url initial continuation = do
       -- Exponential backoff: 1s, 2s, 4s, 8s, max 15s
       let delaySeconds = min 15 ((2 :: Int) ^ attempt)
       when (attempt > 0) $ do
-        M.consoleLog $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
+        logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
         threadDelay (delaySeconds * 1000000)
 
       -- Try to reconnect

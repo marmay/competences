@@ -16,6 +16,7 @@ import Competences.Frontend.SyncContext
   , modifySyncDocument
   , setSyncDocument
   )
+import Competences.Frontend.Logging (logDebug, logError)
 import Competences.Frontend.WebSocket (getJWTToken)
 import Competences.Frontend.WebSocket.CommandSender (mkCommandSender)
 import Competences.Frontend.WebSocket.Handlers (mkInitialHandler, mkReconnectHandler)
@@ -30,13 +31,13 @@ import Miso.Run (run)
 
 main :: IO ()
 main = do
-  M.consoleLog "App loaded."
+  logDebug "App loaded."
   run $ do
     -- Get JWT token from window.COMPETENCES_JWT
     maybeToken <- getJWTToken
     case maybeToken of
       Nothing -> do
-        M.consoleError "No JWT token found in window.COMPETENCES_JWT"
+        logError "No JWT token found in window.COMPETENCES_JWT"
         -- Fallback: use test user with disconnected CommandSender
         let user = User nilId "Test User" Teacher (Office365Id "")
         sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
@@ -47,7 +48,7 @@ main = do
         runApp $ withTailwindPlay $ mkApp ref
 
       Just jwtToken -> do
-        M.consoleLog $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
+        logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
 
         -- Determine WebSocket URL from current location
         location <- jsg "window" ! "location"
@@ -64,7 +65,7 @@ main = do
               runApp $ withTailwindPlay $ mkApp ref
 
         -- Connect and run with automatic reconnection
-        M.consoleLog "Connecting to server..."
+        logDebug "Connecting to server..."
         let initial = mkInitialHandler jwtToken forkApp
             reconnect = mkReconnectHandler jwtToken
 
@@ -74,7 +75,7 @@ main = do
 -- | Handle authentication failure by redirecting to login
 handleAuthFailure :: M.JSVal -> AuthenticationException -> IO ()
 handleAuthFailure location (AuthenticationException reason) = do
-  M.consoleError $ M.ms $ "Authentication failed: " <> T.unpack reason
+  logError $ M.ms $ "Authentication failed: " <> T.unpack reason
   setField location "href" ("/" :: T.Text)
 
 

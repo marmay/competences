@@ -38,6 +38,7 @@ where
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
+import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SyncContext.ModalManager
   ( ModalManagerRef
   , newModalManager
@@ -181,7 +182,7 @@ unregisterDocumentHandler d handlerId =
 
 modifySyncDocument :: SyncContext -> Command -> IO ()
 modifySyncDocument r c = do
-  M.consoleLog $ "[SyncDoc] modifySyncDocument: " <> M.ms (show c)
+  logDebug $ "[SyncDoc] modifySyncDocument: " <> M.ms (show c)
   -- Enqueue command and get authoritative list from CommandSender
   allPending <- enqueueCommand r.env.commandSender c
   -- Update SyncDocument with the authoritative list
@@ -193,7 +194,7 @@ modifySyncDocument r c = do
           & (#localChanges .~ validChanges)
     -- Log handler count for leak detection
     let handlerCount = Map.size d.onChanged
-    M.consoleLog $ "[SyncDoc] Notifying " <> M.ms handlerCount <> " handlers"
+    logDebug $ "[SyncDoc] Notifying " <> M.ms handlerCount <> " handlers"
     -- Notify subscribers
     forM_ d.onChanged $
       issueDocumentChange (DocumentChange d'.localDocument (DocumentChanged d.localDocument c))
@@ -223,7 +224,7 @@ setSyncDocument' userId allPending remoteDoc d = do
 
   -- Log handler count for leak detection
   let handlerCount = Map.size d.onChanged
-  M.consoleLog $ "[SyncDoc] setSyncDocument' notifying " <> M.ms handlerCount <> " handlers"
+  logDebug $ "[SyncDoc] setSyncDocument' notifying " <> M.ms handlerCount <> " handlers"
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d'.localDocument DocumentReloaded)
   pure d'
 
@@ -254,7 +255,7 @@ applyRemoteCommand d cmd = do
   -- If echo, acknowledge and get remaining pending list from CommandSender
   remainingPending <- if isEcho
     then do
-      M.consoleLog $ M.ms $ "Received echo of our command: " <> show cmd
+      logDebug $ M.ms $ "Received echo of our command: " <> show cmd
       acknowledgeCommand d.env.commandSender
     else getAllPending d.env.commandSender
 
@@ -263,7 +264,7 @@ applyRemoteCommand d cmd = do
     remoteDoc' <- case handleCommand d.env.connectedUser.id cmd syncDoc.remoteDocument of
       Left err -> do
         -- This shouldn't happen - server validated the command
-        M.consoleLog $ M.ms $ "ERROR: Server sent invalid command: " <> show err
+        logError $ M.ms $ "Server sent invalid command: " <> show err
         pure syncDoc.remoteDocument
       Right (doc, _) -> pure doc
 
@@ -274,7 +275,7 @@ applyRemoteCommand d cmd = do
           remainingPending
 
     when (length validChanges < length remainingPending) $ do
-      M.consoleLog $ M.ms $ "WARNING: Conflict detected - "
+      logWarn $ M.ms $ "Conflict detected - "
         <> show (length remainingPending - length validChanges) <> " local commands were dropped"
 
     let syncDoc' = syncDoc
@@ -284,7 +285,7 @@ applyRemoteCommand d cmd = do
 
     -- Log handler count for leak detection
     let handlerCount = Map.size syncDoc.onChanged
-    M.consoleLog $ "[SyncDoc] applyRemoteCommand notifying " <> M.ms handlerCount <> " handlers"
+    logDebug $ "[SyncDoc] applyRemoteCommand notifying " <> M.ms handlerCount <> " handlers"
     -- Notify subscribers
     forM_ syncDoc.onChanged $
       issueDocumentChange (DocumentChange localDoc' (DocumentChanged syncDoc.localDocument cmd))
@@ -313,7 +314,7 @@ rejectCommand d cmd = do
   -- If our pending, acknowledge and get remaining; otherwise get current list
   remainingPending <- if isOurPending
     then do
-      M.consoleLog $ M.ms $ "Our command was rejected by server: " <> show cmd
+      logWarn $ M.ms $ "Our command was rejected by server: " <> show cmd
       acknowledgeCommand d.env.commandSender
     else getAllPending d.env.commandSender
 

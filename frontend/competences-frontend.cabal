@@ -30,6 +30,7 @@ library
         Competences.Frontend.Common.Reorder,
         Competences.Frontend.Common.Translate,
         Competences.Frontend.Common,
+        Competences.Frontend.Logging,
         Competences.Frontend.Component.Assignment,
         Competences.Frontend.Component.Assignment.EditorDetail,
         Competences.Frontend.Component.Assignment.EvaluatorDetail,

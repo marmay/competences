@@ -7,6 +7,7 @@ module Competences.Frontend.WebSocket
   )
 where
 
+import Competences.Frontend.Logging (logDebug, logError, logInfo, logWarn)
 import Competences.Protocol (ClientMessage (..), ServerMessage)
 import Data.Aeson (decode, encode)
 import Data.ByteString.Lazy qualified as BL
@@ -50,7 +51,7 @@ connectWebSocketRaw
 connectWebSocketRaw wsUrl callbacks onMessage = do
   -- Create WebSocket connection using 'new' constructor
   webSocket <- jsg "WebSocket"
-  M.consoleLog $ "Establishing raw WebSocket connection with " <> M.ms wsUrl
+  logDebug $ "Establishing raw WebSocket connection with " <> M.ms wsUrl
   ws <- new webSocket [wsUrl]
 
   -- Set up onmessage handler
@@ -58,22 +59,22 @@ connectWebSocketRaw wsUrl callbacks onMessage = do
     msgData <- msgEvent ! "data"
     (Just msgText) <- fromJSVal @Text msgData
     case decode (BL.fromStrict $ encodeUtf8 msgText) of
-      Nothing -> M.consoleLog $ M.ms $ "Failed to decode message: " <> T.unpack msgText
+      Nothing -> logWarn $ M.ms $ "Failed to decode message: " <> T.unpack msgText
       Just serverMsg -> onMessage serverMsg
 
   -- Set up onopen handler - NO authentication, just call callback
   _ <- ws `addEventListener` "open" $ \_ -> do
-    M.consoleLog "WebSocket connected (raw, no auto-auth)"
+    logDebug "WebSocket connected (raw, no auto-auth)"
     callbacks.onOpen
 
   -- Set up onerror handler
   _ <- ws `addEventListener` "error" $ \_ -> do
-    M.consoleError "WebSocket error"
+    logError "WebSocket error"
     callbacks.onError
 
   -- Set up onclose handler
   _ <- ws `addEventListener` "close" $ \_ -> do
-    M.consoleLog "WebSocket closed"
+    logInfo "WebSocket closed"
     callbacks.onClose
 
   pure $ WebSocketConnection ws
@@ -81,7 +82,7 @@ connectWebSocketRaw wsUrl callbacks onMessage = do
 -- | Send a ClientMessage over the WebSocket
 sendMessage :: WebSocketConnection -> ClientMessage -> IO ()
 sendMessage (WebSocketConnection ws) msg = do
-  M.consoleLog $ M.ms $ "Going to send " <> show msg
+  logDebug $ M.ms $ "Going to send " <> show msg
   let jsonStr = decodeUtf8 $ BL.toStrict $ encode msg
   jsonVal <- toJSVal jsonStr
   _ <- ws # "send" $ [jsonVal]

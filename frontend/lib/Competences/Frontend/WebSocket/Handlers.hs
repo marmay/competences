@@ -12,6 +12,7 @@ module Competences.Frontend.WebSocket.Handlers
 where
 
 import Competences.Document (Document, User (..))
+import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.SyncContext
   ( SyncContext
   , applyRemoteCommand
@@ -70,10 +71,10 @@ operationLoop ref ws = loop `catch` handleDisconnect
       case msg of
         ApplyCommand cmd -> applyRemoteCommand ref cmd
         CommandRejected cmd err -> do
-          M.consoleLog $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
+          logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
           rejectCommand ref cmd
         KeepAliveResponse -> pure ()
-        other -> M.consoleWarn $ M.ms $ "Unexpected message during operation: " <> show other
+        other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
 
 -- ============================================================================
 -- COMPOSED HANDLERS
@@ -103,7 +104,7 @@ mkInitialHandler token forkApp ws = do
   setSyncDocument ref doc
 
   -- Fork the Miso application
-  M.consoleLog $ M.ms $ "Starting app for user: " <> T.unpack user.name
+  logInfo $ M.ms $ "Starting app for user: " <> T.unpack user.name
   forkApp ref
 
   -- Run operation loop until disconnect
@@ -131,7 +132,7 @@ mkReconnectHandler token (ref, sender) ws = do
   -- Update SyncDocument with new document from server
   setSyncDocument ref doc
 
-  M.consoleLog "Reconnected and synchronized"
+  logInfo "Reconnected and synchronized"
 
   -- Run operation loop until disconnect
   operationLoop ref ws

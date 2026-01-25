@@ -21,6 +21,7 @@ module Competences.Frontend.WebSocket.CommandSender
 where
 
 import Competences.Command (Command)
+import Competences.Frontend.Logging (logDebug)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
 import Competences.Protocol (ClientMessage (..))
 import Control.Concurrent (forkIO)
@@ -139,7 +140,7 @@ updateWebSocket sender ws = do
   -- Resend pending if any (reconnection case)
   s <- readMVar sender.sendState
   forM_ s.pending $ \cmd -> do
-    M.consoleLog $ M.ms $ "Resending pending command: " <> show cmd
+    logDebug $ M.ms $ "Resending pending command: " <> show cmd
     ws.send (SendCommand cmd) `catch` \(_ :: SomeException) -> pure ()
   -- Signal thread to send from queue if no pending
   signalSender sender
@@ -217,7 +218,7 @@ trySendFromQueue sender = do
             (cmd : rest) -> pure (SendState (Just cmd) rest, Just cmd)
       case maybeCmd of
         Just cmd -> do
-          M.consoleLog $ M.ms $ "Sending command: " <> show cmd
+          logDebug $ M.ms $ "Sending command: " <> show cmd
           ws.send (SendCommand cmd) `catch` \(_ :: SomeException) -> pure ()
         Nothing -> pure ()
 

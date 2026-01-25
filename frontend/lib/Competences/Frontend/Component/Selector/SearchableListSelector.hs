@@ -13,6 +13,7 @@ where
 
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.Component.Selector.ListSelector (ListSelectorConfig (..))
+import Competences.Frontend.Logging (logDebug)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
@@ -76,7 +77,7 @@ searchableMultiSelectorComponent r config lensBinding =
 
     update (UpdateDocument (DocumentChange d info)) = do
       let newPossibleValues = config.listValues d
-      M.io_ $ M.consoleLog $ M.ms $ "Possible values: " <> show newPossibleValues
+      M.io_ $ logDebug $ M.ms $ "Possible values: " <> show newPossibleValues
       M.modify $ \m ->
             let newSelectedValues =
                   if isInitialUpdate info
