@@ -14,6 +14,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.User (isStudent)
+import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -21,13 +22,37 @@ import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLen
 import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
 import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext
+  ( DocumentChange (..)
+  , SyncContext
+  , subscribeDocument
+  )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Tailwind (class_)
+import Competences.Import.Export (exportAssignment)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.))
+import Miso.Html qualified as MH
+import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.), (.~))
+
+-- ============================================================================
+-- Wrapper Model and Actions
+-- ============================================================================
+
+data EditorModel = EditorModel
+  { document :: !Document
+  }
+  deriving (Eq, Generic, Show)
+
+data EditorAction
+  = DocumentUpdated !DocumentChange
+  | ExportAssignment
+  deriving (Eq, Show)
 
 -- | Detail view for editing an assignment
 -- The mode type parameter allows this to work with any mode type
@@ -37,9 +62,55 @@ editorDetailView
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 editorDetailView r assignment =
   V.component
-    ("assignment-editor-" <> M.ms (show assignment.id))
-    (TE.editorComponent assignmentEditor r)
+    ("assignment-editor-wrapper-" <> M.ms (show assignment.id))
+    (editorWrapperComponent r assignment)
+
+editorWrapperComponent :: SyncContext -> Assignment -> M.Component p EditorModel EditorAction
+editorWrapperComponent r assignment =
+  (M.component initialModel update view)
+    { M.subs = [subscribeDocument r DocumentUpdated]
+    }
   where
+    initialModel = EditorModel {document = emptyDocument}
+
+    emptyDocument =
+      Document
+        { competenceGrids = Ix.empty
+        , competences = Ix.empty
+        , users = Ix.empty
+        , evidences = Ix.empty
+        , locks = mempty
+        , tasks = Ix.empty
+        , taskGroups = Ix.empty
+        , solutions = Ix.empty
+        , resources = Ix.empty
+        , assignments = Ix.empty
+        , competenceAssessments = Ix.empty
+        , competenceGridGrades = Ix.empty
+        }
+
+    update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
+
+    update ExportAssignment = do
+      m <- M.get
+      let exportText = exportAssignment m.document assignment
+      M.io_ $ copyToClipboard exportText
+
+    view _m =
+      MH.div_
+        [class_ "flex flex-col gap-4"]
+        [ V.component
+            ("assignment-editor-" <> M.ms (show assignment.id))
+            (TE.editorComponent assignmentEditor r)
+        , MH.div_
+            [class_ "flex justify-end"]
+            [ Button.buttonSecondary (C.translate' C.LblExport)
+                & Button.withIcon IcnExport
+                & Button.withClick ExportAssignment
+                & Button.renderButton
+            ]
+        ]
+
     assignmentEditorId = "assignment-editor-" <> M.ms (show assignment.id)
 
     assignmentEditable =

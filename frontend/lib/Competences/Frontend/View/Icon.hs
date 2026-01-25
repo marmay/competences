@@ -55,6 +55,8 @@ data Icon
   | IcnResources
   | IcnLink
   | IcnVideo
+  | IcnImport
+  | IcnExport
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -111,6 +113,8 @@ iconId = \case
   IcnResources -> "icon-resources"
   IcnLink -> "icon-link"
   IcnVideo -> "icon-video"
+  IcnImport -> "icon-import"
+  IcnExport -> "icon-export"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -380,6 +384,20 @@ iconDefOf' = \case
     mkPathesDR
       [ "M23 7l-7 5 7 5V7z"
       , "M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
+      ]
+  -- Import icon (arrow pointing into box)
+  IcnImport ->
+    mkPathesDR
+      [ "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+      , "M7 10l5 5 5-5"
+      , "M12 15V3"
+      ]
+  -- Export icon (arrow pointing out of box)
+  IcnExport ->
+    mkPathesDR
+      [ "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+      , "M17 8l-5-5-5 5"
+      , "M12 3v12"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

@@ -11,6 +11,7 @@ import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
+import Competences.Frontend.Component.CompetenceGridImport (competenceGridImportComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
@@ -107,6 +108,7 @@ mkApp ir =
               , nb C.LblAssignments ManageAssignments
               , nb C.LblStatisticsOverview StatisticsOverview
               , nb C.LblManageUsers ManageUsers
+              , nb C.LblImportCompetenceGrids ImportCompetenceGrids
               ]
             else
               [ nb C.LblCompetenceGrid CompetenceGrid
@@ -138,6 +140,7 @@ mkApp ir =
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
         ManageUsers -> manageUsers
+        ImportCompetenceGrids -> importCompetenceGrids
 
     competenceGrid = mounted CompetenceGrid $ competenceGridComponent ir defaultGridMode availableGridModes
     defaultGridMode = GridView
@@ -153,6 +156,7 @@ mkApp ir =
     manageAssignments = mounted ManageAssignments $ assignmentComponent ir model.connectedUser
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
+    importCompetenceGrids = mounted ImportCompetenceGrids $ competenceGridImportComponent ir
 
     mounted key = componentA (M.ms $ show key) [V.minH0, V.fullWidth, V.fullHeight]
 
@@ -169,6 +173,7 @@ data Page
   | ManageAssignments
   | StatisticsOverview
   | ManageUsers
+  | ImportCompetenceGrids
   deriving (Eq, Show)
 
 instance M.Router Page where
@@ -181,6 +186,7 @@ instance M.Router Page where
       , M.path "manage-assignments" $> ManageAssignments
       , M.path "statistics-overview" $> StatisticsOverview
       , M.path "users" $> ManageUsers
+      , M.path "import-grids" $> ImportCompetenceGrids
       ]
   fromRoute CompetenceGrid = [M.toPath "grid"]
   fromRoute Evidences = [M.toPath "evidences"]
@@ -189,6 +195,7 @@ instance M.Router Page where
   fromRoute ManageAssignments = [M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
   fromRoute ManageUsers = [M.toPath "users"]
+  fromRoute ImportCompetenceGrids = [M.toPath "import-grids"]
 
 instance M.ToKey Page where
   toKey = M.toKey . show

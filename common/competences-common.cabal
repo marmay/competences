@@ -54,6 +54,12 @@ library
         Competences.Document.Solution
         Competences.Document.Task
         Competences.Document.User
+        Competences.Import.AssignmentParser
+        Competences.Import.CompetenceGridParser
+        Competences.Import.Export
+        Competences.Import.Matching
+        Competences.Import.TaskParser
+        Competences.Import.Types
         Competences.Protocol
         Competences.Query.Assignment
         Competences.TaskContent.AST

@@ -222,6 +222,12 @@ data Label
   | LblManageResources
   | LblUrl
   | LblDescription
+    -- Import
+  | LblCreate
+  | LblImportCompetenceGrids
+  | LblImportTasks
+  | LblImportAssignments
+  | LblExport
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -390,6 +396,12 @@ labels' =
   , LblManageResources
   , LblUrl
   , LblDescription
+    -- Import
+  , LblCreate
+  , LblImportCompetenceGrids
+  , LblImportTasks
+  , LblImportAssignments
+  , LblExport
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -575,6 +587,12 @@ defaultTranslation LblNoResources = "Keine Ressourcen"
 defaultTranslation LblManageResources = "Ressourcen verwalten"
 defaultTranslation LblUrl = "URL"
 defaultTranslation LblDescription = "Beschreibung"
+-- Import
+defaultTranslation LblCreate = "Erstellen"
+defaultTranslation LblImportCompetenceGrids = "Kompetenzraster importieren"
+defaultTranslation LblImportTasks = "Aufgaben importieren"
+defaultTranslation LblImportAssignments = "Aufgaben importieren"
+defaultTranslation LblExport = "Exportieren"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

@@ -16,7 +16,9 @@ import Competences.Document
   , orderMax
   )
 import Competences.Document.Order (orderPosition)
+import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -24,14 +26,17 @@ import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
-  ( SyncContext
+  ( DocumentChange (..)
+  , SyncContext
   , modifySyncDocument
   , nextId
+  , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Import.Export (exportCompetenceGrid)
 import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -43,20 +48,22 @@ import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (?~), (^.), (.~), (%))
 import Optics.Core qualified as O
 
-import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
-
 -- ============================================================================
 -- EDIT MODE DETAIL
 -- ============================================================================
 
 -- | Model for the editor detail component
 data EditorModel = EditorModel
+  { document :: !Document
+  }
   deriving (Eq, Generic, Show)
 
 -- | Action for the editor detail component
 data EditorAction
   = CreateNewCompetence
-  deriving (Eq, Generic, Show)
+  | DocumentUpdated !DocumentChange
+  | ExportGrid
+  deriving (Eq, Show)
 
 -- | View for the editor detail - allows editing grid and competences
 editorDetailView
@@ -69,9 +76,30 @@ editorDetailView r grid =
     (editorComponent r grid)
 
 editorComponent :: SyncContext -> CompetenceGrid -> M.Component p EditorModel EditorAction
-editorComponent r grid = M.component initialModel update view
+editorComponent r grid =
+  (M.component initialModel update view)
+    { M.subs = [subscribeDocument r DocumentUpdated]
+    }
   where
-    initialModel = EditorModel
+    initialModel = EditorModel {document = emptyDocument}
+
+    emptyDocument =
+      Document
+        { competenceGrids = Ix.empty
+        , competences = Ix.empty
+        , users = Ix.empty
+        , evidences = Ix.empty
+        , locks = mempty
+        , tasks = Ix.empty
+        , taskGroups = Ix.empty
+        , solutions = Ix.empty
+        , resources = Ix.empty
+        , assignments = Ix.empty
+        , competenceAssessments = Ix.empty
+        , competenceGridGrades = Ix.empty
+        }
+
+    update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
 
     update CreateNewCompetence = M.io_ $ do
       competenceId <- nextId r
@@ -84,6 +112,11 @@ editorComponent r grid = M.component initialModel update view
               , levels = Map.empty
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
+
+    update ExportGrid = do
+      m <- M.get
+      let exportText = exportCompetenceGrid m.document grid
+      M.io_ $ copyToClipboard exportText
 
     view _m =
       V.viewFlow
@@ -98,10 +131,17 @@ editorComponent r grid = M.component initialModel update view
         , V.component
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
             (TE.editorComponent competencesEditor r)
-        , Button.buttonPrimary (C.translate' C.LblAddNewCompetence)
-            & Button.withIcon IcnAdd
-            & Button.withClick CreateNewCompetence
-            & Button.renderButton
+        , MH.div_
+            [class_ "flex gap-2"]
+            [ Button.buttonPrimary (C.translate' C.LblAddNewCompetence)
+                & Button.withIcon IcnAdd
+                & Button.withClick CreateNewCompetence
+                & Button.renderButton
+            , Button.buttonSecondary (C.translate' C.LblExport)
+                & Button.withIcon IcnExport
+                & Button.withClick ExportGrid
+                & Button.renderButton
+            ]
         ]
 
     competenceGridEditable =
