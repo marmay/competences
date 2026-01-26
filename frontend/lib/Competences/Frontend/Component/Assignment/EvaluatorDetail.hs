@@ -5,7 +5,7 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Competence (..), Document (..), LevelInfo (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
+import Competences.Document (Assignment (..), Competence (..), CompetenceGrid (..), CompetenceGridIxs, Document (..), LevelInfo (..), Order, Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
@@ -56,6 +56,7 @@ data EvaluatorModel = EvaluatorModel
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , users :: !(Ix.IxSet UserIxs User)
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
+  , competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
   -- Map from (TaskId, CompetenceLevelId) to Ability - applies to all selected students
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
@@ -104,6 +105,7 @@ evaluatorComponent r assignment =
         , taskGroups = Ix.empty
         , users = Ix.empty
         , competences = Ix.empty
+        , competenceGrids = Ix.empty
         , solutions = Ix.empty
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
@@ -125,6 +127,7 @@ evaluatorComponent r assignment =
             , taskGroups = doc.taskGroups
             , users = doc.users
             , competences = doc.competences
+            , competenceGrids = doc.competenceGrids
             , solutions = doc.solutions
             , taskObservations = m.taskObservations
             , aggregatedResults = m.aggregatedResults
@@ -439,10 +442,38 @@ evaluatorComponent r assignment =
         ]
 
     viewAggregatedResults m =
-      M.div_
-        [class_ "border border-border p-3 rounded bg-muted/50"]
-        [ M.div_ [class_ "space-y-2"] (map (viewAggregatedCompetence m) (Map.toList m.aggregatedResults))
-        ]
+      let -- Get competence IDs from aggregated results
+          compIds = Set.fromList [compId | (compId, _) <- Map.keys m.aggregatedResults]
+          -- Get competences that have results, sorted by order
+          competencesWithResults = Ix.toAscList (Proxy @Order) $ m.competences Ix.@+ Set.toList compIds
+          -- Get unique grid IDs from these competences
+          gridIds = Set.fromList $ map (.competenceGridId) competencesWithResults
+          -- Sort grids by their order
+          sortedGrids = Ix.toAscList (Proxy @Order) $ m.competenceGrids Ix.@+ Set.toList gridIds
+       in M.div_
+            [class_ "space-y-4"]
+            (map (viewGridAggregation m) sortedGrids)
+
+    viewGridAggregation m grid =
+      let -- Get competences for this grid, sorted by order
+          gridCompetences = Ix.toAscList (Proxy @Order) $ m.competences Ix.@= grid.id
+          -- Build results in competence order - for each competence, include all its levels that have results
+          resultsForGrid =
+            [ (compLevelId, ability)
+            | comp <- gridCompetences
+            , (compLevelId@(compId, _), ability) <- Map.toList m.aggregatedResults
+            , compId == comp.id
+            ]
+       in if null resultsForGrid
+            then M.text ""
+            else M.div_ [class_ "border border-border rounded bg-muted/50"]
+                   [ -- Grid title header
+                     M.div_ [class_ "px-3 py-2 border-b bg-muted font-medium"]
+                       [M.text $ ms grid.title]
+                   , -- Competence results
+                     M.div_ [class_ "p-3 space-y-2"]
+                       (map (viewAggregatedCompetence m) resultsForGrid)
+                   ]
 
     viewAggregatedCompetence m (compId, ability) =
       let (competenceId, level) = compId
