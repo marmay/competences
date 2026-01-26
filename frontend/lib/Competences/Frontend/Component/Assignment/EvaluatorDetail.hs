@@ -5,11 +5,12 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Competence (..), Document (..), LevelInfo (..), User (..))
+import Competences.Document (Assignment (..), Competence (..), Document (..), LevelInfo (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
 import Competences.Document.User (UserId, UserIxs)
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -55,6 +56,7 @@ data EvaluatorModel = EvaluatorModel
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , users :: !(Ix.IxSet UserIxs User)
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
+  , solutions :: !(Ix.IxSet SolutionIxs Solution)
   -- Map from (TaskId, CompetenceLevelId) to Ability - applies to all selected students
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
@@ -67,6 +69,10 @@ data EvaluatorModel = EvaluatorModel
   , excludedTasks :: !(Set.Set TaskId)
   -- Date for the evidence (defaults to assignment date, can be overridden)
   , evaluationDate :: !Day
+  -- Which task contents are expanded (collapsed by default)
+  , expandedTaskContent :: !(Set.Set TaskId)
+  -- Which Results solutions are collapsed (expanded by default for Results type)
+  , collapsedResults :: !(Set.Set SolutionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -80,6 +86,8 @@ data EvaluatorAction
   | CreateEvidences
   | ToggleTaskIncluded !TaskId -- Toggle whether a task is included in evaluation
   | SetEvaluationDate !MisoString -- Set the date for evidence creation (YYYY-MM-DD format)
+  | ToggleTaskContentExpanded !TaskId -- Toggle expand/collapse for task content
+  | ToggleSolutionExpanded !SolutionId -- Toggle expand/collapse for a solution
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -96,12 +104,15 @@ evaluatorComponent r assignment =
         , taskGroups = Ix.empty
         , users = Ix.empty
         , competences = Ix.empty
+        , solutions = Ix.empty
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
         , selectedSocialForm = Individual
         , excludedTasks = Set.empty
         , evaluationDate = assignment.assignmentDate
+        , expandedTaskContent = Set.empty
+        , collapsedResults = Set.empty
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -114,12 +125,15 @@ evaluatorComponent r assignment =
             , taskGroups = doc.taskGroups
             , users = doc.users
             , competences = doc.competences
+            , solutions = doc.solutions
             , taskObservations = m.taskObservations
             , aggregatedResults = m.aggregatedResults
             , selectedStudents = m.selectedStudents
             , selectedSocialForm = m.selectedSocialForm
             , excludedTasks = m.excludedTasks
             , evaluationDate = m.evaluationDate
+            , expandedTaskContent = m.expandedTaskContent
+            , collapsedResults = m.collapsedResults
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
@@ -175,6 +189,21 @@ evaluatorComponent r assignment =
       case parseTimeM True defaultTimeLocale "%Y-%m-%d" (M.fromMisoString dateStr) of
         Just day -> m{evaluationDate = day}
         Nothing -> m  -- Keep old date if parsing fails
+
+    update (ToggleTaskContentExpanded taskId) = M.modify $ \m ->
+      m{expandedTaskContent =
+          if Set.member taskId m.expandedTaskContent
+            then Set.delete taskId m.expandedTaskContent
+            else Set.insert taskId m.expandedTaskContent}
+
+    update (ToggleSolutionExpanded solId) = M.modify $ \m ->
+      -- Results type is expanded by default, so we track which are collapsed
+      -- For other types, they are collapsed by default
+      -- We toggle the collapsedResults set: if in set, remove (expand); if not, add (collapse)
+      m{collapsedResults =
+          if Set.member solId m.collapsedResults
+            then Set.delete solId m.collapsedResults
+            else Set.insert solId m.collapsedResults}
 
     -- Compute aggregated results from task observations (pure function)
     -- Takes the worst (maximum) ability per competence across all tasks
@@ -277,7 +306,11 @@ evaluatorComponent r assignment =
             [ viewTaskHeader m taskId isExcluded
             , if isExcluded
                 then M.text ""  -- Collapsed when excluded
-                else viewStudentEvaluations m taskId
+                else M.div_ []
+                       [ viewTaskContent m taskId
+                       , viewTaskSolutions m taskId
+                       , viewStudentEvaluations m taskId
+                       ]
             ]
 
     viewTaskHeader m taskId isExcluded =
@@ -286,26 +319,74 @@ evaluatorComponent r assignment =
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
-                  content = getTaskContent m.taskGroups task
                   toggleClass = if isExcluded
                     then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
                     else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-               in M.div_ [class_ "mt-4 mb-3"]
-                    [ M.div_ [class_ "mb-1 flex items-center justify-between"]
-                        [ Typography.h3 $ "Aufgabe: " <> ms identifier
-                        , M.button_
-                            [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
-                            [M.text $ if isExcluded then "Einbeziehen" else "Ausschließen"]
-                        ]
-                    , if isExcluded
-                        then M.text ""  -- Hide content when excluded
-                        else case content of
-                               Nothing -> M.text ""
-                               Just c ->
-                                 if T.null c
-                                   then M.text ""
-                                   else M.div_ [class_ "mb-2 prose prose-sm prose-stone max-w-none"] [renderRichText c]
+               in M.div_ [class_ "mt-4 mb-1 flex items-center justify-between"]
+                    [ Typography.h3 $ "Aufgabe: " <> ms identifier
+                    , M.button_
+                        [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
+                        [M.text $ if isExcluded then "Einbeziehen" else "Ausschließen"]
                     ]
+
+    viewTaskContent m taskId =
+      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
+          isContentExpanded = Set.member taskId m.expandedTaskContent
+       in case taskM of
+            Nothing -> M.text ""
+            Just task ->
+              let content = getTaskContent m.taskGroups task
+               in case content of
+                    Nothing -> M.text ""
+                    Just c ->
+                      if T.null c
+                        then M.text ""
+                        else M.div_ [class_ "mb-2"]
+                               [ -- Collapsible header
+                                 M.div_
+                                   [ class_ "flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
+                                   , M.onClick (ToggleTaskContentExpanded taskId)
+                                   ]
+                                   [ V.icon [] (if isContentExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
+                                   , M.span_ [class_ "text-sm text-muted-foreground"] [M.text "Aufgabenstellung"]
+                                   ]
+                               , -- Content (only when expanded)
+                                 if isContentExpanded
+                                   then M.div_ [class_ "ml-6 mb-2 prose prose-sm prose-stone max-w-none"]
+                                          [renderRichText c]
+                                   else M.text ""
+                               ]
+
+    viewTaskSolutions m taskId =
+      let taskSolutions = Ix.toList $ m.solutions Ix.@= taskId
+       in if null taskSolutions
+            then M.text ""
+            else M.div_ [class_ "space-y-2 mb-3"]
+                   (map (viewSolutionItem m) taskSolutions)
+
+    viewSolutionItem m solution =
+      let -- Results type is expanded by default
+          -- We track which Results are collapsed in collapsedResults
+          -- For non-Results types, they are collapsed unless explicitly expanded (but we use same logic)
+          isExpanded = case solution.solutionType of
+            Results -> not $ Set.member solution.id m.collapsedResults
+            _ -> Set.member solution.id m.collapsedResults  -- Non-results: collapsed by default, tracked as "expanded" in set
+          solutionTypeLabel = C.translate' (C.LblSolutionType solution.solutionType)
+       in M.div_ [class_ "border rounded-lg overflow-hidden"]
+            [ -- Collapsible header
+              M.div_
+                [ class_ "flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted"
+                , M.onClick (ToggleSolutionExpanded solution.id)
+                ]
+                [ V.icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
+                , M.span_ [class_ "text-sm font-medium"] [M.text solutionTypeLabel]
+                ]
+            , -- Collapsible content
+              if isExpanded
+                then M.div_ [class_ "px-3 py-2 border-t prose prose-sm prose-stone max-w-none"]
+                       [renderRichText solution.content]
+                else M.text ""
+            ]
 
     viewStudentEvaluations m taskId =
       let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
