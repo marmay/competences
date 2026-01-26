@@ -228,6 +228,12 @@ data Label
   | LblImportTasks
   | LblImportAssignments
   | LblExport
+    -- Analytics
+  | LblMasteryStreakTwoPlus
+  | LblMasteryOneSuccess
+  | LblMasteryOnlySillyMistakes
+  | LblMasteryNotYet
+  | LblMasteryNotTried
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -402,6 +408,12 @@ labels' =
   , LblImportTasks
   , LblImportAssignments
   , LblExport
+    -- Analytics
+  , LblMasteryStreakTwoPlus
+  , LblMasteryOneSuccess
+  , LblMasteryOnlySillyMistakes
+  , LblMasteryNotYet
+  , LblMasteryNotTried
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -593,6 +605,12 @@ defaultTranslation LblImportCompetenceGrids = "Kompetenzraster importieren"
 defaultTranslation LblImportTasks = "Aufgaben importieren"
 defaultTranslation LblImportAssignments = "Aufgaben importieren"
 defaultTranslation LblExport = "Exportieren"
+-- Analytics
+defaultTranslation LblMasteryStreakTwoPlus = "Sicher (2+ Erfolge)"
+defaultTranslation LblMasteryOneSuccess = "Erfolgreich (1 Erfolg)"
+defaultTranslation LblMasteryOnlySillyMistakes = "Dumme Fehler"
+defaultTranslation LblMasteryNotYet = "Noch nicht"
+defaultTranslation LblMasteryNotTried = "Nicht versucht"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

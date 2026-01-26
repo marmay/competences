@@ -62,6 +62,7 @@ library
         Competences.Import.Types
         Competences.Protocol
         Competences.Query.Assignment
+        Competences.Query.Mastery
         Competences.TaskContent.AST
         Competences.TaskContent.Parser
     build-depends:
