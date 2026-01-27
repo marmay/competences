@@ -120,12 +120,11 @@ classifyMasteryConstrained bounds
               | streakLen >= 1 -> OneSuccess
               | otherwise -> classifyRemaining bounds
   where
-    -- Find the latest "real" noHigherThan value (skip SillyMistakes entries)
+    -- Get the noHigherThan (ceiling) from the newest entry.
+    -- FromAbove entries have no ceiling — that means "no negative info", not "keep looking".
+    -- Older ceilings must not veto newer positive evidence.
     findLatestRealCeiling [] = Nothing
-    findLatestRealCeiling (b : rest) = case abilityCeiling b of
-      Nothing -> findLatestRealCeiling rest
-      Just SelfReliantWithSillyMistakes -> findLatestRealCeiling rest
-      Just a -> Just a
+    findLatestRealCeiling (b : _) = abilityCeiling b
 
     -- Count consecutive SelfReliant from noLowerThan values (newest first).
     -- Skip entries where floor is SillyMistakes or Nothing.
