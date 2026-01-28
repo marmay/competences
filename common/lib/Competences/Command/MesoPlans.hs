@@ -27,6 +27,7 @@ import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
 import Data.Text (Text)
+import Data.Time (Day)
 import GHC.Generics (Generic)
 import Optics.Core ((&), (%~), (.~), (^.))
 
@@ -34,6 +35,8 @@ import Optics.Core ((&), (%~), (.~), (^.))
 data MesoPlanPatch = MesoPlanPatch
   { title :: !(Change Text)
   , competenceGridId :: !(Change CompetenceGridId)
+  , dateFrom :: !(Change (Maybe Day))
+  , dateTo :: !(Change (Maybe Day))
   }
   deriving (Eq, Generic, Show)
 
@@ -67,7 +70,7 @@ instance Binary MesoPlansCommand
 
 -- Default instances
 instance Default MesoPlanPatch where
-  def = MesoPlanPatch {title = Nothing, competenceGridId = Nothing}
+  def = MesoPlanPatch {title = Nothing, competenceGridId = Nothing, dateFrom = Nothing, dateTo = Nothing}
 
 instance Default MesoPlanEntryPatch where
   def = MesoPlanEntryPatch {title = Nothing, description = Nothing, competenceLevels = Nothing}
@@ -78,6 +81,8 @@ applyMesoPlanPatch plan patch =
   inContext "MesoPlan" plan $
     patchField' @"title" patch
       >=> patchField' @"competenceGridId" patch
+      >=> patchField' @"dateFrom" patch
+      >=> patchField' @"dateTo" patch
 
 -- | Apply a patch to a MesoPlanEntry
 applyMesoPlanEntryPatch :: MesoPlanEntry -> MesoPlanEntryPatch -> Either Text MesoPlanEntry

@@ -71,9 +71,6 @@ matchSingleGrid doc parsed =
                       , order = existing.order
                       , title = parsed.title
                       , description = existing.description
-                      , dateFrom = existing.dateFrom
-                      , dateTo = existing.dateTo
-                      , expectedLessons = existing.expectedLessons
                       }
                in Update existing updated
 
@@ -110,9 +107,6 @@ makeNewGrid parsed =
     , order = orderMin -- Will be assigned on import
     , title = parsed.title
     , description = ""
-    , dateFrom = Nothing
-    , dateTo = Nothing
-    , expectedLessons = Nothing
     }
 
 -- | Match parsed competences against existing ones, tracking which were matched

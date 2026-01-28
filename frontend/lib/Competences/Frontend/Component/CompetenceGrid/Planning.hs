@@ -14,6 +14,7 @@ import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanEntry (..), MesoPla
 import Competences.Document.Order (orderMax)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.EntryEditorModal (entryEditorModal)
+import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Component.CompetenceGrid.LessonPlanEditor (lessonPlanEditorView)
 import Competences.Frontend.Component.TaskContentView (renderRichText)
@@ -57,6 +58,7 @@ data PlanningAction
   | CreateNewEntry
   | ToggleEntryExpansion !MesoPlanEntryId
   | OpenEntryEditorModal !MesoPlanEntry
+  | OpenMesoPlanEditorModal !MesoPlan
   | DeleteEntry !MesoPlanEntryId
   deriving (Eq, Show)
 
@@ -100,6 +102,8 @@ planningComponent r grid =
               { id = planId
               , competenceGridId = grid.id
               , title = grid.title
+              , dateFrom = Nothing
+              , dateTo = Nothing
               }
       modifySyncDocument r (MesoPlans $ OnMesoPlans $ CreateAndLock plan)
 
@@ -130,6 +134,9 @@ planningComponent r grid =
     update (OpenEntryEditorModal entry) = M.io_ $
       openModal r.modalManager (entryEditorModal r r.modalManager entry)
 
+    update (OpenMesoPlanEditorModal plan) = M.io_ $
+      openModal r.modalManager (mesoPlanEditorModal r r.modalManager plan)
+
     update (DeleteEntry entryId) = M.io_ $
       modifySyncDocument r (MesoPlans $ OnMesoPlanEntries $ Delete entryId)
 
@@ -154,14 +161,41 @@ planningComponent r grid =
             ]
         ]
 
-    planView _plan m =
+    planView plan m =
       V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ MH.div_
+        [ -- Plan header with title, dates, and edit button
+          MH.div_
+            [class_ "flex items-center justify-between p-3 bg-muted/30 rounded-lg mb-2"]
+            [ MH.div_
+                [class_ "flex items-center gap-4"]
+                [ MH.div_
+                    [class_ "font-medium"]
+                    [M.text $ M.ms plan.title]
+                , -- Date range display
+                  case (plan.dateFrom, plan.dateTo) of
+                    (Nothing, Nothing) -> M.text ""
+                    (Just from, Nothing) ->
+                      MH.span_ [class_ "text-sm text-muted-foreground"]
+                        [M.text $ C.translate' C.LblMesoPlanDateFrom <> ": " <> C.formatDay from]
+                    (Nothing, Just to) ->
+                      MH.span_ [class_ "text-sm text-muted-foreground"]
+                        [M.text $ C.translate' C.LblMesoPlanDateTo <> ": " <> C.formatDay to]
+                    (Just from, Just to) ->
+                      MH.span_ [class_ "text-sm text-muted-foreground"]
+                        [M.text $ C.formatDay from <> " – " <> C.formatDay to]
+                ]
+            , Button.buttonGhost ""
+                & Button.withIcon IcnEdit
+                & Button.withSize Button.Small
+                & Button.withClick (OpenMesoPlanEditorModal plan)
+                & Button.renderButton
+            ]
+        , MH.div_
             [class_ "flex flex-col gap-2 w-full"]
             (map (viewEntry m) m.entries)
         , MH.div_

@@ -262,6 +262,8 @@ data Label
   | LblTeachingSocialForm !TeachingSocialForm
   | LblActionForm !ActionForm
   | LblMesoPlanTitle
+  | LblMesoPlanDateFrom
+  | LblMesoPlanDateTo
   | LblMesoPlanEntry
   | LblMesoPlanEntryTitle
   | LblMesoPlanEntryDescription
@@ -269,6 +271,7 @@ data Label
   | LblAddMesoPlanEntry
   | LblNoMesoPlanEntries
   | LblCreateMesoPlan
+  | LblEditMesoPlan
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -457,6 +460,8 @@ labels' =
     -- Meso Planning
   , LblMesoPlanning
   , LblMesoPlanTitle
+  , LblMesoPlanDateFrom
+  , LblMesoPlanDateTo
   , LblMesoPlanEntry
   , LblMesoPlanEntryTitle
   , LblMesoPlanEntryDescription
@@ -464,6 +469,7 @@ labels' =
   , LblAddMesoPlanEntry
   , LblNoMesoPlanEntries
   , LblCreateMesoPlan
+  , LblEditMesoPlan
     -- Lesson Planning
   , LblLessonPlan
   , LblLessonPlanDate
@@ -693,6 +699,8 @@ defaultTranslation LblMasteryNotTried = "Nicht versucht"
 -- Meso Planning
 defaultTranslation LblMesoPlanning = "Planung"
 defaultTranslation LblMesoPlanTitle = "Titel"
+defaultTranslation LblMesoPlanDateFrom = "Beginn"
+defaultTranslation LblMesoPlanDateTo = "Ende"
 defaultTranslation LblMesoPlanEntry = "Unterrichtseinheit"
 defaultTranslation LblMesoPlanEntryTitle = "Titel"
 defaultTranslation LblMesoPlanEntryDescription = "Beschreibung"
@@ -700,6 +708,7 @@ defaultTranslation LblMesoPlanEntryCompetences = "Kompetenzstufen"
 defaultTranslation LblAddMesoPlanEntry = "Einheit hinzufügen"
 defaultTranslation LblNoMesoPlanEntries = "Keine Einheiten"
 defaultTranslation LblCreateMesoPlan = "Meso-Plan erstellen"
+defaultTranslation LblEditMesoPlan = "Plan bearbeiten"
 -- Lesson Planning
 defaultTranslation LblLessonPlan = "Unterrichtsplan"
 defaultTranslation LblLessonPlanDate = "Datum"

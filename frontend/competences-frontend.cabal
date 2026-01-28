@@ -47,6 +47,7 @@ library
         Competences.Frontend.Component.CompetenceGrid.Grading,
         Competences.Frontend.Component.CompetenceGrid.EntryEditorModal,
         Competences.Frontend.Component.CompetenceGrid.LessonPlanEditor,
+        Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal,
         Competences.Frontend.Component.CompetenceGrid.NotesEditorModal,
         Competences.Frontend.Component.CompetenceGrid.PhaseEditorModal,
         Competences.Frontend.Component.CompetenceGrid.Planning,

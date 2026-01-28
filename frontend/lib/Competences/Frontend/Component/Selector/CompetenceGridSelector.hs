@@ -105,7 +105,7 @@ competenceGridSelectorComponent r style parentLens =
     update CreateNewCompetenceGrid =
       M.io $ do
         competenceGridId <- nextId r
-        let competenceGrid = CompetenceGrid competenceGridId orderMax "" "" Nothing Nothing Nothing
+        let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
         modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create competenceGrid)
         pure (SelectCompetenceGrid competenceGrid)
 

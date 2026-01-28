@@ -297,9 +297,6 @@ applyGridPreview r _doc preview = do
               , order = orderMax
               , title = g.title
               , description = g.description
-              , dateFrom = Nothing
-              , dateTo = Nothing
-              , expectedLessons = Nothing
               }
       modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create newGrid)
       pure newId

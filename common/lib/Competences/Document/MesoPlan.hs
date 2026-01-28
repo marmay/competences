@@ -15,10 +15,11 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Order, Orderable)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
+import Data.Time (Day)
 import GHC.Generics (Generic)
 
 -- ============================================================================
@@ -33,6 +34,10 @@ data MesoPlan = MesoPlan
   { id :: !MesoPlanId
   , competenceGridId :: !CompetenceGridId
   , title :: !Text
+  , dateFrom :: !(Maybe Day)
+  -- ^ When teaching this plan period starts
+  , dateTo :: !(Maybe Day)
+  -- ^ When teaching this plan period ends
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -44,9 +49,25 @@ instance Ix.Indexable MesoPlanIxs MesoPlan where
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.competenceGridId))
 
-instance FromJSON MesoPlan
+-- Custom FromJSON for backward compatibility (old docs won't have dateFrom/dateTo)
+instance FromJSON MesoPlan where
+  parseJSON = withObject "MesoPlan" $ \v ->
+    MesoPlan
+      <$> v .: "id"
+      <*> v .: "competenceGridId"
+      <*> v .: "title"
+      <*> v .:? "dateFrom" .!= Nothing
+      <*> v .:? "dateTo" .!= Nothing
 
-instance ToJSON MesoPlan
+instance ToJSON MesoPlan where
+  toJSON p =
+    object
+      [ "id" .= p.id
+      , "competenceGridId" .= p.competenceGridId
+      , "title" .= p.title
+      , "dateFrom" .= p.dateFrom
+      , "dateTo" .= p.dateTo
+      ]
 
 instance Binary MesoPlan
 
