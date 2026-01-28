@@ -45,6 +45,7 @@ library
         Competences.Frontend.Component.TaskContentView,
         Competences.Frontend.Component.CompetenceGrid.Editor,
         Competences.Frontend.Component.CompetenceGrid.Grading,
+        Competences.Frontend.Component.CompetenceGrid.Planning,
         Competences.Frontend.Component.CompetenceGrid.Resources,
         Competences.Frontend.Component.CompetenceGrid.Types,
         Competences.Frontend.Component.CompetenceGrid.Viewer,

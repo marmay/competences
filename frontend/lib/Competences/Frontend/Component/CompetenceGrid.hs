@@ -9,6 +9,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Assessment (assessmentDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Editor (editorDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Grading (gradingDetailView)
+import Competences.Frontend.Component.CompetenceGrid.Planning (planningDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Resources (resourcesDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode (..))
 import Competences.Frontend.Component.CompetenceGrid.Viewer (viewerDetailView)
@@ -60,18 +61,21 @@ competenceGridComponent r initialMode availableModes =
             GridResources -> resourcesDetailView r grid
             GridAssessment -> assessmentDetailView r grid
             GridGrading -> gradingDetailView r grid
+            GridPlanning -> planningDetailView r grid
       , SD.modeLabel = \case
           GridView -> C.translate' C.LblView
           GridEdit -> C.translate' C.LblEdit
           GridResources -> C.translate' C.LblResources
           GridAssessment -> C.translate' C.LblAssess
           GridGrading -> C.translate' C.LblGrade
+          GridPlanning -> C.translate' C.LblMesoPlanning
       , SD.modeIcon = \case
           GridView -> Just IcnView
           GridEdit -> Just IcnEdit
           GridResources -> Just IcnResources
           GridAssessment -> Just IcnApply
           GridGrading -> Just IcnEvidence
+          GridPlanning -> Just IcnTask
       , SD.availableModes = availableModes
       , SD.defaultMode = initialMode
       , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)

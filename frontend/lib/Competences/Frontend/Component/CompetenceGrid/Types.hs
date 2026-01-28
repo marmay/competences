@@ -10,4 +10,5 @@ data CompetenceGridMode
   | GridResources
   | GridAssessment
   | GridGrading
+  | GridPlanning
   deriving (Eq, Ord, Enum, Bounded, Show)

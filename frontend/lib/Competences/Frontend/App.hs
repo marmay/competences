@@ -147,7 +147,7 @@ mkApp ir =
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
-        then GridView :| [GridEdit, GridResources, GridAssessment, GridGrading]
+        then GridView :| [GridEdit, GridResources, GridAssessment, GridGrading, GridPlanning]
         else GridView :| []
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent ir

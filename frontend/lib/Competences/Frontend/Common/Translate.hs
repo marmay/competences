@@ -18,6 +18,7 @@ where
 
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
+import Competences.Document.LessonPlan (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Control.Exception (SomeException, catch)
@@ -237,6 +238,34 @@ data Label
   | LblMasteryOnlySillyMistakes
   | LblMasteryNotYet
   | LblMasteryNotTried
+    -- Meso Planning
+  | LblMesoPlanning
+    -- Lesson Planning
+  | LblLessonPlan
+  | LblLessonPlanDate
+  | LblLessonPlanAssignments
+  | LblLessonPlanResources
+  | LblLessonPlanPhases
+  | LblLessonPlanNotes
+  | LblCreateLessonPlan
+  | LblNoLessonPlan
+  | LblPhaseTitle
+  | LblPhaseSocialForm
+  | LblPhaseDuration
+  | LblPhaseActionForm
+  | LblPhaseNotes
+  | LblAddPhase
+  | LblNoPhases
+  | LblTeachingSocialForm !TeachingSocialForm
+  | LblActionForm !ActionForm
+  | LblMesoPlanTitle
+  | LblMesoPlanEntry
+  | LblMesoPlanEntryTitle
+  | LblMesoPlanEntryDescription
+  | LblMesoPlanEntryCompetences
+  | LblAddMesoPlanEntry
+  | LblNoMesoPlanEntries
+  | LblCreateMesoPlan
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -420,6 +449,39 @@ labels' =
   , LblMasteryOnlySillyMistakes
   , LblMasteryNotYet
   , LblMasteryNotTried
+    -- Meso Planning
+  , LblMesoPlanning
+  , LblMesoPlanTitle
+  , LblMesoPlanEntry
+  , LblMesoPlanEntryTitle
+  , LblMesoPlanEntryDescription
+  , LblMesoPlanEntryCompetences
+  , LblAddMesoPlanEntry
+  , LblNoMesoPlanEntries
+  , LblCreateMesoPlan
+    -- Lesson Planning
+  , LblLessonPlan
+  , LblLessonPlanDate
+  , LblLessonPlanAssignments
+  , LblLessonPlanResources
+  , LblLessonPlanPhases
+  , LblLessonPlanNotes
+  , LblCreateLessonPlan
+  , LblNoLessonPlan
+  , LblPhaseTitle
+  , LblPhaseSocialForm
+  , LblPhaseDuration
+  , LblPhaseActionForm
+  , LblPhaseNotes
+  , LblAddPhase
+  , LblNoPhases
+  , LblTeachingSocialForm WholeClass
+  , LblTeachingSocialForm SmallGroups
+  , LblTeachingSocialForm PairWork
+  , LblTeachingSocialForm IndividualWork
+  , LblActionForm Presenting
+  , LblActionForm Collaborating
+  , LblActionForm Assigning
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -620,6 +682,39 @@ defaultTranslation LblMasteryOneSuccess = "Erfolgreich (1 Erfolg)"
 defaultTranslation LblMasteryOnlySillyMistakes = "Dumme Fehler"
 defaultTranslation LblMasteryNotYet = "Noch nicht"
 defaultTranslation LblMasteryNotTried = "Nicht versucht"
+-- Meso Planning
+defaultTranslation LblMesoPlanning = "Planung"
+defaultTranslation LblMesoPlanTitle = "Titel"
+defaultTranslation LblMesoPlanEntry = "Unterrichtseinheit"
+defaultTranslation LblMesoPlanEntryTitle = "Titel"
+defaultTranslation LblMesoPlanEntryDescription = "Beschreibung"
+defaultTranslation LblMesoPlanEntryCompetences = "Kompetenzstufen"
+defaultTranslation LblAddMesoPlanEntry = "Einheit hinzufügen"
+defaultTranslation LblNoMesoPlanEntries = "Keine Einheiten"
+defaultTranslation LblCreateMesoPlan = "Meso-Plan erstellen"
+-- Lesson Planning
+defaultTranslation LblLessonPlan = "Unterrichtsplan"
+defaultTranslation LblLessonPlanDate = "Datum"
+defaultTranslation LblLessonPlanAssignments = "Aufträge"
+defaultTranslation LblLessonPlanResources = "Ressourcen"
+defaultTranslation LblLessonPlanPhases = "Unterrichtsphasen"
+defaultTranslation LblLessonPlanNotes = "Notizen"
+defaultTranslation LblCreateLessonPlan = "Unterrichtsplan erstellen"
+defaultTranslation LblNoLessonPlan = "Kein Unterrichtsplan"
+defaultTranslation LblPhaseTitle = "Phase"
+defaultTranslation LblPhaseSocialForm = "Sozialform"
+defaultTranslation LblPhaseDuration = "Dauer (Min.)"
+defaultTranslation LblPhaseActionForm = "Aktionsform"
+defaultTranslation LblPhaseNotes = "Notizen"
+defaultTranslation LblAddPhase = "Phase hinzufügen"
+defaultTranslation LblNoPhases = "Keine Phasen"
+defaultTranslation (LblTeachingSocialForm WholeClass) = "Plenum"
+defaultTranslation (LblTeachingSocialForm SmallGroups) = "Gruppenarbeit"
+defaultTranslation (LblTeachingSocialForm PairWork) = "Partnerarbeit"
+defaultTranslation (LblTeachingSocialForm IndividualWork) = "Einzelarbeit"
+defaultTranslation (LblActionForm Presenting) = "Darbietend"
+defaultTranslation (LblActionForm Collaborating) = "Zusammenwirkend"
+defaultTranslation (LblActionForm Assigning) = "Aufgebend"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
