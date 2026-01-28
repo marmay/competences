@@ -7,6 +7,8 @@ module Competences.Frontend.Component.Editor
   , richTextEditorField
   , boolEditorField
   , dayEditorField
+  , optionalDayEditorField
+  , optionalIntEditorField
   , enumEditorField
   , enumEditorField'
   , Editable (..)

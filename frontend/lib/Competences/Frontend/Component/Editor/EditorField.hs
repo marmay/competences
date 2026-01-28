@@ -5,6 +5,8 @@ module Competences.Frontend.Component.Editor.EditorField
   , richTextEditorField
   , boolEditorField
   , dayEditorField
+  , optionalDayEditorField
+  , optionalIntEditorField
   , enumEditorField
   , enumEditorField'
   , msIso
@@ -29,7 +31,9 @@ import Competences.Frontend.View qualified as V
 import Data.Default (Default (..))
 import Data.Map qualified as Map
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
+import Text.Read (readMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -296,6 +300,88 @@ dayEditor viewLens patchLens refocusTarget original patch =
   where
     parseTime dateStr = parseTimeM False defaultTimeLocale "%Y-%m-%d" (M.fromMisoString dateStr)
     showTime day = M.toMisoString $ show day
+
+-- | Optional day editor field for Maybe Day fields
+--   Viewer: shows date or "Not set"
+--   Editor: date input where empty string clears the value
+optionalDayEditorField :: Lens' a (Maybe Day) -> Lens' patch (Change (Maybe Day)) -> EditorField a patch f
+optionalDayEditorField viewLens patchLens =
+  EditorField
+    { viewer = optionalDayViewer viewLens
+    , editor = optionalDayEditor viewLens patchLens
+    }
+
+optionalDayViewer :: Lens' a (Maybe Day) -> a -> M.View (Model a patch f) (Action a patch)
+optionalDayViewer viewLens a =
+  case a ^. viewLens of
+    Nothing -> M.span_ [class_ "text-stone-400 italic"] [M.text "Not set"]
+    Just day -> M.input_ [M.type_ "date", M.value_ (showTime day), M.disabled_]
+  where
+    showTime day = M.toMisoString $ show day
+
+optionalDayEditor
+  :: Lens' a (Maybe Day)
+  -> Lens' patch (Change (Maybe Day))
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
+optionalDayEditor viewLens patchLens refocusTarget original patch =
+  M.input_ $
+    [ M.type_ "date"
+    , M.value_ (maybe "" showTime $ currentValue original patch viewLens patchLens)
+    , M.onChange
+        ( \v ->
+            let newVal = parseTime v
+             in UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, newVal))
+        )
+    ]
+      <> refocusTargetAttr refocusTarget
+  where
+    parseTime dateStr =
+      let s = M.fromMisoString dateStr
+       in if T.null s then Nothing else parseTimeM False defaultTimeLocale "%Y-%m-%d" (T.unpack s)
+    showTime day = M.toMisoString $ show day
+
+-- | Optional int editor field for Maybe Int fields
+--   Viewer: shows number or "Not set"
+--   Editor: number input where empty string clears the value
+optionalIntEditorField :: Lens' a (Maybe Int) -> Lens' patch (Change (Maybe Int)) -> EditorField a patch f
+optionalIntEditorField viewLens patchLens =
+  EditorField
+    { viewer = optionalIntViewer viewLens
+    , editor = optionalIntEditor viewLens patchLens
+    }
+
+optionalIntViewer :: Lens' a (Maybe Int) -> a -> M.View (Model a patch f) (Action a patch)
+optionalIntViewer viewLens a =
+  case a ^. viewLens of
+    Nothing -> M.span_ [class_ "text-stone-400 italic"] [M.text "Not set"]
+    Just n -> M.span_ [] [M.text $ M.ms $ show n]
+
+optionalIntEditor
+  :: Lens' a (Maybe Int)
+  -> Lens' patch (Change (Maybe Int))
+  -> Bool
+  -> a
+  -> patch
+  -> M.View (Model a patch f) (Action a patch)
+optionalIntEditor viewLens patchLens refocusTarget original patch =
+  M.input_ $
+    [ M.type_ "number"
+    , M.min_ "0"
+    , M.value_ (maybe "" (M.ms . show) $ currentValue original patch viewLens patchLens)
+    , M.onChange
+        ( \v ->
+            let newVal = parseInt v
+             in UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, newVal))
+        )
+    ]
+      <> refocusTargetAttr refocusTarget
+  where
+    parseInt numStr =
+      let s = M.fromMisoString numStr :: Text
+       in if T.null s then Nothing else readMaybe (T.unpack s)
 
 enumParseMap :: (Show e, Bounded e, Enum e) => Map.Map M.MisoString e
 enumParseMap = Map.fromList $ map (\e -> (M.ms $ show e, e)) [minBound .. maxBound]

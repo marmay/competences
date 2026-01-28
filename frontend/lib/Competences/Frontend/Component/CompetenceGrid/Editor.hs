@@ -163,6 +163,15 @@ editorComponent r grid =
         `TE.addNamedField` ( C.translate' C.LblCompetenceGridDescription
                            , TE.textEditorField #description #description
                            )
+        `TE.addNamedField` ( C.translate' C.LblCompetenceGridDateFrom
+                           , TE.optionalDayEditorField #dateFrom #dateFrom
+                           )
+        `TE.addNamedField` ( C.translate' C.LblCompetenceGridDateTo
+                           , TE.optionalDayEditorField #dateTo #dateTo
+                           )
+        `TE.addNamedField` ( C.translate' C.LblCompetenceGridExpectedLessons
+                           , TE.optionalIntEditorField #expectedLessons #expectedLessons
+                           )
 
     competenceEditable =
       TE.editable

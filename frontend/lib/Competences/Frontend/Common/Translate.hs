@@ -118,6 +118,9 @@ data Label
   | LblSelectCompetenceGrids
   | LblCompetenceGridTitle
   | LblCompetenceGridDescription
+  | LblCompetenceGridDateFrom
+  | LblCompetenceGridDateTo
+  | LblCompetenceGridExpectedLessons
   | LblCompetenceGrid
   | LblStatistics
   | LblAnalytics
@@ -300,6 +303,9 @@ labels' =
   , LblSelectCompetenceGrids
   , LblCompetenceGridTitle
   , LblCompetenceGridDescription
+  , LblCompetenceGridDateFrom
+  , LblCompetenceGridDateTo
+  , LblCompetenceGridExpectedLessons
   , LblCompetenceGrid
   , LblStatistics
   , LblAnalytics
@@ -492,6 +498,9 @@ defaultTranslation LblNoMatchingAlternatives = "Bitte wähle eine gültige Alter
 defaultTranslation LblSelectCompetenceGrids = "Kompetenzraster"
 defaultTranslation LblCompetenceGridTitle = "Titel"
 defaultTranslation LblCompetenceGridDescription = "Beschreibung"
+defaultTranslation LblCompetenceGridDateFrom = "Beginn"
+defaultTranslation LblCompetenceGridDateTo = "Ende"
+defaultTranslation LblCompetenceGridExpectedLessons = "Erwartete Stunden"
 defaultTranslation LblCompetenceGrid = "Kompetenzraster"
 defaultTranslation LblStatistics = "Statistik"
 defaultTranslation LblAnalytics = "Analytics"
