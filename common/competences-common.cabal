@@ -32,6 +32,9 @@ library
         Competences.Command.Competences
         Competences.Command.Evidences
         Competences.Command.Interpret
+        Competences.Command.LessonPlans
+        Competences.Command.MesoPlans
+        Competences.Command.ParticipationRecords
         Competences.Command.Resources
         Competences.Command.Solutions
         Competences.Command.Tasks

@@ -16,6 +16,7 @@ import Competences.Command.Interpret
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Competence (Competence (..), Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
+import Data.Time (Day)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
@@ -36,6 +37,12 @@ data CompetenceGridPatch = CompetenceGridPatch
     -- ^ Change title from old to new value
   , description :: !(Change Text)
     -- ^ Change description from old to new value
+  , dateFrom :: !(Change (Maybe Day))
+    -- ^ Change start date for yearly planning
+  , dateTo :: !(Change (Maybe Day))
+    -- ^ Change end date for yearly planning
+  , expectedLessons :: !(Change (Maybe Int))
+    -- ^ Change expected number of lessons
   }
   deriving (Eq, Generic, Show)
 
@@ -83,7 +90,7 @@ instance Binary CompetencesCommand
 
 -- Default instances
 instance Default CompetenceGridPatch where
-  def = CompetenceGridPatch {title = Nothing, description = Nothing}
+  def = CompetenceGridPatch {title = Nothing, description = Nothing, dateFrom = Nothing, dateTo = Nothing, expectedLessons = Nothing}
 
 instance Default LevelInfoPatch where
   def = LevelInfoPatch {description = Nothing, locked = Nothing}
@@ -97,6 +104,9 @@ applyCompetenceGridPatch grid patch =
   inContext "CompetenceGrid" grid $
     patchField' @"title" patch
       >=> patchField' @"description" patch
+      >=> patchField' @"dateFrom" patch
+      >=> patchField' @"dateTo" patch
+      >=> patchField' @"expectedLessons" patch
 
 -- | Apply a patch to a Competence, checking for conflicts
 applyCompetencePatch :: Competence -> CompetencePatch -> Either Text Competence

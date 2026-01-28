@@ -11,6 +11,7 @@ import Competences.Common.IxSet qualified as Ix
 import Data.Default (Default (..))
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.LessonPlan (LessonPlanId)
 import Competences.Document.Evidence
   ( ActivityType
   , Evidence (..)
@@ -45,6 +46,8 @@ data EvidencePatch = EvidencePatch
     -- ^ Change observations from old to new value
   , assignmentId :: !(Change (Maybe AssignmentId))
     -- ^ Change assignmentId from old to new value
+  , lessonPlanId :: !(Change (Maybe LessonPlanId))
+    -- ^ Change lessonPlanId from old to new value
   }
   deriving (Eq, Generic, Show)
 
@@ -73,6 +76,7 @@ instance Default EvidencePatch where
       , oldTasks = Nothing
       , observations = Nothing
       , assignmentId = Nothing
+      , lessonPlanId = Nothing
       }
 
 -- | Apply a patch to an Evidence, checking for conflicts
@@ -86,6 +90,7 @@ applyEvidencePatch evidence patch =
       >=> patchField' @"oldTasks" patch
       >=> patchField' @"observations" patch
       >=> patchField' @"assignmentId" patch
+      >=> patchField' @"lessonPlanId" patch
 
 -- | Handle an Evidences context command
 handleEvidencesCommand :: UserId -> EvidencesCommand -> Document -> UpdateResult
