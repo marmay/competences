@@ -1,0 +1,168 @@
+module Competences.Frontend.Component.Selector.MultiSelectResourceSelector
+  ( multiSelectResourceSelectorComponent
+  )
+where
+
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document (Document (..), Resource (..))
+import Competences.Document.Resource (ResourceId, ResourceIdentifier (..))
+import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common
+  ( SelectorTransformedLens (..)
+  , mkSelectorBinding
+  )
+import Competences.Frontend.SyncContext
+  ( ProjectedChange (..)
+  , SyncContext
+  , subscribeWithProjection
+  )
+import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Combobox qualified as Combobox
+import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Tailwind (class_)
+import Data.Set qualified as Set
+import Data.Text (Text)
+import Data.Text qualified as T
+import GHC.Generics (Generic)
+import Miso qualified as M
+import Miso.Html qualified as MH
+import Optics.Core ((&), (.~))
+
+-- ============================================================================
+-- Projection
+-- ============================================================================
+
+-- | Projection from document - all resources
+data SelectorProjection = SelectorProjection
+  { allResources :: ![Resource]
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Projection function - gets all resources
+selectorProjection :: Document -> Maybe user -> SelectorProjection
+selectorProjection doc _ =
+  SelectorProjection
+    { allResources = Ix.toList doc.resources
+    }
+
+-- ============================================================================
+-- Model
+-- ============================================================================
+
+data Model = Model
+  { projection :: !SelectorProjection
+  , selectedResults :: ![ResourceId]
+  , searchQuery :: !Text
+  , isOpen :: !Bool
+  }
+  deriving (Eq, Generic, Show)
+
+-- ============================================================================
+-- Actions
+-- ============================================================================
+
+data Action
+  = ProjectionChanged !(ProjectedChange SelectorProjection)
+  | SetSearchQuery !Text
+  | ToggleResource !ResourceId
+  | SetOpen !Bool
+  deriving (Eq, Show)
+
+-- ============================================================================
+-- Component
+-- ============================================================================
+
+-- | Multi-select resource selector component
+-- Binds selected resource IDs to parent model via lens
+multiSelectResourceSelectorComponent
+  :: SyncContext
+  -> (Document -> [ResourceId]) -- ^ Function to load initial values
+  -> SelectorTransformedLens p [] ResourceId f' a'
+  -> M.Component p Model Action
+multiSelectResourceSelectorComponent r _initResults lensBinding =
+  (M.component model update view)
+    { M.bindings = [mkSelectorBinding lensBinding #selectedResults]
+    , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
+    }
+  where
+    model =
+      Model
+        { projection = SelectorProjection []
+        , selectedResults = []
+        , searchQuery = ""
+        , isOpen = False
+        }
+
+    update (ProjectionChanged change) =
+      M.modify $ \m ->
+        m & #projection .~ change.projection
+
+    update (SetSearchQuery q) =
+      M.modify $ #searchQuery .~ q
+
+    update (ToggleResource resId) =
+      M.modify $ \m ->
+        let current = m.selectedResults
+            new =
+              if resId `elem` current
+                then filter (/= resId) current
+                else current <> [resId]
+         in m & #selectedResults .~ new
+
+    update (SetOpen open) =
+      M.modify $ #isOpen .~ open
+
+    view m =
+      MH.div_
+        [class_ "space-y-2"]
+        [ -- Multi-select combobox
+          let filteredResources = filterResources m.searchQuery m.projection.allResources
+              options =
+                [ Combobox.ComboboxOption res.id (unResourceIdentifier res.identifier)
+                | res <- filteredResources
+                ]
+              selectedSet = Set.fromList m.selectedResults
+           in Combobox.multiSelectCombobox SetSearchQuery ToggleResource SetOpen
+                & Combobox.withPlaceholder (C.translate' C.LblSelectResources)
+                & Combobox.withOptions options
+                & Combobox.withSelected selectedSet
+                & Combobox.withSearchQuery m.searchQuery
+                & Combobox.withIsOpen m.isOpen
+                & Combobox.renderCombobox
+        , -- Display selected resources as tags
+          if null m.selectedResults
+            then M.text ""
+            else
+              MH.div_
+                [class_ "flex flex-wrap gap-2"]
+                [ viewResourceTag res
+                | resId <- m.selectedResults
+                , Just res <- [lookupResource resId m.projection.allResources]
+                ]
+        ]
+
+    filterResources query resources =
+      let q = T.toLower query
+       in if T.null q
+            then resources
+            else filter (\res -> q `T.isInfixOf` T.toLower (unResourceIdentifier res.identifier)) resources
+
+    unResourceIdentifier (ResourceIdentifier t) = t
+
+    lookupResource resId resources =
+      case filter (\res -> res.id == resId) resources of
+        (res : _) -> Just res
+        [] -> Nothing
+
+    viewResourceTag :: Resource -> M.View Model Action
+    viewResourceTag res =
+      MH.div_
+        [class_ "inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-md text-sm"]
+        [ V.icon [class_ "w-4 h-4 text-muted-foreground"] IcnResources
+        , MH.span_ [] [M.text $ M.ms $ unResourceIdentifier res.identifier]
+        , MH.button_
+            [ class_ "ml-1 text-muted-foreground hover:text-foreground"
+            , MH.onClick (ToggleResource res.id)
+            ]
+            [V.icon [class_ "w-3 h-3"] IcnCancel]
+        ]

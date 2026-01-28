@@ -3,14 +3,19 @@ module Competences.Frontend.Component.CompetenceGrid.LessonPlanEditor
   )
 where
 
-import Competences.Command (Command (..), LessonPlansCommand (..), LessonPlanPatch (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), LessonPlanPatch (..), LessonPlansCommand (..), ModifyCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
-import Competences.Document.LessonPlan (LessonPlan (..), LessonPhase (..), TeachingSocialForm (..), ActionForm (..))
+import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.LessonPlan (ActionForm (..), LessonPhase (..), LessonPlan (..), TeachingSocialForm (..))
 import Competences.Document.MesoPlan (MesoPlanEntryId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.NotesEditorModal (notesEditorModal)
 import Competences.Frontend.Component.CompetenceGrid.PhaseEditorModal (phaseEditorModal)
+import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
+import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
 import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -22,6 +27,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.ModalManager (openModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -39,6 +45,8 @@ import Optics.Core ((&), (.~), (?~))
 -- | Model for the LessonPlan editor
 data LessonPlanModel = LessonPlanModel
   { lessonPlan :: !(Maybe LessonPlan)
+  , selectedAssignments :: ![AssignmentId]
+  , selectedResources :: ![ResourceId]
   }
   deriving (Eq, Generic, Show)
 
@@ -50,13 +58,19 @@ data LessonPlanAction
   | OpenPhaseEditorModal !LessonPlan !Int
   | AddPhase
   | DeletePhase !Int
+  | SaveAssignments
+  | SaveResources
   deriving (Eq, Show)
 
 -- | Project from document to minimal model
 projectLessonPlan :: MesoPlanEntryId -> Document -> LessonPlanModel
 projectLessonPlan entryId doc =
   let mPlan = Ix.getOne (doc.lessonPlans Ix.@= entryId)
-   in LessonPlanModel mPlan
+   in LessonPlanModel
+        { lessonPlan = mPlan
+        , selectedAssignments = maybe [] (.assignments) mPlan
+        , selectedResources = maybe [] (.resources) mPlan
+        }
 
 -- | View for the LessonPlan editor
 lessonPlanEditorView
@@ -73,13 +87,30 @@ lessonPlanEditorComponent
   -> MesoPlanEntryId
   -> M.Component p LessonPlanModel LessonPlanAction
 lessonPlanEditorComponent r entryId =
-  (M.component initialModel update view)
+  (M.component initialModel update (view r))
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = LessonPlanModel Nothing
+    initialModel =
+      LessonPlanModel
+        { lessonPlan = Nothing
+        , selectedAssignments = []
+        , selectedResources = []
+        }
 
-    update (DocumentUpdated dc) = M.modify $ \_ -> projectLessonPlan entryId dc.document
+    update (DocumentUpdated dc) = M.modify $ \m ->
+      let projected = projectLessonPlan entryId dc.document
+       in projected
+            -- Preserve selections if they differ from document (user is editing)
+            { selectedAssignments =
+                if m.selectedAssignments /= maybe [] (.assignments) m.lessonPlan
+                  then m.selectedAssignments
+                  else projected.selectedAssignments
+            , selectedResources =
+                if m.selectedResources /= maybe [] (.resources) m.lessonPlan
+                  then m.selectedResources
+                  else projected.selectedResources
+            }
 
     update CreateLessonPlan = M.io_ $ do
       planId <- nextId r
@@ -108,15 +139,16 @@ lessonPlanEditorComponent r entryId =
       M.io_ $ case m.lessonPlan of
         Nothing -> pure ()
         Just plan -> do
-          let newPhase = LessonPhase
-                { title = ""
-                , socialForm = WholeClass
-                , duration = 10
-                , actionForm = Presenting
-                , notes = ""
-                }
+          let newPhase =
+                LessonPhase
+                  { title = ""
+                  , socialForm = WholeClass
+                  , duration = 10
+                  , actionForm = Presenting
+                  , notes = ""
+                  }
               newPhases = plan.phases <> [newPhase]
-              newPhaseIndex = length plan.phases  -- Index of the new phase
+              newPhaseIndex = length plan.phases -- Index of the new phase
               patch = def & #phases ?~ (plan.phases, newPhases)
               -- Updated plan for the modal (includes the new phase)
               updatedPlan = plan & #phases .~ newPhases
@@ -135,9 +167,38 @@ lessonPlanEditorComponent r entryId =
           modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id Lock)
           modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id (Release patch))
 
-    view m = case m.lessonPlan of
+    update SaveAssignments = do
+      m <- M.get
+      M.io_ $ case m.lessonPlan of
+        Nothing -> pure ()
+        Just plan -> do
+          let oldAssignments = plan.assignments
+              newAssignments = m.selectedAssignments
+          if oldAssignments /= newAssignments
+            then do
+              let patch = def & #assignments ?~ (oldAssignments, newAssignments)
+              modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id Lock)
+              modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id (Release patch))
+            else pure ()
+
+    update SaveResources = do
+      m <- M.get
+      M.io_ $ case m.lessonPlan of
+        Nothing -> pure ()
+        Just plan -> do
+          let oldResources = plan.resources
+              newResources = m.selectedResources
+          if oldResources /= newResources
+            then do
+              let patch = def & #resources ?~ (oldResources, newResources)
+              modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id Lock)
+              modifySyncDocument r (LessonPlans $ OnLessonPlans $ Modify plan.id (Release patch))
+            else pure ()
+
+    view :: SyncContext -> LessonPlanModel -> M.View LessonPlanModel LessonPlanAction
+    view syncCtx m = case m.lessonPlan of
       Nothing -> noPlanView
-      Just plan -> planView plan
+      Just plan -> planView syncCtx m plan
 
     noPlanView =
       MH.div_
@@ -148,14 +209,68 @@ lessonPlanEditorComponent r entryId =
             & Button.renderButton
         ]
 
-    planView plan =
+    planView syncCtx m plan =
       MH.div_
         [class_ "space-y-4"]
-        [ -- Notes section
+        [ -- Assignments section
+          assignmentsSection syncCtx m
+        , -- Resources section
+          resourcesSection syncCtx m
+        , -- Notes section
           notesSection plan
         , -- Phases section
           phasesSection plan
         ]
+
+    assignmentsSection syncCtx m =
+      let hasChanges = m.selectedAssignments /= maybe [] (.assignments) m.lessonPlan
+       in MH.div_
+            []
+            [ MH.div_
+                [class_ "flex items-center justify-between mb-2"]
+                [ Typography.h4 (C.translate' C.LblAssignments)
+                , if hasChanges
+                    then
+                      Button.buttonPrimary (C.translate' C.LblSave)
+                        & Button.withSize Button.Small
+                        & Button.withClick SaveAssignments
+                        & Button.renderButton
+                    else M.text ""
+                ]
+            , componentA
+                "lesson-plan-assignment-selector"
+                []
+                ( multiSelectAssignmentSelectorComponent
+                    syncCtx
+                    (\_ -> m.selectedAssignments)
+                    (selectorLens #selectedAssignments)
+                )
+            ]
+
+    resourcesSection syncCtx m =
+      let hasChanges = m.selectedResources /= maybe [] (.resources) m.lessonPlan
+       in MH.div_
+            []
+            [ MH.div_
+                [class_ "flex items-center justify-between mb-2"]
+                [ Typography.h4 (C.translate' C.LblResources)
+                , if hasChanges
+                    then
+                      Button.buttonPrimary (C.translate' C.LblSave)
+                        & Button.withSize Button.Small
+                        & Button.withClick SaveResources
+                        & Button.renderButton
+                    else M.text ""
+                ]
+            , componentA
+                "lesson-plan-resource-selector"
+                []
+                ( multiSelectResourceSelectorComponent
+                    syncCtx
+                    (\_ -> m.selectedResources)
+                    (selectorLens #selectedResources)
+                )
+            ]
 
     notesSection plan =
       MH.div_
@@ -170,12 +285,14 @@ lessonPlanEditorComponent r entryId =
                 & Button.renderButton
             ]
         , if Text.null plan.notes
-            then MH.div_
-                   [class_ "text-muted-foreground py-2"]
-                   [M.text $ C.translate' C.LblNoNotes]
-            else MH.div_
-                   [class_ "bg-muted/50 rounded-md p-3"]
-                   [renderRichText plan.notes]
+            then
+              MH.div_
+                [class_ "text-muted-foreground py-2"]
+                [M.text $ C.translate' C.LblNoNotes]
+            else
+              MH.div_
+                [class_ "bg-muted/50 rounded-md p-3"]
+                [renderRichText plan.notes]
         ]
 
     phasesSection plan =
@@ -191,9 +308,10 @@ lessonPlanEditorComponent r entryId =
                 & Button.renderButton
             ]
         , if null plan.phases
-            then MH.div_
-                   [class_ "text-center text-muted-foreground py-4"]
-                   [M.text $ C.translate' C.LblNoPhases]
+            then
+              MH.div_
+                [class_ "text-center text-muted-foreground py-4"]
+                [M.text $ C.translate' C.LblNoPhases]
             else viewPhasesList plan
         ]
 
@@ -221,9 +339,10 @@ lessonPlanEditorComponent r entryId =
             , -- Display notes if present
               if Text.null phase.notes
                 then M.text ""
-                else MH.div_
-                       [class_ "mt-2 text-sm bg-muted/50 rounded p-2"]
-                       [renderRichText phase.notes]
+                else
+                  MH.div_
+                    [class_ "mt-2 text-sm bg-muted/50 rounded p-2"]
+                    [renderRichText phase.notes]
             ]
         , -- Action buttons
           MH.div_
