@@ -66,6 +66,7 @@ data Label
   | LblDelete
   | LblApply
   | LblCancel
+  | LblPreview
   | LblMove
   | LblInsertBefore
   | LblInsertAfter
@@ -193,6 +194,7 @@ data Label
   | LblBulkEntry
   | LblBulkEvidenceEntry
   | LblAddObservation
+  | LblSave
   | LblSaveAll
   | LblNoObservationsYet
   | LblCompetence
@@ -249,6 +251,7 @@ data Label
   | LblLessonPlanNotes
   | LblCreateLessonPlan
   | LblNoLessonPlan
+  | LblNoNotes
   | LblPhaseTitle
   | LblPhaseSocialForm
   | LblPhaseDuration
@@ -274,6 +277,7 @@ labels' =
   , LblDelete
   , LblApply
   , LblCancel
+  , LblPreview
   , LblMove
   , LblInsertBefore
   , LblInsertAfter
@@ -405,6 +409,7 @@ labels' =
   , LblBulkEntry
   , LblBulkEvidenceEntry
   , LblAddObservation
+  , LblSave
   , LblSaveAll
   , LblNoObservationsYet
   , LblCompetence
@@ -468,6 +473,7 @@ labels' =
   , LblLessonPlanNotes
   , LblCreateLessonPlan
   , LblNoLessonPlan
+  , LblNoNotes
   , LblPhaseTitle
   , LblPhaseSocialForm
   , LblPhaseDuration
@@ -496,6 +502,7 @@ defaultTranslation LblEdit = "Bearbeiten"
 defaultTranslation LblDelete = "Löschen"
 defaultTranslation LblApply = "Übernehmen"
 defaultTranslation LblCancel = "Abbrechen"
+defaultTranslation LblPreview = "Vorschau"
 defaultTranslation LblMove = "Verschieben"
 defaultTranslation LblInsertBefore = "Davor einfügen"
 defaultTranslation LblInsertAfter = "Danach einfügen"
@@ -635,6 +642,7 @@ defaultTranslation LblNewEvidence = "Neue Aufzeichnung"
 defaultTranslation LblBulkEntry = "Sammelerfassung"
 defaultTranslation LblBulkEvidenceEntry = "Sammelerfassung"
 defaultTranslation LblAddObservation = "Beobachtung hinzufügen"
+defaultTranslation LblSave = "Speichern"
 defaultTranslation LblSaveAll = "Alle speichern"
 defaultTranslation LblNoObservationsYet = "Noch keine Beobachtungen"
 defaultTranslation LblCompetence = "Kompetenz"
@@ -701,6 +709,7 @@ defaultTranslation LblLessonPlanPhases = "Unterrichtsphasen"
 defaultTranslation LblLessonPlanNotes = "Notizen"
 defaultTranslation LblCreateLessonPlan = "Unterrichtsplan erstellen"
 defaultTranslation LblNoLessonPlan = "Kein Unterrichtsplan"
+defaultTranslation LblNoNotes = "Keine Notizen"
 defaultTranslation LblPhaseTitle = "Phase"
 defaultTranslation LblPhaseSocialForm = "Sozialform"
 defaultTranslation LblPhaseDuration = "Dauer (Min.)"

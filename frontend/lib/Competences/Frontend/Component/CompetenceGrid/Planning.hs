@@ -3,40 +3,40 @@ module Competences.Frontend.Component.CompetenceGrid.Planning
   )
 where
 
-import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanEntryPatch (..), EntityCommand (..))
+import Competences.Command (Command (..), MesoPlansCommand (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( CompetenceGrid (..)
   , Document (..)
-  , Lock (..)
   , Order
   )
-import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanEntry (..))
-import Competences.Document.Order (orderMax, orderPosition)
+import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanEntry (..), MesoPlanEntryId)
+import Competences.Document.Order (orderMax)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.CompetenceGrid.EntryEditorModal (entryEditorModal)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
-import Competences.Frontend.Component.Editor qualified as TE
-import Competences.Frontend.Component.Editor.TableView qualified as TE
-import Competences.Frontend.Component.Editor.Types (translateReorder')
+import Competences.Frontend.Component.CompetenceGrid.LessonPlanEditor (lessonPlanEditorView)
+import Competences.Frontend.Component.TaskContentView (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.ModalManager (openModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
+import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((&), (?~), (.~))
+import Optics.Core ((&), (.~))
 
 -- ============================================================================
 -- PLANNING VIEW
@@ -46,6 +46,7 @@ import Optics.Core ((&), (?~), (.~))
 data PlanningModel = PlanningModel
   { mesoPlan :: !(Maybe MesoPlan)
   , entries :: ![MesoPlanEntry]
+  , expandedEntryId :: !(Maybe MesoPlanEntryId)
   }
   deriving (Eq, Generic, Show)
 
@@ -54,16 +55,23 @@ data PlanningAction
   = DocumentUpdated !DocumentChange
   | CreateMesoPlan
   | CreateNewEntry
+  | ToggleEntryExpansion !MesoPlanEntryId
+  | OpenEntryEditorModal !MesoPlanEntry
+  | DeleteEntry !MesoPlanEntryId
   deriving (Eq, Show)
 
--- | Project from document to minimal model
-projectPlanning :: CompetenceGrid -> Document -> PlanningModel
-projectPlanning grid doc =
+-- | Project from document to minimal model, preserving UI state
+projectPlanning :: CompetenceGrid -> Maybe MesoPlanEntryId -> Document -> PlanningModel
+projectPlanning grid prevExpanded doc =
   let mPlan = Ix.getOne (doc.mesoPlans Ix.@= grid.id)
       entries' = case mPlan of
         Nothing -> []
         Just plan -> Ix.toAscList (Proxy @Order) (doc.mesoPlanEntries Ix.@= plan.id)
-   in PlanningModel mPlan entries'
+      -- Clear expansion if the entry no longer exists
+      expanded = case prevExpanded of
+        Nothing -> Nothing
+        Just eid -> if any (\e -> e.id == eid) entries' then Just eid else Nothing
+   in PlanningModel mPlan entries' expanded
 
 -- | View for planning - allows editing meso plan and entries
 planningDetailView
@@ -81,9 +89,9 @@ planningComponent r grid =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = PlanningModel Nothing []
+    initialModel = PlanningModel Nothing [] Nothing
 
-    update (DocumentUpdated dc) = M.modify $ \_ -> projectPlanning grid dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectPlanning grid m.expandedEntryId dc.document
 
     update CreateMesoPlan = M.io_ $ do
       planId <- nextId r
@@ -111,10 +119,23 @@ planningComponent r grid =
                   , competenceLevels = []
                   }
           modifySyncDocument r (MesoPlans $ OnMesoPlanEntries $ CreateAndLock entry)
+          -- Auto-open entry editor modal for immediate configuration
+          openModal r.modalManager (entryEditorModal r r.modalManager entry)
+
+    update (ToggleEntryExpansion entryId) = M.modify $ \m ->
+      if m.expandedEntryId == Just entryId
+        then m & #expandedEntryId .~ Nothing
+        else m & #expandedEntryId .~ Just entryId
+
+    update (OpenEntryEditorModal entry) = M.io_ $
+      openModal r.modalManager (entryEditorModal r r.modalManager entry)
+
+    update (DeleteEntry entryId) = M.io_ $
+      modifySyncDocument r (MesoPlans $ OnMesoPlanEntries $ Delete entryId)
 
     view m = case m.mesoPlan of
       Nothing -> noPlanView
-      Just plan -> planView plan
+      Just plan -> planView plan m
 
     noPlanView =
       V.viewFlow
@@ -133,16 +154,16 @@ planningComponent r grid =
             ]
         ]
 
-    planView _plan =
+    planView _plan m =
       V.viewFlow
         ( V.vFlow
             & (#expandDirection .~ V.Expand V.Start)
             & (#expandOrthogonal .~ V.Expand V.Center)
             & (#gap .~ V.SmallSpace)
         )
-        [ V.component
-            ("meso-plan-entries-editor-" <> M.ms (show grid.id))
-            (TE.editorComponent mesoPlanEntriesEditor r)
+        [ MH.div_
+            [class_ "flex flex-col gap-2 w-full"]
+            (map (viewEntry m) m.entries)
         , MH.div_
             [class_ "flex gap-2"]
             [ Button.buttonPrimary (C.translate' C.LblAddMesoPlanEntry)
@@ -152,31 +173,60 @@ planningComponent r grid =
             ]
         ]
 
-    mesoPlanEntryEditable =
-      TE.editable
-        ( \d -> case Ix.getOne (d.mesoPlans Ix.@= grid.id) of
-            Nothing -> []
-            Just plan ->
-              map
-                (\e -> (e, d.locks Map.!? MesoPlanEntryLock e.id))
-                (Ix.toAscList (Proxy @Order) (d.mesoPlanEntries Ix.@= plan.id))
-        )
-        & (#modify ?~ (\e m -> MesoPlans $ OnMesoPlanEntries (Modify e.id m)))
-        & (#delete ?~ (\e -> MesoPlans $ OnMesoPlanEntries (Delete e.id)))
-        & ( #reorder
-              ?~ ( \d e a -> do
-                     p <- orderPosition d.mesoPlanEntries e.id
-                     pure $ MesoPlans $ ReorderMesoPlanEntry p (translateReorder' (.id) a)
-                 )
-          )
+    viewEntry m entry =
+      let isExpanded = m.expandedEntryId == Just entry.id
+          chevronClass = if isExpanded then "rotate-90" else ""
+       in MH.div_
+            [class_ "border border-border rounded-lg overflow-hidden"]
+            [ -- Entry header
+              MH.div_
+                [class_ "flex items-center gap-3 p-3 bg-muted/50"]
+                [ -- Chevron and content (clickable to expand)
+                  MH.div_
+                    [ class_ "flex items-center gap-3 flex-1 cursor-pointer hover:bg-muted -m-3 p-3"
+                    , MH.onClick (ToggleEntryExpansion entry.id)
+                    ]
+                    [ -- Chevron icon
+                      MH.span_
+                        [class_ $ "transition-transform duration-200 " <> chevronClass]
+                        [M.text "▶"]
+                    , -- Entry title and description
+                      MH.div_
+                        [class_ "flex-1"]
+                        [ MH.div_
+                            [class_ "font-medium"]
+                            [M.text $ M.ms $ if Text.null entry.title then "(Untitled)" else entry.title]
+                        , if Text.null entry.description
+                            then M.text ""
+                            else MH.div_
+                                   [class_ "text-sm text-muted-foreground"]
+                                   [renderRichText entry.description]
+                        ]
+                    ]
+                , -- Edit and delete buttons
+                  MH.div_
+                    [class_ "flex gap-1"]
+                    [ Button.buttonGhost ""
+                        & Button.withIcon IcnEdit
+                        & Button.withSize Button.Small
+                        & Button.withClick (OpenEntryEditorModal entry)
+                        & Button.renderButton
+                    , Button.buttonGhost ""
+                        & Button.withIcon IcnDelete
+                        & Button.withSize Button.Small
+                        & Button.withClick (DeleteEntry entry.id)
+                        & Button.renderButton
+                    ]
+                ]
+            , -- Expanded content (LessonPlan view)
+              if isExpanded
+                then viewExpandedEntry entry
+                else M.text ""
+            ]
 
-    mesoPlanEntriesEditor =
-      TE.editor
-        TE.editorTableRowView'
-        mesoPlanEntryEditable
-        `TE.addNamedField` ( C.translate' C.LblMesoPlanEntryTitle
-                           , TE.textEditorField #title #title
-                           )
-        `TE.addNamedField` ( C.translate' C.LblMesoPlanEntryDescription
-                           , TE.richTextEditorField #description #description
-                           )
+    viewExpandedEntry entry =
+      MH.div_
+        [class_ "p-4 border-t border-border bg-background"]
+        [ -- LessonPlan content (notes + phases)
+          lessonPlanEditorView r entry.id
+        ]
