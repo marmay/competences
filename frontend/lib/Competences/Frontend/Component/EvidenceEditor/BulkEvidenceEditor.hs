@@ -479,6 +479,7 @@ saveStudentEvidence r m (uid, observations) = do
           , oldTasks = ""
           , observations = Ix.fromList freshObservations
           , assignmentId = Nothing
+          , lessonPlanId = Nothing
           }
   modifySyncDocument r $ Cmd.Evidences $ Cmd.OnEvidences $ Cmd.Create evidence
 

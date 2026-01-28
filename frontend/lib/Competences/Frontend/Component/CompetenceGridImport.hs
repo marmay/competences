@@ -105,6 +105,10 @@ competenceGridImportComponent r =
         , assignments = Ix.empty
         , competenceAssessments = Ix.empty
         , competenceGridGrades = Ix.empty
+        , mesoPlans = Ix.empty
+        , mesoPlanEntries = Ix.empty
+        , lessonPlans = Ix.empty
+        , participationRecords = Ix.empty
         }
 
     update (DocumentUpdated dc) =
@@ -293,6 +297,9 @@ applyGridPreview r _doc preview = do
               , order = orderMax
               , title = g.title
               , description = g.description
+              , dateFrom = Nothing
+              , dateTo = Nothing
+              , expectedLessons = Nothing
               }
       modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create newGrid)
       pure newId

@@ -48,8 +48,11 @@ library
         Competences.Document.Evidence
         Competences.Document.Grade
         Competences.Document.Id
+        Competences.Document.LessonPlan
         Competences.Document.Lock
+        Competences.Document.MesoPlan
         Competences.Document.Order
+        Competences.Document.ParticipationRecord
         Competences.Document.Resource
         Competences.Document.Solution
         Competences.Document.Task

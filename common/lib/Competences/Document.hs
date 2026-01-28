@@ -25,6 +25,9 @@ module Competences.Document
   , module Competences.Document.Task
   , module Competences.Document.Assignment
   , module Competences.Document.User
+  , module Competences.Document.MesoPlan
+  , module Competences.Document.LessonPlan
+  , module Competences.Document.ParticipationRecord
   )
 where
 
@@ -58,6 +61,28 @@ import Competences.Document.CompetenceGridGrade
   , CompetenceGridGradeIxs
   )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Observation (..))
+import Competences.Document.LessonPlan
+  ( LessonPlan (..)
+  , LessonPlanId
+  , LessonPlanIxs
+  , LessonPhase (..)
+  , TeachingSocialForm (..)
+  , ActionForm (..)
+  )
+import Competences.Document.MesoPlan
+  ( MesoPlan (..)
+  , MesoPlanId
+  , MesoPlanIxs
+  , MesoPlanEntry (..)
+  , MesoPlanEntryId
+  , MesoPlanEntryIxs
+  )
+import Competences.Document.ParticipationRecord
+  ( ParticipationRecord (..)
+  , ParticipationRecordId
+  , ParticipationRecordIxs
+  , ParticipationType (..)
+  )
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
@@ -93,6 +118,10 @@ data Document = Document
   , competenceAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
   , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
+  , mesoPlans :: !(Ix.IxSet MesoPlanIxs MesoPlan)
+  , mesoPlanEntries :: !(Ix.IxSet MesoPlanEntryIxs MesoPlanEntry)
+  , lessonPlans :: !(Ix.IxSet LessonPlanIxs LessonPlan)
+  , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   }
   deriving (Eq, Generic, Show)
 
@@ -111,6 +140,10 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "competenceAssessments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceGridGrades" .!= [])
       <*> fmap Ix.fromList (v .:? "solutions" .!= [])
+      <*> fmap Ix.fromList (v .:? "mesoPlans" .!= [])
+      <*> fmap Ix.fromList (v .:? "mesoPlanEntries" .!= [])
+      <*> fmap Ix.fromList (v .:? "lessonPlans" .!= [])
+      <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -127,6 +160,10 @@ instance ToJSON Document where
       , "competenceAssessments" .= Ix.toList d.competenceAssessments
       , "competenceGridGrades" .= Ix.toList d.competenceGridGrades
       , "solutions" .= Ix.toList d.solutions
+      , "mesoPlans" .= Ix.toList d.mesoPlans
+      , "mesoPlanEntries" .= Ix.toList d.mesoPlanEntries
+      , "lessonPlans" .= Ix.toList d.lessonPlans
+      , "participationRecords" .= Ix.toList d.participationRecords
       ]
 
 emptyDocument :: Document
@@ -144,6 +181,10 @@ emptyDocument =
     , competenceAssessments = Ix.empty
     , competenceGridGrades = Ix.empty
     , solutions = Ix.empty
+    , mesoPlans = Ix.empty
+    , mesoPlanEntries = Ix.empty
+    , lessonPlans = Ix.empty
+    , participationRecords = Ix.empty
     }
 
 
@@ -161,6 +202,10 @@ projectDocument user doc
         & #competenceAssessments .~ (doc.competenceAssessments Ix.@= user.id) -- Only assessments about them
         & #competenceGridGrades .~ (doc.competenceGridGrades Ix.@= user.id) -- Only grid grades about them
         & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks) -- Only locks on entities they can see
+        & #mesoPlans .~ Ix.empty -- Planning is teacher-only
+        & #mesoPlanEntries .~ Ix.empty
+        & #lessonPlans .~ Ix.empty
+        & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
         -- competenceGrids, competences, resources, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
@@ -185,6 +230,13 @@ projectDocument user doc
           Nothing -> False
       SolutionLock _ -> True -- Solutions are visible to all users
       ResourceLock _ -> True -- Resources are visible to all users
+      MesoPlanLock _ -> False -- Planning is teacher-only
+      MesoPlanEntryLock _ -> False
+      LessonPlanLock _ -> False
+      ParticipationRecordLock prid ->
+        case Ix.getOne (Ix.getEQ prid (doc ^. #participationRecords)) of
+          Just pr -> user.id == pr.userId
+          Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
 
 -- ============================================================================

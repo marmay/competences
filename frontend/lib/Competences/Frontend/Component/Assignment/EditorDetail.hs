@@ -84,6 +84,10 @@ editorWrapperComponent r assignment =
         , assignments = Ix.empty
         , competenceAssessments = Ix.empty
         , competenceGridGrades = Ix.empty
+        , mesoPlans = Ix.empty
+        , mesoPlanEntries = Ix.empty
+        , lessonPlans = Ix.empty
+        , participationRecords = Ix.empty
         }
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
