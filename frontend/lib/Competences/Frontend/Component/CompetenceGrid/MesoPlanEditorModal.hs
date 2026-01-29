@@ -14,9 +14,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (def)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -124,16 +123,7 @@ mesoPlanEditorModal r modalMgr plan =
         [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
         , class_ "w-[500px] max-w-[95vw] flex flex-col"
         ]
-        [ -- Header with title and close button
-          MH.div_
-            [class_ "flex items-center justify-between border-b px-6 py-4"]
-            [ Typography.h3 $ C.translate' C.LblEditMesoPlan
-            , MH.button_
-                [ class_ "text-muted-foreground hover:text-foreground transition-colors"
-                , MH.onClick CloseModal
-                ]
-                [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
-            ]
+        [ Modal.modalHeader (C.translate' C.LblEditMesoPlan) CloseModal
         , -- Form content
           MH.div_
             [class_ "px-6 py-4 space-y-4"]
@@ -176,9 +166,7 @@ mesoPlanEditorModal r modalMgr plan =
                     ]
                 ]
             ]
-        , -- Footer with action buttons
-          MH.div_
-            [class_ "flex justify-end gap-2 border-t px-6 py-4"]
+        , Modal.modalFooter
             [ Button.buttonSecondary (C.translate' C.LblCancel)
                 & Button.withClick CloseModal
                 & Button.renderButton

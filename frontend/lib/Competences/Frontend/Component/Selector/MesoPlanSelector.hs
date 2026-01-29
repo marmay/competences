@@ -15,6 +15,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
@@ -150,12 +151,6 @@ mesoPlanSelectorComponent r parentLens =
             , -- Line 2: Date range
               MH.div_
                 [class_ "flex items-center gap-2 text-xs text-muted-foreground"]
-                [M.text $ formatDateRange p]
+                [M.text $ DateDisplay.formatDateRange p.dateFrom p.dateTo]
             ]
             (SelectPlan p)
-
-    formatDateRange p = case (p.dateFrom, p.dateTo) of
-      (Nothing, Nothing) -> ""
-      (Just from, Nothing) -> C.translate' C.LblMesoPlanDateFrom <> ": " <> C.formatDay from
-      (Nothing, Just to) -> C.translate' C.LblMesoPlanDateTo <> ": " <> C.formatDay to
-      (Just from, Just to) -> C.formatDay from <> " – " <> C.formatDay to

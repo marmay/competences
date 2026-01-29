@@ -22,10 +22,8 @@ import Competences.Document
   , ordered
   )
 import Competences.Document.Evidence
-  ( ActivityType (..)
-  , Evidence (..)
+  ( Evidence (..)
   , Observation (..)
-  , SocialForm (..)
   )
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
@@ -60,6 +58,9 @@ import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
+import Competences.Frontend.View.CellStyle qualified as CellStyle
+import Competences.Frontend.View.MasteryBar qualified as MasteryBar
+import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Mastery
@@ -76,10 +77,8 @@ import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.CSS qualified as MC
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
-import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
@@ -363,13 +362,7 @@ viewerComponent r grid =
 
           -- Striped background for empty cells
           stripeStyle :: [(M.MisoString, M.MisoString)]
-          stripeStyle =
-            if not hasDescription
-              then
-                [ ("background",
-                   "repeating-linear-gradient(135deg, rgb(245 245 244) 0px, rgb(245 245 244) 4px, rgb(231 229 228) 4px, rgb(231 229 228) 8px)")
-                ]
-              else []
+          stripeStyle = if not hasDescription then CellStyle.stripedStyle else []
 
        in case proj.viewData of
             UserViewData userData ->
@@ -391,16 +384,11 @@ viewerComponent r grid =
 
           showSummary activityType socialForm ability =
             let abilityClass = Colors.abilityTextClass ability
-                activityTypeIcn = case activityType of
-                  Conversation -> IcnActivityTypeConversation
-                  Exam -> IcnActivityTypeExam
-                  SchoolExercise -> IcnActivityTypeSchoolExercise
-                  HomeExercise -> IcnActivityTypeHomeExercise
-                socialFormIcn = case socialForm of
-                  Group -> IcnSocialFormGroup
-                  Individual -> IcnSocialFormIndividual
-                coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
-             in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
+                ci = V.coloredStrokeIcon abilityClass
+             in V.viewFlow V.hFlow
+                  [ ci (V.activityTypeIcon activityType)
+                  , ci (V.socialFormIcon socialForm)
+                  ]
 
           -- Get active assessment
           mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
@@ -416,30 +404,19 @@ viewerComponent r grid =
                   then Achieved
                   else NotYetAchieved
 
+          -- Visual status for styling
+          cellVisualStatus
+            | not hasDescription = StatusIcon.NoStatus
+            | cellStatus == Achieved = StatusIcon.Achieved
+            | levelInfo.locked = StatusIcon.Locked
+            | cellStatus == NotYetAchieved = StatusIcon.InProgress
+            | otherwise = StatusIcon.NoStatus
+
           -- Cell background color
-          bgClass
-            | not hasDescription = ""
-            | cellStatus == Achieved = "bg-green-100"
-            | levelInfo.locked = "bg-stone-200"
-            | cellStatus == NotYetAchieved = "bg-yellow-100"
-            | otherwise = "bg-white"
+          bgClass = CellStyle.statusBgClass cellVisualStatus
 
           -- Status icon
-          statusIcon
-            | not hasDescription = V.empty
-            | cellStatus == Achieved =
-                MH.div_
-                  [class_ "absolute top-1 right-1 text-green-600"]
-                  [icon [MP.width_ "14", MP.height_ "14"] IcnApply]
-            | levelInfo.locked =
-                MH.div_
-                  [class_ "absolute top-1 right-1 text-stone-500"]
-                  [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
-            | cellStatus == NotYetAchieved =
-                MH.div_
-                  [class_ "absolute top-1 right-1 text-yellow-600"]
-                  [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
-            | otherwise = V.empty
+          statusIcon = StatusIcon.statusIconOverlay cellVisualStatus
 
           -- Resource handling
           hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
@@ -517,7 +494,7 @@ viewerComponent r grid =
                   then
                     let stats = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStats
                         students = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStudents
-                     in masteryDisplay MasteryDisplayConfig
+                     in MasteryBar.masteryDisplay MasteryBar.MasteryDisplayConfig
                           { totalStudents = analyticsData.totalStudents
                           , stats = stats
                           , students = students
@@ -530,96 +507,6 @@ viewerComponent r grid =
             , cellStyle = stripeStyle
             , cellContent = cellContent
             }
-
--- ============================================================================
--- MASTERY DISPLAY COMPONENT
--- ============================================================================
-
--- | Configuration for the mastery display component
-data MasteryDisplayConfig = MasteryDisplayConfig
-  { totalStudents :: !Int
-  , stats :: !(Map MasteryStatus Int)
-  , students :: !(Map MasteryStatus [User])
-  }
-
--- | Render mastery distribution as horizontal stacked bars with tooltips
--- Always shows all 5 indicators (dimmed when count is 0) for consistent navigation
-masteryDisplay :: MasteryDisplayConfig -> M.View m action
-masteryDisplay config =
-  MH.div_
-    [class_ "flex flex-col gap-1 mt-1"]
-    [ -- Stacked horizontal bar (only segments with count > 0)
-      MH.div_
-        [class_ "flex h-3 rounded overflow-hidden bg-stone-100"]
-        (map renderSegment segments)
-    , -- Count labels below - always show all 5, with CSS tooltips
-      MH.div_
-        [class_ "flex gap-x-2 text-xs"]
-        (map renderIndicator segments)
-    ]
-  where
-    getCount status = Map.findWithDefault 0 status config.stats
-    getStudents status = Map.findWithDefault [] status config.students
-
-    segments =
-      [ (StreakTwoPlus, "bg-green-700", C.translate' C.LblMasteryStreakTwoPlus)
-      , (OneSuccess, "bg-green-500", C.translate' C.LblMasteryOneSuccess)
-      , (OnlySillyMistakes, "bg-yellow-500", C.translate' C.LblMasteryOnlySillyMistakes)
-      , (MasteryNotYet, "bg-amber-600", C.translate' C.LblMasteryNotYet)
-      , (NotTried, "bg-stone-300", C.translate' C.LblMasteryNotTried)
-      ]
-
-    percentage count =
-      if config.totalStudents > 0
-        then (fromIntegral count * 100.0 / fromIntegral config.totalStudents) :: Double
-        else 0.0
-
-    -- Render bar segment (only if count > 0, otherwise skip to keep bar compact)
-    renderSegment (status, colorClass, _label) =
-      let count = getCount status
-          pct = percentage count
-       in if count > 0
-            then
-              MH.div_
-                [ class_ $ colorClass <> " h-full"
-                , MC.style_ [("width", M.ms $ show pct <> "%")]
-                ]
-                []
-            else V.empty
-
-    -- Render count indicator with CSS tooltip showing student names
-    renderIndicator (status, colorClass, label) =
-      let count = getCount status
-          studentList = getStudents status
-          isZero = count == 0
-          -- Dim both the color box and text when count is 0
-          opacityClass = if isZero then " opacity-30" else ""
-          textClass = if isZero then "text-stone-400" else "text-stone-600"
-          -- Build tooltip content: label on first line, student names on second
-          studentNames = T.intercalate ", " $ map (.name) studentList
-          tooltipContent = label <> "\n" <> M.ms studentNames
-          -- Only show tooltip if there are students (no point showing "—")
-          tooltipView =
-            if isZero
-              then M.text ""
-              else
-                MH.span_
-                  [ class_
-                      "absolute bottom-full left-0 mb-2 px-3 py-1.5 \
-                      \bg-primary text-primary-foreground text-xs rounded-md \
-                      \whitespace-pre-line min-w-48 max-w-xs text-left \
-                      \opacity-0 group-hover:opacity-100 \
-                      \pointer-events-none transition-opacity z-50"
-                  ]
-                  [M.text tooltipContent]
-       in MH.div_
-            [class_ $ "group relative flex items-center gap-0.5" <> opacityClass]
-            [ tooltipView
-            , -- Colored square
-              MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
-            , -- Count
-              MH.span_ [class_ textClass] [M.text $ M.ms $ show count]
-            ]
 
 -- ============================================================================
 -- HELPER TYPES AND FUNCTIONS

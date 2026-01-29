@@ -27,6 +27,8 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.ModalManager (openModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.DateDisplay qualified as DateDisplay
+import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -163,17 +165,10 @@ detailComponent r initialPlan =
             [ MH.div_
                 [class_ "flex flex-col gap-1"]
                 [ Typography.h2 $ M.ms $ if Text.null m.mesoPlan.title then "(Untitled)" else m.mesoPlan.title
-                , case (m.mesoPlan.dateFrom, m.mesoPlan.dateTo) of
-                    (Nothing, Nothing) -> M.text ""
-                    (Just from, Nothing) ->
-                      MH.span_ [class_ "text-sm text-muted-foreground"]
-                        [M.text $ C.translate' C.LblMesoPlanDateFrom <> ": " <> C.formatDay from]
-                    (Nothing, Just to) ->
-                      MH.span_ [class_ "text-sm text-muted-foreground"]
-                        [M.text $ C.translate' C.LblMesoPlanDateTo <> ": " <> C.formatDay to]
-                    (Just from, Just to) ->
-                      MH.span_ [class_ "text-sm text-muted-foreground"]
-                        [M.text $ C.formatDay from <> " – " <> C.formatDay to]
+                , let dr = DateDisplay.formatDateRange m.mesoPlan.dateFrom m.mesoPlan.dateTo
+                   in if dr == ""
+                        then M.text ""
+                        else MH.span_ [class_ "text-sm text-muted-foreground"] [M.text dr]
                 ]
             , MH.div_
                 [class_ "flex gap-1"]
@@ -203,22 +198,14 @@ detailComponent r initialPlan =
 
     viewLesson m lesson =
       let isExpanded = m.expandedLessonId == Just lesson.id
-          chevronClass = if isExpanded then "rotate-90" else ""
        in MH.div_
             [class_ "border border-border rounded-lg overflow-hidden"]
             [ -- Lesson header
               MH.div_
                 [class_ "flex items-center gap-3 p-3 bg-muted/50"]
                 [ -- Chevron and content (clickable to expand)
-                  MH.div_
-                    [ class_ "flex items-center gap-3 flex-1 cursor-pointer hover:bg-muted -m-3 p-3"
-                    , MH.onClick (ToggleLessonExpansion lesson.id)
-                    ]
-                    [ -- Chevron icon
-                      MH.span_
-                        [class_ $ "transition-transform duration-200 " <> chevronClass]
-                        [M.text "▶"]
-                    , -- Lesson title and description
+                  Disclosure.disclosureHeader (ToggleLessonExpansion lesson.id) isExpanded
+                    [ -- Lesson title and description
                       MH.div_
                         [class_ "flex-1"]
                         [ MH.div_

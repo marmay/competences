@@ -34,6 +34,7 @@ import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModa
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Set qualified as Set
@@ -140,22 +141,10 @@ resourceModalComponent cfg =
         [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
         , class_ "w-[66vw] min-w-[66vw] max-w-none h-[90vh] flex flex-col"
         ]
-        [ -- Header with title, mode switch, and close button
-          MH.div_
-            [class_ "flex items-center justify-between border-b px-8 py-6 shrink-0"]
-            [ Typography.h3 $ C.translate' C.LblMaterials
-            , MH.div_
-                [class_ "flex items-center gap-4"]
-                [ -- Mode switch (always shown)
-                  modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)
-                , -- Close button
-                  MH.button_
-                    [ class_ "text-muted-foreground hover:text-foreground transition-colors"
-                    , MH.onClick CloseModal
-                    ]
-                    [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
-                ]
-            ]
+        [ Modal.modalHeaderWith
+            (C.translate' C.LblMaterials)
+            [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
+            CloseModal
         , -- Scrollable content area
           MH.div_
             [class_ "flex-1 overflow-y-auto px-8 py-6"]

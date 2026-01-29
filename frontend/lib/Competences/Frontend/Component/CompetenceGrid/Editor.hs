@@ -35,6 +35,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportCompetenceGrid)
 import Data.Default (def)
@@ -226,7 +227,7 @@ levelDescriptionWithLockViewer lvl c =
    in MH.div_ [class_ "flex items-center gap-2"]
         [ MH.span_ [class_ "flex-1"] [V.text_ (M.ms info.description)]
         , if info.locked
-            then MH.span_ [class_ "text-stone-400"] [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+            then StatusIcon.lockIcon
             else V.empty
         ]
 

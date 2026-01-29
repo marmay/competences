@@ -1,8 +1,11 @@
 module Competences.Frontend.View
   ( module Competences.Frontend.View.Badge
   , module Competences.Frontend.View.Button
+  , module Competences.Frontend.View.CellStyle
   , module Competences.Frontend.View.Colors
   , module Competences.Frontend.View.Combobox
+  , module Competences.Frontend.View.Disclosure
+  , module Competences.Frontend.View.EvidenceIcon
   , module Competences.Frontend.View.Component
   , module Competences.Frontend.View.Form
   , module Competences.Frontend.View.Icon
@@ -10,6 +13,7 @@ module Competences.Frontend.View
   , module Competences.Frontend.View.MainPage
   , module Competences.Frontend.View.Modal
   , module Competences.Frontend.View.SidePanel
+  , module Competences.Frontend.View.StatusIcon
   , module Competences.Frontend.View.Table
   , module Competences.Frontend.View.TagInput
   , module Competences.Frontend.View.Text
@@ -19,8 +23,11 @@ module Competences.Frontend.View
 
 import Competences.Frontend.View.Badge
 import Competences.Frontend.View.Button
+import Competences.Frontend.View.CellStyle
 import Competences.Frontend.View.Colors
 import Competences.Frontend.View.Combobox
+import Competences.Frontend.View.Disclosure
+import Competences.Frontend.View.EvidenceIcon
 import Competences.Frontend.View.Component
 import Competences.Frontend.View.Form
 import Competences.Frontend.View.Icon
@@ -28,6 +35,7 @@ import Competences.Frontend.View.Layout
 import Competences.Frontend.View.MainPage
 import Competences.Frontend.View.Modal
 import Competences.Frontend.View.SidePanel
+import Competences.Frontend.View.StatusIcon
 import Competences.Frontend.View.Table
 import Competences.Frontend.View.TagInput
 import Competences.Frontend.View.Text

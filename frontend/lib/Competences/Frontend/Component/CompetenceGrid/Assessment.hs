@@ -42,9 +42,11 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Colors qualified as Colors
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (nub, sortOn)
@@ -378,20 +380,11 @@ assessmentComponent r grid =
                     MH.div_ [class_ "w-28 flex items-center gap-1 shrink-0"]
                       [ MH.span_ [class_ $ "text-xs font-medium " <> textClass] [M.text levelName]
                       , if levelInfo.locked
-                          then MH.span_ [class_ "text-stone-400"] [V.icon [] IcnLock]
+                          then StatusIcon.lockIcon
                           else if hasDesc
                             then MH.span_ [class_ "group relative cursor-help"]
                                    [ V.icon [class_ "text-stone-400"] IcnInfo
-                                   , -- Tooltip shown on hover via CSS
-                                     MH.span_
-                                       [ class_
-                                           "absolute bottom-full left-0 mb-1 px-2 py-1 \
-                                           \bg-stone-800 text-white text-xs rounded \
-                                           \whitespace-pre-line min-w-48 max-w-64 \
-                                           \opacity-0 group-hover:opacity-100 \
-                                           \pointer-events-none transition-opacity z-50"
-                                       ]
-                                       [M.text (M.ms levelInfo.description)]
+                                   , V.groupHoverTooltip (M.ms levelInfo.description)
                                    ]
                             else V.empty
                       ]
@@ -472,24 +465,17 @@ assessmentComponent r grid =
               let date = case col of
                     Left (d, _) -> d
                     Right d -> d
-                  dateStr = M.ms $ take 5 (M.fromMisoString (C.formatDay date) :: String)
+                  dateStr = DateDisplay.shortDate date
                in MH.div_ [class_ "text-xs text-stone-500 w-12 text-center"] [M.text dateStr]
 
             -- | Show evidence icon for a single evidence entry
             showEvidenceIcon hasLevelDesc actType socialForm ability =
               let abilityClass = if hasLevelDesc then Colors.abilityTextClass ability else "text-stone-400"
-                  activityTypeIcn = case actType of
-                    Conversation -> IcnActivityTypeConversation
-                    Exam -> IcnActivityTypeExam
-                    SchoolExercise -> IcnActivityTypeSchoolExercise
-                    HomeExercise -> IcnActivityTypeHomeExercise
-                  socialFormIcn = case socialForm of
-                    Group -> IcnSocialFormGroup
-                    Individual -> IcnSocialFormIndividual
-                  coloredIcon icn = MH.span_ [class_ abilityClass] [V.icon [MSP.stroke_ "currentColor"] icn]
-
+                  ci = V.coloredStrokeIcon abilityClass
                in MH.div_ [class_ "flex items-center justify-center w-12"]
-                    [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
+                    [ ci (V.activityTypeIcon actType)
+                    , ci (V.socialFormIcon socialForm)
+                    ]
 
             -- | Show assessment icon (checkmark)
             showAssessmentIcon =

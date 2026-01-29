@@ -40,6 +40,8 @@ import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Table qualified as Table
+import Competences.Frontend.View.CellStyle qualified as CellStyle
+import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -48,7 +50,6 @@ import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (.~))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -232,40 +233,22 @@ gradingComponent r grid =
                                 then Achieved
                                 else NotYetAchieved
 
-                        -- Cell background color based on status
-                        bgClass
-                          | not hasDescription = ""
-                          | cellStatus == Achieved = "bg-green-100"
-                          | levelInfo.locked = "bg-stone-200"
-                          | cellStatus == NotYetAchieved = "bg-yellow-100"
-                          | otherwise = "bg-white"
+                        -- Visual status for styling
+                        cellVisualStatus
+                          | not hasDescription = StatusIcon.NoStatus
+                          | cellStatus == Achieved = StatusIcon.Achieved
+                          | levelInfo.locked = StatusIcon.Locked
+                          | cellStatus == NotYetAchieved = StatusIcon.InProgress
+                          | otherwise = StatusIcon.NoStatus
+
+                        -- Cell background color
+                        bgClass = CellStyle.statusBgClass cellVisualStatus
 
                         -- Striped background for empty cells
-                        stripeStyle =
-                          if not hasDescription
-                            then
-                              [ ( "background"
-                                , "repeating-linear-gradient(135deg, rgb(245 245 244) 0px, rgb(245 245 244) 4px, rgb(231 229 228) 4px, rgb(231 229 228) 8px)"
-                                )
-                              ]
-                            else []
+                        stripeStyle = if not hasDescription then CellStyle.stripedStyle else []
 
                         -- Status icon in cell center
-                        statusIcon
-                          | not hasDescription = V.empty
-                          | cellStatus == Achieved =
-                              MH.div_
-                                [class_ "text-green-600 flex justify-center"]
-                                [V.icon [MP.width_ "16", MP.height_ "16"] IcnApply]
-                          | levelInfo.locked =
-                              MH.div_
-                                [class_ "text-stone-500 flex justify-center"]
-                                [V.icon [MP.width_ "16", MP.height_ "16"] IcnLock]
-                          | cellStatus == NotYetAchieved =
-                              MH.div_
-                                [class_ "text-yellow-600 flex justify-center"]
-                                [V.icon [MP.width_ "16", MP.height_ "16"] IcnProgress]
-                          | otherwise = V.empty
+                        statusIcon = StatusIcon.statusIcon cellVisualStatus
                      in Table.TableCellSpec
                           { Table.cellClasses = "px-2 py-2 " <> bgClass
                           , Table.cellStyle = stripeStyle

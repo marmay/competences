@@ -26,7 +26,9 @@ import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (def)
@@ -229,16 +231,7 @@ lessonEditorModal r modalMgr lesson' =
         [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
         , class_ "w-[900px] max-w-[95vw] max-h-[90vh] flex flex-col"
         ]
-        [ -- Header
-          MH.div_
-            [class_ "flex items-center justify-between border-b px-6 py-4"]
-            [ Typography.h3 $ C.translate' C.LblLesson
-            , MH.button_
-                [ class_ "text-muted-foreground hover:text-foreground transition-colors"
-                , MH.onClick CloseModal
-                ]
-                [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
-            ]
+        [ Modal.modalHeader (C.translate' C.LblLesson) CloseModal
         , -- Scrollable form content
           MH.div_
             [class_ "px-6 py-4 space-y-6 overflow-y-auto"]
@@ -259,9 +252,7 @@ lessonEditorModal r modalMgr lesson' =
             , -- Section 8: Phases
               phasesSection m
             ]
-        , -- Footer
-          MH.div_
-            [class_ "flex justify-end gap-2 border-t px-6 py-4"]
+        , Modal.modalFooter
             [ Button.buttonSecondary (C.translate' C.LblCancel)
                 & Button.withClick CloseModal
                 & Button.renderButton
@@ -434,20 +425,13 @@ lessonEditorModal r modalMgr lesson' =
     viewPhaseCard :: Model -> Int -> LessonPhase -> M.View Model Action
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
-          chevronClass = if isExpanded then "rotate-90" else ""
        in MH.div_
             [class_ "border border-border rounded-md overflow-hidden"]
             [ -- Phase header (clickable)
               MH.div_
                 [class_ "flex items-center gap-3 p-3 bg-card"]
-                [ MH.div_
-                    [ class_ "flex items-center gap-3 flex-1 cursor-pointer hover:bg-muted -m-3 p-3"
-                    , MH.onClick (TogglePhaseEdit idx)
-                    ]
-                    [ MH.span_
-                        [class_ $ "transition-transform duration-200 text-xs " <> chevronClass]
-                        [M.text "▶"]
-                    , MH.div_
+                [ Disclosure.disclosureHeader (TogglePhaseEdit idx) isExpanded
+                    [ MH.div_
                         [class_ "flex-1"]
                         [ MH.span_
                             [class_ "font-medium"]

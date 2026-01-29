@@ -36,6 +36,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.AssignmentParser (parseAssignmentImport)
@@ -149,15 +150,7 @@ assignmentImportModalComponent r =
       -- Note: No modalHost wrapper - the parent ModalHost component provides the backdrop
       M.div_
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
-            [ -- Header
-              M.div_
-                [class_ "flex items-center justify-between p-4 border-b border-border"]
-                [ Typography.h2 (C.translate' C.LblImportAssignments)
-                , Button.buttonGhost ""
-                    & Button.withIcon IcnCancel
-                    & Button.withClick CloseModal
-                    & Button.renderButton
-                ]
+            [ Modal.modalHeader (C.translate' C.LblImportAssignments) CloseModal
             , -- Content
               M.div_
                 [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
@@ -182,9 +175,7 @@ assignmentImportModalComponent r =
                         [previewView m]
                     ]
                 ]
-            , -- Footer
-              M.div_
-                [class_ "flex justify-end gap-2 p-4 border-t border-border"]
+            , Modal.modalFooter
                 [ Button.buttonSecondary (C.translate' C.LblCancel)
                     & Button.withClick CloseModal
                     & Button.renderButton
