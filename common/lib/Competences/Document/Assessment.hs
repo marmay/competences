@@ -23,9 +23,6 @@ type CompetenceAssessmentId = Id CompetenceAssessment
 -- | A competence assessment is a teacher's judgment of what level a student
 -- has demonstrated for a specific competence.
 --
--- Assessments become "stale" when new evidence is added after the assessment date.
--- Staleness is computed, not stored (see 'isCompetenceAssessmentStale').
---
 -- Multiple assessments can exist for the same (userId, competenceId) pair;
 -- the most recent by date is considered "active".
 data CompetenceAssessment = CompetenceAssessment

@@ -4,14 +4,6 @@ module Competences.Document
   ( Document (..)
   , emptyDocument
   , projectDocument
-  -- * Staleness computation for CompetenceAssessment
-  , isCompetenceAssessmentStale
-  , getActiveAssessment
-  , getAssessmentHistory
-  -- * Staleness computation for CompetenceGridGrade
-  , isCompetenceGridGradeStale
-  , getActiveGridGrade
-  , getGridGradeHistory
   , module Competences.Document.Assessment
   , module Competences.Document.CompetenceGridGrade
   , module Competences.Document.Grade
@@ -96,11 +88,8 @@ import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), Ta
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 import Data.Map qualified as M
-import Data.Maybe (listToMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (.~), (^.))
+import Optics.Core ((&), (.~))
 
 data Document = Document
   { competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
@@ -194,7 +183,7 @@ projectDocument user doc
         & #assignments .~ (doc.assignments Ix.@= user.id) -- Only assignments assigned to them (via UserId index)
         & #competenceAssessments .~ (doc.competenceAssessments Ix.@= user.id) -- Only assessments about them
         & #competenceGridGrades .~ (doc.competenceGridGrades Ix.@= user.id) -- Only grid grades about them
-        & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks) -- Only locks on entities they can see
+        & #locks .~ M.filterWithKey isLockVisible doc.locks -- Only locks on entities they can see
         & #mesoPlans .~ Ix.empty -- Planning is teacher-only
         & #lessons .~ Ix.empty
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
@@ -205,19 +194,19 @@ projectDocument user doc
     isLockVisible lock _ = case lock of
       UserLock uid -> uid == user.id -- Only their own user
       EvidenceLock eid ->
-        case Ix.getOne (Ix.getEQ eid (doc ^. #evidences)) of
+        case Ix.getOne (doc.evidences Ix.@= eid) of
           Just e -> Just user.id == e.userId -- Only evidences about them
           Nothing -> False
       AssignmentLock aid ->
-        case Ix.getOne (Ix.getEQ aid (doc ^. #assignments)) of
+        case Ix.getOne (doc.assignments Ix.@= aid) of
           Just a -> user.id `elem` a.studentIds -- Only assignments assigned to them
           Nothing -> False
       CompetenceAssessmentLock aid ->
-        case Ix.getOne (Ix.getEQ aid (doc ^. #competenceAssessments)) of
+        case Ix.getOne (doc.competenceAssessments Ix.@= aid) of
           Just a -> user.id == a.userId -- Only assessments about them
           Nothing -> False
       CompetenceGridGradeLock gid ->
-        case Ix.getOne (Ix.getEQ gid (doc ^. #competenceGridGrades)) of
+        case Ix.getOne (doc.competenceGridGrades Ix.@= gid) of
           Just g -> user.id == g.userId -- Only grid grades about them
           Nothing -> False
       SolutionLock _ -> True -- Solutions are visible to all users
@@ -225,75 +214,7 @@ projectDocument user doc
       MesoPlanLock _ -> False -- Planning is teacher-only
       LessonLock _ -> False
       ParticipationRecordLock prid ->
-        case Ix.getOne (Ix.getEQ prid (doc ^. #participationRecords)) of
+        case Ix.getOne (doc.participationRecords Ix.@= prid) of
           Just pr -> user.id == pr.userId
           Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)
-
--- ============================================================================
--- STALENESS COMPUTATION
--- ============================================================================
-
--- | Check if a competence assessment is stale.
--- An assessment is stale if there is any evidence for this (user, competence)
--- pair that has a date newer than the assessment date.
-isCompetenceAssessmentStale :: Document -> CompetenceAssessment -> Bool
-isCompetenceAssessmentStale doc assessment =
-  let -- Get evidences for this user that are newer than the assessment date
-      -- Uses both UserId and Day indexes for efficient filtering
-      newerUserEvidences = Ix.toList $ (doc.evidences Ix.@= assessment.userId) Ix.@> assessment.date
-      -- Check if any have an observation for this competence
-   in any (hasObservationForCompetence assessment.competenceId) newerUserEvidences
-
--- | Helper: check if an evidence has an observation for the given competence
-hasObservationForCompetence :: CompetenceId -> Evidence -> Bool
-hasObservationForCompetence competenceId evidence =
-  any (\obs -> fst obs.competenceLevelId == competenceId) (Ix.toList evidence.observations)
-
--- | Get the active (most recent) assessment for a student/competence pair.
--- Returns Nothing if no assessment exists.
-getActiveAssessment :: Document -> UserId -> CompetenceId -> Maybe CompetenceAssessment
-getActiveAssessment doc userId competenceId =
-  listToMaybe $ getAssessmentHistory doc userId competenceId
-
--- | Get all assessments for a student/competence pair, sorted by date descending.
--- The first element (if any) is the active assessment.
-getAssessmentHistory :: Document -> UserId -> CompetenceId -> [CompetenceAssessment]
-getAssessmentHistory doc userId competenceId =
-  Ix.toDescList (Proxy @Day) $ doc.competenceAssessments Ix.@= userId Ix.@= competenceId
-
--- ============================================================================
--- STALENESS COMPUTATION FOR COMPETENCE GRID GRADES
--- ============================================================================
-
--- | Check if a competence grid grade is stale.
--- A grid grade is stale if:
--- - Any competence assessment for this (user, grid) is updated after the grid grade date
--- - Any competence assessment for this (user, grid) is itself stale
-isCompetenceGridGradeStale :: Document -> CompetenceGridGrade -> Bool
-isCompetenceGridGradeStale doc gridGrade =
-  let -- Get all competences in this grid
-      gridCompetences = Ix.toList $ doc.competences Ix.@= gridGrade.competenceGridId
-      competenceIds = map (.id) gridCompetences
-      -- Get all assessments for this user that are newer than the grid grade
-      newerUserAssessments = Ix.toList $ (doc.competenceAssessments Ix.@= gridGrade.userId) Ix.@> gridGrade.date
-      -- Check if any newer assessment is for a competence in this grid
-      hasNewerAssessmentInGrid = any (\a -> a.competenceId `elem` competenceIds) newerUserAssessments
-      -- Get all assessments for this user in this grid (any date)
-      allUserAssessments = Ix.toList $ doc.competenceAssessments Ix.@= gridGrade.userId
-      assessmentsInGrid = filter (\a -> a.competenceId `elem` competenceIds) allUserAssessments
-      -- Check if any assessment in this grid is itself stale
-      hasStaleAssessmentInGrid = any (isCompetenceAssessmentStale doc) assessmentsInGrid
-   in hasNewerAssessmentInGrid || hasStaleAssessmentInGrid
-
--- | Get the active (most recent) grid grade for a student/grid pair.
--- Returns Nothing if no grade exists.
-getActiveGridGrade :: Document -> UserId -> CompetenceGridId -> Maybe CompetenceGridGrade
-getActiveGridGrade doc userId gridId =
-  listToMaybe $ getGridGradeHistory doc userId gridId
-
--- | Get all grid grades for a student/grid pair, sorted by date descending.
--- The first element (if any) is the active grade.
-getGridGradeHistory :: Document -> UserId -> CompetenceGridId -> [CompetenceGridGrade]
-getGridGradeHistory doc userId gridId =
-  Ix.toDescList (Proxy @Day) $ doc.competenceGridGrades Ix.@= userId Ix.@= gridId
