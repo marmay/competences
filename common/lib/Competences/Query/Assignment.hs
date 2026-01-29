@@ -2,7 +2,12 @@
 -- Pure functions for determining assignment completion status
 -- Designed for reuse across frontend and for property-based testing
 module Competences.Query.Assignment
-  ( AssignmentStatus (..)
+  ( -- * Single-entity lookup
+    getAssignment
+    -- * User-scoped queries
+  , userAssignments
+    -- * Status queries
+  , AssignmentStatus (..)
   , assignmentStatus
   , accumulatedObservations
   , isAssignmentCompleted
@@ -11,8 +16,7 @@ module Competences.Query.Assignment
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..))
-import Competences.Document.Assignment (AssignmentId)
+import Competences.Document (Assignment, AssignmentId, AssignmentIxs, Document (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
@@ -20,6 +24,14 @@ import Competences.Query.Evidence qualified as QEvidence
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
+
+-- | Lookup an assignment by primary key.
+getAssignment :: Document -> AssignmentId -> Maybe Assignment
+getAssignment doc assignmentId = Ix.getOne $ doc.assignments Ix.@= assignmentId
+
+-- | All assignments for a user (as IxSet for further filtering).
+userAssignments :: Document -> UserId -> Ix.IxSet AssignmentIxs Assignment
+userAssignments doc userId = doc.assignments Ix.@= userId
 
 -- | Assignment completion status for a user
 data AssignmentStatus

@@ -69,12 +69,15 @@ library
         Competences.Protocol
         Competences.Query.Assignment
         Competences.Query.Competence
+        Competences.Query.CompetenceAssessment
         Competences.Query.CompetenceGrid
+        Competences.Query.CompetenceGridGrade
         Competences.Query.Evidence
         Competences.Query.Lesson
         Competences.Query.Mastery
         Competences.Query.Resource
         Competences.Query.Solution
+        Competences.Query.Task
         Competences.Query.User
         Competences.TaskContent.AST
         Competences.TaskContent.Parser

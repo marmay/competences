@@ -27,7 +27,7 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   )
-import Competences.Document.Competence (CompetenceId, CompetenceLevelId)
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Task
   ( TaskAttributes (..)
@@ -39,6 +39,7 @@ import Competences.Document.Task
   )
 import Competences.Document.User (User (..), UserRole (..))
 import Competences.Query.Competence qualified as QCompetence
+import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
@@ -341,7 +342,7 @@ viewerComponent r grid =
     renderDescriptionCell proj competence =
       let bgClass = case proj.viewData of
             UserViewData userData ->
-              let mAssessment = getActiveAssessment' userData.userAssessments competence.id
+              let mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
                in case mAssessment of
                     Nothing -> ""
                     Just assessment -> case assessment.level of
@@ -402,7 +403,7 @@ viewerComponent r grid =
              in V.viewFlow V.hFlow [coloredIcon i | i <- [activityTypeIcn, socialFormIcn]]
 
           -- Get active assessment
-          mAssessment = getActiveAssessment' userData.userAssessments competence.id
+          mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
 
           -- Determine cell assessment status
           cellStatus :: CellAssessmentStatus
@@ -636,10 +637,3 @@ data CellAssessmentStatus
   | NoAssessment   -- ^ No assessment exists for this competence
   deriving (Eq, Show)
 
--- | Get the most recent (active) assessment for a competence
-getActiveAssessment'
-  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
-  -> CompetenceId
-  -> Maybe CompetenceAssessment
-getActiveAssessment' assessments competenceId =
-  listToMaybe $ Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId

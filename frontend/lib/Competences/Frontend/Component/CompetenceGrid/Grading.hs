@@ -10,7 +10,6 @@ import Competences.Document
   , CompetenceAssessment (..)
   , CompetenceAssessmentIxs
   , CompetenceGrid (..)
-  , CompetenceGridId
   , CompetenceIxs
   , Document (..)
   , Level (..)
@@ -18,11 +17,11 @@ import Competences.Document
   , allLevels
   , ordered
   )
-import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeId, CompetenceGridGradeIxs)
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
 import Competences.Query.Competence qualified as QCompetence
-import Data.Proxy (Proxy (..))
+import Competences.Query.CompetenceAssessment qualified as QAssessment
+import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
@@ -44,7 +43,6 @@ import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
-import Data.Maybe (listToMaybe)
 import Data.Text qualified as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
@@ -184,7 +182,7 @@ gradingComponent r grid =
           MH.div_
             [class_ "flex items-center justify-between w-full"]
             [ Typography.h2 (M.ms grid.title)
-            , case getActiveGridGrade' proj.userGridGrades grid.id of
+            , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
                 Nothing -> V.empty
             ]
@@ -206,7 +204,7 @@ gradingComponent r grid =
               , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
                   GradingDescriptionColumn ->
                     -- Description cell: shows overall competence status
-                    let mAssessment = getActiveAssessment' proj.userAssessments competence.id
+                    let mAssessment = QAssessment.activeAssessment proj.userAssessments competence.id
                         bgClass = case mAssessment of
                           Nothing -> "" -- No assessment: white
                           Just assessment -> case assessment.level of
@@ -222,7 +220,7 @@ gradingComponent r grid =
                         hasDescription = not (T.null levelInfo.description)
 
                         -- Get active assessment for focused user + competence
-                        mAssessment = getActiveAssessment' proj.userAssessments competence.id
+                        mAssessment = QAssessment.activeAssessment proj.userAssessments competence.id
 
                         -- Determine cell assessment status
                         cellStatus = case mAssessment of
@@ -321,7 +319,7 @@ gradingComponent r grid =
 
         -- Grade history section
         gradeHistorySection =
-          let history = getGridGradeHistory' proj.userGridGrades grid.id
+          let history = QGridGrade.gridGradeHistory proj.userGridGrades grid.id
            in if null history
                 then V.empty
                 else
@@ -372,32 +370,3 @@ data CellAssessmentStatus
   | NoAssessment
   deriving (Eq, Show)
 
--- | Get the most recent (active) grid grade for a competence grid.
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-getActiveGridGrade'
-  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
-  -> CompetenceGridId
-  -> Maybe CompetenceGridGrade
-getActiveGridGrade' gridGrades gridId =
-  listToMaybe $ Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
-
--- | Get the grade history for a competence grid (sorted by date descending).
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-getGridGradeHistory'
-  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
-  -> CompetenceGridId
-  -> [CompetenceGridGrade]
-getGridGradeHistory' gridGrades gridId =
-  Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
-
--- | Get the most recent (active) assessment for a competence.
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-getActiveAssessment'
-  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
-  -> CompetenceId
-  -> Maybe CompetenceAssessment
-getActiveAssessment' assessments competenceId =
-  listToMaybe $ Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId

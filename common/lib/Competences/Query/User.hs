@@ -1,16 +1,27 @@
 -- | User queries on the Document.
 -- Provides efficient index-based lookups instead of filter-based patterns.
 module Competences.Query.User
-  ( students
+  ( -- * Single-entity lookup
+    getUser
+    -- * Role-based queries
+  , students
   , studentsSortedByName
   , teachers
+    -- * All users
+  , allUsersSortedByName
+    -- * Multi-ID lookup
+  , usersByIds
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), User, UserRole (..))
+import Competences.Document (Document (..), User, UserIxs, UserId, UserRole (..))
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
+
+-- | Lookup a user by primary key.
+getUser :: Document -> UserId -> Maybe User
+getUser doc userId = Ix.getOne $ doc.users Ix.@= userId
 
 -- | All students in the document (via UserRole index).
 students :: Document -> [User]
@@ -23,3 +34,11 @@ studentsSortedByName doc = Ix.toAscList (Proxy @Text) $ doc.users Ix.@= Student
 -- | All teachers in the document (via UserRole index).
 teachers :: Document -> [User]
 teachers doc = Ix.toList $ doc.users Ix.@= Teacher
+
+-- | All users sorted by name (Text index, ascending).
+allUsersSortedByName :: Document -> [User]
+allUsersSortedByName doc = Ix.toAscList (Proxy @Text) doc.users
+
+-- | Users matching a list of IDs (as IxSet for further filtering/sorting).
+usersByIds :: Document -> [UserId] -> Ix.IxSet UserIxs User
+usersByIds doc userIds = doc.users Ix.@+ userIds

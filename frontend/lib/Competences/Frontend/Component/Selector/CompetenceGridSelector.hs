@@ -8,7 +8,6 @@ import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( CompetenceGrid (..)
-  , CompetenceGridId
   , CompetenceGridIxs
   , Document (..)
   , Order
@@ -16,7 +15,7 @@ import Competences.Document
   , User (..)
   )
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
-import Competences.Document.User (UserId)
+import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGridImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
@@ -31,9 +30,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.SelectorList qualified as SL
-import Data.Maybe (listToMaybe)
 import Data.Proxy (Proxy (..))
-import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
@@ -162,18 +159,7 @@ competenceGridSelectorComponent r style parentLens =
           -- userGridGrades is already filtered to the focused user
           mGrade = do
             user <- m.projection.focusedUser
-            gridGrade <- getActiveGridGrade' m.projection.userGridGrades user.id c.id
+            gridGrade <- QGridGrade.activeGridGrade (m.projection.userGridGrades Ix.@= user.id) c.id
             pure gridGrade.grade
           gradeBadge = gradeBadgeView <$> mGrade
        in SL.selectorItemWithBadge isSelected IcnCompetenceGrid label gradeBadge (SelectCompetenceGrid c)
-
--- | Get the most recent (active) grid grade for a user and competence grid.
--- Uses IxSet indexing for efficient lookup.
-getActiveGridGrade'
-  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
-  -> UserId
-  -> CompetenceGridId
-  -> Maybe CompetenceGridGrade
-getActiveGridGrade' grades userId gridId =
-  listToMaybe $ Ix.toDescList (Proxy @Day) $
-    grades Ix.@= userId Ix.@= gridId

@@ -10,8 +10,6 @@ import Competences.Document
   , CompetenceAssessment (..)
   , CompetenceAssessmentIxs
   , CompetenceGrid (..)
-  , CompetenceGridId
-  , CompetenceId
   , CompetenceIxs
   , Document (..)
   , EvidenceIxs
@@ -28,8 +26,9 @@ import Competences.Document.Evidence
   )
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
 import Competences.Query.Competence qualified as QCompetence
+import Competences.Query.CompetenceAssessment qualified as QAssessment
+import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Query.Evidence qualified as QEvidence
-import Data.Proxy (Proxy (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -165,7 +164,7 @@ assessmentComponent r grid =
       case (m.projection.focusedUser, m.today) of
         (Just _, Just day) -> do
           -- Find today's assessment to delete
-          let existingToday = findAssessmentForDay' m.projection.userAssessments competence.id day
+          let existingToday = QAssessment.findAssessmentForDay m.projection.userAssessments competence.id day
           case existingToday of
             Just assessment ->
               M.io_ $ modifySyncDocument r $ CompetenceAssessments $ OnCompetenceAssessments $ Delete assessment.id
@@ -193,7 +192,7 @@ assessmentComponent r grid =
           MH.div_
             [class_ "flex items-center justify-between w-full"]
             [ Typography.h2 (M.ms grid.title)
-            , case getActiveGridGrade' proj.userGridGrades grid.id of
+            , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
                 Nothing -> V.empty
             ]
@@ -209,12 +208,12 @@ assessmentComponent r grid =
         competenceAssessmentCard am competence =
           let evidences = proj.userEvidences
               -- Get all assessments for this competence (historical)
-              assessments = getAssessmentHistory' proj.userAssessments competence.id
+              assessments = QAssessment.assessmentHistory proj.userAssessments competence.id
               currentAssessment = listToMaybe assessments
               -- currentLevel is Maybe (Maybe Level): Nothing = no assessment, Just Nothing = not achieved, Just (Just lvl) = achieved at level
               currentLevel = fmap (.level) currentAssessment
               todayAssessment = case am.today of
-                Just day -> findAssessmentForDay' proj.userAssessments competence.id day
+                Just day -> QAssessment.findAssessmentForDay proj.userAssessments competence.id day
                 Nothing -> Nothing
            in Card.card
                 [ competenceHeaderWithButtons competence currentLevel todayAssessment
@@ -502,33 +501,3 @@ assessmentComponent r grid =
               MH.div_ [class_ "flex items-center justify-center w-12"]
                 [MH.span_ [class_ "text-red-500"] [V.icon [MSP.stroke_ "currentColor"] IcnCancel]]
 
--- | Find assessment for specific day.
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-findAssessmentForDay'
-  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
-  -> CompetenceId
-  -> Day
-  -> Maybe CompetenceAssessment
-findAssessmentForDay' assessments competenceId day =
-  Ix.getOne $ assessments Ix.@= competenceId Ix.@= day
-
--- | Get the most recent (active) grid grade for a competence grid.
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-getActiveGridGrade'
-  :: Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade
-  -> CompetenceGridId
-  -> Maybe CompetenceGridGrade
-getActiveGridGrade' gridGrades gridId =
-  listToMaybe $ Ix.toDescList (Proxy @Day) $ gridGrades Ix.@= gridId
-
--- | Get the assessment history for a competence (sorted by date descending).
--- Input IxSet must be pre-filtered to the focused user.
--- Uses IxSet indexing for efficient lookup.
-getAssessmentHistory'
-  :: Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment
-  -> CompetenceId
-  -> [CompetenceAssessment]
-getAssessmentHistory' assessments competenceId =
-  Ix.toDescList (Proxy @Day) $ assessments Ix.@= competenceId

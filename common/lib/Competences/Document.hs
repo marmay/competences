@@ -95,10 +95,10 @@ import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, So
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
-import Data.List (sortOn)
 import Data.Map qualified as M
 import Data.Maybe (listToMaybe)
-import Data.Ord (Down (..))
+import Data.Proxy (Proxy (..))
+import Data.Time (Day)
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (^.))
 
@@ -260,9 +260,7 @@ getActiveAssessment doc userId competenceId =
 -- The first element (if any) is the active assessment.
 getAssessmentHistory :: Document -> UserId -> CompetenceId -> [CompetenceAssessment]
 getAssessmentHistory doc userId competenceId =
-  sortOn (Down . (.date)) $
-    filter (\a -> a.competenceId == competenceId) $
-      Ix.toList (doc.competenceAssessments Ix.@= userId)
+  Ix.toDescList (Proxy @Day) $ doc.competenceAssessments Ix.@= userId Ix.@= competenceId
 
 -- ============================================================================
 -- STALENESS COMPUTATION FOR COMPETENCE GRID GRADES
@@ -298,6 +296,4 @@ getActiveGridGrade doc userId gridId =
 -- The first element (if any) is the active grade.
 getGridGradeHistory :: Document -> UserId -> CompetenceGridId -> [CompetenceGridGrade]
 getGridGradeHistory doc userId gridId =
-  sortOn (Down . (.date)) $
-    filter (\g -> g.competenceGridId == gridId) $
-      Ix.toList (doc.competenceGridGrades Ix.@= userId)
+  Ix.toDescList (Proxy @Day) $ doc.competenceGridGrades Ix.@= userId Ix.@= gridId

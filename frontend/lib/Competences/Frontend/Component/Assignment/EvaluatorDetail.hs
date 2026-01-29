@@ -317,7 +317,7 @@ evaluatorComponent r assignment =
             ]
 
     viewTaskHeader m taskId isExcluded =
-      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
+      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
        in case taskM of
             Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
             Just task ->
@@ -333,7 +333,7 @@ evaluatorComponent r assignment =
                     ]
 
     viewTaskContent m taskId =
-      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
+      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
           isContentExpanded = Set.member taskId m.expandedTaskContent
        in case taskM of
             Nothing -> M.text ""
@@ -392,7 +392,7 @@ evaluatorComponent r assignment =
             ]
 
     viewStudentEvaluations m taskId =
-      let taskM = Ix.getOne (Ix.getEQ taskId m.tasks)
+      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
        in case taskM of
             Nothing -> M.div_ [] [M.text "Aufgabe nicht gefunden"]
             Just task ->
@@ -408,7 +408,7 @@ evaluatorComponent r assignment =
     viewCompetenceEvaluation m taskId compId =
       let currentAbility = Map.lookup (taskId, compId) m.taskObservations
           (competenceId, level) = compId
-          competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
+          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
             Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
@@ -477,7 +477,7 @@ evaluatorComponent r assignment =
 
     viewAggregatedCompetence m (compId, ability) =
       let (competenceId, level) = compId
-          competenceM = Ix.getOne (Ix.getEQ competenceId m.competences)
+          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
           compLevelName = case competenceM of
             Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
             Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
@@ -496,7 +496,7 @@ evaluatorComponent r assignment =
 
     getContributingTasks m compId =
       let taskIds = Map.keys $ Map.filterWithKey (\(_, cid) _ -> cid == compId) m.taskObservations
-          taskIdentifiers = map (\tid -> case Ix.getOne (Ix.getEQ tid m.tasks) of
+          taskIdentifiers = map (\tid -> case Ix.getOne (m.tasks Ix.@= tid) of
                                    Nothing -> T.pack (show tid)
                                    Just task -> let TaskIdentifier ident = task.identifier in ident
                                 ) [tid | (tid, _) <- taskIds]
