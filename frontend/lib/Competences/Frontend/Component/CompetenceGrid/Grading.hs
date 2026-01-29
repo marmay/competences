@@ -21,6 +21,7 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeId, CompetenceGridGradeIxs)
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
+import Competences.Query.Competence qualified as QCompetence
 import Data.Proxy (Proxy (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
@@ -109,7 +110,7 @@ gradingComponent r grid =
     -- Projection function captures the grid parameter
     gradingProjection :: Document -> Maybe User -> GradingProjection
     gradingProjection doc mUser = GradingProjection
-      { competences = doc.competences Ix.@= grid.id
+      { competences = QCompetence.gridCompetences doc grid.id
       , userAssessments = case mUser of
           Nothing -> Ix.empty
           Just u -> doc.competenceAssessments Ix.@= u.id

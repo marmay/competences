@@ -37,7 +37,10 @@ import Competences.Document.Task
   , getTaskPrimaryCompetences
   , isResourceTask
   )
-import Competences.Document.User (User (..), UserRole (..), isStudent)
+import Competences.Document.User (User (..), UserRole (..))
+import Competences.Query.Competence qualified as QCompetence
+import Competences.Query.Evidence qualified as QEvidence
+import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceModal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -168,12 +171,12 @@ viewerComponent r grid =
     -- Projection function captures the grid parameter and connected user role
     viewerProjection :: UserRole -> Document -> Maybe User -> ViewerProjection
     viewerProjection role doc mUser =
-      let gridCompetences = doc.competences Ix.@= grid.id
+      let gridCompetences = QCompetence.gridCompetences doc grid.id
           -- Compute view-specific data based on focused user
           vData = case mUser of
             Nothing ->
               -- No focused user: compute analytics
-              let students = filter isStudent $ Ix.toList doc.users
+              let students = QUser.students doc
                   -- Pre-compute mastery stats for all competence levels in this grid
                   competenceLevels =
                     [ (c.id, level)
@@ -199,7 +202,7 @@ viewerComponent r grid =
               -- Focused user: compute user-specific data
               UserViewData $ UserData
                 { focusedUser = u
-                , userEvidences = doc.evidences Ix.@= u.id
+                , userEvidences = QEvidence.userEvidences doc u.id
                 , userAssessments = doc.competenceAssessments Ix.@= u.id
                 , activeGridGrade = listToMaybe $ Ix.toDescList (Proxy @Day) $
                     doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id

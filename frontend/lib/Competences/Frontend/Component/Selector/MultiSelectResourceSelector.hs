@@ -3,8 +3,8 @@ module Competences.Frontend.Component.Selector.MultiSelectResourceSelector
   )
 where
 
-import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Resource (..))
+import Competences.Query.Resource qualified as QResource
 import Competences.Document.Resource (ResourceId, ResourceIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common
@@ -42,7 +42,7 @@ data SelectorProjection = SelectorProjection
 selectorProjection :: Document -> Maybe user -> SelectorProjection
 selectorProjection doc _ =
   SelectorProjection
-    { allResources = Ix.toList doc.resources
+    { allResources = QResource.allResources doc
     }
 
 -- ============================================================================

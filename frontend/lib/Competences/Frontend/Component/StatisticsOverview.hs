@@ -16,7 +16,7 @@ import Competences.Document.Evidence
   , Evidence (..)
   , Observation (..)
   )
-import Competences.Document.User (isStudent)
+import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
@@ -166,7 +166,7 @@ computeStats :: Document -> Model
 computeStats document =
   let byUserStats =
         Map.fromList $
-          map (\user -> (user, computeUserStats document user)) (filter isStudent $ Ix.toList document.users)
+          map (\user -> (user, computeUserStats document user)) (QUser.students document)
       maximumHomeExerciseTasks = maximum $ map (.homeExerciseTasks) $ Map.elems byUserStats
       maximumSchoolExerciseTasks = maximum $ map (.schoolExerciseTasks) $ Map.elems byUserStats
    in Model {byUserStats, maximumHomeExerciseTasks, maximumSchoolExerciseTasks}

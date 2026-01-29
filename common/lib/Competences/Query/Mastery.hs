@@ -28,13 +28,13 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..))
-import Competences.Document.User (User (..), UserId, isStudent)
+import Competences.Document.User (User (..), UserId)
+import Competences.Query.Evidence qualified as QEvidence
+import Competences.Query.User qualified as QUser
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Time (Day)
 import GHC.Generics (Generic)
 
 -- | Mastery status for a student at a specific competence-level
@@ -172,7 +172,7 @@ classifyMasteryConstrained bounds
 -- Returns a unified timeline of 'AbilityBounds', sorted newest-first.
 getConstrainedObservations :: Document -> UserId -> CompetenceLevelId -> [AbilityBounds]
 getConstrainedObservations doc userId (compId, targetLevel) =
-  let userEvidences = Ix.toDescList (Proxy @Day) $ doc.evidences Ix.@= userId
+  let userEvidences = QEvidence.userEvidencesDesc doc userId
    in mapMaybe (evidenceToBounds compId targetLevel) userEvidences
 
 -- | Compute AbilityBounds for a single evidence at a target competence/level.
@@ -216,8 +216,8 @@ getUserMastery doc userId compLevelId =
 -- Returns a map from MasteryStatus to count of students in that category
 getClassMasteryStats :: Document -> CompetenceLevelId -> Map MasteryStatus Int
 getClassMasteryStats doc compLevelId =
-  let students = filter isStudent $ Ix.toList doc.users
-      statuses = map (\u -> getUserMastery doc u.id compLevelId) students
+  let studs = QUser.students doc
+      statuses = map (\u -> getUserMastery doc u.id compLevelId) studs
    in foldl' countStatus Map.empty statuses
   where
     countStatus acc status = Map.insertWith (+) status 1 acc
@@ -228,8 +228,8 @@ getClassMasteryStats doc compLevelId =
 -- sorted alphabetically by student name.
 getClassMasteryWithStudents :: Document -> CompetenceLevelId -> Map MasteryStatus [User]
 getClassMasteryWithStudents doc compLevelId =
-  let students = filter isStudent $ Ix.toList doc.users
-      pairs = map (\u -> (getUserMastery doc u.id compLevelId, u)) students
+  let studs = QUser.students doc
+      pairs = map (\u -> (getUserMastery doc u.id compLevelId, u)) studs
    in Map.map (sortOn (.name)) $ foldl' groupStudent Map.empty pairs
   where
     groupStudent acc (status, user) = Map.insertWith (++) status [user] acc

@@ -16,11 +16,10 @@ import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
+import Competences.Query.Evidence qualified as QEvidence
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import Data.Time (Day)
 
 -- | Assignment completion status for a user
 data AssignmentStatus
@@ -48,7 +47,7 @@ assignmentStatus doc userId assignmentId =
 accumulatedObservations :: Document -> UserId -> AssignmentId -> Map CompetenceLevelId Ability
 accumulatedObservations doc userId assignmentId =
   let -- Get evidences sorted by date (ascending, so later dates come last and override)
-      sortedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= userId
+      sortedEvidences = QEvidence.userEvidencesAsc doc userId
       linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) sortedEvidences
       -- Accumulate observations: later evidences override earlier for same competence level
       accumulateObs acc ev =

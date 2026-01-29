@@ -9,6 +9,7 @@ where
 import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Evidence, EvidenceIxs, User (..))
+import Competences.Query.Evidence qualified as QEvidence
 import Competences.Document.Evidence
   ( Evidence (..)
   , mkEvidence
@@ -55,7 +56,7 @@ evidenceSelectorProjection :: Document -> Maybe User -> EvidenceSelectorProjecti
 evidenceSelectorProjection doc mUser = EvidenceSelectorProjection
   { userEvidences = case mUser of
       Nothing -> Ix.empty
-      Just u -> doc.evidences Ix.@= u.id
+      Just u -> QEvidence.userEvidences doc u.id
   , focusedUser = mUser
   }
 

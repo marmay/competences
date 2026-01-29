@@ -12,12 +12,12 @@ import Competences.Document
   , Document (..)
   , Level (..)
   , LevelInfo (..)
-  , Order
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
   )
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Query.Competence qualified as QCompetence
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Component.Resource.EditorDetail qualified as ResourceEditor
@@ -36,7 +36,6 @@ import Competences.Frontend.View.Tailwind (class_)
 import Data.Function ((&))
 import Data.List (find)
 import Data.Map qualified as Map
-import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -103,7 +102,7 @@ resourcesComponent r grid =
 
     -- Projection to get resources and flattened competence levels for this grid
     resourceProjection doc _ =
-      let comps = Ix.toAscList (Proxy @Order) $ doc.competences Ix.@= grid.id
+      let comps = QCompetence.gridCompetencesSorted doc grid.id
           compLvls = concatMap flattenCompetence comps
           lvlIds = map (\cli -> (cli.competence.id, cli.level)) compLvls
        in ResourceProjection

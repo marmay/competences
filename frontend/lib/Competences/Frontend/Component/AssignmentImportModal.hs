@@ -22,7 +22,8 @@ import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
-import Competences.Document.User (User (..), isTeacher)
+import Competences.Document.User (User (..))
+import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -383,7 +384,7 @@ applyAssignmentPreview r doc preview = do
 applyTaskAndGetId :: SyncContext -> Document -> TaskImportPreview -> IO (Id Task)
 applyTaskAndGetId r doc preview = do
   -- Find a teacher to use as solution author
-  let teachers = filter isTeacher $ Ix.toList doc.users
+  let teachers = QUser.teachers doc
       mTeacherId = (.id) <$> listToMaybe teachers
 
   -- Extract matched competence IDs from competence matches

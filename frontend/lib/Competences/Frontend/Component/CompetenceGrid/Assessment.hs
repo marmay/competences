@@ -27,6 +27,8 @@ import Competences.Document.Evidence
   , SocialForm (..)
   )
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
+import Competences.Query.Competence qualified as QCompetence
+import Competences.Query.Evidence qualified as QEvidence
 import Data.Proxy (Proxy (..))
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
@@ -114,10 +116,10 @@ assessmentComponent r grid =
     -- Projection function captures the grid parameter
     assessmentProjection :: Document -> Maybe User -> AssessmentProjection
     assessmentProjection doc mUser = AssessmentProjection
-      { competences = doc.competences Ix.@= grid.id
+      { competences = QCompetence.gridCompetences doc grid.id
       , userEvidences = case mUser of
           Nothing -> Ix.empty
-          Just u -> doc.evidences Ix.@= u.id
+          Just u -> QEvidence.userEvidences doc u.id
       , userAssessments = case mUser of
           Nothing -> Ix.empty
           Just u -> doc.competenceAssessments Ix.@= u.id

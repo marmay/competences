@@ -5,9 +5,9 @@ module Competences.Frontend.App
   )
 where
 
-import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), User (..))
+import Competences.Document (User (..))
 import Competences.Document.User (isStudent, isTeacher)
+import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
@@ -36,7 +36,6 @@ import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Functor (($>))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
@@ -264,7 +263,7 @@ focusedUserComponent ir =
 
     update (DocumentUpdated dc) =
       M.modify $ \m ->
-        let students = filter isStudent $ Ix.toAscList (Proxy @Text) dc.document.users
+        let students = QUser.studentsSortedByName dc.document
          in m & #allStudents .~ students
 
     update (SetSearchText t) =

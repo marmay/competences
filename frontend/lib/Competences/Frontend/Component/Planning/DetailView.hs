@@ -5,12 +5,13 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), LessonsCommand (..), MesoPlansCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), Lesson (..), Order, Resource (..))
+import Competences.Document (Assignment (..), Document (..), Lesson (..), Resource (..))
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Lesson (LessonId, LessonPhase (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (orderMax)
 import Competences.Document.Resource (ResourceIdentifier (..))
+import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
@@ -29,7 +30,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -65,7 +65,7 @@ projectDetail :: MesoPlan -> Maybe LessonId -> Document -> DetailModel
 projectDetail plan prevExpanded doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
-      lessons' = Ix.toAscList (Proxy @Order) (doc.lessons Ix.@= plan'.id)
+      lessons' = QLesson.mesoPlanLessons doc plan'.id
       -- Clear expansion if the lesson no longer exists
       expanded = case prevExpanded of
         Nothing -> Nothing
