@@ -60,16 +60,16 @@ applyParticipationRecordPatch pr patch =
 handleParticipationRecordsCommand :: UserId -> ParticipationRecordsCommand -> Document -> UpdateResult
 handleParticipationRecordsCommand userId (OnParticipationRecords c) d = case c of
   Create pr -> do
-    -- Uniqueness: at most one per (lessonPlanId, userId)
-    let existing = d.participationRecords Ix.@= pr.lessonPlanId Ix.@= pr.userId
+    -- Uniqueness: at most one per (lessonId, userId)
+    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId
     unless (Ix.null existing) $
-      Left "A ParticipationRecord already exists for this LessonPlan and User"
+      Left "A ParticipationRecord already exists for this Lesson and User"
     d' <- ctx.create pr d
     pure (d', ctx.affectedUsers pr d)
   CreateAndLock pr -> do
-    let existing = d.participationRecords Ix.@= pr.lessonPlanId Ix.@= pr.userId
+    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId
     unless (Ix.null existing) $
-      Left "A ParticipationRecord already exists for this LessonPlan and User"
+      Left "A ParticipationRecord already exists for this Lesson and User"
     d' <- ctx.create pr d
     d'' <- doLock userId (ctx.lock (ctx.getId pr)) d'
     pure (d'', ctx.affectedUsers pr d)

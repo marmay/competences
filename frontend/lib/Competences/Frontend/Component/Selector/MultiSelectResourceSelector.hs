@@ -76,10 +76,10 @@ data Action
 -- Binds selected resource IDs to parent model via lens
 multiSelectResourceSelectorComponent
   :: SyncContext
-  -> (Document -> [ResourceId]) -- ^ Function to load initial values
+  -> [ResourceId] -- ^ Initial selection
   -> SelectorTransformedLens p [] ResourceId f' a'
   -> M.Component p Model Action
-multiSelectResourceSelectorComponent r _initResults lensBinding =
+multiSelectResourceSelectorComponent r initResults lensBinding =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding lensBinding #selectedResults]
     , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
@@ -88,7 +88,7 @@ multiSelectResourceSelectorComponent r _initResults lensBinding =
     model =
       Model
         { projection = SelectorProjection []
-        , selectedResults = []
+        , selectedResults = initResults
         , searchQuery = ""
         , isOpen = False
         }
@@ -123,7 +123,7 @@ multiSelectResourceSelectorComponent r _initResults lensBinding =
                 ]
               selectedSet = Set.fromList m.selectedResults
            in Combobox.multiSelectCombobox SetSearchQuery ToggleResource SetOpen
-                & Combobox.withPlaceholder (C.translate' C.LblSelectResources)
+                & Combobox.withPlaceholder (M.fromMisoString $ C.translate' C.LblSelectResources)
                 & Combobox.withOptions options
                 & Combobox.withSelected selectedSet
                 & Combobox.withSearchQuery m.searchQuery

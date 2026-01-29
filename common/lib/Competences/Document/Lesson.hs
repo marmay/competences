@@ -1,8 +1,8 @@
-module Competences.Document.LessonPlan
-  ( -- * LessonPlan
-    LessonPlanId
-  , LessonPlan (..)
-  , LessonPlanIxs
+module Competences.Document.Lesson
+  ( -- * Lesson (unified entity)
+    LessonId
+  , Lesson (..)
+  , LessonIxs
     -- * LessonPhase (plain data)
   , LessonPhase (..)
     -- * Enums
@@ -11,10 +11,13 @@ module Competences.Document.LessonPlan
   )
 where
 
+import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id)
-import Competences.Document.MesoPlan (MesoPlanEntryId)
+import Competences.Document.MesoPlan (MesoPlanId)
+import Competences.Document.Order (Order, Orderable)
 import Competences.Document.Resource (ResourceId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
@@ -64,7 +67,7 @@ instance Binary ActionForm
 -- LessonPhase (plain data, not an entity)
 -- ============================================================================
 
--- | A phase within a lesson plan. Plain structured data — no ID, ordering
+-- | A phase within a lesson. Plain structured data — no ID, ordering
 -- is implicit in list position. Patched atomically as a whole list.
 data LessonPhase = LessonPhase
   { title :: !Text
@@ -83,38 +86,47 @@ instance ToJSON LessonPhase
 instance Binary LessonPhase
 
 -- ============================================================================
--- LessonPlan
+-- Lesson (unified entity: merged MesoPlanEntry + LessonPlan)
 -- ============================================================================
 
-type LessonPlanId = Id LessonPlan
+type LessonId = Id Lesson
 
--- | Detailed plan for a single lesson. Linked to a MesoPlanEntry
--- (at most one LessonPlan per entry). Single lock covers all sub-data.
-data LessonPlan = LessonPlan
-  { id :: !LessonPlanId
-  , mesoPlanEntryId :: !MesoPlanEntryId
+-- | Unified lesson entity. Combines meso-level planning (title, description,
+-- competence levels) with lesson-level detail (date, assignments, resources,
+-- phases, notes). Two view states (collapsed/expanded) but a single editor.
+data Lesson = Lesson
+  { id :: !LessonId
+  , mesoPlanId :: !MesoPlanId
+  , order :: !Order
+  -- Meso-level fields (collapsed view):
+  , title :: !Text
+  , description :: !Text
+  -- ^ Rich text
+  , competenceLevels :: ![CompetenceLevelId]
+  -- Lesson-level fields (expanded view):
   , date :: !(Maybe Day)
   , assignments :: ![AssignmentId]
-  -- ^ Linked existing assignments
   , resources :: ![ResourceId]
-  -- ^ Linked resources (materials, exercises, etc.)
   , phases :: ![LessonPhase]
-  -- ^ Ordered sequence of lesson phases
   , notes :: !Text
+  -- ^ Rich text
   }
   deriving (Eq, Generic, Ord, Show)
 
-type LessonPlanIxs = '[LessonPlanId, MesoPlanEntryId, Day]
+type LessonIxs = '[LessonId, MesoPlanId, Order, Day]
 
-instance Ix.Indexable LessonPlanIxs LessonPlan where
+instance Ix.Indexable LessonIxs Lesson where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
-      (Ix.ixFun $ singleton . (.mesoPlanEntryId))
-      (Ix.ixFun $ \lp -> maybeToList lp.date)
+      (Ix.ixFun $ singleton . (.mesoPlanId))
+      (Ix.ixFun $ singleton . (.order))
+      (Ix.ixFun $ \l -> maybeToList l.date)
 
-instance FromJSON LessonPlan
+instance FromJSON Lesson
 
-instance ToJSON LessonPlan
+instance ToJSON Lesson
 
-instance Binary LessonPlan
+instance Binary Lesson
+
+instance Orderable Lesson

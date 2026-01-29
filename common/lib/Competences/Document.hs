@@ -26,7 +26,7 @@ module Competences.Document
   , module Competences.Document.Assignment
   , module Competences.Document.User
   , module Competences.Document.MesoPlan
-  , module Competences.Document.LessonPlan
+  , module Competences.Document.Lesson
   , module Competences.Document.ParticipationRecord
   )
 where
@@ -61,10 +61,10 @@ import Competences.Document.CompetenceGridGrade
   , CompetenceGridGradeIxs
   )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Observation (..))
-import Competences.Document.LessonPlan
-  ( LessonPlan (..)
-  , LessonPlanId
-  , LessonPlanIxs
+import Competences.Document.Lesson
+  ( Lesson (..)
+  , LessonId
+  , LessonIxs
   , LessonPhase (..)
   , TeachingSocialForm (..)
   , ActionForm (..)
@@ -73,9 +73,6 @@ import Competences.Document.MesoPlan
   ( MesoPlan (..)
   , MesoPlanId
   , MesoPlanIxs
-  , MesoPlanEntry (..)
-  , MesoPlanEntryId
-  , MesoPlanEntryIxs
   )
 import Competences.Document.ParticipationRecord
   ( ParticipationRecord (..)
@@ -119,8 +116,7 @@ data Document = Document
   , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
   , mesoPlans :: !(Ix.IxSet MesoPlanIxs MesoPlan)
-  , mesoPlanEntries :: !(Ix.IxSet MesoPlanEntryIxs MesoPlanEntry)
-  , lessonPlans :: !(Ix.IxSet LessonPlanIxs LessonPlan)
+  , lessons :: !(Ix.IxSet LessonIxs Lesson)
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   }
   deriving (Eq, Generic, Show)
@@ -141,8 +137,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "competenceGridGrades" .!= [])
       <*> fmap Ix.fromList (v .:? "solutions" .!= [])
       <*> fmap Ix.fromList (v .:? "mesoPlans" .!= [])
-      <*> fmap Ix.fromList (v .:? "mesoPlanEntries" .!= [])
-      <*> fmap Ix.fromList (v .:? "lessonPlans" .!= [])
+      <*> fmap Ix.fromList (v .:? "lessons" .!= [])
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
 
 instance ToJSON Document where
@@ -161,8 +156,7 @@ instance ToJSON Document where
       , "competenceGridGrades" .= Ix.toList d.competenceGridGrades
       , "solutions" .= Ix.toList d.solutions
       , "mesoPlans" .= Ix.toList d.mesoPlans
-      , "mesoPlanEntries" .= Ix.toList d.mesoPlanEntries
-      , "lessonPlans" .= Ix.toList d.lessonPlans
+      , "lessons" .= Ix.toList d.lessons
       , "participationRecords" .= Ix.toList d.participationRecords
       ]
 
@@ -182,8 +176,7 @@ emptyDocument =
     , competenceGridGrades = Ix.empty
     , solutions = Ix.empty
     , mesoPlans = Ix.empty
-    , mesoPlanEntries = Ix.empty
-    , lessonPlans = Ix.empty
+    , lessons = Ix.empty
     , participationRecords = Ix.empty
     }
 
@@ -203,8 +196,7 @@ projectDocument user doc
         & #competenceGridGrades .~ (doc.competenceGridGrades Ix.@= user.id) -- Only grid grades about them
         & #locks .~ M.filterWithKey isLockVisible (doc ^. #locks) -- Only locks on entities they can see
         & #mesoPlans .~ Ix.empty -- Planning is teacher-only
-        & #mesoPlanEntries .~ Ix.empty
-        & #lessonPlans .~ Ix.empty
+        & #lessons .~ Ix.empty
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
         -- competenceGrids, competences, resources, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
@@ -231,8 +223,7 @@ projectDocument user doc
       SolutionLock _ -> True -- Solutions are visible to all users
       ResourceLock _ -> True -- Resources are visible to all users
       MesoPlanLock _ -> False -- Planning is teacher-only
-      MesoPlanEntryLock _ -> False
-      LessonPlanLock _ -> False
+      LessonLock _ -> False
       ParticipationRecordLock prid ->
         case Ix.getOne (Ix.getEQ prid (doc ^. #participationRecords)) of
           Just pr -> user.id == pr.userId

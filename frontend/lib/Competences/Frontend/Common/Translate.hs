@@ -18,7 +18,7 @@ where
 
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
-import Competences.Document.LessonPlan (ActionForm (..), TeachingSocialForm (..))
+import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Control.Exception (SomeException, catch)
@@ -244,15 +244,26 @@ data Label
   | LblMasteryNotTried
     -- Meso Planning
   | LblMesoPlanning
-    -- Lesson Planning
-  | LblLessonPlan
-  | LblLessonPlanDate
-  | LblLessonPlanAssignments
-  | LblLessonPlanResources
-  | LblLessonPlanPhases
-  | LblLessonPlanNotes
-  | LblCreateLessonPlan
-  | LblNoLessonPlan
+  | LblMesoPlanTitle
+  | LblMesoPlanDateFrom
+  | LblMesoPlanDateTo
+  | LblCreateMesoPlan
+  | LblEditMesoPlan
+  | LblFilterMesoPlans
+  | LblMesoPlans
+  | LblSelectMesoPlan
+    -- Lessons (unified entity)
+  | LblLesson
+  | LblLessonTitle
+  | LblLessonDescription
+  | LblLessonCompetences
+  | LblLessonDate
+  | LblLessonAssignments
+  | LblLessonResources
+  | LblLessonPhases
+  | LblLessonNotes
+  | LblAddLesson
+  | LblNoLessons
   | LblNoNotes
   | LblPhaseTitle
   | LblPhaseSocialForm
@@ -263,17 +274,6 @@ data Label
   | LblNoPhases
   | LblTeachingSocialForm !TeachingSocialForm
   | LblActionForm !ActionForm
-  | LblMesoPlanTitle
-  | LblMesoPlanDateFrom
-  | LblMesoPlanDateTo
-  | LblMesoPlanEntry
-  | LblMesoPlanEntryTitle
-  | LblMesoPlanEntryDescription
-  | LblMesoPlanEntryCompetences
-  | LblAddMesoPlanEntry
-  | LblNoMesoPlanEntries
-  | LblCreateMesoPlan
-  | LblEditMesoPlan
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -466,23 +466,23 @@ labels' =
   , LblMesoPlanTitle
   , LblMesoPlanDateFrom
   , LblMesoPlanDateTo
-  , LblMesoPlanEntry
-  , LblMesoPlanEntryTitle
-  , LblMesoPlanEntryDescription
-  , LblMesoPlanEntryCompetences
-  , LblAddMesoPlanEntry
-  , LblNoMesoPlanEntries
   , LblCreateMesoPlan
   , LblEditMesoPlan
-    -- Lesson Planning
-  , LblLessonPlan
-  , LblLessonPlanDate
-  , LblLessonPlanAssignments
-  , LblLessonPlanResources
-  , LblLessonPlanPhases
-  , LblLessonPlanNotes
-  , LblCreateLessonPlan
-  , LblNoLessonPlan
+  , LblFilterMesoPlans
+  , LblMesoPlans
+  , LblSelectMesoPlan
+    -- Lessons
+  , LblLesson
+  , LblLessonTitle
+  , LblLessonDescription
+  , LblLessonCompetences
+  , LblLessonDate
+  , LblLessonAssignments
+  , LblLessonResources
+  , LblLessonPhases
+  , LblLessonNotes
+  , LblAddLesson
+  , LblNoLessons
   , LblNoNotes
   , LblPhaseTitle
   , LblPhaseSocialForm
@@ -707,23 +707,23 @@ defaultTranslation LblMesoPlanning = "Planung"
 defaultTranslation LblMesoPlanTitle = "Titel"
 defaultTranslation LblMesoPlanDateFrom = "Beginn"
 defaultTranslation LblMesoPlanDateTo = "Ende"
-defaultTranslation LblMesoPlanEntry = "Unterrichtseinheit"
-defaultTranslation LblMesoPlanEntryTitle = "Titel"
-defaultTranslation LblMesoPlanEntryDescription = "Beschreibung"
-defaultTranslation LblMesoPlanEntryCompetences = "Kompetenzstufen"
-defaultTranslation LblAddMesoPlanEntry = "Einheit hinzufügen"
-defaultTranslation LblNoMesoPlanEntries = "Keine Einheiten"
 defaultTranslation LblCreateMesoPlan = "Meso-Plan erstellen"
 defaultTranslation LblEditMesoPlan = "Plan bearbeiten"
--- Lesson Planning
-defaultTranslation LblLessonPlan = "Unterrichtsplan"
-defaultTranslation LblLessonPlanDate = "Datum"
-defaultTranslation LblLessonPlanAssignments = "Aufträge"
-defaultTranslation LblLessonPlanResources = "Ressourcen"
-defaultTranslation LblLessonPlanPhases = "Unterrichtsphasen"
-defaultTranslation LblLessonPlanNotes = "Notizen"
-defaultTranslation LblCreateLessonPlan = "Unterrichtsplan erstellen"
-defaultTranslation LblNoLessonPlan = "Kein Unterrichtsplan"
+defaultTranslation LblFilterMesoPlans = "Nach Titel filtern..."
+defaultTranslation LblMesoPlans = "Meso-Pläne"
+defaultTranslation LblSelectMesoPlan = "Plan auswählen..."
+-- Lessons
+defaultTranslation LblLesson = "Unterrichtseinheit"
+defaultTranslation LblLessonTitle = "Titel"
+defaultTranslation LblLessonDescription = "Beschreibung"
+defaultTranslation LblLessonCompetences = "Kompetenzstufen"
+defaultTranslation LblLessonDate = "Datum"
+defaultTranslation LblLessonAssignments = "Aufträge"
+defaultTranslation LblLessonResources = "Ressourcen"
+defaultTranslation LblLessonPhases = "Unterrichtsphasen"
+defaultTranslation LblLessonNotes = "Notizen"
+defaultTranslation LblAddLesson = "Einheit hinzufügen"
+defaultTranslation LblNoLessons = "Keine Einheiten"
 defaultTranslation LblNoNotes = "Keine Notizen"
 defaultTranslation LblPhaseTitle = "Phase"
 defaultTranslation LblPhaseSocialForm = "Sozialform"

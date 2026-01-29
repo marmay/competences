@@ -8,7 +8,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id)
-import Competences.Document.LessonPlan (LessonPlanId)
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
@@ -36,22 +36,22 @@ instance Binary ParticipationType
 
 -- | Per-student per-lesson participation record.
 -- Top-level entity for cross-lesson querying (student history).
--- At most one per (lessonPlanId, userId).
+-- At most one per (lessonId, userId).
 data ParticipationRecord = ParticipationRecord
   { id :: !ParticipationRecordId
-  , lessonPlanId :: !LessonPlanId
+  , lessonId :: !LessonId
   , userId :: !UserId
   , participations :: !(Set ParticipationType)
   }
   deriving (Eq, Generic, Ord, Show)
 
-type ParticipationRecordIxs = '[ParticipationRecordId, LessonPlanId, UserId]
+type ParticipationRecordIxs = '[ParticipationRecordId, LessonId, UserId]
 
 instance Ix.Indexable ParticipationRecordIxs ParticipationRecord where
   indices =
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
-      (Ix.ixFun $ singleton . (.lessonPlanId))
+      (Ix.ixFun $ singleton . (.lessonId))
       (Ix.ixFun $ singleton . (.userId))
 
 instance FromJSON ParticipationRecord

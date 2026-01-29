@@ -9,8 +9,8 @@ import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGradeId)
 import Competences.Document.Evidence (EvidenceId)
-import Competences.Document.LessonPlan (LessonPlanId)
-import Competences.Document.MesoPlan (MesoPlanEntryId, MesoPlanId)
+import Competences.Document.Lesson (LessonId)
+import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.ParticipationRecord (ParticipationRecordId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
@@ -36,8 +36,7 @@ data Lock
   | SolutionLock !SolutionId
   | ResourceLock !ResourceId
   | MesoPlanLock !MesoPlanId
-  | MesoPlanEntryLock !MesoPlanEntryId
-  | LessonPlanLock !LessonPlanId
+  | LessonLock !LessonId
   | ParticipationRecordLock !ParticipationRecordId
   deriving (Eq, Generic, Ord, Show)
 

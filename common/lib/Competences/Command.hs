@@ -13,7 +13,7 @@ module Competences.Command
   , module Competences.Command.Solutions
   , module Competences.Command.Resources
   , module Competences.Command.MesoPlans
-  , module Competences.Command.LessonPlans
+  , module Competences.Command.Lessons
   , module Competences.Command.ParticipationRecords
   )
 where
@@ -26,8 +26,8 @@ import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..)
 import Competences.Command.CompetenceGridGrades (CompetenceGridGradePatch (..), CompetenceGridGradesCommand (..), handleCompetenceGridGradesCommand)
 import Competences.Command.Competences (CompetenceGridPatch (..), CompetencePatch (..), LevelInfoPatch (..), CompetencesCommand (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
-import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), MesoPlanEntryPatch (..), handleMesoPlansCommand)
-import Competences.Command.LessonPlans (LessonPlansCommand (..), LessonPlanPatch (..), handleLessonPlansCommand)
+import Competences.Command.Lessons (LessonsCommand (..), LessonPatch (..), handleLessonsCommand)
+import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), handleMesoPlansCommand)
 import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..), ParticipationRecordPatch (..), handleParticipationRecordsCommand)
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
@@ -52,7 +52,7 @@ data Command
   | Solutions !SolutionsCommand
   | Resources !ResourcesCommand
   | MesoPlans !MesoPlansCommand
-  | LessonPlans !LessonPlansCommand
+  | Lessons !LessonsCommand
   | ParticipationRecords !ParticipationRecordsCommand
   deriving (Eq, Generic, Show)
 
@@ -79,5 +79,5 @@ handleCommand userId cmd d = case cmd of
   Solutions c -> handleSolutionsCommand userId c d
   Resources c -> handleResourcesCommand userId c d
   MesoPlans c -> handleMesoPlansCommand userId c d
-  LessonPlans c -> handleLessonPlansCommand userId c d
+  Lessons c -> handleLessonsCommand userId c d
   ParticipationRecords c -> handleParticipationRecordsCommand userId c d

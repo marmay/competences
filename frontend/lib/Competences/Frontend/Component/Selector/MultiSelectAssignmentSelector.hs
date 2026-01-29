@@ -77,10 +77,10 @@ data Action
 -- Binds selected assignment IDs to parent model via lens
 multiSelectAssignmentSelectorComponent
   :: SyncContext
-  -> (Document -> [AssignmentId]) -- ^ Function to load initial values
+  -> [AssignmentId] -- ^ Initial selection
   -> SelectorTransformedLens p [] AssignmentId f' a'
   -> M.Component p Model Action
-multiSelectAssignmentSelectorComponent r _initResults lensBinding =
+multiSelectAssignmentSelectorComponent r initResults lensBinding =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding lensBinding #selectedResults]
     , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
@@ -89,7 +89,7 @@ multiSelectAssignmentSelectorComponent r _initResults lensBinding =
     model =
       Model
         { projection = SelectorProjection []
-        , selectedResults = []
+        , selectedResults = initResults
         , searchQuery = ""
         , isOpen = False
         }
@@ -124,7 +124,7 @@ multiSelectAssignmentSelectorComponent r _initResults lensBinding =
                 ]
               selectedSet = Set.fromList m.selectedResults
            in Combobox.multiSelectCombobox SetSearchQuery ToggleAssignment SetOpen
-                & Combobox.withPlaceholder (C.translate' C.LblSelectAssignments)
+                & Combobox.withPlaceholder (M.fromMisoString $ C.translate' C.LblSelectAssignments)
                 & Combobox.withOptions options
                 & Combobox.withSelected selectedSet
                 & Combobox.withSearchQuery m.searchQuery

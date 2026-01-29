@@ -57,6 +57,7 @@ data Icon
   | IcnVideo
   | IcnImport
   | IcnExport
+  | IcnMesoPlan
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -115,6 +116,7 @@ iconId = \case
   IcnVideo -> "icon-video"
   IcnImport -> "icon-import"
   IcnExport -> "icon-export"
+  IcnMesoPlan -> "icon-meso-plan"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -398,6 +400,16 @@ iconDefOf' = \case
       [ "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
       , "M17 8l-5-5-5 5"
       , "M12 3v12"
+      ]
+  -- Meso plan icon (calendar with list - planning schedule)
+  IcnMesoPlan ->
+    mkPathesD
+      [ "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"
+      , "M16 2v4"
+      , "M8 2v4"
+      , "M3 10h18"
+      , "M8 14h8"
+      , "M8 18h5"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

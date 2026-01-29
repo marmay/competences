@@ -85,8 +85,7 @@ editorWrapperComponent r assignment =
         , competenceAssessments = Ix.empty
         , competenceGridGrades = Ix.empty
         , mesoPlans = Ix.empty
-        , mesoPlanEntries = Ix.empty
-        , lessonPlans = Ix.empty
+        , lessons = Ix.empty
         , participationRecords = Ix.empty
         }
 

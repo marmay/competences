@@ -23,7 +23,7 @@ import Competences.Document.ActivityType (ActivityType (..), activityTypes)
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id, nilId)
-import Competences.Document.LessonPlan (LessonPlanId)
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
@@ -91,8 +91,8 @@ data Evidence = Evidence
   , observations :: !(Ix.IxSet ObservationIxs Observation)
   , assignmentId :: !(Maybe AssignmentId)
     -- ^ Optional link to assignment this evidence was created from
-  , lessonPlanId :: !(Maybe LessonPlanId)
-    -- ^ Optional link to lesson plan this evidence was collected during
+  , lessonId :: !(Maybe LessonId)
+    -- ^ Optional link to lesson this evidence was collected during
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -113,7 +113,7 @@ nilEvidence = Evidence
   , oldTasks = ""
   , observations = Ix.empty
   , assignmentId = Nothing
-  , lessonPlanId = Nothing
+  , lessonId = Nothing
   }
 
 socialForms :: [SocialForm]
@@ -124,7 +124,7 @@ abilities = [minBound .. maxBound]
 
 -- Note: activityTypes is re-exported from ActivityType module
 
-type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId, AssignmentId, LessonPlanId]
+type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId, AssignmentId, LessonId]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
@@ -134,7 +134,7 @@ instance Ix.Indexable EvidenceIxs Evidence where
       (Ix.ixFun $ singleton . (.date))
       (Ix.ixFun $ map (.competenceLevelId) . Ix.toList . (.observations))
       (Ix.ixFun $ maybe [] singleton . (.assignmentId))
-      (Ix.ixFun $ maybe [] singleton . (.lessonPlanId))
+      (Ix.ixFun $ maybe [] singleton . (.lessonId))
 
 type ObservationIxs = '[ObservationId, CompetenceLevelId, SocialForm, Ability]
 
@@ -176,7 +176,7 @@ instance FromJSON Evidence where
       <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
       <*> v .:? "assignmentId" .!= Nothing
-      <*> v .:? "lessonPlanId" .!= Nothing
+      <*> v .:? "lessonId" .!= Nothing
 
 instance ToJSON Evidence where
   toJSON e =
@@ -189,7 +189,7 @@ instance ToJSON Evidence where
       , "oldTasks" .= e.oldTasks
       , "observations" .= Ix.toList e.observations
       , "assignmentId" .= e.assignmentId
-      , "lessonPlanId" .= e.lessonPlanId
+      , "lessonId" .= e.lessonId
       ]
 
 instance Binary Evidence

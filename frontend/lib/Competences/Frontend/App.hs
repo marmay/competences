@@ -15,6 +15,7 @@ import Competences.Frontend.Component.CompetenceGridImport (competenceGridImport
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.ModalHost (modalHostComponent)
+import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
@@ -105,6 +106,7 @@ mkApp ir =
        in if isTeacher m'.connectedUser
             then
               [ nb C.LblCompetenceGrid CompetenceGrid
+              , nb C.LblMesoPlanning Planning
               , nb C.LblEvidences Evidences
               , nb C.LblSelfContainedTasks ManageTasks
               , nb C.LblAssignments ManageAssignments
@@ -135,6 +137,7 @@ mkApp ir =
       Left _ -> V.text_ "404"
       Right v -> case v of
         CompetenceGrid -> competenceGrid
+        Planning -> planning
         Evidences -> evidences
         ManageTasks -> manageTasks
         ViewAssignments -> viewAssignments
@@ -147,8 +150,9 @@ mkApp ir =
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
-        then GridView :| [GridEdit, GridResources, GridAssessment, GridGrading, GridPlanning]
+        then GridView :| [GridEdit, GridResources, GridAssessment, GridGrading]
         else GridView :| []
+    planning = mounted Planning $ planningComponent ir
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent ir
     -- Both routes use the unified assignment component
@@ -168,6 +172,7 @@ withTailwindPlay = id
 
 data Page
   = CompetenceGrid
+  | Planning
   | Evidences
   | ManageTasks
   | ViewAssignments
@@ -181,6 +186,7 @@ instance M.Router Page where
   routeParser =
     M.routes
       [ M.path "grid" $> CompetenceGrid
+      , M.path "planning" $> Planning
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
       , M.path "assignments" $> ViewAssignments
@@ -190,6 +196,7 @@ instance M.Router Page where
       , M.path "import-grids" $> ImportCompetenceGrids
       ]
   fromRoute CompetenceGrid = [M.toPath "grid"]
+  fromRoute Planning = [M.toPath "planning"]
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
   fromRoute ViewAssignments = [M.toPath "assignments"]
