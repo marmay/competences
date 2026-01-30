@@ -104,13 +104,26 @@ library
 test-suite competences-common-test
     import:           warnings
     default-language: GHC2024
+    default-extensions:
+        DuplicateRecordFields,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Main.hs
+    other-modules:
+        Test.Generators
+        Test.Query.MasteryTest
     build-depends:
         base ^>=4.21.0.0,
         competences-common,
         containers,
         ixset-typed,
-        time,
-        text
+        QuickCheck,
+        random,
+        tasty,
+        tasty-hunit,
+        tasty-quickcheck,
+        text,
+        time

@@ -12,6 +12,13 @@ module Competences.Query.Mastery
   , abilityCeiling
   , boundsHasIndividual
 
+    -- * Pure Testable Core
+  , LevelObservation (..)
+  , EvidenceCompetenceObservations
+  , ObservationTimeline
+  , observationBounds
+  , classifyAllLevels
+
     -- * Document Queries
   , getUserMastery
   , getClassMasteryStats
@@ -26,7 +33,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
-import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level)
+import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, allLevels)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..))
 import Competences.Document.User (User (..), UserId)
 import Competences.Query.Evidence qualified as QEvidence
@@ -97,18 +104,87 @@ boundsHasIndividual (FromAbove _ b) = b
 boundsHasIndividual (FromBelow _) = False
 boundsHasIndividual (FromBoth _ _ b) = b
 
+-- ============================================================================
+-- Pure Testable Core
+-- ============================================================================
+
+-- | One observation stripped to just what mastery logic needs.
+-- No IDs, no dates, no IxSets.
+data LevelObservation = LevelObservation
+  { level :: !Level
+  , ability :: !Ability
+  , socialForm :: !SocialForm
+  }
+  deriving (Eq, Show, Generic)
+
+-- | Observations from a single evidence, already filtered to one competence.
+type EvidenceCompetenceObservations = [LevelObservation]
+
+-- | Timeline of evidences (newest first), each already filtered to one competence.
+type ObservationTimeline = [EvidenceCompetenceObservations]
+
+-- | Compute 'AbilityBounds' for a target level from one evidence's observations.
+--
+-- Returns 'Nothing' if the observation list is empty.
+observationBounds :: Level -> EvidenceCompetenceObservations -> Maybe AbilityBounds
+observationBounds _targetLevel [] = Nothing
+observationBounds targetLevel obs =
+  let -- Aggregate: worst ability per level (Haskell maximum = domain worst)
+      aggMap = Map.fromListWith max [(o.level, o.ability) | o <- obs]
+      -- Whether any observation is directly at the target level
+      hasTargetObs = Map.member targetLevel aggMap
+      -- Compute bounds
+      aboveOrAt = [a | (lvl, a) <- Map.toList aggMap, lvl >= targetLevel]
+      belowOrAt = [a | (lvl, a) <- Map.toList aggMap, lvl <= targetLevel]
+      mFloor = if null aboveOrAt then Nothing else Just (minimum aboveOrAt)
+      mCeiling = if null belowOrAt then Nothing else Just (maximum belowOrAt)
+      -- Check for Individual social form at/above target
+      hasIndiv = any (\o -> o.level >= targetLevel && o.socialForm == Individual) obs
+   in case (mFloor, mCeiling) of
+        (Just f, Nothing) -> Just (FromAbove f hasIndiv)
+        (Nothing, Just c) -> Just (FromBelow c)
+        (Just f, Just c)
+          -- Direct observation at target level: both bounds are meaningful.
+          | hasTargetObs -> Just (FromBoth f c hasIndiv)
+          -- Observations surround the target but none at it: keep the positive
+          -- floor (from above), drop the ceiling (from below) — the student
+          -- hasn't been observed at this level, so below-evidence can't condemn.
+          | otherwise -> Just (FromAbove f hasIndiv)
+        (Nothing, Nothing) -> Nothing -- shouldn't happen since obs is non-empty
+
+-- | Classify mastery at all levels from a timeline of evidences (newest first).
+--
+-- Each inner list is the observations within one evidence for a single competence,
+-- already filtered to that competence. Returns a 'Map' from each 'Level' to its
+-- 'MasteryStatus'.
+classifyAllLevels :: ObservationTimeline -> Map Level MasteryStatus
+classifyAllLevels timeline =
+  Map.fromList
+    [ (lvl, classifyMasteryConstrained $ mapMaybe (observationBounds lvl) timeline)
+    | lvl <- allLevels
+    ]
+
+-- ============================================================================
+-- Classification
+-- ============================================================================
+
 -- | Classify mastery from a unified timeline of ability bounds (sorted newest-first).
 --
 -- Uses both bounds for classification:
 -- - noHigherThan (ceiling) for negative classification (MasteryNotYet) — acts as a veto
 -- - noLowerThan (floor) for positive classification (streak counting for +1, +2)
 --
+-- Bias towards success: only direct observation at the target level (FromBoth) can
+-- trigger MasteryNotYet. Indirect evidence (FromAbove, FromBelow) contributes to
+-- positive classification but never condemns.
+--
 -- For StreakTwoPlus, at least one contributing evidence must have SocialForm Individual.
 classifyMasteryConstrained :: [AbilityBounds] -> MasteryStatus
 classifyMasteryConstrained [] = NotTried
 classifyMasteryConstrained bounds
-  -- Negative check: latest noHigherThan value vetoes if negative
-  | Just latestCeiling <- findLatestRealCeiling bounds
+  -- Negative check: latest direct ceiling vetoes if negative.
+  -- Only FromBoth has a direct ceiling (observation at target level).
+  | Just latestCeiling <- findLatestDirectCeiling bounds
   , latestCeiling == WithSupport || latestCeiling == NotYet =
       MasteryNotYet
   -- Positive check: count streak from noLowerThan values
@@ -120,14 +196,21 @@ classifyMasteryConstrained bounds
               | streakLen >= 1 -> OneSuccess
               | otherwise -> classifyRemaining bounds
   where
-    -- Get the noHigherThan (ceiling) from the newest entry.
-    -- FromAbove entries have no ceiling — that means "no negative info", not "keep looking".
-    -- Older ceilings must not veto newer positive evidence.
-    findLatestRealCeiling [] = Nothing
-    findLatestRealCeiling (b : _) = abilityCeiling b
+    -- Find the ceiling from the newest direct observation (FromBoth), scanning
+    -- past indirect entries. Stops early (no veto) if a positive floor from
+    -- above is found — success at a higher level proves competence here,
+    -- superseding any older direct ceiling.
+    findLatestDirectCeiling [] = Nothing
+    findLatestDirectCeiling (FromBoth _ c _ : _) = Just c
+    findLatestDirectCeiling (b : rest) = case abilityFloor b of
+      Just SelfReliant -> Nothing -- positive from above supersedes older ceilings
+      Just SelfReliantWithSillyMistakes -> Nothing -- still shows understanding
+      _ -> findLatestDirectCeiling rest
 
     -- Count consecutive SelfReliant from noLowerThan values (newest first).
     -- Skip entries where floor is SillyMistakes or Nothing.
+    -- Negative floors from indirect entries (FromAbove) skip rather than break —
+    -- failing at a higher level doesn't invalidate success at a lower one.
     -- Also track whether any streak entry has Individual.
     countConstrainedStreak = go 0 False
       where
@@ -136,28 +219,39 @@ classifyMasteryConstrained bounds
           Just SelfReliant -> go (n + 1) (indiv || boundsHasIndividual b) rest
           Just SelfReliantWithSillyMistakes -> go n indiv rest -- skip, don't break
           Nothing -> go n indiv rest -- no floor info, skip
-          _ -> (n, indiv) -- WithSupport or NotYet breaks the streak
+          _ -> case b of
+            FromBoth {} -> (n, indiv) -- direct negative observation: breaks streak
+            _ -> go n indiv rest -- indirect negative: skip
 
-    -- Classify when there's no positive streak: check floors for remaining info
+    -- Classify when there's no positive streak: check floors for remaining info.
+    -- Only direct observations (FromBoth) can produce MasteryNotYet or OnlySillyMistakes.
     classifyRemaining :: [AbilityBounds] -> MasteryStatus
-    classifyRemaining bs = case findLatestRealFloor bs of
+    classifyRemaining bs = case findLatestDirectFloor bs of
       Just SelfReliant -> OneSuccess -- shouldn't normally happen (streak would be >= 1)
       Just WithSupport -> MasteryNotYet
       Just NotYet -> MasteryNotYet
       Just SelfReliantWithSillyMistakes -> OnlySillyMistakes
       Nothing ->
-        -- No real floor found; only SillyMistakes floors count as OnlySillyMistakes.
-        -- Ceiling-only entries (FromBelow) don't imply the student tried at this level.
-        if any ((/= Nothing) . abilityFloor) bs
+        -- No real direct floor found. If any FromBoth entry exists, its floor
+        -- must be SillyMistakes (others handled above) → OnlySillyMistakes.
+        -- Without any direct observation, the level is NotTried.
+        if any hasDirectObs bs
           then OnlySillyMistakes
           else NotTried
 
-    findLatestRealFloor :: [AbilityBounds] -> Maybe Ability
-    findLatestRealFloor [] = Nothing
-    findLatestRealFloor (b : rest) = case abilityFloor b of
-      Nothing -> findLatestRealFloor rest
-      Just SelfReliantWithSillyMistakes -> findLatestRealFloor rest
-      Just a -> Just a
+    hasDirectObs :: AbilityBounds -> Bool
+    hasDirectObs (FromBoth {}) = True
+    hasDirectObs _ = False
+
+    -- Find latest "real" floor from a direct observation (FromBoth only).
+    -- Skips SillyMistakes (not "real" for classification) and indirect entries.
+    findLatestDirectFloor :: [AbilityBounds] -> Maybe Ability
+    findLatestDirectFloor [] = Nothing
+    findLatestDirectFloor (b : rest) = case b of
+      FromBoth {} -> case abilityFloor b of
+        Just SelfReliantWithSillyMistakes -> findLatestDirectFloor rest
+        flr -> flr
+      _ -> findLatestDirectFloor rest
 
 -- ============================================================================
 -- Document Queries
@@ -177,32 +271,16 @@ getConstrainedObservations doc userId (compId, targetLevel) =
 
 -- | Compute AbilityBounds for a single evidence at a target competence/level.
 -- Returns Nothing if the evidence has no observations for this competence.
+-- Delegates to 'observationBounds' after extracting relevant observations.
 evidenceToBounds :: CompetenceId -> Level -> Evidence -> Maybe AbilityBounds
 evidenceToBounds compId targetLevel ev =
-  let -- Extract all observations for this competence, grouped by level
-      relevantObs =
-        [ (lvl, obs)
-        | obs <- Ix.toList ev.observations
-        , let (cId, lvl) = obs.competenceLevelId
+  let obs =
+        [ LevelObservation lvl o.ability o.socialForm
+        | o <- Ix.toList ev.observations
+        , let (cId, lvl) = o.competenceLevelId
         , cId == compId
         ]
-   in case relevantObs of
-        [] -> Nothing
-        _ ->
-          let -- Aggregate: worst ability per level (Haskell maximum = domain worst)
-              aggMap = Map.fromListWith max [(lvl, obs.ability) | (lvl, obs) <- relevantObs]
-              -- Compute bounds
-              aboveOrAt = [(lvl, a) | (lvl, a) <- Map.toList aggMap, lvl >= targetLevel]
-              belowOrAt = [(lvl, a) | (lvl, a) <- Map.toList aggMap, lvl <= targetLevel]
-              mFloor = if null aboveOrAt then Nothing else Just (minimum $ map snd aboveOrAt)
-              mCeiling = if null belowOrAt then Nothing else Just (maximum $ map snd belowOrAt)
-              -- Check for Individual social form at/above target
-              hasIndiv = any (\(lvl, obs) -> lvl >= targetLevel && obs.socialForm == Individual) relevantObs
-           in case (mFloor, mCeiling) of
-                (Just f, Nothing) -> Just (FromAbove f hasIndiv)
-                (Nothing, Just c) -> Just (FromBelow c)
-                (Just f, Just c) -> Just (FromBoth f c hasIndiv)
-                (Nothing, Nothing) -> Nothing -- shouldn't happen since relevantObs is non-empty
+   in observationBounds targetLevel obs
 
 -- | Get mastery status for one (user, competence-level)
 --
@@ -257,7 +335,9 @@ hasSuccessStreak n doc userId compLevelId =
       Just SelfReliant -> go (cnt + 1) (indiv || boundsHasIndividual b) rest
       Just SelfReliantWithSillyMistakes -> go cnt indiv rest
       Nothing -> go cnt indiv rest
-      _ -> (cnt, indiv)
+      _ -> case b of
+        FromBoth {} -> (cnt, indiv) -- direct negative: breaks streak
+        _ -> go cnt indiv rest -- indirect negative: skip
 
 -- | Predicate: is user "proficient" (streak >= 2 with at least one Individual)?
 isCurrentlyProficient :: Document -> UserId -> CompetenceLevelId -> Bool
