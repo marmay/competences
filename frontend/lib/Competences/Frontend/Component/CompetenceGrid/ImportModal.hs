@@ -2,13 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module      : Competences.Frontend.Component.CompetenceGridImport
--- Description : Bulk import component for competence grids
+-- Module      : Competences.Frontend.Component.CompetenceGrid.ImportModal
+-- Description : Modal component for importing competence grids
 --
--- Provides a UI for importing competence grids from a markdown-like format.
--- Shows a preview of changes (create/update/no-change) before applying.
-module Competences.Frontend.Component.CompetenceGridImport
-  ( competenceGridImportComponent
+-- Provides a modal dialog for importing competence grids from a markdown-like
+-- format. Shows a preview of changes before applying.
+module Competences.Frontend.Component.CompetenceGrid.ImportModal
+  ( competenceGridImportModalComponent
+  , Action (..)
   )
 where
 
@@ -23,15 +24,16 @@ import Competences.Document.Order (orderMax)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
+  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
 import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.CompetenceGridParser (parseGridImport)
@@ -72,14 +74,15 @@ data Action
   | SetInputText !Text
   | ParseInput
   | ApplyImport
+  | CloseModal
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
-competenceGridImportComponent :: SyncContext -> M.Component p Model Action
-competenceGridImportComponent r =
+competenceGridImportModalComponent :: SyncContext -> M.Component p Model Action
+competenceGridImportModalComponent r =
   (M.component model update view)
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
@@ -126,55 +129,62 @@ competenceGridImportComponent r =
     update ApplyImport = do
       m <- M.get
       case m.parseResult of
-        Right previews -> M.io_ $ applyPreviews r m.document previews
+        Right previews -> do
+          M.io_ $ do
+            applyPreviews r m.document previews
+            closeModal r.modalManager
         Left _ -> pure ()
+
+    update CloseModal =
+      M.io_ $ closeModal r.modalManager
 
     view :: Model -> M.View Model Action
     view m =
+      -- Note: No modalHost wrapper - the parent ModalHost component provides the backdrop
       M.div_
-        [class_ "h-full flex flex-col gap-4 p-4"]
-        [ Typography.h2 (C.translate' C.LblImportCompetenceGrids)
-        , M.div_
-            [class_ "flex-1 min-h-0 grid grid-cols-2 gap-4"]
-            [ -- Left: Input area
+        [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
+            [ Modal.modalHeader (C.translate' C.LblImportCompetenceGrids) CloseModal
+            , -- Content
               M.div_
-                [class_ "flex flex-col gap-2"]
-                [ Typography.h3 "Eingabe"
-                , M.textarea_
-                    [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                    , MP.placeholder_ "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
-                    , MP.value_ (M.ms m.inputText)
-                    , M.onInput (SetInputText . M.fromMisoString)
+                [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
+                [ -- Left: Input area
+                  M.div_
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                    [ Typography.h3 "Eingabe"
+                    , M.textarea_
+                        [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
+                        , MP.placeholder_ "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
+                        , MP.value_ (M.ms m.inputText)
+                        , M.onInput (SetInputText . M.fromMisoString)
+                        ]
+                        []
                     ]
-                    []
-                , M.div_
-                    [class_ "flex gap-2"]
-                    [ Button.buttonPrimary "Vorschau"
-                        & Button.withClick ParseInput
-                        & Button.renderButton
+                , -- Right: Preview area
+                  M.div_
+                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                    [ Typography.h3 "Vorschau"
+                    , M.div_
+                        [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
+                        [previewView m]
                     ]
                 ]
-            , -- Right: Preview area
-              M.div_
-                [class_ "flex flex-col gap-2 min-h-0"]
-                [ Typography.h3 "Vorschau"
-                , M.div_
-                    [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                    [previewView m]
-                , M.div_
-                    [class_ "flex gap-2 justify-end"]
-                    [ case m.parseResult of
-                        Right previews
-                          | not (null previews) && any hasChanges previews ->
-                              Button.buttonPrimary (C.translate' C.LblApply)
-                                & Button.withIcon IcnApply
-                                & Button.withClick ApplyImport
-                                & Button.renderButton
-                        _ -> M.text ""
-                    ]
+            , Modal.modalFooter
+                [ Button.buttonSecondary (C.translate' C.LblCancel)
+                    & Button.withClick CloseModal
+                    & Button.renderButton
+                , Button.buttonPrimary "Vorschau"
+                    & Button.withClick ParseInput
+                    & Button.renderButton
+                , case m.parseResult of
+                    Right previews
+                      | not (null previews) && any hasChanges previews ->
+                          Button.buttonPrimary (C.translate' C.LblApply)
+                            & Button.withIcon IcnApply
+                            & Button.withClick ApplyImport
+                            & Button.renderButton
+                    _ -> M.text ""
                 ]
             ]
-        ]
 
 -- ============================================================================
 -- Preview View
@@ -197,10 +207,11 @@ previewView m = case m.parseResult of
 
 previewGridView :: GridImportPreview -> M.View Model Action
 previewGridView preview =
-  Card.card
+  M.div_
+    [class_ "border border-border rounded-md p-3"]
     [ M.div_
         [class_ "flex items-center gap-2 mb-2"]
-        [ Typography.h4 $ M.ms $ gridTitle preview.gridAction
+        [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ gridTitle preview.gridAction]
         , actionBadge preview.gridAction
         ]
     , M.div_
@@ -236,12 +247,12 @@ previewCompetenceView ca =
     [ M.div_
         [class_ "flex items-center gap-2"]
         [ M.span_
-            [class_ "font-medium"]
+            [class_ "font-medium text-sm"]
             [M.text $ M.ms ca.parsedCompetence.description]
         , actionBadge ca.action
         ]
     , M.div_
-        [class_ "text-sm text-muted-foreground mt-1"]
+        [class_ "text-xs text-muted-foreground mt-1"]
         (levelPreview ca.parsedCompetence.levels)
     ]
 
@@ -257,7 +268,7 @@ levelPreview levels =
           [ M.span_
               [class_ "font-medium"]
               [M.text $ M.ms $ levelToGerman lvl <> ": "]
-          , M.text $ M.ms $ T.take 60 desc <> if T.length desc > 60 then "..." else ""
+          , M.text $ M.ms $ T.take 40 desc <> if T.length desc > 40 then "..." else ""
           ]
 
 actionBadge :: ImportAction a -> M.View Model Action

@@ -1,4 +1,4 @@
-module Competences.Frontend.Component.Solution.EditorDetail
+module Competences.Frontend.Component.TaskEditor.SolutionEditorDetail
   ( editorDetailView
   , solutionInlineEditor
   )

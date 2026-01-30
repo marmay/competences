@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module      : Competences.Frontend.Component.AssignmentImportModal
+-- Module      : Competences.Frontend.Component.Assignment.ImportModal
 -- Description : Modal component for importing assignments with embedded tasks
 --
 -- Provides a modal dialog for importing assignments and their tasks from
 -- a markdown-like format. Shows a preview of changes before applying.
-module Competences.Frontend.Component.AssignmentImportModal
+module Competences.Frontend.Component.Assignment.ImportModal
   ( assignmentImportModalComponent
   , Action (..)
   )

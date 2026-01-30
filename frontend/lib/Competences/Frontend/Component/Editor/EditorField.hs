@@ -20,7 +20,7 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
-import Competences.Frontend.Component.TaskContentView (renderRichText)
+import Competences.Frontend.View.TaskContent (renderRichText)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)

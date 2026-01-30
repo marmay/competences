@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module      : Competences.Frontend.Component.TaskContentView
+-- Module      : Competences.Frontend.View.TaskContent
 -- Description : Renderer component for task content markup
 --
 -- Renders parsed 'TaskContent' AST to Miso views, using RichContent
@@ -11,7 +11,7 @@
 --
 -- @
 -- import Competences.TaskContent.Parser (parseTaskContent)
--- import Competences.Frontend.Component.TaskContentView (taskContentView, renderRichText)
+-- import Competences.Frontend.View.TaskContent (taskContentView, renderRichText)
 --
 -- -- Parse and render in one step
 -- renderRichText "Solve $x + 1 = 2$"
@@ -21,7 +21,7 @@
 --   Left err -> -- show error
 --   Right ast -> taskContentView ast
 -- @
-module Competences.Frontend.Component.TaskContentView
+module Competences.Frontend.View.TaskContent
   ( -- * Rendering functions
     taskContentView
   , renderRichText

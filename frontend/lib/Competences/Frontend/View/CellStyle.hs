@@ -9,11 +9,12 @@ module Competences.Frontend.View.CellStyle
 where
 
 import Competences.Frontend.View.StatusIcon (Status (..))
+import Data.Text (Text)
 import Miso qualified as M
 
 -- | Background CSS class for a cell based on its visual status.
 -- For cells without a level description, pass 'NoStatus' (yields @\"\"@).
-statusBgClass :: Status -> M.MisoString
+statusBgClass :: Status -> Text
 statusBgClass Achieved = "bg-green-100"
 statusBgClass InProgress = "bg-yellow-100"
 statusBgClass Locked = "bg-stone-200"

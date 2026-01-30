@@ -17,7 +17,7 @@ import Competences.Document
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
 import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceGridImportModal qualified as ImportModal
+import Competences.Frontend.Component.CompetenceGrid.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)

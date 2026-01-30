@@ -10,7 +10,7 @@ import Competences.Document.Solution (SolutionId, SolutionIxs, SolutionType (..)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.TaskContentView (renderRichText)
+import Competences.Frontend.View.TaskContent (renderRichText)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -27,7 +27,7 @@ import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Frontend.Component.Solution.EditorDetail (solutionInlineEditor)
+import Competences.Frontend.Component.TaskEditor.SolutionEditorDetail (solutionInlineEditor)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)

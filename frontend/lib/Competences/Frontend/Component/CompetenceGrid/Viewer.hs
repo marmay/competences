@@ -41,9 +41,9 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.ResourceModal qualified as ResourceModal
+import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskResourceList (TaskWithSolutions (..))
+import Competences.Frontend.View.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)

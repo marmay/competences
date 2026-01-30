@@ -27,8 +27,8 @@ import Competences.Document.Task
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderRichText)
-import Competences.Frontend.Component.TaskResourceList
+import Competences.Frontend.View.TaskContent (renderRichText)
+import Competences.Frontend.View.TaskResource
   ( TaskResourceList
   , TaskWithSolutions (..)
   , DisplayMode (..)
@@ -36,7 +36,7 @@ import Competences.Frontend.Component.TaskResourceList
   , taskResourceListView
   , updateTaskResourceList
   )
-import Competences.Frontend.Component.TaskResourceList qualified as TRL
+import Competences.Frontend.View.TaskResource qualified as TRL
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext

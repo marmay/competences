@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- Module      : Competences.Frontend.Component.ResourceModal
+-- Module      : Competences.Frontend.Component.Resource.Modal
 -- Description : Modal component for displaying tasks and learning resources
 --
 -- Shows tasks and learning resources for a specific competence level.
 -- Used via the central ModalManager.
-module Competences.Frontend.Component.ResourceModal
+module Competences.Frontend.Component.Resource.Modal
   ( resourceModalComponent
   , ResourceModalConfig (..)
   )
@@ -20,7 +20,7 @@ import Competences.Document
   )
 import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.TaskResourceList
+import Competences.Frontend.View.TaskResource
   ( DisplayMode (..)
   , TaskResourceList
   , TaskWithSolutions (..)
@@ -28,7 +28,7 @@ import Competences.Frontend.Component.TaskResourceList
   , taskResourceListView
   , updateTaskResourceList
   )
-import Competences.Frontend.Component.TaskResourceList qualified as TRL
+import Competences.Frontend.View.TaskResource qualified as TRL
 import Optics.Core ((&))
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View qualified as V

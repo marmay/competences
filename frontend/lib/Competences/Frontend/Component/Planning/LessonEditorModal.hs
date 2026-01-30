@@ -21,7 +21,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
-import Competences.Frontend.Component.TaskContentView (renderRichText)
+import Competences.Frontend.View.TaskContent (renderRichText)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button

@@ -11,7 +11,7 @@ import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAss
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
-import Competences.Frontend.Component.AssignmentImportModal qualified as ImportModal
+import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)

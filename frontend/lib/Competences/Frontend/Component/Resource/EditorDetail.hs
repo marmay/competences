@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskContentView (renderRichText)
+import Competences.Frontend.View.TaskContent (renderRichText)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
