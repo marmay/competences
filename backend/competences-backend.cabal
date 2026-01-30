@@ -25,7 +25,6 @@ library
         Competences.Backend.Auth
         Competences.Backend.Config
         Competences.Backend.Database
-        Competences.Backend.Eff.Db
         Competences.Backend.Envelope
         Competences.Backend.HashedFile
         Competences.Backend.HTTP
@@ -41,7 +40,6 @@ library
         cookie,
         cryptonite,
         directory,
-        effectful,
         filepath,
         fsnotify,
         http-client,
@@ -121,9 +119,6 @@ test-suite competences-backend-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Main.hs
-    other-modules:
-        Util.Eff.TestDb
     build-depends:
         base ^>=4.21.0.0,
-        competences-backend,
-        effectful
+        competences-backend
