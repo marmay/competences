@@ -24,7 +24,8 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Icon (Icon (IcnAdd, IcnDelete))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Frontend.Component.TaskEditor.SolutionEditorDetail (solutionInlineEditor)
@@ -164,49 +165,29 @@ taskSolutionsListComponent r taskId =
     viewSolution m sol =
       let isExpanded = Set.member sol.id m.expandedSolutions
           isOwner = isTeacher m.projection.connectedUser
-       in MH.div_
-            [class_ "border rounded-lg overflow-hidden"]
-            [ -- Header (always visible, clickable to expand)
-              MH.div_
-                [ class_ "flex items-center justify-between px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
-                , MH.onClick (ToggleSolution sol.id)
-                ]
-                [ MH.div_
-                    [class_ "flex items-center gap-2"]
-                    [ -- Expand/collapse icon
-                      V.icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
-                    , -- Solution type badge
-                      solutionTypeBadge sol.solutionType
-                    ]
-                , -- Delete button (owner only)
-                  if isOwner
-                    then
-                      Button.buttonGhost ""
-                        & Button.withIcon IcnDelete
-                        & Button.withSize Button.Small
-                        & Button.withStopPropagation
-                        & Button.withClick (DeleteSolution sol.id)
-                        & Button.renderButton
-                    else V.empty
-                ]
-            , -- Content (shown when expanded)
-              if isExpanded
+       in Disclosure.collapsibleWithActions isExpanded (ToggleSolution sol.id)
+            (solutionTypeBadge sol.solutionType)
+            ( if isOwner
                 then
-                  MH.div_
-                    [class_ "px-3 py-2 border-t"]
-                    [ if isOwner
-                        then -- Teachers get the inline editor
-                          solutionInlineEditor r sol
-                        else -- Students get the read-only view
-                          if sol.content == ""
-                            then Typography.muted "Kein Inhalt"
-                            else
-                              MH.div_
-                                [class_ "prose prose-stone prose-sm max-w-none"]
-                                [renderRichText sol.content]
-                    ]
-                else V.empty
-            ]
+                  [ Button.buttonGhost ""
+                      & Button.withIcon IcnDelete
+                      & Button.withSize Button.Small
+                      & Button.withStopPropagation
+                      & Button.withClick (DeleteSolution sol.id)
+                      & Button.renderButton
+                  ]
+                else []
+            )
+            ( if isOwner
+                then solutionInlineEditor r sol
+                else
+                  if sol.content == ""
+                    then Typography.muted "Kein Inhalt"
+                    else
+                      MH.div_
+                        [class_ "prose prose-stone prose-sm max-w-none"]
+                        [renderRichText sol.content]
+            )
 
     solutionTypeBadge :: SolutionType -> M.View m Action
     solutionTypeBadge st =

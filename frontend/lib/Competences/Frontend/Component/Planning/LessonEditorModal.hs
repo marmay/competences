@@ -425,38 +425,33 @@ lessonEditorModal r modalMgr lesson' =
     viewPhaseCard :: Model -> Int -> LessonPhase -> M.View Model Action
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
-       in MH.div_
-            [class_ "border border-border rounded-md overflow-hidden"]
-            [ -- Phase header (clickable)
-              MH.div_
-                [class_ "flex items-center gap-3 p-3 bg-card"]
-                [ Disclosure.disclosureHeader (TogglePhaseEdit idx) isExpanded
-                    [ MH.div_
-                        [class_ "flex-1"]
-                        [ MH.span_
-                            [class_ "font-medium"]
-                            [M.text $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title]
-                        , MH.span_
-                            [class_ "text-sm text-muted-foreground ml-3"]
-                            [ M.text $ M.ms (show phase.duration) <> " min"
-                            , M.text " · "
-                            , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
-                            , M.text " · "
-                            , M.text $ C.translate' (C.LblActionForm phase.actionForm)
-                            ]
-                        ]
+       in Disclosure.collapsibleWithActions isExpanded (TogglePhaseEdit idx)
+            -- Title
+            ( MH.div_
+                []
+                [ MH.span_
+                    [class_ "font-medium"]
+                    [M.text $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title]
+                , MH.span_
+                    [class_ "text-sm text-muted-foreground ml-3"]
+                    [ M.text $ M.ms (show phase.duration) <> " min"
+                    , M.text " · "
+                    , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
+                    , M.text " · "
+                    , M.text $ C.translate' (C.LblActionForm phase.actionForm)
                     ]
-                , Button.buttonGhost ""
-                    & Button.withIcon IcnDelete
-                    & Button.withSize Button.Small
-                    & Button.withClick (DeletePhase idx)
-                    & Button.renderButton
                 ]
-            , -- Expanded phase editor
-              if isExpanded
-                then viewPhaseEditor idx phase
-                else M.text ""
+            )
+            -- Actions
+            [ Button.buttonGhost ""
+                & Button.withIcon IcnDelete
+                & Button.withSize Button.Small
+                & Button.withStopPropagation
+                & Button.withClick (DeletePhase idx)
+                & Button.renderButton
             ]
+            -- Content
+            (viewPhaseEditor idx phase)
 
     viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action
     viewPhaseEditor idx phase =

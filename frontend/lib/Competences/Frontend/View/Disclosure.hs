@@ -1,32 +1,57 @@
 -- | Stateless disclosure (expand/collapse) rendering helpers.
 --
--- Provides an animated chevron indicator and a clickable header
--- that pairs the chevron with arbitrary content.
+-- Provides a chevron indicator and collapsible card components
+-- for bordered, expandable sections with clickable headers.
 module Competences.Frontend.View.Disclosure
   ( disclosureChevron
-  , disclosureHeader
+  , collapsible
+  , collapsibleWithActions
   )
 where
 
+import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
 import Miso.Html qualified as MH
 
--- | Animated chevron indicator for expand/collapse.
--- Renders a @▶@ character that rotates 90° when @isExpanded@ is 'True'.
+-- | Chevron indicator for expand/collapse.
+-- Shows a right-pointing arrow when collapsed, down-pointing when expanded.
 disclosureChevron :: Bool -> M.View m a
 disclosureChevron isExpanded =
-  MH.span_
-    [class_ $ "transition-transform duration-200 " <> if isExpanded then "rotate-90" else ""]
-    [M.text "▶"]
+  icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
 
--- | Clickable disclosure header: chevron + content.
--- Expands the click target to the full parent width via negative margin.
--- The parent element should use @flex items-center gap-3@.
-disclosureHeader :: a -> Bool -> [M.View m a] -> M.View m a
-disclosureHeader toggleAction isExpanded content =
+-- | Collapsible card: bordered container, clickable header with chevron, conditional content.
+collapsible :: Bool -> a -> M.View m a -> M.View m a -> M.View m a
+collapsible isExpanded toggleAction title content =
   MH.div_
-    [ class_ "flex items-center gap-3 flex-1 cursor-pointer hover:bg-muted -m-3 p-3"
-    , MH.onClick toggleAction
+    [class_ "border rounded-lg overflow-hidden"]
+    [ MH.div_
+        [ class_ "flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+        , MH.onClick toggleAction
+        ]
+        [ disclosureChevron isExpanded
+        , title
+        ]
+    , if isExpanded
+        then MH.div_ [class_ "px-3 py-2 border-t"] [content]
+        else M.text ""
     ]
-    (disclosureChevron isExpanded : content)
+
+-- | Collapsible card with action buttons in the header (right-aligned).
+-- Buttons should use @stopPropagation@ since the entire header is clickable.
+collapsibleWithActions :: Bool -> a -> M.View m a -> [M.View m a] -> M.View m a -> M.View m a
+collapsibleWithActions isExpanded toggleAction title actions content =
+  MH.div_
+    [class_ "border rounded-lg overflow-hidden"]
+    [ MH.div_
+        [ class_ "flex items-center gap-3 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+        , MH.onClick toggleAction
+        ]
+        [ disclosureChevron isExpanded
+        , MH.div_ [class_ "flex-1"] [title]
+        , MH.div_ [class_ "flex gap-1"] actions
+        ]
+    , if isExpanded
+        then MH.div_ [class_ "px-3 py-2 border-t"] [content]
+        else M.text ""
+    ]

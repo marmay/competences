@@ -16,7 +16,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.TaskContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Icon (Icon (IcnSolution, IcnTask))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Set (Set)
@@ -103,62 +104,50 @@ viewTask :: Bool -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.
 viewTask showPurposeBadge state liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
-      -- Check if task has any expandable content
       hasContent = case tws.taskContent of
         Nothing -> False
         Just c -> c /= ""
       hasSolutions = not (null tws.solutions)
       isExpandable = hasContent || hasSolutions
-      -- Only allow clicking and show expand icon if expandable
-      headerClasses = if isExpandable
-        then "flex items-center justify-between px-4 py-3 bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
-        else "flex items-center justify-between px-4 py-3 bg-muted/50"
-      headerAttrs = if isExpandable
-        then [class_ headerClasses, MH.onClick (liftAction $ ToggleTask tws.task.id)]
-        else [class_ headerClasses]
-   in MH.div_
-        [class_ "border rounded-lg overflow-hidden"]
-        [ -- Task header (always visible, clickable to expand only if has content)
+      titleLeft =
+        MH.div_
+          [class_ "flex items-center gap-2"]
+          [ V.icon [] IcnTask
+          , MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
+          ]
+      titleRight =
+        if showPurposeBadge
+          then purposeBadge tws.taskPurpose
+          else V.empty
+      titleView =
+        MH.div_
+          [class_ "flex items-center justify-between flex-1"]
+          [titleLeft, titleRight]
+      contentView =
+        MH.div_
+          [class_ "space-y-3"]
+          [ case tws.taskContent of
+              Nothing -> V.empty
+              Just content ->
+                if content == ""
+                  then V.empty
+                  else
+                    MH.div_
+                      [class_ "prose prose-stone prose-sm max-w-none"]
+                      [renderRichText content]
+          , if null tws.solutions
+              then V.empty
+              else viewSolutions state liftAction tws.solutions
+          ]
+   in if isExpandable
+        then Disclosure.collapsible isExpanded (liftAction $ ToggleTask tws.task.id) titleView contentView
+        else
           MH.div_
-            headerAttrs
+            [class_ "border rounded-lg overflow-hidden"]
             [ MH.div_
-                [class_ "flex items-center gap-2"]
-                [ -- Expand/collapse icon (only if expandable)
-                  if isExpandable
-                    then V.icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
-                    else V.empty
-                , -- Task icon
-                  V.icon [] IcnTask
-                , -- Task identifier
-                  MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
-                ]
-            , -- Purpose badge (only shown for teachers)
-              if showPurposeBadge
-                then purposeBadge tws.taskPurpose
-                else V.empty
+                [class_ "flex items-center justify-between px-3 py-2 bg-muted/50"]
+                [titleLeft, titleRight]
             ]
-        , -- Task content and solutions (shown when expanded)
-          if isExpanded && isExpandable
-            then
-              MH.div_
-                [class_ "px-4 py-3 border-t space-y-3"]
-                [ -- Task content
-                  case tws.taskContent of
-                    Nothing -> V.empty
-                    Just content ->
-                      if content == ""
-                        then V.empty
-                        else
-                          MH.div_
-                            [class_ "prose prose-stone prose-sm max-w-none"]
-                            [renderRichText content]
-                , -- Solutions section
-                  if null tws.solutions
-                    then V.empty
-                    else viewSolutions state liftAction tws.solutions
-                ]
-            else V.empty
-        ]
 
 -- | View solutions list within a task
 viewSolutions :: TaskResourceList -> (Action -> a) -> [Solution] -> M.View model a
@@ -175,31 +164,20 @@ viewSolutions state liftAction sols =
 viewSolution :: TaskResourceList -> (Action -> a) -> Solution -> M.View model a
 viewSolution state liftAction sol =
   let isExpanded = Set.member sol.id state.expandedSolutions
-   in MH.div_
-        [class_ "border rounded-lg overflow-hidden bg-background"]
-        [ -- Solution header
-          MH.div_
-            [ class_ "flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
-            , MH.onClick (liftAction $ ToggleSolution sol.id)
-            ]
-            [ V.icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
-            , V.icon [] IcnSolution
-            , solutionTypeBadge sol.solutionType
-            ]
-        , -- Solution content (shown when expanded)
-          if isExpanded
-            then
+   in Disclosure.collapsible
+        isExpanded
+        (liftAction $ ToggleSolution sol.id)
+        ( MH.div_
+            [class_ "flex items-center gap-2"]
+            [V.icon [] IcnSolution, solutionTypeBadge sol.solutionType]
+        )
+        ( if sol.content == ""
+            then Typography.muted "Kein Inhalt"
+            else
               MH.div_
-                [class_ "px-4 py-3 border-t"]
-                [ if sol.content == ""
-                    then Typography.muted "Kein Inhalt"
-                    else
-                      MH.div_
-                        [class_ "prose prose-stone prose-sm max-w-none"]
-                        [renderRichText sol.content]
-                ]
-            else V.empty
-        ]
+                [class_ "prose prose-stone prose-sm max-w-none"]
+                [renderRichText sol.content]
+        )
 
 -- ============================================================================
 -- Badges

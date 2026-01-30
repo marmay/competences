@@ -10,7 +10,7 @@ import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
 import Competences.Document.User (UserId, UserIxs)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -350,7 +350,7 @@ evaluatorComponent r assignment =
                                    [ class_ "flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
                                    , M.onClick (ToggleTaskContentExpanded taskId)
                                    ]
-                                   [ V.icon [] (if isContentExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
+                                   [ Disclosure.disclosureChevron isContentExpanded
                                    , M.span_ [class_ "text-sm text-muted-foreground"] [M.text "Aufgabenstellung"]
                                    ]
                                , -- Content (only when expanded)
@@ -375,21 +375,9 @@ evaluatorComponent r assignment =
             Results -> not $ Set.member solution.id m.collapsedResults
             _ -> Set.member solution.id m.collapsedResults  -- Non-results: collapsed by default, tracked as "expanded" in set
           solutionTypeLabel = C.translate' (C.LblSolutionType solution.solutionType)
-       in M.div_ [class_ "border rounded-lg overflow-hidden"]
-            [ -- Collapsible header
-              M.div_
-                [ class_ "flex items-center gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted"
-                , M.onClick (ToggleSolutionExpanded solution.id)
-                ]
-                [ V.icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
-                , M.span_ [class_ "text-sm font-medium"] [M.text solutionTypeLabel]
-                ]
-            , -- Collapsible content
-              if isExpanded
-                then M.div_ [class_ "px-3 py-2 border-t prose prose-sm prose-stone max-w-none"]
-                       [renderRichText solution.content]
-                else M.text ""
-            ]
+       in Disclosure.collapsible isExpanded (ToggleSolutionExpanded solution.id)
+            (M.span_ [class_ "text-sm font-medium"] [M.text solutionTypeLabel])
+            (M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText solution.content])
 
     viewStudentEvaluations m taskId =
       let taskM = Ix.getOne (m.tasks Ix.@= taskId)

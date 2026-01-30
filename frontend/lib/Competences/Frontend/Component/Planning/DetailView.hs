@@ -198,46 +198,37 @@ detailComponent r initialPlan =
 
     viewLesson m lesson =
       let isExpanded = m.expandedLessonId == Just lesson.id
-       in MH.div_
-            [class_ "border border-border rounded-lg overflow-hidden"]
-            [ -- Lesson header
-              MH.div_
-                [class_ "flex items-center gap-3 p-3 bg-muted/50"]
-                [ -- Chevron and content (clickable to expand)
-                  Disclosure.disclosureHeader (ToggleLessonExpansion lesson.id) isExpanded
-                    [ -- Lesson title and description
+       in Disclosure.collapsibleWithActions isExpanded (ToggleLessonExpansion lesson.id)
+            -- Title
+            ( MH.div_
+                []
+                [ MH.div_
+                    [class_ "font-medium"]
+                    [M.text $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title]
+                , if Text.null lesson.description
+                    then M.text ""
+                    else
                       MH.div_
-                        [class_ "flex-1"]
-                        [ MH.div_
-                            [class_ "font-medium"]
-                            [M.text $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title]
-                        , if Text.null lesson.description
-                            then M.text ""
-                            else MH.div_
-                                   [class_ "text-sm text-muted-foreground"]
-                                   [renderRichText lesson.description]
-                        ]
-                    ]
-                , -- Edit and delete buttons
-                  MH.div_
-                    [class_ "flex gap-1"]
-                    [ Button.buttonGhost ""
-                        & Button.withIcon IcnEdit
-                        & Button.withSize Button.Small
-                        & Button.withClick (OpenLessonEditorModal lesson)
-                        & Button.renderButton
-                    , Button.buttonDestructive ""
-                        & Button.withIcon IcnDelete
-                        & Button.withSize Button.Small
-                        & Button.withClick (DeleteLesson lesson.id)
-                        & Button.renderButton
-                    ]
+                        [class_ "text-sm text-muted-foreground"]
+                        [renderRichText lesson.description]
                 ]
-            , -- Expanded content (lesson detail)
-              if isExpanded
-                then viewExpandedLesson m lesson
-                else M.text ""
+            )
+            -- Actions
+            [ Button.buttonGhost ""
+                & Button.withIcon IcnEdit
+                & Button.withSize Button.Small
+                & Button.withStopPropagation
+                & Button.withClick (OpenLessonEditorModal lesson)
+                & Button.renderButton
+            , Button.buttonDestructive ""
+                & Button.withIcon IcnDelete
+                & Button.withSize Button.Small
+                & Button.withStopPropagation
+                & Button.withClick (DeleteLesson lesson.id)
+                & Button.renderButton
             ]
+            -- Content
+            (viewExpandedLesson m lesson)
 
     viewExpandedLesson m lesson =
       MH.div_
