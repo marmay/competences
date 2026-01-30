@@ -1,4 +1,4 @@
-module Competences.Frontend.View.TaskResource
+module Competences.Frontend.Component.TaskResource
   ( TaskResourceList (..)
   , DisplayMode (..)
   , TaskWithSolutions (..)
@@ -13,7 +13,7 @@ import Competences.Document (Solution (..), Task (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View.TaskContent (renderRichText)
+import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure

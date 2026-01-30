@@ -43,7 +43,7 @@ import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.View.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)

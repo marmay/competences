@@ -20,7 +20,7 @@ import Competences.Document
   )
 import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View.TaskResource
+import Competences.Frontend.Component.TaskResource
   ( DisplayMode (..)
   , TaskResourceList
   , TaskWithSolutions (..)
@@ -28,7 +28,7 @@ import Competences.Frontend.View.TaskResource
   , taskResourceListView
   , updateTaskResourceList
   )
-import Competences.Frontend.View.TaskResource qualified as TRL
+import Competences.Frontend.Component.TaskResource qualified as TRL
 import Optics.Core ((&))
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View qualified as V

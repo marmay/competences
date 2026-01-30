@@ -10,7 +10,7 @@ import Competences.Document.Solution (SolutionId, SolutionIxs, SolutionType (..)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View.TaskContent (renderRichText)
+import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext

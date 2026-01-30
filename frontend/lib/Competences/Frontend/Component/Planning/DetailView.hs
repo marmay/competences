@@ -15,7 +15,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
-import Competences.Frontend.View.TaskContent (renderRichText)
+import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)

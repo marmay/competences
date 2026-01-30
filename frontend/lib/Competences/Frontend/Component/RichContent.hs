@@ -26,8 +26,12 @@
 --   Left err -> errorView err
 -- @
 module Competences.Frontend.Component.RichContent
-  ( -- * Component
-    richContentView
+  ( -- * Convenience functions
+    renderRichText
+  , taskContentView
+
+    -- * Component
+  , richContentView
   , richContentComponent
 
     -- * Types (re-exported)
@@ -35,6 +39,7 @@ module Competences.Frontend.Component.RichContent
   )
 where
 
+import Competences.TaskContent.Parser (parseTaskContent)
 import Competences.Frontend.MathJax.Manager
   ( ComponentContainerId (..)
   , FormulaId (..)
@@ -48,15 +53,19 @@ import Competences.Frontend.MathJax.Manager
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.TaskContent.AST
+import Data.Bits (xor, (.&.))
+import Data.Char (ord)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Event (onBeforeDestroyed)
 import Miso.Html qualified as M
 import Miso.Html.Property (height_, href_, width_)
 import Miso.String (ms)
+import Numeric (showHex)
 import Miso.Svg.Element qualified as Svg
 import Optics.Core ((.~))
 
@@ -247,3 +256,39 @@ svgUseRef formulas fid display =
             [ Svg.use_
                 [href_ (ms ("#" <> fid.unFormulaId))]
             ]
+
+-- ============================================================================
+-- Convenience functions (merged from View.TaskContent)
+-- ============================================================================
+
+-- | Render parsed TaskContent AST to Miso view
+--
+-- Uses RichContent component which renders math formulas to a hidden
+-- SVG container and references them via <use> elements.
+taskContentView :: TaskContent -> M.View p a
+taskContentView ast =
+  -- Generate a stable key from the content for component identity
+  let key = hashContent ast
+   in richContentView key ast
+
+-- | Convenience function to parse and render text in one step
+--
+-- On parse failure, shows the raw text in a code block with error styling.
+renderRichText :: Text -> M.View p a
+renderRichText content =
+  case parseTaskContent content of
+    Left _err ->
+      -- Parse error - show raw text as fallback
+      M.pre_
+        [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
+        [M.text (ms content)]
+    Right ast ->
+      taskContentView ast
+
+-- | Generate a stable hash key from TaskContent
+-- Uses DJB2-like hash (works on 32-bit WASM)
+hashContent :: TaskContent -> Text
+hashContent (TaskContent blocks) =
+  let str = show blocks
+      djb2Hash = foldl' (\h c -> ((h * 33) `xor` ord c) .&. 0x7FFFFFFF) 5381 str
+   in "tc-" <> T.pack (showHex djb2Hash "")
