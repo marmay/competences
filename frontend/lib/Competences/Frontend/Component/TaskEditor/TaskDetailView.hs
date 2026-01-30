@@ -20,6 +20,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
 import Miso.Html qualified as MH
 import Data.Map qualified as Map
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Miso qualified as M
@@ -113,27 +114,22 @@ identifierViewLens = #identifier % taskIdentifierTextIso
 identifierPatchLens :: Lens' TaskPatch (Change Text)
 identifierPatchLens = #identifier % changeTaskIdentifierTextIso
 
--- Lenses for content (Maybe Text <-> Text conversion, empty = Nothing)
-contentIso :: Iso' (Maybe Text) Text
-contentIso = iso
-  (\case
-      Nothing -> ""
-      Just t -> t
-  )
-  (\t -> if t == "" then Nothing else Just t)
+-- Lenses for content (Maybe RichContent <-> RichContent conversion, empty = Nothing)
+contentIso :: Iso' (Maybe RichContent) RichContent
+contentIso = iso (fromMaybe mempty) (\t -> if t == mempty then Nothing else Just t)
 
-changeContentIso :: Iso' (Change (Maybe Text)) (Change Text)
+changeContentIso :: Iso' (Change (Maybe RichContent)) (Change RichContent)
 changeContentIso = iso fwd bwd
   where
     fwd Nothing = Nothing
-    fwd (Just (a, b)) = Just (fromMaybe "" a, fromMaybe "" b)
+    fwd (Just (a, b)) = Just (fromMaybe mempty a, fromMaybe mempty b)
     bwd Nothing = Nothing
-    bwd (Just (a, b)) = Just (if a == "" then Nothing else Just a, if b == "" then Nothing else Just b)
+    bwd (Just (a, b)) = Just (if a == mempty then Nothing else Just a, if b == mempty then Nothing else Just b)
 
-contentViewLens :: Lens' Task Text
+contentViewLens :: Lens' Task RichContent
 contentViewLens = #content % contentIso
 
-contentPatchLens :: Lens' TaskPatch (Change Text)
+contentPatchLens :: Lens' TaskPatch (Change RichContent)
 contentPatchLens = #content % changeContentIso
 
 -- Lenses for purpose (extract from TaskType)

@@ -22,6 +22,7 @@ import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -30,7 +31,7 @@ import Optics.Core ((&), (^.))
 -- | Patch for modifying an Assignment
 data AssignmentPatch = AssignmentPatch
   { name :: !(Change AssignmentName)
-  , description :: !(Change Text)
+  , description :: !(Change RichContent)
   , assignmentDate :: !(Change Day)
   , activityType :: !(Change ActivityType)
   , studentIds :: !(Change (Set UserId))

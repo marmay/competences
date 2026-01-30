@@ -17,6 +17,7 @@ import Data.Binary (Binary)
 import Data.IxSet.Typed (Indexable (..), ixFun, ixList)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -33,7 +34,7 @@ newtype AssignmentName = AssignmentName Text
 data Assignment = Assignment
   { id :: !AssignmentId
   , name :: !AssignmentName
-  , description :: !Text
+  , description :: !RichContent
     -- ^ Description/instructions for the assignment (supports LaTeX math syntax)
   , assignmentDate :: !Day
   , activityType :: !ActivityType
@@ -48,7 +49,7 @@ instance FromJSON Assignment where
     Assignment
       <$> v .: "id"
       <*> v .: "name"
-      <*> v .:? "description" .!= ""  -- Default to empty for backward compatibility
+      <*> v .:? "description" .!= mempty  -- Default to empty for backward compatibility
       <*> v .: "assignmentDate"
       <*> v .: "activityType"
       <*> v .: "studentIds"
@@ -78,7 +79,7 @@ mkAssignment aid aname date =
   Assignment
     { id = aid
     , name = aname
-    , description = ""
+    , description = mempty
     , assignmentDate = date
     , activityType = SchoolExercise
     , studentIds = mempty

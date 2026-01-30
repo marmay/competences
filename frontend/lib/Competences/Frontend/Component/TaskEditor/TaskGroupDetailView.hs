@@ -41,6 +41,7 @@ import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -277,34 +278,29 @@ groupIdentifierViewLens = #identifier % groupIdentifierTextIso
 groupIdentifierPatchLens :: Lens' TaskGroupPatch (Change Text)
 groupIdentifierPatchLens = #identifier % changeGroupIdentifierTextIso
 
--- Lenses for contentBefore (Maybe Text <-> Text)
-maybeTextIso :: Iso' (Maybe Text) Text
-maybeTextIso = iso
-  (\case
-      Nothing -> ""
-      Just t -> t
-  )
-  (\t -> if t == "" then Nothing else Just t)
+-- Lenses for contentBefore (Maybe RichContent <-> RichContent)
+maybeRichContentIso :: Iso' (Maybe RichContent) RichContent
+maybeRichContentIso = iso (fromMaybe mempty) (\t -> if t == mempty then Nothing else Just t)
 
-changeMaybeTextIso :: Iso' (Change (Maybe Text)) (Change Text)
-changeMaybeTextIso = iso fwd bwd
+changeMaybeRichContentIso :: Iso' (Change (Maybe RichContent)) (Change RichContent)
+changeMaybeRichContentIso = iso fwd bwd
   where
     fwd Nothing = Nothing
-    fwd (Just (a, b)) = Just (fromMaybe "" a, fromMaybe "" b)
+    fwd (Just (a, b)) = Just (fromMaybe mempty a, fromMaybe mempty b)
     bwd Nothing = Nothing
-    bwd (Just (a, b)) = Just (if a == "" then Nothing else Just a, if b == "" then Nothing else Just b)
+    bwd (Just (a, b)) = Just (if a == mempty then Nothing else Just a, if b == mempty then Nothing else Just b)
 
-contentBeforeViewLens :: Lens' TaskGroup Text
-contentBeforeViewLens = #contentBefore % maybeTextIso
+contentBeforeViewLens :: Lens' TaskGroup RichContent
+contentBeforeViewLens = #contentBefore % maybeRichContentIso
 
-contentBeforePatchLens :: Lens' TaskGroupPatch (Change Text)
-contentBeforePatchLens = #contentBefore % changeMaybeTextIso
+contentBeforePatchLens :: Lens' TaskGroupPatch (Change RichContent)
+contentBeforePatchLens = #contentBefore % changeMaybeRichContentIso
 
-contentAfterViewLens :: Lens' TaskGroup Text
-contentAfterViewLens = #contentAfter % maybeTextIso
+contentAfterViewLens :: Lens' TaskGroup RichContent
+contentAfterViewLens = #contentAfter % maybeRichContentIso
 
-contentAfterPatchLens :: Lens' TaskGroupPatch (Change Text)
-contentAfterPatchLens = #contentAfter % changeMaybeTextIso
+contentAfterPatchLens :: Lens' TaskGroupPatch (Change RichContent)
+contentAfterPatchLens = #contentAfter % changeMaybeRichContentIso
 
 -- Lenses for default purpose
 purposeViewLens :: Lens' TaskGroup TaskPurpose
@@ -356,12 +352,12 @@ subTaskIdentifierViewLens = #identifier % taskIdentifierTextIso
 subTaskIdentifierPatchLens :: Lens' SubTaskPatch (Change Text)
 subTaskIdentifierPatchLens = #identifier % changeTaskIdentifierTextIso
 
--- SubTask content lens (Maybe Text -> Text)
-subTaskContentViewLens :: Lens' Task Text
-subTaskContentViewLens = #content % maybeTextIso
+-- SubTask content lens (Maybe RichContent -> RichContent)
+subTaskContentViewLens :: Lens' Task RichContent
+subTaskContentViewLens = #content % maybeRichContentIso
 
-subTaskContentPatchLens :: Lens' SubTaskPatch (Change Text)
-subTaskContentPatchLens = #content % changeMaybeTextIso
+subTaskContentPatchLens :: Lens' SubTaskPatch (Change RichContent)
+subTaskContentPatchLens = #content % changeMaybeRichContentIso
 
 -- ============================================================================
 -- Override Enums for SubTask Editors

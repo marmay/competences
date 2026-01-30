@@ -342,7 +342,7 @@ evaluatorComponent r assignment =
                in case content of
                     Nothing -> M.text ""
                     Just c ->
-                      if T.null c
+                      if c == mempty
                         then M.text ""
                         else M.div_ [class_ "mb-2"]
                                [ -- Collapsible header

@@ -40,6 +40,7 @@ module Competences.Frontend.Component.RichContent
 where
 
 import Competences.TaskContent.Parser (parseTaskContent)
+import Competences.TaskContent.RichContent (RichContent, toRawText)
 import Competences.Frontend.MathJax.Manager
   ( ComponentContainerId (..)
   , FormulaId (..)
@@ -271,19 +272,20 @@ taskContentView ast =
   let key = hashContent ast
    in richContentView key ast
 
--- | Convenience function to parse and render text in one step
+-- | Convenience function to parse and render rich content in one step
 --
 -- On parse failure, shows the raw text in a code block with error styling.
-renderRichText :: Text -> M.View p a
-renderRichText content =
-  case parseTaskContent content of
-    Left _err ->
-      -- Parse error - show raw text as fallback
-      M.pre_
-        [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
-        [M.text (ms content)]
-    Right ast ->
-      taskContentView ast
+renderRichText :: RichContent -> M.View p a
+renderRichText rc =
+  let raw = toRawText rc
+   in case parseTaskContent raw of
+        Left _err ->
+          -- Parse error - show raw text as fallback
+          M.pre_
+            [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
+            [M.text (ms raw)]
+        Right ast ->
+          taskContentView ast
 
 -- | Generate a stable hash key from TaskContent
 -- Uses DJB2-like hash (works on 32-bit WASM)

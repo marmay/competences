@@ -25,6 +25,7 @@ import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLen
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
@@ -148,11 +149,11 @@ resourceContentEditorField =
   where
     contentViewer :: Resource -> M.View (Model Resource ResourcePatch f) (Action Resource ResourcePatch)
     contentViewer res = case res.content of
-      InlineContent text ->
-        if text == ""
+      InlineContent rc ->
+        if rc == mempty
           then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
           else MH.div_ [class_ "prose prose-stone prose-sm max-w-none"]
-                 [renderRichText text]
+                 [renderRichText rc]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
           [ MH.div_ [class_ "flex items-center gap-2"]
@@ -194,7 +195,7 @@ resourceContentEditorField =
                 ]
             , -- Content-specific fields
               case currentContent of
-                InlineContent text ->
+                InlineContent rc ->
                   MH.div_ [class_ "flex gap-4 w-full"]
                     [ -- Editor panel (left)
                       MH.div_ [class_ "flex-1 min-w-0"]
@@ -202,8 +203,8 @@ resourceContentEditorField =
                         , MH.textarea_
                             ( [ class_ "w-full min-h-[150px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
                               , MH.onChange
-                                  (\v -> UpdatePatch original (patch & #content ?~ (original.content, InlineContent (M.fromMisoString v))))
-                              , M.value_ (M.ms text)
+                                  (\v -> UpdatePatch original (patch & #content ?~ (original.content, InlineContent (fromTrustedInput (M.fromMisoString v)))))
+                              , M.value_ (M.ms (toRawText rc))
                               ]
                               <> if refocusTarget then [M.id_ "refocus-target"] else []
                             )
@@ -213,9 +214,9 @@ resourceContentEditorField =
                       MH.div_ [class_ "flex-1 min-w-0"]
                         [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Preview"]
                         , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                            [ if text == ""
+                            [ if rc == mempty
                                 then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
-                                else renderRichText text
+                                else renderRichText rc
                             ]
                         ]
                     ]
@@ -280,7 +281,7 @@ resourceContentEditorField =
     isVideoLink (VideoLink _ _) = True
     isVideoLink _ = False
 
-    switchToInline original patch = UpdatePatch original (patch & #content ?~ (original.content, InlineContent ""))
+    switchToInline original patch = UpdatePatch original (patch & #content ?~ (original.content, InlineContent mempty))
     switchToWebLink original patch = UpdatePatch original (patch & #content ?~ (original.content, WebLink "" ""))
     switchToVideoLink original patch = UpdatePatch original (patch & #content ?~ (original.content, VideoLink "" ""))
 

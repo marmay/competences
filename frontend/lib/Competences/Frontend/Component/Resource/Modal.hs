@@ -39,6 +39,7 @@ import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Set qualified as Set
+import Competences.TaskContent.RichContent (toRawText)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -195,15 +196,15 @@ resourcesListView resources expandedSet =
               ]
        in case res.content of
             -- Inline content: expandable card
-            InlineContent txt ->
+            InlineContent rc ->
               let isExpanded = Set.member res.id expandedSet
-                  hasContent = not (T.null txt)
+                  hasContent = rc /= mempty
                in if hasContent
                     then
                       Disclosure.collapsible isExpanded (ToggleResourceExpanded res.id) nameView $
                         MH.div_
                           [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"]
-                          [M.text (M.ms txt)]
+                          [M.text (M.ms (toRawText rc))]
                     else
                       MH.div_
                         [class_ "border rounded-lg overflow-hidden"]

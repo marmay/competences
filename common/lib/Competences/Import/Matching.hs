@@ -43,6 +43,7 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
+import Competences.TaskContent.RichContent (fromTrustedInput)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.UUID.Types qualified as UUID
@@ -246,7 +247,7 @@ makeNewTask parsed =
   Task
     { id = Id UUID.nil
     , identifier = parsed.identifier
-    , content = if T.null parsed.content then Nothing else Just parsed.content
+    , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = SelfContained defaultTaskAttributes
     }
 
@@ -256,7 +257,7 @@ updateTask existing parsed =
   Task
     { id = existing.id
     , identifier = parsed.identifier
-    , content = if T.null parsed.content then Nothing else Just parsed.content
+    , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = existing.taskType
     }
 
@@ -281,7 +282,7 @@ makeNewSolution parsed =
     , taskId = Id UUID.nil -- Will be set during import
     , userId = Id UUID.nil -- Will be set to teacher
     , solutionType = parsed.solutionType
-    , content = parsed.content
+    , content = fromTrustedInput parsed.content
     }
 
 -- | Match competence references against grids
@@ -363,7 +364,7 @@ makeNewAssignment parsed =
   Assignment
     { id = Id UUID.nil -- Placeholder
     , name = AssignmentName parsed.name
-    , description = parsed.description
+    , description = fromTrustedInput parsed.description
     , assignmentDate = parsed.assignmentDate
     , activityType = parsed.activityType
     , studentIds = Set.empty -- Will be set during import
@@ -376,7 +377,7 @@ updateAssignment existing parsed =
   Assignment
     { id = existing.id
     , name = AssignmentName parsed.name
-    , description = parsed.description
+    , description = fromTrustedInput parsed.description
     , assignmentDate = parsed.assignmentDate
     , activityType = parsed.activityType
     , studentIds = existing.studentIds -- Preserve students

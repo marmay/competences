@@ -25,6 +25,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -33,13 +34,13 @@ import Optics.Core ((&), (%~), (.~), (^.))
 -- | Patch for modifying a Lesson (covers all fields)
 data LessonPatch = LessonPatch
   { title :: !(Change Text)
-  , description :: !(Change Text)
+  , description :: !(Change RichContent)
   , competenceLevels :: !(Change [CompetenceLevelId])
   , date :: !(Change (Maybe Day))
   , assignments :: !(Change [AssignmentId])
   , resources :: !(Change [ResourceId])
   , phases :: !(Change [LessonPhase])
-  , notes :: !(Change Text)
+  , notes :: !(Change RichContent)
   }
   deriving (Eq, Generic, Show)
 

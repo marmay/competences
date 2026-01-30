@@ -81,6 +81,7 @@ library
         Competences.Query.User
         Competences.TaskContent.AST
         Competences.TaskContent.Parser
+        Competences.TaskContent.RichContent
     build-depends:
         base ^>=4.21.0.0,
         aeson,

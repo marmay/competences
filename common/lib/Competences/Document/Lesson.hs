@@ -23,6 +23,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Maybe (maybeToList)
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -100,7 +101,7 @@ data Lesson = Lesson
   , order :: !Order
   -- Meso-level fields (collapsed view):
   , title :: !Text
-  , description :: !Text
+  , description :: !RichContent
   -- ^ Rich text
   , competenceLevels :: ![CompetenceLevelId]
   -- Lesson-level fields (expanded view):
@@ -108,7 +109,7 @@ data Lesson = Lesson
   , assignments :: ![AssignmentId]
   , resources :: ![ResourceId]
   , phases :: ![LessonPhase]
-  , notes :: !Text
+  , notes :: !RichContent
   -- ^ Rich text
   }
   deriving (Eq, Generic, Ord, Show)

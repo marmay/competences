@@ -17,6 +17,7 @@ import Competences.Document.Id (Id)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -35,7 +36,7 @@ newtype ResourceIdentifier = ResourceIdentifier Text
 -- - Video link (URL + description)
 data ResourceContent
   = -- | Rich text content with MathJax support
-    InlineContent !Text
+    InlineContent !RichContent
   | -- | Web link with URL and description
     WebLink !Text !Text
   | -- | Video link with URL and description
@@ -121,5 +122,5 @@ mkResource rid = Resource
   { id = rid
   , identifier = ResourceIdentifier ""
   , competenceLevels = []
-  , content = InlineContent ""
+  , content = InlineContent mempty
   }

@@ -15,6 +15,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core ((^.))
@@ -22,7 +23,7 @@ import Optics.Core ((^.))
 -- | Patch for modifying a Solution
 data SolutionPatch = SolutionPatch
   { solutionType :: !(Change SolutionType)
-  , content :: !(Change Text)
+  , content :: !(Change RichContent)
   }
   deriving (Eq, Generic, Show)
 

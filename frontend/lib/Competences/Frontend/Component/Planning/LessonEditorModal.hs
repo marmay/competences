@@ -22,6 +22,7 @@ import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (mu
 import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
@@ -116,13 +117,13 @@ lessonEditorModal r modalMgr lesson' =
       Model
         { lesson = lesson'
         , titleValue = lesson'.title
-        , descriptionValue = lesson'.description
+        , descriptionValue = toRawText lesson'.description
         , competenceLevels = lesson'.competenceLevels
         , dateValue = lesson'.date
         , selectedAssignments = lesson'.assignments
         , selectedResources = lesson'.resources
         , phases = lesson'.phases
-        , notesValue = lesson'.notes
+        , notesValue = toRawText lesson'.notes
         , editingPhaseIndex = Nothing
         , modalManager = modalMgr
         , syncContext = r
@@ -191,25 +192,27 @@ lessonEditorModal r modalMgr lesson' =
       M.io_ $ do
         let old = m.lesson
             -- Build patch with only changed fields
+            newDescription = fromTrustedInput m.descriptionValue
+            newNotes = fromTrustedInput m.notesValue
             patch =
               def
                 & (if old.title /= m.titleValue then #title ?~ (old.title, m.titleValue) else id)
-                & (if old.description /= m.descriptionValue then #description ?~ (old.description, m.descriptionValue) else id)
+                & (if old.description /= newDescription then #description ?~ (old.description, newDescription) else id)
                 & (if old.competenceLevels /= m.competenceLevels then #competenceLevels ?~ (old.competenceLevels, m.competenceLevels) else id)
                 & (if old.date /= m.dateValue then #date ?~ (old.date, m.dateValue) else id)
                 & (if old.assignments /= m.selectedAssignments then #assignments ?~ (old.assignments, m.selectedAssignments) else id)
                 & (if old.resources /= m.selectedResources then #resources ?~ (old.resources, m.selectedResources) else id)
                 & (if old.phases /= m.phases then #phases ?~ (old.phases, m.phases) else id)
-                & (if old.notes /= m.notesValue then #notes ?~ (old.notes, m.notesValue) else id)
+                & (if old.notes /= newNotes then #notes ?~ (old.notes, newNotes) else id)
             hasChanges =
               old.title /= m.titleValue
-                || old.description /= m.descriptionValue
+                || old.description /= newDescription
                 || old.competenceLevels /= m.competenceLevels
                 || old.date /= m.dateValue
                 || old.assignments /= m.selectedAssignments
                 || old.resources /= m.selectedResources
                 || old.phases /= m.phases
-                || old.notes /= m.notesValue
+                || old.notes /= newNotes
         if hasChanges
           then do
             modifySyncDocument m.syncContext (Lessons $ OnLessons $ Modify m.lesson.id Lock)
@@ -304,7 +307,7 @@ lessonEditorModal r modalMgr lesson' =
                     [M.text $ C.translate' C.LblPreview]
                 , MH.div_
                     [class_ "min-h-[150px] p-3 border border-input rounded-md bg-muted/50"]
-                    [renderRichText m.descriptionValue]
+                    [renderRichText (fromTrustedInput m.descriptionValue)]
                 ]
             ]
         ]
@@ -390,7 +393,7 @@ lessonEditorModal r modalMgr lesson' =
                     [M.text $ C.translate' C.LblPreview]
                 , MH.div_
                     [class_ "min-h-[120px] p-3 border border-input rounded-md bg-muted/50"]
-                    [renderRichText m.notesValue]
+                    [renderRichText (fromTrustedInput m.notesValue)]
                 ]
             ]
         ]

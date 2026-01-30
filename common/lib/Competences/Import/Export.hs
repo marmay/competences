@@ -43,6 +43,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
+import Competences.TaskContent.RichContent (toRawText)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, formatTime)
@@ -119,7 +120,7 @@ exportAssignment :: Document -> Assignment -> Text
 exportAssignment doc assignment =
   let AssignmentName name = assignment.name
       header = "# " <> name <> "\n"
-      descSection = "\n## Beschreibung\n" <> T.strip assignment.description <> "\n"
+      descSection = "\n## Beschreibung\n" <> T.strip (toRawText assignment.description) <> "\n"
       metaSection =
         "\n## Angaben\n"
           <> "Date: "
@@ -146,7 +147,7 @@ exportTaskAsSubsection doc task =
   let TaskIdentifier ident = task.identifier
       header = "### " <> ident <> "\n"
       contentSection = case task.content of
-        Just c | not (T.null (T.strip c)) -> "\n#### Angabe\n" <> T.strip c <> "\n"
+        Just c | let raw = toRawText c, not (T.null (T.strip raw)) -> "\n#### Angabe\n" <> T.strip raw <> "\n"
         _ -> ""
       -- Get competence references for this task
       competenceSection = exportTaskCompetences doc task
@@ -189,6 +190,7 @@ exportSolution sol =
         Hint -> "Hinweis"
         Results -> "Ergebnis"
         Complete -> "Komplettlösung"
-   in if T.null (T.strip sol.content)
+      raw = toRawText sol.content
+   in if T.null (T.strip raw)
         then ""
-        else "\n#### " <> sectionName <> "\n" <> T.strip sol.content <> "\n"
+        else "\n#### " <> sectionName <> "\n" <> T.strip raw <> "\n"

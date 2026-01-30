@@ -123,13 +123,13 @@ detailComponent r initialPlan =
                 , mesoPlanId = m.mesoPlan.id
                 , order = orderMax
                 , title = ""
-                , description = ""
+                , description = mempty
                 , competenceLevels = []
                 , date = Nothing
                 , assignments = []
                 , resources = []
                 , phases = []
-                , notes = ""
+                , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
         openModal r.modalManager (lessonEditorModal r r.modalManager lesson)
@@ -205,7 +205,7 @@ detailComponent r initialPlan =
                 [ MH.div_
                     [class_ "font-medium"]
                     [M.text $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title]
-                , if Text.null lesson.description
+                , if lesson.description == mempty
                     then M.text ""
                     else
                       MH.div_
@@ -267,7 +267,7 @@ detailComponent r initialPlan =
                     (map (viewResourceSummary m.document) lesson.resources)
                 ]
         , -- Notes preview
-          if Text.null lesson.notes
+          if lesson.notes == mempty
             then M.text ""
             else
               MH.div_

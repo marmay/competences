@@ -29,6 +29,7 @@ import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
 import Data.Map qualified as Map
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -37,7 +38,7 @@ import Optics.Core ((&), (%~), (.~), (^.))
 -- | Patch for modifying a SelfContained Task
 data TaskPatch = TaskPatch
   { identifier :: !(Change TaskIdentifier)
-  , content :: !(Change (Maybe Text))
+  , content :: !(Change (Maybe RichContent))
     -- Unwrapped TaskAttributes fields
   , primary :: !(Change [CompetenceLevelId])
   , secondary :: !(Change [CompetenceLevelId])
@@ -49,8 +50,8 @@ data TaskPatch = TaskPatch
 -- | Patch for modifying a TaskGroup
 data TaskGroupPatch = TaskGroupPatch
   { identifier :: !(Change TaskGroupIdentifier)
-  , contentBefore :: !(Change (Maybe Text))
-  , contentAfter :: !(Change (Maybe Text))
+  , contentBefore :: !(Change (Maybe RichContent))
+  , contentAfter :: !(Change (Maybe RichContent))
     -- Unwrapped defaultTaskAttributes fields
   , primary :: !(Change [CompetenceLevelId])
   , secondary :: !(Change [CompetenceLevelId])
@@ -62,7 +63,7 @@ data TaskGroupPatch = TaskGroupPatch
 -- | Patch for modifying a SubTask
 data SubTaskPatch = SubTaskPatch
   { identifier :: !(Change TaskIdentifier)
-  , content :: !(Change (Maybe Text))
+  , content :: !(Change (Maybe RichContent))
     -- TaskAttributesOverride fields (each is Maybe, so Change (Maybe X))
   , primary :: !(Change (Maybe [CompetenceLevelId]))
   , secondary :: !(Change (Maybe [CompetenceLevelId]))

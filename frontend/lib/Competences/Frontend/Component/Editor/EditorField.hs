@@ -21,6 +21,7 @@ import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.TaskContent.RichContent (RichContent, toRawText, fromTrustedInput)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
@@ -113,23 +114,23 @@ msIso = O.iso M.ms M.fromMisoString
 -- | Rich text editor field with markup rendering
 --   Viewer: renders task content markup (paragraphs, emphasis, math, lists)
 --   Editor: textarea for entering markup
-richTextEditorField :: Lens' a Text -> Lens' patch (Change Text) -> EditorField a patch f
+richTextEditorField :: Lens' a RichContent -> Lens' patch (Change RichContent) -> EditorField a patch f
 richTextEditorField viewLens patchLens =
   EditorField
     { viewer = richTextViewer viewLens
     , editor = richTextEditor viewLens patchLens
     }
 
-richTextViewer :: Lens' a Text -> a -> M.View (Model a patch f) (Action a patch)
+richTextViewer :: Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)
 richTextViewer viewLens a =
   let content = a ^. viewLens
-   in if content == ""
+   in if content == mempty
         then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
         else renderRichText content
 
 richTextEditor
-  :: Lens' a Text
-  -> Lens' patch (Change Text)
+  :: Lens' a RichContent
+  -> Lens' patch (Change RichContent)
   -> Bool
   -> a
   -> patch
@@ -145,8 +146,8 @@ richTextEditor viewLens patchLens refocusTarget original patch =
             , M.textarea_
                 ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
                   , M.onChange
-                      (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
-                  , M.value_ (M.ms currentContent)
+                      (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, fromTrustedInput (M.fromMisoString v))))
+                  , M.value_ (M.ms (toRawText currentContent))
                   ]
                     <> refocusTargetAttr refocusTarget
                 )
@@ -158,7 +159,7 @@ richTextEditor viewLens patchLens refocusTarget original patch =
             [ M.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Preview"]
             , M.div_
                 [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                [ if currentContent == ""
+                [ if currentContent == mempty
                     then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
                     else renderRichText currentContent
                 ]

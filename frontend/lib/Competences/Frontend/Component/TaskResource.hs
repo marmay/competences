@@ -20,9 +20,9 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon (Icon (IcnSolution, IcnTask))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -41,7 +41,7 @@ data DisplayMode
 -- | A task with its pre-computed content and solutions
 data TaskWithSolutions = TaskWithSolutions
   { task :: !Task
-  , taskContent :: !(Maybe Text)  -- ^ Pre-computed from getTaskContent
+  , taskContent :: !(Maybe RichContent)  -- ^ Pre-computed from getTaskContent
   , taskPurpose :: !TaskPurpose   -- ^ Pre-computed from getTaskAttributes
   , solutions :: ![Solution]
   }
@@ -106,7 +106,7 @@ viewTask showPurposeBadge state liftAction tws =
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
         Nothing -> False
-        Just c -> c /= ""
+        Just c -> c /= mempty
       hasSolutions = not (null tws.solutions)
       isExpandable = hasContent || hasSolutions
       titleLeft =
@@ -129,7 +129,7 @@ viewTask showPurposeBadge state liftAction tws =
           [ case tws.taskContent of
               Nothing -> V.empty
               Just content ->
-                if content == ""
+                if content == mempty
                   then V.empty
                   else
                     MH.div_
@@ -171,7 +171,7 @@ viewSolution state liftAction sol =
             [class_ "flex items-center gap-2"]
             [V.icon [] IcnSolution, solutionTypeBadge sol.solutionType]
         )
-        ( if sol.content == ""
+        ( if sol.content == mempty
             then Typography.muted "Kein Inhalt"
             else
               MH.div_

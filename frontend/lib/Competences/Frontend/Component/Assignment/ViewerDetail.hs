@@ -55,7 +55,6 @@ import Competences.Query.Assignment qualified as Q
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -235,7 +234,7 @@ viewerComponent r user assignment =
                         ]
                     ]
                 , -- Description (if present, supports math syntax)
-                  if T.null desc
+                  if desc == mempty
                     then M.text ""
                     else M.div_
                            [class_ "prose prose-stone prose-sm max-w-none"]

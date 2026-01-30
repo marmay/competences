@@ -39,8 +39,8 @@ import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
 import Data.List (singleton, sortOn)
 import Data.Maybe (fromMaybe)
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 
 -- | ID for a Task.
@@ -156,9 +156,9 @@ data TaskGroup = TaskGroup
     -- User is responsible for uniqueness.
   , defaultTaskAttributes :: !TaskAttributes
     -- ^ Default attributes inherited by subtasks.
-  , contentBefore :: !(Maybe Text)
+  , contentBefore :: !(Maybe RichContent)
     -- ^ Content displayed before subtask content (when rendering).
-  , contentAfter :: !(Maybe Text)
+  , contentAfter :: !(Maybe RichContent)
     -- ^ Content displayed after subtask content (when rendering).
   }
   deriving (Eq, Generic, Ord, Show)
@@ -221,7 +221,7 @@ data Task = Task
   , identifier :: !TaskIdentifier
     -- ^ Human-readable identifier (e.g., "Book-1.2.3.a", "Worksheet-15-Task-2").
     -- User is responsible for uniqueness.
-  , content :: !(Maybe Text)
+  , content :: !(Maybe RichContent)
     -- ^ Inline task content (if provided).
     -- Nothing = reference-only task (students look up by identifier).
     -- Just text = task content shown inline.
@@ -295,18 +295,18 @@ getTaskAttributes taskGroups task = case task.taskType of
 
 -- | Get composed content for any task.
 -- For SubTask, this composes: [contentBefore] [task.content] [contentAfter].
-getTaskContent :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> Maybe Text
+getTaskContent :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> Maybe RichContent
 getTaskContent taskGroups task = case task.taskType of
   SelfContained _ -> task.content
   SubTask groupId _ ->
     case Ix.getOne (Ix.getEQ groupId taskGroups) of
       Nothing -> task.content -- fallback if group not found
       Just group ->
-        let before = fromMaybe "" group.contentBefore
-            taskContent = fromMaybe "" task.content
-            after = fromMaybe "" group.contentAfter
-            composed = before <> taskContent <> after
-         in if T.null composed then Nothing else Just composed
+        let composed =
+              fromMaybe mempty group.contentBefore
+                <> fromMaybe mempty task.content
+                <> fromMaybe mempty group.contentAfter
+         in if composed == mempty then Nothing else Just composed
 
 -- | Check if task should be displayed in resources.
 isResourceTask :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> Bool

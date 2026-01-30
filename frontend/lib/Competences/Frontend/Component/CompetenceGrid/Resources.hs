@@ -17,6 +17,7 @@ import Competences.Document
   , ResourceIdentifier (..)
   )
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.TaskContent.RichContent (toRawText)
 import Competences.Query.Competence qualified as QCompetence
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
@@ -122,7 +123,7 @@ resourcesComponent r grid =
               { id = resourceId
               , identifier = ResourceIdentifier ""
               , competenceLevels = [levelId]
-              , content = InlineContent ""
+              , content = InlineContent mempty
               }
       modifySyncDocument r (Resources $ OnResources $ EC.CreateAndLock resource)
 
@@ -229,6 +230,6 @@ resourceListView compLevels resources =
         , MH.span_ [class_ "text-xs text-stone-400"] [M.text $ contentSummary res.content]
         ]
 
-    contentSummary (InlineContent t) = if T.null t then "Inline" else M.ms (T.take 30 t <> if T.length t > 30 then "..." else "")
+    contentSummary (InlineContent rc) = let t = toRawText rc in if T.null t then "Inline" else M.ms (T.take 30 t <> if T.length t > 30 then "..." else "")
     contentSummary (WebLink _ _) = "Web-Link"
     contentSummary (VideoLink _ _) = "Video"

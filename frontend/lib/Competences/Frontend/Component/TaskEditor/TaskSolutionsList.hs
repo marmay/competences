@@ -181,7 +181,7 @@ taskSolutionsListComponent r taskId =
             ( if isOwner
                 then solutionInlineEditor r sol
                 else
-                  if sol.content == ""
+                  if sol.content == mempty
                     then Typography.muted "Kein Inhalt"
                     else
                       MH.div_

@@ -15,7 +15,7 @@ import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.List (singleton)
-import Data.Text (Text)
+import Competences.TaskContent.RichContent (RichContent)
 import GHC.Generics (Generic)
 
 -- | Type of solution
@@ -44,7 +44,7 @@ data Solution = Solution
   , taskId :: !TaskId
   , userId :: !UserId
   , solutionType :: !SolutionType
-  , content :: !Text
+  , content :: !RichContent
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -70,5 +70,5 @@ mkSolution sid tid uid =
     , taskId = tid
     , userId = uid
     , solutionType = Hint
-    , content = ""
+    , content = mempty
     }
