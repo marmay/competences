@@ -125,6 +125,7 @@ library
         Competences.Frontend.View.Table,
         Competences.Frontend.View.TagInput,
         Competences.Frontend.View.Tailwind,
+        Competences.Frontend.View.TaskStatus,
         Competences.Frontend.View.Text,
         Competences.Frontend.View.Tooltip,
         Competences.Frontend.View.Typography,

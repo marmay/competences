@@ -152,7 +152,7 @@ resourceModalComponent cfg =
             [class_ "flex-1 overflow-y-auto px-8 py-6"]
             [ case m.viewMode of
                 ViewTasks ->
-                  taskResourceListView m.config.showPurposeBadge m.config.tasks m.taskListState TaskListAction
+                  taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.tasks m.taskListState TaskListAction
                 ViewLearningResources ->
                   resourcesListView m.config.resources m.expandedResources
             ]

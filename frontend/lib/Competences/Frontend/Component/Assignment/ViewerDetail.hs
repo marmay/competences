@@ -20,6 +20,7 @@ import Competences.Document.Evidence (Ability (..))
 import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
+  , TaskId
   , TaskIdentifier (..)
   , getTaskAttributes
   , getTaskContent
@@ -52,6 +53,8 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.User (UserRole (..))
 import Competences.Query.Assignment (AssignmentStatus (..), accumulatedObservations, assignmentStatus)
 import Competences.Query.Assignment qualified as Q
+import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuses)
+import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
@@ -97,6 +100,8 @@ data ViewerProjection = ViewerProjection
   , focusedUser :: !(Maybe User)
     -- | Connected user role (for conditional display)
   , connectedUserRole :: !UserRole
+    -- | Pre-computed: per-task completion status for the effective user
+  , taskStatuses :: !(Map TaskId TaskCompletionStatus)
   }
   deriving (Eq, Generic, Show)
 
@@ -110,6 +115,7 @@ emptyProjection role assignment = ViewerProjection
   , currentAssignment = assignment
   , focusedUser = Nothing
   , connectedUserRole = role
+  , taskStatuses = Map.empty
   }
 
 -- ============================================================================
@@ -187,6 +193,9 @@ viewerComponent r user assignment =
           -- Pre-compute status
           status = assignmentStatus doc effectiveUserId updatedAssignment.id
 
+          -- Pre-compute per-task completion status
+          taskStatuses = taskCompletionStatuses doc effectiveUserId relevantTasks
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -195,6 +204,7 @@ viewerComponent r user assignment =
             , currentAssignment = updatedAssignment
             , focusedUser = mUser
             , connectedUserRole = role
+            , taskStatuses
             }
 
     update (ProjectionChanged change) =
@@ -283,10 +293,11 @@ viewerComponent r user assignment =
       let proj = m.projection
           -- Only show purpose badges for teachers
           showPurposeBadge = proj.connectedUserRole == Teacher
+          taskStatusRenderer = viewTaskCompletionStatusFromMap proj.taskStatuses
        in M.div_
             [class_ "space-y-4"]
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , taskResourceListView showPurposeBadge proj.tasksWithSolutions m.taskListState TaskListAction
+            , taskResourceListView showPurposeBadge taskStatusRenderer proj.tasksWithSolutions m.taskListState TaskListAction
             ]
 
     assignmentNameToText (AssignmentName t) = ms t

@@ -164,6 +164,7 @@ data Label
   | LblAssignmentDescription
   | LblAssignmentDate
   | LblAssignmentTasks
+  | LblTaskCompletionAsOf
   | LblNoStudentsSelected
   | LblNoStudentSelected
   | LblNoTasksSelected
@@ -384,6 +385,7 @@ labels' =
   , LblAssignmentDescription
   , LblAssignmentDate
   , LblAssignmentTasks
+  , LblTaskCompletionAsOf
   , LblNoStudentsSelected
   , LblNoStudentSelected
   , LblNoTasksSelected
@@ -622,6 +624,7 @@ defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDescription = "Beschreibung"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
+defaultTranslation LblTaskCompletionAsOf = "Stand:"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
 defaultTranslation LblNoStudentSelected = "Kein Schüler ausgewählt"
 defaultTranslation LblNoTasksSelected = "Keine Aufgaben ausgewählt"

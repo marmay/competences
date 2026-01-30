@@ -82,13 +82,15 @@ initialState mode tasks =
 -- This is a pure view function that takes state and returns a view with actions
 -- The showPurposeBadge parameter controls whether to display Practice/Assessment badges
 -- (typically hidden for students, shown for teachers)
+-- The taskExtra parameter renders optional per-task content (e.g., completion status)
 taskResourceListView
   :: Bool  -- ^ Show purpose badge (Practice/Assessment)
+  -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const V.empty@ for none
   -> [TaskWithSolutions]
   -> TaskResourceList
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView showPurposeBadge tasks state liftAction =
+taskResourceListView showPurposeBadge taskExtra tasks state liftAction =
   if null tasks
     then
       MH.div_
@@ -97,11 +99,11 @@ taskResourceListView showPurposeBadge tasks state liftAction =
     else
       MH.div_
         [class_ "space-y-2"]
-        (map (viewTask showPurposeBadge state liftAction) tasks)
+        (map (viewTask showPurposeBadge taskExtra state liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: Bool -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask showPurposeBadge state liftAction tws =
+viewTask :: Bool -> (TaskId -> M.View model a) -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask showPurposeBadge taskExtra state liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
@@ -116,9 +118,13 @@ viewTask showPurposeBadge state liftAction tws =
           , MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
           ]
       titleRight =
-        if showPurposeBadge
-          then purposeBadge tws.taskPurpose
-          else V.empty
+        MH.div_
+          [class_ "flex items-center gap-2"]
+          [ taskExtra tws.task.id
+          , if showPurposeBadge
+              then purposeBadge tws.taskPurpose
+              else V.empty
+          ]
       titleView =
         MH.div_
           [class_ "flex items-center justify-between flex-1"]
