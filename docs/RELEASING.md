@@ -4,15 +4,14 @@ This document describes how to create a new release of the competences applicati
 
 ## Version Locations
 
-Version numbers need to be updated in the following files:
+Version numbers need to be updated in **4 files**:
 
-1. **Cabal files** (use format `X.Y.Z.0`):
-   - `common/competences-common.cabal`
-   - `backend/competences-backend.cabal`
-   - `frontend/competences-frontend.cabal`
-
-2. **Nix file** (use format `X.Y.Z`):
-   - `nix/frontend.nix`
+| File | Format | Example |
+|------|--------|---------|
+| `common/competences-common.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
+| `backend/competences-backend.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
+| `frontend/competences-frontend.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
+| `nix/frontend.nix` | `X.Y.Z` | `version = "0.8.0";` |
 
 ## Repository Structure
 
@@ -26,72 +25,99 @@ Source files that feed into the build live in `frontend/static-src/`:
 
 ## Release Steps
 
-1. **Determine version number**: Check `git log` since last release to determine if this is a major, minor, or patch release.
+### 1. Determine version number
 
-2. **Update versions** in all files listed above.
-
-3. **Build the frontend** (in WASM shell):
-   ```bash
-   nix develop .#wasmShell.x86_64-linux
-   ./deploy_frontend.sh
-   ```
-
-4. **Commit and push the blobs submodule**:
-   ```bash
-   cd static
-   git add -A
-   git commit -m "Release X.Y.Z"
-   git push
-   cd ..
-   ```
-
-5. **Update the Nix flake lock** (pins the new blobs commit):
-   ```bash
-   nix flake lock --update-input competences-blobs
-   ```
-
-6. **Build and test the backend**:
-   ```bash
-   cabal build all
-   cabal test all
-   ```
-
-7. **Create release commit**:
-   ```bash
-   git add \
-     common/competences-common.cabal \
-     backend/competences-backend.cabal \
-     frontend/competences-frontend.cabal \
-     nix/frontend.nix \
-     flake.lock \
-     static
-
-   git commit -m "New release: X.Y.Z
-
-   Changelog:
-   - Feature 1
-   - Feature 2
-   - Bug fix 1
-   "
-   ```
-
-8. **Push to remote**:
-   ```bash
-   git push
-   ```
-
-## Generating Changelog
-
-Review commits since the last release:
+Review commits since the last release to decide major/minor/patch:
 ```bash
-git log --oneline <last-release-commit>..HEAD
+git log --oneline <last-release-tag-or-commit>..HEAD
 ```
 
-Summarize significant changes in the commit message, grouped by:
-- New features
-- Improvements
-- Bug fixes
-- Breaking changes (if any)
+### 2. Update versions
+
+Update the version string in all 4 files listed above.
+
+### 3. Build the frontend
+
+This compiles the WASM binary, runs wasm-opt/wasm-tools, copies `index.js`,
+and builds Tailwind CSS. Takes several minutes (compiles ~170 Haskell modules).
+
+```bash
+nix develop .#wasmShell.x86_64-linux -c ./deploy_frontend.sh
+```
+
+### 4. Commit and push the blobs submodule
+
+```bash
+cd static
+git add -A
+git commit -m "Release X.Y.Z"
+git push
+cd ..
+```
+
+### 5. Update the Nix flake lock
+
+This pins the new blobs commit in `flake.lock`:
+```bash
+nix flake update competences-blobs
+```
+
+### 6. Build and test
+
+Verify everything compiles and tests pass with the new version numbers:
+```bash
+cabal build all
+cabal test all
+```
+
+### 7. Create release commit
+
+Stage exactly these 6 paths (the 4 version files + flake.lock + submodule pointer):
+```bash
+git add \
+  common/competences-common.cabal \
+  backend/competences-backend.cabal \
+  frontend/competences-frontend.cabal \
+  nix/frontend.nix \
+  flake.lock \
+  static
+```
+
+Commit with a changelog (see format below):
+```bash
+git commit
+```
+
+### 8. Push to remote
+
+```bash
+git push
+```
+
+## Changelog Format
+
+The release commit message should follow this structure:
+
+```
+New release: X.Y.Z
+
+Changelog:
+
+New features:
+- ...
+
+Improvements:
+- ...
+
+Refactoring:
+- ...
+
+Bug fixes & quality:
+- ...
+```
+
+Generate the changelog by reviewing `git log --oneline` since the last release
+and grouping commits into these categories. Omit any category that has no entries.
 
 ## Reproducing Historical Releases
 

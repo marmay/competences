@@ -31,6 +31,11 @@ This is a quick-start guide. **Read the detailed documentation when needed:**
 - WASM build or loading problems
 - Any error messages or unexpected behavior
 
+**When to read [docs/RELEASING.md](docs/RELEASING.md):**
+- Creating a new release (read it first - has exact steps, files, and commands)
+- Updating version numbers across packages (4 files, two formats)
+- Understanding the blobs submodule / flake lock workflow
+
 **Always read relevant docs before making significant changes to avoid common pitfalls.**
 
 ## Project Overview
