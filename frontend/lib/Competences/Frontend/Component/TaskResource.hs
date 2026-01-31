@@ -20,8 +20,12 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon (Icon (IcnSolution, IcnTask))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Query.TaskStatus (TaskCompletionStatus (..))
 import Competences.TaskContent.RichContent (RichContent)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Set (Set)
+import Data.Text qualified as T
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -64,15 +68,23 @@ data Action
 -- Initial State
 -- ============================================================================
 
--- | Create initial state based on display mode
-initialState :: DisplayMode -> [TaskWithSolutions] -> TaskResourceList
-initialState mode tasks =
+-- | Create initial state based on display mode.
+-- When 'TasksExpanded', tasks with 'TaskDone' status start collapsed.
+initialState :: DisplayMode -> Map TaskId TaskCompletionStatus -> [TaskWithSolutions] -> TaskResourceList
+initialState mode statuses tasks =
   TaskResourceList
     { expandedTasks = case mode of
         TasksCollapsed -> Set.empty
-        TasksExpanded -> Set.fromList [t.task.id | t <- tasks]
+        TasksExpanded -> Set.fromList
+          [ t.task.id
+          | t <- tasks
+          , not (isDone (Map.lookup t.task.id statuses))
+          ]
     , expandedSolutions = Set.empty  -- Solutions always start collapsed
     }
+  where
+    isDone (Just (TaskDone _)) = True
+    isDone _ = False
 
 -- ============================================================================
 -- View
@@ -83,14 +95,16 @@ initialState mode tasks =
 -- The showPurposeBadge parameter controls whether to display Practice/Assessment badges
 -- (typically hidden for students, shown for teachers)
 -- The taskExtra parameter renders optional per-task content (e.g., completion status)
+-- The taskStatuses map is used to tint disclosure headers by completion status
 taskResourceListView
   :: Bool  -- ^ Show purpose badge (Practice/Assessment)
   -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const V.empty@ for none
+  -> Map TaskId TaskCompletionStatus  -- ^ Task statuses for header tinting
   -> [TaskWithSolutions]
   -> TaskResourceList
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView showPurposeBadge taskExtra tasks state liftAction =
+taskResourceListView showPurposeBadge taskExtra statuses tasks state liftAction =
   if null tasks
     then
       MH.div_
@@ -99,11 +113,11 @@ taskResourceListView showPurposeBadge taskExtra tasks state liftAction =
     else
       MH.div_
         [class_ "space-y-2"]
-        (map (viewTask showPurposeBadge taskExtra state liftAction) tasks)
+        (map (viewTask showPurposeBadge taskExtra statuses state liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: Bool -> (TaskId -> M.View model a) -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask showPurposeBadge taskExtra state liftAction tws =
+viewTask :: Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask showPurposeBadge taskExtra statuses state liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
@@ -111,6 +125,7 @@ viewTask showPurposeBadge taskExtra state liftAction tws =
         Just c -> c /= mempty
       hasSolutions = not (null tws.solutions)
       isExpandable = hasContent || hasSolutions
+      headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
       titleLeft =
         MH.div_
           [class_ "flex items-center gap-2"]
@@ -146,12 +161,12 @@ viewTask showPurposeBadge taskExtra state liftAction tws =
               else viewSolutions state liftAction tws.solutions
           ]
    in if isExpandable
-        then Disclosure.collapsible isExpanded (liftAction $ ToggleTask tws.task.id) titleView contentView
+        then Disclosure.collapsibleStyled headerBg isExpanded (liftAction $ ToggleTask tws.task.id) titleView contentView
         else
           MH.div_
             [class_ "border rounded-lg overflow-hidden"]
             [ MH.div_
-                [class_ "flex items-center justify-between px-3 py-2 bg-muted/50"]
+                [class_ $ "flex items-center justify-between px-3 py-2 " <> headerBg]
                 [titleLeft, titleRight]
             ]
 
@@ -184,6 +199,16 @@ viewSolution state liftAction sol =
                 [class_ "prose prose-stone prose-sm max-w-none"]
                 [renderRichText sol.content]
         )
+
+-- ============================================================================
+-- Task status header styling
+-- ============================================================================
+
+-- | Header background class based on task completion status.
+taskStatusHeaderBg :: Maybe TaskCompletionStatus -> T.Text
+taskStatusHeaderBg (Just (TaskDone _)) = "bg-green-50"
+taskStatusHeaderBg (Just (TaskNotDone _)) = "bg-yellow-50"
+taskStatusHeaderBg _ = "bg-muted/50"
 
 -- ============================================================================
 -- Badges

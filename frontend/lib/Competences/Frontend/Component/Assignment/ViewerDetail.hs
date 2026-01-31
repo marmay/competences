@@ -155,7 +155,7 @@ viewerComponent r user assignment =
   where
     model = ViewerModel
       { projection = emptyProjection user.role assignment
-      , taskListState = initialState TasksExpanded []
+      , taskListState = initialState TasksExpanded Map.empty []
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -211,7 +211,7 @@ viewerComponent r user assignment =
       M.modify $ \m ->
         let newTasks = change.projection.tasksWithSolutions
             -- Re-initialize task list state with new tasks, keeping expanded state
-            newTaskListState = initialState TasksExpanded newTasks
+            newTaskListState = initialState TasksExpanded change.projection.taskStatuses newTasks
          in m & #projection .~ change.projection
               & #taskListState .~ newTaskListState
 
@@ -297,7 +297,7 @@ viewerComponent r user assignment =
        in M.div_
             [class_ "space-y-4"]
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , taskResourceListView showPurposeBadge taskStatusRenderer proj.tasksWithSolutions m.taskListState TaskListAction
+            , taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState TaskListAction
             ]
 
     assignmentNameToText (AssignmentName t) = ms t

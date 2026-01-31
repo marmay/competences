@@ -113,7 +113,7 @@ resourceModalComponent modalMgr cfg =
     model =
       Model
         { config = cfg
-        , taskListState = initialState TasksCollapsed cfg.tasks
+        , taskListState = initialState TasksCollapsed cfg.taskStatuses cfg.tasks
         , viewMode = defaultMode
         , expandedResources = Set.empty
         , collapsedGroups = Set.empty
@@ -162,7 +162,7 @@ resourceModalComponent modalMgr cfg =
                 ViewTasks
                   | Map.null m.config.taskStatuses ->
                       -- No focused user: flat list without grouping
-                      taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.tasks m.taskListState TaskListAction
+                      taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
                   | otherwise ->
                       groupedTasksView m
                 ViewLearningResources ->
@@ -274,6 +274,7 @@ viewStatusGroup m (group, tasks) =
         taskResourceListView
           m.config.showPurposeBadge
           (viewTaskCompletionStatusFromMap m.config.taskStatuses)
+          m.config.taskStatuses
           tasks
           m.taskListState
           TaskListAction

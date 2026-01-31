@@ -74,21 +74,23 @@ taskCompletionStatuses doc userId tasks =
 --          competences (uses CompetenceLevelId index on Evidence).
 taskCompletionStatusFromIxSet :: Document -> Ix.IxSet EvidenceIxs Evidence -> Task -> TaskCompletionStatus
 taskCompletionStatusFromIxSet doc userEvs task =
-  -- Phase 1: evidence with stored per-task evaluations
-  let taskEvs = Ix.toDescList (Proxy @Day) $ userEvs Ix.@= task.id
-   in case find hasNonEmptyEvals taskEvs of
+  -- Only consider evidences that reference this specific task
+  let taskUserEvs = userEvs Ix.@= task.id
+      taskEvsByDay = Ix.toDescList (Proxy @Day) taskUserEvs
+   in -- Phase 1: evidence with stored per-task evaluations
+      case find hasNonEmptyEvals taskEvsByDay of
         Just ev ->
           let ref = mkEvidenceRef doc ev
               taskEvals = ev.tasks Map.! task.id
               allDone = all isSatisfactory (Map.elems taskEvals)
            in if allDone then TaskDone ref else TaskNotDone ref
         Nothing ->
-          -- Phase 2: derive from competence observations
+          -- Phase 2: derive from competence observations (still filtered by task)
           let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
            in if null primaryComps
                 then TaskNotEvaluated
                 else
-                  let compEvs = Ix.toDescList (Proxy @Day) $ userEvs Ix.@+ primaryComps
+                  let compEvs = Ix.toDescList (Proxy @Day) $ taskUserEvs Ix.@+ primaryComps
                    in case listToMaybe compEvs of
                         Nothing -> TaskNotEvaluated
                         Just ev ->
