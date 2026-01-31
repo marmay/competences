@@ -15,6 +15,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.TaskStatus (EvidenceRef (..), TaskCompletionStatus (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Text (Text)
 import Data.Time (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Miso qualified as M
@@ -39,7 +40,7 @@ viewTaskCompletionStatusFromMap statuses taskId =
   maybe V.empty viewTaskCompletionStatus (Map.lookup taskId statuses)
 
 -- | Internal: render status icon + "Stand:" text.
-statusView :: M.MisoString -> Icon -> EvidenceRef -> M.View model a
+statusView :: Text -> Icon -> EvidenceRef -> M.View model a
 statusView colorClass icn ref =
   MH.div_
     [class_ "flex items-center gap-1"]

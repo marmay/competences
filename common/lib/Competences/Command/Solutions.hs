@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Solutions
   ( SolutionsCommand (..)
   , SolutionPatch (..)
@@ -11,7 +13,9 @@ import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Solution (Solution (..), SolutionType)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -31,18 +35,21 @@ data SolutionPatch = SolutionPatch
 newtype SolutionsCommand = OnSolutions (EntityCommand Solution SolutionPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary SolutionPatch
+
+#ifdef WITH_AESON
 instance FromJSON SolutionPatch
 
 instance ToJSON SolutionPatch
+#endif
 
-instance Binary SolutionPatch
+instance Binary SolutionsCommand
 
+#ifdef WITH_AESON
 instance FromJSON SolutionsCommand
 
 instance ToJSON SolutionsCommand
-
-instance Binary SolutionsCommand
+#endif
 
 -- Default instance
 instance Default SolutionPatch where

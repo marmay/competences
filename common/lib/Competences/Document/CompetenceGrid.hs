@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.CompetenceGrid
   ( CompetenceGridId
   , CompetenceGrid (..)
@@ -10,7 +12,9 @@ import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id, nilId)
 import Competences.Document.Order (Order, orderMax, Orderable)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
@@ -46,6 +50,7 @@ instance Ix.Indexable CompetenceGridIxs CompetenceGrid where
 emptyCompetenceGrid :: CompetenceGrid
 emptyCompetenceGrid = CompetenceGrid nilId orderMax "" ""
 
+#ifdef WITH_AESON
 -- Custom FromJSON ignores legacy dateFrom/dateTo/expectedLessons fields
 instance FromJSON CompetenceGrid where
   parseJSON = withObject "CompetenceGrid" $ \v ->
@@ -63,6 +68,7 @@ instance ToJSON CompetenceGrid where
       , "title" .= g.title
       , "description" .= g.description
       ]
+#endif
 
 instance Binary CompetenceGrid
 

@@ -129,13 +129,14 @@ library
         Competences.Frontend.View.Text,
         Competences.Frontend.View.Tooltip,
         Competences.Frontend.View.Typography,
+        Competences.Frontend.BinaryFFI,
         Competences.Frontend.WebSocket,
         Competences.Frontend.WebSocket.CommandSender,
         Competences.Frontend.WebSocket.Handlers,
         Competences.Frontend.WebSocket.Protocol
     build-depends:
         base ^>=4.21.0.0,
-        aeson,
+        binary,
         bytestring,
         competences-common,
         containers,
@@ -149,6 +150,8 @@ library
         text,
         time,
         unliftio
+    if flag(wasm)
+        cpp-options: -DWASM
     hs-source-dirs:   lib
     default-language: GHC2024
 
@@ -164,7 +167,7 @@ executable competences-frontend
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
-        aeson,
+        binary,
         bytestring,
         competences-common,
         competences-frontend,

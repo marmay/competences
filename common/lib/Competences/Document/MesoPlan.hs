@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.MesoPlan
   ( MesoPlanId
   , MesoPlan (..)
@@ -8,7 +10,9 @@ where
 import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Text (Text)
@@ -41,8 +45,10 @@ instance Ix.Indexable MesoPlanIxs MesoPlan where
     Ix.ixList
       (Ix.ixFun $ singleton . (.id))
 
+#ifdef WITH_AESON
 instance FromJSON MesoPlan
 
 instance ToJSON MesoPlan
+#endif
 
 instance Binary MesoPlan

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Common
   ( AffectedUsers (..)
   , UpdateResult
@@ -14,7 +16,9 @@ import Competences.Document (Document)
 import Competences.Document.Id (Id)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Bifunctor (first)
 import Data.Binary (Binary)
 import Data.Proxy (Proxy (..))
@@ -46,14 +50,18 @@ data EntityCommand a patch
   | Modify !(Id a) !(ModifyCommand patch)
   deriving (Eq, Generic, Show)
 
+-- Binary instances
+instance (Binary patch) => Binary (ModifyCommand patch)
+instance (Binary a, Binary patch) => Binary (EntityCommand a patch)
+
 -- JSON instances
+#ifdef WITH_AESON
 instance (FromJSON patch) => FromJSON (ModifyCommand patch)
 instance (ToJSON patch) => ToJSON (ModifyCommand patch)
-instance (Binary patch) => Binary (ModifyCommand patch)
 
 instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch)
 instance (ToJSON a, ToJSON patch) => ToJSON (EntityCommand a patch)
-instance (Binary a, Binary patch) => Binary (EntityCommand a patch)
+#endif
 
 -- | Apply a change to a single field, checking for conflicts
 -- Plain version with explicit field name and lenses

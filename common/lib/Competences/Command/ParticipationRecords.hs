@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.ParticipationRecords
   ( ParticipationRecordsCommand (..)
   , ParticipationRecordPatch (..)
@@ -17,7 +19,9 @@ import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.ParticipationRecord (ParticipationRecord (..), ParticipationType)
 import Competences.Document.User (UserId)
 import Control.Monad (unless)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -37,14 +41,17 @@ data ParticipationRecordsCommand
   = OnParticipationRecords !(EntityCommand ParticipationRecord ParticipationRecordPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary ParticipationRecordPatch
+#ifdef WITH_AESON
 instance FromJSON ParticipationRecordPatch
 instance ToJSON ParticipationRecordPatch
-instance Binary ParticipationRecordPatch
+#endif
 
+instance Binary ParticipationRecordsCommand
+#ifdef WITH_AESON
 instance FromJSON ParticipationRecordsCommand
 instance ToJSON ParticipationRecordsCommand
-instance Binary ParticipationRecordsCommand
+#endif
 
 -- Default instance
 instance Default ParticipationRecordPatch where

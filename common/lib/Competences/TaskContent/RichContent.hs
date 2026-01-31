@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | A newtype for raw text that is expected to be parseable as TaskContent markup.
 --
 -- This encodes a weak guarantee: the value was either produced from a
@@ -20,7 +22,9 @@ module Competences.TaskContent.RichContent
   ) where
 
 import Competences.TaskContent.Parser (ParseError, parseTaskContent)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -28,7 +32,11 @@ import GHC.Generics (Generic)
 -- | Raw markup text that is expected to be parseable as 'TaskContent'.
 newtype RichContent = RichContent {unRichContent :: Text}
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 instance Semigroup RichContent where
   RichContent a <> RichContent b = RichContent (a <> b)

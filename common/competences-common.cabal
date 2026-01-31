@@ -8,6 +8,10 @@ category:           Web
 build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
+flag aeson
+    description: Enable Aeson JSON serialization instances
+    default:     True
+
 common warnings
     ghc-options: -Wall -Werror
 
@@ -85,7 +89,6 @@ library
         Competences.TaskContent.RichContent
     build-depends:
         base ^>=4.21.0.0,
-        aeson,
         attoparsec,
         base64-bytestring,
         binary,
@@ -99,6 +102,9 @@ library
         text,
         time,
         uuid-types
+    if flag(aeson)
+        build-depends: aeson
+        cpp-options: -DWITH_AESON
     hs-source-dirs:   lib
     default-language: GHC2024
 

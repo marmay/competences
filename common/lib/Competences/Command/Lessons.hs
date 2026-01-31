@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Lessons
   ( LessonsCommand (..)
   , LessonPatch (..)
@@ -21,7 +23,9 @@ import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, 
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -50,14 +54,17 @@ data LessonsCommand
   | ReorderLesson !(OrderPosition Lesson) !(Reorder Lesson)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary LessonPatch
+#ifdef WITH_AESON
 instance FromJSON LessonPatch
 instance ToJSON LessonPatch
-instance Binary LessonPatch
+#endif
 
+instance Binary LessonsCommand
+#ifdef WITH_AESON
 instance FromJSON LessonsCommand
 instance ToJSON LessonsCommand
-instance Binary LessonsCommand
+#endif
 
 -- Default instance
 instance Default LessonPatch where

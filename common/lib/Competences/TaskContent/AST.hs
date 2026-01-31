@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
@@ -21,7 +22,9 @@ module Competences.TaskContent.AST
   )
 where
 
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -29,8 +32,10 @@ import GHC.Generics (Generic)
 newtype TaskContent = TaskContent [Block]
   deriving (Eq, Show, Generic)
 
+#ifdef WITH_AESON
 instance ToJSON TaskContent
 instance FromJSON TaskContent
+#endif
 
 -- | Block-level elements
 data Block
@@ -46,8 +51,10 @@ data Block
     Heading !Int ![Inline]
   deriving (Eq, Show, Generic)
 
+#ifdef WITH_AESON
 instance ToJSON Block
 instance FromJSON Block
+#endif
 
 -- | List item for both subtasks and subquestions
 -- Content can span multiple lines/paragraphs using indentation
@@ -59,8 +66,10 @@ data ListItem = ListItem
   }
   deriving (Eq, Show, Generic)
 
+#ifdef WITH_AESON
 instance ToJSON ListItem
 instance FromJSON ListItem
+#endif
 
 -- | Inline elements within paragraphs and list items
 data Inline
@@ -74,5 +83,7 @@ data Inline
     MathInline !Text
   deriving (Eq, Show, Generic)
 
+#ifdef WITH_AESON
 instance ToJSON Inline
 instance FromJSON Inline
+#endif

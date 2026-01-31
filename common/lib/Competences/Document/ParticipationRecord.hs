@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.ParticipationRecord
   ( ParticipationRecordId
   , ParticipationRecord (..)
@@ -10,7 +12,9 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Set (Set)
@@ -28,9 +32,11 @@ data ParticipationType
     RefusesToWork
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON ParticipationType
 
 instance ToJSON ParticipationType
+#endif
 
 instance Binary ParticipationType
 
@@ -54,8 +60,10 @@ instance Ix.Indexable ParticipationRecordIxs ParticipationRecord where
       (Ix.ixFun $ singleton . (.lessonId))
       (Ix.ixFun $ singleton . (.userId))
 
+#ifdef WITH_AESON
 instance FromJSON ParticipationRecord
 
 instance ToJSON ParticipationRecord
+#endif
 
 instance Binary ParticipationRecord

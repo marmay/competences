@@ -1,0 +1,33 @@
+packages:
+    common
+    frontend
+
+package competences-common
+    flags: -aeson
+
+package competences-frontend
+    flags: +wasm
+
+constraints: miso +template-haskell
+
+allow-newer:
+    ixset-typed:template-haskell
+
+source-repository-package
+    --sha256: sha256-4xQLKNwXxdUqurhqckMiXlj/+rmMytkMR9xdrxvMcH4=
+    type: git
+    location: https://github.com/sumo/syb-with-class
+    tag: f67a776a4f7e8fe69ec0df35e953bd9422bb05b4
+
+source-repository-package
+    --sha256: NV8q6hAa8RLKjpBrzbVIQeSy679YmE0g4Cpt9M+rc28=
+    type: git
+    location: https://github.com/well-typed/ixset-typed
+    tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
+
+-- Local miso checkout with component leak fix
+source-repository-package
+    --sha256: 1dmana082isjsmn1xyzy0c8byfily7gdrv3f2nrbp6f6r1imzp8x
+    type: git
+    location: https://github.com/marmay/miso
+    tag: 696f38022202ccdca597b439988144560538032c

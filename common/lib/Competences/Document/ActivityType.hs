@@ -1,10 +1,14 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.ActivityType
   ( ActivityType (..)
   , activityTypes
   )
 where
 
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 
@@ -21,9 +25,11 @@ data ActivityType
     -- ^ Home exercise.
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
+#ifdef WITH_AESON
 instance FromJSON ActivityType
 
 instance ToJSON ActivityType
+#endif
 
 instance Binary ActivityType
 

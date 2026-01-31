@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Solution
   ( Solution (..)
   , SolutionId
@@ -12,7 +14,9 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Id (Id)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Competences.TaskContent.RichContent (RichContent)
@@ -22,9 +26,11 @@ import GHC.Generics (Generic)
 data SolutionType = Hint | Results | Complete
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON SolutionType
 
 instance ToJSON SolutionType
+#endif
 
 instance Binary SolutionType
 
@@ -56,9 +62,11 @@ instance Ix.Indexable SolutionIxs Solution where
       (Ix.ixFun $ singleton . (.userId))
       (Ix.ixFun $ singleton . (.solutionType))
 
+#ifdef WITH_AESON
 instance FromJSON Solution
 
 instance ToJSON Solution
+#endif
 
 instance Binary Solution
 

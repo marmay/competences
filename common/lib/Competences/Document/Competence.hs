@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Competence
   ( CompetenceId
   , Competence (..)
@@ -16,12 +18,14 @@ where
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Order, Orderable)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON, ToJSONKey, (.:), (.:?), (.!=), withObject)
+import Data.Set qualified as S
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
 import Data.Map qualified as M
-import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -87,11 +91,10 @@ instance Ix.Indexable CompetenceIxs Competence where
       (Ix.ixFun $ singleton . (.order))
       (Ix.ixFun $ singleton . (.competenceGridId))
 
+#ifdef WITH_AESON
 instance FromJSON Level
 
 instance ToJSON Level
-
-instance Binary Level
 
 instance FromJSONKey Level
 
@@ -100,9 +103,13 @@ instance ToJSONKey Level
 instance FromJSON LevelInfo
 
 instance ToJSON LevelInfo
+#endif
+
+instance Binary Level
 
 instance Binary LevelInfo
 
+#ifdef WITH_AESON
 -- | Custom instance for backward-compatible parsing.
 -- Handles both old format (levelDescriptions + lockedLevels) and new format (levels).
 instance FromJSON Competence where
@@ -123,6 +130,7 @@ instance FromJSON Competence where
     pure $ Competence cId gridId cOrder desc lvls
 
 instance ToJSON Competence
+#endif
 
 instance Binary Competence
 

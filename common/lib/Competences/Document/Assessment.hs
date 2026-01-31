@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Assessment
   ( CompetenceAssessment (..)
   , CompetenceAssessmentId
@@ -10,7 +12,9 @@ import Competences.Common.BinaryOrphans ()
 import Competences.Document.Competence (CompetenceId, Level (..))
 import Competences.Document.Id (Id, nilId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
@@ -69,8 +73,10 @@ nilCompetenceAssessment =
     , comment = Nothing
     }
 
+#ifdef WITH_AESON
 instance FromJSON CompetenceAssessment
 
 instance ToJSON CompetenceAssessment
+#endif
 
 instance Binary CompetenceAssessment

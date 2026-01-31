@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.CompetenceAssessments
   ( CompetenceAssessmentsCommand (..)
   , CompetenceAssessmentPatch (..)
@@ -12,7 +14,9 @@ import Competences.Document.Assessment (CompetenceAssessment (..))
 import Competences.Document.Competence (CompetenceId, Level)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as Ix
@@ -38,18 +42,21 @@ newtype CompetenceAssessmentsCommand
   = OnCompetenceAssessments (EntityCommand CompetenceAssessment CompetenceAssessmentPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary CompetenceAssessmentPatch
+
+#ifdef WITH_AESON
 instance FromJSON CompetenceAssessmentPatch
 
 instance ToJSON CompetenceAssessmentPatch
+#endif
 
-instance Binary CompetenceAssessmentPatch
+instance Binary CompetenceAssessmentsCommand
 
+#ifdef WITH_AESON
 instance FromJSON CompetenceAssessmentsCommand
 
 instance ToJSON CompetenceAssessmentsCommand
-
-instance Binary CompetenceAssessmentsCommand
+#endif
 
 -- Default instance
 instance Default CompetenceAssessmentPatch where

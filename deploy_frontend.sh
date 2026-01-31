@@ -10,9 +10,9 @@ WASM_OPT=$(which wasm-opt)
 WASM_TOOLS=$(which wasm-tools)
 
 $CABAL update
-$CABAL build -f "+wasm" exe:competences-frontend
-$($GHC --print-libdir)/post-link.mjs --input $($CABAL list-bin exe:competences-frontend --allow-newer) --output static/ghc_wasm_jsffi.js
-cp $($CABAL list-bin exe:competences-frontend --allow-newer) static/app.wasm 
+$CABAL --project-file=cabal.project.wasm build exe:competences-frontend
+$($GHC --print-libdir)/post-link.mjs --input $($CABAL --project-file=cabal.project.wasm list-bin exe:competences-frontend --allow-newer) --output static/ghc_wasm_jsffi.js
+cp $($CABAL --project-file=cabal.project.wasm list-bin exe:competences-frontend --allow-newer) static/app.wasm
 $WASM_OPT -all -O2 static/app.wasm -o static/app.wasm
 $WASM_TOOLS strip -o static/app.wasm static/app.wasm
 

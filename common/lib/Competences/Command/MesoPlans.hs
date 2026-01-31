@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.MesoPlans
   ( MesoPlansCommand (..)
   , MesoPlanPatch (..)
@@ -17,7 +19,9 @@ import Competences.Document (Document (..), Lesson (..), Lock (..), User (..))
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
 import Competences.Document.User (UserId)
 import Control.Monad (foldM, (>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -39,14 +43,17 @@ data MesoPlansCommand
   = OnMesoPlans !(EntityCommand MesoPlan MesoPlanPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary MesoPlanPatch
+#ifdef WITH_AESON
 instance FromJSON MesoPlanPatch
 instance ToJSON MesoPlanPatch
-instance Binary MesoPlanPatch
+#endif
 
+instance Binary MesoPlansCommand
+#ifdef WITH_AESON
 instance FromJSON MesoPlansCommand
 instance ToJSON MesoPlansCommand
-instance Binary MesoPlansCommand
+#endif
 
 -- Default instances
 instance Default MesoPlanPatch where

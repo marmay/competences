@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Lesson
   ( -- * Lesson (unified entity)
     LessonId
@@ -19,7 +21,9 @@ import Competences.Document.Id (Id)
 import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.Order (Order, Orderable)
 import Competences.Document.Resource (ResourceId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Maybe (maybeToList)
@@ -42,9 +46,11 @@ data TeachingSocialForm
   | IndividualWork
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TeachingSocialForm
 
 instance ToJSON TeachingSocialForm
+#endif
 
 instance Binary TeachingSocialForm
 
@@ -58,9 +64,11 @@ data ActionForm
     Assigning
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON ActionForm
 
 instance ToJSON ActionForm
+#endif
 
 instance Binary ActionForm
 
@@ -80,9 +88,11 @@ data LessonPhase = LessonPhase
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON LessonPhase
 
 instance ToJSON LessonPhase
+#endif
 
 instance Binary LessonPhase
 
@@ -124,9 +134,11 @@ instance Ix.Indexable LessonIxs Lesson where
       (Ix.ixFun $ singleton . (.order))
       (Ix.ixFun $ \l -> maybeToList l.date)
 
+#ifdef WITH_AESON
 instance FromJSON Lesson
 
 instance ToJSON Lesson
+#endif
 
 instance Binary Lesson
 

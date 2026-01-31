@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DefaultSignatures #-}
 
 module Competences.Document.Order
@@ -25,7 +26,9 @@ where
 
 import Competences.Document.Id (Id)
 import Control.Monad (unless)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Either.Extra (maybeToEither)
 import Data.IxSet.Typed qualified as Ix
@@ -212,20 +215,26 @@ formatOrderNumber (Order i)
   | i == maxBound = "max"
   | otherwise = show (i `div` 2)
 
+#ifdef WITH_AESON
 instance FromJSON Order
 
 instance ToJSON Order
+#endif
 
 instance Binary Order
 
+#ifdef WITH_AESON
 instance FromJSON (OrderPosition a)
 
 instance ToJSON (OrderPosition a)
+#endif
 
 instance Binary (OrderPosition a)
 
+#ifdef WITH_AESON
 instance FromJSON (Reorder a)
 
 instance ToJSON (Reorder a)
+#endif
 
 instance Binary (Reorder a)

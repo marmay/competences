@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.User
   ( User (..)
   , UserId
@@ -10,7 +12,9 @@ module Competences.Document.User
 where
 
 import Competences.Document.Id (Id)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
@@ -22,7 +26,11 @@ type UserId = Id User
 -- | Office365 user identifier for authentication.
 newtype Office365Id = Office365Id Text
   deriving (Eq, Generic, Ord, Show)
-  deriving newtype (FromJSON, ToJSON, Binary)
+#ifdef WITH_AESON
+  deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 data UserRole
   = Teacher
@@ -58,14 +66,18 @@ instance Ix.Indexable UserIxs User where
       (Ix.ixFun $ singleton . (.role))
       (Ix.ixFun $ singleton . (.office365Id))
 
+#ifdef WITH_AESON
 instance FromJSON UserRole
 
 instance ToJSON UserRole
+#endif
 
 instance Binary UserRole
 
+#ifdef WITH_AESON
 instance FromJSON User
 
 instance ToJSON User
+#endif
 
 instance Binary User

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Template
   ( Template (..)
   , TemplateEvaluation (..)
@@ -20,7 +22,9 @@ import Competences.Document.Evidence
   )
 import Competences.Document.Id (Id)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
@@ -116,20 +120,23 @@ instance Ix.Indexable TemplateIxs Template where
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.name))
 
+#ifdef WITH_AESON
 instance FromJSON TemplateName
-
 instance ToJSON TemplateName
+#endif
 
 instance Binary TemplateName
 
+#ifdef WITH_AESON
 instance FromJSON Template
-
 instance ToJSON Template
+#endif
 
 instance Binary Template
 
+#ifdef WITH_AESON
 instance FromJSON TemplateAspect
-
 instance ToJSON TemplateAspect
+#endif
 
 instance Binary TemplateAspect

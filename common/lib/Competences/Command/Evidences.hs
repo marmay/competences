@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Evidences
   ( EvidencesCommand (..)
   , EvidencePatch (..)
@@ -20,7 +22,9 @@ import Competences.Document.Evidence
   )
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
 import Data.Maybe (maybeToList)
@@ -56,14 +60,17 @@ data EvidencesCommand
   = OnEvidences !(EntityCommand Evidence EvidencePatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary EvidencePatch
+#ifdef WITH_AESON
 instance FromJSON EvidencePatch
 instance ToJSON EvidencePatch
-instance Binary EvidencePatch
+#endif
 
+instance Binary EvidencesCommand
+#ifdef WITH_AESON
 instance FromJSON EvidencesCommand
 instance ToJSON EvidencesCommand
-instance Binary EvidencesCommand
+#endif
 
 -- Default instances
 instance Default EvidencePatch where

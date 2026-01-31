@@ -20,7 +20,8 @@ import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerMessage (..))
 import Control.Exception (finally)
 import Control.Monad (forever)
-import Data.Aeson (decode, encode)
+import Data.Binary (decodeOrFail)
+import Data.Binary qualified as Bin
 import Data.Text (Text)
 import Data.Text qualified as T
 import Network.WebSockets qualified as WS
@@ -36,23 +37,23 @@ wsHandler state jwtSecret pending = do
     -- Wait for authentication message as first message
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
-    case decode authMsg of
-      Just (Authenticate token) -> do
+    case decodeOrFail authMsg of
+      Right (_, _, Authenticate token) -> do
         case extractUserFromJWT' jwtSecret token of
           Left err -> do
             putStrLn $ "Authentication failed: " <> err
-            WS.sendTextData conn (encode $ AuthenticationFailed $ T.pack err)
+            WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed $ T.pack err)
             -- Close connection after failed auth
           Right (userId, userName, userRole, o365Id) -> do
             let user = User userId userName userRole o365Id
             putStrLn $ "Authentication successful for: " <> T.unpack userName
             handleClient state userId user conn
-      Just _otherMsg -> do
+      Right (_, _, _otherMsg) -> do
         putStrLn "First message must be Authenticate"
-        WS.sendTextData conn (encode $ AuthenticationFailed "First message must be authentication")
-      Nothing -> do
-        putStrLn "Invalid message format for authentication"
-        WS.sendTextData conn (encode $ AuthenticationFailed "Invalid message format")
+        WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "First message must be authentication")
+      Left (_, _, err) -> do
+        putStrLn $ "Invalid message format for authentication: " <> err
+        WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Invalid message format")
 
 -- | Validate JWT and extract user information
 extractUserFromJWT' :: JWTSecret -> Text -> Either String (UserId, Text, UserRole, Office365Id)
@@ -73,17 +74,17 @@ handleClient state uid user conn = do
   -- Send initial snapshot with authenticated user (projected based on user identity)
   doc <- getDocument state
   let projectedDoc = projectDocument user doc
-  WS.sendTextData conn (encode $ InitialSnapshot projectedDoc user)
+  WS.sendBinaryData conn (Bin.encode $ InitialSnapshot projectedDoc user)
 
   -- Handle messages and cleanup on disconnect
   flip finally (cleanup uid) $ do
     forever $ do
       msg <- WS.receiveData conn
-      case decode msg of
-        Nothing -> do
-          putStrLn $ "Invalid message format from " <> show uid <> ", ignoring"
+      case decodeOrFail msg of
+        Left (_, _, err) -> do
+          putStrLn $ "Invalid message format from " <> show uid <> ": " <> err <> ", ignoring"
           -- Ignore invalid messages rather than disconnecting
-        Just clientMsg -> handleClientMessage state uid user clientMsg conn
+        Right (_, _, clientMsg) -> handleClientMessage state uid user clientMsg conn
   where
     cleanup userId = do
       putStrLn $ "Client disconnected: " <> show userId
@@ -103,13 +104,13 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
     if user.role /= Teacher
       then do
         putStrLn $ "Command rejected: user " <> show uid <> " is not a teacher"
-        WS.sendTextData conn (encode $ CommandRejected cmd "Only teachers can execute commands")
+        WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Only teachers can execute commands")
       else do
         result <- updateDocument state uid cmd
         case result of
           Left err -> do
             putStrLn $ "Command rejected: " <> T.unpack err
-            WS.sendTextData conn (encode $ CommandRejected cmd err)
+            WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd err)
           Right (_, AffectedUsers affected) -> do
             putStrLn $ "Command applied, broadcasting to " <> show (length affected) <> " users"
             -- Broadcast to all affected users (including sender)
@@ -118,4 +119,4 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
 
   KeepAlive -> do
     -- Respond to keep-alive
-    WS.sendTextData conn (encode KeepAliveResponse)
+    WS.sendBinaryData conn (Bin.encode KeepAliveResponse)

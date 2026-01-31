@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Protocol
   ( ClientMessage (..)
   , ServerMessage (..)
@@ -6,7 +8,10 @@ where
 
 import Competences.Command (Command)
 import Competences.Document (Document, User)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
+import Data.Binary (Binary)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -21,9 +26,13 @@ data ClientMessage
     KeepAlive
   deriving (Eq, Generic, Show)
 
+instance Binary ClientMessage
+
+#ifdef WITH_AESON
 instance FromJSON ClientMessage
 
 instance ToJSON ClientMessage
+#endif
 
 -- | Messages sent from server to client over WebSocket.
 data ServerMessage
@@ -42,6 +51,10 @@ data ServerMessage
     KeepAliveResponse
   deriving (Eq, Generic, Show)
 
+instance Binary ServerMessage
+
+#ifdef WITH_AESON
 instance FromJSON ServerMessage
 
 instance ToJSON ServerMessage
+#endif

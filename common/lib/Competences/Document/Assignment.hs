@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Assignment
   ( Assignment (..)
   , AssignmentId
@@ -12,7 +14,9 @@ import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Id (Id)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed (Indexable (..), ixFun, ixList)
 import Data.Set (Set)
@@ -28,7 +32,11 @@ type AssignmentId = Id Assignment
 -- | Name of an assignment (newtype wrapper for type safety)
 newtype AssignmentName = AssignmentName Text
   deriving stock (Eq, Ord, Show, Generic)
+#ifdef WITH_AESON
   deriving newtype (FromJSON, ToJSON, Binary)
+#else
+  deriving newtype (Binary)
+#endif
 
 -- | An assignment represents a collection of tasks given to students
 data Assignment = Assignment
@@ -43,7 +51,8 @@ data Assignment = Assignment
   }
   deriving (Eq, Generic, Ord, Show)
 
--- JSON and Binary instances
+#ifdef WITH_AESON
+-- JSON instances
 instance FromJSON Assignment where
   parseJSON = withObject "Assignment" $ \v ->
     Assignment
@@ -56,6 +65,8 @@ instance FromJSON Assignment where
       <*> v .: "tasks"
 
 instance ToJSON Assignment
+#endif
+
 instance Binary Assignment
 
 -- | Index types for Assignment

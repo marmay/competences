@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Evidence
   ( Evidence (..)
   , EvidenceId
@@ -26,7 +28,9 @@ import Competences.Document.Id (Id, nilId)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
+#endif
 import Data.Binary (Binary)
 import Data.List (singleton)
 import Data.Maybe (maybeToList)
@@ -65,11 +69,19 @@ data Ability
 
 newtype ActivityTasks = ActivityTasks Text
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 newtype ObservationRemark = ObservationRemark Text
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 data Observation = Observation
   { id :: !ObservationId
@@ -146,18 +158,23 @@ instance Ix.Indexable ObservationIxs Observation where
       (Ix.ixFun $ singleton . (.socialForm))
       (Ix.ixFun $ singleton . (.ability))
 
+#ifdef WITH_AESON
 instance FromJSON SocialForm
 
 instance ToJSON SocialForm
+#endif
 
 instance Binary SocialForm
 
+#ifdef WITH_AESON
 instance FromJSON Ability
 
 instance ToJSON Ability
+#endif
 
 instance Binary Ability
 
+#ifdef WITH_AESON
 instance FromJSON Evidence where
   parseJSON = withObject "Evidence" $ \v -> do
     -- Read new format fields
@@ -191,11 +208,14 @@ instance ToJSON Evidence where
       , "assignmentId" .= e.assignmentId
       , "lessonId" .= e.lessonId
       ]
+#endif
 
 instance Binary Evidence
 
+#ifdef WITH_AESON
 instance FromJSON Observation
 
 instance ToJSON Observation
+#endif
 
 instance Binary Observation

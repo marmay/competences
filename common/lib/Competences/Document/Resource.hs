@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Resource
   ( -- * IDs
     ResourceId
@@ -14,7 +16,9 @@ where
 
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Competences.TaskContent.RichContent (RichContent)
@@ -28,7 +32,11 @@ type ResourceId = Id Resource
 -- Non-unique (e.g., "Book p.42", "Video 1.2").
 newtype ResourceIdentifier = ResourceIdentifier Text
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 -- | Content type for a resource. Exactly one of:
 -- - Inline content (rich text with MathJax)
@@ -43,6 +51,7 @@ data ResourceContent
     VideoLink !Text !Text
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON ResourceContent where
   parseJSON = withObject "ResourceContent" $ \v -> do
     tag <- v .: "tag"
@@ -70,6 +79,7 @@ instance ToJSON ResourceContent where
       , "url" .= url
       , "description" .= desc
       ]
+#endif
 
 instance Binary ResourceContent
 
@@ -87,6 +97,7 @@ data Resource = Resource
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON Resource where
   parseJSON = withObject "Resource" $ \v ->
     Resource
@@ -103,6 +114,7 @@ instance ToJSON Resource where
       , "competenceLevels" .= resource.competenceLevels
       , "content" .= resource.content
       ]
+#endif
 
 instance Binary Resource
 

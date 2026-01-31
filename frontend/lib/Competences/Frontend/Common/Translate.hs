@@ -21,19 +21,15 @@ import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialFor
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
-import Control.Exception (SomeException, catch)
-import Data.Aeson (FromJSON (..), ToJSON (..), decode, encode)
-import Data.ByteString.Lazy (readFile, writeFile)
+import Data.Maybe (fromMaybe)
+import Miso.String (MisoString, ms)
 import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
 import Data.Map qualified as M
-import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, formatTime)
-import Miso.String (MisoString, fromMisoString, ms)
 import System.IO.Unsafe (unsafePerformIO)
-import Prelude hiding (readFile, writeFile)
 
 data Language
   = De
@@ -44,20 +40,6 @@ newtype TranslationData = TranslationData
   { unTranslationData :: M.Map Label MisoString
   }
   deriving (Eq, Show)
-
-instance ToJSON TranslationData where
-  toJSON = toJSON . map encodeTranslation . M.toList . (.unTranslationData)
-    where
-      encodeTranslation :: (Label, MisoString) -> (Text, Text)
-      encodeTranslation (k, v) = (T.pack (show k), fromMisoString @Text v)
-
-instance FromJSON TranslationData where
-  parseJSON = fmap (TranslationData . M.fromList . mapMaybe decodeTranslation) . parseJSON
-    where
-      decodeTranslation :: (Text, Text) -> Maybe (Label, MisoString)
-      decodeTranslation (k, v) = do
-        l <- decodeLabel k
-        pure (l, ms v)
 
 -- If you change anything here, make sure to also add it to labels' an
 -- defaultTranslation.
@@ -776,9 +758,6 @@ formatDay d = ms $ formatTime defaultTimeLocale "%d.%m.%Y" d
 labelOf :: Label -> Text
 labelOf = T.pack . show
 
-decodeLabel :: Text -> Maybe Label
-decodeLabel t = textToLabelMap M.!? t
-
 trim :: TranslationData -> TranslationData
 trim = TranslationData . M.filterWithKey (\k _ -> k `S.member` labels) . (.unTranslationData)
 
@@ -789,31 +768,13 @@ merge :: TranslationData -> TranslationData -> TranslationData
 merge a b = TranslationData $ M.union a.unTranslationData b.unTranslationData
 
 loadTranslations :: FilePath -> IO TranslationData
-loadTranslations p =
-  loadTranslations' p
-    `catch` \e -> do
-      putStrLn $ "When reading " <> p <> ": " <> show (e :: SomeException)
-      putStrLn "Using default translations."
-      saveTranslations p defaultTranslationData
-      pure defaultTranslationData
-
-loadTranslations' :: FilePath -> IO TranslationData
-loadTranslations' p =
-  readFile p
-    >>= ( \case
-            Nothing -> error $ "When reading " <> p <> ": failed to parse translations!"
-            Just t -> pure $ extend t
-        )
-      . decode
+loadTranslations _ = pure defaultTranslationData
 
 saveTranslations :: FilePath -> TranslationData -> IO ()
-saveTranslations p t = writeFile p (encode t)
+saveTranslations _ _ = pure ()
 
 labels :: S.Set Label
 labels = S.fromList labels'
-
-textToLabelMap :: M.Map Text Label
-textToLabelMap = M.fromList $ map (\l -> (labelOf l, l)) labels'
 
 defaultTranslationData :: TranslationData
 defaultTranslationData =

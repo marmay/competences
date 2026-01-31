@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Assignments
   ( AssignmentsCommand (..)
   , AssignmentPatch (..)
@@ -16,7 +18,9 @@ import Competences.Document.Evidence (ActivityType)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -44,14 +48,17 @@ data AssignmentsCommand
   = OnAssignments !(EntityCommand Assignment AssignmentPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary AssignmentPatch
+#ifdef WITH_AESON
 instance FromJSON AssignmentPatch
 instance ToJSON AssignmentPatch
-instance Binary AssignmentPatch
+#endif
 
+instance Binary AssignmentsCommand
+#ifdef WITH_AESON
 instance FromJSON AssignmentsCommand
 instance ToJSON AssignmentsCommand
-instance Binary AssignmentsCommand
+#endif
 
 -- Default instance
 instance Default AssignmentPatch where

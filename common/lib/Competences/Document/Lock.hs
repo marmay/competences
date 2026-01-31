@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Lock
   ( Lock (..)
   )
@@ -16,7 +18,9 @@ import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskGroupId, TaskId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..))
+#endif
 import Data.Binary (Binary (..))
 import GHC.Generics (Generic)
 
@@ -40,8 +44,10 @@ data Lock
   | ParticipationRecordLock !ParticipationRecordId
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON Lock
 
 instance ToJSON Lock
+#endif
 
 instance Binary Lock

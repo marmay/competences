@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Competences.Document
@@ -86,7 +87,10 @@ import Competences.Document.Resource
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
+#endif
+import Data.Binary (Binary)
 import Data.Map qualified as M
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~))
@@ -110,6 +114,9 @@ data Document = Document
   }
   deriving (Eq, Generic, Show)
 
+instance Binary Document
+
+#ifdef WITH_AESON
 instance FromJSON Document where
   parseJSON = withObject "Document" $ \v ->
     Document
@@ -148,6 +155,7 @@ instance ToJSON Document where
       , "lessons" .= Ix.toList d.lessons
       , "participationRecords" .= Ix.toList d.participationRecords
       ]
+#endif
 
 emptyDocument :: Document
 emptyDocument =

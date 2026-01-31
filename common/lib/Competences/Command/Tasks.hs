@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Tasks
   ( TasksCommand (..)
   , TaskPatch (..)
@@ -24,7 +26,9 @@ import Competences.Document.Task
   )
 import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -82,22 +86,29 @@ data TasksCommand
     -- ^ Commands for SubTasks (uses TaskGroupLock on parent)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary TaskPatch
+#ifdef WITH_AESON
 instance FromJSON TaskPatch
 instance ToJSON TaskPatch
-instance Binary TaskPatch
+#endif
 
+instance Binary TaskGroupPatch
+#ifdef WITH_AESON
 instance FromJSON TaskGroupPatch
 instance ToJSON TaskGroupPatch
-instance Binary TaskGroupPatch
+#endif
 
+instance Binary SubTaskPatch
+#ifdef WITH_AESON
 instance FromJSON SubTaskPatch
 instance ToJSON SubTaskPatch
-instance Binary SubTaskPatch
+#endif
 
+instance Binary TasksCommand
+#ifdef WITH_AESON
 instance FromJSON TasksCommand
 instance ToJSON TasksCommand
-instance Binary TasksCommand
+#endif
 
 -- Default instances
 instance Default TaskPatch where

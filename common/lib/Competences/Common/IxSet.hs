@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -16,7 +17,9 @@ module Competences.Common.IxSet
   )
 where
 
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..))
+#endif
 import Data.Binary (Binary (..))
 import Data.IxSet.Typed
 import Data.IxSet.Typed qualified as Ix
@@ -72,11 +75,13 @@ liftOpB = liftOp Ix.empty
 (@>=!) = liftOpB (@=)
 (@<=!) = liftOpB (@=)
 
+#ifdef WITH_AESON
 instance (FromJSON a, Ix.Indexable ixs a) => FromJSON (Ix.IxSet ixs a) where
   parseJSON = fmap Ix.fromList . parseJSON
 
 instance (ToJSON a, Ix.Indexable ixs a) => ToJSON (Ix.IxSet ixs a) where
   toJSON = toJSON . Ix.toList
+#endif
 
 instance (Binary a, Ix.Indexable ixs a) => Binary (Ix.IxSet ixs a) where
   put = put . Ix.toList

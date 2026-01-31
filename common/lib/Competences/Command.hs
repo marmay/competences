@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command
   ( Command (..)
   , CommandId
@@ -34,7 +36,10 @@ import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsers
 import Competences.Document (Document (..), User (..))
 import Competences.Document.Id (Id)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
+import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
 import Optics.Core ((^.))
@@ -58,9 +63,13 @@ data Command
 
 type CommandId = Id Command
 
+instance Binary Command
+
+#ifdef WITH_AESON
 instance FromJSON Command
 
 instance ToJSON Command
+#endif
 
 -- | Handle a command and return the updated document with affected users
 handleCommand :: UserId -> Command -> Document -> UpdateResult

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.CompetenceGridGrade
   ( CompetenceGridGrade (..)
   , CompetenceGridGradeId
@@ -11,7 +13,9 @@ import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Grade (Grade (..))
 import Competences.Document.Id (Id, nilId)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
@@ -75,8 +79,10 @@ nilCompetenceGridGrade =
     , comment = Nothing
     }
 
+#ifdef WITH_AESON
 instance FromJSON CompetenceGridGrade
 
 instance ToJSON CompetenceGridGrade
+#endif
 
 instance Binary CompetenceGridGrade

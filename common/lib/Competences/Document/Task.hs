@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Task
   ( -- * IDs
     TaskId
@@ -34,7 +36,9 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.=))
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
 import Data.List (singleton, sortOn)
@@ -52,12 +56,20 @@ type TaskGroupId = Id TaskGroup
 -- | Human-readable identifier for a Task.
 newtype TaskIdentifier = TaskIdentifier Text
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 -- | Human-readable identifier for a TaskGroup.
 newtype TaskGroupIdentifier = TaskGroupIdentifier Text
   deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
 
 -- | Purpose of a task: practice or assessment.
 data TaskPurpose
@@ -67,6 +79,7 @@ data TaskPurpose
     Assessment
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TaskPurpose where
   parseJSON = \case
     "Practice" -> pure Practice
@@ -76,6 +89,7 @@ instance FromJSON TaskPurpose where
 instance ToJSON TaskPurpose where
   toJSON Practice = "Practice"
   toJSON Assessment = "Assessment"
+#endif
 
 instance Binary TaskPurpose
 
@@ -97,6 +111,7 @@ data TaskAttributes = TaskAttributes
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TaskAttributes where
   parseJSON = withObject "TaskAttributes" $ \v ->
     TaskAttributes
@@ -113,6 +128,7 @@ instance ToJSON TaskAttributes where
       , "purpose" .= attrs.purpose
       , "displayInResources" .= attrs.displayInResources
       ]
+#endif
 
 instance Binary TaskAttributes
 
@@ -129,6 +145,7 @@ data TaskAttributesOverride = TaskAttributesOverride
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TaskAttributesOverride where
   parseJSON = withObject "TaskAttributesOverride" $ \v ->
     TaskAttributesOverride
@@ -145,6 +162,7 @@ instance ToJSON TaskAttributesOverride where
       , "purpose" .= override.purpose
       , "displayInResources" .= override.displayInResources
       ]
+#endif
 
 instance Binary TaskAttributesOverride
 
@@ -163,6 +181,7 @@ data TaskGroup = TaskGroup
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TaskGroup where
   parseJSON = withObject "TaskGroup" $ \v ->
     TaskGroup
@@ -181,6 +200,7 @@ instance ToJSON TaskGroup where
       , "contentBefore" .= group.contentBefore
       , "contentAfter" .= group.contentAfter
       ]
+#endif
 
 instance Binary TaskGroup
 
@@ -192,6 +212,7 @@ data TaskType
     SubTask !TaskGroupId !TaskAttributesOverride
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON TaskType where
   parseJSON = withObject "TaskType" $ \v -> do
     tag <- v .: "tag"
@@ -212,6 +233,7 @@ instance ToJSON TaskType where
       , "groupId" .= groupId
       , "override" .= override
       ]
+#endif
 
 instance Binary TaskType
 
@@ -229,6 +251,7 @@ data Task = Task
   }
   deriving (Eq, Generic, Ord, Show)
 
+#ifdef WITH_AESON
 instance FromJSON Task where
   parseJSON = withObject "Task" $ \v ->
     Task
@@ -245,6 +268,7 @@ instance ToJSON Task where
       , "content" .= task.content
       , "taskType" .= task.taskType
       ]
+#endif
 
 instance Binary Task
 

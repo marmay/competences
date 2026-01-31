@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Competences
   ( CompetencesCommand (..)
   , CompetenceGridPatch (..)
@@ -18,7 +20,9 @@ import Competences.Document.Competence (Competence (..), Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
 import Competences.Document.User (UserId)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as Ix
@@ -64,22 +68,29 @@ data CompetencesCommand
   | ReorderCompetence !(OrderPosition Competence) !(Reorder Competence)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary CompetenceGridPatch
+#ifdef WITH_AESON
 instance FromJSON CompetenceGridPatch
 instance ToJSON CompetenceGridPatch
-instance Binary CompetenceGridPatch
+#endif
 
+instance Binary LevelInfoPatch
+#ifdef WITH_AESON
 instance FromJSON LevelInfoPatch
 instance ToJSON LevelInfoPatch
-instance Binary LevelInfoPatch
+#endif
 
+instance Binary CompetencePatch
+#ifdef WITH_AESON
 instance FromJSON CompetencePatch
 instance ToJSON CompetencePatch
-instance Binary CompetencePatch
+#endif
 
+instance Binary CompetencesCommand
+#ifdef WITH_AESON
 instance FromJSON CompetencesCommand
 instance ToJSON CompetencesCommand
-instance Binary CompetencesCommand
+#endif
 
 -- Default instances
 instance Default CompetenceGridPatch where

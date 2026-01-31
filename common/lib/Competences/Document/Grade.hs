@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Grade
   ( Grade (..)
   , grades
@@ -6,7 +8,9 @@ module Competences.Document.Grade
   )
 where
 
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -56,8 +60,10 @@ gradeToText Grade4 = "4 (Genügend)"
 gradeToText Grade4_5 = "4-5"
 gradeToText Grade5 = "5 (Nicht genügend)"
 
+#ifdef WITH_AESON
 instance FromJSON Grade
 
 instance ToJSON Grade
+#endif
 
 instance Binary Grade

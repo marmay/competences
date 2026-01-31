@@ -20,7 +20,8 @@ import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Protocol (ServerMessage (..))
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
 import Control.Monad (forM_, when)
-import Data.Aeson (eitherDecodeFileStrict, encodeFile, encode)
+import Data.Aeson (eitherDecodeFileStrict, encodeFile)
+import Data.Binary qualified as Bin
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Pool (Pool)
@@ -135,4 +136,4 @@ broadcastToUsers state userIds msg = do
   forM_ uniqueUserIds $ \uid ->
     case Map.lookup uid clients of
       Nothing -> pure () -- User not connected
-      Just client -> WS.sendTextData client.connection (encode msg)
+      Just client -> WS.sendBinaryData client.connection (Bin.encode msg)

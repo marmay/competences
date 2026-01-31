@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Document.Id
   ( Id (..)
   , mkId
@@ -6,7 +8,9 @@ module Competences.Document.Id
   )
 where
 
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+#endif
 import Data.Binary (Binary (..))
 import Data.Text (Text)
 import Data.UUID.Types (UUID, fromText, nil, toText)
@@ -25,6 +29,7 @@ mkId t = Id <$> fromText t
 idToText :: Id a -> Text
 idToText i = toText i.unId
 
+#ifdef WITH_AESON
 instance FromJSON (Id a) where
   parseJSON = withText "Id" $ \t -> case fromText t of
     Nothing -> fail $ "Invalid UUID: " ++ show t
@@ -32,6 +37,7 @@ instance FromJSON (Id a) where
 
 instance ToJSON (Id a) where
   toJSON = toJSON . toText . (.unId)
+#endif
 
 instance Binary (Id a) where
   put = put . (.unId)

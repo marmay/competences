@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Resources
   ( ResourcesCommand (..)
   , ResourcePatch (..)
@@ -12,7 +14,9 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Resource (Resource (..), ResourceContent, ResourceIdentifier)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
@@ -32,18 +36,21 @@ data ResourcePatch = ResourcePatch
 newtype ResourcesCommand = OnResources (EntityCommand Resource ResourcePatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary ResourcePatch
+
+#ifdef WITH_AESON
 instance FromJSON ResourcePatch
 
 instance ToJSON ResourcePatch
+#endif
 
-instance Binary ResourcePatch
+instance Binary ResourcesCommand
 
+#ifdef WITH_AESON
 instance FromJSON ResourcesCommand
 
 instance ToJSON ResourcesCommand
-
-instance Binary ResourcesCommand
+#endif
 
 -- Default instance
 instance Default ResourcePatch where

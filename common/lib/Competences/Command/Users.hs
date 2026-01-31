@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.Users
   ( UsersCommand (..)
   , UserPatch (..)
@@ -10,7 +12,9 @@ import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandCon
 import Data.Default (Default (..))
 import Competences.Document (Document (..), Lock (..))
 import Competences.Document.User (Office365Id, User (..), UserId, UserRole)
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
@@ -34,14 +38,17 @@ data UsersCommand
   = OnUsers !(EntityCommand User UserPatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary UserPatch
+#ifdef WITH_AESON
 instance FromJSON UserPatch
 instance ToJSON UserPatch
-instance Binary UserPatch
+#endif
 
+instance Binary UsersCommand
+#ifdef WITH_AESON
 instance FromJSON UsersCommand
 instance ToJSON UsersCommand
-instance Binary UsersCommand
+#endif
 
 -- Default instances
 instance Default UserPatch where

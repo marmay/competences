@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Competences.Command.CompetenceGridGrades
   ( CompetenceGridGradesCommand (..)
   , CompetenceGridGradePatch (..)
@@ -12,7 +14,9 @@ import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Grade (Grade)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
+#ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
+#endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as Ix
@@ -36,18 +40,21 @@ newtype CompetenceGridGradesCommand
   = OnCompetenceGridGrades (EntityCommand CompetenceGridGrade CompetenceGridGradePatch)
   deriving (Eq, Generic, Show)
 
--- JSON instances
+instance Binary CompetenceGridGradePatch
+
+#ifdef WITH_AESON
 instance FromJSON CompetenceGridGradePatch
 
 instance ToJSON CompetenceGridGradePatch
+#endif
 
-instance Binary CompetenceGridGradePatch
+instance Binary CompetenceGridGradesCommand
 
+#ifdef WITH_AESON
 instance FromJSON CompetenceGridGradesCommand
 
 instance ToJSON CompetenceGridGradesCommand
-
-instance Binary CompetenceGridGradesCommand
+#endif
 
 -- Default instance
 instance Default CompetenceGridGradePatch where
