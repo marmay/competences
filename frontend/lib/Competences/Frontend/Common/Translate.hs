@@ -257,6 +257,29 @@ data Label
   | LblNoPhases
   | LblTeachingSocialForm !TeachingSocialForm
   | LblActionForm !ActionForm
+    -- Assignment evaluator
+  | LblEvaluateAssignment
+  | LblAssignmentNoTasks
+  | LblNSelected !Int
+  | LblReset
+  | LblLoadEvidence
+  | LblTaskNotFound
+  | LblTaskPrefix
+  | LblIncludeTask
+  | LblExcludeTask
+  | LblTaskStatement
+  | LblPleaseSelectStudents
+  | LblAggregatedResults
+  | LblAggregationStale
+  | LblComputeAggregation
+  | LblComputeAggregationHint
+  | LblContributingTasks
+  | LblSaveEvidences
+  | LblCreateEvidencesAction
+  | LblStudentsSelected !Int
+  | LblEvidencesWillBeEdited
+  | LblEvidencesBasedOn
+  | LblWillBeEdited
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -482,6 +505,29 @@ labels' =
   , LblActionForm Presenting
   , LblActionForm Collaborating
   , LblActionForm Assigning
+    -- Assignment evaluator
+  , LblEvaluateAssignment
+  , LblAssignmentNoTasks
+  , LblNSelected 0
+  , LblReset
+  , LblLoadEvidence
+  , LblTaskNotFound
+  , LblTaskPrefix
+  , LblIncludeTask
+  , LblExcludeTask
+  , LblTaskStatement
+  , LblPleaseSelectStudents
+  , LblAggregatedResults
+  , LblAggregationStale
+  , LblComputeAggregation
+  , LblComputeAggregationHint
+  , LblContributingTasks
+  , LblSaveEvidences
+  , LblCreateEvidencesAction
+  , LblStudentsSelected 0
+  , LblEvidencesWillBeEdited
+  , LblEvidencesBasedOn
+  , LblWillBeEdited
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -724,6 +770,29 @@ defaultTranslation (LblTeachingSocialForm IndividualWork) = "Einzelarbeit"
 defaultTranslation (LblActionForm Presenting) = "Darbietend"
 defaultTranslation (LblActionForm Collaborating) = "Zusammenwirkend"
 defaultTranslation (LblActionForm Assigning) = "Aufgebend"
+-- Assignment evaluator
+defaultTranslation LblEvaluateAssignment = "Auftrag auswerten"
+defaultTranslation LblAssignmentNoTasks = "Dieser Auftrag hat keine Aufgaben"
+defaultTranslation (LblNSelected n) = ms (show n) <> " ausgewählt"
+defaultTranslation LblReset = "Zurücksetzen"
+defaultTranslation LblLoadEvidence = "Nachweis laden"
+defaultTranslation LblTaskNotFound = "Aufgabe nicht gefunden"
+defaultTranslation LblTaskPrefix = "Aufgabe: "
+defaultTranslation LblIncludeTask = "Einbeziehen"
+defaultTranslation LblExcludeTask = "Ausschließen"
+defaultTranslation LblTaskStatement = "Aufgabenstellung"
+defaultTranslation LblPleaseSelectStudents = "Bitte wählen Sie Schüler zur Auswertung aus"
+defaultTranslation LblAggregatedResults = "Aggregierte Ergebnisse"
+defaultTranslation LblAggregationStale = "Bewertungen haben sich geändert \x2014 bitte neu berechnen"
+defaultTranslation LblComputeAggregation = "Aggregation berechnen"
+defaultTranslation LblComputeAggregationHint = "Klicken Sie auf 'Aggregation berechnen', um die Ergebnisse zu aggregieren."
+defaultTranslation LblContributingTasks = "Aufgaben: "
+defaultTranslation LblSaveEvidences = "Nachweise speichern"
+defaultTranslation LblCreateEvidencesAction = "Nachweise erstellen"
+defaultTranslation (LblStudentsSelected n) = ms (show n) <> " Schüler ausgewählt"
+defaultTranslation LblEvidencesWillBeEdited = "Die Nachweise der folgenden Schüler werden bearbeitet:"
+defaultTranslation LblEvidencesBasedOn = "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
+defaultTranslation LblWillBeEdited = "\" bearbeitet: "
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

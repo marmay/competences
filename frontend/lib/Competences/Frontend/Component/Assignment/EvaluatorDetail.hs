@@ -352,14 +352,14 @@ evaluatorComponent r assignment =
 
     view' m =
       if null m.assignment.tasks
-        then Typography.paragraph "Dieser Auftrag hat keine Aufgaben"
+        then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
         else
           let -- Sort tasks by identifier for consistent display order
               sortedTaskIds = map (.id) $
                 Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ m.assignment.tasks
            in M.div_
                 []
-                [ Typography.h2 "Auftrag auswerten"
+                [ Typography.h2 (C.translate' C.LblEvaluateAssignment)
                 , viewStudentSelection m
                 , viewOverwriteBanner m
                 , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
@@ -373,15 +373,15 @@ evaluatorComponent r assignment =
           dateValue = ms $ formatTime defaultTimeLocale "%Y-%m-%d" m.evaluationDate
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
-            [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> ms (show selectedCount) <> " ausgewählt)"]
+            [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> C.translate' (C.LblNSelected selectedCount) <> ")"]
             , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentButton m) students)
             , M.div_ [class_ "flex items-center gap-4 mt-3 pt-3 border-t"]
                 [ M.div_ [class_ "flex items-center gap-2"]
-                    [ M.span_ [class_ "font-semibold text-sm"] [M.text "Sozialform:"]
+                    [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblPhaseSocialForm <> ":"]
                     , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
                     ]
                 , M.div_ [class_ "flex items-center gap-2"]
-                    [ M.span_ [class_ "font-semibold text-sm"] [M.text "Datum:"]
+                    [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblEvidenceDate <> ":"]
                     , Input.dateInput dateValue SetEvaluationDate
                     ]
                 ]
@@ -430,22 +430,24 @@ evaluatorComponent r assignment =
                  in M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
                       [ M.div_ [class_ "flex items-center justify-between"]
                           [ M.p_ [class_ "text-sm text-yellow-800 font-medium"]
-                              [ M.text $ ms $
-                                  "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
-                                  <> loadedName <> "\" bearbeitet: " <> studentNames
+                              [ M.text $
+                                  C.translate' C.LblEvidencesBasedOn
+                                  <> ms loadedName
+                                  <> C.translate' C.LblWillBeEdited
+                                  <> ms studentNames
                               ]
                           , M.button_
                               [ class_ "ml-3 text-sm px-3 py-1 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 shrink-0"
                               , M.onClick ResetLoadedEvidence
                               ]
-                              [M.text "Zurücksetzen"]
+                              [M.text $ C.translate' C.LblReset]
                           ]
                       ]
               -- State A: no evidence loaded — show per-student items with load buttons
               Nothing ->
                 M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
                   [ M.p_ [class_ "text-sm text-yellow-800 font-medium mb-2"]
-                      [M.text "Die Nachweise der folgenden Schüler werden bearbeitet:"]
+                      [M.text $ C.translate' C.LblEvidencesWillBeEdited]
                   , M.div_ [class_ "space-y-2"]
                       (map (viewOverwriteItem m) studentsWithEvidence)
                   ]
@@ -460,7 +462,7 @@ evaluatorComponent r assignment =
                 [ class_ "text-sm px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                 , M.onClick (LoadStudentEvidence userId)
                 ]
-                [M.text "Nachweis laden"]
+                [M.text $ C.translate' C.LblLoadEvidence]
             ]
 
     viewTaskSection m taskId =
@@ -480,17 +482,17 @@ evaluatorComponent r assignment =
     viewTaskHeader m taskId isExcluded =
       let taskM = Ix.getOne (m.tasks Ix.@= taskId)
        in case taskM of
-            Nothing -> M.div_ [] [M.text $ "Aufgabe nicht gefunden: " <> ms (show taskId)]
+            Nothing -> M.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
             Just task ->
               let TaskIdentifier identifier = task.identifier
                   toggleClass = if isExcluded
                     then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
                     else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
                in M.div_ [class_ "mt-4 mb-1 flex items-center justify-between"]
-                    [ Typography.h3 $ "Aufgabe: " <> ms identifier
+                    [ Typography.h3 $ C.translate' C.LblTaskPrefix <> ms identifier
                     , M.button_
                         [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
-                        [M.text $ if isExcluded then "Einbeziehen" else "Ausschließen"]
+                        [M.text $ C.translate' $ if isExcluded then C.LblIncludeTask else C.LblExcludeTask]
                     ]
 
     viewTaskContent m taskId =
@@ -512,7 +514,7 @@ evaluatorComponent r assignment =
                                    , M.onClick (ToggleTaskContentExpanded taskId)
                                    ]
                                    [ Disclosure.disclosureChevron isContentExpanded
-                                   , M.span_ [class_ "text-sm text-muted-foreground"] [M.text "Aufgabenstellung"]
+                                   , M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblTaskStatement]
                                    ]
                                , -- Content (only when expanded)
                                  if isContentExpanded
@@ -543,11 +545,11 @@ evaluatorComponent r assignment =
     viewStudentEvaluations m taskId =
       let taskM = Ix.getOne (m.tasks Ix.@= taskId)
        in case taskM of
-            Nothing -> M.div_ [] [M.text "Aufgabe nicht gefunden"]
+            Nothing -> M.div_ [] [M.text $ C.translate' C.LblTaskNotFound]
             Just task ->
               let competences = getTaskCompetences m task
                in if null m.selectedStudents
-                    then M.div_ [class_ "mt-4"] [Typography.muted "Bitte wählen Sie Schüler zur Auswertung aus"]
+                    then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
                     else M.div_ [class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m taskId) competences)
 
     getTaskCompetences m task =
@@ -559,7 +561,7 @@ evaluatorComponent r assignment =
           (competenceId, level) = compId
           competenceM = Ix.getOne (m.competences Ix.@= competenceId)
           compLevelName = case competenceM of
-            Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
+            Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
             Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
        in M.div_
             [M.class_ "flex items-center gap-2"]
@@ -578,21 +580,21 @@ evaluatorComponent r assignment =
       M.div_
         [class_ "mt-6 border-t pt-6"]
         [ M.div_ [class_ "flex items-center justify-between mb-4"]
-            [ Typography.h3 "Aggregierte Ergebnisse"
+            [ Typography.h3 (C.translate' C.LblAggregatedResults)
             , M.div_ [class_ "flex items-center gap-3"]
                 [ if m.aggregationStale
                     then M.span_ [class_ "text-sm text-yellow-700"]
-                           [M.text "Bewertungen haben sich geändert \x2014 bitte neu berechnen"]
+                           [M.text $ C.translate' C.LblAggregationStale]
                     else M.text ""
                 , M.button_
                     [ M.onClick ComputeAggregation
                     , class_ "bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
                     ]
-                    [M.text "Aggregation berechnen"]
+                    [M.text $ C.translate' C.LblComputeAggregation]
                 ]
             ]
         , if Map.null m.aggregatedResults
-            then Typography.muted "Klicken Sie auf 'Aggregation berechnen', um die Ergebnisse zu aggregieren."
+            then Typography.muted (C.translate' C.LblComputeAggregationHint)
             else viewAggregatedResults m
         ]
 
@@ -634,7 +636,7 @@ evaluatorComponent r assignment =
       let (competenceId, level) = compId
           competenceM = Ix.getOne (m.competences Ix.@= competenceId)
           compLevelName = case competenceM of
-            Nothing -> ms $ "Kompetenz " <> T.pack (show compId)
+            Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
             Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
           contributingTasks = getContributingTasks m compId
        in M.div_
@@ -646,7 +648,7 @@ evaluatorComponent r assignment =
             , if null contributingTasks
                 then M.text ""
                 else M.div_ [class_ "text-xs text-muted-foreground mt-1 ml-1"]
-                       [M.text $ "Aufgaben: " <> ms (T.intercalate ", " contributingTasks)]
+                       [M.text $ C.translate' C.LblContributingTasks <> ms (T.intercalate ", " contributingTasks)]
             ]
 
     getContributingTasks m compId =
@@ -670,8 +672,8 @@ evaluatorComponent r assignment =
           isDisabled = selectedCount == 0 || not hasAggregatedResults || m.aggregationStale
           dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
           hasExisting = any (`Map.member` dateEvMap) (Set.toList m.selectedStudents)
-          actionLabel = if hasExisting then "Nachweise speichern" else "Nachweise erstellen"
-          buttonText = actionLabel <> " (" <> ms (show selectedCount) <> " Schüler ausgewählt)"
+          actionLabel = C.translate' $ if hasExisting then C.LblSaveEvidences else C.LblCreateEvidencesAction
+          buttonText = actionLabel <> " (" <> C.translate' (C.LblStudentsSelected selectedCount) <> ")"
           attrs =
             [ M.onClick CreateEvidences
             , class_ $
