@@ -38,7 +38,8 @@ import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModa
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (IcnLink, IcnResources, IcnVideo), icon)
+import Competences.Frontend.View.Icon (Icon (..), icon)
+import Miso.Svg.Property qualified as MSP
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -290,11 +291,11 @@ statusGroupHeader group count =
         [M.text $ M.ms $ "(" <> show count <> ")"]
     ]
 
--- | Colored dot indicator for a status group
+-- | Icon indicator for a status group
 statusGroupDot :: TaskStatusGroup -> M.View model action
-statusGroupDot GroupOpen = MH.div_ [class_ "w-3 h-3 rounded-full bg-stone-300"] []
-statusGroupDot GroupInProgress = MH.div_ [class_ "w-3 h-3 rounded-full bg-yellow-400"] []
-statusGroupDot GroupDone = MH.div_ [class_ "w-3 h-3 rounded-full bg-green-500"] []
+statusGroupDot GroupOpen = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-stone-400"] IcnAbilityNotYet
+statusGroupDot GroupInProgress = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-yellow-500"] IcnAbilitySillyMistakes
+statusGroupDot GroupDone = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-green-500"] IcnAbilitySelfReliant
 
 -- | Translated label for a status group
 statusGroupLabel :: TaskStatusGroup -> M.MisoString
