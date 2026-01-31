@@ -368,8 +368,8 @@ viewerComponent r grid =
                       let ms = Map.findWithDefault NotTried (competence.id, BasicLevel) userData.userMastery
                        in ("", CellStyle.masteryStripedStyle ms)
                     Just assessment -> case assessment.level of
-                      Nothing -> ("bg-yellow-100", [])
-                      Just _ -> ("bg-green-100", [])
+                      Nothing -> ("bg-yellow-200", [])
+                      Just _ -> ("bg-green-200", [])
             AnalyticsViewData _ -> ("", [])
        in TableCellSpec
             { cellClasses = "px-4 py-3 " <> bgClass
