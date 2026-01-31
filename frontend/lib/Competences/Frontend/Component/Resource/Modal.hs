@@ -17,6 +17,7 @@ import Competences.Document
   ( Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
+  , Task (..)
   )
 import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
@@ -31,7 +32,7 @@ import Competences.Frontend.Component.TaskResource
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Optics.Core ((&))
 import Competences.Document.Task (TaskId)
-import Competences.Query.TaskStatus (TaskCompletionStatus)
+import Competences.Query.TaskStatus (TaskCompletionStatus, TaskStatusGroup (..), groupByTaskStatus)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View qualified as V
@@ -79,6 +80,7 @@ data Model = Model
   , taskListState :: !TaskResourceList
   , viewMode :: !ResourceViewMode
   , expandedResources :: !(Set.Set ResourceId)
+  , collapsedGroups :: !(Set.Set TaskStatusGroup)
   }
   deriving (Eq, Generic)
 
@@ -90,6 +92,7 @@ data Action
   = TaskListAction !TRL.Action
   | SwitchViewMode !ResourceViewMode
   | ToggleResourceExpanded !ResourceId
+  | ToggleStatusGroup !TaskStatusGroup
   | CloseModal
   deriving (Eq, Show)
 
@@ -112,6 +115,7 @@ resourceModalComponent modalMgr cfg =
         , taskListState = initialState TasksCollapsed cfg.tasks
         , viewMode = defaultMode
         , expandedResources = Set.empty
+        , collapsedGroups = Set.empty
         }
 
     update (TaskListAction action) =
@@ -128,6 +132,14 @@ resourceModalComponent modalMgr cfg =
                 then Set.delete resId m.expandedResources
                 else Set.insert resId m.expandedResources
          in m {expandedResources = newExpanded}
+
+    update (ToggleStatusGroup group) =
+      M.modify $ \m ->
+        let newCollapsed =
+              if Set.member group m.collapsedGroups
+                then Set.delete group m.collapsedGroups
+                else Set.insert group m.collapsedGroups
+         in m {collapsedGroups = newCollapsed}
 
     update CloseModal =
       M.io_ $ closeModal modalMgr
@@ -146,8 +158,12 @@ resourceModalComponent modalMgr cfg =
           MH.div_
             [class_ "flex-1 overflow-y-auto px-8 py-6"]
             [ case m.viewMode of
-                ViewTasks ->
-                  taskResourceListView m.config.showPurposeBadge (viewTaskCompletionStatusFromMap m.config.taskStatuses) m.config.tasks m.taskListState TaskListAction
+                ViewTasks
+                  | Map.null m.config.taskStatuses ->
+                      -- No focused user: flat list without grouping
+                      taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.tasks m.taskListState TaskListAction
+                  | otherwise ->
+                      groupedTasksView m
                 ViewLearningResources ->
                   resourcesListView m.config.resources m.expandedResources
             ]
@@ -232,3 +248,54 @@ resourcesListView resources expandedSet =
                     then V.empty
                     else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
                 ]
+
+-- ============================================================================
+-- Status-grouped task view
+-- ============================================================================
+
+-- | Render tasks grouped by completion status
+groupedTasksView :: Model -> M.View Model Action
+groupedTasksView m =
+  let groups = groupByTaskStatus (.task.id) m.config.taskStatuses m.config.tasks
+   in if null groups
+        then
+          MH.div_
+            [class_ "text-muted-foreground text-sm py-4 text-center"]
+            [M.text $ C.translate' C.LblNoTasksAvailable]
+        else MH.div_ [class_ "space-y-3"] (map (viewStatusGroup m) groups)
+
+-- | Render a single status group as a collapsible section
+viewStatusGroup :: Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
+viewStatusGroup m (group, tasks) =
+  let isExpanded = not $ Set.member group m.collapsedGroups
+      header = statusGroupHeader group (length tasks)
+      content =
+        taskResourceListView
+          m.config.showPurposeBadge
+          (viewTaskCompletionStatusFromMap m.config.taskStatuses)
+          tasks
+          m.taskListState
+          TaskListAction
+   in Disclosure.collapsible isExpanded (ToggleStatusGroup group) header content
+
+-- | Header for a status group: colored dot + label + count
+statusGroupHeader :: TaskStatusGroup -> Int -> M.View Model Action
+statusGroupHeader group count =
+  MH.div_
+    [class_ "flex items-center gap-2"]
+    [ statusGroupDot group
+    , MH.span_ [class_ "font-medium"] [M.text $ statusGroupLabel group]
+    , MH.span_
+        [class_ "text-muted-foreground text-sm"]
+        [M.text $ M.ms $ "(" <> show count <> ")"]
+    ]
+
+-- | Colored dot indicator for a status group
+statusGroupDot :: TaskStatusGroup -> M.View model action
+statusGroupDot GroupOpen = MH.div_ [class_ "w-3 h-3 rounded-full bg-stone-300"] []
+statusGroupDot GroupInProgress = MH.div_ [class_ "w-3 h-3 rounded-full bg-yellow-400"] []
+statusGroupDot GroupDone = MH.div_ [class_ "w-3 h-3 rounded-full bg-green-500"] []
+
+-- | Translated label for a status group
+statusGroupLabel :: TaskStatusGroup -> M.MisoString
+statusGroupLabel = C.translate' . C.LblTaskStatusGroup

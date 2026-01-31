@@ -21,6 +21,7 @@ import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialFor
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
+import Competences.Query.TaskStatus (TaskStatusGroup (..), taskStatusGroups)
 import Data.Maybe (fromMaybe)
 import Miso.String (MisoString, ms)
 import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
@@ -200,6 +201,7 @@ data Label
   | LblTasks
   | LblLearningResources
   | LblNoTasksAvailable
+  | LblTaskStatusGroup !TaskStatusGroup
     -- Resource Editor
   | LblEditResource
   | LblResourceIdentifier
@@ -532,6 +534,7 @@ labels' =
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
     <> map LblTaskPurpose taskPurposes
+    <> map LblTaskStatusGroup taskStatusGroups
     <> map LblSolutionType solutionTypes
 
 defaultLanguage :: Language
@@ -708,6 +711,9 @@ defaultTranslation LblMaterials = "Materialien"
 defaultTranslation LblTasks = "Aufgaben"
 defaultTranslation LblLearningResources = "Lernmaterial"
 defaultTranslation LblNoTasksAvailable = "Keine Aufgaben verfügbar"
+defaultTranslation (LblTaskStatusGroup GroupOpen) = "Offen"
+defaultTranslation (LblTaskStatusGroup GroupInProgress) = "In Bearbeitung"
+defaultTranslation (LblTaskStatusGroup GroupDone) = "Erledigt"
 -- Resource Editor
 defaultTranslation LblEditResource = "Ressource bearbeiten"
 defaultTranslation LblResourceIdentifier = "Bezeichnung"

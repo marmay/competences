@@ -10,6 +10,10 @@ module Competences.Query.TaskStatus
   , EvidenceRef (..)
   , taskCompletionStatus
   , taskCompletionStatuses
+  , TaskStatusGroup (..)
+  , taskStatusGroups
+  , taskStatusGroup
+  , groupByTaskStatus
   )
 where
 
@@ -122,3 +126,33 @@ mkEvidenceRef doc ev =
         , activityType = ev.activityType
         , date = ev.date
         }
+
+-- ============================================================================
+-- Status grouping
+-- ============================================================================
+
+-- | Coarse status group for grouping tasks in UI views.
+data TaskStatusGroup = GroupOpen | GroupInProgress | GroupDone
+  deriving (Eq, Ord, Show)
+
+-- | All status groups in display order.
+taskStatusGroups :: [TaskStatusGroup]
+taskStatusGroups = [GroupOpen, GroupInProgress, GroupDone]
+
+-- | Classify a completion status into a coarse group.
+taskStatusGroup :: TaskCompletionStatus -> TaskStatusGroup
+taskStatusGroup TaskNotEvaluated = GroupOpen
+taskStatusGroup (TaskNotDone _) = GroupInProgress
+taskStatusGroup (TaskDone _) = GroupDone
+
+-- | Partition items by task status group.
+--
+-- Groups are returned in fixed order: Open, InProgress, Done.
+-- Empty groups are omitted. Items not found in the status map are classified as Open.
+groupByTaskStatus :: (a -> TaskId) -> Map TaskId TaskCompletionStatus -> [a] -> [(TaskStatusGroup, [a])]
+groupByTaskStatus getKey statuses items =
+  let grouped = foldr insertItem Map.empty items
+      insertItem item acc =
+        let g = maybe GroupOpen taskStatusGroup (Map.lookup (getKey item) statuses)
+         in Map.insertWith (++) g [item] acc
+   in [(g, xs) | g <- [GroupOpen, GroupInProgress, GroupDone], Just xs <- [Map.lookup g grouped]]
