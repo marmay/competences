@@ -222,6 +222,7 @@ data Label
   | LblImportAssignments
   | LblExport
     -- Analytics
+  | LblMasteryStreakTwoAssessed
   | LblMasteryStreakTwoPlus
   | LblMasteryOneSuccess
   | LblMasteryOnlySillyMistakes
@@ -465,6 +466,7 @@ labels' =
   , LblImportAssignments
   , LblExport
     -- Analytics
+  , LblMasteryStreakTwoAssessed
   , LblMasteryStreakTwoPlus
   , LblMasteryOneSuccess
   , LblMasteryOnlySillyMistakes
@@ -734,6 +736,7 @@ defaultTranslation LblImportTasks = "Aufgaben importieren"
 defaultTranslation LblImportAssignments = "Aufgaben importieren"
 defaultTranslation LblExport = "Exportieren"
 -- Analytics
+defaultTranslation LblMasteryStreakTwoAssessed = "Überprüfungsbereit (++2)"
 defaultTranslation LblMasteryStreakTwoPlus = "Sicher (2+ Erfolge)"
 defaultTranslation LblMasteryOneSuccess = "Erfolgreich (1 Erfolg)"
 defaultTranslation LblMasteryOnlySillyMistakes = "Dumme Fehler"

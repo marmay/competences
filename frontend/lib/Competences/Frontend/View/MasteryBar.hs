@@ -24,7 +24,7 @@ data MasteryDisplayConfig = MasteryDisplayConfig
   }
 
 -- | Render mastery distribution as horizontal stacked bars with tooltips.
--- Always shows all 5 indicators (dimmed when count is 0) for consistent navigation.
+-- Always shows all 6 indicators (dimmed when count is 0) for consistent navigation.
 masteryDisplay :: MasteryDisplayConfig -> M.View m action
 masteryDisplay config =
   MH.div_
@@ -33,7 +33,7 @@ masteryDisplay config =
       MH.div_
         [class_ "flex h-3 rounded overflow-hidden bg-stone-100"]
         (map renderSegment segments)
-    , -- Count labels below - always show all 5, with CSS tooltips
+    , -- Count labels below - always show all 6, with CSS tooltips
       MH.div_
         [class_ "flex gap-x-2 text-xs"]
         (map renderIndicator segments)
@@ -43,10 +43,11 @@ masteryDisplay config =
     getStudents status = Map.findWithDefault [] status config.students
 
     segments =
-      [ (StreakTwoPlus, "bg-green-700", C.translate' C.LblMasteryStreakTwoPlus)
-      , (OneSuccess, "bg-green-500", C.translate' C.LblMasteryOneSuccess)
-      , (OnlySillyMistakes, "bg-yellow-500", C.translate' C.LblMasteryOnlySillyMistakes)
-      , (MasteryNotYet, "bg-amber-600", C.translate' C.LblMasteryNotYet)
+      [ (StreakTwoAssessed, "bg-green-800", C.translate' C.LblMasteryStreakTwoAssessed)
+      , (StreakTwoPlus, "bg-green-600", C.translate' C.LblMasteryStreakTwoPlus)
+      , (OneSuccess, "bg-green-400", C.translate' C.LblMasteryOneSuccess)
+      , (OnlySillyMistakes, "bg-yellow-400", C.translate' C.LblMasteryOnlySillyMistakes)
+      , (MasteryNotYet, "bg-yellow-600", C.translate' C.LblMasteryNotYet)
       , (NotTried, "bg-stone-300", C.translate' C.LblMasteryNotTried)
       ]
 

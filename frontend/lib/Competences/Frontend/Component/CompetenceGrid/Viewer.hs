@@ -68,6 +68,7 @@ import Competences.Query.Mastery
   ( MasteryStatus (..)
   , getClassMasteryStats
   , getClassMasteryWithStudents
+  , getUserMastery
   )
 import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuses)
 import Data.List (sortOn)
@@ -123,6 +124,8 @@ data UserData = UserData
   -- ^ Assessments for focused user only
   , activeGridGrade :: !(Maybe CompetenceGridGrade)
   -- ^ Pre-computed: most recent grid grade for this grid and focused user
+  , userMastery :: !(Map CompetenceLevelId MasteryStatus)
+  -- ^ Pre-computed mastery status per competence level (for stripe display)
   }
   deriving (Eq, Generic, Show)
 
@@ -176,19 +179,19 @@ viewerComponent r grid =
     viewerProjection :: UserRole -> Document -> Maybe User -> ViewerProjection
     viewerProjection role doc mUser =
       let gridCompetences = QCompetence.gridCompetences doc grid.id
+          -- All competence levels in this grid that have descriptions
+          competenceLevels =
+            [ (c.id, level)
+            | c <- Ix.toList gridCompetences
+            , level <- allLevels
+            , let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level c.levels
+            , not (T.null levelInfo.description)
+            ]
           -- Compute view-specific data based on focused user
           vData = case mUser of
             Nothing ->
               -- No focused user: compute analytics
               let students = QUser.students doc
-                  -- Pre-compute mastery stats for all competence levels in this grid
-                  competenceLevels =
-                    [ (c.id, level)
-                    | c <- Ix.toList gridCompetences
-                    , level <- allLevels
-                    , let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level c.levels
-                    , not (T.null levelInfo.description)
-                    ]
                   stats = Map.fromList
                     [ (clId, getClassMasteryStats doc clId)
                     | clId <- competenceLevels
@@ -204,13 +207,18 @@ viewerComponent r grid =
                     }
             Just u ->
               -- Focused user: compute user-specific data
-              UserViewData $ UserData
-                { focusedUser = u
-                , userEvidences = QEvidence.userEvidences doc u.id
-                , userAssessments = doc.competenceAssessments Ix.@= u.id
-                , activeGridGrade = listToMaybe $ Ix.toDescList (Proxy @Day) $
-                    doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
-                }
+              let mastery = Map.fromList
+                    [ (clId, getUserMastery doc u.id clId)
+                    | clId <- competenceLevels
+                    ]
+               in UserViewData $ UserData
+                    { focusedUser = u
+                    , userEvidences = QEvidence.userEvidences doc u.id
+                    , userAssessments = doc.competenceAssessments Ix.@= u.id
+                    , activeGridGrade = listToMaybe $ Ix.toDescList (Proxy @Day) $
+                        doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
+                    , userMastery = mastery
+                    }
           -- Pre-compute resource tasks (needed for both display and status computation)
           resTasks = computeResourceTasks doc gridCompetences
           -- Compute task statuses for focused user (if any)
@@ -467,9 +475,17 @@ viewerComponent r grid =
                   else V.empty
               , resourceIcon
               ]
+
+          -- Mastery stripes when no assessment exists for this competence
+          masteryStyle = case cellStatus of
+            NoAssessment
+              | hasDescription ->
+                  CellStyle.masteryStripedStyle $
+                    Map.findWithDefault NotTried competenceLevelId userData.userMastery
+            _ -> []
        in TableCellSpec
             { cellClasses = tdClasses
-            , cellStyle = stripeStyle
+            , cellStyle = stripeStyle <> masteryStyle
             , cellContent = cellContent
             }
 

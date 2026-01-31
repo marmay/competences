@@ -8,6 +8,7 @@
 -- "failing at Basic doesn't affect Advanced mastery."
 module Test.Query.MasteryTest (tests) where
 
+import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Competence (Level (..), allLevels)
 import Competences.Document.Evidence (Ability (..), SocialForm (..))
 import Competences.Query.Mastery
@@ -30,22 +31,36 @@ tests =
 masteryAt :: Level -> ObservationTimeline -> MasteryStatus
 masteryAt lvl timeline = Map.findWithDefault NotTried lvl (classifyAllLevels timeline)
 
--- | Helper: construct a single observation.
+-- | Helper: construct a single observation (defaults to SchoolExercise activity).
 obs :: Level -> Ability -> SocialForm -> LevelObservation
-obs = LevelObservation
+obs l a s = LevelObservation l a s SchoolExercise
+
+-- | Helper: construct an observation with Exam activity type.
+obsExam :: Level -> Ability -> SocialForm -> LevelObservation
+obsExam l a s = LevelObservation l a s Exam
+
+-- | Helper: construct an observation with Conversation activity type.
+obsConv :: Level -> Ability -> SocialForm -> LevelObservation
+obsConv l a s = LevelObservation l a s Conversation
 
 -- | Generate a timeline where all observations use Group social form.
 genAllGroupTimeline :: Gen ObservationTimeline
 genAllGroupTimeline = listOf (listOf genGroupObs)
   where
-    genGroupObs = LevelObservation <$> arbitrary <*> arbitrary <*> pure Group
+    genGroupObs = LevelObservation <$> arbitrary <*> arbitrary <*> pure Group <*> arbitrary
 
 -- | Generate a timeline with no observations at the given level.
 genTimelineWithout :: Level -> Gen ObservationTimeline
 genTimelineWithout targetLevel = listOf (listOf genObs)
   where
     otherLevels = filter (/= targetLevel) allLevels
-    genObs = LevelObservation <$> elements otherLevels <*> arbitrary <*> arbitrary
+    genObs = LevelObservation <$> elements otherLevels <*> arbitrary <*> arbitrary <*> arbitrary
+
+-- | Generate a timeline where all observations use non-assessment activity types.
+genNonAssessmentTimeline :: Gen ObservationTimeline
+genNonAssessmentTimeline = listOf (listOf genObs)
+  where
+    genObs = LevelObservation <$> arbitrary <*> arbitrary <*> arbitrary <*> elements [SchoolExercise, HomeExercise]
 
 -- ============================================================================
 -- Part A: Concrete Examples
@@ -115,6 +130,37 @@ classifierExamples =
               , [obs BasicLevel SelfReliant Group]
               ]
          in masteryAt BasicLevel timeline @?= StreakTwoPlus
+    , -- StreakTwoAssessed (++2) examples
+      testCase "two SelfReliant (Individual + Exam) -> StreakTwoAssessed" $
+        let timeline =
+              [ [obsExam BasicLevel SelfReliant Individual]
+              , [obs BasicLevel SelfReliant Group]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+    , testCase "two SelfReliant (Individual + Conversation) -> StreakTwoAssessed" $
+        let timeline =
+              [ [obsConv BasicLevel SelfReliant Individual]
+              , [obs BasicLevel SelfReliant Group]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+    , testCase "two SelfReliant (Individual, all SchoolExercise) -> StreakTwoPlus (not ++2)" $
+        let timeline =
+              [ [obs BasicLevel SelfReliant Individual]
+              , [obs BasicLevel SelfReliant Group]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoPlus
+    , testCase "cross-level ++2: Exam at Intermediate + Individual at Basic -> StreakTwoAssessed at Basic" $
+        let timeline =
+              [ [obsExam IntermediateLevel SelfReliant Group]
+              , [obs BasicLevel SelfReliant Individual]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+    , testCase "Exam but all Group -> OneSuccess (needs Individual too)" $
+        let timeline =
+              [ [obsExam BasicLevel SelfReliant Group]
+              , [obs BasicLevel SelfReliant Group]
+              ]
+         in masteryAt BasicLevel timeline @?= OneSuccess
     ]
 
 -- ============================================================================
@@ -177,7 +223,7 @@ classifierProperties =
                     | lvl <- higherLevels
                     ]
     , -- P5: Success never lowers mastery at the same level
-      -- MasteryStatus Ord: StreakTwoPlus < OneSuccess < OnlySillyMistakes < MasteryNotYet < NotTried
+      -- MasteryStatus Ord: StreakTwoAssessed < StreakTwoPlus < OneSuccess < ... < NotTried
       testProperty "P5: success never lowers mastery at target level" $
         \(timeline :: ObservationTimeline) ->
           forAll arbitrary $ \targetLevel ->
@@ -231,14 +277,23 @@ classifierProperties =
                   now = masteryAt targetLevel (newEvidence : baseline)
                in counterexample ("before=" ++ show before ++ " after=" ++ show now) $
                     before === OneSuccess .&&. now =/= MasteryNotYet
-    , -- P10: All Group observations -> no level can be StreakTwoPlus.
+    , -- P10: All Group observations -> no level can be StreakTwoPlus or StreakTwoAssessed.
       -- Generate timelines where all observations use Group social form.
-      testProperty "P10: all-Group observations -> no StreakTwoPlus" $
+      testProperty "P10: all-Group observations -> no StreakTwoPlus or StreakTwoAssessed" $
         forAll genAllGroupTimeline $ \timeline ->
           let result = classifyAllLevels timeline
            in conjoin
                 [ counterexample ("level " ++ show lvl ++ " = " ++ show status) $
-                    status =/= StreakTwoPlus
+                    status =/= StreakTwoPlus .&&. status =/= StreakTwoAssessed
+                | (lvl, status) <- Map.toList result
+                ]
+    , -- P11: All non-assessment activities -> no level can be StreakTwoAssessed.
+      testProperty "P11: all non-assessment activities -> no StreakTwoAssessed" $
+        forAll genNonAssessmentTimeline $ \timeline ->
+          let result = classifyAllLevels timeline
+           in conjoin
+                [ counterexample ("level " ++ show lvl ++ " = " ++ show status) $
+                    status =/= StreakTwoAssessed
                 | (lvl, status) <- Map.toList result
                 ]
     , -- Smoke test: classifyAllLevels never crashes

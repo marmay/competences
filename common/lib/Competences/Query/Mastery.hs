@@ -8,9 +8,11 @@ module Competences.Query.Mastery
 
     -- * Cross-Level Ability Bounds
   , AbilityBounds (..)
+  , EvidenceQuality (..)
   , abilityFloor
   , abilityCeiling
   , boundsHasIndividual
+  , boundsHasAssessmentActivity
 
     -- * Pure Testable Core
   , LevelObservation (..)
@@ -34,6 +36,7 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, allLevels)
+import Competences.Document.ActivityType (ActivityType (..), isAssessmentActivity)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..))
 import Competences.Document.User (User (..), UserId)
 import Competences.Query.Evidence qualified as QEvidence
@@ -47,13 +50,16 @@ import GHC.Generics (Generic)
 -- | Mastery status for a student at a specific competence-level
 --
 -- Categories are mutually exclusive and ordered by "proficiency":
+-- - StreakTwoAssessed: Assessment-ready (2+ streak with Individual AND Exam/Conversation)
 -- - StreakTwoPlus: Student has demonstrated mastery (2+ consecutive successes)
 -- - OneSuccess: Student is emerging (1 recent success)
 -- - OnlySillyMistakes: Student shows understanding but makes silly errors
 -- - MasteryNotYet: Student's most recent real attempt was unsuccessful
 -- - NotTried: Student has no observations for this level
 data MasteryStatus
-  = StreakTwoPlus
+  = StreakTwoAssessed
+  -- ^ 2+ consecutive SelfReliant with Individual AND Exam/Conversation activity (++2)
+  | StreakTwoPlus
   -- ^ 2+ consecutive SelfReliant observations (SillyMistakes don't break streak)
   | OneSuccess
   -- ^ Latest "real" attempt is SelfReliant, but no streak yet
@@ -65,6 +71,15 @@ data MasteryStatus
   -- ^ No observations for this competence-level
   deriving (Eq, Ord, Show, Generic, Bounded, Enum)
 
+-- | Quality flags for observations at/above the target level within one evidence.
+data EvidenceQuality = EvidenceQuality
+  { hasIndividual :: !Bool
+  -- ^ At least one observation at/above target has SocialForm Individual.
+  , hasAssessmentActivity :: !Bool
+  -- ^ The evidence's activity type is Exam or Conversation.
+  }
+  deriving (Eq, Show, Generic)
+
 -- | Constrained ability bounds from cross-level inference within one evidence.
 --
 -- When a student has observations at multiple levels of the same competence,
@@ -74,16 +89,16 @@ data MasteryStatus
 --
 -- Sum type with exactly the 3 meaningful states (no impossible Nothing/Nothing).
 data AbilityBounds
-  = FromAbove !Ability !Bool
+  = FromAbove !Ability !EvidenceQuality
   -- ^ Observations only strictly above target level.
-  --   Ability = noLowerThan (floor); Bool = hasIndividual at/above target.
+  --   Ability = noLowerThan (floor); EvidenceQuality for obs at/above target.
   | FromBelow !Ability
   -- ^ Observations only strictly below target level.
-  --   Ability = noHigherThan (ceiling). No hasIndividual (no obs at/above target).
-  | FromBoth !Ability !Ability !Bool
+  --   Ability = noHigherThan (ceiling). No positive quality (no obs at/above target).
+  | FromBoth !Ability !Ability !EvidenceQuality
   -- ^ Observations at target level (and possibly others), giving both bounds.
   --   First Ability = noLowerThan (floor), Second = noHigherThan (ceiling),
-  --   Bool = hasIndividual at/above target.
+  --   EvidenceQuality for obs at/above target.
   deriving (Eq, Show, Generic)
 
 -- | Get the noLowerThan (floor) bound, if available.
@@ -100,9 +115,15 @@ abilityCeiling (FromBoth _ a _) = Just a
 
 -- | Whether any observation at/above the target level has SocialForm Individual.
 boundsHasIndividual :: AbilityBounds -> Bool
-boundsHasIndividual (FromAbove _ b) = b
+boundsHasIndividual (FromAbove _ q) = q.hasIndividual
 boundsHasIndividual (FromBelow _) = False
-boundsHasIndividual (FromBoth _ _ b) = b
+boundsHasIndividual (FromBoth _ _ q) = q.hasIndividual
+
+-- | Whether the evidence has an assessment activity type (Exam or Conversation).
+boundsHasAssessmentActivity :: AbilityBounds -> Bool
+boundsHasAssessmentActivity (FromAbove _ q) = q.hasAssessmentActivity
+boundsHasAssessmentActivity (FromBelow _) = False
+boundsHasAssessmentActivity (FromBoth _ _ q) = q.hasAssessmentActivity
 
 -- ============================================================================
 -- Pure Testable Core
@@ -110,10 +131,13 @@ boundsHasIndividual (FromBoth _ _ b) = b
 
 -- | One observation stripped to just what mastery logic needs.
 -- No IDs, no dates, no IxSets.
+-- The 'activityType' is per-evidence metadata (all observations in one evidence
+-- share the same activity type), stored per-observation for simplicity.
 data LevelObservation = LevelObservation
   { level :: !Level
   , ability :: !Ability
   , socialForm :: !SocialForm
+  , activityType :: !ActivityType
   }
   deriving (Eq, Show, Generic)
 
@@ -140,16 +164,19 @@ observationBounds targetLevel obs =
       mCeiling = if null belowOrAt then Nothing else Just (maximum belowOrAt)
       -- Check for Individual social form at/above target
       hasIndiv = any (\o -> o.level >= targetLevel && o.socialForm == Individual) obs
+      -- Check for assessment activity type (Exam or Conversation) at/above target
+      hasAssessAct = any (\o -> o.level >= targetLevel && isAssessmentActivity o.activityType) obs
+      quality = EvidenceQuality hasIndiv hasAssessAct
    in case (mFloor, mCeiling) of
-        (Just f, Nothing) -> Just (FromAbove f hasIndiv)
+        (Just f, Nothing) -> Just (FromAbove f quality)
         (Nothing, Just c) -> Just (FromBelow c)
         (Just f, Just c)
           -- Direct observation at target level: both bounds are meaningful.
-          | hasTargetObs -> Just (FromBoth f c hasIndiv)
+          | hasTargetObs -> Just (FromBoth f c quality)
           -- Observations surround the target but none at it: keep the positive
           -- floor (from above), drop the ceiling (from below) — the student
           -- hasn't been observed at this level, so below-evidence can't condemn.
-          | otherwise -> Just (FromAbove f hasIndiv)
+          | otherwise -> Just (FromAbove f quality)
         (Nothing, Nothing) -> Nothing -- shouldn't happen since obs is non-empty
 
 -- | Classify mastery at all levels from a timeline of evidences (newest first).
@@ -172,13 +199,14 @@ classifyAllLevels timeline =
 --
 -- Uses both bounds for classification:
 -- - noHigherThan (ceiling) for negative classification (MasteryNotYet) — acts as a veto
--- - noLowerThan (floor) for positive classification (streak counting for +1, +2)
+-- - noLowerThan (floor) for positive classification (streak counting for +1, +2, ++2)
 --
 -- Bias towards success: only direct observation at the target level (FromBoth) can
 -- trigger MasteryNotYet. Indirect evidence (FromAbove, FromBelow) contributes to
 -- positive classification but never condemns.
 --
 -- For StreakTwoPlus, at least one contributing evidence must have SocialForm Individual.
+-- For StreakTwoAssessed (++2), additionally requires at least one Exam/Conversation.
 classifyMasteryConstrained :: [AbilityBounds] -> MasteryStatus
 classifyMasteryConstrained [] = NotTried
 classifyMasteryConstrained bounds
@@ -189,10 +217,11 @@ classifyMasteryConstrained bounds
       MasteryNotYet
   -- Positive check: count streak from noLowerThan values
   | otherwise =
-      let (streakLen, hasIndiv) = countConstrainedStreak bounds
+      let (streakLen, hasIndiv, hasAssessed) = countConstrainedStreak bounds
        in case () of
             _
-              | (streakLen :: Int) >= 2, hasIndiv -> StreakTwoPlus
+              | (streakLen :: Int) >= 2, hasIndiv, hasAssessed -> StreakTwoAssessed
+              | streakLen >= 2, hasIndiv -> StreakTwoPlus
               | streakLen >= 1 -> OneSuccess
               | otherwise -> classifyRemaining bounds
   where
@@ -211,17 +240,18 @@ classifyMasteryConstrained bounds
     -- Skip entries where floor is SillyMistakes or Nothing.
     -- Negative floors from indirect entries (FromAbove) skip rather than break —
     -- failing at a higher level doesn't invalidate success at a lower one.
-    -- Also track whether any streak entry has Individual.
-    countConstrainedStreak = go 0 False
+    -- Also track whether any streak entry has Individual or assessment activity.
+    countConstrainedStreak = go 0 False False
       where
-        go !n !indiv [] = (n, indiv)
-        go !n !indiv (b : rest) = case abilityFloor b of
-          Just SelfReliant -> go (n + 1) (indiv || boundsHasIndividual b) rest
-          Just SelfReliantWithSillyMistakes -> go n indiv rest -- skip, don't break
-          Nothing -> go n indiv rest -- no floor info, skip
+        go !n !indiv !assessed [] = (n, indiv, assessed)
+        go !n !indiv !assessed (b : rest) = case abilityFloor b of
+          Just SelfReliant ->
+            go (n + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) rest
+          Just SelfReliantWithSillyMistakes -> go n indiv assessed rest -- skip, don't break
+          Nothing -> go n indiv assessed rest -- no floor info, skip
           _ -> case b of
-            FromBoth {} -> (n, indiv) -- direct negative observation: breaks streak
-            _ -> go n indiv rest -- indirect negative: skip
+            FromBoth {} -> (n, indiv, assessed) -- direct negative observation: breaks streak
+            _ -> go n indiv assessed rest -- indirect negative: skip
 
     -- Classify when there's no positive streak: check floors for remaining info.
     -- Only direct observations (FromBoth) can produce MasteryNotYet or OnlySillyMistakes.
@@ -275,7 +305,7 @@ getConstrainedObservations doc userId (compId, targetLevel) =
 evidenceToBounds :: CompetenceId -> Level -> Evidence -> Maybe AbilityBounds
 evidenceToBounds compId targetLevel ev =
   let obs =
-        [ LevelObservation lvl o.ability o.socialForm
+        [ LevelObservation lvl o.ability o.socialForm ev.activityType
         | o <- Ix.toList ev.observations
         , let (cId, lvl) = o.competenceLevelId
         , cId == compId
@@ -324,20 +354,21 @@ getClassMasteryWithStudents doc compLevelId =
 hasSuccessStreak :: Int -> Document -> UserId -> CompetenceLevelId -> Bool
 hasSuccessStreak n doc userId compLevelId =
   let bounds = getConstrainedObservations doc userId compLevelId
-      (streakLen, hasIndiv) = countFloorStreak bounds
+      (streakLen, hasIndiv, _hasAssessed) = countFloorStreak bounds
    in if n >= 2
         then streakLen >= n && hasIndiv
         else streakLen >= n
   where
-    countFloorStreak = go 0 False
-    go !cnt !indiv [] = (cnt, indiv)
-    go !cnt !indiv (b : rest) = case abilityFloor b of
-      Just SelfReliant -> go (cnt + 1) (indiv || boundsHasIndividual b) rest
-      Just SelfReliantWithSillyMistakes -> go cnt indiv rest
-      Nothing -> go cnt indiv rest
+    countFloorStreak = go 0 False False
+    go !cnt !indiv !assessed [] = (cnt, indiv, assessed)
+    go !cnt !indiv !assessed (b : rest) = case abilityFloor b of
+      Just SelfReliant ->
+        go (cnt + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) rest
+      Just SelfReliantWithSillyMistakes -> go cnt indiv assessed rest
+      Nothing -> go cnt indiv assessed rest
       _ -> case b of
-        FromBoth {} -> (cnt, indiv) -- direct negative: breaks streak
-        _ -> go cnt indiv rest -- indirect negative: skip
+        FromBoth {} -> (cnt, indiv, assessed) -- direct negative: breaks streak
+        _ -> go cnt indiv assessed rest -- indirect negative: skip
 
 -- | Predicate: is user "proficient" (streak >= 2 with at least one Individual)?
 isCurrentlyProficient :: Document -> UserId -> CompetenceLevelId -> Bool

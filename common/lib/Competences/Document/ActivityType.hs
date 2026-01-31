@@ -3,6 +3,7 @@
 module Competences.Document.ActivityType
   ( ActivityType (..)
   , activityTypes
+  , isAssessmentActivity
   )
 where
 
@@ -35,3 +36,10 @@ instance Binary ActivityType
 
 activityTypes :: [ActivityType]
 activityTypes = [minBound .. maxBound]
+
+-- | Whether the activity type represents an assessment-like situation
+-- (individual demonstration under exam or conversation conditions).
+isAssessmentActivity :: ActivityType -> Bool
+isAssessmentActivity Exam = True
+isAssessmentActivity Conversation = True
+isAssessmentActivity _ = False
