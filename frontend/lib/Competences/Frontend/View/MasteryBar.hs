@@ -43,9 +43,9 @@ masteryDisplay config =
     getStudents status = Map.findWithDefault [] status config.students
 
     segments =
-      [ (StreakTwoAssessed, "bg-green-800", C.translate' C.LblMasteryStreakTwoAssessed)
-      , (StreakTwoPlus, "bg-green-600", C.translate' C.LblMasteryStreakTwoPlus)
-      , (OneSuccess, "bg-green-400", C.translate' C.LblMasteryOneSuccess)
+      [ (StreakTwoAssessed, "bg-green-700", C.translate' C.LblMasteryStreakTwoAssessed)
+      , (StreakTwoPlus, "bg-green-500", C.translate' C.LblMasteryStreakTwoPlus)
+      , (OneSuccess, "bg-green-300", C.translate' C.LblMasteryOneSuccess)
       , (OnlySillyMistakes, "bg-yellow-400", C.translate' C.LblMasteryOnlySillyMistakes)
       , (MasteryNotYet, "bg-yellow-600", C.translate' C.LblMasteryNotYet)
       , (NotTried, "bg-stone-300", C.translate' C.LblMasteryNotTried)

@@ -228,6 +228,13 @@ data Label
   | LblMasteryOnlySillyMistakes
   | LblMasteryNotYet
   | LblMasteryNotTried
+    -- Mastery badges (short labels for grid cell badges)
+  | LblMasteryBadgeAuto
+  | LblMasteryBadgeChecked
+  | LblMasteryBadgeStreak
+  | LblMasteryBadgeFirstSuccess
+  | LblMasteryBadgeSillyMistakes
+  | LblMasteryBadgeNotYet
     -- Meso Planning
   | LblMesoPlanning
   | LblMesoPlanTitle
@@ -472,6 +479,13 @@ labels' =
   , LblMasteryOnlySillyMistakes
   , LblMasteryNotYet
   , LblMasteryNotTried
+    -- Mastery badges
+  , LblMasteryBadgeAuto
+  , LblMasteryBadgeChecked
+  , LblMasteryBadgeStreak
+  , LblMasteryBadgeFirstSuccess
+  , LblMasteryBadgeSillyMistakes
+  , LblMasteryBadgeNotYet
     -- Meso Planning
   , LblMesoPlanning
   , LblMesoPlanTitle
@@ -742,6 +756,13 @@ defaultTranslation LblMasteryOneSuccess = "Erfolgreich (1 Erfolg)"
 defaultTranslation LblMasteryOnlySillyMistakes = "Dumme Fehler"
 defaultTranslation LblMasteryNotYet = "Noch nicht"
 defaultTranslation LblMasteryNotTried = "Nicht versucht"
+-- Mastery badges
+defaultTranslation LblMasteryBadgeAuto = "Auto"
+defaultTranslation LblMasteryBadgeChecked = "Überprüft"
+defaultTranslation LblMasteryBadgeStreak = "Streak"
+defaultTranslation LblMasteryBadgeFirstSuccess = "Erste Erfolge"
+defaultTranslation LblMasteryBadgeSillyMistakes = "Dumme Fehler"
+defaultTranslation LblMasteryBadgeNotYet = "Noch nicht"
 -- Meso Planning
 defaultTranslation LblMesoPlanning = "Planung"
 defaultTranslation LblMesoPlanTitle = "Titel"

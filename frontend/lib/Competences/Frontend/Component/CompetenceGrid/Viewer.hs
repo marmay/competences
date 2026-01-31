@@ -360,18 +360,20 @@ viewerComponent r grid =
 
     -- Render description cell (first column)
     renderDescriptionCell proj competence =
-      let bgClass = case proj.viewData of
+      let (bgClass, bgStyle) = case proj.viewData of
             UserViewData userData ->
               let mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
                in case mAssessment of
-                    Nothing -> ""
+                    Nothing ->
+                      let ms = Map.findWithDefault NotTried (competence.id, BasicLevel) userData.userMastery
+                       in ("", CellStyle.masteryStripedStyle ms)
                     Just assessment -> case assessment.level of
-                      Nothing -> "bg-yellow-100"
-                      Just _ -> "bg-green-100"
-            AnalyticsViewData _ -> ""
+                      Nothing -> ("bg-yellow-100", [])
+                      Just _ -> ("bg-green-100", [])
+            AnalyticsViewData _ -> ("", [])
        in TableCellSpec
             { cellClasses = "px-4 py-3 " <> bgClass
-            , cellStyle = []
+            , cellStyle = bgStyle
             , cellContent = Typography.small (M.ms competence.description)
             }
 
@@ -460,10 +462,30 @@ viewerComponent r grid =
               then [MH.onClick (OpenResourceModal competenceLevelId)]
               else []
 
+          -- Mastery badge row above description (only when mastery is active)
+          masteryBadgeRow = case cellStatus of
+            NoAssessment
+              | hasDescription
+              , let ms = Map.findWithDefault NotTried competenceLevelId userData.userMastery
+              , Just (bgCls, txtCls) <- CellStyle.masteryBadgeColors ms ->
+                  MH.div_
+                    [class_ "flex items-center justify-between gap-1 mb-0.5"]
+                    [ -- Auto badge (left)
+                      MH.span_
+                        [class_ "rounded-full px-1.5 text-xs font-medium bg-stone-100 text-stone-500"]
+                        [M.text (C.translate' C.LblMasteryBadgeAuto)]
+                    , -- Mastery badge (right)
+                      MH.span_
+                        [class_ $ "rounded-full px-1.5 text-xs font-medium " <> bgCls <> " " <> txtCls]
+                        [M.text (masteryBadgeLabel ms)]
+                    ]
+            _ -> V.empty
+
           cellContent =
             MH.div_
               (class_ "flex flex-col justify-center min-h-[44px]" : clickHandler)
               [ statusIcon
+              , masteryBadgeRow
               , if hasDescription
                   then Typography.small (M.ms levelInfo.description)
                   else V.empty
@@ -552,4 +574,13 @@ data CellAssessmentStatus
   | NotYetAchieved -- ^ Cell level is above the assessed level
   | NoAssessment   -- ^ No assessment exists for this competence
   deriving (Eq, Show)
+
+-- | Short badge label for a mastery status in grid cells.
+masteryBadgeLabel :: MasteryStatus -> M.MisoString
+masteryBadgeLabel StreakTwoAssessed = C.translate' C.LblMasteryBadgeChecked
+masteryBadgeLabel StreakTwoPlus = C.translate' C.LblMasteryBadgeStreak
+masteryBadgeLabel OneSuccess = C.translate' C.LblMasteryBadgeFirstSuccess
+masteryBadgeLabel OnlySillyMistakes = C.translate' C.LblMasteryBadgeSillyMistakes
+masteryBadgeLabel MasteryNotYet = C.translate' C.LblMasteryBadgeNotYet
+masteryBadgeLabel NotTried = ""
 

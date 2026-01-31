@@ -7,6 +7,7 @@ module Competences.Frontend.View.CellStyle
   ( statusBgClass
   , stripedStyle
   , masteryStripedStyle
+  , masteryBadgeColors
   )
 where
 
@@ -36,12 +37,22 @@ stripedStyle =
 -- Uses graduated greens for positive states and yellows for not-yet states.
 -- Returns empty list for 'NotTried' (no visual indicator).
 masteryStripedStyle :: MasteryStatus -> [(M.MisoString, M.MisoString)]
-masteryStripedStyle StreakTwoAssessed = coloredStripes "rgb(187 247 208)" "rgb(134 239 172)" -- green-200 / green-300
-masteryStripedStyle StreakTwoPlus = coloredStripes "rgb(220 252 231)" "rgb(187 247 208)" -- green-100 / green-200
-masteryStripedStyle OneSuccess = coloredStripes "rgb(240 253 244)" "rgb(220 252 231)" -- green-50 / green-100
+masteryStripedStyle StreakTwoAssessed = coloredStripes "rgb(220 252 231)" "rgb(187 247 208)" -- green-100 / green-200
+masteryStripedStyle StreakTwoPlus = coloredStripes "rgb(240 253 244)" "rgb(220 252 231)" -- green-50 / green-100
+masteryStripedStyle OneSuccess = coloredStripes "rgb(255 255 255)" "rgb(240 253 244)" -- white / green-50
 masteryStripedStyle OnlySillyMistakes = coloredStripes "rgb(254 252 232)" "rgb(254 249 195)" -- yellow-50 / yellow-100
 masteryStripedStyle MasteryNotYet = coloredStripes "rgb(254 249 195)" "rgb(254 240 138)" -- yellow-100 / yellow-200
 masteryStripedStyle NotTried = []
+
+-- | Badge color classes for mastery status (bg, text).
+-- Returns 'Nothing' for 'NotTried' (no badge shown).
+masteryBadgeColors :: MasteryStatus -> Maybe (Text, Text)
+masteryBadgeColors StreakTwoAssessed = Just ("bg-green-100", "text-green-700")
+masteryBadgeColors StreakTwoPlus = Just ("bg-green-50", "text-green-600")
+masteryBadgeColors OneSuccess = Just ("bg-green-50", "text-green-500")
+masteryBadgeColors OnlySillyMistakes = Just ("bg-yellow-50", "text-yellow-700")
+masteryBadgeColors MasteryNotYet = Just ("bg-yellow-100", "text-yellow-800")
+masteryBadgeColors NotTried = Nothing
 
 -- | Build a diagonal stripe background with two alternating colors.
 coloredStripes :: M.MisoString -> M.MisoString -> [(M.MisoString, M.MisoString)]
