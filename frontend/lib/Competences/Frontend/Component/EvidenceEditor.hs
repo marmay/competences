@@ -25,7 +25,7 @@ import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
-import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
+import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), entityPatchTransformedLens)
 import Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor (bulkEvidenceEditorComponent)
 import Competences.Frontend.Component.Selector.AssignmentSelector (searchableSingleAssignmentEditorField)
 import Competences.Frontend.Component.Selector.EvidenceSelector
@@ -46,7 +46,8 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Data.Bifunctor (bimap)
+import Optics.Core ((&), (.~), (?~), (^.), lens)
 
 -- | Mode for the evidence component
 data EvidenceMode
@@ -194,7 +195,7 @@ viewerComponent r evidence =
         [ Typography.h2 (C.translate' C.LblEvidences)
         , viewField (C.translate' C.LblEvidenceDate) (C.formatDay evidence.date)
         , viewField (C.translate' C.LblActivityType) (C.translate' $ C.LblActivityTypeDescription evidence.activityType)
-        , viewField (C.translate' C.LblTasksAndGroups) (viewTasks m evidence.tasks)
+        , viewField (C.translate' C.LblTasksAndGroups) (viewTasks m (Map.keys evidence.tasks))
         , viewObservations m evidence
         ]
 
@@ -265,6 +266,21 @@ evidenceEditorDetailView r evidence =
         )
         & (#modify ?~ (\e modify -> Evidences $ OnEvidences (Modify e.id modify)))
         & (#delete ?~ (\e -> Evidences $ OnEvidences (Delete e.id)))
+    -- | Lens bridging Map TaskId TaskEvaluations <-> [TaskId] for the task selector.
+    -- The selector only edits which tasks are present (keys); evaluations are
+    -- preserved for existing tasks and default to empty for newly added ones.
+    tasksToTaskIdsLens = EntityPatchTransformedLens
+      { viewLens = lens
+          (\e -> Map.keys e.tasks)
+          (\e ids -> e & #tasks .~ Map.fromList
+            [(tid, Map.findWithDefault Map.empty tid e.tasks) | tid <- ids])
+      , patchLens = lens
+          (\p -> fmap (bimap Map.keys Map.keys) p.tasks)
+          (\p mc -> p & #tasks .~ fmap (bimap toTaskMap toTaskMap) mc)
+      , transform = id
+      , embed = id
+      }
+    toTaskMap ids = Map.fromList [(tid, Map.empty) | tid <- ids]
     evidenceEditor =
       TE.editor
         ( TE.editorFormView'
@@ -292,7 +308,7 @@ evidenceEditorDetailView r evidence =
                            , searchableMultiTaskEditorField
                                r
                                (evidenceEditorId <> "-tasks")
-                               (entityPatchTransformedLens #tasks #tasks id id)
+                               tasksToTaskIdsLens
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignments
                            , searchableSingleAssignmentEditorField

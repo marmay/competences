@@ -4,6 +4,7 @@ module Competences.Document.Evidence
   ( Evidence (..)
   , EvidenceId
   , EvidenceIxs
+  , TaskEvaluations
   , SocialForm (..)
   , Ability (..)
   , ActivityType (..)
@@ -29,10 +30,14 @@ import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
+import Control.Applicative ((<|>))
+import Data.Aeson (FromJSON (..), ToJSON (..), Object, Value, object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Aeson.Types (Parser)
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian)
@@ -91,13 +96,20 @@ data Observation = Observation
   }
   deriving (Eq, Generic, Ord, Show)
 
+-- | Per-task competence evaluations. Maps each competence level to its
+-- evaluated ability. Empty map means the task has no per-competence data
+-- (e.g. legacy evidences or those created outside the assignment evaluator).
+type TaskEvaluations = Map CompetenceLevelId Ability
+
 data Evidence = Evidence
   { id :: !EvidenceId
   , userId :: !(Maybe UserId)
   , activityType :: !ActivityType
   , date :: !Day
-  , tasks :: ![TaskId]
-    -- ^ Task references (new format)
+  , tasks :: !(Map TaskId TaskEvaluations)
+    -- ^ Tasks in this evidence, each with optional per-competence evaluations.
+    -- Key presence indicates the task is part of the evidence.
+    -- Empty inner map means no per-task breakdown is stored.
   , oldTasks :: !Text
     -- ^ Legacy text-based tasks (for gradual migration from activityTasks)
   , observations :: !(Ix.IxSet ObservationIxs Observation)
@@ -121,7 +133,7 @@ nilEvidence = Evidence
   , userId = Nothing
   , activityType = SchoolExercise
   , date = fromGregorian 2025 1 1
-  , tasks = []
+  , tasks = Map.empty
   , oldTasks = ""
   , observations = Ix.empty
   , assignmentId = Nothing
@@ -177,8 +189,8 @@ instance Binary Ability
 #ifdef WITH_AESON
 instance FromJSON Evidence where
   parseJSON = withObject "Evidence" $ \v -> do
-    -- Read new format fields
-    tasksList <- v .:? "tasks" .!= []
+    -- Parse tasks: try new map format, fall back to old list format
+    tasksMap <- parseTasksNewFormat v <|> parseTasksOldFormat v
     -- Migrate old activityTasks to oldTasks
     legacyTasks <- v .:? "activityTasks"
     oldTasksValue <- case legacyTasks of
@@ -189,11 +201,28 @@ instance FromJSON Evidence where
       <*> v .:? "userId"
       <*> v .: "activityType"
       <*> v .: "date"
-      <*> pure tasksList
+      <*> pure tasksMap
       <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
       <*> v .:? "assignmentId" .!= Nothing
       <*> v .:? "lessonId" .!= Nothing
+
+-- | Parse new format: "tasks" is a JSON object {taskId: [{competenceLevelId, ability}]}
+parseTasksNewFormat :: Object -> Parser (Map TaskId TaskEvaluations)
+parseTasksNewFormat v = do
+  raw <- v .: "tasks" :: Parser (Map TaskId [Value])
+  Map.traverseWithKey (\_ entries -> Map.fromList <$> mapM parseEvalEntry entries) raw
+
+-- | Parse old format: "tasks" is [TaskId] (no per-competence data)
+parseTasksOldFormat :: Object -> Parser (Map TaskId TaskEvaluations)
+parseTasksOldFormat v = do
+  taskIds <- v .:? "tasks" .!= ([] :: [TaskId])
+  pure $ Map.fromList [ (tid, Map.empty) | tid <- taskIds ]
+
+-- | Parse a single {competenceLevelId, ability} entry (new format)
+parseEvalEntry :: Value -> Parser (CompetenceLevelId, Ability)
+parseEvalEntry = withObject "TaskEvalEntry" $ \o ->
+  (,) <$> o .: "competenceLevelId" <*> o .: "ability"
 
 instance ToJSON Evidence where
   toJSON e =
@@ -202,12 +231,18 @@ instance ToJSON Evidence where
       , "userId" .= e.userId
       , "activityType" .= e.activityType
       , "date" .= e.date
-      , "tasks" .= e.tasks
+      , "tasks" .= Map.map evalsToJSON e.tasks
       , "oldTasks" .= e.oldTasks
       , "observations" .= Ix.toList e.observations
       , "assignmentId" .= e.assignmentId
       , "lessonId" .= e.lessonId
       ]
+    where
+      evalsToJSON :: TaskEvaluations -> Value
+      evalsToJSON evals = toJSON
+        [ object ["competenceLevelId" .= clid, "ability" .= ab]
+        | (clid, ab) <- Map.toList evals
+        ]
 #endif
 
 instance Binary Evidence

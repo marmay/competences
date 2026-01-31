@@ -209,7 +209,7 @@ addCompetences userId day activityTasks document (activityType, observationData)
           , activityType = activityType
           , date = day
           , oldTasks = activityTasks
-          , tasks = []
+          , tasks = Map.empty
           , observations = Ix.fromList observations
           , assignmentId = Nothing
           , lessonId = Nothing

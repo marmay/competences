@@ -222,7 +222,7 @@ validateSubTaskReferencesGroup doc task = case task.taskType of
 validateTaskNotReferencedInEvidences :: Document -> TaskId -> Either Text ()
 validateTaskNotReferencedInEvidences doc taskId = do
   let referencingEvidences =
-        filter (\e -> taskId `elem` e.tasks) $
+        filter (\e -> Map.member taskId e.tasks) $
           IxSet.toList doc.evidences
   unless (null referencingEvidences) $
     Left $ "Task is referenced by " <> T.pack (show (length referencingEvidences)) <> " evidence(s)"

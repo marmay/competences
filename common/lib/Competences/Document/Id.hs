@@ -10,6 +10,7 @@ where
 
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Data.Aeson.Types (FromJSONKey (..), FromJSONKeyFunction (..), ToJSONKey (..), toJSONKeyText)
 #endif
 import Data.Binary (Binary (..))
 import Data.Text (Text)
@@ -37,6 +38,14 @@ instance FromJSON (Id a) where
 
 instance ToJSON (Id a) where
   toJSON = toJSON . toText . (.unId)
+
+instance FromJSONKey (Id a) where
+  fromJSONKey = FromJSONKeyTextParser $ \t -> case fromText t of
+    Nothing -> fail $ "Invalid UUID key: " ++ show t
+    Just uuid -> pure $ Id uuid
+
+instance ToJSONKey (Id a) where
+  toJSONKey = toJSONKeyText (toText . (.unId))
 #endif
 
 instance Binary (Id a) where

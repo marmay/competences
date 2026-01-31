@@ -3,11 +3,12 @@ module Competences.Frontend.Component.Assignment.EvaluatorDetail
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..), ModifyCommand (..))
 import Competences.Common.IxSet qualified as Ix
+import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Competence (..), CompetenceGrid (..), CompetenceGridIxs, Document (..), LevelInfo (..), Order, Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), abilities, mkEvidence, socialForms)
+import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, abilities, socialForms)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -35,6 +36,16 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Miso.String (MisoString, ms)
+
+-- | Find evidences for a specific date, keyed by student.
+-- Used to filter assignmentEvidences by the current evaluationDate at each usage site.
+evidencesForDate :: Day -> [Evidence] -> Map.Map UserId Evidence
+evidencesForDate day evs = Map.fromList
+  [ (uid, ev)
+  | ev <- evs
+  , ev.date == day
+  , Just uid <- [ev.userId]
+  ]
 
 -- | Detail view for evaluating an assignment
 -- The mode type parameter allows this to work with any mode type
@@ -74,6 +85,12 @@ data EvaluatorModel = EvaluatorModel
   , expandedTaskContent :: !(Set.Set TaskId)
   -- Which Results solutions are collapsed (expanded by default for Results type)
   , collapsedResults :: !(Set.Set SolutionId)
+  -- All evidences for this assignment (any date); filter by evaluationDate at usage sites
+  , assignmentEvidences :: ![Evidence]
+  -- Which student's evidence is currently being edited (loaded via banner)
+  , editingEvidence :: !(Maybe UserId)
+  -- True when task observations changed after last aggregation computation
+  , aggregationStale :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -89,6 +106,8 @@ data EvaluatorAction
   | SetEvaluationDate !MisoString -- Set the date for evidence creation (YYYY-MM-DD format)
   | ToggleTaskContentExpanded !TaskId -- Toggle expand/collapse for task content
   | ToggleSolutionExpanded !SolutionId -- Toggle expand/collapse for a solution
+  | LoadStudentEvidence !UserId -- Load existing evidence data into evaluator
+  | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -115,12 +134,17 @@ evaluatorComponent r assignment =
         , evaluationDate = assignment.assignmentDate
         , expandedTaskContent = Set.empty
         , collapsedResults = Set.empty
+        , assignmentEvidences = []
+        , editingEvidence = Nothing
+        , aggregationStale = False
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
       let doc = dc.document
           -- Look up the current assignment from the document (in case it was edited)
           updatedAssignment = maybe m.assignment id $ Ix.getOne (doc.assignments Ix.@= m.assignment.id)
+          -- All evidences for this assignment (any date)
+          asmtEvidences = Ix.toList $ doc.evidences Ix.@= m.assignment.id :: [Evidence]
        in EvaluatorModel
             { assignment = updatedAssignment
             , tasks = doc.tasks
@@ -137,14 +161,19 @@ evaluatorComponent r assignment =
             , evaluationDate = m.evaluationDate
             , expandedTaskContent = m.expandedTaskContent
             , collapsedResults = m.collapsedResults
+            , assignmentEvidences = asmtEvidences
+            , editingEvidence = m.editingEvidence
+            , aggregationStale = m.aggregationStale
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
       let current = Map.lookup (taskId, compId) m.taskObservations
-       in m{taskObservations =
-              if current == Just ability
-                then Map.delete (taskId, compId) m.taskObservations  -- Toggle off
-                else Map.insert (taskId, compId) ability m.taskObservations}
+       in m{ taskObservations =
+               if current == Just ability
+                 then Map.delete (taskId, compId) m.taskObservations  -- Toggle off
+                 else Map.insert (taskId, compId) ability m.taskObservations
+           , aggregationStale = not (Map.null m.aggregatedResults)
+           }
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
       let newSelected =
@@ -152,14 +181,20 @@ evaluatorComponent r assignment =
               then Set.delete userId m.selectedStudents
               else Set.insert userId m.selectedStudents
           newSocialForm = if Set.size newSelected == 1 then Individual else Group
-       in m{selectedStudents = newSelected, selectedSocialForm = newSocialForm}
+       in m{ selectedStudents = newSelected
+           , selectedSocialForm = newSocialForm
+           , editingEvidence = Nothing
+           , taskObservations = Map.empty
+           , aggregatedResults = Map.empty
+           , aggregationStale = False
+           }
 
     update (SetSocialForm sf) = M.modify $ \m ->
       m{selectedSocialForm = sf}
 
     update ComputeAggregation = M.modify $ \m ->
       let aggregated = computeAggregation m
-       in m{aggregatedResults = aggregated}
+       in m{aggregatedResults = aggregated, aggregationStale = False}
 
     update (SetAggregatedResult compId ability) = M.modify $ \m ->
       let current = Map.lookup compId m.aggregatedResults
@@ -171,22 +206,26 @@ evaluatorComponent r assignment =
     update CreateEvidences = do
       m <- M.get
       M.io_ $ do
-        -- Create one Evidence per selected student
+        -- Create one Evidence per selected student (may produce multiple commands each)
         evidenceCommands <- mapM (createEvidenceForStudent m) (Set.toList m.selectedStudents)
-        -- Send all commands
-        mapM_ (modifySyncDocument r) evidenceCommands
+        -- Send all commands in order (Lock must precede Release)
+        mapM_ (modifySyncDocument r) (concat evidenceCommands)
       -- Reset all evaluation state after creating evidences
       M.modify $ \m' -> m'
         { taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
+        , editingEvidence = Nothing
+        , aggregationStale = False
         }
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
-      m{excludedTasks =
-          if Set.member taskId m.excludedTasks
-            then Set.delete taskId m.excludedTasks  -- Re-include
-            else Set.insert taskId m.excludedTasks}  -- Exclude
+      m{ excludedTasks =
+           if Set.member taskId m.excludedTasks
+             then Set.delete taskId m.excludedTasks  -- Re-include
+             else Set.insert taskId m.excludedTasks  -- Exclude
+       , aggregationStale = not (Map.null m.aggregatedResults)
+       }
 
     update (SetEvaluationDate dateStr) = M.modify $ \m ->
       case parseTimeM True defaultTimeLocale "%Y-%m-%d" (M.fromMisoString dateStr) of
@@ -208,6 +247,39 @@ evaluatorComponent r assignment =
             then Set.delete solId m.collapsedResults
             else Set.insert solId m.collapsedResults}
 
+    update (LoadStudentEvidence userId) = M.modify $ \m ->
+      case Map.lookup userId (evidencesForDate m.evaluationDate m.assignmentEvidences) of
+        Nothing -> m
+        Just ev ->
+          let -- Convert stored per-task evaluations to evaluator's flat map format
+              -- ev.tasks :: Map TaskId (Map CompetenceLevelId Ability)
+              loadedObs = Map.fromList
+                [ ((tid, clid), ab)
+                | (tid, evals) <- Map.toList ev.tasks
+                , (clid, ab) <- Map.toList evals
+                ]
+              -- Convert observations to aggregated results
+              loadedAgg = Map.fromList
+                [ (obs.competenceLevelId, obs.ability)
+                | obs <- Ix.toList ev.observations
+                ]
+           in m{ taskObservations = loadedObs
+               , aggregatedResults = loadedAgg
+               , editingEvidence = Just userId
+               , selectedSocialForm = case Ix.toList ev.observations of
+                   (obs : _) -> obs.socialForm
+                   [] -> m.selectedSocialForm
+               , evaluationDate = ev.date
+               , aggregationStale = False
+               }
+
+    update ResetLoadedEvidence = M.modify $ \m ->
+      m{ editingEvidence = Nothing
+       , taskObservations = Map.empty
+       , aggregatedResults = Map.empty
+       , aggregationStale = False
+       }
+
     -- Compute aggregated results from task observations (pure function)
     -- Takes the worst (maximum) ability per competence across all tasks
     computeAggregation m =
@@ -216,27 +288,57 @@ evaluatorComponent r assignment =
         groupByCompetence (_, compId) ability acc =
           Map.insertWith max compId ability acc
 
-    -- Create Evidence for a single student from aggregated results
-    createEvidenceForStudent :: EvaluatorModel -> UserId -> IO Command
+    -- Create or modify evidence for a single student from aggregated results.
+    -- If the student already has an evidence for this assignment, use Lock+Modify;
+    -- otherwise create a new one.
+    createEvidenceForStudent :: EvaluatorModel -> UserId -> IO [Command]
     createEvidenceForStudent m userId = do
-      evidenceId <- nextId @IO @Evidence r
-      -- Use the aggregated results (same for all students)
-      -- Generate observation IDs and create Observation records
       let sf = m.selectedSocialForm
           asmt = m.assignment
-          -- Filter out excluded tasks from the evidence
-          includedTasks = filter (`Set.notMember` m.excludedTasks) asmt.tasks
+          -- Build tasks map: for each included task, collect its per-competence evaluations
+          tasksMap :: Map.Map TaskId TaskEvaluations
+          tasksMap = Map.fromList
+            [ (tid, taskEvals)
+            | tid <- asmt.tasks
+            , not (Set.member tid m.excludedTasks)
+            , let taskEvals = Map.fromList
+                    [ (cid, ab)
+                    | ((tid', cid), ab) <- Map.toList m.taskObservations
+                    , tid' == tid
+                    ]
+            ]
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
-      let evidence =
-            (mkEvidence evidenceId m.evaluationDate)  -- Use evaluationDate instead of assignmentDate
-              { userId = Just userId
-              , activityType = asmt.activityType
-              , tasks = includedTasks
-              , observations = Ix.fromList observations
-              , assignmentId = Just asmt.id
-              , oldTasks = ""
-              }
-      pure $ Evidences (OnEvidences (Create evidence))
+      case Map.lookup userId (evidencesForDate m.evaluationDate m.assignmentEvidences) of
+        Just existingEv -> do
+          -- Lock then modify existing evidence
+          let lockCmd = Evidences (OnEvidences (Modify existingEv.id Lock))
+              patch = EvidencePatch
+                { userId = Nothing
+                , activityType = Just (existingEv.activityType, asmt.activityType)
+                , date = Just (existingEv.date, m.evaluationDate)
+                , tasks = Just (existingEv.tasks, tasksMap)
+                , oldTasks = Nothing
+                , observations = Just (existingEv.observations, Ix.fromList observations)
+                , assignmentId = Nothing
+                , lessonId = Nothing
+                }
+              releaseCmd = Evidences (OnEvidences (Modify existingEv.id (Release patch)))
+          pure [lockCmd, releaseCmd]
+        Nothing -> do
+          -- Create new evidence
+          evidenceId <- nextId @IO @Evidence r
+          let evidence = Evidence
+                { id = evidenceId
+                , userId = Just userId
+                , activityType = asmt.activityType
+                , date = m.evaluationDate
+                , tasks = tasksMap
+                , oldTasks = ""
+                , observations = Ix.fromList observations
+                , assignmentId = Just asmt.id
+                , lessonId = Nothing
+                }
+          pure [Evidences (OnEvidences (Create evidence))]
       where
         mkObservation sf (compId, ability) = do
           obsId <- nextId @IO @Observation r
@@ -259,6 +361,7 @@ evaluatorComponent r assignment =
                 []
                 [ Typography.h2 "Auftrag auswerten"
                 , viewStudentSelection m
+                , viewOverwriteBanner m
                 , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
                 , viewAggregationSection m
                 , viewCreateEvidencesButton m
@@ -295,12 +398,70 @@ evaluatorComponent r assignment =
 
     viewStudentButton m student =
       let isSelected = Set.member student.id m.selectedStudents
+          hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
           buttonClass = if isSelected
                           then "px-3 py-1 rounded bg-primary text-primary-foreground text-sm cursor-pointer hover:bg-primary/90"
                           else "px-3 py-1 rounded bg-secondary text-secondary-foreground text-sm cursor-pointer hover:bg-secondary/80"
        in M.button_
             [class_ buttonClass, M.onClick (ToggleStudentSelection student.id)]
-            [M.text $ ms student.name]
+            [ M.text $ ms student.name
+            , if hasEvidence
+                then M.span_ [class_ "ml-1 text-xs opacity-75"] [M.text "\x2713"]
+                else M.text ""
+            ]
+
+    viewOverwriteBanner m =
+      let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
+          studentsWithEvidence =
+            [ uid
+            | uid <- Set.toList m.selectedStudents
+            , Map.member uid dateEvMap
+            ]
+          lookupName uid = case Ix.getOne (m.users Ix.@= uid) of
+            Just u -> u.name
+            Nothing -> T.pack (show uid)
+          studentNames = T.intercalate ", " (map lookupName studentsWithEvidence)
+       in if null studentsWithEvidence
+            then M.text ""
+            else case m.editingEvidence of
+              -- State B: evidence loaded — show single text with basis info + reset button
+              Just loadedUid ->
+                let loadedName = lookupName loadedUid
+                 in M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
+                      [ M.div_ [class_ "flex items-center justify-between"]
+                          [ M.p_ [class_ "text-sm text-yellow-800 font-medium"]
+                              [ M.text $ ms $
+                                  "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
+                                  <> loadedName <> "\" bearbeitet: " <> studentNames
+                              ]
+                          , M.button_
+                              [ class_ "ml-3 text-sm px-3 py-1 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 shrink-0"
+                              , M.onClick ResetLoadedEvidence
+                              ]
+                              [M.text "Zurücksetzen"]
+                          ]
+                      ]
+              -- State A: no evidence loaded — show per-student items with load buttons
+              Nothing ->
+                M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
+                  [ M.p_ [class_ "text-sm text-yellow-800 font-medium mb-2"]
+                      [M.text "Die Nachweise der folgenden Schüler werden bearbeitet:"]
+                  , M.div_ [class_ "space-y-2"]
+                      (map (viewOverwriteItem m) studentsWithEvidence)
+                  ]
+
+    viewOverwriteItem m userId =
+      let userName = case Ix.getOne (m.users Ix.@= userId) of
+            Just u -> u.name
+            Nothing -> T.pack (show userId)
+       in M.div_ [class_ "flex items-center justify-between"]
+            [ M.span_ [class_ "text-sm text-yellow-800"] [M.text $ ms userName]
+            , M.button_
+                [ class_ "text-sm px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                , M.onClick (LoadStudentEvidence userId)
+                ]
+                [M.text "Nachweis laden"]
+            ]
 
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
@@ -418,11 +579,17 @@ evaluatorComponent r assignment =
         [class_ "mt-6 border-t pt-6"]
         [ M.div_ [class_ "flex items-center justify-between mb-4"]
             [ Typography.h3 "Aggregierte Ergebnisse"
-            , M.button_
-                [ M.onClick ComputeAggregation
-                , class_ "bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
+            , M.div_ [class_ "flex items-center gap-3"]
+                [ if m.aggregationStale
+                    then M.span_ [class_ "text-sm text-yellow-700"]
+                           [M.text "Bewertungen haben sich geändert \x2014 bitte neu berechnen"]
+                    else M.text ""
+                , M.button_
+                    [ M.onClick ComputeAggregation
+                    , class_ "bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
+                    ]
+                    [M.text "Aggregation berechnen"]
                 ]
-                [M.text "Aggregation berechnen"]
             ]
         , if Map.null m.aggregatedResults
             then Typography.muted "Klicken Sie auf 'Aggregation berechnen', um die Ergebnisse zu aggregieren."
@@ -500,15 +667,19 @@ evaluatorComponent r assignment =
     viewCreateEvidencesButton m =
       let selectedCount = Set.size m.selectedStudents
           hasAggregatedResults = not $ Map.null m.aggregatedResults
-          buttonText = "Nachweise erstellen (" <> ms (show selectedCount) <> " Schüler ausgewählt)"
+          isDisabled = selectedCount == 0 || not hasAggregatedResults || m.aggregationStale
+          dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
+          hasExisting = any (`Map.member` dateEvMap) (Set.toList m.selectedStudents)
+          actionLabel = if hasExisting then "Nachweise speichern" else "Nachweise erstellen"
+          buttonText = actionLabel <> " (" <> ms (show selectedCount) <> " Schüler ausgewählt)"
           attrs =
             [ M.onClick CreateEvidences
             , class_ $
-                if selectedCount == 0 || not hasAggregatedResults
+                if isDisabled
                   then "bg-muted text-muted-foreground px-4 py-2 rounded cursor-not-allowed"
                   else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
             ]
-              <> [M.disabled_ | selectedCount == 0 || not hasAggregatedResults]
+              <> [M.disabled_ | isDisabled]
        in M.div_
             [class_ "mt-6 flex justify-end"]
             [M.button_ attrs [M.text buttonText]]

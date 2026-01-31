@@ -63,24 +63,41 @@ taskCompletionStatuses doc userId tasks =
         ]
 
 -- | Internal: compute status given pre-fetched evidence list.
+--
+-- When the evidence has stored per-task evaluations (non-empty inner map),
+-- those are used directly. Otherwise falls back to looking up the task's
+-- current primary competences from the document.
 taskCompletionStatusFromEvs :: Document -> [Evidence] -> Task -> TaskCompletionStatus
 taskCompletionStatusFromEvs doc userEvs task =
-  let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
-   in if null primaryComps
-        then TaskNotEvaluated
-        else case find (\e -> task.id `elem` e.tasks) userEvs of
-          Nothing -> TaskNotEvaluated
-          Just ev ->
-            let ref = mkEvidenceRef doc ev
-                allDone = all (isCompetenceDone ev) primaryComps
-             in if allDone then TaskDone ref else TaskNotDone ref
+  case find (\e -> Map.member task.id e.tasks) userEvs of
+    Nothing -> TaskNotEvaluated
+    Just ev ->
+      let ref = mkEvidenceRef doc ev
+          taskEvals = Map.findWithDefault Map.empty task.id ev.tasks
+       in if not (Map.null taskEvals)
+            then -- Use stored per-task data directly
+              let allDone = all isSatisfactory (Map.elems taskEvals)
+               in if allDone then TaskDone ref else TaskNotDone ref
+            else -- Fallback: look up primary competences from document
+              let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
+               in if null primaryComps
+                    then TaskNotEvaluated
+                    else
+                      let allDone = all (isCompetenceDone ev) primaryComps
+                       in if allDone then TaskDone ref else TaskNotDone ref
+
+-- | Whether an ability counts as satisfactory for task completion.
+isSatisfactory :: Ability -> Bool
+isSatisfactory SelfReliant = True
+isSatisfactory SelfReliantWithSillyMistakes = True
+isSatisfactory _ = False
 
 -- | Check if a competence level has a satisfactory observation in an evidence.
 isCompetenceDone :: Evidence -> CompetenceLevelId -> Bool
 isCompetenceDone ev compLevelId =
   any isDone $ Ix.toList (ev.observations Ix.@= compLevelId)
   where
-    isDone obs = obs.ability == SelfReliant || obs.ability == SelfReliantWithSillyMistakes
+    isDone obs = isSatisfactory obs.ability
 
 -- | Build evidence reference for display.
 mkEvidenceRef :: Document -> Evidence -> EvidenceRef

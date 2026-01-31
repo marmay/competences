@@ -19,11 +19,16 @@ import Competences.Document.Evidence
   , Evidence (..)
   , Observation
   , ObservationIxs
+  , TaskEvaluations
   )
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+import Data.Map.Strict (Map)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Control.Applicative ((<|>))
+import Data.Aeson (FromJSON (..), Object, ToJSON, withObject, (.:), (.:?), (.!=))
+import Data.Aeson.Types (Parser)
+import Data.Map.Strict qualified as Map
 #endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
@@ -42,8 +47,8 @@ data EvidencePatch = EvidencePatch
     -- ^ Change activityType from old to new value
   , date :: !(Change Day)
     -- ^ Change date from old to new value
-  , tasks :: !(Change [TaskId])
-    -- ^ Change tasks from old to new value
+  , tasks :: !(Change (Map TaskId TaskEvaluations))
+    -- ^ Change tasks (with per-competence evaluations) from old to new value
   , oldTasks :: !(Change Text)
     -- ^ Change oldTasks from old to new value
   , observations :: !(Change (Ix.IxSet ObservationIxs Observation))
@@ -62,7 +67,34 @@ data EvidencesCommand
 
 instance Binary EvidencePatch
 #ifdef WITH_AESON
-instance FromJSON EvidencePatch
+instance FromJSON EvidencePatch where
+  parseJSON = withObject "EvidencePatch" $ \v -> do
+    tasksChange <- parseTasksChange v
+    EvidencePatch
+      <$> v .: "userId"
+      <*> v .: "activityType"
+      <*> v .: "date"
+      <*> pure tasksChange
+      <*> v .:? "oldTasks" .!= Nothing
+      <*> v .: "observations"
+      <*> v .:? "assignmentId" .!= Nothing
+      <*> v .:? "lessonId" .!= Nothing
+
+-- | Parse the tasks Change field, handling both old and new formats.
+-- Old format: Change [TaskId] (array of task ID lists)
+-- New format: Change (Map TaskId TaskEvaluations) (map with evaluation data)
+parseTasksChange :: Object -> Parser (Change (Map TaskId TaskEvaluations))
+parseTasksChange v = (v .: "tasks") <|> parseOldTasksChange v
+
+-- | Convert old tasks format: Change [TaskId] → Change (Map TaskId TaskEvaluations)
+parseOldTasksChange :: Object -> Parser (Change (Map TaskId TaskEvaluations))
+parseOldTasksChange v = do
+  old <- v .: "tasks" :: Parser (Change [TaskId])
+  pure $ fmap (\(before, after) ->
+    ( Map.fromList [(tid, Map.empty) | tid <- before]
+    , Map.fromList [(tid, Map.empty) | tid <- after]
+    )) old
+
 instance ToJSON EvidencePatch
 #endif
 
