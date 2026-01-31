@@ -29,6 +29,7 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Task
   ( TaskAttributes (..)
+  , TaskId
   , TaskIdentifier (..)
   , getTaskAttributes
   , getTaskContent
@@ -68,6 +69,7 @@ import Competences.Query.Mastery
   , getClassMasteryStats
   , getClassMasteryWithStudents
   )
+import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuses)
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -97,6 +99,8 @@ data ViewerProjection = ViewerProjection
   -- ^ Learning resources grouped by competence level
   , connectedUserRole :: !UserRole
   -- ^ Role of the connected user (for conditional display)
+  , taskStatuses :: !(Map TaskId TaskCompletionStatus)
+  -- ^ Per-task completion status for the focused user (empty when no user focused)
   , viewData :: !ViewData
   -- ^ Either user-specific data or class-wide analytics
   }
@@ -207,11 +211,19 @@ viewerComponent r grid =
                 , activeGridGrade = listToMaybe $ Ix.toDescList (Proxy @Day) $
                     doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
                 }
+          -- Pre-compute resource tasks (needed for both display and status computation)
+          resTasks = computeResourceTasks doc gridCompetences
+          -- Compute task statuses for focused user (if any)
+          allResTasks = concatMap (map (.task)) (Map.elems resTasks)
+          tStatuses = case mUser of
+            Just u -> taskCompletionStatuses doc u.id allResTasks
+            Nothing -> Map.empty
        in ViewerProjection
             { competences = gridCompetences
-            , resourceTasks = computeResourceTasks doc gridCompetences
+            , resourceTasks = resTasks
             , learningResources = computeLearningResources doc gridCompetences
             , connectedUserRole = role
+            , taskStatuses = tStatuses
             , viewData = vData
             }
 
@@ -267,6 +279,7 @@ viewerComponent r grid =
       , resourceTasks = Map.empty
       , learningResources = Map.empty
       , connectedUserRole = connectedRole
+      , taskStatuses = Map.empty
       , viewData = AnalyticsViewData $ AnalyticsData 0 Map.empty Map.empty
       }
 
@@ -280,7 +293,7 @@ viewerComponent r grid =
       let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
           resources = Map.findWithDefault [] clId m.projection.learningResources
           showPurposeBadge = m.projection.connectedUserRole == Teacher
-          cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge r.modalManager
+          cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge m.projection.taskStatuses r.modalManager
       M.io_ $ openModal r.modalManager (ResourceModal.resourceModalComponent cfg)
 
     -- Main view: dispatch based on view data type

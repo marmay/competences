@@ -1,6 +1,10 @@
 -- | Task completion status queries.
--- Determines whether a task counts as "done" for a given user by checking
--- the newest evidence containing that task against the task's primary competences.
+-- Determines whether a task counts as "done" for a given user.
+--
+-- Two-phase lookup:
+-- 1. Find newest evidence with stored per-task evaluations (via TaskId index)
+-- 2. Fallback: find newest evidence with observations for the task's primary
+--    competences (via CompetenceLevelId index) and derive status from those.
 module Competences.Query.TaskStatus
   ( TaskCompletionStatus (..)
   , EvidenceRef (..)
@@ -14,13 +18,14 @@ import Competences.Document (Document (..))
 import Competences.Document.ActivityType (ActivityType)
 import Competences.Document.Assignment (Assignment (..), AssignmentName)
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
+import Competences.Document.Evidence (Ability (..), Evidence (..), EvidenceIxs, Observation (..))
 import Competences.Document.Task (Task (..), TaskId, getTaskPrimaryCompetences)
 import Competences.Document.User (UserId)
-import Competences.Query.Evidence qualified as QEvidence
 import Data.List (find)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (listToMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Time (Day)
 
 -- | Reference to the evidence that determined the status.
@@ -33,58 +38,64 @@ data EvidenceRef = EvidenceRef
 
 -- | Per-task completion status for a user.
 --
--- A task is 'TaskDone' when all its primary competences have observations
--- at 'SelfReliant' or 'SelfReliantWithSillyMistakes' in the newest evidence
--- containing that task.
+-- A task is 'TaskDone' when all its primary competences have satisfactory
+-- observations ('SelfReliant' or 'SelfReliantWithSillyMistakes').
 data TaskCompletionStatus
   = TaskDone !EvidenceRef
   | TaskNotDone !EvidenceRef
-  | TaskNotEvaluated -- ^ No evidence containing this task found for the user
+  | TaskNotEvaluated -- ^ No relevant evidence found for the user
   deriving (Eq, Show)
 
 -- | Compute completion status for a single task for a user.
---
--- Finds the newest evidence containing this task, then checks whether
--- all primary competences have observations at 'SelfReliant' or
--- 'SelfReliantWithSillyMistakes'.
 taskCompletionStatus :: Document -> UserId -> Task -> TaskCompletionStatus
 taskCompletionStatus doc userId task =
-  let userEvs = QEvidence.userEvidencesDesc doc userId
-   in taskCompletionStatusFromEvs doc userEvs task
+  let userEvs = doc.evidences Ix.@= userId
+   in taskCompletionStatusFromIxSet doc userEvs task
 
 -- | Batch version: compute status for multiple tasks.
--- Fetches user evidences once and reuses for all tasks.
+-- Fetches user evidences once (as IxSet) and reuses for all tasks.
 taskCompletionStatuses :: Document -> UserId -> [Task] -> Map TaskId TaskCompletionStatus
 taskCompletionStatuses doc userId tasks =
-  let userEvs = QEvidence.userEvidencesDesc doc userId
+  let userEvs = doc.evidences Ix.@= userId
    in Map.fromList
-        [ (task.id, taskCompletionStatusFromEvs doc userEvs task)
+        [ (task.id, taskCompletionStatusFromIxSet doc userEvs task)
         | task <- tasks
         ]
 
--- | Internal: compute status given pre-fetched evidence list.
+-- | Internal: compute status using IxSet index lookups.
 --
--- When the evidence has stored per-task evaluations (non-empty inner map),
--- those are used directly. Otherwise falls back to looking up the task's
--- current primary competences from the document.
-taskCompletionStatusFromEvs :: Document -> [Evidence] -> Task -> TaskCompletionStatus
-taskCompletionStatusFromEvs doc userEvs task =
-  case find (\e -> Map.member task.id e.tasks) userEvs of
-    Nothing -> TaskNotEvaluated
-    Just ev ->
-      let ref = mkEvidenceRef doc ev
-          taskEvals = Map.findWithDefault Map.empty task.id ev.tasks
-       in if not (Map.null taskEvals)
-            then -- Use stored per-task data directly
-              let allDone = all isSatisfactory (Map.elems taskEvals)
-               in if allDone then TaskDone ref else TaskNotDone ref
-            else -- Fallback: look up primary competences from document
-              let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
-               in if null primaryComps
-                    then TaskNotEvaluated
-                    else
-                      let allDone = all (isCompetenceDone ev) primaryComps
-                       in if allDone then TaskDone ref else TaskNotDone ref
+-- Phase 1: find newest evidence with non-empty per-task evaluations
+--          (uses TaskId index on Evidence).
+-- Phase 2: find newest evidence with observations for the task's primary
+--          competences (uses CompetenceLevelId index on Evidence).
+taskCompletionStatusFromIxSet :: Document -> Ix.IxSet EvidenceIxs Evidence -> Task -> TaskCompletionStatus
+taskCompletionStatusFromIxSet doc userEvs task =
+  -- Phase 1: evidence with stored per-task evaluations
+  let taskEvs = Ix.toDescList (Proxy @Day) $ userEvs Ix.@= task.id
+   in case find hasNonEmptyEvals taskEvs of
+        Just ev ->
+          let ref = mkEvidenceRef doc ev
+              taskEvals = ev.tasks Map.! task.id
+              allDone = all isSatisfactory (Map.elems taskEvals)
+           in if allDone then TaskDone ref else TaskNotDone ref
+        Nothing ->
+          -- Phase 2: derive from competence observations
+          let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
+           in if null primaryComps
+                then TaskNotEvaluated
+                else
+                  let compEvs = Ix.toDescList (Proxy @Day) $ userEvs Ix.@+ primaryComps
+                   in case listToMaybe compEvs of
+                        Nothing -> TaskNotEvaluated
+                        Just ev ->
+                          let ref = mkEvidenceRef doc ev
+                              allDone = all (isCompetenceDone ev) primaryComps
+                           in if allDone then TaskDone ref else TaskNotDone ref
+  where
+    hasNonEmptyEvals e =
+      case Map.lookup task.id e.tasks of
+        Just evals -> not (Map.null evals)
+        Nothing -> False
 
 -- | Whether an ability counts as satisfactory for task completion.
 isSatisfactory :: Ability -> Bool

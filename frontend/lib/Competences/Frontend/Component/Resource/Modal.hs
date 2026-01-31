@@ -30,6 +30,9 @@ import Competences.Frontend.Component.TaskResource
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Optics.Core ((&))
+import Competences.Document.Task (TaskId)
+import Competences.Query.TaskStatus (TaskCompletionStatus)
+import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
@@ -38,6 +41,7 @@ import Competences.Frontend.View.Icon (Icon (IcnLink, IcnResources, IcnVideo), i
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Competences.TaskContent.RichContent (toRawText)
 import Data.Text qualified as T
@@ -55,6 +59,7 @@ data ResourceModalConfig = ResourceModalConfig
   { tasks :: ![TaskWithSolutions]
   , resources :: ![Resource]
   , showPurposeBadge :: !Bool
+  , taskStatuses :: !(Map.Map TaskId TaskCompletionStatus)
   , modalManager :: !ModalManagerRef
   }
 
@@ -86,6 +91,7 @@ instance Eq Model where
       && m1.config.tasks == m2.config.tasks
       && m1.config.resources == m2.config.resources
       && m1.config.showPurposeBadge == m2.config.showPurposeBadge
+      && m1.config.taskStatuses == m2.config.taskStatuses
 
 -- ============================================================================
 -- Actions
@@ -152,7 +158,7 @@ resourceModalComponent cfg =
             [class_ "flex-1 overflow-y-auto px-8 py-6"]
             [ case m.viewMode of
                 ViewTasks ->
-                  taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.tasks m.taskListState TaskListAction
+                  taskResourceListView m.config.showPurposeBadge (viewTaskCompletionStatusFromMap m.config.taskStatuses) m.config.tasks m.taskListState TaskListAction
                 ViewLearningResources ->
                   resourcesListView m.config.resources m.expandedResources
             ]

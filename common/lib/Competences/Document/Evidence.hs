@@ -148,7 +148,7 @@ abilities = [minBound .. maxBound]
 
 -- Note: activityTypes is re-exported from ActivityType module
 
-type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId, AssignmentId, LessonId]
+type EvidenceIxs = '[EvidenceId, UserId, Day, CompetenceLevelId, AssignmentId, LessonId, TaskId]
 
 instance Ix.Indexable EvidenceIxs Evidence where
   indices =
@@ -159,6 +159,7 @@ instance Ix.Indexable EvidenceIxs Evidence where
       (Ix.ixFun $ map (.competenceLevelId) . Ix.toList . (.observations))
       (Ix.ixFun $ maybe [] singleton . (.assignmentId))
       (Ix.ixFun $ maybe [] singleton . (.lessonId))
+      (Ix.ixFun $ Map.keys . (.tasks))
 
 type ObservationIxs = '[ObservationId, CompetenceLevelId, SocialForm, Ability]
 

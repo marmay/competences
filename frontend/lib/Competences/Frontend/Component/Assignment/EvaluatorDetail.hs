@@ -25,8 +25,11 @@ import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.TaskStatus (viewCompactTaskStatus)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -35,6 +38,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 
 -- | Find evidences for a specific date, keyed by student.
@@ -91,6 +95,8 @@ data EvaluatorModel = EvaluatorModel
   , editingEvidence :: !(Maybe UserId)
   -- True when task observations changed after last aggregation computation
   , aggregationStale :: !Bool
+  -- Per-student task completion statuses (pre-computed from document)
+  , taskStatuses :: !(Map.Map UserId (Map.Map TaskId TaskCompletionStatus))
   }
   deriving (Eq, Generic, Show)
 
@@ -137,6 +143,7 @@ evaluatorComponent r assignment =
         , assignmentEvidences = []
         , editingEvidence = Nothing
         , aggregationStale = False
+        , taskStatuses = Map.empty
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -145,6 +152,12 @@ evaluatorComponent r assignment =
           updatedAssignment = maybe m.assignment id $ Ix.getOne (doc.assignments Ix.@= m.assignment.id)
           -- All evidences for this assignment (any date)
           asmtEvidences = Ix.toList $ doc.evidences Ix.@= m.assignment.id :: [Evidence]
+          -- Pre-compute per-student task statuses for all assignment students
+          relevantTasks = Ix.toList $ doc.tasks Ix.@+ updatedAssignment.tasks
+          allStatuses = Map.fromList
+            [ (sid, taskCompletionStatuses doc sid relevantTasks)
+            | sid <- Set.toList updatedAssignment.studentIds
+            ]
        in EvaluatorModel
             { assignment = updatedAssignment
             , tasks = doc.tasks
@@ -164,6 +177,7 @@ evaluatorComponent r assignment =
             , assignmentEvidences = asmtEvidences
             , editingEvidence = m.editingEvidence
             , aggregationStale = m.aggregationStale
+            , taskStatuses = allStatuses
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
@@ -465,6 +479,16 @@ evaluatorComponent r assignment =
                 [M.text $ C.translate' C.LblLoadEvidence]
             ]
 
+    viewCompactStudentStatus m taskId userId =
+      let status = fromMaybe TaskNotEvaluated $ do
+            userStatuses <- Map.lookup userId m.taskStatuses
+            Map.lookup taskId userStatuses
+          studentName = case Ix.getOne (m.users Ix.@= userId) of
+            Just u -> u.name
+            Nothing -> T.pack (show userId)
+       in M.div_ [class_ "group relative", MP.title_ (ms studentName)]
+            [viewCompactTaskStatus status]
+
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
        in M.div_
@@ -488,8 +512,17 @@ evaluatorComponent r assignment =
                   toggleClass = if isExcluded
                     then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
                     else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+                  selectedList = Set.toList m.selectedStudents
+                  statusDots =
+                    if null selectedList
+                      then M.text ""
+                      else M.div_ [class_ "flex gap-0.5 items-center"]
+                             (map (viewCompactStudentStatus m taskId) selectedList)
                in M.div_ [class_ "mt-4 mb-1 flex items-center justify-between"]
-                    [ Typography.h3 $ C.translate' C.LblTaskPrefix <> ms identifier
+                    [ M.div_ [class_ "flex items-center gap-3"]
+                        [ Typography.h3 $ C.translate' C.LblTaskPrefix <> ms identifier
+                        , statusDots
+                        ]
                     , M.button_
                         [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
                         [M.text $ C.translate' $ if isExcluded then C.LblIncludeTask else C.LblExcludeTask]

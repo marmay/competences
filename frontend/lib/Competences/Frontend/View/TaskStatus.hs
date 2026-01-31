@@ -3,6 +3,7 @@
 module Competences.Frontend.View.TaskStatus
   ( viewTaskCompletionStatus
   , viewTaskCompletionStatusFromMap
+  , viewCompactTaskStatus
   )
 where
 
@@ -56,6 +57,16 @@ refLabel :: EvidenceRef -> M.MisoString
 refLabel ref = case ref.assignmentName of
   Just (AssignmentName name) -> M.ms name
   Nothing -> C.translate' (C.LblActivityTypeDescription ref.activityType)
+
+-- | Compact status dot for use in dense layouts (e.g. evaluator task headers).
+-- Green dot for done, yellow for not done, grey for not evaluated.
+viewCompactTaskStatus :: TaskCompletionStatus -> M.View model a
+viewCompactTaskStatus TaskNotEvaluated =
+  MH.div_ [class_ "w-3 h-3 rounded-full bg-stone-200"] []
+viewCompactTaskStatus (TaskDone _) =
+  MH.div_ [class_ "w-3 h-3 rounded-full bg-green-500"] []
+viewCompactTaskStatus (TaskNotDone _) =
+  MH.div_ [class_ "w-3 h-3 rounded-full bg-yellow-400"] []
 
 -- | Format a day as short "dd.mm." (day and month only, no year).
 formatShortDay :: Day -> M.MisoString
