@@ -2,8 +2,7 @@
 module.exports = {
   content: [
     "./frontend/**/*.hs",
-    "./static/**/*.html",
-    "./static/**/*.js"
+    "./frontend/static-src/index.js",
   ],
   // Safelist ensures these classes are always included (important for Haskell string-based classes)
   safelist: [

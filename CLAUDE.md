@@ -43,6 +43,12 @@ This is a competences tracking application written in Haskell, using a multi-pac
 
 The application is built with Nix flakes and uses haskell.nix for reproducible builds.
 
+**Static assets** (WASM binary, CSS, vendored JS) live in a separate repo
+[`competences-blobs`](https://github.com/marmay/competences-blobs), included as a
+git submodule at `static/`. Source files (`index.js`, `input.css`) live in
+`frontend/static-src/` and are copied into `static/` by `deploy_frontend.sh`.
+After cloning, run `git submodule update --init` to populate `static/`.
+
 **See also:** [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment, [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) for task system design.
 
 ## Quick Start
@@ -302,48 +308,20 @@ M.div_ [V.class_ "flex gap-4 items-center bg-stone-50 p-4 rounded-lg"] [...]
 This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agnostic component library built on Tailwind CSS.
 
 **Architecture**:
-- **CSS**: Self-hosted from `/static/basecoat.cdn.min.css` (~134KB)
-- **JavaScript**: Available in static/ for interactive components (~10KB total)
-  - `basecoat.min.js`, `dropdown-menu.min.js`, `popover.min.js`, `tabs.min.js`, `toast.min.js`
+- **CSS**: Self-hosted from `/static/basecoat.cdn.min.css` (~134KB), loaded via backend HTML generation
 - **Integration**: CSS loaded via backend HTML generation in `backend/lib/Competences/Backend/HTTP.hs`
+- **JavaScript**: Basecoat JS files were removed (unused). Only CSS-based patterns are used currently.
 
 **Current Status**:
 - ✅ Basecoat CSS self-hosted and integrated
-- ✅ Basecoat JavaScript loaded in HTML (`basecoat.min.js`)
-- ✅ MutationObserver implemented for auto re-initialization after Miso renders
 - ✅ Most View modules already use Basecoat-aligned classes (Button, Input, Card, Badge, Table)
 - ✅ Tooltip migrated to use `data-tooltip` pattern (CSS-only)
-
-**JavaScript Integration**:
-Basecoat JavaScript is now fully integrated:
-- `basecoat.min.js` loaded in HTML (`backend/lib/Competences/Backend/HTTP.hs:139`)
-- MutationObserver watches for DOM changes (`static/index.js:44-68`)
-- Auto re-initialization after Miso renders (100ms debounce)
-- Console logging: `[Basecoat] Initializing components` on re-init
-
-**Testing**:
-1. Start backend: `cabal run competences-backend -- [options]`
-2. Open browser DevTools Console
-3. Look for `[Basecoat] Initializing components` after page load
-4. Trigger Miso re-renders (navigate, interact) - should see re-init messages
-5. Network tab: verify `basecoat.cdn.min.css` and `basecoat.min.js` load
-
-**Adding New Interactive Components** (when needed):
-1. Create Haskell View module (e.g., `View/Dropdown.hs`, `View/Tabs.hs`, `View/Toast.hs`)
-2. Use Basecoat HTML patterns with `data-*` attributes
-3. Add component-specific JS if needed (e.g., `dropdown-menu.min.js` to HTML)
-4. Let Basecoat handle presentation, Haskell handle business logic
-5. MutationObserver automatically re-initializes components after renders
-
-**Potential Use Cases**:
-- **Dropdown**: Group navigation buttons (9 items for teachers in `App.hs:81-92`)
-- **Tabs**: Multi-view editors or statistics pages
-- **Toast**: Success/error notifications for user actions
 
 ### CSS Build System
 
 **Production CSS**: Generated via Tailwind CLI, served from `/static/output.css`
-- **Size**: ~321KB minified (includes full Basecoat color palette via safelist)
+- **Source**: `frontend/static-src/input.css` (Tailwind directives + CSS variables)
+- **Output**: `static/output.css` (~321KB minified, includes full Basecoat color palette via safelist)
 - **Build**: `npm run build:css` (integrated into `deploy_frontend.sh`)
 - **Config**: `tailwind.config.js` with safelist for dynamic class names
 

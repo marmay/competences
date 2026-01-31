@@ -14,17 +14,15 @@ Version numbers need to be updated in the following files:
 2. **Nix file** (use format `X.Y.Z`):
    - `nix/frontend.nix`
 
-## Static Files in Release
+## Repository Structure
 
-The following static files must be included in release commits (as specified in `nix/frontend.nix`):
+Static assets (WASM binary, generated CSS, vendored libraries) live in a separate
+repository [`competences-blobs`](https://github.com/marmay/competences-blobs),
+included as a git submodule at `static/`.
 
-- `static/app.wasm` - Compiled WASM frontend
-- `static/ghc_wasm_jsffi.js` - GHC WASM JavaScript FFI
-- `static/index.js` - Application entry point
-- `static/output.css` - Compiled Tailwind CSS
-- `static/basecoat.cdn.min.css` - Basecoat UI CSS
-- `static/mathjax-tex-svg.js` - MathJax for LaTeX rendering
-- `static/wasi/` - WASI shim files
+Source files that feed into the build live in `frontend/static-src/`:
+- `index.js` - WASM module loader (copied to `static/` by `deploy_frontend.sh`)
+- `input.css` - Tailwind CSS input (compiled to `static/output.css`)
 
 ## Release Steps
 
@@ -38,26 +36,35 @@ The following static files must be included in release commits (as specified in 
    ./deploy_frontend.sh
    ```
 
-4. **Build and test the backend**:
+4. **Commit and push the blobs submodule**:
+   ```bash
+   cd static
+   git add -A
+   git commit -m "Release X.Y.Z"
+   git push
+   cd ..
+   ```
+
+5. **Update the Nix flake lock** (pins the new blobs commit):
+   ```bash
+   nix flake lock --update-input competences-blobs
+   ```
+
+6. **Build and test the backend**:
    ```bash
    cabal build all
    cabal test all
    ```
 
-5. **Create release commit**:
+7. **Create release commit**:
    ```bash
    git add \
      common/competences-common.cabal \
      backend/competences-backend.cabal \
      frontend/competences-frontend.cabal \
      nix/frontend.nix \
-     static/app.wasm \
-     static/ghc_wasm_jsffi.js \
-     static/index.js \
-     static/output.css \
-     static/basecoat.cdn.min.css \
-     static/mathjax-tex-svg.js \
-     static/wasi/
+     flake.lock \
+     static
 
    git commit -m "New release: X.Y.Z
 
@@ -68,7 +75,7 @@ The following static files must be included in release commits (as specified in 
    "
    ```
 
-6. **Push to remote**:
+8. **Push to remote**:
    ```bash
    git push
    ```
@@ -85,3 +92,13 @@ Summarize significant changes in the commit message, grouped by:
 - Improvements
 - Bug fixes
 - Breaking changes (if any)
+
+## Reproducing Historical Releases
+
+Every commit from the first release onwards has a `static` submodule entry
+pointing to the correct blobs commit. To reproduce any historical release:
+
+```bash
+git checkout <release-commit>
+git submodule update --init
+```

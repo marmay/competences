@@ -5,8 +5,12 @@
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.ghc-wasm-meta.url = "gitlab:haskell-wasm/ghc-wasm-meta?host=gitlab.haskell.org";
+  inputs.competences-blobs = {
+    url = "github:marmay/competences-blobs";
+    flake = false;
+  };
 
-  outputs = { self, nixpkgs, flake-utils, haskellNix, ghc-wasm-meta }:
+  outputs = { self, nixpkgs, flake-utils, haskellNix, ghc-wasm-meta, competences-blobs }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -31,7 +35,8 @@
             };
             competences-frontend = import ./nix/frontend.nix {
               pkgs = final;
-              src = ./.;  # Don't use cleanSource - we need the static/ directory
+              blobs = competences-blobs;
+              src = ./.;
             };
           })
         ];

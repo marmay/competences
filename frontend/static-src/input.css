@@ -1,0 +1,122 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Variable Definitions for Theming */
+@layer base {
+  :root {
+    /* Base radius for components */
+    --radius: 0.5rem;
+
+    /* Default theme (light mode) - Modern Indigo/Slate palette */
+    --background: 0.985 0.002 264;      /* subtle cool gray tint */
+    --foreground: 0.205 0.015 264;      /* slate-900 */
+
+    --card: 1 0 0;                      /* white */
+    --card-foreground: 0.205 0.015 264;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.205 0.015 264;
+
+    --primary: 0.511 0.262 276;         /* indigo-600 - professional, modern */
+    --primary-foreground: 1 0 0;        /* white */
+
+    --secondary: 0.928 0.006 264;       /* slate-100 */
+    --secondary-foreground: 0.372 0.01 264;  /* slate-600 */
+
+    --muted: 0.968 0.003 264;           /* slate-50 */
+    --muted-foreground: 0.446 0.012 264;     /* slate-500 */
+
+    --accent: 0.928 0.006 264;          /* slate-100 */
+    --accent-foreground: 0.205 0.015 264;
+
+    --destructive: 0.577 0.245 27;      /* red-600 */
+    --destructive-foreground: 1 0 0;
+
+    --border: 0.869 0.007 264;          /* slate-200 */
+    --input: 0.869 0.007 264;
+    --ring: 0.511 0.262 276;            /* indigo-600 */
+
+    /* Ability colors - traffic light pattern for competence levels */
+    --ability-success: 0.527 0.154 163;       /* emerald-700 */
+    --ability-success-light: 0.627 0.194 163; /* emerald-500 */
+    --ability-warning: 0.666 0.179 58;        /* amber-600 */
+    --ability-danger: 0.577 0.245 27;         /* red-600 */
+  }
+
+  /* Dark mode */
+  .dark {
+    --background: 0.129 0.014 264;      /* slate-950 */
+    --foreground: 0.968 0.003 264;      /* slate-50 */
+
+    --card: 0.208 0.012 264;            /* slate-900 */
+    --card-foreground: 0.968 0.003 264;
+
+    --popover: 0.208 0.012 264;
+    --popover-foreground: 0.968 0.003 264;
+
+    --primary: 0.585 0.233 277;         /* indigo-500 */
+    --primary-foreground: 1 0 0;
+
+    --secondary: 0.279 0.012 264;       /* slate-800 */
+    --secondary-foreground: 0.968 0.003 264;
+
+    --muted: 0.279 0.012 264;
+    --muted-foreground: 0.556 0.01 264; /* slate-400 */
+
+    --accent: 0.279 0.012 264;
+    --accent-foreground: 0.968 0.003 264;
+
+    --destructive: 0.577 0.245 27;
+    --destructive-foreground: 1 0 0;
+
+    --border: 0.279 0.012 264;
+    --input: 0.279 0.012 264;
+    --ring: 0.585 0.233 277;
+
+    /* Ability colors - brighter for dark mode visibility */
+    --ability-success: 0.627 0.194 163;
+    --ability-success-light: 0.723 0.219 163;
+    --ability-warning: 0.766 0.179 58;
+    --ability-danger: 0.677 0.245 27;
+  }
+
+  /* Claude theme - warm orange accent */
+  .theme-claude {
+    --primary: 0.657 0.195 41;          /* Claude orange */
+    --primary-foreground: 1 0 0;
+    --ring: 0.657 0.195 41;
+  }
+
+  /* Ocean theme - teal/cyan accent */
+  .theme-ocean {
+    --primary: 0.541 0.154 192;         /* teal-600 */
+    --primary-foreground: 1 0 0;
+    --ring: 0.541 0.154 192;
+    --ability-success: 0.541 0.154 192; /* use teal for success too */
+    --ability-success-light: 0.641 0.184 192;
+  }
+
+  /* Apply base styles */
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Component utilities can be added here if needed */
+@layer components {
+  /* Hide MathJax assistive MathML (accessibility fallback that shows as text) */
+  mjx-assistive-mml {
+    display: none !important;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  /* Future: Add custom utility classes here */
+}

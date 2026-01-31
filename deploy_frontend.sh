@@ -16,5 +16,8 @@ cp $($CABAL --project-file=cabal.project.wasm list-bin exe:competences-frontend 
 $WASM_OPT -all -O2 static/app.wasm -o static/app.wasm
 $WASM_TOOLS strip -o static/app.wasm static/app.wasm
 
+echo "Copying source files to static/..."
+cp frontend/static-src/index.js static/index.js
+
 echo "Building Tailwind CSS..."
 npm run build:css

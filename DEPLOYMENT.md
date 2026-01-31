@@ -37,25 +37,22 @@ competences/
 
 ## Frontend Build Workflow
 
-**Important:** The frontend WASM files are checked into git for reproducible deployments.
+**Important:** The frontend WASM files live in a separate repository
+[`competences-blobs`](https://github.com/marmay/competences-blobs), included as a
+git submodule at `static/`.
 
-**Why:** Building WASM in Nix sandbox requires resolving Hackage dependencies, which needs network access. Until haskell.nix supports WASM cross-compilation, we commit pre-built WASM files.
+**Why:** Building WASM in Nix sandbox requires resolving Hackage dependencies, which needs network access. Until haskell.nix supports WASM cross-compilation, we commit pre-built WASM files. The blobs are in a separate repo to avoid bloating the main repository history.
 
 **Workflow:**
 1. Make frontend changes
 2. Build locally: `./deploy_frontend.sh`
-3. Commit updated files: `git add static/app.wasm static/ghc_wasm_jsffi.js && git commit`
-4. Deploy as normal
+3. Commit in submodule: `cd static && git add -A && git commit -m "Release X.Y.Z" && git push && cd ..`
+4. Update flake lock: `nix flake lock --update-input competences-blobs`
+5. Commit main repo and deploy as normal
 
-**Files tracked in git:**
-- `static/app.wasm` (~4.5MB, optimized and stripped)
-- `static/ghc_wasm_jsffi.js` (~55KB, GHC WASM FFI runtime)
-- `static/index.js` (~1KB, loader script)
-
-This approach ensures:
-- Reproducible builds (same WASM for all deployments)
-- No network access needed during Nix build
-- Fast CI/CD (no WASM compilation in pipeline)
+**Source files** (in `frontend/static-src/`):
+- `index.js` (~1KB, WASM loader - copied to `static/` by `deploy_frontend.sh`)
+- `input.css` (~4KB, Tailwind input - compiled to `static/output.css`)
 
 **Future:** When haskell.nix supports WASM, we'll switch to building in Nix like the backend.
 
