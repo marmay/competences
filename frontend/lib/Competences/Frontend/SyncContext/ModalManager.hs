@@ -23,6 +23,7 @@ where
 
 import Control.Monad (forM_)
 import Data.Map.Strict qualified as Map
+import Data.Typeable (Typeable, cast)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Subscription.Util (createSub)
@@ -31,7 +32,13 @@ import UnliftIO (MVar, modifyMVar, modifyMVar_, newMVar)
 -- | Existential wrapper for any modal component.
 -- The component can have any model/action types.
 data AnyModal where
-  AnyModal :: (Eq m) => M.Component Model m a -> AnyModal
+  AnyModal :: (Eq m, Typeable m) => M.Component Model m a -> AnyModal
+
+instance Eq AnyModal where
+  AnyModal c1 == AnyModal c2 =
+    case cast c2.model of
+      Just m2 -> c1.model == m2
+      Nothing -> False
 
 -- Note: We need a Model type for the ModalHost context.
 -- This is defined here to avoid circular imports.
@@ -39,17 +46,7 @@ data AnyModal where
 data Model = Model
   { activeModal :: !(Maybe AnyModal)
   }
-  deriving (Generic)
-
--- Manual Eq instance since AnyModal can't derive Eq
-instance Eq Model where
-  m1 == m2 = case (m1.activeModal, m2.activeModal) of
-    (Nothing, Nothing) -> True
-    (Just _, Nothing) -> False
-    (Nothing, Just _) -> False
-    -- When both have modals, we consider them equal if both present
-    -- This is a simplification - modals are identity-compared by the manager
-    (Just _, Just _) -> True
+  deriving (Eq, Generic)
 
 -- | Change notification sent to subscribers.
 data ModalChange = ModalChange
@@ -79,7 +76,7 @@ newModalManager = ModalManagerRef <$> newMVar emptyState
 
 -- | Open a modal with any component.
 -- The caller constructs the component with whatever context is needed.
-openModal :: (Eq m) => ModalManagerRef -> M.Component Model m a -> IO ()
+openModal :: (Eq m, Typeable m) => ModalManagerRef -> M.Component Model m a -> IO ()
 openModal (ModalManagerRef ref) comp = do
   modifyMVar_ ref $ \s -> do
     let modal = Just (AnyModal comp)
