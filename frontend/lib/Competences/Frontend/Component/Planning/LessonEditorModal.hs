@@ -62,24 +62,8 @@ data Model = Model
   , notesValue :: !Text
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
-  , modalManager :: !ModalManagerRef
-  , syncContext :: !SyncContext
   }
-  deriving (Generic)
-
--- Manual Eq instance since ModalManagerRef and SyncContext don't have Eq
-instance Eq Model where
-  m1 == m2 =
-    m1.lesson == m2.lesson
-      && m1.titleValue == m2.titleValue
-      && m1.descriptionValue == m2.descriptionValue
-      && m1.competenceLevels == m2.competenceLevels
-      && m1.dateValue == m2.dateValue
-      && m1.selectedAssignments == m2.selectedAssignments
-      && m1.selectedResources == m2.selectedResources
-      && m1.phases == m2.phases
-      && m1.notesValue == m2.notesValue
-      && m1.editingPhaseIndex == m2.editingPhaseIndex
+  deriving (Eq, Generic)
 
 -- ============================================================================
 -- Actions
@@ -125,8 +109,6 @@ lessonEditorModal r modalMgr lesson' =
         , phases = lesson'.phases
         , notesValue = toRawText lesson'.notes
         , editingPhaseIndex = Nothing
-        , modalManager = modalMgr
-        , syncContext = r
         }
 
     update (SetTitle t) =
@@ -215,14 +197,13 @@ lessonEditorModal r modalMgr lesson' =
                 || old.notes /= newNotes
         if hasChanges
           then do
-            modifySyncDocument m.syncContext (Lessons $ OnLessons $ Modify m.lesson.id Lock)
-            modifySyncDocument m.syncContext (Lessons $ OnLessons $ Modify m.lesson.id (Release patch))
+            modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id Lock)
+            modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id (Release patch))
           else pure ()
-        closeModal m.modalManager
+        closeModal modalMgr
 
-    update CloseModal = do
-      m <- M.get
-      M.io_ $ closeModal m.modalManager
+    update CloseModal =
+      M.io_ $ closeModal modalMgr
 
     -- ========================================================================
     -- View

@@ -293,8 +293,8 @@ viewerComponent r grid =
       let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
           resources = Map.findWithDefault [] clId m.projection.learningResources
           showPurposeBadge = m.projection.connectedUserRole == Teacher
-          cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge m.projection.taskStatuses r.modalManager
-      M.io_ $ openModal r.modalManager (ResourceModal.resourceModalComponent cfg)
+          cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge m.projection.taskStatuses
+      M.io_ $ openModal r.modalManager (ResourceModal.resourceModalComponent r.modalManager cfg)
 
     -- Main view: dispatch based on view data type
     view m =

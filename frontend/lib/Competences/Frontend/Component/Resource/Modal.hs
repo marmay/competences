@@ -60,8 +60,8 @@ data ResourceModalConfig = ResourceModalConfig
   , resources :: ![Resource]
   , showPurposeBadge :: !Bool
   , taskStatuses :: !(Map.Map TaskId TaskCompletionStatus)
-  , modalManager :: !ModalManagerRef
   }
+  deriving (Eq)
 
 -- ============================================================================
 -- Model
@@ -80,18 +80,7 @@ data Model = Model
   , viewMode :: !ResourceViewMode
   , expandedResources :: !(Set.Set ResourceId)
   }
-  deriving (Generic)
-
--- Manual Eq instance since ResourceModalConfig contains ModalManagerRef
-instance Eq Model where
-  m1 == m2 =
-    m1.taskListState == m2.taskListState
-      && m1.viewMode == m2.viewMode
-      && m1.expandedResources == m2.expandedResources
-      && m1.config.tasks == m2.config.tasks
-      && m1.config.resources == m2.config.resources
-      && m1.config.showPurposeBadge == m2.config.showPurposeBadge
-      && m1.config.taskStatuses == m2.config.taskStatuses
+  deriving (Eq, Generic)
 
 -- ============================================================================
 -- Actions
@@ -108,8 +97,8 @@ data Action
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: ResourceModalConfig -> M.Component p Model Action
-resourceModalComponent cfg =
+resourceModalComponent :: ModalManagerRef -> ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent modalMgr cfg =
   M.component model update view
   where
     -- Determine default view mode based on available content
@@ -141,7 +130,7 @@ resourceModalComponent cfg =
          in m {expandedResources = newExpanded}
 
     update CloseModal =
-      M.io_ $ closeModal cfg.modalManager
+      M.io_ $ closeModal modalMgr
 
     view :: Model -> M.View Model Action
     view m =

@@ -37,18 +37,8 @@ data Model = Model
   , titleValue :: !Text
   , dateFromValue :: !(Maybe Day)
   , dateToValue :: !(Maybe Day)
-  , modalManager :: !ModalManagerRef
-  , syncContext :: !SyncContext
   }
-  deriving (Generic)
-
--- Manual Eq instance since ModalManagerRef and SyncContext don't have Eq
-instance Eq Model where
-  m1 == m2 =
-    m1.mesoPlan == m2.mesoPlan
-      && m1.titleValue == m2.titleValue
-      && m1.dateFromValue == m2.dateFromValue
-      && m1.dateToValue == m2.dateToValue
+  deriving (Eq, Generic)
 
 -- ============================================================================
 -- Actions
@@ -77,8 +67,6 @@ mesoPlanEditorModal r modalMgr plan =
         , titleValue = plan.title
         , dateFromValue = plan.dateFrom
         , dateToValue = plan.dateTo
-        , modalManager = modalMgr
-        , syncContext = r
         }
 
     update (SetTitle t) =
@@ -108,14 +96,13 @@ mesoPlanEditorModal r modalMgr plan =
         -- Only send command if something changed
         if oldTitle /= newTitle || oldDateFrom /= newDateFrom || oldDateTo /= newDateTo
           then do
-            modifySyncDocument m.syncContext (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id Lock)
-            modifySyncDocument m.syncContext (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (Release patch))
+            modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id Lock)
+            modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (Release patch))
           else pure ()
-        closeModal m.modalManager
+        closeModal modalMgr
 
-    update CloseModal = do
-      m <- M.get
-      M.io_ $ closeModal m.modalManager
+    update CloseModal =
+      M.io_ $ closeModal modalMgr
 
     view :: Model -> M.View Model Action
     view m =
