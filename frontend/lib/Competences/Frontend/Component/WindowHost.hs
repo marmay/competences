@@ -77,7 +77,8 @@ windowHostComponent ref =
     view m =
       MH.div_
         []
-        [ renderPinnedDialogs m
+        [ renderPinBackdrop m
+        , renderPinnedDialogs m
         , renderSidebar m
         , renderModal m
         ]
@@ -123,7 +124,7 @@ renderSidebar m
   | otherwise =
       MH.div_
         [ class_
-            "fixed right-0 top-0 bottom-0 w-16 z-40 flex flex-col items-center gap-2 py-16 bg-muted/80 border-l border-border"
+            "relative z-40 w-16 h-screen flex-shrink-0 flex flex-col items-center gap-2 py-16 bg-muted/80 border-l border-border"
         ]
         (map renderSidebarEntry m.pinOrder)
   where
@@ -162,6 +163,20 @@ renderSidebar m
        in case lookup pid (zip sameIconPins [1 ..]) of
             Just n -> n
             Nothing -> 0
+
+-- | Render a semi-transparent backdrop when any pinned dialog is visible.
+renderPinBackdrop :: Model -> M.View Model Action
+renderPinBackdrop m =
+  let hasVisiblePin =
+        any
+          ( \pid -> case Map.lookup pid m.pinnedDialogs of
+              Just (_, PinVisible) -> True
+              _ -> False
+          )
+          m.pinOrder
+   in if hasVisiblePin
+        then MH.div_ [class_ "fixed inset-0 z-20 bg-foreground/30"] []
+        else M.text ""
 
 -- | Render the modal overlay (backdrop + centered content).
 -- Only shown when a modal is active.

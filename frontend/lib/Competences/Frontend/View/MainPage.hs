@@ -23,7 +23,7 @@ mainPage
   -> M.View m a
 mainPage title focusedUserView navItems content footerContent =
   M.div_
-    [class_ "h-screen flex flex-col"]
+    [class_ "h-full flex flex-col"]
     [ navBanner
     , contentArea
     , footer

@@ -80,14 +80,17 @@ mkApp ir =
     view :: Model -> M.View Model Action
     view m =
       M.div_
-        []
+        [class_ "flex flex-row h-screen"]
         [ V.iconDefs
-        , V.mainPage
-            (C.translate' C.LblPageTitle)
-            (focusedUserView ir)
-            (navButtons m)
-            (page (m ^. #uri))
-            (footerView ir)
+        , M.div_
+            [class_ "flex-1 min-w-0"]
+            [ V.mainPage
+                (C.translate' C.LblPageTitle)
+                (focusedUserView ir)
+                (navButtons m)
+                (page (m ^. #uri))
+                (footerView ir)
+            ]
         , V.component "window-host" (windowHostComponent ir.windowManager)
         ]
 
