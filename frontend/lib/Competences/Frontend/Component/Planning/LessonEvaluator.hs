@@ -10,7 +10,6 @@ import Competences.Document
   , CompetenceGrid (..)
   , CompetenceGridIxs
   , Document (..)
-  , LevelInfo (..)
   , User (..)
   )
 import Competences.Document.Competence (CompetenceIxs)
@@ -34,6 +33,11 @@ import Competences.Document.Task
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Planning.StudentEvaluatorModal (studentEvaluatorModal)
+import Competences.Frontend.Component.Selector.CompetenceLevelSelector
+  ( ResultView (..)
+  , formatCompetenceLevelBadge
+  )
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -50,7 +54,6 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Lesson qualified as QLesson
 import Data.Function ((&))
-import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Miso.CSS qualified as MC
 import Data.Proxy (Proxy (..))
@@ -238,11 +241,14 @@ lessonEvaluatorComponent r initialLesson =
 
     viewObservationBadge m obs =
       let (competenceId, level) = obs.competenceLevelId
-          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
-          label = case competenceM of
-            Nothing -> "?"
-            Just comp -> ms $ maybe "?" (.description) (comp.levels Map.!? level)
+          ResultView {badgeText, tooltipContent} =
+            formatCompetenceLevelBadge m.competences m.competenceGrids
+              (competenceId, level)
           colorClass = Eval.abilityColorClass obs.ability
-       in MH.span_
-            [class_ $ "px-1.5 py-0.5 rounded text-xs font-medium " <> colorClass]
-            [M.text label]
+       in Badge.interactiveBadge
+            Badge.InteractiveBadgeConfig
+              { text = badgeText
+              , tooltip = tooltipContent
+              , onDelete = Nothing
+              , variant = Badge.BadgeCustom colorClass
+              }

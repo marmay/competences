@@ -26,6 +26,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
+import Data.Text (Text)
 import Miso.String (MisoString)
 
 -- | Badge variant following Basecoat design system
@@ -34,6 +35,7 @@ data BadgeVariant
   | BadgeSecondary   -- ^ Secondary badge (stone-200 background)
   | BadgeDestructive -- ^ Destructive badge (red-600 background)
   | BadgeOutline     -- ^ Outline badge (transparent with border)
+  | BadgeCustom !Text -- ^ Custom CSS classes for color/border
   deriving (Eq, Show)
 
 -- | Create a badge with given variant and text
@@ -47,11 +49,15 @@ badge variant text =
     -- Base classes from Basecoat (using semantic CSS variables)
     baseClasses = "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium focus-visible:border-ring focus-visible:ring-[3px]"
 
-    -- Variant classes (using semantic CSS variables)
-    variantClasses BadgePrimary = "bg-primary text-primary-foreground border-primary"
-    variantClasses BadgeSecondary = "bg-secondary text-secondary-foreground border-secondary"
-    variantClasses BadgeDestructive = "bg-destructive text-destructive-foreground border-destructive"
-    variantClasses BadgeOutline = "text-foreground border-input hover:bg-accent"
+-- | Map a badge variant to its CSS color classes.
+--
+-- Shared by both simple 'badge' and 'interactiveBadge'.
+variantClasses :: BadgeVariant -> Text
+variantClasses BadgePrimary = "bg-primary text-primary-foreground border-primary"
+variantClasses BadgeSecondary = "bg-secondary text-secondary-foreground border-secondary"
+variantClasses BadgeDestructive = "bg-destructive text-destructive-foreground border-destructive"
+variantClasses BadgeOutline = "text-foreground border-input hover:bg-accent"
+variantClasses (BadgeCustom cls) = cls
 
 -- | Convenient badge constructors
 badgePrimary, badgeSecondary, badgeDestructive, badgeOutline
@@ -77,6 +83,8 @@ data InteractiveBadgeConfig action = InteractiveBadgeConfig
   -- ^ Optional tooltip content
   , onDelete :: !(Maybe action)
   -- ^ Optional delete action (shows X button if present)
+  , variant :: !BadgeVariant
+  -- ^ Color variant (use 'BadgeCustom' for custom CSS classes)
   }
   deriving (Generic)
 
@@ -106,7 +114,7 @@ interactiveBadge config =
     -- Badge classes with group for hover-based visibility
     badgeClasses =
       "group relative inline-flex items-center gap-1 rounded-full border px-2 py-0.5 \
-      \text-xs font-medium bg-secondary text-secondary-foreground border-secondary"
+      \text-xs font-medium " <> variantClasses config.variant
 
     -- CSS-based tooltip using group-hover (avoids Basecoat color variable issues)
     -- Uses whitespace-pre-line to respect newlines in tooltip text

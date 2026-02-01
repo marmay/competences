@@ -1,18 +1,23 @@
 module Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( competenceLevelSelectorComponent
   , competenceLevelEditorField
+  , formatCompetenceLevelBadge
+  , ResultView (..)
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
-  , CompetenceGrid
+  , CompetenceGrid (..)
+  , CompetenceGridIxs
   , Document (..)
   , Level (..)
   , levelDescription
   )
+import Competences.Document.Competence (CompetenceIxs)
 import Competences.Document.Id (Id)
+import Competences.Query.Competence (competenceWithGridIx)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
 import Competences.Frontend.Component.Selector.Common
@@ -81,16 +86,23 @@ validateCompetenceLevels doc competenceLevels =
   filter (isValidCompetenceLevel doc) competenceLevels
   where
     isValidCompetenceLevel d (competenceId, level) =
-      case lookupCompetenceData d competenceId of
+      case competenceWithGridIx d.competences d.competenceGrids competenceId of
         Nothing -> False -- Competence deleted
         Just _ ->
           -- Check if the level is valid (all three levels are always valid)
           level `elem` [BasicLevel, IntermediateLevel, AdvancedLevel]
 
--- | Extract competence-level display data (pure function)
-viewCompetenceLevelResult :: Document -> (Id Competence, Level) -> ResultView
-viewCompetenceLevelResult doc (competenceId, level) =
-  case lookupCompetenceData doc competenceId of
+-- | Format a competence-level pair as a compact badge with tooltip.
+--
+-- Core logic extracted from 'viewCompetenceLevelResult' so it can be
+-- used with projected IxSets (without requiring a full Document).
+formatCompetenceLevelBadge
+  :: Ix.IxSet CompetenceIxs Competence
+  -> Ix.IxSet CompetenceGridIxs CompetenceGrid
+  -> (Id Competence, Level)
+  -> ResultView
+formatCompetenceLevelBadge comps grids (competenceId, level) =
+  case competenceWithGridIx comps grids competenceId of
     Nothing ->
       ResultView
         { badgeText = "???"
@@ -114,12 +126,10 @@ viewCompetenceLevelResult doc (competenceId, level) =
             , tooltipContent = Just tooltipText
             }
 
--- | Helper to lookup competence-related data
-lookupCompetenceData :: Document -> Id Competence -> Maybe (Competence, CompetenceGrid)
-lookupCompetenceData doc competenceId = do
-  competence <- Ix.getOne $ doc.competences Ix.@= competenceId
-  competenceGrid <- Ix.getOne $ doc.competenceGrids Ix.@= competence.competenceGridId
-  pure (competence, competenceGrid)
+-- | Thin wrapper for use in 'MultiStageSelectorConfig' which requires @Document@.
+viewCompetenceLevelResult :: Document -> (Id Competence, Level) -> ResultView
+viewCompetenceLevelResult doc =
+  formatCompetenceLevelBadge doc.competences doc.competenceGrids
 
 competenceLevelSelectorComponent
   :: SyncContext
