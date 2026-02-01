@@ -5,6 +5,7 @@ module Competences.Document.ParticipationRecord
   , ParticipationRecord (..)
   , ParticipationRecordIxs
   , ParticipationType (..)
+  , ParticipationLevel (..)
   )
 where
 
@@ -13,7 +14,7 @@ import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
@@ -40,6 +41,25 @@ instance ToJSON ParticipationType
 
 instance Binary ParticipationType
 
+-- | Quality level within a participation category.
+-- Each 'ParticipationType' has two levels with category-specific meanings:
+--
+-- * ActivelyParticipates: Level1 = Gut, Level2 = Herausragend
+-- * ActivelyCollaborates: Level1 = Gut, Level2 = Herausragend
+-- * RefusesToWork: Level1 = Bemüht sich nicht, Level2 = Verweigert
+data ParticipationLevel
+  = ParticipationLevel1
+  | ParticipationLevel2
+  deriving (Bounded, Enum, Eq, Generic, Ord, Show)
+
+#ifdef WITH_AESON
+instance FromJSON ParticipationLevel
+
+instance ToJSON ParticipationLevel
+#endif
+
+instance Binary ParticipationLevel
+
 -- | Per-student per-lesson participation record.
 -- Top-level entity for cross-lesson querying (student history).
 -- At most one per (lessonId, userId, participationType).
@@ -48,6 +68,7 @@ data ParticipationRecord = ParticipationRecord
   , lessonId :: !LessonId
   , userId :: !UserId
   , participationType :: !ParticipationType
+  , level :: !ParticipationLevel
   , remark :: !(Maybe Text)
   }
   deriving (Eq, Generic, Ord, Show)
@@ -63,7 +84,15 @@ instance Ix.Indexable ParticipationRecordIxs ParticipationRecord where
       (Ix.ixFun $ singleton . (.participationType))
 
 #ifdef WITH_AESON
-instance FromJSON ParticipationRecord
+instance FromJSON ParticipationRecord where
+  parseJSON = withObject "ParticipationRecord" $ \v ->
+    ParticipationRecord
+      <$> v .: "id"
+      <*> v .: "lessonId"
+      <*> v .: "userId"
+      <*> v .: "participationType"
+      <*> v .:? "level" .!= ParticipationLevel1
+      <*> v .:? "remark" .!= Nothing
 
 instance ToJSON ParticipationRecord
 #endif

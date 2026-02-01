@@ -19,7 +19,7 @@ where
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
-import Competences.Document.ParticipationRecord (ParticipationType (..))
+import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationType (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Competences.Query.TaskStatus (TaskStatusGroup (..), taskStatusGroups)
@@ -294,6 +294,7 @@ data Label
   | LblWillBeEdited
     -- Lesson evaluator
   | LblParticipationType !ParticipationType
+  | LblParticipationLevel !ParticipationType !ParticipationLevel
   | LblNoEvidence
   | LblNoObservations
   | LblLessonNoTasks
@@ -565,6 +566,12 @@ labels' =
   , LblParticipationType ActivelyParticipates
   , LblParticipationType ActivelyCollaborates
   , LblParticipationType RefusesToWork
+  , LblParticipationLevel ActivelyParticipates ParticipationLevel1
+  , LblParticipationLevel ActivelyParticipates ParticipationLevel2
+  , LblParticipationLevel ActivelyCollaborates ParticipationLevel1
+  , LblParticipationLevel ActivelyCollaborates ParticipationLevel2
+  , LblParticipationLevel RefusesToWork ParticipationLevel1
+  , LblParticipationLevel RefusesToWork ParticipationLevel2
   , LblNoEvidence
   , LblNoObservations
   , LblLessonNoTasks
@@ -857,6 +864,12 @@ defaultTranslation LblWillBeEdited = "\" bearbeitet: "
 defaultTranslation (LblParticipationType ActivelyParticipates) = "Mitarbeit"
 defaultTranslation (LblParticipationType ActivelyCollaborates) = "Zusammenarbeit"
 defaultTranslation (LblParticipationType RefusesToWork) = "Verweigerung"
+defaultTranslation (LblParticipationLevel ActivelyParticipates ParticipationLevel1) = "Gut"
+defaultTranslation (LblParticipationLevel ActivelyParticipates ParticipationLevel2) = "Herausragend"
+defaultTranslation (LblParticipationLevel ActivelyCollaborates ParticipationLevel1) = "Gut"
+defaultTranslation (LblParticipationLevel ActivelyCollaborates ParticipationLevel2) = "Herausragend"
+defaultTranslation (LblParticipationLevel RefusesToWork ParticipationLevel1) = "Bemüht sich nicht"
+defaultTranslation (LblParticipationLevel RefusesToWork ParticipationLevel2) = "Verweigert"
 defaultTranslation LblNoEvidence = "Keine Nachweise"
 defaultTranslation LblNoObservations = "Keine Beobachtungen"
 defaultTranslation LblLessonNoTasks = "Keine Aufgaben in dieser Einheit"

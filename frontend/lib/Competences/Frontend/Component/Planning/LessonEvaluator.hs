@@ -19,7 +19,8 @@ import Competences.Document.Evidence
   )
 import Competences.Document.Lesson (Lesson (..))
 import Competences.Document.ParticipationRecord
-  ( ParticipationRecord (..)
+  ( ParticipationLevel (..)
+  , ParticipationRecord (..)
   , ParticipationRecordIxs
   , ParticipationType (..)
   )
@@ -87,7 +88,7 @@ data LessonEvalModel = LessonEvalModel
 
 data LessonEvalAction
   = DocumentUpdated !DocumentChange
-  | ToggleParticipation !UserId !ParticipationType
+  | ToggleParticipation !UserId !ParticipationType !ParticipationLevel
   | OpenStudentDetail !UserId
   deriving (Eq, Show)
 
@@ -135,15 +136,32 @@ lessonEvaluatorComponent r initialLesson =
             , competenceGrids = doc.competenceGrids
             }
 
-    -- Participation toggles: create or delete immediately
-    update (ToggleParticipation userId pType) = do
+    -- Participation toggles: create, delete, or switch level
+    update (ToggleParticipation userId pType pLevel) = do
       m <- M.get
       M.io_ $ do
         let existing = m.participationRecords Ix.@= userId Ix.@= pType
         case Ix.getOne existing of
-          Just pr ->
-            modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Delete pr.id)
+          Just pr
+            | pr.level == pLevel ->
+                -- Same level clicked: toggle off
+                modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Delete pr.id)
+            | otherwise -> do
+                -- Different level clicked: delete old, create new
+                modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Delete pr.id)
+                prId <- nextId r
+                let newPr =
+                      ParticipationRecord
+                        { id = prId
+                        , lessonId = m.lesson.id
+                        , userId = userId
+                        , participationType = pType
+                        , level = pLevel
+                        , remark = Nothing
+                        }
+                modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Create newPr)
           Nothing -> do
+            -- No record: create with selected level
             prId <- nextId r
             let pr =
                   ParticipationRecord
@@ -151,6 +169,7 @@ lessonEvaluatorComponent r initialLesson =
                     , lessonId = m.lesson.id
                     , userId = userId
                     , participationType = pType
+                    , level = pLevel
                     , remark = Nothing
                     }
             modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Create pr)
@@ -210,25 +229,38 @@ lessonEvaluatorComponent r initialLesson =
                     & Button.withClick (OpenStudentDetail user.id)
                     & Button.renderButton
                 ]
-            , -- Participation toggles
-              MH.div_
-                [class_ "flex gap-1 mb-2"]
-                (map (viewParticipationToggle user.id prs) [minBound .. maxBound])
+            , -- Participation toggles (two buttons per category)
+              viewParticipationControls user.id prs
             , -- Evidence summary badges
               case mEvidence of
                 Nothing -> MH.div_ [class_ "text-xs text-muted-foreground"] [M.text $ C.translate' C.LblNoEvidence]
                 Just ev -> viewEvidenceBadges m ev
             ]
 
-    viewParticipationToggle userId prs pType =
-      let isActive = not $ Ix.null (prs Ix.@= pType)
+    viewParticipationControls userId prs =
+      MH.div_
+        [class_ "flex gap-1 mb-2"]
+        (map (viewParticipationCategory userId prs) [minBound .. maxBound])
+
+    viewParticipationCategory userId prs pType =
+      MH.div_
+        [class_ "flex gap-0.5 border border-border rounded p-0.5"]
+        [ viewParticipationButton userId prs pType ParticipationLevel1
+        , viewParticipationButton userId prs pType ParticipationLevel2
+        ]
+
+    viewParticipationButton userId prs pType pLevel =
+      let mRecord = Ix.getOne (prs Ix.@= pType)
+          isActive = case mRecord of
+            Just pr -> pr.level == pLevel
+            Nothing -> False
           btnClass =
             if isActive
               then "px-2 py-0.5 rounded text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
               else "px-2 py-0.5 rounded text-xs cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80"
        in MH.button_
-            [class_ btnClass, MH.onClick (ToggleParticipation userId pType)]
-            [M.text $ C.translate' (C.LblParticipationType pType)]
+            [class_ btnClass, MH.onClick (ToggleParticipation userId pType pLevel)]
+            [M.text $ C.translate' (C.LblParticipationLevel pType pLevel)]
 
     viewEvidenceBadges m ev =
       let observations = Ix.toList ev.observations
