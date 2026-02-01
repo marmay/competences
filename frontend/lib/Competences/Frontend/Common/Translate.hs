@@ -19,6 +19,7 @@ where
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
+import Competences.Document.ParticipationRecord (ParticipationType (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
 import Competences.Document.Task (TaskPurpose (..), taskPurposes)
 import Competences.Query.TaskStatus (TaskStatusGroup (..), taskStatusGroups)
@@ -291,6 +292,15 @@ data Label
   | LblEvidencesWillBeEdited
   | LblEvidencesBasedOn
   | LblWillBeEdited
+    -- Lesson evaluator
+  | LblParticipationType !ParticipationType
+  | LblNoEvidence
+  | LblNoObservations
+  | LblLessonNoTasks
+  | LblManualObservations
+  | LblNoManualObservations
+  | LblAddTask
+  | LblBack
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -548,6 +558,17 @@ labels' =
   , LblEvidencesWillBeEdited
   , LblEvidencesBasedOn
   , LblWillBeEdited
+    -- Lesson evaluator
+  , LblParticipationType ActivelyParticipates
+  , LblParticipationType ActivelyCollaborates
+  , LblParticipationType RefusesToWork
+  , LblNoEvidence
+  , LblNoObservations
+  , LblLessonNoTasks
+  , LblManualObservations
+  , LblNoManualObservations
+  , LblAddTask
+  , LblBack
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -826,6 +847,17 @@ defaultTranslation (LblStudentsSelected n) = ms (show n) <> " Schüler ausgewäh
 defaultTranslation LblEvidencesWillBeEdited = "Die Nachweise der folgenden Schüler werden bearbeitet:"
 defaultTranslation LblEvidencesBasedOn = "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
 defaultTranslation LblWillBeEdited = "\" bearbeitet: "
+-- Lesson evaluator
+defaultTranslation (LblParticipationType ActivelyParticipates) = "Mitarbeit"
+defaultTranslation (LblParticipationType ActivelyCollaborates) = "Zusammenarbeit"
+defaultTranslation (LblParticipationType RefusesToWork) = "Verweigerung"
+defaultTranslation LblNoEvidence = "Keine Nachweise"
+defaultTranslation LblNoObservations = "Keine Beobachtungen"
+defaultTranslation LblLessonNoTasks = "Keine Aufgaben in dieser Einheit"
+defaultTranslation LblManualObservations = "Manuelle Beobachtungen"
+defaultTranslation LblNoManualObservations = "Keine manuellen Beobachtungen"
+defaultTranslation LblAddTask = "Aufgabe hinzufügen"
+defaultTranslation LblBack = "Zurück"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

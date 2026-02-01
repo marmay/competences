@@ -48,6 +48,7 @@ library
         Competences.Frontend.Component.Planning,
         Competences.Frontend.Component.Planning.DetailView,
         Competences.Frontend.Component.Planning.LessonEditorModal,
+        Competences.Frontend.Component.Planning.LessonEvaluator,
         Competences.Frontend.Component.CompetenceGrid.Types,
         Competences.Frontend.Component.CompetenceGrid.Viewer,
         Competences.Frontend.Component.ConnectionStatus,

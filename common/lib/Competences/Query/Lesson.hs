@@ -9,12 +9,16 @@ module Competences.Query.Lesson
     -- * Lesson-scoped queries
   , lessonAssignments
   , lessonEvidences
+  , lessonTaskIds
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment, Document (..), Evidence, Lesson, LessonId, MesoPlan, MesoPlanId, Order)
+import Competences.Document (Assignment (..), Document (..), Evidence (..), Lesson, LessonId, MesoPlan, MesoPlanId, Order)
+import Competences.Document.Task (TaskId)
+import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
 
 -- | Lookup a lesson by primary key.
 getLesson :: Document -> LessonId -> Maybe Lesson
@@ -38,3 +42,10 @@ lessonAssignments doc lessonId =
 lessonEvidences :: Document -> LessonId -> [Evidence]
 lessonEvidences doc lessonId =
   Ix.toList $ doc.evidences Ix.@= lessonId
+
+-- | All task IDs associated with a lesson (derived from assignments + evidences).
+lessonTaskIds :: Document -> LessonId -> Set.Set TaskId
+lessonTaskIds doc lessonId =
+  let fromAssignments = Set.fromList $ concatMap (.tasks) $ lessonAssignments doc lessonId
+      fromEvidences = Set.fromList $ concatMap (Map.keys . (.tasks)) $ lessonEvidences doc lessonId
+   in Set.union fromAssignments fromEvidences

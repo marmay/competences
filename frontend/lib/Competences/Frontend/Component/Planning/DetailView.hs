@@ -15,6 +15,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
+import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -25,7 +26,6 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), openModal, pinDialog)
-import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Document.Id (idToText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
@@ -160,7 +160,7 @@ detailComponent r initialPlan =
     update (PinLessonEvaluation lesson) = M.io_ $
       pinDialog r.windowManager
         (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-        (AnyPinnedDialog (dummyLessonEvalComponent lesson) IcnMesoPlan (M.ms lesson.title))
+        (AnyPinnedDialog (lessonEvaluatorComponent r lesson) IcnMesoPlan (M.ms lesson.title))
 
     view m =
       V.viewFlow
@@ -343,12 +343,3 @@ detailComponent r initialPlan =
                 [class_ "text-sm p-1 rounded hover:bg-muted/30"]
                 [M.text $ M.ms identText]
 
--- | Dummy pinned component for lesson evaluation (placeholder).
-dummyLessonEvalComponent :: Lesson -> M.Component WM.Model () ()
-dummyLessonEvalComponent lesson =
-  M.component () (const (pure ())) $ const $
-    MH.div_
-      [class_ "p-6 space-y-4"]
-      [ Typography.h3 (M.ms $ "Lesson Evaluation: " <> lesson.title)
-      , Typography.muted "This is a placeholder. The real evaluation component will go here."
-      ]
