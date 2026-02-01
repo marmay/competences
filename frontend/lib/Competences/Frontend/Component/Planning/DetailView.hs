@@ -8,7 +8,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Lesson (LessonId, LessonPhase (..))
+import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (orderMax)
 import Competences.Document.Resource (ResourceId)
@@ -309,9 +309,7 @@ detailComponent r initialPlan =
             else
               MH.div_
                 []
-                [ MH.div_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1"]
-                    [M.text $ C.translate' C.LblLessonPhases]
+                [ Typography.small $ C.translate' C.LblLessonPhases
                 , MH.div_
                     [class_ "space-y-1"]
                     (zipWith viewPhaseSummary [1 :: Int ..] lesson.phases)
@@ -319,18 +317,22 @@ detailComponent r initialPlan =
         ]
 
     viewPhaseSummary idx phase =
-      MH.div_
-        [class_ "flex items-center gap-2 text-sm p-2 bg-muted/30 rounded"]
-        [ MH.span_ [class_ "font-medium"]
-            [M.text $ M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title]
-        , MH.span_ [class_ "text-muted-foreground"]
-            [ M.text $ M.ms (show phase.duration) <> " min"
-            , M.text " · "
-            , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
-            , M.text " · "
-            , M.text $ C.translate' (C.LblActionForm phase.actionForm)
+      let borderColor = case phase.actionForm of
+            Presenting -> "border-l-red-500"
+            Collaborating -> "border-l-orange-500"
+            Assigning -> "border-l-green-500"
+       in MH.div_
+            [class_ $ "flex items-center gap-2 text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
+            [ MH.span_ [class_ "font-medium"]
+                [M.text $ M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title]
+            , MH.span_ [class_ "text-muted-foreground"]
+                [ M.text $ M.ms (show phase.duration) <> " min"
+                , M.text " · "
+                , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
+                , M.text " · "
+                , M.text $ C.translate' (C.LblActionForm phase.actionForm)
+                ]
             ]
-        ]
 
     viewAssignmentSummary doc aId =
       case Ix.getOne (doc.assignments Ix.@= aId) of
