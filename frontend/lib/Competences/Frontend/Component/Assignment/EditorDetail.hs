@@ -13,10 +13,13 @@ import Competences.Document
   , User (..)
   )
 import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Id (idToText)
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
+import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
 import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
@@ -24,12 +27,14 @@ import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUser
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Import.Export (exportAssignment)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -48,8 +53,9 @@ newtype EditorModel = EditorModel
   }
   deriving (Eq, Generic, Show)
 
-newtype EditorAction
-  = DocumentUpdated DocumentChange
+data EditorAction
+  = DocumentUpdated !DocumentChange
+  | PinEvaluation
   deriving (Eq, Show)
 
 -- | Detail view for editing an assignment
@@ -92,6 +98,14 @@ editorWrapperComponent r assignment =
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
 
+    update PinEvaluation = M.io_ $
+      let AssignmentName nameText = assignment.name
+          pinTitle = C.translate' C.LblEvaluateAssignment
+            <> ": " <> M.ms nameText
+       in pinDialog r.windowManager
+            (PinId $ "assignment-evaluation-" <> idToText assignment.id)
+            (AnyPinnedDialog (evaluatorComponent r assignment) IcnAssignment pinTitle)
+
     view _m =
       MH.div_
         [class_ "flex flex-col gap-4"]
@@ -99,8 +113,12 @@ editorWrapperComponent r assignment =
             ("assignment-editor-" <> M.ms (show assignment.id))
             (TE.editorComponent assignmentEditor r)
         , MH.div_
-            [class_ "flex justify-end"]
-            [ V.component
+            [class_ "flex justify-end gap-2"]
+            [ Button.buttonOutline (C.translate' C.LblEvaluateAssignment)
+                & Button.withIcon IcnApply
+                & Button.withClick PinEvaluation
+                & Button.renderButton
+            , V.component
                 ("export-btn-" <> M.ms (show assignment.id))
                 (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
             ]

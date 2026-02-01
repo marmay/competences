@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Assignment.EvaluatorDetail
   ( evaluatorDetailView
+  , evaluatorComponent
   )
 where
 

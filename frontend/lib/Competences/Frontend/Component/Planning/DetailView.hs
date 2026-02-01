@@ -16,6 +16,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -68,6 +69,7 @@ data DetailAction
   | DeleteLesson !LessonId
   | DeleteMesoPlan
   | PinLessonEvaluation !Lesson
+  | PinAssignmentEvaluation !Assignment
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
@@ -176,6 +178,14 @@ detailComponent r initialPlan =
        in pinDialog r.windowManager
             (PinId $ "lesson-evaluation-" <> idToText lesson.id)
             (AnyPinnedDialog (lessonEvaluatorComponent r lesson) IcnMesoPlan pinTitle)
+
+    update (PinAssignmentEvaluation assignment) = M.io_ $
+      let AssignmentName nameText = assignment.name
+          pinTitle = C.translate' C.LblEvaluateAssignment
+            <> ": " <> M.ms nameText
+       in pinDialog r.windowManager
+            (PinId $ "assignment-evaluation-" <> idToText assignment.id)
+            (AnyPinnedDialog (evaluatorComponent r assignment) IcnAssignment pinTitle)
 
     view m =
       V.viewFlow
@@ -340,7 +350,14 @@ detailComponent r initialPlan =
         Just a ->
           let AssignmentName nameText = a.name
            in MH.div_
-                [class_ "text-sm p-1 rounded hover:bg-muted/30"]
-                [M.text $ M.ms nameText]
+                [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
+                [ M.text $ M.ms nameText
+                , Button.buttonGhost ""
+                    & Button.withIcon IcnApply
+                    & Button.withSize Button.Small
+                    & Button.withStopPropagation
+                    & Button.withClick (PinAssignmentEvaluation a)
+                    & Button.renderButton
+                ]
 
 
