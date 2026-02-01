@@ -6,7 +6,7 @@
 -- Description : Modal component for displaying tasks and learning resources
 --
 -- Shows tasks and learning resources for a specific competence level.
--- Used via the central ModalManager.
+-- Used via the central WindowManager.
 module Competences.Frontend.Component.Resource.Modal
   ( resourceModalComponent
   , ResourceModalConfig (..)
@@ -34,7 +34,7 @@ import Optics.Core ((&))
 import Competences.Document.Task (TaskId)
 import Competences.Query.TaskStatus (TaskCompletionStatus, TaskStatusGroup (..), groupByTaskStatus)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
-import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
+import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -101,7 +101,7 @@ data Action
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: ModalManagerRef -> ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent :: WindowManagerRef -> ResourceModalConfig -> M.Component p Model Action
 resourceModalComponent modalMgr cfg =
   M.component model update view
   where

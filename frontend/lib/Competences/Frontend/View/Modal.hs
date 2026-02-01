@@ -2,9 +2,9 @@
 Module: Competences.Frontend.View.Modal
 Description: Basecoat-inspired modal/dialog styling helpers
 
-Note: The primary modal system is now handled by the ModalManager and ModalHost
-components in Competences.Frontend.SyncContext.ModalManager and
-Competences.Frontend.Component.ModalHost.
+Note: The primary modal/pin system is now handled by the WindowManager and WindowHost
+components in Competences.Frontend.SyncContext.WindowManager and
+Competences.Frontend.Component.WindowHost.
 
 This module provides optional styling helpers for modal content.
 -}

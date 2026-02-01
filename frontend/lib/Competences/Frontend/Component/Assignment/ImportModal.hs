@@ -139,15 +139,15 @@ assignmentImportModalComponent r =
       case m.parseResult of
         Right previews -> M.io_ $ do
           applyPreviews r m.document previews
-          closeModal r.modalManager
+          closeModal r.windowManager
         Left _ -> pure ()
 
     update CloseModal =
-      M.io_ $ closeModal r.modalManager
+      M.io_ $ closeModal r.windowManager
 
     view :: Model -> M.View Model Action
     view m =
-      -- Note: No modalHost wrapper - the parent ModalHost component provides the backdrop
+      -- Note: No modal wrapper needed - the parent WindowHost component provides the backdrop
       M.div_
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ Modal.modalHeader (C.translate' C.LblImportAssignments) CloseModal

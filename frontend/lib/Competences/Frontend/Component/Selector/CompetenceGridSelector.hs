@@ -114,7 +114,7 @@ competenceGridSelectorComponent r style parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ openModal r.modalManager (ImportModal.competenceGridImportModalComponent r)
+      M.io_ $ openModal r.windowManager (ImportModal.competenceGridImportModalComponent r)
 
     updateFromProjection :: GridSelectorProjection -> Model -> Model
     updateFromProjection proj m =

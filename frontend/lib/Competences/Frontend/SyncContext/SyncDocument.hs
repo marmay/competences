@@ -39,9 +39,9 @@ import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
-import Competences.Frontend.SyncContext.ModalManager
-  ( ModalManagerRef
-  , newModalManager
+import Competences.Frontend.SyncContext.WindowManager
+  ( WindowManagerRef
+  , newWindowManager
   )
 import Competences.Frontend.SyncContext.UIState
   ( FocusedUserChange (..)
@@ -110,7 +110,7 @@ data SyncContext = SyncContext
   , randomGen :: MVar StdGen
   , env :: !SyncDocumentEnv
   , focusedUserRef :: !FocusedUserRef
-  , modalManager :: !ModalManagerRef
+  , windowManager :: !WindowManagerRef
   }
 
 -- | Get the environment from a SyncContext
@@ -137,16 +137,16 @@ mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
   randomGen <- newStdGen >>= newMVar
   focusedUser <- mkFocusedUserRef env.connectedUser
-  modalMgr <- liftIO newModalManager
-  pure $ SyncContext syncDocument randomGen env focusedUser modalMgr
+  winMgr <- liftIO newWindowManager
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
   randomGen' <- newMVar rgen
   focusedUser <- mkFocusedUserRef env.connectedUser
-  modalMgr <- liftIO newModalManager
-  pure $ SyncContext syncDocument randomGen' env focusedUser modalMgr
+  winMgr <- liftIO newWindowManager
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr
 
 readSyncDocument :: (MonadIO m) => SyncContext -> m SyncDocument
 readSyncDocument d = readMVar d.syncDocument

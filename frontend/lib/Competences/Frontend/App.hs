@@ -13,7 +13,7 @@ import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
-import Competences.Frontend.Component.ModalHost (modalHostComponent)
+import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
@@ -88,7 +88,7 @@ mkApp ir =
             (navButtons m)
             (page (m ^. #uri))
             (footerView ir)
-        , V.component "modal-host" (modalHostComponent ir.modalManager)
+        , V.component "window-host" (windowHostComponent ir.windowManager)
         ]
 
     footerView ir' =

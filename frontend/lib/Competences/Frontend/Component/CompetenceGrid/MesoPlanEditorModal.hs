@@ -2,7 +2,7 @@
 -- Module      : Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal
 -- Description : Modal component for editing MesoPlan fields
 --
--- Used via the central ModalManager to edit title and date range of a meso plan.
+-- Used via the central WindowManager to edit title and date range of a meso plan.
 module Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal
   ( mesoPlanEditorModal
   )
@@ -12,7 +12,7 @@ import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanPatch (
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
-import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
+import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
@@ -57,7 +57,7 @@ data Action
 -- ============================================================================
 
 -- | Create the meso plan editor modal component
-mesoPlanEditorModal :: SyncContext -> ModalManagerRef -> MesoPlan -> M.Component p Model Action
+mesoPlanEditorModal :: SyncContext -> WindowManagerRef -> MesoPlan -> M.Component p Model Action
 mesoPlanEditorModal r modalMgr plan =
   M.component model update view
   where

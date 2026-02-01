@@ -136,7 +136,7 @@ assignmentSelectorComponent r parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ openModal r.modalManager (ImportModal.assignmentImportModalComponent r)
+      M.io_ $ openModal r.windowManager (ImportModal.assignmentImportModalComponent r)
 
     view' m =
       V.viewFlow

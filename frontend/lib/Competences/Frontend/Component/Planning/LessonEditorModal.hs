@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
-import Competences.Frontend.SyncContext.ModalManager (ModalManagerRef, closeModal)
+import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -93,7 +93,7 @@ data Action
 -- ============================================================================
 
 -- | Create the lesson editor modal component
-lessonEditorModal :: SyncContext -> ModalManagerRef -> Lesson -> M.Component p Model Action
+lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> M.Component p Model Action
 lessonEditorModal r modalMgr lesson' =
   M.component model update (view r)
   where

@@ -24,7 +24,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.ModalManager (openModal)
+import Competences.Frontend.SyncContext.WindowManager (openModal)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
@@ -132,7 +132,7 @@ detailComponent r initialPlan =
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        openModal r.modalManager (lessonEditorModal r r.modalManager lesson)
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson)
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
@@ -140,10 +140,10 @@ detailComponent r initialPlan =
         else m & #expandedLessonId .~ Just lessonId
 
     update (OpenLessonEditorModal lesson) = M.io_ $
-      openModal r.modalManager (lessonEditorModal r r.modalManager lesson)
+      openModal r.windowManager (lessonEditorModal r r.windowManager lesson)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
-      openModal r.modalManager (mesoPlanEditorModal r r.modalManager plan)
+      openModal r.windowManager (mesoPlanEditorModal r r.windowManager plan)
 
     update (DeleteLesson lessonId) = M.io_ $
       modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
