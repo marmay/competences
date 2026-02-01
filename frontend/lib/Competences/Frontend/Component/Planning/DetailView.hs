@@ -5,12 +5,13 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), LessonsCommand (..), MesoPlansCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), Lesson (..), Resource (..))
+import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Id (idToText)
 import Competences.Document.Lesson (LessonId, LessonPhase (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (orderMax)
-import Competences.Document.Resource (ResourceIdentifier (..))
+import Competences.Document.Resource (ResourceId)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
@@ -26,14 +27,16 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), openModal, pinDialog)
-import Competences.Document.Id (idToText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.Maybe (mapMaybe)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -49,6 +52,7 @@ data DetailModel = DetailModel
   { mesoPlan :: !MesoPlan
   , lessons :: ![Lesson]
   , expandedLessonId :: !(Maybe LessonId)
+  , expandedResources :: !(Set.Set ResourceId)
   , document :: !Document
   }
   deriving (Eq, Generic, Show)
@@ -58,6 +62,7 @@ data DetailAction
   = DocumentUpdated !DocumentChange
   | CreateNewLesson
   | ToggleLessonExpansion !LessonId
+  | ToggleResourceExpanded !ResourceId
   | OpenLessonEditorModal !Lesson
   | OpenMesoPlanEditorModal !MesoPlan
   | DeleteLesson !LessonId
@@ -66,8 +71,8 @@ data DetailAction
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
-projectDetail :: MesoPlan -> Maybe LessonId -> Document -> DetailModel
-projectDetail plan prevExpanded doc =
+projectDetail :: MesoPlan -> Maybe LessonId -> Set.Set ResourceId -> Document -> DetailModel
+projectDetail plan prevExpanded prevExpandedResources doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -75,7 +80,7 @@ projectDetail plan prevExpanded doc =
       expanded = case prevExpanded of
         Nothing -> Nothing
         Just lid -> if any (\l -> l.id == lid) lessons' then Just lid else Nothing
-   in DetailModel plan' lessons' expanded doc
+   in DetailModel plan' lessons' expanded prevExpandedResources doc
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -93,7 +98,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing emptyDocument
+    initialModel = DetailModel initialPlan [] Nothing Set.empty emptyDocument
 
     emptyDocument =
       Document
@@ -114,7 +119,7 @@ detailComponent r initialPlan =
         , participationRecords = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -140,6 +145,13 @@ detailComponent r initialPlan =
       if m.expandedLessonId == Just lessonId
         then m & #expandedLessonId .~ Nothing
         else m & #expandedLessonId .~ Just lessonId
+
+    update (ToggleResourceExpanded resId) = M.modify $ \m ->
+      let newExpanded =
+            if Set.member resId m.expandedResources
+              then Set.delete resId m.expandedResources
+              else Set.insert resId m.expandedResources
+       in m {expandedResources = newExpanded}
 
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
@@ -273,19 +285,11 @@ detailComponent r initialPlan =
                     [class_ "p-2 pt-0 space-y-1"]
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                 ]
-        , -- Resources collapsible
-          if null lesson.resources
-            then M.text ""
-            else
-              MH.nodeHtml "details"
-                [class_ "border border-border rounded-md"]
-                [ MH.nodeHtml "summary"
-                    [class_ "cursor-pointer p-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 rounded-md"]
-                    [M.text $ C.translate' C.LblLessonResources <> " (" <> M.ms (show (length lesson.resources)) <> ")"]
-                , MH.div_
-                    [class_ "p-2 pt-0 space-y-1"]
-                    (map (viewResourceSummary m.document) lesson.resources)
-                ]
+        , -- Resources (shown directly, each individually expandable)
+          let resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
+           in if null resolvedResources
+                then M.text ""
+                else ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
         , -- Notes preview
           if lesson.notes == mempty
             then M.text ""
@@ -337,12 +341,4 @@ detailComponent r initialPlan =
                 [class_ "text-sm p-1 rounded hover:bg-muted/30"]
                 [M.text $ M.ms nameText]
 
-    viewResourceSummary doc rId =
-      case Ix.getOne (doc.resources Ix.@= rId) of
-        Nothing -> MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text "(Unknown resource)"]
-        Just res ->
-          let ResourceIdentifier identText = res.identifier
-           in MH.div_
-                [class_ "text-sm p-1 rounded hover:bg-muted/30"]
-                [M.text $ M.ms identText]
 

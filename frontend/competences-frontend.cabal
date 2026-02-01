@@ -124,6 +124,7 @@ library
         Competences.Frontend.View.Modal,
         Competences.Frontend.View.PinFrame,
         Competences.Frontend.View.ObservationSummary,
+        Competences.Frontend.View.ResourceList,
         Competences.Frontend.View.SelectorList,
         Competences.Frontend.View.SidePanel,
         Competences.Frontend.View.StatusIcon,
