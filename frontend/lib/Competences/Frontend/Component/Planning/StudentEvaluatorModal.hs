@@ -28,7 +28,6 @@ import Competences.Document.Evidence
   , Observation (..)
   , SocialForm (..)
   , TaskEvaluations
-  , abilities
   )
 import Competences.Document.Lesson (Lesson (..))
 import Competences.Document.Task
@@ -50,6 +49,9 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
+import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
+import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Combobox
   ( ComboboxOption (..)
@@ -61,6 +63,7 @@ import Competences.Frontend.View.Combobox
   , withSearchQuery
   , withSelected
   )
+import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Modal qualified as Modal
@@ -109,6 +112,8 @@ data StudentEvalModel = StudentEvalModel
   , selectedTaskToAdd :: !(Maybe TaskId)
   -- Manual observations collapse
   , manualObsExpanded :: !Bool
+  -- Competence levels available for manual observation (managed by selector binding)
+  , manualCompetenceLevels :: ![CompetenceLevelId]
   }
   deriving (Eq, Generic, Show)
 
@@ -193,6 +198,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             , taskComboboxOpen = False
             , selectedTaskToAdd = Nothing
             , manualObsExpanded = False
+            , manualCompetenceLevels = initialLesson.competenceLevels
             }
 
     -- ------------------------------------------------------------------
@@ -286,7 +292,10 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
               (\(_, compId) ability acc -> Map.insertWith max compId ability acc)
               Map.empty
               m.taskObservations
-          merged = Map.unionWith max taskAgg m.manualObservations
+          -- Only include manual observations for levels still in the selector
+          manualLevelsSet = Set.fromList m.manualCompetenceLevels
+          activeManual = Map.filterWithKey (\k _ -> Set.member k manualLevelsSet) m.manualObservations
+          merged = Map.unionWith max taskAgg activeManual
        in m{aggregatedResults = merged, aggregationStale = False}
 
     update (SetAggregatedResult compId ability) = M.modify $ \m ->
@@ -399,7 +408,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
           actionLabel = C.translate' $ if isNothing existingEvidence then C.LblCreateEvidencesAction else C.LblSaveEvidences
        in MH.div_
             [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
-            , class_ "w-[900px] max-w-[95vw] max-h-[90vh] flex flex-col"
+            , class_ "w-full max-w-[90vw] h-[90vh] flex flex-col"
             ]
             [ Modal.modalHeader (ms m.userName) CloseModal
             , MH.div_
@@ -512,48 +521,31 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
         (viewManualObservationsContent m)
 
     viewManualObservationsContent m =
-      let manualObs = Map.toList m.manualObservations
-          lessonCompLevels = m.lesson.competenceLevels
-          taskCompIds = Set.fromList [compId | ((_, compId), _) <- Map.toList m.taskObservations]
-          manualCompIds = Set.fromList (Map.keys m.manualObservations)
-          coveredCompIds = Set.union taskCompIds manualCompIds
-          availableCompIds = filter (\c -> not $ Set.member c coveredCompIds) lessonCompLevels
-       in MH.div_
-            [class_ "space-y-2"]
-            [ -- Existing manual observations
-              if null manualObs
-                then MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblNoManualObservations]
-                else
-                  MH.div_
-                    [class_ "space-y-1"]
-                    (map (viewManualObservationRow m) manualObs)
-            , -- Add buttons for available competence levels
-              if null availableCompIds
-                then M.text ""
-                else
-                  MH.div_
-                    []
-                    [ MH.div_ [class_ "text-xs text-muted-foreground mb-1"] [M.text $ C.translate' C.LblAddObservation]
-                    , MH.div_
-                        [class_ "space-y-1"]
-                        (map (viewManualCompetenceRow m) availableCompIds)
-                    ]
-            ]
-
-    viewManualObservationRow m (compId, ability) =
       MH.div_
-        [class_ "flex items-center gap-2"]
-        [ Eval.viewCompetenceName m.competences compId
-        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (Eval.viewAbilityBtn (Just ability) (AddManualObservation compId)) abilities)
-        , MH.button_
-            [ class_ "text-xs text-muted-foreground hover:text-destructive cursor-pointer"
-            , MH.onClick (RemoveManualObservation compId)
-            ]
-            [M.text "x"]
+        [class_ "space-y-3"]
+        [ -- Competence level selector (3-stage: Grid → Competence → Level)
+          componentA
+            "manual-comp-level-selector"
+            []
+            ( competenceLevelSelectorComponent
+                r
+                (\_ -> m.manualCompetenceLevels)
+                MultiStageSelectorEnabled
+                0
+                (selectorLens #manualCompetenceLevels)
+            )
+        , -- Ability rows for each selected competence level
+          if null m.manualCompetenceLevels
+            then MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblNoManualObservations]
+            else
+              MH.div_
+                [class_ "space-y-1"]
+                (map (viewManualObservationRow m) m.manualCompetenceLevels)
         ]
 
-    viewManualCompetenceRow m compId =
-      Eval.viewCompetenceRow m.competences compId Nothing (AddManualObservation compId)
+    viewManualObservationRow m compId =
+      let mAbility = Map.lookup compId m.manualObservations
+       in Eval.viewCompetenceRow m.competences compId mAbility (AddManualObservation compId)
 
     -- ------------------------------------------------------------------
     -- AGGREGATION SECTION
