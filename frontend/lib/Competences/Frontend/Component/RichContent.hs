@@ -118,6 +118,7 @@ richContentComponent :: Text -> TaskContent -> M.Component p RichContentModel Ri
 richContentComponent key content' =
   (M.component model update view)
     { M.initialAction = Just RenderMath
+    , M.eventPropagation = True
     }
   where
     containerId' = ComponentContainerId key
