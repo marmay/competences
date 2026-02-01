@@ -15,8 +15,7 @@ import Competences.Document
   )
 import Competences.Document.Competence (CompetenceIxs)
 import Competences.Document.Evidence
-  ( Ability (..)
-  , Evidence (..)
+  ( Evidence (..)
   , Observation (..)
   )
 import Competences.Document.Lesson (Lesson (..))
@@ -45,6 +44,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.WindowManager (openModal)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -52,6 +52,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Data.Function ((&))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Miso.CSS qualified as MC
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -183,7 +184,9 @@ lessonEvaluatorComponent r initialLesson =
             Just d -> MH.div_ [class_ "text-sm text-muted-foreground mb-2"] [M.text $ C.formatDay d]
             Nothing -> M.text ""
         , MH.div_
-            [class_ "space-y-2"]
+            [ class_ "grid gap-3"
+            , MC.style_ [("grid-template-columns", "repeat(auto-fill, minmax(300px, 1fr))")]
+            ]
             (map (viewStudentCard m) sortedStudents)
         ]
       where
@@ -239,13 +242,7 @@ lessonEvaluatorComponent r initialLesson =
           label = case competenceM of
             Nothing -> "?"
             Just comp -> ms $ maybe "?" (.description) (comp.levels Map.!? level)
-          colorClass = abilityColorClass obs.ability
+          colorClass = Eval.abilityColorClass obs.ability
        in MH.span_
             [class_ $ "px-1.5 py-0.5 rounded text-xs font-medium " <> colorClass]
             [M.text label]
-
-    abilityColorClass :: Ability -> T.Text
-    abilityColorClass SelfReliant = "bg-green-100 text-green-800"
-    abilityColorClass SelfReliantWithSillyMistakes = "bg-lime-100 text-lime-800"
-    abilityColorClass WithSupport = "bg-yellow-100 text-yellow-800"
-    abilityColorClass NotYet = "bg-red-100 text-red-800"

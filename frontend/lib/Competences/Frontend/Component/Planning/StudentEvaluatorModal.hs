@@ -14,12 +14,10 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
-  ( Competence (..)
-  , CompetenceGrid (..)
+  ( Competence
+  , CompetenceGrid
   , CompetenceGridIxs
   , Document (..)
-  , LevelInfo (..)
-  , Order
   , User (..)
   )
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
@@ -35,18 +33,14 @@ import Competences.Document.Evidence
 import Competences.Document.Lesson (Lesson (..))
 import Competences.Document.Task
   ( Task (..)
-  , TaskAttributes (..)
   , TaskGroup
   , TaskGroupIxs
   , TaskId
   , TaskIdentifier (..)
   , TaskIxs
-  , getTaskAttributes
-  , getTaskContent
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
@@ -57,7 +51,18 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Combobox
+  ( ComboboxOption (..)
+  , renderCombobox
+  , singleSelectCombobox
+  , withIsOpen
+  , withOptions
+  , withPlaceholder
+  , withSearchQuery
+  , withSelected
+  )
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -72,7 +77,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MH
-import Miso.String (ms)
+import Miso.String (fromMisoString, ms)
 
 -- ============================================================================
 -- MODEL
@@ -94,10 +99,16 @@ data StudentEvalModel = StudentEvalModel
   , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
   , manualObservations :: !(Map.Map CompetenceLevelId Ability)
   , selectedSocialForm :: !SocialForm
-  , excludedTasks :: !(Set.Set TaskId)
+  , includedTasks :: !(Set.Set TaskId)
   , expandedTaskContent :: !(Set.Set TaskId)
   , additionalTasks :: !(Set.Set TaskId)
   , aggregationStale :: !Bool
+  -- Combobox state for adding tasks
+  , taskSearchQuery :: !T.Text
+  , taskComboboxOpen :: !Bool
+  , selectedTaskToAdd :: !(Maybe TaskId)
+  -- Manual observations collapse
+  , manualObsExpanded :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -112,9 +123,13 @@ data StudentEvalAction
   | SetTaskObservation !TaskId !CompetenceLevelId !Ability
   | ToggleTaskIncluded !TaskId
   | ToggleTaskContentExpanded !TaskId
-  -- Add task
-  | AddTask !TaskId
+  -- Add task (combobox)
+  | TaskSearchChanged !T.Text
+  | TaskComboboxToggled !TaskId
+  | TaskComboboxOpenChanged !Bool
+  | AddTask
   -- Manual observations
+  | ToggleManualObsExpanded
   | AddManualObservation !CompetenceLevelId !Ability
   | RemoveManualObservation !CompetenceLevelId
   -- Aggregation + save
@@ -141,7 +156,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     }
   where
     initialModel =
-      let (taskObs, aggResults) = case mEvidence of
+      let (taskObs, aggResults, initIncluded) = case mEvidence of
             Just ev ->
               ( Map.fromList
                   [ ((tid, clid), ab)
@@ -152,8 +167,9 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                   [ (obs.competenceLevelId, obs.ability)
                   | obs <- Ix.toList ev.observations
                   ]
+              , Map.keysSet ev.tasks
               )
-            Nothing -> (Map.empty, Map.empty)
+            Nothing -> (Map.empty, Map.empty, Set.empty)
        in StudentEvalModel
             { lesson = initialLesson
             , userId = initialUserId
@@ -168,10 +184,14 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             , aggregatedResults = aggResults
             , manualObservations = Map.empty
             , selectedSocialForm = Individual
-            , excludedTasks = Set.empty
+            , includedTasks = initIncluded
             , expandedTaskContent = Set.empty
             , additionalTasks = Set.empty
             , aggregationStale = False
+            , taskSearchQuery = ""
+            , taskComboboxOpen = False
+            , selectedTaskToAdd = Nothing
+            , manualObsExpanded = False
             }
 
     -- ------------------------------------------------------------------
@@ -210,11 +230,11 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
        in m{taskObservations = newObs, aggregationStale = not (Map.null m.aggregatedResults)}
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
-      let newExcluded =
-            if Set.member taskId m.excludedTasks
-              then Set.delete taskId m.excludedTasks
-              else Set.insert taskId m.excludedTasks
-       in m{excludedTasks = newExcluded, aggregationStale = not (Map.null m.aggregatedResults)}
+      let newIncluded =
+            if Set.member taskId m.includedTasks
+              then Set.delete taskId m.includedTasks
+              else Set.insert taskId m.includedTasks
+       in m{includedTasks = newIncluded, aggregationStale = not (Map.null m.aggregatedResults)}
 
     update (ToggleTaskContentExpanded taskId) = M.modify $ \m ->
       let newExpanded =
@@ -223,17 +243,36 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
               else Set.insert taskId m.expandedTaskContent
        in m{expandedTaskContent = newExpanded}
 
-    -- Add task
-    update (AddTask taskId) = M.modify $ \m ->
-      m
-        { additionalTasks = Set.insert taskId m.additionalTasks
-        , lessonTaskIds = Set.insert taskId m.lessonTaskIds
-        }
+    -- Add task (combobox)
+    update (TaskSearchChanged q) = M.modify $ \m ->
+      m{taskSearchQuery = q}
+
+    update (TaskComboboxToggled tid) = M.modify $ \m ->
+      m{selectedTaskToAdd = Just tid, taskComboboxOpen = False}
+
+    update (TaskComboboxOpenChanged b) = M.modify $ \m ->
+      m{taskComboboxOpen = b}
+
+    update AddTask = M.modify $ \m ->
+      case m.selectedTaskToAdd of
+        Nothing -> m
+        Just tid ->
+          m
+            { additionalTasks = Set.insert tid m.additionalTasks
+            , lessonTaskIds = Set.insert tid m.lessonTaskIds
+            , includedTasks = Set.insert tid m.includedTasks
+            , selectedTaskToAdd = Nothing
+            , taskSearchQuery = ""
+            , taskComboboxOpen = False
+            }
 
     -- Manual observations
+    update ToggleManualObsExpanded = M.modify $ \m ->
+      m{manualObsExpanded = not m.manualObsExpanded}
+
     update (AddManualObservation compId ability) = M.modify $ \m ->
       let newManual = Map.insert compId ability m.manualObservations
-       in m{manualObservations = newManual, aggregationStale = not (Map.null m.aggregatedResults)}
+       in m{manualObservations = newManual, aggregationStale = not (Map.null m.aggregatedResults), manualObsExpanded = True}
 
     update (RemoveManualObservation compId) = M.modify $ \m ->
       let newManual = Map.delete compId m.manualObservations
@@ -263,8 +302,8 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
       M.io_ $ do
         let sf = m.selectedSocialForm
             lessonDate = fromMaybe (read "2025-01-01") m.lesson.date
-            -- Build tasks map from task observations
-            allTaskIds = Set.toList $ Set.difference m.lessonTaskIds m.excludedTasks
+            -- Build tasks map from included tasks
+            allTaskIds = Set.toList m.includedTasks
             tasksMap :: Map.Map TaskId TaskEvaluations
             tasksMap =
               Map.fromList
@@ -385,75 +424,19 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     -- ==========================================================
 
     viewTaskSection m taskId =
-      let isExcluded = Set.member taskId m.excludedTasks
+      let isExcluded = not $ Set.member taskId m.includedTasks
        in MH.div_
             [class_ "border-b pb-3"]
-            [ viewTaskHeader m taskId isExcluded
+            [ Eval.viewTaskHeader m.tasks taskId isExcluded (ToggleTaskIncluded taskId) []
             , if isExcluded
                 then M.text ""
                 else
                   MH.div_
                     []
-                    [ viewTaskContent m taskId
-                    , viewTaskCompetenceEvaluations m taskId
+                    [ Eval.viewTaskContent m.tasks m.taskGroups m.expandedTaskContent taskId ToggleTaskContentExpanded
+                    , Eval.viewTaskCompetences m.tasks m.taskGroups m.competences m.taskObservations taskId SetTaskObservation
                     ]
             ]
-
-    viewTaskHeader m taskId isExcluded =
-      case Ix.getOne (m.tasks Ix.@= taskId) of
-        Nothing -> MH.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
-        Just task ->
-          let TaskIdentifier identifier = task.identifier
-              toggleClass =
-                if isExcluded
-                  then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
-                  else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-           in MH.div_
-                [class_ "mt-3 mb-1 flex items-center justify-between"]
-                [ Typography.h4 $ C.translate' C.LblTaskPrefix <> ms identifier
-                , MH.button_
-                    [class_ toggleClass, MH.onClick (ToggleTaskIncluded taskId)]
-                    [M.text $ C.translate' $ if isExcluded then C.LblIncludeTask else C.LblExcludeTask]
-                ]
-
-    viewTaskContent m taskId =
-      case Ix.getOne (m.tasks Ix.@= taskId) of
-        Nothing -> M.text ""
-        Just task ->
-          let content = getTaskContent m.taskGroups task
-              isContentExpanded = Set.member taskId m.expandedTaskContent
-           in case content of
-                Nothing -> M.text ""
-                Just c
-                  | c == mempty -> M.text ""
-                  | otherwise ->
-                      MH.div_
-                        [class_ "mb-2"]
-                        [ MH.div_
-                            [ class_ "flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
-                            , MH.onClick (ToggleTaskContentExpanded taskId)
-                            ]
-                            [ Disclosure.disclosureChevron isContentExpanded
-                            , MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblTaskStatement]
-                            ]
-                        , if isContentExpanded
-                            then MH.div_ [class_ "ml-6 mb-2 prose prose-sm prose-stone max-w-none"] [renderRichText c]
-                            else M.text ""
-                        ]
-
-    viewTaskCompetenceEvaluations m taskId =
-      case Ix.getOne (m.tasks Ix.@= taskId) of
-        Nothing -> M.text ""
-        Just task ->
-          let attrs = getTaskAttributes m.taskGroups task
-              compIds = attrs.primary <> attrs.secondary
-           in if null compIds
-                then MH.div_ [class_ "mt-2"] [Typography.muted (C.translate' C.LblNoCompetences)]
-                else MH.div_ [class_ "mt-2 space-y-1"] (map (viewCompetenceEvaluation m taskId) compIds)
-
-    viewCompetenceEvaluation m taskId compId =
-      let currentAbility = Map.lookup (taskId, compId) m.taskObservations
-       in viewCompetenceRow m compId currentAbility (SetTaskObservation taskId)
 
     -- ------------------------------------------------------------------
     -- ADD TASK SECTION
@@ -463,30 +446,53 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
       let availableTasks =
             filter (\t -> not $ Set.member t.id m.lessonTaskIds) $
               Ix.toAscList (Proxy @TaskIdentifier) m.tasks
-       in if null availableTasks
-            then M.text ""
-            else
-              MH.div_
-                [class_ "border-t pt-3"]
-                [ Typography.h4 (C.translate' C.LblAddTask)
-                , MH.div_
-                    [class_ "flex flex-wrap gap-1 mt-1"]
-                    (map viewAddTaskButton availableTasks)
+          filteredTasks =
+            if T.null m.taskSearchQuery
+              then availableTasks
+              else
+                filter
+                  ( \t ->
+                      let TaskIdentifier i = t.identifier
+                       in T.toCaseFold m.taskSearchQuery `T.isInfixOf` T.toCaseFold i
+                  )
+                  availableTasks
+          comboboxOptions =
+            map
+              (\t -> let TaskIdentifier i = t.identifier in ComboboxOption t.id i)
+              filteredTasks
+          combobox =
+            singleSelectCombobox TaskSearchChanged TaskComboboxToggled TaskComboboxOpenChanged
+              & withPlaceholder (fromMisoString $ C.translate' C.LblSelectTask)
+              & withOptions comboboxOptions
+              & withSelected (maybe Set.empty Set.singleton m.selectedTaskToAdd)
+              & withSearchQuery m.taskSearchQuery
+              & withIsOpen m.taskComboboxOpen
+          canAdd = case m.selectedTaskToAdd of Just _ -> True; Nothing -> False
+       in MH.div_
+            [class_ "border-t pt-3"]
+            [ Typography.h4 (C.translate' C.LblAddTask)
+            , MH.div_
+                [class_ "flex gap-2 mt-1 items-start"]
+                [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
+                , Button.buttonSecondary (C.translate' C.LblAdd)
+                    & Button.withClick AddTask
+                    & Button.withDisabled (not canAdd)
+                    & Button.renderButton
                 ]
-
-    viewAddTaskButton task =
-      let TaskIdentifier identifier = task.identifier
-       in MH.button_
-            [ class_ "px-2 py-1 rounded text-xs cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            , MH.onClick (AddTask task.id)
             ]
-            [M.text $ ms identifier]
 
     -- ------------------------------------------------------------------
     -- MANUAL OBSERVATIONS SECTION
     -- ------------------------------------------------------------------
 
     viewManualObservationsSection m =
+      Disclosure.collapsible
+        m.manualObsExpanded
+        ToggleManualObsExpanded
+        (MH.span_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblManualObservations])
+        (viewManualObservationsContent m)
+
+    viewManualObservationsContent m =
       let manualObs = Map.toList m.manualObservations
           lessonCompLevels = m.lesson.competenceLevels
           taskCompIds = Set.fromList [compId | ((_, compId), _) <- Map.toList m.taskObservations]
@@ -494,21 +500,20 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
           coveredCompIds = Set.union taskCompIds manualCompIds
           availableCompIds = filter (\c -> not $ Set.member c coveredCompIds) lessonCompLevels
        in MH.div_
-            [class_ "border-t pt-3"]
-            [ Typography.h4 (C.translate' C.LblManualObservations)
-            , -- Existing manual observations
+            [class_ "space-y-2"]
+            [ -- Existing manual observations
               if null manualObs
-                then MH.div_ [class_ "text-sm text-muted-foreground mt-1"] [M.text $ C.translate' C.LblNoManualObservations]
+                then MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblNoManualObservations]
                 else
                   MH.div_
-                    [class_ "space-y-1 mt-1"]
+                    [class_ "space-y-1"]
                     (map (viewManualObservationRow m) manualObs)
             , -- Add buttons for available competence levels
               if null availableCompIds
                 then M.text ""
                 else
                   MH.div_
-                    [class_ "mt-2"]
+                    []
                     [ MH.div_ [class_ "text-xs text-muted-foreground mb-1"] [M.text $ C.translate' C.LblAddObservation]
                     , MH.div_
                         [class_ "space-y-1"]
@@ -519,8 +524,8 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     viewManualObservationRow m (compId, ability) =
       MH.div_
         [class_ "flex items-center gap-2"]
-        [ viewCompetenceName m compId
-        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn compId (Just ability) AddManualObservation) abilities)
+        [ Eval.viewCompetenceName m.competences compId
+        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (Eval.viewAbilityBtn (Just ability) (AddManualObservation compId)) abilities)
         , MH.button_
             [ class_ "text-xs text-muted-foreground hover:text-destructive cursor-pointer"
             , MH.onClick (RemoveManualObservation compId)
@@ -529,105 +534,17 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
         ]
 
     viewManualCompetenceRow m compId =
-      MH.div_
-        [class_ "flex items-center gap-2"]
-        [ viewCompetenceName m compId
-        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn compId Nothing AddManualObservation) abilities)
-        ]
+      Eval.viewCompetenceRow m.competences compId Nothing (AddManualObservation compId)
 
     -- ------------------------------------------------------------------
     -- AGGREGATION SECTION
     -- ------------------------------------------------------------------
 
     viewAggregationSection m =
-      MH.div_
-        [class_ "border-t pt-3"]
-        [ MH.div_
-            [class_ "flex items-center justify-between mb-2"]
-            [ Typography.h4 (C.translate' C.LblAggregatedResults)
-            , MH.div_
-                [class_ "flex items-center gap-2"]
-                [ if m.aggregationStale
-                    then MH.span_ [class_ "text-xs text-yellow-700"] [M.text $ C.translate' C.LblAggregationStale]
-                    else M.text ""
-                , MH.button_
-                    [ MH.onClick ComputeAggregation
-                    , class_ "bg-primary text-primary-foreground px-3 py-1 text-sm rounded hover:bg-primary/90"
-                    ]
-                    [M.text $ C.translate' C.LblComputeAggregation]
-                ]
-            ]
-        , if Map.null m.aggregatedResults
-            then Typography.muted (C.translate' C.LblComputeAggregationHint)
-            else viewAggregatedResults m
-        ]
-
-    viewAggregatedResults m =
-      let compIds = Set.fromList [compId | (compId, _) <- Map.keys m.aggregatedResults]
-          competencesWithResults = Ix.toAscList (Proxy @Order) $ m.competences Ix.@+ Set.toList compIds
-          gridIds = Set.fromList $ map (.competenceGridId) competencesWithResults
-          sortedGrids = Ix.toAscList (Proxy @Order) $ m.competenceGrids Ix.@+ Set.toList gridIds
-       in MH.div_ [class_ "space-y-3"] (map (viewGridAggregation m) sortedGrids)
-
-    viewGridAggregation m grid =
-      let gridCompetences = Ix.toAscList (Proxy @Order) $ m.competences Ix.@= grid.id
-          resultsForGrid =
-            [ (compLevelId, ability)
-            | comp <- gridCompetences
-            , (compLevelId@(compId, _), ability) <- Map.toList m.aggregatedResults
-            , compId == comp.id
-            ]
-       in if null resultsForGrid
-            then M.text ""
-            else
-              MH.div_
-                [class_ "border border-border rounded bg-muted/50"]
-                [ MH.div_ [class_ "px-3 py-1 border-b bg-muted font-medium text-sm"] [M.text $ ms grid.title]
-                , MH.div_ [class_ "p-2 space-y-1"] (map (viewAggregatedCompetence m) resultsForGrid)
-                ]
-
-    viewAggregatedCompetence m (compId, ability) =
-      MH.div_
-        [class_ "flex items-center gap-2"]
-        [ viewCompetenceName m compId
-        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAggAbilityBtn compId ability) abilities)
-        ]
-
-    viewAggAbilityBtn compId currentAbility ability =
-      let isSelected = currentAbility == ability
-          buttonClass =
-            if isSelected
-              then "bg-primary text-primary-foreground px-2 py-0.5 text-xs rounded"
-              else "bg-secondary text-secondary-foreground px-2 py-0.5 text-xs rounded hover:bg-secondary/80"
-       in MH.button_
-            [class_ buttonClass, MH.onClick (SetAggregatedResult compId ability)]
-            [M.text $ C.translate' $ C.LblAbility ability]
-
-    -- ------------------------------------------------------------------
-    -- SHARED VIEW HELPERS
-    -- ------------------------------------------------------------------
-
-    viewCompetenceName m compId =
-      let (competenceId, level) = compId
-          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
-          name = case competenceM of
-            Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
-            Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
-       in MH.span_ [class_ "flex-1 text-sm"] [M.text name]
-
-    viewCompetenceRow m compId currentAbility mkAction =
-      MH.div_
-        [class_ "flex items-center gap-2"]
-        [ viewCompetenceName m compId
-        , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn compId currentAbility mkAction) abilities)
-        ]
-
-    viewAbilityBtn compId currentAbility mkAction ability =
-      let isSelected = currentAbility == Just ability
-          buttonClass =
-            if isSelected
-              then "bg-primary text-primary-foreground px-2 py-0.5 text-xs rounded"
-              else "bg-secondary text-secondary-foreground px-2 py-0.5 text-xs rounded hover:bg-secondary/80"
-       in MH.button_
-            [class_ buttonClass, MH.onClick (mkAction compId ability)]
-            [M.text $ C.translate' $ C.LblAbility ability]
+      Eval.viewAggregationSection
+        m.aggregationStale
+        (not $ Map.null m.aggregatedResults)
+        ComputeAggregation
+        ( Eval.viewAggregatedResults m.competences m.competenceGrids m.aggregatedResults
+            (Eval.viewAggregatedCompetenceRow m.competences SetAggregatedResult)
+        )

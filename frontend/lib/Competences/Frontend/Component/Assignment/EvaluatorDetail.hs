@@ -6,10 +6,10 @@ where
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..), ModifyCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
-import Competences.Document (Assignment (..), Competence (..), CompetenceGrid (..), CompetenceGridIxs, Document (..), LevelInfo (..), Order, Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
+import Competences.Document (Assignment (..), Competence, CompetenceGrid, CompetenceGridIxs, Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, abilities, socialForms)
-import Competences.Document.Task (Task (..), TaskAttributes (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs, getTaskAttributes, getTaskContent)
+import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, socialForms)
+import Competences.Document.Task (Task (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
@@ -23,6 +23,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewCompactTaskStatus)
@@ -207,7 +208,7 @@ evaluatorComponent r assignment =
       m{selectedSocialForm = sf}
 
     update ComputeAggregation = M.modify $ \m ->
-      let aggregated = computeAggregation m
+      let aggregated = Eval.computeAggregation m.taskObservations
        in m{aggregatedResults = aggregated, aggregationStale = False}
 
     update (SetAggregatedResult compId ability) = M.modify $ \m ->
@@ -293,14 +294,6 @@ evaluatorComponent r assignment =
        , aggregatedResults = Map.empty
        , aggregationStale = False
        }
-
-    -- Compute aggregated results from task observations (pure function)
-    -- Takes the worst (maximum) ability per competence across all tasks
-    computeAggregation m =
-      Map.foldrWithKey groupByCompetence Map.empty m.taskObservations
-      where
-        groupByCompetence (_, compId) ability acc =
-          Map.insertWith max compId ability acc
 
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
@@ -491,70 +484,22 @@ evaluatorComponent r assignment =
 
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
+          selectedList = Set.toList m.selectedStudents
+          statusDots =
+            if null selectedList
+              then []
+              else [M.div_ [class_ "flex gap-0.5 items-center"] (map (viewCompactStudentStatus m taskId) selectedList)]
        in M.div_
             [class_ "border-b pb-4"]
-            [ viewTaskHeader m taskId isExcluded
+            [ Eval.viewTaskHeader m.tasks taskId isExcluded (ToggleTaskIncluded taskId) statusDots
             , if isExcluded
-                then M.text ""  -- Collapsed when excluded
+                then M.text ""
                 else M.div_ []
-                       [ viewTaskContent m taskId
+                       [ Eval.viewTaskContent m.tasks m.taskGroups m.expandedTaskContent taskId ToggleTaskContentExpanded
                        , viewTaskSolutions m taskId
                        , viewStudentEvaluations m taskId
                        ]
             ]
-
-    viewTaskHeader m taskId isExcluded =
-      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
-       in case taskM of
-            Nothing -> M.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
-            Just task ->
-              let TaskIdentifier identifier = task.identifier
-                  toggleClass = if isExcluded
-                    then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
-                    else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-                  selectedList = Set.toList m.selectedStudents
-                  statusDots =
-                    if null selectedList
-                      then M.text ""
-                      else M.div_ [class_ "flex gap-0.5 items-center"]
-                             (map (viewCompactStudentStatus m taskId) selectedList)
-               in M.div_ [class_ "mt-4 mb-1 flex items-center justify-between"]
-                    [ M.div_ [class_ "flex items-center gap-3"]
-                        [ Typography.h3 $ C.translate' C.LblTaskPrefix <> ms identifier
-                        , statusDots
-                        ]
-                    , M.button_
-                        [class_ toggleClass, M.onClick (ToggleTaskIncluded taskId)]
-                        [M.text $ C.translate' $ if isExcluded then C.LblIncludeTask else C.LblExcludeTask]
-                    ]
-
-    viewTaskContent m taskId =
-      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
-          isContentExpanded = Set.member taskId m.expandedTaskContent
-       in case taskM of
-            Nothing -> M.text ""
-            Just task ->
-              let content = getTaskContent m.taskGroups task
-               in case content of
-                    Nothing -> M.text ""
-                    Just c ->
-                      if c == mempty
-                        then M.text ""
-                        else M.div_ [class_ "mb-2"]
-                               [ -- Collapsible header
-                                 M.div_
-                                   [ class_ "flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
-                                   , M.onClick (ToggleTaskContentExpanded taskId)
-                                   ]
-                                   [ Disclosure.disclosureChevron isContentExpanded
-                                   , M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblTaskStatement]
-                                   ]
-                               , -- Content (only when expanded)
-                                 if isContentExpanded
-                                   then M.div_ [class_ "ml-6 mb-2 prose prose-sm prose-stone max-w-none"]
-                                          [renderRichText c]
-                                   else M.text ""
-                               ]
 
     viewTaskSolutions m taskId =
       let taskSolutions = Ix.toList $ m.solutions Ix.@= taskId
@@ -576,108 +521,27 @@ evaluatorComponent r assignment =
             (M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText solution.content])
 
     viewStudentEvaluations m taskId =
-      let taskM = Ix.getOne (m.tasks Ix.@= taskId)
-       in case taskM of
-            Nothing -> M.div_ [] [M.text $ C.translate' C.LblTaskNotFound]
-            Just task ->
-              let competences = getTaskCompetences m task
-               in if null m.selectedStudents
-                    then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
-                    else M.div_ [class_ "mt-4 space-y-2"] (map (viewCompetenceEvaluation m taskId) competences)
-
-    getTaskCompetences m task =
-      let attrs = getTaskAttributes m.taskGroups task
-       in attrs.primary <> attrs.secondary
-
-    viewCompetenceEvaluation m taskId compId =
-      let currentAbility = Map.lookup (taskId, compId) m.taskObservations
-          (competenceId, level) = compId
-          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
-          compLevelName = case competenceM of
-            Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
-            Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
-       in M.div_
-            [M.class_ "flex items-center gap-2"]
-            [ M.span_ [M.class_ "flex-1"] [M.text compLevelName]  -- Takes remaining space
-            , M.div_ [M.class_ "flex gap-1 shrink-0"] (map (viewAbilityButton taskId compId currentAbility) abilities)  -- Right-aligned
-            ]
-
-    viewAbilityButton taskId compId currentAbility ability =
-      let isSelected = currentAbility == Just ability
-          buttonClass = if isSelected then "bg-primary text-primary-foreground px-2 py-1 text-sm rounded" else "bg-secondary text-secondary-foreground px-2 py-1 text-sm rounded hover:bg-secondary/80"
-       in M.button_
-            [class_ buttonClass, M.onClick (SetTaskObservationForAll taskId compId ability)]
-            [M.text $ C.translate' $ C.LblAbility ability]
+      if null m.selectedStudents
+        then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
+        else Eval.viewTaskCompetences m.tasks m.taskGroups m.competences m.taskObservations taskId SetTaskObservationForAll
 
     viewAggregationSection m =
       M.div_
-        [class_ "mt-6 border-t pt-6"]
-        [ M.div_ [class_ "flex items-center justify-between mb-4"]
-            [ Typography.h3 (C.translate' C.LblAggregatedResults)
-            , M.div_ [class_ "flex items-center gap-3"]
-                [ if m.aggregationStale
-                    then M.span_ [class_ "text-sm text-yellow-700"]
-                           [M.text $ C.translate' C.LblAggregationStale]
-                    else M.text ""
-                , M.button_
-                    [ M.onClick ComputeAggregation
-                    , class_ "bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
-                    ]
-                    [M.text $ C.translate' C.LblComputeAggregation]
-                ]
-            ]
-        , if Map.null m.aggregatedResults
-            then Typography.muted (C.translate' C.LblComputeAggregationHint)
-            else viewAggregatedResults m
+        [class_ "mt-6"]
+        [ Eval.viewAggregationSection
+            m.aggregationStale
+            (not $ Map.null m.aggregatedResults)
+            ComputeAggregation
+            ( Eval.viewAggregatedResults m.competences m.competenceGrids m.aggregatedResults
+                (viewAggregatedCompetenceWithTasks m)
+            )
         ]
 
-    viewAggregatedResults m =
-      let -- Get competence IDs from aggregated results
-          compIds = Set.fromList [compId | (compId, _) <- Map.keys m.aggregatedResults]
-          -- Get competences that have results, sorted by order
-          competencesWithResults = Ix.toAscList (Proxy @Order) $ m.competences Ix.@+ Set.toList compIds
-          -- Get unique grid IDs from these competences
-          gridIds = Set.fromList $ map (.competenceGridId) competencesWithResults
-          -- Sort grids by their order
-          sortedGrids = Ix.toAscList (Proxy @Order) $ m.competenceGrids Ix.@+ Set.toList gridIds
+    viewAggregatedCompetenceWithTasks m (compId, ability) =
+      let contributingTasks = getContributingTasks m compId
        in M.div_
-            [class_ "space-y-4"]
-            (map (viewGridAggregation m) sortedGrids)
-
-    viewGridAggregation m grid =
-      let -- Get competences for this grid, sorted by order
-          gridCompetences = Ix.toAscList (Proxy @Order) $ m.competences Ix.@= grid.id
-          -- Build results in competence order - for each competence, include all its levels that have results
-          resultsForGrid =
-            [ (compLevelId, ability)
-            | comp <- gridCompetences
-            , (compLevelId@(compId, _), ability) <- Map.toList m.aggregatedResults
-            , compId == comp.id
-            ]
-       in if null resultsForGrid
-            then M.text ""
-            else M.div_ [class_ "border border-border rounded bg-muted/50"]
-                   [ -- Grid title header
-                     M.div_ [class_ "px-3 py-2 border-b bg-muted font-medium"]
-                       [M.text $ ms grid.title]
-                   , -- Competence results
-                     M.div_ [class_ "p-3 space-y-2"]
-                       (map (viewAggregatedCompetence m) resultsForGrid)
-                   ]
-
-    viewAggregatedCompetence m (compId, ability) =
-      let (competenceId, level) = compId
-          competenceM = Ix.getOne (m.competences Ix.@= competenceId)
-          compLevelName = case competenceM of
-            Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
-            Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
-          contributingTasks = getContributingTasks m compId
-       in M.div_
-            [class_ "mb-3"]
-            [ M.div_ [class_ "flex items-center gap-2"]
-                [ M.span_ [class_ "flex-1"] [M.text compLevelName]  -- Takes remaining space
-                , M.div_ [class_ "flex gap-1 shrink-0"] (map (viewAggregatedAbilityButton compId ability) abilities)  -- Right-aligned
-                ]
+            []
+            [ Eval.viewAggregatedCompetenceRow m.competences SetAggregatedResult (compId, ability)
             , if null contributingTasks
                 then M.text ""
                 else M.div_ [class_ "text-xs text-muted-foreground mt-1 ml-1"]
@@ -691,13 +555,6 @@ evaluatorComponent r assignment =
                                    Just task -> let TaskIdentifier ident = task.identifier in ident
                                 ) [tid | (tid, _) <- taskIds]
        in taskIdentifiers
-
-    viewAggregatedAbilityButton compId currentAbility ability =
-      let isSelected = currentAbility == ability
-          buttonClass = if isSelected then "bg-primary text-primary-foreground px-2 py-1 text-sm rounded" else "bg-secondary text-secondary-foreground px-2 py-1 text-sm rounded hover:bg-secondary/80"
-       in M.button_
-            [class_ buttonClass, M.onClick (SetAggregatedResult compId ability)]
-            [M.text $ C.translate' $ C.LblAbility ability]
 
     viewCreateEvidencesButton m =
       let selectedCount = Set.size m.selectedStudents

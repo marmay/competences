@@ -300,6 +300,8 @@ data Label
   | LblManualObservations
   | LblNoManualObservations
   | LblAddTask
+  | LblSelectTask
+  | LblAdd
   | LblBack
   deriving (Eq, Ord, Show)
 
@@ -568,6 +570,8 @@ labels' =
   , LblManualObservations
   , LblNoManualObservations
   , LblAddTask
+  , LblSelectTask
+  , LblAdd
   , LblBack
   ]
     <> map LblSocialForm socialForms
@@ -857,6 +861,8 @@ defaultTranslation LblLessonNoTasks = "Keine Aufgaben in dieser Einheit"
 defaultTranslation LblManualObservations = "Manuelle Beobachtungen"
 defaultTranslation LblNoManualObservations = "Keine manuellen Beobachtungen"
 defaultTranslation LblAddTask = "Aufgabe hinzufügen"
+defaultTranslation LblSelectTask = "Aufgabe auswählen..."
+defaultTranslation LblAdd = "Hinzufügen"
 defaultTranslation LblBack = "Zurück"
 
 currentLanguage :: IORef Language

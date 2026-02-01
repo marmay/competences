@@ -112,6 +112,7 @@ library
         Competences.Frontend.View.Component,
         Competences.Frontend.View.DateDisplay,
         Competences.Frontend.View.DesignTokens,
+        Competences.Frontend.View.Evaluation,
         Competences.Frontend.View.EvidenceIcon,
         Competences.Frontend.View.Form,
         Competences.Frontend.View.Icon,
