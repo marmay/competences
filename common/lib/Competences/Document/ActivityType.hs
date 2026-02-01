@@ -4,6 +4,7 @@ module Competences.Document.ActivityType
   ( ActivityType (..)
   , activityTypes
   , isAssessmentActivity
+  , activityReliability
   )
 where
 
@@ -43,3 +44,11 @@ isAssessmentActivity :: ActivityType -> Bool
 isAssessmentActivity Exam = True
 isAssessmentActivity Conversation = True
 isAssessmentActivity _ = False
+
+-- | Reliability ranking for evidence aggregation.
+-- Higher value = more reliable observation.
+activityReliability :: ActivityType -> Int
+activityReliability Conversation = 4
+activityReliability Exam = 3
+activityReliability SchoolExercise = 2
+activityReliability HomeExercise = 1

@@ -15,7 +15,6 @@ where
 
 import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id)
 import Competences.Document.MesoPlan (MesoPlanId)
@@ -103,8 +102,8 @@ instance Binary LessonPhase
 type LessonId = Id Lesson
 
 -- | Unified lesson entity. Combines meso-level planning (title, description,
--- competence levels) with lesson-level detail (date, assignments, resources,
--- phases, notes). Two view states (collapsed/expanded) but a single editor.
+-- competence levels) with lesson-level detail (date, resources, phases, notes).
+-- Assignments link back to lessons via 'Assignment.lessonId'.
 data Lesson = Lesson
   { id :: !LessonId
   , mesoPlanId :: !MesoPlanId
@@ -116,7 +115,6 @@ data Lesson = Lesson
   , competenceLevels :: ![CompetenceLevelId]
   -- Lesson-level fields (expanded view):
   , date :: !(Maybe Day)
-  , assignments :: ![AssignmentId]
   , resources :: ![ResourceId]
   , phases :: ![LessonPhase]
   , notes :: !RichContent

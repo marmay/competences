@@ -363,6 +363,7 @@ applyAssignmentPreview r doc preview = do
               , activityType = a.activityType
               , studentIds = Set.empty -- Start with no students
               , tasks = taskIds
+              , lessonId = Nothing
               }
       modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
     Update old new -> do
@@ -449,6 +450,7 @@ buildAssignmentPatch old new taskIds =
     , activityType = if old.activityType == new.activityType then Nothing else Just (old.activityType, new.activityType)
     , studentIds = Nothing -- Don't change student assignments during import
     , tasks = if old.tasks == taskIds then Nothing else Just (old.tasks, taskIds)
+    , lessonId = Nothing -- Don't change lesson assignment during import
     }
 
 -- | Build task patch from old and new values, with matched competences

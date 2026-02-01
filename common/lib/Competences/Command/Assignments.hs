@@ -15,6 +15,7 @@ import Competences.Document.Assignment
   , AssignmentName
   )
 import Competences.Document.Evidence (ActivityType)
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
@@ -40,6 +41,7 @@ data AssignmentPatch = AssignmentPatch
   , activityType :: !(Change ActivityType)
   , studentIds :: !(Change (Set UserId))
   , tasks :: !(Change [TaskId])
+  , lessonId :: !(Change (Maybe LessonId))
   }
   deriving (Eq, Generic, Show)
 
@@ -70,6 +72,7 @@ instance Default AssignmentPatch where
       , activityType = Nothing
       , studentIds = Nothing
       , tasks = Nothing
+      , lessonId = Nothing
       }
 
 -- | Apply a patch to an Assignment, checking for conflicts
@@ -82,6 +85,7 @@ applyAssignmentPatch assignment patch =
       >=> patchField' @"activityType" patch
       >=> patchField' @"studentIds" patch
       >=> patchField' @"tasks" patch
+      >=> patchField' @"lessonId" patch
 
 -- | Handle an Assignments context command
 handleAssignmentsCommand :: UserId -> AssignmentsCommand -> Document -> UpdateResult

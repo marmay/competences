@@ -10,8 +10,9 @@ module Competences.Frontend.Component.Planning.LessonEditorModal
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), LessonPatch (..), LessonsCommand (..), ModifyCommand (..))
-import Competences.Document.Assignment (AssignmentId)
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), LessonPatch (..), LessonsCommand (..), ModifyCommand (..))
+import Competences.Document.ActivityType (ActivityType (..))
+import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (ActionForm (..), Lesson (..), LessonPhase (..), TeachingSocialForm (..))
 import Competences.Document.Resource (ResourceId)
@@ -56,6 +57,8 @@ data Model = Model
   , descriptionValue :: !Text
   , competenceLevels :: ![CompetenceLevelId]
   , dateValue :: !(Maybe Day)
+  , initialAssignments :: ![AssignmentId]
+    -- ^ Assignment IDs linked to this lesson at time of opening the editor
   , selectedAssignments :: ![AssignmentId]
   , selectedResources :: ![ResourceId]
   , phases :: ![LessonPhase]
@@ -92,9 +95,11 @@ data Action
 -- Component
 -- ============================================================================
 
--- | Create the lesson editor modal component
-lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> M.Component p Model Action
-lessonEditorModal r modalMgr lesson' =
+-- | Create the lesson editor modal component.
+-- The @assignmentIds@ parameter provides the assignment IDs currently linked
+-- to this lesson (queried from the document via Assignment.lessonId index).
+lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> [AssignmentId] -> M.Component p Model Action
+lessonEditorModal r modalMgr lesson' assignmentIds =
   M.component model update (view r)
   where
     model =
@@ -104,7 +109,8 @@ lessonEditorModal r modalMgr lesson' =
         , descriptionValue = toRawText lesson'.description
         , competenceLevels = lesson'.competenceLevels
         , dateValue = lesson'.date
-        , selectedAssignments = lesson'.assignments
+        , initialAssignments = assignmentIds
+        , selectedAssignments = assignmentIds
         , selectedResources = lesson'.resources
         , phases = lesson'.phases
         , notesValue = toRawText lesson'.notes
@@ -173,7 +179,7 @@ lessonEditorModal r modalMgr lesson' =
       m <- M.get
       M.io_ $ do
         let old = m.lesson
-            -- Build patch with only changed fields
+            -- Build lesson patch with only changed fields
             newDescription = fromTrustedInput m.descriptionValue
             newNotes = fromTrustedInput m.notesValue
             patch =
@@ -182,24 +188,37 @@ lessonEditorModal r modalMgr lesson' =
                 & (if old.description /= newDescription then #description ?~ (old.description, newDescription) else id)
                 & (if old.competenceLevels /= m.competenceLevels then #competenceLevels ?~ (old.competenceLevels, m.competenceLevels) else id)
                 & (if old.date /= m.dateValue then #date ?~ (old.date, m.dateValue) else id)
-                & (if old.assignments /= m.selectedAssignments then #assignments ?~ (old.assignments, m.selectedAssignments) else id)
                 & (if old.resources /= m.selectedResources then #resources ?~ (old.resources, m.selectedResources) else id)
                 & (if old.phases /= m.phases then #phases ?~ (old.phases, m.phases) else id)
                 & (if old.notes /= newNotes then #notes ?~ (old.notes, newNotes) else id)
-            hasChanges =
+            hasLessonChanges =
               old.title /= m.titleValue
                 || old.description /= newDescription
                 || old.competenceLevels /= m.competenceLevels
                 || old.date /= m.dateValue
-                || old.assignments /= m.selectedAssignments
                 || old.resources /= m.selectedResources
                 || old.phases /= m.phases
                 || old.notes /= newNotes
-        if hasChanges
+
+            -- Compute assignment diff (assignments are now linked via Assignment.lessonId)
+            assignmentsAdded = filter (`notElem` m.initialAssignments) m.selectedAssignments
+            assignmentsRemoved = filter (`notElem` m.selectedAssignments) m.initialAssignments
+
+        -- Save lesson field changes
+        if hasLessonChanges
           then do
             modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id Lock)
             modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id (Release patch))
           else pure ()
+
+        -- Link newly added assignments to this lesson
+        let linkAssignment aId oldLessonId newLessonId = do
+              modifySyncDocument r (Assignments $ OnAssignments $ Modify aId Lock)
+              modifySyncDocument r (Assignments $ OnAssignments $ Modify aId (Release (def & #lessonId ?~ (oldLessonId, newLessonId))))
+        mapM_ (\aId -> linkAssignment aId Nothing (Just m.lesson.id)) assignmentsAdded
+        -- Unlink removed assignments from this lesson
+        mapM_ (\aId -> linkAssignment aId (Just m.lesson.id) Nothing) assignmentsRemoved
+
         closeModal modalMgr
 
     update CloseModal =
@@ -330,6 +349,8 @@ lessonEditorModal r modalMgr lesson' =
             []
             ( multiSelectAssignmentSelectorComponent
                 syncCtx
+                (\a -> a.activityType == SchoolExercise
+                    && (a.lessonId == Nothing || a.lessonId == Just m.lesson.id))
                 m.selectedAssignments
                 (selectorLens #selectedAssignments)
             )

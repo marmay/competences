@@ -33,18 +33,22 @@ import Optics.Core ((&), (.~))
 -- Projection
 -- ============================================================================
 
--- | Projection from document - all assignments sorted by date
+-- | Projection from document - all assignments sorted by date,
+-- plus a filtered subset of eligible assignments for the dropdown.
 data SelectorProjection = SelectorProjection
   { allAssignments :: ![Assignment]
+  , eligibleAssignments :: ![Assignment]
   }
   deriving (Eq, Generic, Show)
 
 -- | Projection function - gets all assignments sorted by date
-selectorProjection :: Document -> Maybe user -> SelectorProjection
-selectorProjection doc _ =
-  SelectorProjection
-    { allAssignments = sortOn (.assignmentDate) $ Ix.toList doc.assignments
-    }
+selectorProjection :: (Assignment -> Bool) -> Document -> Maybe user -> SelectorProjection
+selectorProjection eligible doc _ =
+  let allSorted = sortOn (.assignmentDate) $ Ix.toList doc.assignments
+   in SelectorProjection
+        { allAssignments = allSorted
+        , eligibleAssignments = filter eligible allSorted
+        }
 
 -- ============================================================================
 -- Model
@@ -74,21 +78,24 @@ data Action
 -- ============================================================================
 
 -- | Multi-select assignment selector component
--- Binds selected assignment IDs to parent model via lens
+-- Binds selected assignment IDs to parent model via lens.
+-- The filter predicate controls which assignments appear in the dropdown.
+-- Already-selected assignments are always shown as tags regardless of the filter.
 multiSelectAssignmentSelectorComponent
   :: SyncContext
+  -> (Assignment -> Bool) -- ^ Filter predicate for eligible assignments
   -> [AssignmentId] -- ^ Initial selection
   -> SelectorTransformedLens p [] AssignmentId f' a'
   -> M.Component p Model Action
-multiSelectAssignmentSelectorComponent r initResults lensBinding =
+multiSelectAssignmentSelectorComponent r eligible initResults lensBinding =
   (M.component model update view)
     { M.bindings = [mkSelectorBinding lensBinding #selectedResults]
-    , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
+    , M.subs = [subscribeWithProjection r (selectorProjection eligible) ProjectionChanged]
     }
   where
     model =
       Model
-        { projection = SelectorProjection []
+        { projection = SelectorProjection [] []
         , selectedResults = initResults
         , searchQuery = ""
         , isOpen = False
@@ -117,7 +124,7 @@ multiSelectAssignmentSelectorComponent r initResults lensBinding =
       MH.div_
         [class_ "space-y-2"]
         [ -- Multi-select combobox
-          let filteredAssignments = filterAssignments m.searchQuery m.projection.allAssignments
+          let filteredAssignments = filterAssignments m.searchQuery m.projection.eligibleAssignments
               options =
                 [ Combobox.ComboboxOption a.id (formatAssignment a)
                 | a <- filteredAssignments

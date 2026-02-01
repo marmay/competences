@@ -129,21 +129,23 @@ detailComponent r initialPlan =
                 , description = mempty
                 , competenceLevels = []
                 , date = Nothing
-                , assignments = []
                 , resources = []
                 , phases = []
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson)
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
         then m & #expandedLessonId .~ Nothing
         else m & #expandedLessonId .~ Just lessonId
 
-    update (OpenLessonEditorModal lesson) = M.io_ $
-      openModal r.windowManager (lessonEditorModal r r.windowManager lesson)
+    update (OpenLessonEditorModal lesson) = do
+      m <- M.get
+      let assignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
+      M.io_ $
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson assignmentIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       openModal r.windowManager (mesoPlanEditorModal r r.windowManager plan)
@@ -245,7 +247,8 @@ detailComponent r initialPlan =
             (viewExpandedLesson m lesson)
 
     viewExpandedLesson m lesson =
-      MH.div_
+      let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
+       in MH.div_
         [class_ "p-4 border-t border-border bg-background space-y-3"]
         [ -- Date
           case lesson.date of
@@ -255,17 +258,17 @@ detailComponent r initialPlan =
                 [class_ "text-sm text-muted-foreground"]
                 [M.text $ C.translate' C.LblLessonDate <> ": " <> C.formatDay d]
         , -- Assignments collapsible
-          if null lesson.assignments
+          if null lessonAssignmentIds
             then M.text ""
             else
               MH.nodeHtml "details"
                 [class_ "border border-border rounded-md"]
                 [ MH.nodeHtml "summary"
                     [class_ "cursor-pointer p-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 rounded-md"]
-                    [M.text $ C.translate' C.LblLessonAssignments <> " (" <> M.ms (show (length lesson.assignments)) <> ")"]
+                    [M.text $ C.translate' C.LblLessonAssignments <> " (" <> M.ms (show (length lessonAssignmentIds)) <> ")"]
                 , MH.div_
                     [class_ "p-2 pt-0 space-y-1"]
-                    (map (viewAssignmentSummary m.document) lesson.assignments)
+                    (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                 ]
         , -- Resources collapsible
           if null lesson.resources

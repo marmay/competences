@@ -25,10 +25,11 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), EvidenceIxs, Observation (..))
 import Competences.Document.Task (Task (..), TaskId, getTaskPrimaryCompetences)
 import Competences.Document.User (UserId)
+import Competences.Query.Evidence qualified as QEvidence
 import Data.List (find)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (listToMaybe)
+
 import Data.Proxy (Proxy (..))
 import Data.Time (Day)
 
@@ -74,11 +75,14 @@ taskCompletionStatuses doc userId tasks =
 --          competences (uses CompetenceLevelId index on Evidence).
 taskCompletionStatusFromIxSet :: Document -> Ix.IxSet EvidenceIxs Evidence -> Task -> TaskCompletionStatus
 taskCompletionStatusFromIxSet doc userEvs task =
-  -- Only consider evidences that reference this specific task
+  -- Only consider evidences that reference this specific task.
+  -- Within same (Day, LessonId) groups, order by reliability descending
+  -- so that find naturally picks the highest-reliability evidence first.
   let taskUserEvs = userEvs Ix.@= task.id
       taskEvsByDay = Ix.toDescList (Proxy @Day) taskUserEvs
+      ordered = concat $ QEvidence.groupByLessonDay taskEvsByDay
    in -- Phase 1: evidence with stored per-task evaluations
-      case find hasNonEmptyEvals taskEvsByDay of
+      case find hasNonEmptyEvals ordered of
         Just ev ->
           let ref = mkEvidenceRef doc ev
               taskEvals = ev.tasks Map.! task.id
@@ -90,18 +94,20 @@ taskCompletionStatusFromIxSet doc userEvs task =
            in if null primaryComps
                 then TaskNotEvaluated
                 else
-                  let compEvs = Ix.toDescList (Proxy @Day) $ taskUserEvs Ix.@+ primaryComps
-                   in case listToMaybe compEvs of
-                        Nothing -> TaskNotEvaluated
-                        Just ev ->
-                          let ref = mkEvidenceRef doc ev
-                              allDone = all (isCompetenceDone ev) primaryComps
-                           in if allDone then TaskDone ref else TaskNotDone ref
+                  case find (hasAnyCompetenceObs primaryComps) ordered of
+                    Nothing -> TaskNotEvaluated
+                    Just ev ->
+                      let ref = mkEvidenceRef doc ev
+                          allDone = all (isCompetenceDone ev) primaryComps
+                       in if allDone then TaskDone ref else TaskNotDone ref
   where
     hasNonEmptyEvals e =
       case Map.lookup task.id e.tasks of
         Just evals -> not (Map.null evals)
         Nothing -> False
+
+    hasAnyCompetenceObs comps ev =
+      any (\cId -> not $ Ix.null $ ev.observations Ix.@= cId) comps
 
 -- | Whether an ability counts as satisfactory for task completion.
 isSatisfactory :: Ability -> Bool

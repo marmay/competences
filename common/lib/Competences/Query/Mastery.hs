@@ -44,7 +44,7 @@ import Competences.Query.User qualified as QUser
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (mapMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import GHC.Generics (Generic)
 
 -- | Mastery status for a student at a specific competence-level
@@ -297,7 +297,13 @@ classifyMasteryConstrained bounds
 getConstrainedObservations :: Document -> UserId -> CompetenceLevelId -> [AbilityBounds]
 getConstrainedObservations doc userId (compId, targetLevel) =
   let userEvidences = QEvidence.userEvidencesDesc doc userId
-   in mapMaybe (evidenceToBounds compId targetLevel) userEvidences
+      grouped = QEvidence.groupByLessonDay userEvidences
+   in mapMaybe (groupToBounds compId targetLevel) grouped
+  where
+    -- From a lesson group (sorted by reliability desc), pick the first
+    -- evidence that produces bounds for this competence.
+    groupToBounds cId lvl evs =
+      listToMaybe $ mapMaybe (evidenceToBounds cId lvl) evs
 
 -- | Compute AbilityBounds for a single evidence at a target competence/level.
 -- Returns Nothing if the evidence has no observations for this competence.

@@ -6,11 +6,14 @@ module Competences.Query.Lesson
   , getMesoPlan
     -- * MesoPlan-scoped queries
   , mesoPlanLessons
+    -- * Lesson-scoped queries
+  , lessonAssignments
+  , lessonEvidences
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lesson, LessonId, MesoPlan, MesoPlanId, Order)
+import Competences.Document (Assignment, Document (..), Evidence, Lesson, LessonId, MesoPlan, MesoPlanId, Order)
 import Data.Proxy (Proxy (..))
 
 -- | Lookup a lesson by primary key.
@@ -25,3 +28,13 @@ getMesoPlan doc planId = Ix.getOne $ doc.mesoPlans Ix.@= planId
 mesoPlanLessons :: Document -> MesoPlanId -> [Lesson]
 mesoPlanLessons doc planId =
   Ix.toAscList (Proxy @Order) $ doc.lessons Ix.@= planId
+
+-- | All assignments linked to a lesson.
+lessonAssignments :: Document -> LessonId -> [Assignment]
+lessonAssignments doc lessonId =
+  Ix.toList $ doc.assignments Ix.@= lessonId
+
+-- | All evidences collected during a lesson.
+lessonEvidences :: Document -> LessonId -> [Evidence]
+lessonEvidences doc lessonId =
+  Ix.toList $ doc.evidences Ix.@= lessonId

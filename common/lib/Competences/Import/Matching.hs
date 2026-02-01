@@ -369,6 +369,7 @@ makeNewAssignment parsed =
     , activityType = parsed.activityType
     , studentIds = Set.empty -- Will be set during import
     , tasks = [] -- Will be filled with task IDs after tasks are created
+    , lessonId = Nothing
     }
 
 -- | Update existing assignment with parsed data
@@ -382,6 +383,7 @@ updateAssignment existing parsed =
     , activityType = parsed.activityType
     , studentIds = existing.studentIds -- Preserve students
     , tasks = existing.tasks -- Will be updated with new task IDs after matching
+    , lessonId = existing.lessonId
     }
 
 -- | Check if two assignments are equal (for detecting changes)

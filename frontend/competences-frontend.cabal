@@ -75,6 +75,7 @@ library
         Competences.Frontend.Component.Selector.MultiStageSelector,
         Competences.Frontend.Component.Selector.SearchableListSelector,
         Competences.Frontend.Component.Selector.MultiTaskSelector,
+        Competences.Frontend.Component.Selector.LessonSelector,
         Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector,
         Competences.Frontend.Component.Selector.MultiSelectResourceSelector,
         Competences.Frontend.Component.Selector.ObservationSelector,

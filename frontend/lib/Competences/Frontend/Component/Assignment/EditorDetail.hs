@@ -18,6 +18,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
+import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
 import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
 import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -151,6 +152,12 @@ editorWrapperComponent r assignment =
                                r
                                (assignmentEditorId <> "-tasks")
                                (entityPatchTransformedLens #tasks #tasks id id)
+                           )
+        `TE.addNamedField` ( C.translate' C.LblLesson
+                           , lessonEditorField
+                               r
+                               (assignmentEditorId <> "-lesson")
+                               (entityPatchTransformedLens #lessonId #lessonId id id)
                            )
 
 -- | Iso for converting between AssignmentName and Text

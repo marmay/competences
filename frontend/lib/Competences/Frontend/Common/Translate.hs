@@ -257,6 +257,7 @@ data Label
   | LblLessonNotes
   | LblAddLesson
   | LblNoLessons
+  | LblNoLesson
   | LblNoNotes
   | LblPhaseTitle
   | LblPhaseSocialForm
@@ -508,6 +509,7 @@ labels' =
   , LblLessonNotes
   , LblAddLesson
   , LblNoLessons
+  , LblNoLesson
   , LblNoNotes
   , LblPhaseTitle
   , LblPhaseSocialForm
@@ -785,6 +787,7 @@ defaultTranslation LblLessonPhases = "Unterrichtsphasen"
 defaultTranslation LblLessonNotes = "Notizen"
 defaultTranslation LblAddLesson = "Einheit hinzufügen"
 defaultTranslation LblNoLessons = "Keine Einheiten"
+defaultTranslation LblNoLesson = "Keine Einheit"
 defaultTranslation LblNoNotes = "Keine Notizen"
 defaultTranslation LblPhaseTitle = "Phase"
 defaultTranslation LblPhaseSocialForm = "Sozialform"
