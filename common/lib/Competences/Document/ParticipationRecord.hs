@@ -14,7 +14,7 @@ import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withObject, withText, (.:), (.:?), (.!=))
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
@@ -25,18 +25,31 @@ type ParticipationRecordId = Id ParticipationRecord
 
 -- | Predefined forms of student participation during a lesson.
 data ParticipationType
-  = -- | Student actively participates during whole-class phases
-    ActivelyParticipates
-  | -- | Student actively collaborates with a peer group
-    ActivelyCollaborates
-  | -- | Student refuses to work
-    RefusesToWork
+  = -- | Student actively participates during whole-class phases (Mitarbeit)
+    Participation
+  | -- | Student actively collaborates with a peer group (Kollaboration)
+    Collaboration
+  | -- | Student shows poor work ethic (Arbeit: Unbemüht / Verweigernd)
+    PoorWorkEthic
   deriving (Bounded, Enum, Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON
-instance FromJSON ParticipationType
+instance FromJSON ParticipationType where
+  parseJSON = withText "ParticipationType" $ \case
+    -- New names
+    "Participation" -> pure Participation
+    "Collaboration" -> pure Collaboration
+    "PoorWorkEthic" -> pure PoorWorkEthic
+    -- Legacy names (backward compat)
+    "ActivelyParticipates" -> pure Participation
+    "ActivelyCollaborates" -> pure Collaboration
+    "RefusesToWork" -> pure PoorWorkEthic
+    other -> fail $ "Unknown ParticipationType: " <> show other
 
-instance ToJSON ParticipationType
+instance ToJSON ParticipationType where
+  toJSON Participation = String "Participation"
+  toJSON Collaboration = String "Collaboration"
+  toJSON PoorWorkEthic = String "PoorWorkEthic"
 #endif
 
 instance Binary ParticipationType
@@ -44,9 +57,9 @@ instance Binary ParticipationType
 -- | Quality level within a participation category.
 -- Each 'ParticipationType' has two levels with category-specific meanings:
 --
--- * ActivelyParticipates: Level1 = Gut, Level2 = Herausragend
--- * ActivelyCollaborates: Level1 = Gut, Level2 = Herausragend
--- * RefusesToWork: Level1 = Bemüht sich nicht, Level2 = Verweigert
+-- * Participation: Level1 = Gut, Level2 = Herausragend
+-- * Collaboration: Level1 = Gut, Level2 = Herausragend
+-- * PoorWorkEthic: Level1 = Unbemüht, Level2 = Verweigernd
 data ParticipationLevel
   = ParticipationLevel1
   | ParticipationLevel2

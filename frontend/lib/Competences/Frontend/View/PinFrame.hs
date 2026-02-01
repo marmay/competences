@@ -47,7 +47,7 @@ pinFrame title toggleAction closeAction content =
         ]
     , -- Content area
       M.div_
-        [class_ "flex-1 min-h-0 overflow-auto"]
+        [class_ "flex-1 min-h-0 overflow-auto p-4"]
         content
     ]
 

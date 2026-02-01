@@ -52,7 +52,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Lesson qualified as QLesson
 import Data.Function ((&))
 import Data.Maybe (fromMaybe)
@@ -200,12 +199,8 @@ lessonEvaluatorComponent r initialLesson =
 
     viewOverview m =
       MH.div_
-        [class_ "p-4 space-y-3 overflow-y-auto"]
-        [ Typography.h3 (ms m.lesson.title)
-        , case m.lesson.date of
-            Just d -> MH.div_ [class_ "text-sm text-muted-foreground mb-2"] [M.text $ C.formatDay d]
-            Nothing -> M.text ""
-        , MH.div_
+        [class_ "space-y-3 overflow-y-auto"]
+        [ MH.div_
             [ class_ "grid gap-3"
             , MC.style_ [("grid-template-columns", "repeat(auto-fill, minmax(300px, 1fr))")]
             ]
@@ -223,8 +218,7 @@ lessonEvaluatorComponent r initialLesson =
               MH.div_
                 [class_ "flex items-center justify-between mb-2"]
                 [ MH.span_ [class_ "font-medium text-sm"] [M.text $ ms user.name]
-                , Button.buttonGhost (C.translate' C.LblEdit)
-                    & Button.withIcon IcnEdit
+                , Button.buttonIcon Button.Ghost IcnEdit
                     & Button.withSize Button.Small
                     & Button.withClick (OpenStudentDetail user.id)
                     & Button.renderButton
@@ -239,15 +233,14 @@ lessonEvaluatorComponent r initialLesson =
 
     viewParticipationControls userId prs =
       MH.div_
-        [class_ "flex gap-1 mb-2"]
-        (map (viewParticipationCategory userId prs) [minBound .. maxBound])
+        [class_ "grid grid-cols-[auto_1fr_1fr] gap-x-2 gap-y-1 items-center mb-2"]
+        (concatMap (viewParticipationRow userId prs) [minBound .. maxBound])
 
-    viewParticipationCategory userId prs pType =
-      MH.div_
-        [class_ "flex gap-0.5 border border-border rounded p-0.5"]
-        [ viewParticipationButton userId prs pType ParticipationLevel1
-        , viewParticipationButton userId prs pType ParticipationLevel2
-        ]
+    viewParticipationRow userId prs pType =
+      [ MH.span_ [class_ "text-xs text-muted-foreground"] [M.text $ C.translate' (C.LblParticipationType pType)]
+      , viewParticipationButton userId prs pType ParticipationLevel1
+      , viewParticipationButton userId prs pType ParticipationLevel2
+      ]
 
     viewParticipationButton userId prs pType pLevel =
       let mRecord = Ix.getOne (prs Ix.@= pType)
@@ -256,8 +249,8 @@ lessonEvaluatorComponent r initialLesson =
             Nothing -> False
           btnClass =
             if isActive
-              then "px-2 py-0.5 rounded text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-              else "px-2 py-0.5 rounded text-xs cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              then "px-2 py-0.5 rounded text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 text-center"
+              else "px-2 py-0.5 rounded text-xs cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80 text-center"
        in MH.button_
             [class_ btnClass, MH.onClick (ToggleParticipation userId pType pLevel)]
             [M.text $ C.translate' (C.LblParticipationLevel pType pLevel)]

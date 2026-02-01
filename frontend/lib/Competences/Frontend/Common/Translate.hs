@@ -301,6 +301,7 @@ data Label
   | LblManualObservations
   | LblNoManualObservations
   | LblLessonEvaluation
+  | LblDeleteEvidence
   | LblAddTask
   | LblSelectTask
   | LblAdd
@@ -563,21 +564,22 @@ labels' =
   , LblEvidencesBasedOn
   , LblWillBeEdited
     -- Lesson evaluator
-  , LblParticipationType ActivelyParticipates
-  , LblParticipationType ActivelyCollaborates
-  , LblParticipationType RefusesToWork
-  , LblParticipationLevel ActivelyParticipates ParticipationLevel1
-  , LblParticipationLevel ActivelyParticipates ParticipationLevel2
-  , LblParticipationLevel ActivelyCollaborates ParticipationLevel1
-  , LblParticipationLevel ActivelyCollaborates ParticipationLevel2
-  , LblParticipationLevel RefusesToWork ParticipationLevel1
-  , LblParticipationLevel RefusesToWork ParticipationLevel2
+  , LblParticipationType Participation
+  , LblParticipationType Collaboration
+  , LblParticipationType PoorWorkEthic
+  , LblParticipationLevel Participation ParticipationLevel1
+  , LblParticipationLevel Participation ParticipationLevel2
+  , LblParticipationLevel Collaboration ParticipationLevel1
+  , LblParticipationLevel Collaboration ParticipationLevel2
+  , LblParticipationLevel PoorWorkEthic ParticipationLevel1
+  , LblParticipationLevel PoorWorkEthic ParticipationLevel2
   , LblNoEvidence
   , LblNoObservations
   , LblLessonNoTasks
   , LblManualObservations
   , LblNoManualObservations
   , LblLessonEvaluation
+  , LblDeleteEvidence
   , LblAddTask
   , LblSelectTask
   , LblAdd
@@ -861,21 +863,22 @@ defaultTranslation LblEvidencesWillBeEdited = "Die Nachweise der folgenden Schü
 defaultTranslation LblEvidencesBasedOn = "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
 defaultTranslation LblWillBeEdited = "\" bearbeitet: "
 -- Lesson evaluator
-defaultTranslation (LblParticipationType ActivelyParticipates) = "Mitarbeit"
-defaultTranslation (LblParticipationType ActivelyCollaborates) = "Zusammenarbeit"
-defaultTranslation (LblParticipationType RefusesToWork) = "Verweigerung"
-defaultTranslation (LblParticipationLevel ActivelyParticipates ParticipationLevel1) = "Gut"
-defaultTranslation (LblParticipationLevel ActivelyParticipates ParticipationLevel2) = "Herausragend"
-defaultTranslation (LblParticipationLevel ActivelyCollaborates ParticipationLevel1) = "Gut"
-defaultTranslation (LblParticipationLevel ActivelyCollaborates ParticipationLevel2) = "Herausragend"
-defaultTranslation (LblParticipationLevel RefusesToWork ParticipationLevel1) = "Bemüht sich nicht"
-defaultTranslation (LblParticipationLevel RefusesToWork ParticipationLevel2) = "Verweigert"
+defaultTranslation (LblParticipationType Participation) = "Mitarbeit"
+defaultTranslation (LblParticipationType Collaboration) = "Kollaboration"
+defaultTranslation (LblParticipationType PoorWorkEthic) = "Arbeit"
+defaultTranslation (LblParticipationLevel Participation ParticipationLevel1) = "Gut"
+defaultTranslation (LblParticipationLevel Participation ParticipationLevel2) = "Herausragend"
+defaultTranslation (LblParticipationLevel Collaboration ParticipationLevel1) = "Gut"
+defaultTranslation (LblParticipationLevel Collaboration ParticipationLevel2) = "Herausragend"
+defaultTranslation (LblParticipationLevel PoorWorkEthic ParticipationLevel1) = "Unbemüht"
+defaultTranslation (LblParticipationLevel PoorWorkEthic ParticipationLevel2) = "Verweigernd"
 defaultTranslation LblNoEvidence = "Keine Nachweise"
 defaultTranslation LblNoObservations = "Keine Beobachtungen"
 defaultTranslation LblLessonNoTasks = "Keine Aufgaben in dieser Einheit"
 defaultTranslation LblManualObservations = "Manuelle Beobachtungen"
 defaultTranslation LblNoManualObservations = "Keine manuellen Beobachtungen"
 defaultTranslation LblLessonEvaluation = "Unterrichtsbeurteilung"
+defaultTranslation LblDeleteEvidence = "Nachweis löschen"
 defaultTranslation LblAddTask = "Aufgabe hinzufügen"
 defaultTranslation LblSelectTask = "Aufgabe auswählen..."
 defaultTranslation LblAdd = "Hinzufügen"

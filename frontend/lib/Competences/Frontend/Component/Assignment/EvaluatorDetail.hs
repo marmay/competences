@@ -367,8 +367,7 @@ evaluatorComponent r assignment =
                 Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ m.assignment.tasks
            in M.div_
                 []
-                [ Typography.h2 (C.translate' C.LblEvaluateAssignment)
-                , viewStudentSelection m
+                [ viewStudentSelection m
                 , viewOverwriteBanner m
                 , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
                 , viewAggregationSection m

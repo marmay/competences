@@ -299,7 +299,12 @@ detailComponent r initialPlan =
           let resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
            in if null resolvedResources
                 then M.text ""
-                else ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
+                else
+                  MH.div_
+                    []
+                    [ Typography.h4 (C.translate' C.LblLessonResources)
+                    , ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
+                    ]
         , -- Notes preview
           if lesson.notes == mempty
             then M.text ""
@@ -319,7 +324,7 @@ detailComponent r initialPlan =
             else
               MH.div_
                 []
-                [ Typography.small $ C.translate' C.LblLessonPhases
+                [ Typography.h4 (C.translate' C.LblLessonPhases)
                 , MH.div_
                     [class_ "space-y-1"]
                     (zipWith viewPhaseSummary [1 :: Int ..] lesson.phases)

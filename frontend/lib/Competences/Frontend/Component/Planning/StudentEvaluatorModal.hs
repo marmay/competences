@@ -136,6 +136,7 @@ data StudentEvalAction
   | ComputeAggregation
   | SetAggregatedResult !CompetenceLevelId !Ability
   | SaveEvidence
+  | DeleteEvidence
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -354,6 +355,16 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             modifySyncDocument r (Evidences $ OnEvidences $ Create evidence)
         closeModal modalMgr
 
+    -- Delete existing evidence
+    update DeleteEvidence = do
+      m <- M.get
+      M.io_ $ do
+        case findStudentEvidence m of
+          Just existingEv ->
+            modifySyncDocument r (Evidences $ OnEvidences $ Delete existingEv.id)
+          Nothing -> pure ()
+        closeModal modalMgr
+
     mkObservation :: SocialForm -> (CompetenceLevelId, Ability) -> IO Observation
     mkObservation sf (compId, ability) = do
       obsId <- nextId @IO @Observation r
@@ -381,8 +392,10 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
               Ix.toAscList (Proxy @TaskIdentifier) $
                 m.tasks Ix.@+ Set.toList m.lessonTaskIds
           hasAggregatedResults = not $ Map.null m.aggregatedResults
-          isDisabled = not hasAggregatedResults || m.aggregationStale
           existingEvidence = findStudentEvidence m
+          -- When evidence exists but all aggregated results deselected, show Delete
+          canDelete = not hasAggregatedResults && not (isNothing existingEvidence)
+          isDisabled = not hasAggregatedResults || m.aggregationStale
           actionLabel = C.translate' $ if isNothing existingEvidence then C.LblCreateEvidencesAction else C.LblSaveEvidences
        in MH.div_
             [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
@@ -406,16 +419,22 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                 [ Button.buttonSecondary (C.translate' C.LblCancel)
                     & Button.withClick CloseModal
                     & Button.renderButton
-                , MH.button_
-                    ( [ MH.onClick SaveEvidence
-                      , class_ $
-                          if isDisabled
-                            then "bg-muted text-muted-foreground px-4 py-2 rounded cursor-not-allowed"
-                            else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
-                      ]
-                        <> [MH.disabled_ | isDisabled]
-                    )
-                    [M.text actionLabel]
+                , if canDelete
+                    then
+                      Button.buttonDestructive (C.translate' C.LblDeleteEvidence)
+                        & Button.withClick DeleteEvidence
+                        & Button.renderButton
+                    else
+                      MH.button_
+                        ( [ MH.onClick SaveEvidence
+                          , class_ $
+                              if isDisabled
+                                then "bg-muted text-muted-foreground px-4 py-2 rounded cursor-not-allowed"
+                                else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
+                          ]
+                            <> [MH.disabled_ | isDisabled]
+                        )
+                        [M.text actionLabel]
                 ]
             ]
 
