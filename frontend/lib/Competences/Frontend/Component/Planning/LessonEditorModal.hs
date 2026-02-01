@@ -349,7 +349,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
             []
             ( multiSelectAssignmentSelectorComponent
                 syncCtx
-                (\a -> a.activityType == SchoolExercise
+                (\a -> (a.activityType == SchoolExercise || a.activityType == Exam)
                     && (a.lessonId == Nothing || a.lessonId == Just m.lesson.id))
                 m.selectedAssignments
                 (selectorLens #selectedAssignments)
