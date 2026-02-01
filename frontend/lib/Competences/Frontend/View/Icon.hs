@@ -58,6 +58,7 @@ data Icon
   | IcnImport
   | IcnExport
   | IcnMesoPlan
+  | IcnPin
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -117,6 +118,7 @@ iconId = \case
   IcnImport -> "icon-import"
   IcnExport -> "icon-export"
   IcnMesoPlan -> "icon-meso-plan"
+  IcnPin -> "icon-pin"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -410,6 +412,14 @@ iconDefOf' = \case
       , "M3 10h18"
       , "M8 14h8"
       , "M8 18h5"
+      ]
+  -- Thumbtack/pin icon
+  IcnPin ->
+    mkPathesDR
+      [ "M12 17v5"
+      , "M5 17h14"
+      , "M18 8l-1.5 9h-9L6 8"
+      , "M15 3H9a1 1 0 0 0-1 1v4h8V4a1 1 0 0 0-1-1z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]

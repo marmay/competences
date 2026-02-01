@@ -24,7 +24,9 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (openModal)
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), openModal, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager qualified as WM
+import Competences.Document.Id (idToText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
@@ -60,6 +62,7 @@ data DetailAction
   | OpenMesoPlanEditorModal !MesoPlan
   | DeleteLesson !LessonId
   | DeleteMesoPlan
+  | PinLessonEvaluation !Lesson
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
@@ -152,6 +155,11 @@ detailComponent r initialPlan =
       m <- M.get
       M.io_ $ modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete m.mesoPlan.id)
 
+    update (PinLessonEvaluation lesson) = M.io_ $
+      pinDialog r.windowManager
+        (PinId $ "lesson-evaluation-" <> idToText lesson.id)
+        (AnyPinnedDialog (dummyLessonEvalComponent lesson) IcnMesoPlan (M.ms lesson.title))
+
     view m =
       V.viewFlow
         ( V.vFlow
@@ -219,6 +227,12 @@ detailComponent r initialPlan =
                 & Button.withSize Button.Small
                 & Button.withStopPropagation
                 & Button.withClick (OpenLessonEditorModal lesson)
+                & Button.renderButton
+            , Button.buttonGhost ""
+                & Button.withIcon IcnPin
+                & Button.withSize Button.Small
+                & Button.withStopPropagation
+                & Button.withClick (PinLessonEvaluation lesson)
                 & Button.renderButton
             , Button.buttonDestructive ""
                 & Button.withIcon IcnDelete
@@ -325,3 +339,13 @@ detailComponent r initialPlan =
            in MH.div_
                 [class_ "text-sm p-1 rounded hover:bg-muted/30"]
                 [M.text $ M.ms identText]
+
+-- | Dummy pinned component for lesson evaluation (placeholder).
+dummyLessonEvalComponent :: Lesson -> M.Component WM.Model () ()
+dummyLessonEvalComponent lesson =
+  M.component () (const (pure ())) $ const $
+    MH.div_
+      [class_ "p-6 space-y-4"]
+      [ Typography.h3 (M.ms $ "Lesson Evaluation: " <> lesson.title)
+      , Typography.muted "This is a placeholder. The real evaluation component will go here."
+      ]
