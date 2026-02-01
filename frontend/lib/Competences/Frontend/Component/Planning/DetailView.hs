@@ -228,16 +228,16 @@ detailComponent r initialPlan =
             )
             -- Actions
             [ Button.buttonGhost ""
-                & Button.withIcon IcnEdit
-                & Button.withSize Button.Small
-                & Button.withStopPropagation
-                & Button.withClick (OpenLessonEditorModal lesson)
-                & Button.renderButton
-            , Button.buttonGhost ""
                 & Button.withIcon IcnPin
                 & Button.withSize Button.Small
                 & Button.withStopPropagation
                 & Button.withClick (PinLessonEvaluation lesson)
+                & Button.renderButton
+            , Button.buttonGhost ""
+                & Button.withIcon IcnEdit
+                & Button.withSize Button.Small
+                & Button.withStopPropagation
+                & Button.withClick (OpenLessonEditorModal lesson)
                 & Button.renderButton
             , Button.buttonDestructive ""
                 & Button.withIcon IcnDelete
