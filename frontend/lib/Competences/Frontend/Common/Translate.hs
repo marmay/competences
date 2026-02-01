@@ -299,6 +299,7 @@ data Label
   | LblLessonNoTasks
   | LblManualObservations
   | LblNoManualObservations
+  | LblLessonEvaluation
   | LblAddTask
   | LblSelectTask
   | LblAdd
@@ -569,6 +570,7 @@ labels' =
   , LblLessonNoTasks
   , LblManualObservations
   , LblNoManualObservations
+  , LblLessonEvaluation
   , LblAddTask
   , LblSelectTask
   , LblAdd
@@ -860,6 +862,7 @@ defaultTranslation LblNoObservations = "Keine Beobachtungen"
 defaultTranslation LblLessonNoTasks = "Keine Aufgaben in dieser Einheit"
 defaultTranslation LblManualObservations = "Manuelle Beobachtungen"
 defaultTranslation LblNoManualObservations = "Keine manuellen Beobachtungen"
+defaultTranslation LblLessonEvaluation = "Unterrichtsbeurteilung"
 defaultTranslation LblAddTask = "Aufgabe hinzufügen"
 defaultTranslation LblSelectTask = "Aufgabe auswählen..."
 defaultTranslation LblAdd = "Hinzufügen"

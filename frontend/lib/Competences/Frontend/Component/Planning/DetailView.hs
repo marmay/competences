@@ -158,9 +158,12 @@ detailComponent r initialPlan =
       M.io_ $ modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete m.mesoPlan.id)
 
     update (PinLessonEvaluation lesson) = M.io_ $
-      pinDialog r.windowManager
-        (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-        (AnyPinnedDialog (lessonEvaluatorComponent r lesson) IcnMesoPlan (M.ms lesson.title))
+      let pinTitle = C.translate' C.LblLessonEvaluation
+            <> ": " <> M.ms lesson.title
+            <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
+       in pinDialog r.windowManager
+            (PinId $ "lesson-evaluation-" <> idToText lesson.id)
+            (AnyPinnedDialog (lessonEvaluatorComponent r lesson) IcnMesoPlan pinTitle)
 
     view m =
       V.viewFlow
