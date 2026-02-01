@@ -17,7 +17,7 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
-import Data.Set (Set)
+import Data.Text (Text)
 import GHC.Generics (Generic)
 
 type ParticipationRecordId = Id ParticipationRecord
@@ -42,16 +42,17 @@ instance Binary ParticipationType
 
 -- | Per-student per-lesson participation record.
 -- Top-level entity for cross-lesson querying (student history).
--- At most one per (lessonId, userId).
+-- At most one per (lessonId, userId, participationType).
 data ParticipationRecord = ParticipationRecord
   { id :: !ParticipationRecordId
   , lessonId :: !LessonId
   , userId :: !UserId
-  , participations :: !(Set ParticipationType)
+  , participationType :: !ParticipationType
+  , remark :: !(Maybe Text)
   }
   deriving (Eq, Generic, Ord, Show)
 
-type ParticipationRecordIxs = '[ParticipationRecordId, LessonId, UserId]
+type ParticipationRecordIxs = '[ParticipationRecordId, LessonId, UserId, ParticipationType]
 
 instance Ix.Indexable ParticipationRecordIxs ParticipationRecord where
   indices =
@@ -59,6 +60,7 @@ instance Ix.Indexable ParticipationRecordIxs ParticipationRecord where
       (Ix.ixFun $ singleton . (.id))
       (Ix.ixFun $ singleton . (.lessonId))
       (Ix.ixFun $ singleton . (.userId))
+      (Ix.ixFun $ singleton . (.participationType))
 
 #ifdef WITH_AESON
 instance FromJSON ParticipationRecord

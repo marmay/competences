@@ -16,7 +16,7 @@ import Competences.Command.Interpret
   )
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
-import Competences.Document.ParticipationRecord (ParticipationRecord (..), ParticipationType)
+import Competences.Document.ParticipationRecord (ParticipationRecord (..))
 import Competences.Document.User (UserId)
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -25,14 +25,13 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
-import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Optics.Core ((&), (^.))
 
 -- | Patch for modifying a ParticipationRecord
 data ParticipationRecordPatch = ParticipationRecordPatch
-  { participations :: !(Change (Set ParticipationType))
+  { remark :: !(Change (Maybe Text))
   }
   deriving (Eq, Generic, Show)
 
@@ -55,28 +54,28 @@ instance ToJSON ParticipationRecordsCommand
 
 -- Default instance
 instance Default ParticipationRecordPatch where
-  def = ParticipationRecordPatch {participations = Nothing}
+  def = ParticipationRecordPatch {remark = Nothing}
 
 -- | Apply a patch to a ParticipationRecord
 applyParticipationRecordPatch :: ParticipationRecord -> ParticipationRecordPatch -> Either Text ParticipationRecord
 applyParticipationRecordPatch pr patch =
   inContext "ParticipationRecord" pr $
-    patchField' @"participations" patch
+    patchField' @"remark" patch
 
 -- | Handle a ParticipationRecords context command
 handleParticipationRecordsCommand :: UserId -> ParticipationRecordsCommand -> Document -> UpdateResult
 handleParticipationRecordsCommand userId (OnParticipationRecords c) d = case c of
   Create pr -> do
-    -- Uniqueness: at most one per (lessonId, userId)
-    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId
+    -- Uniqueness: at most one per (lessonId, userId, participationType)
+    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
     unless (Ix.null existing) $
-      Left "A ParticipationRecord already exists for this Lesson and User"
+      Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
     pure (d', ctx.affectedUsers pr d)
   CreateAndLock pr -> do
-    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId
+    let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
     unless (Ix.null existing) $
-      Left "A ParticipationRecord already exists for this Lesson and User"
+      Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
     d'' <- doLock userId (ctx.lock (ctx.getId pr)) d'
     pure (d'', ctx.affectedUsers pr d)
