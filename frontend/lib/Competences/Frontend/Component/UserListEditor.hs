@@ -79,11 +79,7 @@ userListEditorComponent r =
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
           users = component "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
-          addButton =
-            Button.buttonPrimary (C.translate' C.LblAddUser)
-              & Button.withIcon IcnAdd
-              & Button.withClick NewUser
-              & Button.renderButton
+          addButton = Button.primary (Button.button' (IcnAdd, C.LblAddUser) NewUser)
           header =
             M.div_
               [class_ "flex items-center justify-between w-full"]

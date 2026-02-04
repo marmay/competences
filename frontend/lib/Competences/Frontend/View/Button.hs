@@ -4,33 +4,43 @@ module Competences.Frontend.View.Button
   ( -- * Basecoat-style buttons (new approach)
     ButtonVariant (..)
   , ButtonSize (..)
-  , BasecoatButton
+  , ButtonContents (..)
+  , ButtonContentsStyle (..)
+  , ButtonDisabled (..)
   , button
-  , buttonPrimary
-  , buttonSecondary
-  , buttonDestructive
-  , buttonGhost
-  , buttonLink
-  , buttonOutline
-  , buttonIcon
-  , withSize
-  , withDisabled
-  , withFullWidth
-  , withIcon
-  , withIconRight
-  , withClick
-  , withStopPropagation
-  , renderButton
-
-    -- * Convenience button constructors
-  , applyButton'
-  , cancelButton'
-  , deleteButton'
-  , editButton'
-  , moveButton'
-  , toggleButton
-
-    -- * Button groups
+  , button'
+  , render
+  , primary
+  , primarySm
+  , primaryLg
+  , secondary
+  , secondarySm
+  , secondaryLg
+  , destructive
+  , destructiveSm
+  , destructiveLg
+  , ghost
+  , ghostSm
+  , ghostLg
+  , link
+  , linkSm
+  , linkLg
+  , outline
+  , outlineSm
+  , outlineLg
+  , toggle
+  , toggleSm
+  , toggleLg
+  , applyButtonC
+  , cancelButtonC
+  , deleteButtonC
+  , editButtonC
+  , moveButtonC
+  , applyButton
+  , cancelButton
+  , deleteButton
+  , editButton
+  , moveButton
   , buttonGroup
   )
 where
@@ -38,218 +48,231 @@ where
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
-import Data.Text qualified as Text
-import GHC.Generics (Generic)
+import Data.Maybe (maybeToList)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
-import Miso.String (MisoString)
-import Optics.Core ((&))
-
--- ============================================================================
--- BASECOAT-STYLE BUTTONS (New Approach)
--- ============================================================================
+import Miso.String (MisoString, intercalate)
 
 -- | Button variant following Basecoat design system
 data ButtonVariant
-  = Primary      -- ^ Primary action (sky-600 background)
-  | Secondary    -- ^ Secondary action (stone-200 background)
-  | Destructive  -- ^ Destructive action (red-600 background)
-  | Ghost        -- ^ Ghost button (transparent, hover background)
-  | Link         -- ^ Link-style button (underline on hover)
-  | Outline      -- ^ Outline button (border, transparent bg) - for toggle unselected state
+  = -- | Primary action (sky-600 background)
+    Primary
+  | -- | Secondary action (stone-200 background)
+    Secondary
+  | -- | Destructive action (red-600 background)
+    Destructive
+  | -- | Ghost button (transparent, hover background)
+    Ghost
+  | -- | Link-style button (underline on hover)
+    Link
+  | -- | Outline button (border, transparent bg) - for toggle unselected state
+    Outline
   deriving (Eq, Show)
 
 -- | Button size
 data ButtonSize
-  = Small   -- ^ h-9, px-3, text-sm
-  | Medium  -- ^ h-10, px-4
-  | Large   -- ^ h-11, px-8
+  = Small
+  | Regular
+  | Large
   deriving (Eq, Show)
 
--- | Basecoat-style button configuration
-data BasecoatButton model action = BasecoatButton
-  { variant :: !ButtonVariant
-  , size :: !ButtonSize
-  , disabled :: !Bool
-  , fullWidth :: !Bool
-  , iconLeft :: !(Maybe Icon)
-  , iconRight :: !(Maybe Icon)
-  , attrs :: ![M.Attribute action]
-  , onClick :: !(Maybe action)
-  , children :: ![M.View model action]
+-- | Contents of the button
+data ButtonContents
+  = TextOnly !MisoString
+  | IconOnly !Icon
+  | IconText !Icon !MisoString
+  deriving (Eq, Show)
+
+data ButtonContentsStyle
+  = TextOnlyS
+  | IconOnlyS
+  | IconTextS
+  deriving (Eq, Show)
+
+data ButtonDisabled = Disabled
+
+class ToButtonContents a where
+  toButtonContents :: a -> ButtonContents
+
+instance ToButtonContents ButtonContents where
+  toButtonContents = id
+
+instance ToButtonContents Icon where
+  toButtonContents = IconOnly
+
+instance ToButtonContents MisoString where
+  toButtonContents = TextOnly
+
+instance ToButtonContents Label where
+  toButtonContents = TextOnly . translate'
+
+instance ToButtonContents (Icon, MisoString) where
+  toButtonContents (i, t) = IconText i t
+
+instance ToButtonContents (Icon, Label) where
+  toButtonContents (i, l) = IconText i (translate' l)
+
+instance ToButtonContents (ButtonContentsStyle, Icon, MisoString) where
+  toButtonContents = toButtonContents'
+
+instance ToButtonContents (ButtonContentsStyle, Icon, Label) where
+  toButtonContents = toButtonContents' . (\(s, i, l) -> (s, i, translate' l))
+
+toButtonContents' :: (ButtonContentsStyle, Icon, MisoString) -> ButtonContents
+toButtonContents' (TextOnlyS, _, t) = TextOnly t
+toButtonContents' (IconOnlyS, i, _) = IconOnly i
+toButtonContents' (IconTextS, i, t) = IconText i t
+
+class ToAction a' a where
+  toAction :: a' -> Maybe a
+
+instance ToAction a a where
+  toAction = Just
+
+instance ToAction (Maybe a) a where
+  toAction = id
+
+instance ToAction (Bool, a) a where
+  toAction (tf, a)
+    | tf = Just a
+    | otherwise = Nothing
+
+instance ToAction ButtonDisabled a where
+  toAction Disabled = Nothing
+
+data ButtonConfig a = ButtonConfig
+  { contents :: !ButtonContents
+  , action :: !(Maybe a)
+  , tooltip :: !(Maybe MisoString)
   }
-  deriving (Generic)
 
--- | Create a button with text content
-button :: ButtonVariant -> MisoString -> BasecoatButton model action
-button v text = BasecoatButton
-  { variant = v
-  , size = Medium
-  , disabled = False
-  , fullWidth = False
-  , iconLeft = Nothing
-  , iconRight = Nothing
-  , attrs = []
-  , onClick = Nothing
-  , children = [M.text text]
-  }
+button :: (ToButtonContents c, ToAction a' a) => c -> a' -> MisoString -> ButtonConfig a
+button c a t =
+  ButtonConfig
+    { contents = toButtonContents c
+    , action = toAction a
+    , tooltip = Just t
+    }
 
--- | Convenient button constructors
-buttonPrimary, buttonSecondary, buttonDestructive, buttonGhost, buttonLink, buttonOutline
-  :: MisoString -> BasecoatButton model action
-buttonPrimary = button Primary
-buttonSecondary = button Secondary
-buttonDestructive = button Destructive
-buttonGhost = button Ghost
-buttonLink = button Link
-buttonOutline = button Outline
+button' :: (ToButtonContents c, ToAction a' a) => c -> a' -> ButtonConfig a
+button' c a =
+  ButtonConfig
+    { contents = toButtonContents c
+    , action = toAction a
+    , tooltip = Nothing
+    }
 
--- | Set button size
-withSize :: ButtonSize -> BasecoatButton m a -> BasecoatButton m a
-withSize s (BasecoatButton v _ d f il ir as oc ch) = BasecoatButton v s d f il ir as oc ch
-
--- | Set disabled state
-withDisabled :: Bool -> BasecoatButton m a -> BasecoatButton m a
-withDisabled d (BasecoatButton v s _ f il ir as oc ch) = BasecoatButton v s d f il ir as oc ch
-
--- | Make button full width
-withFullWidth :: BasecoatButton m a -> BasecoatButton m a
-withFullWidth (BasecoatButton v s d _ il ir as oc ch) = BasecoatButton v s d True il ir as oc ch
-
--- | Add icon to button
-withIcon :: Icon -> BasecoatButton m a -> BasecoatButton m a
-withIcon i (BasecoatButton v s d f _ ir as oc ch) = BasecoatButton v s d f (Just i) ir as oc ch
-
--- | Add click handler
-withClick :: a -> BasecoatButton m a -> BasecoatButton m a
-withClick action (BasecoatButton v s d f il ir as _ ch) = BasecoatButton v s d f il ir as (Just action) ch
-
--- | Render a Basecoat-style button
-renderButton :: BasecoatButton model action -> M.View model action
-renderButton b =
-  M.button_
-    ( [class_ $ Text.unwords $ filter (not . Text.null)
-          [ baseClasses
-          , variantClasses b.variant
-          , sizeClasses b.size
-          , if b.disabled then disabledClasses else ""
-          , if b.fullWidth then "w-full" else ""
-          ]
-      ] <> (if b.disabled then [MP.disabled_] else [])
-        <> maybe [] (\a -> [M.onClick a]) b.onClick
-        <> b.attrs
-    )
-    (renderChildren b)
+render :: ButtonVariant -> ButtonSize -> ButtonConfig a -> M.View m a
+render v s ButtonConfig {contents = c, action = a, tooltip = t} =
+  M.button_ attrs [renderContents c]
   where
-    -- Base classes from Basecoat
-    baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+    attrs = btnAttrs <> tooltipAttrs
+    btnAttrs = case a of
+      (Just a') -> [M.onClick a', MP.class_ activeClass]
+      Nothing -> [MP.disabled_, MP.class_ disabledClass]
+    tooltipAttrs = case t of
+      (Just t') -> [MP.title_ t']
+      Nothing -> []
+    activeClass =
+      intercalate "-" $
+        ["btn", variantClass v]
+          <> maybeToList (sizeClass s)
+          <> maybeToList (iconClass c)
+      where
+        variantClass Primary = "primary"
+        variantClass Secondary = "secondary"
+        variantClass Destructive = "destructive"
+        variantClass Ghost = "ghost"
+        variantClass Link = "link"
+        variantClass Outline = "outline"
 
-    -- Variant classes (using semantic CSS variables)
-    variantClasses Primary = "bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring"
-    variantClasses Secondary = "bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-ring"
-    variantClasses Destructive = "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-ring"
-    variantClasses Ghost = "hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring"
-    variantClasses Link = "text-primary underline-offset-4 hover:underline"
-    variantClasses Outline = "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring"
+        sizeClass Small = Just "sm"
+        sizeClass Regular = Nothing
+        sizeClass Large = Just "lg"
 
-    -- Size classes
-    sizeClasses Small = "h-9 px-3 gap-1.5 text-sm"
-    sizeClasses Medium = "h-10 px-4 gap-2"
-    sizeClasses Large = "h-11 px-8 gap-2"
+        iconClass (IconOnly _) = Just "icon"
+        iconClass _ = Nothing
+    disabledClass =
+      let baseClass = case s of Small -> "btn-sm"; Regular -> "btn"; Large -> "btn-lg"
+       in (baseClass <> " bg-gray-300 hover:bg-gray-300 cursor-not-allowed")
 
-    disabledClasses = "opacity-50 cursor-not-allowed"
+    renderContents :: ButtonContents -> M.View m a
+    renderContents (TextOnly t') = M.text_ [t']
+    renderContents (IconOnly i) = icon [] i
+    renderContents (IconText i t') = M.div_ [MP.class_ "flex items-center gap-2"] [icon [] i, M.span_ [] [M.text_ [t']]]
 
-    renderChildren btn = case (btn.iconLeft, btn.iconRight) of
-      (Nothing, Nothing) -> btn.children
-      (Just i, Nothing) -> icon [] i : btn.children
-      (Nothing, Just i) -> btn.children <> [icon [] i]
-      (Just il, Just ir) -> icon [] il : btn.children <> [icon [] ir]
+primary
+  , primarySm
+  , primaryLg
+  , secondary
+  , secondarySm
+  , secondaryLg
+  , destructive
+  , destructiveSm
+  , destructiveLg
+  , ghost
+  , ghostSm
+  , ghostLg
+  , link
+  , linkSm
+  , linkLg
+  , outline
+  , outlineSm
+  , outlineLg
+    :: ButtonConfig a -> M.View m a
+primary = render Primary Regular
+primarySm = render Primary Small
+primaryLg = render Primary Large
+secondary = render Secondary Regular
+secondarySm = render Secondary Small
+secondaryLg = render Secondary Large
+destructive = render Destructive Regular
+destructiveSm = render Destructive Small
+destructiveLg = render Destructive Large
+ghost = render Ghost Regular
+ghostSm = render Ghost Small
+ghostLg = render Ghost Large
+link = render Link Regular
+linkSm = render Link Small
+linkLg = render Link Large
+outline = render Outline Regular
+outlineSm = render Outline Small
+outlineLg = render Outline Large
 
--- | Create an icon-only button (no text)
-buttonIcon :: ButtonVariant -> Icon -> BasecoatButton model action
-buttonIcon v i = BasecoatButton
-  { variant = v
-  , size = Medium
-  , disabled = False
-  , fullWidth = False
-  , iconLeft = Just i
-  , iconRight = Nothing
-  , attrs = []
-  , onClick = Nothing
-  , children = []
-  }
+toggle' :: Bool -> ButtonSize -> ButtonConfig a -> M.View m a
+toggle' True = render Primary
+toggle' False = render Outline
 
--- | Add icon to the right side of button
-withIconRight :: Icon -> BasecoatButton m a -> BasecoatButton m a
-withIconRight i (BasecoatButton v s d f il _ as oc ch) = BasecoatButton v s d f il (Just i) as oc ch
+toggle, toggleSm, toggleLg :: Bool -> ButtonConfig a -> M.View m a
+toggle t = toggle' t Regular
+toggleSm t = toggle' t Small
+toggleLg t = toggle' t Large
 
--- | Add stopPropagation to click handler (useful in nested contexts)
-withStopPropagation :: BasecoatButton m a -> BasecoatButton m a
-withStopPropagation b = b { attrs = b.attrs }  -- TODO: Need to modify onClick handling
+applyButtonC
+  , cancelButtonC
+  , deleteButtonC
+  , editButtonC
+  , moveButtonC
+    :: (ToAction a' a) => a' -> ButtonConfig a
+applyButtonC = button' (IcnApply, LblApply)
+cancelButtonC = button' (IcnCancel, LblCancel)
+deleteButtonC = button' (IcnDelete, LblDelete)
+editButtonC = button' (IcnEdit, LblEdit)
+moveButtonC = button' (IcnReorder, LblMove)
 
--- ============================================================================
--- CONVENIENCE BUTTON CONSTRUCTORS
--- ============================================================================
-
--- | Apply/confirm button (primary with checkmark icon)
-applyButton' :: a -> M.View model a
-applyButton' action =
-  buttonPrimary (translate' LblApply)
-    & withIcon IcnApply
-    & withClick action
-    & renderButton
-
--- | Cancel button (destructive with X icon)
-cancelButton' :: a -> M.View model a
-cancelButton' action =
-  buttonDestructive (translate' LblCancel)
-    & withIcon IcnCancel
-    & withClick action
-    & renderButton
-
--- | Delete button (destructive with trash icon)
-deleteButton' :: a -> M.View model a
-deleteButton' action =
-  buttonDestructive (translate' LblDelete)
-    & withIcon IcnDelete
-    & withClick action
-    & renderButton
-
--- | Edit button (secondary with edit icon)
-editButton' :: a -> M.View model a
-editButton' action =
-  buttonSecondary (translate' LblEdit)
-    & withIcon IcnEdit
-    & withClick action
-    & renderButton
-
--- | Move/reorder button (secondary with reorder icon)
-moveButton' :: a -> M.View model a
-moveButton' action =
-  buttonSecondary (translate' LblMove)
-    & withIcon IcnReorder
-    & withClick action
-    & renderButton
-
--- | Toggle button (selected = Primary filled, unselected = Outline)
--- Use for single-select or multi-select button groups
-toggleButton :: Bool -> MisoString -> action -> M.View model action
-toggleButton isSelected text action =
-  (if isSelected then buttonPrimary else buttonOutline) text
-    & withClick action
-    & renderButton
-
--- ============================================================================
--- BUTTON GROUPS
--- ============================================================================
+applyButton, cancelButton, deleteButton, editButton, moveButton :: (ToAction a' a) => a' -> M.View m a
+applyButton = primary . applyButtonC
+cancelButton = destructive . cancelButtonC
+deleteButton = destructive . deleteButtonC
+editButton = secondary . editButtonC
+moveButton = secondary . moveButtonC
 
 -- | Button group with connected edges (Basecoat pattern)
 -- Uses role="group" for accessibility
 buttonGroup :: [M.View model action] -> M.View model action
-buttonGroup btns =
+buttonGroup =
   M.div_
     [ class_ "button-group"
     , M.textProp "role" "group"
     ]
-    btns

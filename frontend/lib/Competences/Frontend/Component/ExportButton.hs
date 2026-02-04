@@ -11,18 +11,20 @@ import Control.Concurrent (forkIO, threadDelay)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~))
+import Optics.Core ((.~))
 
 -- | Model for the export button component
-data ExportModel = ExportModel
-  { exportSuccess :: !Bool
+newtype ExportModel = ExportModel
+  { exportSuccess :: Bool
   }
   deriving (Eq, Generic, Show)
 
 -- | Actions for the export button component
 data ExportAction
-  = RequestExport -- ^ User clicked the export button
-  | DoExport !Text -- ^ Perform export with the given text
+  = -- | User clicked the export button
+    RequestExport
+  | -- | Perform export with the given text
+    DoExport !Text
   | ClearExportSuccess
   deriving (Eq, Show)
 
@@ -39,7 +41,8 @@ data ExportAction
 --   (exportButtonComponent (\\m -> exportCompetenceGrid m.document grid))
 -- @
 exportButtonComponent
-  :: (parent -> Text) -- ^ Function to get export text from parent model
+  :: (parent -> Text)
+  -- ^ Function to get export text from parent model
   -> M.Component parent ExportModel ExportAction
 exportButtonComponent extractText =
   M.component initialModel update view
@@ -49,7 +52,6 @@ exportButtonComponent extractText =
     -- When user clicks, use parent to fetch parent model and get export text
     update RequestExport =
       M.parent (DoExport . extractText) ClearExportSuccess
-
     update (DoExport text) = do
       M.modify $ #exportSuccess .~ True
       M.withSink $ \sink -> do
@@ -58,19 +60,9 @@ exportButtonComponent extractText =
           threadDelay 3000000 -- 3 seconds
           sink ClearExportSuccess
         pure ()
-
     update ClearExportSuccess =
       M.modify $ #exportSuccess .~ False
 
-    view m =
-      if m.exportSuccess
-        then
-          Button.buttonSecondary ""
-            & Button.withIcon IcnApply
-            & Button.withDisabled True
-            & Button.renderButton
-        else
-          Button.buttonSecondary (C.translate' C.LblExport)
-            & Button.withIcon IcnExport
-            & Button.withClick RequestExport
-            & Button.renderButton
+    view m
+      | m.exportSuccess = Button.secondary $ Button.button' IcnApply Button.Disabled
+      | otherwise = Button.secondary $ Button.button' (IcnExport, C.LblExport) RequestExport

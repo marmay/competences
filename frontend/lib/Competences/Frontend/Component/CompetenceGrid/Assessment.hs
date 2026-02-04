@@ -51,7 +51,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (nub, sortOn)
 import Data.Map qualified as Map
-import Data.Maybe (isNothing, listToMaybe)
+import Data.Maybe (listToMaybe, isJust)
 import Data.Text qualified as T
 import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
@@ -244,10 +244,7 @@ assessmentComponent r grid =
 
               -- "Not Achieved" button
               notAchievedBtn =
-                (if currentLevel == Just Nothing then Button.buttonPrimary else Button.buttonOutline)
-                  (C.translate' C.LblNotAchieved)
-                  & Button.withClick (SetAssessmentLevel competence Nothing)
-                  & Button.renderButton
+                Button.toggle (currentLevel == Just Nothing) (Button.button' C.LblNotAchieved (SetAssessmentLevel competence Nothing))
 
               -- Level buttons - disabled only if no description
               -- Locked levels show a lock icon indicator but remain clickable
@@ -255,20 +252,11 @@ assessmentComponent r grid =
                 let isActive = currentLevel == Just (Just lvl)
                     isEnabled = hasDescription lvl
                     locked = isLocked lvl
-                    baseBtn = if isActive then Button.buttonPrimary else Button.buttonOutline
-                 in baseBtn (C.translate' $ C.LblCompetenceLevelDescription lvl)
-                      & Button.withClick (SetAssessmentLevel competence (Just lvl))
-                      & Button.withDisabled (not isEnabled)
-                      & (if locked then Button.withIconRight IcnLock else id)
-                      & Button.renderButton
+                 in if locked then Button.primary (Button.button' (IcnLock, C.LblCompetenceLevelDescription lvl) Button.Disabled)
+                              else Button.toggle isActive (Button.button' (C.LblCompetenceLevelDescription lvl) (isEnabled, SetAssessmentLevel competence (Just lvl)))
 
               -- Delete button (red trash icon)
-              deleteBtn =
-                Button.buttonDestructive ""
-                  & Button.withIcon IcnDelete
-                  & Button.withClick (ClearAssessment competence)
-                  & Button.withDisabled (isNothing todayAssessment)
-                  & Button.renderButton
+              deleteBtn = Button.deleteButton (isJust todayAssessment, ClearAssessment competence)
            in V.viewFlow
                 (V.hFlow & (#gap .~ V.TinySpace))
                 [ notAchievedBtn

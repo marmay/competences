@@ -42,7 +42,6 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Svg.Property qualified as MSP
-import Optics.Core ((&))
 
 -- ============================================================================
 -- Configuration
@@ -170,17 +169,12 @@ resourceModalComponent modalMgr cfg =
 modeSwitcher :: ResourceViewMode -> Bool -> Bool -> M.View Model Action
 modeSwitcher currentMode hasTasks hasResources =
   Button.buttonGroup
-    [ modeButton ViewTasks (C.translate' C.LblTasks) hasTasks
-    , modeButton ViewLearningResources (C.translate' C.LblLearningResources) hasResources
+    [ modeButton ViewTasks C.LblTasks hasTasks
+    , modeButton ViewLearningResources C.LblLearningResources hasResources
     ]
   where
     modeButton mode label hasContent =
-      let variant = if mode == currentMode then Button.Primary else Button.Outline
-       in Button.button variant label
-            & Button.withSize Button.Small
-            & Button.withDisabled (not hasContent)
-            & Button.withClick (SwitchViewMode mode)
-            & Button.renderButton
+      Button.toggleSm (mode == currentMode) $ Button.button' label (hasContent, SwitchViewMode mode)
 
 -- ============================================================================
 -- Status-grouped task view

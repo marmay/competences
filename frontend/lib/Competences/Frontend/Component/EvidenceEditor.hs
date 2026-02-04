@@ -145,14 +145,9 @@ modeButton
   -> Maybe Icon
   -> M.View EvidenceEditorModel EvidenceEditorAction
 modeButton activeMode mode label mIcon =
-  let variant = if mode == activeMode then Button.Primary else Button.Outline
-      baseButton =
-        Button.button variant label
-          & Button.withSize Button.Small
-          & Button.withClick (SwitchMode mode)
-   in case mIcon of
-        Nothing -> Button.renderButton baseButton
-        Just icon -> Button.renderButton (Button.withIcon icon baseButton)
+   case mIcon of
+     Nothing -> Button.toggleSm (mode == activeMode) (Button.button' label (SwitchMode mode))
+     Just icon -> Button.toggleSm (mode == activeMode) (Button.button' (icon, label) (SwitchMode mode))
 
 -- ============================================================================
 -- VIEW MODE DETAIL (Read-only)

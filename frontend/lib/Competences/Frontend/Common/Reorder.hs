@@ -17,7 +17,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core ((.~), (?~), (^.))
 
 newtype ReorderModel a = ReorderModel
   { reorderFrom :: Maybe (Id a)
@@ -73,7 +73,7 @@ issueReorderCommand r f to = do
       from <- m.reorderFrom
       f from to
 
-viewReorderItem :: (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
+viewReorderItem :: forall a m. (Orderable a) => ReorderModel a -> a -> M.View m (ReorderAction a)
 viewReorderItem m item =
   Button.buttonGroup $ case m.reorderFrom of
     Nothing -> [moveButton]
@@ -82,19 +82,7 @@ viewReorderItem m item =
         then [cancelButton]
         else [moveBeforeButton, moveAfterButton]
   where
-    moveButton =
-      Button.buttonIcon Button.Secondary IcnReorder
-        & Button.withClick (ReorderFrom $ item ^. idL)
-        & Button.renderButton
-    cancelButton =
-      Button.buttonIcon Button.Destructive IcnCancel
-        & Button.withClick CancelReorder
-        & Button.renderButton
-    moveBeforeButton =
-      Button.buttonIcon Button.Secondary IcnArrowUp
-        & Button.withClick (ReorderBefore $ item ^. idL)
-        & Button.renderButton
-    moveAfterButton =
-      Button.buttonIcon Button.Secondary IcnArrowDown
-        & Button.withClick (ReorderAfter $ item ^. idL)
-        & Button.renderButton
+    moveButton = Button.secondary $ Button.button' IcnReorder (ReorderFrom $ item ^. idL)
+    cancelButton = Button.destructive $ Button.button' IcnCancel (CancelReorder :: ReorderAction a)
+    moveBeforeButton = Button.secondary $ Button.button' IcnArrowUp (ReorderBefore $ item ^. idL)
+    moveAfterButton = Button.secondary $ Button.button' IcnArrowDown (ReorderAfter $ item ^. idL)

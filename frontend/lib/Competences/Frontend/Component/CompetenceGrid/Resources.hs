@@ -34,7 +34,6 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
-import Data.Function ((&))
 import Data.List (find)
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -149,10 +148,7 @@ resourcesComponent r grid =
                in MH.div_ []
                     [ -- Header with back button and competence level info
                       MH.div_ [class_ "flex items-center gap-2 mb-4 border-b border-stone-200 pb-4"]
-                        [ Button.buttonGhost "← Zurück"
-                            & Button.withClick ClearEditingResource
-                            & Button.withSize Button.Small
-                            & Button.renderButton
+                        [ Button.ghostSm (Button.button' ("← Zurück" :: M.MisoString) ClearEditingResource)
                         , case mCompLevelInfo of
                             Nothing -> V.empty
                             Just cli ->
@@ -190,11 +186,7 @@ resourceListView compLevels resources =
                 [ MH.span_
                     [class_ "font-medium text-stone-700 truncate flex-1 mr-2"]
                     [M.text $ M.ms cli.competence.description]
-                , Button.buttonGhost (C.translate' C.LblAddResource)
-                    & Button.withIcon IcnAdd
-                    & Button.withSize Button.Small
-                    & Button.withClick (CreateResourceForLevel levelId)
-                    & Button.renderButton
+                , Button.ghostSm (Button.button' (IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
                 ]
             , -- Header row 2: Level name + level description
               MH.div_

@@ -28,6 +28,10 @@ import Competences.Document.Order (formatOrderNumber)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Selector.Common
+  ( SelectorTransformedLens (..)
+  , selectorLens
+  )
 import Competences.Frontend.Component.Selector.MultiStageSelector
   ( HList (..)
   , IncrementalParserSpec (..)
@@ -46,10 +50,6 @@ import Competences.Frontend.Component.Selector.ObservationSelector
   ( competenceGridP
   , competenceP
   , levelP
-  )
-import Competences.Frontend.Component.Selector.Common
-  ( SelectorTransformedLens (..)
-  , selectorLens
   )
 import Competences.Frontend.Component.Selector.UserSelector
   ( UserSelectorConfig (..)
@@ -116,7 +116,7 @@ bulkEvidenceEditorComponent r =
       BulkEditorModel
         { document = emptyDocument
         , date = syncDocumentEnv r ^. #currentDay
-        , activityType = Conversation  -- Default to Conversation (Gespräch)
+        , activityType = Conversation -- Default to Conversation (Gespräch)
         , selectedTask = Nothing
         , selectedStudents = []
         , pendingObservations = []
@@ -125,35 +125,34 @@ bulkEvidenceEditorComponent r =
 
     update (UpdateDocument (DocumentChange d _)) =
       M.modify $ #document .~ d
-
     update (SetDate d) =
       M.modify $ #date .~ d
-
     update (SetActivityType t) =
       M.modify $ #activityType .~ t
-
     update AddObservationsToSelectedStudents = do
       m <- M.get
       let studentIds = map (.id) m.selectedStudents
           -- Add pending observations to all selected students
-          updatedObs = foldl
-            (\acc uid ->
-              let existing = Map.findWithDefault [] uid acc
-                  -- Create new observations with unique IDs for each student
-               in Map.insert uid (existing ++ m.pendingObservations) acc
-            )
-            m.studentObservations
-            studentIds
+          updatedObs =
+            foldl
+              ( \acc uid ->
+                  let existing = Map.findWithDefault [] uid acc
+                   in -- Create new observations with unique IDs for each student
+                      Map.insert uid (existing ++ m.pendingObservations) acc
+              )
+              m.studentObservations
+              studentIds
       M.modify $ \s ->
-        s & #studentObservations .~ updatedObs
-          & #pendingObservations .~ []
-
+        s
+          & #studentObservations
+          .~ updatedObs
+          & #pendingObservations
+          .~ []
     update (RemoveObservation uid obs) =
       M.modify $ \m ->
         let existingObs = Map.findWithDefault [] uid m.studentObservations
             filteredObs = filter (\o -> o.id /= obs.id) existingObs
          in m & #studentObservations .~ Map.insert uid filteredObs m.studentObservations
-
     update SaveAll = do
       m <- M.get
       let studentsWithObs = Map.toList $ Map.filter (not . null) m.studentObservations
@@ -161,12 +160,15 @@ bulkEvidenceEditorComponent r =
       M.io_ $ mapM_ (saveStudentEvidence r m) studentsWithObs
       -- Clear observations after saving
       M.modify $ #studentObservations .~ Map.empty
-
     update Cancel =
       M.modify $ \s ->
-        s & #studentObservations .~ Map.empty
-          & #pendingObservations .~ []
-          & #selectedStudents .~ []
+        s
+          & #studentObservations
+          .~ Map.empty
+          & #pendingObservations
+          .~ []
+          & #selectedStudents
+          .~ []
 
     view m =
       MH.div_
@@ -184,13 +186,12 @@ bulkEvidenceEditorComponent r =
         [ Typography.h2 (C.translate' C.LblBulkEvidenceEntry)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.buttonOutline (C.translate' C.LblCancel)
-                & Button.withClick Cancel
-                & Button.renderButton
-            , Button.buttonPrimary (C.translate' C.LblSaveAll)
-                & Button.withClick SaveAll
-                & Button.withDisabled (Map.null $ Map.filter (not . null) m.studentObservations)
-                & Button.renderButton
+            [ Button.cancelButton Cancel
+            , Button.primary
+                ( Button.button'
+                    C.LblSaveAll
+                    (not $ Map.null $ Map.filter (not . null) m.studentObservations, SaveAll)
+                )
             ]
         ]
 
@@ -205,7 +206,9 @@ bulkEvidenceEditorComponent r =
             ]
         , MH.div_
             [class_ "w-48"]
-            [ MH.label_ [class_ "text-sm font-medium text-muted-foreground mb-1 block"] [M.text $ C.translate' C.LblActivityType]
+            [ MH.label_
+                [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
+                [M.text $ C.translate' C.LblActivityType]
             , MH.select_
                 [ class_ "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 , MH.onChange (\s -> SetActivityType (read (M.fromMisoString s) :: ActivityType))
@@ -229,38 +232,41 @@ bulkEvidenceEditorComponent r =
             [ -- Student selector
               MH.div_
                 []
-                [ MH.label_ [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
+                [ MH.label_
+                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
                     [M.text $ C.translate' C.LblStudents]
                 , V.componentA
                     "bulk-student-selector"
                     [class_ "w-full"]
-                    (searchableMultiUserSelectorComponent
-                      r'
-                      (studentSelectorConfig m')
-                      studentSelectorLens
+                    ( searchableMultiUserSelectorComponent
+                        r'
+                        (studentSelectorConfig m')
+                        studentSelectorLens
                     )
                 ]
             , -- Observation selector
               MH.div_
                 []
-                [ MH.label_ [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
+                [ MH.label_
+                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
                     [M.text $ C.translate' C.LblActivityObservations]
                 , V.componentA
                     "bulk-observation-selector"
                     [class_ "w-full"]
-                    (multiStageSelectorComponent
-                      r'
-                      (bulkObservationConfig r')
-                      observationSelectorLens
+                    ( multiStageSelectorComponent
+                        r'
+                        (bulkObservationConfig r')
+                        observationSelectorLens
                     )
                 ]
             , -- Add button
               MH.div_
                 [class_ "flex justify-end"]
-                [ Button.buttonPrimary (C.translate' C.LblAddToSelectedStudents)
-                    & Button.withClick AddObservationsToSelectedStudents
-                    & Button.withDisabled (null m'.selectedStudents || null m'.pendingObservations)
-                    & Button.renderButton
+                [ Button.primary
+                    ( Button.button'
+                        C.LblAddToSelectedStudents
+                        (not $ null m'.selectedStudents || null m'.pendingObservations, AddObservationsToSelectedStudents)
+                    )
                 ]
             ]
         ]
@@ -356,7 +362,7 @@ bulkObservationConfig r =
   MultiStageSelectorConfig
     { initialState = initialize (bulkObservationPipeline r)
     , errorMessage = C.translate' C.LblPleaseCompleteObservation
-    , initResults = const []  -- No initial observations in bulk mode
+    , initResults = const [] -- No initial observations in bulk mode
     , validateResults = \_ results -> results
     , viewResult = viewBulkObservationResult
     , style = MultiStageSelectorEnabled

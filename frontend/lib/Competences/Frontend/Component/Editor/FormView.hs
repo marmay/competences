@@ -15,6 +15,7 @@ import Miso qualified as M
 import Competences.Frontend.Component.Editor.Types (Model, Action)
 import qualified Competences.Frontend.View as V
 import qualified Competences.Frontend.Common as C
+import qualified Competences.Frontend.View.Button as Button
 
 editorFormView :: Foldable f => M.View (Model a patch f) (Action a patch) -> M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
 editorFormView onMissing title toText viewData =
@@ -53,5 +54,5 @@ showFormInline toText item =
     , -- Compact buttons row
       MH.div_
         [class_ "flex justify-end gap-2"]
-        (buttons Compact item)
+        (buttons Button.IconOnlyS item)
     ]

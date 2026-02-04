@@ -146,13 +146,11 @@ selectorDetailComponent config =
 
     modeButton :: mode -> mode -> M.View (Model a mode) (Action mode)
     modeButton activeMode mode =
-      let variant = if mode == activeMode then Button.Primary else Button.Outline
-          baseButton = Button.button variant (config.modeLabel mode)
-            & Button.withSize Button.Small
-            & Button.withClick (SwitchMode mode)
-       in case config.modeIcon mode of
-            Nothing -> Button.renderButton baseButton
-            Just icon -> Button.renderButton (Button.withIcon icon baseButton)
+       let label = config.modeLabel mode
+           contents = case config.modeIcon mode of
+             Nothing -> Button.TextOnly label
+             Just icon -> Button.IconText icon label
+       in Button.toggleSm (mode == activeMode) (Button.button' contents (SwitchMode mode))
 
 -- | Create an empty model with the given default mode
 emptyModel :: mode -> Model a mode

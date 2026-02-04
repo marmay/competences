@@ -32,7 +32,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -52,7 +51,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
-import Optics.Core ((&), (.~))
+import Optics.Core ((.~))
 
 -- ============================================================================
 -- Model
@@ -169,19 +168,12 @@ competenceGridImportModalComponent r =
                     ]
                 ]
             , Modal.modalFooter
-                [ Button.buttonSecondary (C.translate' C.LblCancel)
-                    & Button.withClick CloseModal
-                    & Button.renderButton
-                , Button.buttonPrimary "Vorschau"
-                    & Button.withClick ParseInput
-                    & Button.renderButton
+                [ Button.cancelButton CloseModal
+                , Button.primary (Button.button' ("Vorschau" :: M.MisoString) ParseInput)
                 , case m.parseResult of
                     Right previews
                       | not (null previews) && any hasChanges previews ->
-                          Button.buttonPrimary (C.translate' C.LblApply)
-                            & Button.withIcon IcnApply
-                            & Button.withClick ApplyImport
-                            & Button.renderButton
+                          Button.applyButton ApplyImport
                     _ -> M.text ""
                 ]
             ]

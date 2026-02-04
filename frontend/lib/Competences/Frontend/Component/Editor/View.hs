@@ -60,17 +60,17 @@ data EditorViewItem a patch f n = EditorViewItem
 type EditorView a patch f n = EditorViewData a patch f n -> M.View (Model a patch f) (Action a patch)
 
 compactButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
-compactButtons = buttons Compact
+compactButtons = buttons Button.IconOnlyS
 
 extendedButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
-extendedButtons = buttons Extended
+extendedButtons = buttons Button.IconTextS
 
 data ViewButtonStyle
   = Compact
   | Extended
   deriving (Eq, Show)
 
-buttons :: ViewButtonStyle -> EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
+buttons :: Button.ButtonContentsStyle -> EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 buttons s item =
   case (item.editState, item.moveState, item.deleteState) of
     (_, MoveSource, _) ->
@@ -91,27 +91,9 @@ buttons s item =
 
 -- | Render a row of buttons using appropriate layout
 -- Compact mode uses buttonGroup (connected edges), Extended uses flow with gap
-buttonRow :: ViewButtonStyle -> [M.View m a] -> M.View m a
-buttonRow Compact btns = Button.buttonGroup btns
-buttonRow Extended btns = Layout.viewFlow (Layout.hFlow & (#gap .~ Layout.SmallSpace)) btns
-
--- Button helper that creates icon-only or icon+text based on style
-mkButton
-  :: Button.ButtonVariant
-  -> ViewButtonStyle
-  -> Icon
-  -> C.Label
-  -> action
-  -> M.View model action
-mkButton variant Compact icn _lbl action =
-  Button.buttonIcon variant icn
-    & Button.withClick action
-    & Button.renderButton
-mkButton variant Extended icn lbl action =
-  Button.button variant (C.translate' lbl)
-    & Button.withIcon icn
-    & Button.withClick action
-    & Button.renderButton
+buttonRow :: Button.ButtonContentsStyle -> [M.View m a] -> M.View m a
+buttonRow Button.IconTextS btns = Layout.viewFlow (Layout.hFlow & (#gap .~ Layout.SmallSpace)) btns
+buttonRow _ btns = Button.buttonGroup btns
 
 editButton
   , finishEditButton
@@ -123,17 +105,17 @@ editButton
   , moveAfterButton
   , moveToTopButton
   , moveToBottomButton
-    :: ViewButtonStyle -> a -> M.View (Model a patch f) (Action a patch)
-editButton s a = mkButton Button.Secondary s IcnEdit C.LblEdit (StartEditing a)
-finishEditButton s a = mkButton Button.Primary s IcnApply C.LblApply (FinishEditing a)
-cancelEditButton s a = mkButton Button.Destructive s IcnCancel C.LblCancel (CancelEditing a)
-deleteButton s a = mkButton Button.Destructive s IcnDelete C.LblDelete (Delete a)
-moveButton s a = mkButton Button.Secondary s IcnReorder C.LblMove (StartMoving a)
-cancelMoveButton s _ = mkButton Button.Destructive s IcnCancel C.LblCancel CancelMoving
-moveBeforeButton s a = mkButton Button.Secondary s IcnArrowUp C.LblInsertBefore (FinishMoving (Before' a))
-moveAfterButton s a = mkButton Button.Secondary s IcnArrowDown C.LblInsertAfter (FinishMoving (After' a))
-moveToTopButton s _ = mkButton Button.Secondary s IcnDoubleArrowUp C.LblInsertAtTop (FinishMoving Front')
-moveToBottomButton s _ = mkButton Button.Secondary s IcnDoubleArrowDown C.LblInsertAtBottom (FinishMoving Back')
+    :: forall a patch f. Button.ButtonContentsStyle -> a -> M.View (Model a patch f) (Action a patch)
+editButton s a = Button.secondary (Button.button' (s, IcnEdit, C.LblEdit) (StartEditing a :: Action a patch))
+finishEditButton s a = Button.primary (Button.button' (s, IcnApply, C.LblApply) (FinishEditing a :: Action a patch))
+cancelEditButton s a = Button.destructive (Button.button' (s, IcnCancel, C.LblCancel) (CancelEditing a :: Action a patch))
+deleteButton s a = Button.destructive (Button.button' (s, IcnDelete, C.LblDelete) (Delete a :: Action a patch))
+moveButton s a = Button.secondary (Button.button' (s, IcnReorder, C.LblMove) (StartMoving a :: Action a patch))
+cancelMoveButton s _ = Button.destructive (Button.button' (s, IcnCancel, C.LblCancel) (CancelMoving :: Action a patch))
+moveBeforeButton s a = Button.secondary (Button.button' (s, IcnArrowUp, C.LblInsertBefore) (FinishMoving (Before' a) :: Action a patch))
+moveAfterButton s a = Button.secondary (Button.button' (s, IcnArrowDown, C.LblInsertAfter) (FinishMoving (After' a) :: Action a patch))
+moveToTopButton s _ = Button.secondary (Button.button' (s, IcnDoubleArrowUp, C.LblInsertAtTop) (FinishMoving Front' :: Action a patch))
+moveToBottomButton s _ = Button.secondary (Button.button' (s, IcnDoubleArrowDown, C.LblInsertAtBottom) (FinishMoving Back' :: Action a patch))
 
 refocusTargetString :: M.MisoString
 refocusTargetString = "editor-refocus-target"

@@ -11,6 +11,7 @@ import Competences.Document.Task (TaskId)
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.TaskEditor.SolutionEditorDetail (solutionInlineEditor)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -28,7 +29,6 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon (Icon (IcnAdd, IcnDelete))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Frontend.Component.TaskEditor.SolutionEditorDetail (solutionInlineEditor)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
@@ -43,7 +43,7 @@ import Optics.Core ((&), (.~))
 -- | Projection type for the solutions list
 data Projection = Projection
   { solutions :: !(Ix.IxSet SolutionIxs Solution)
-    -- ^ Solutions for this task only
+  -- ^ Solutions for this task only
   , connectedUser :: !User
   }
   deriving (Eq, Generic, Show)
@@ -67,7 +67,7 @@ data Model = Model
   { projection :: !Projection
   , taskId :: !TaskId
   , expandedSolutions :: !(Set SolutionId)
-    -- ^ Which solutions are expanded to show full content
+  -- ^ Which solutions are expanded to show full content
   }
   deriving (Eq, Generic, Show)
 
@@ -106,21 +106,18 @@ taskSolutionsListComponent r taskId =
 
     update (ProjectionChanged change) =
       M.modify $ #projection .~ change.projection
-
     update (ToggleSolution solId) =
       M.modify $ \m ->
         m
           & #expandedSolutions
-            .~ ( if Set.member solId m.expandedSolutions
-                   then Set.delete solId m.expandedSolutions
-                   else Set.insert solId m.expandedSolutions
-               )
-
+          .~ ( if Set.member solId m.expandedSolutions
+                 then Set.delete solId m.expandedSolutions
+                 else Set.insert solId m.expandedSolutions
+             )
     update CreateSolution = M.withSink $ \_sink -> do
       solutionId <- nextId r
       let newSolution = mkSolution solutionId taskId connectedUser.id
       modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock newSolution))
-
     update (DeleteSolution solId) = M.withSink $ \_sink -> do
       modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
 
@@ -140,11 +137,7 @@ taskSolutionsListComponent r taskId =
         [ Typography.h3 $ C.translate' C.LblSolutions
         , if isTeacher m.projection.connectedUser
             then
-              Button.buttonSecondary (C.translate' C.LblAddSolution)
-                & Button.withClick CreateSolution
-                & Button.withIcon IcnAdd
-                & Button.withSize Button.Small
-                & Button.renderButton
+              Button.secondarySm (Button.button' (IcnAdd, C.LblAddSolution) CreateSolution)
             else V.empty
         ]
 
@@ -165,19 +158,13 @@ taskSolutionsListComponent r taskId =
     viewSolution m sol =
       let isExpanded = Set.member sol.id m.expandedSolutions
           isOwner = isTeacher m.projection.connectedUser
-       in Disclosure.collapsibleWithActions isExpanded (ToggleSolution sol.id)
+       in Disclosure.collapsibleWithActions
+            isExpanded
+            (ToggleSolution sol.id)
             (solutionTypeBadge sol.solutionType)
-            ( if isOwner
-                then
-                  [ Button.buttonGhost ""
-                      & Button.withIcon IcnDelete
-                      & Button.withSize Button.Small
-                      & Button.withStopPropagation
-                      & Button.withClick (DeleteSolution sol.id)
-                      & Button.renderButton
-                  ]
-                else []
-            )
+            [ Button.ghostSm (Button.button' IcnDelete (DeleteSolution sol.id))
+            | isOwner
+            ]
             ( if isOwner
                 then solutionInlineEditor r sol
                 else

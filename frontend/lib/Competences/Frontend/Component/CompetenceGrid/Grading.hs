@@ -37,7 +37,6 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
-import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.CellStyle qualified as CellStyle
@@ -50,8 +49,9 @@ import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (?~), (.~))
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Maybe (isJust)
 
 -- ============================================================================
 -- GRADING MODE DETAIL
@@ -129,7 +129,7 @@ gradingComponent r grid =
       M.modify $ #projection .~ change.projection
 
     update (InitToday day) =
-      M.modify $ #today .~ Just day
+      M.modify $ (#today ?~ day)
 
     update (SelectGrade grade) =
       M.modify $ #selectedGrade .~ grade
@@ -165,9 +165,9 @@ gradingComponent r grid =
       Just _ ->
         V.viewFlow
           ( V.vFlow
-              & (#expandDirection .~ V.Expand V.Start)
-              & (#expandOrthogonal .~ V.Expand V.Center)
-              & (#gap .~ V.SmallSpace)
+              & #expandDirection .~ V.Expand V.Start
+              & #expandOrthogonal .~ V.Expand V.Center
+              & #gap .~ V.SmallSpace
           )
           [ header
           , description
@@ -260,14 +260,14 @@ gradingComponent r grid =
         gradeEntrySection gm =
           Card.cardWithHeader (C.translate' C.LblEnterGrade) Nothing
             [ V.viewFlow
-                (V.vFlow & (#gap .~ V.SmallSpace))
+                (V.vFlow & #gap .~ V.SmallSpace)
                 [ -- Grade buttons row
                   V.viewFlow
-                    (V.hFlow & (#gap .~ V.TinySpace))
+                    (V.hFlow & #gap .~ V.TinySpace)
                     [ gradeButton gm g | g <- grades ]
                 , -- Comment input and submit button row
                   V.viewFlow
-                    (V.hFlow & (#gap .~ V.SmallSpace) & (#expandOrthogonal .~ V.Expand V.Center))
+                    (V.hFlow & #gap .~ V.SmallSpace & #expandOrthogonal .~ V.Expand V.Center)
                     [ MH.div_
                         [class_ "flex-1"]
                         [ Input.textInput'
@@ -275,10 +275,7 @@ gradingComponent r grid =
                             (M.ms gm.gradeComment)
                             SetGradeComment
                         ]
-                    , Button.buttonPrimary (C.translate' C.LblApply)
-                        & Button.withClick SubmitGrade
-                        & Button.withDisabled (gm.selectedGrade == Nothing)
-                        & Button.renderButton
+                    , Button.primary (Button.button' C.LblApply (isJust gm.selectedGrade, SubmitGrade))
                     ]
                 ]
             ]
@@ -286,6 +283,7 @@ gradingComponent r grid =
         gradeButton gm g =
           let isSelected = gm.selectedGrade == Just g
               -- Short label for button (just the number part)
+              shortLabel :: M.MisoString
               shortLabel = case g of
                 Grade1 -> "1"
                 Grade1_2 -> "1-2"
@@ -296,9 +294,7 @@ gradingComponent r grid =
                 Grade4 -> "4"
                 Grade4_5 -> "4-5"
                 Grade5 -> "5"
-           in (if isSelected then Button.buttonPrimary else Button.buttonOutline) shortLabel
-                & Button.withClick (SelectGrade (Just g))
-                & Button.renderButton
+           in Button.toggle isSelected (Button.button' shortLabel (SelectGrade (Just g)))
 
         -- Grade history section
         gradeHistorySection =
@@ -334,10 +330,7 @@ gradingComponent r grid =
                     Nothing -> V.empty
                 ]
             , -- Delete button
-              Button.buttonDestructive ""
-                & Button.withIcon IcnDelete
-                & Button.withClick (DeleteGrade g.id)
-                & Button.renderButton
+              Button.deleteButton (DeleteGrade g.id)
             ]
 
 -- | Column type for grading table

@@ -207,16 +207,8 @@ detailComponent r initialPlan =
                 ]
             , MH.div_
                 [class_ "flex gap-1"]
-                [ Button.buttonGhost ""
-                    & Button.withIcon IcnEdit
-                    & Button.withSize Button.Small
-                    & Button.withClick (OpenMesoPlanEditorModal m.mesoPlan)
-                    & Button.renderButton
-                , Button.buttonDestructive ""
-                    & Button.withIcon IcnDelete
-                    & Button.withSize Button.Small
-                    & Button.withClick DeleteMesoPlan
-                    & Button.renderButton
+                [ Button.ghostSm (Button.button' IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
+                , Button.destructiveSm (Button.button' IcnDelete DeleteMesoPlan)
                 ]
             ]
         , MH.div_
@@ -224,10 +216,7 @@ detailComponent r initialPlan =
             (map (viewLesson m) m.lessons)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.buttonPrimary (C.translate' C.LblAddLesson)
-                & Button.withIcon IcnAdd
-                & Button.withClick CreateNewLesson
-                & Button.renderButton
+            [ Button.primary (Button.button' (IcnAdd, C.LblAddLesson) CreateNewLesson)
             ]
         ]
 
@@ -249,24 +238,9 @@ detailComponent r initialPlan =
                 ]
             )
             -- Actions
-            [ Button.buttonGhost ""
-                & Button.withIcon IcnPin
-                & Button.withSize Button.Small
-                & Button.withStopPropagation
-                & Button.withClick (PinLessonEvaluation lesson)
-                & Button.renderButton
-            , Button.buttonGhost ""
-                & Button.withIcon IcnEdit
-                & Button.withSize Button.Small
-                & Button.withStopPropagation
-                & Button.withClick (OpenLessonEditorModal lesson)
-                & Button.renderButton
-            , Button.buttonDestructive ""
-                & Button.withIcon IcnDelete
-                & Button.withSize Button.Small
-                & Button.withStopPropagation
-                & Button.withClick (DeleteLesson lesson.id)
-                & Button.renderButton
+            [ Button.ghostSm (Button.button' IcnPin (PinLessonEvaluation lesson))
+            , Button.ghostSm (Button.button' IcnEdit (OpenLessonEditorModal lesson))
+            , Button.destructiveSm (Button.button' IcnDelete (DeleteLesson lesson.id))
             ]
             -- Content
             (viewExpandedLesson m lesson)
@@ -357,12 +331,6 @@ detailComponent r initialPlan =
            in MH.div_
                 [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
                 [ M.text $ M.ms nameText
-                , Button.buttonGhost ""
-                    & Button.withIcon IcnApply
-                    & Button.withSize Button.Small
-                    & Button.withStopPropagation
-                    & Button.withClick (PinAssignmentEvaluation a)
-                    & Button.renderButton
+                , Button.ghostSm (Button.button' IcnApply (PinAssignmentEvaluation a))
                 ]
-
 

@@ -154,12 +154,8 @@ mesoPlanEditorModal r modalMgr plan =
                 ]
             ]
         , Modal.modalFooter
-            [ Button.buttonSecondary (C.translate' C.LblCancel)
-                & Button.withClick CloseModal
-                & Button.renderButton
-            , Button.buttonPrimary (C.translate' C.LblSave)
-                & Button.withClick SaveAndClose
-                & Button.renderButton
+            [ Button.cancelButton CloseModal
+            , Button.applyButton SaveAndClose
             ]
         ]
 

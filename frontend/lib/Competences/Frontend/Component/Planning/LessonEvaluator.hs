@@ -53,7 +53,6 @@ import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.Lesson qualified as QLesson
-import Data.Function ((&))
 import Data.Maybe (fromMaybe)
 import Miso.CSS qualified as MC
 import Data.Proxy (Proxy (..))
@@ -218,10 +217,7 @@ lessonEvaluatorComponent r initialLesson =
               MH.div_
                 [class_ "flex items-center justify-between mb-2"]
                 [ MH.span_ [class_ "font-medium text-sm"] [M.text $ ms user.name]
-                , Button.buttonIcon Button.Ghost IcnEdit
-                    & Button.withSize Button.Small
-                    & Button.withClick (OpenStudentDetail user.id)
-                    & Button.renderButton
+                , Button.ghostSm (Button.button' IcnEdit (OpenStudentDetail user.id))
                 ]
             , -- Participation toggles (two buttons per category)
               viewParticipationControls user.id prs

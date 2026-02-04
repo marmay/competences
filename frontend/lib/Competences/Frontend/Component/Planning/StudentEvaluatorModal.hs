@@ -79,7 +79,6 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MH
 import Miso.String (fromMisoString, ms)
 
 -- ============================================================================
@@ -425,25 +424,12 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                   viewAggregationSection m
                 ]
             , Modal.modalFooter
-                [ Button.buttonSecondary (C.translate' C.LblCancel)
-                    & Button.withClick CloseModal
-                    & Button.renderButton
+                [ Button.cancelButton CloseModal
                 , if canDelete
                     then
-                      Button.buttonDestructive (C.translate' C.LblDeleteEvidence)
-                        & Button.withClick DeleteEvidence
-                        & Button.renderButton
+                      Button.deleteButton DeleteEvidence
                     else
-                      MH.button_
-                        ( [ MH.onClick SaveEvidence
-                          , class_ $
-                              if isDisabled
-                                then "bg-muted text-muted-foreground px-4 py-2 rounded cursor-not-allowed"
-                                else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
-                          ]
-                            <> [MH.disabled_ | isDisabled]
-                        )
-                        [M.text actionLabel]
+                      Button.primary (Button.button' actionLabel (isDisabled, SaveEvidence))
                 ]
             ]
 
@@ -502,10 +488,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             , MH.div_
                 [class_ "flex gap-2 mt-1 items-start"]
                 [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
-                , Button.buttonSecondary (C.translate' C.LblAdd)
-                    & Button.withClick AddTask
-                    & Button.withDisabled (not canAdd)
-                    & Button.renderButton
+                , Button.primary (Button.button' C.LblAdd (canAdd, AddTask))
                 ]
             ]
 
