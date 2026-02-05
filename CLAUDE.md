@@ -310,27 +310,22 @@ M.div_ [V.class_ "flex gap-4 items-center bg-stone-50 p-4 rounded-lg"] [...]
 
 ### Basecoat UI Integration
 
-This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agnostic component library built on Tailwind CSS.
+This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agnostic component library built on Tailwind CSS v4.
 
 **Architecture**:
-- **CSS**: Self-hosted from `/static/basecoat.cdn.min.css` (~134KB), loaded via backend HTML generation
-- **Integration**: CSS loaded via backend HTML generation in `backend/lib/Competences/Backend/HTTP.hs`
-- **JavaScript**: Basecoat JS files were removed (unused). Only CSS-based patterns are used currently.
-
-**Current Status**:
-- ✅ Basecoat CSS self-hosted and integrated
-- ✅ Most View modules already use Basecoat-aligned classes (Button, Input, Card, Badge, Table)
-- ✅ Tooltip migrated to use `data-tooltip` pattern (CSS-only)
+- **CSS**: Imported via `basecoat-css` npm package in `input.css`, built into single `output.css`
+- **Integration**: Single CSS file loaded via backend HTML generation in `backend/lib/Competences/Backend/HTTP.hs`
+- **JavaScript**: Basecoat JS files are not used. Only CSS-based patterns are used currently.
 
 ### CSS Build System
 
-**Production CSS**: Generated via Tailwind CLI, served from `/static/output.css`
-- **Source**: `frontend/static-src/input.css` (Tailwind directives + CSS variables)
-- **Output**: `static/output.css` (~321KB minified, includes full Basecoat color palette via safelist)
+**Production CSS**: Generated via Tailwind v4 CLI (`@tailwindcss/cli`), served from `/static/output.css`
+- **Source**: `frontend/static-src/input.css` (`@import "tailwindcss"; @import "basecoat-css";` + theme variables)
+- **Output**: `static/output.css` (~192KB minified, includes Basecoat components + Tailwind utilities)
 - **Build**: `npm run build:css` (integrated into `deploy_frontend.sh`)
-- **Config**: `tailwind.config.js` with safelist for dynamic class names
+- **Safelist**: `@source inline()` directives in `input.css` with brace expansion for dynamic class names
 
-**Why safelist?** Tailwind's content scanner can't detect dynamically constructed class names in Haskell code (via `class_` helper), so we safelist the complete Basecoat color palette to ensure all needed classes are available.
+**Why safelist?** Tailwind's content scanner can't detect dynamically constructed class names in Haskell code (via `class_` helper), so we use `@source inline()` to ensure all needed classes are available.
 
 ### Migration Guide
 

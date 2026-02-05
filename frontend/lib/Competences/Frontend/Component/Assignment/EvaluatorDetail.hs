@@ -42,6 +42,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
+import qualified Competences.Frontend.View.Button as Button
 
 -- | Find evidences for a specific date, keyed by student.
 -- Used to filter assignmentEvidences by the current evaluationDate at each usage site.
@@ -395,27 +396,13 @@ evaluatorComponent r assignment =
             ]
 
     viewSocialFormButton m sf =
-      let isSelected = m.selectedSocialForm == sf
-          buttonClass = if isSelected
-                          then "px-3 py-1 rounded bg-primary text-primary-foreground text-sm cursor-pointer hover:bg-primary/90"
-                          else "px-3 py-1 rounded bg-secondary text-secondary-foreground text-sm cursor-pointer hover:bg-secondary/80"
-       in M.button_
-            [class_ buttonClass, M.onClick (SetSocialForm sf)]
-            [M.text $ C.translate' $ C.LblSocialForm sf]
+      Button.toggle (m.selectedSocialForm == sf) (Button.button' (C.LblSocialForm sf) (SetSocialForm sf))
 
     viewStudentButton m student =
-      let isSelected = Set.member student.id m.selectedStudents
+      let contents = if hasEvidence then Button.toButtonContents (V.IcnApply, ms student.name)
+                                    else Button.toButtonContents (ms student.name)
           hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
-          buttonClass = if isSelected
-                          then "px-3 py-1 rounded bg-primary text-primary-foreground text-sm cursor-pointer hover:bg-primary/90"
-                          else "px-3 py-1 rounded bg-secondary text-secondary-foreground text-sm cursor-pointer hover:bg-secondary/80"
-       in M.button_
-            [class_ buttonClass, M.onClick (ToggleStudentSelection student.id)]
-            [ M.text $ ms student.name
-            , if hasEvidence
-                then M.span_ [class_ "ml-1 text-xs opacity-75"] [M.text "\x2713"]
-                else M.text ""
-            ]
+      in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button' contents (ToggleStudentSelection student.id)
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
@@ -443,11 +430,7 @@ evaluatorComponent r assignment =
                                   <> C.translate' C.LblWillBeEdited
                                   <> ms studentNames
                               ]
-                          , M.button_
-                              [ class_ "ml-3 text-sm px-3 py-1 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 shrink-0"
-                              , M.onClick ResetLoadedEvidence
-                              ]
-                              [M.text $ C.translate' C.LblReset]
+                          , Button.secondarySm (Button.button' C.LblReset ResetLoadedEvidence)
                           ]
                       ]
               -- State A: no evidence loaded — show per-student items with load buttons
@@ -465,11 +448,7 @@ evaluatorComponent r assignment =
             Nothing -> T.pack (show userId)
        in M.div_ [class_ "flex items-center justify-between"]
             [ M.span_ [class_ "text-sm text-yellow-800"] [M.text $ ms userName]
-            , M.button_
-                [ class_ "text-sm px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                , M.onClick (LoadStudentEvidence userId)
-                ]
-                [M.text $ C.translate' C.LblLoadEvidence]
+            , Button.secondarySm (Button.button' C.LblLoadEvidence (LoadStudentEvidence userId))
             ]
 
     viewCompactStudentStatus m taskId userId =

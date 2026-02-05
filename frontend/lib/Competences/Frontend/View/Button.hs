@@ -7,6 +7,8 @@ module Competences.Frontend.View.Button
   , ButtonContents (..)
   , ButtonContentsStyle (..)
   , ButtonDisabled (..)
+  , ToButtonContents (..)
+  , ToAction (..)
   , button
   , button'
   , render
@@ -174,18 +176,21 @@ render v s ButtonConfig {contents = c, action = a, tooltip = t} =
     tooltipAttrs = case t of
       (Just t') -> [MP.title_ t']
       Nothing -> []
+    -- Basecoat button class naming: btn[-size][-icon][-variant]
+    -- Primary has no variant suffix (btn = primary)
     activeClass =
       intercalate "-" $
-        ["btn", variantClass v]
+        ["btn"]
           <> maybeToList (sizeClass s)
           <> maybeToList (iconClass c)
+          <> maybeToList (variantClass v)
       where
-        variantClass Primary = "primary"
-        variantClass Secondary = "secondary"
-        variantClass Destructive = "destructive"
-        variantClass Ghost = "ghost"
-        variantClass Link = "link"
-        variantClass Outline = "outline"
+        variantClass Primary = Nothing
+        variantClass Secondary = Just "secondary"
+        variantClass Destructive = Just "destructive"
+        variantClass Ghost = Just "ghost"
+        variantClass Link = Just "link"
+        variantClass Outline = Just "outline"
 
         sizeClass Small = Just "sm"
         sizeClass Regular = Nothing

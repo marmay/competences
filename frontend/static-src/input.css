@@ -1,104 +1,158 @@
-/* Tailwind CSS directives */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "basecoat-css";
 
-/* CSS Variable Definitions for Theming */
+/* Source scanning for Haskell files */
+@source "../**/*.hs";
+@source "./index.js";
+
+/* Safelist dynamic classes that Tailwind can't detect in Haskell strings */
+@source inline("dark theme-claude theme-ocean");
+@source inline("!w-[66vw] !min-w-[66vw] !max-w-none !h-[90vh] flex-shrink-0");
+@source inline("bg-{primary,secondary,destructive,background,card,muted,accent}");
+@source inline("bg-{primary,secondary,destructive,background,card,muted,accent}/{10,20,30,50}");
+@source inline("text-{primary,secondary,destructive,foreground,muted,accent}");
+@source inline("text-{primary,secondary,destructive,foreground,muted,accent}-foreground");
+@source inline("border-{primary,secondary,destructive,border,input,accent}");
+@source inline("ring-{primary,ring,accent}");
+@source inline("bg-ability-{success,success-light,warning,danger}");
+@source inline("text-ability-{success,success-light,warning,danger}");
+@source inline("bg-{green,amber,red}-{500,600,700}");
+@source inline("text-{green,amber,red}-{500,600,700}");
+@source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
+@source inline("text-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
+@source inline("border-{gray,green,blue,yellow,orange}-{50,100,200,300,400,500,600,700,800,900}");
+
+/*
+ * Override Basecoat's theme mappings with @theme inline.
+ * This makes utilities reference var(--primary) directly instead of
+ * var(--color-primary), enabling runtime theme switching via CSS classes.
+ * See: https://tailwindcss.com/docs/theme (@theme inline section)
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ability-success: var(--ability-success);
+  --color-ability-success-light: var(--ability-success-light);
+  --color-ability-warning: var(--ability-warning);
+  --color-ability-danger: var(--ability-danger);
+}
+
+/*
+ * Theme variable overrides.
+ * These MUST be outside @layer to override Basecoat's unlayered defaults.
+ * (Unlayered CSS only overrides other unlayered CSS by source order.)
+ */
+:root {
+  --radius: 0.5rem;
+
+  /* Default theme (light mode) - Modern Indigo/Slate palette */
+  --background: oklch(0.985 0.002 264);
+  --foreground: oklch(0.205 0.015 264);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.015 264);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.015 264);
+
+  --primary: oklch(0.511 0.262 276);
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.928 0.006 264);
+  --secondary-foreground: oklch(0.372 0.01 264);
+
+  --muted: oklch(0.968 0.003 264);
+  --muted-foreground: oklch(0.446 0.012 264);
+
+  --accent: oklch(0.928 0.006 264);
+  --accent-foreground: oklch(0.205 0.015 264);
+
+  --destructive: oklch(0.577 0.245 27);
+  --destructive-foreground: oklch(1 0 0);
+
+  --border: oklch(0.869 0.007 264);
+  --input: oklch(0.869 0.007 264);
+  --ring: oklch(0.511 0.262 276);
+
+  /* Ability colors - traffic light pattern for competence levels */
+  --ability-success: oklch(0.527 0.154 163);
+  --ability-success-light: oklch(0.627 0.194 163);
+  --ability-warning: oklch(0.666 0.179 58);
+  --ability-danger: oklch(0.577 0.245 27);
+}
+
+/* Dark mode */
+.dark {
+  --background: oklch(0.129 0.014 264);
+  --foreground: oklch(0.968 0.003 264);
+
+  --card: oklch(0.208 0.012 264);
+  --card-foreground: oklch(0.968 0.003 264);
+
+  --popover: oklch(0.208 0.012 264);
+  --popover-foreground: oklch(0.968 0.003 264);
+
+  --primary: oklch(0.585 0.233 277);
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.279 0.012 264);
+  --secondary-foreground: oklch(0.968 0.003 264);
+
+  --muted: oklch(0.279 0.012 264);
+  --muted-foreground: oklch(0.556 0.01 264);
+
+  --accent: oklch(0.279 0.012 264);
+  --accent-foreground: oklch(0.968 0.003 264);
+
+  --destructive: oklch(0.577 0.245 27);
+  --destructive-foreground: oklch(1 0 0);
+
+  --border: oklch(0.279 0.012 264);
+  --input: oklch(0.279 0.012 264);
+  --ring: oklch(0.585 0.233 277);
+
+  /* Ability colors - brighter for dark mode visibility */
+  --ability-success: oklch(0.627 0.194 163);
+  --ability-success-light: oklch(0.723 0.219 163);
+  --ability-warning: oklch(0.766 0.179 58);
+  --ability-danger: oklch(0.677 0.245 27);
+}
+
+/* Claude theme - warm orange accent */
+.theme-claude {
+  --primary: oklch(0.657 0.195 41);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.657 0.195 41);
+}
+
+/* Ocean theme - teal/cyan accent */
+.theme-ocean {
+  --primary: oklch(0.541 0.154 192);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.541 0.154 192);
+  --ability-success: oklch(0.541 0.154 192);
+  --ability-success-light: oklch(0.641 0.184 192);
+}
+
+/* Base element styles (these belong in @layer base) */
 @layer base {
-  :root {
-    /* Base radius for components */
-    --radius: 0.5rem;
-
-    /* Default theme (light mode) - Modern Indigo/Slate palette */
-    --background: 0.985 0.002 264;      /* subtle cool gray tint */
-    --foreground: 0.205 0.015 264;      /* slate-900 */
-
-    --card: 1 0 0;                      /* white */
-    --card-foreground: 0.205 0.015 264;
-
-    --popover: 1 0 0;
-    --popover-foreground: 0.205 0.015 264;
-
-    --primary: 0.511 0.262 276;         /* indigo-600 - professional, modern */
-    --primary-foreground: 1 0 0;        /* white */
-
-    --secondary: 0.928 0.006 264;       /* slate-100 */
-    --secondary-foreground: 0.372 0.01 264;  /* slate-600 */
-
-    --muted: 0.968 0.003 264;           /* slate-50 */
-    --muted-foreground: 0.446 0.012 264;     /* slate-500 */
-
-    --accent: 0.928 0.006 264;          /* slate-100 */
-    --accent-foreground: 0.205 0.015 264;
-
-    --destructive: 0.577 0.245 27;      /* red-600 */
-    --destructive-foreground: 1 0 0;
-
-    --border: 0.869 0.007 264;          /* slate-200 */
-    --input: 0.869 0.007 264;
-    --ring: 0.511 0.262 276;            /* indigo-600 */
-
-    /* Ability colors - traffic light pattern for competence levels */
-    --ability-success: 0.527 0.154 163;       /* emerald-700 */
-    --ability-success-light: 0.627 0.194 163; /* emerald-500 */
-    --ability-warning: 0.666 0.179 58;        /* amber-600 */
-    --ability-danger: 0.577 0.245 27;         /* red-600 */
-  }
-
-  /* Dark mode */
-  .dark {
-    --background: 0.129 0.014 264;      /* slate-950 */
-    --foreground: 0.968 0.003 264;      /* slate-50 */
-
-    --card: 0.208 0.012 264;            /* slate-900 */
-    --card-foreground: 0.968 0.003 264;
-
-    --popover: 0.208 0.012 264;
-    --popover-foreground: 0.968 0.003 264;
-
-    --primary: 0.585 0.233 277;         /* indigo-500 */
-    --primary-foreground: 1 0 0;
-
-    --secondary: 0.279 0.012 264;       /* slate-800 */
-    --secondary-foreground: 0.968 0.003 264;
-
-    --muted: 0.279 0.012 264;
-    --muted-foreground: 0.556 0.01 264; /* slate-400 */
-
-    --accent: 0.279 0.012 264;
-    --accent-foreground: 0.968 0.003 264;
-
-    --destructive: 0.577 0.245 27;
-    --destructive-foreground: 1 0 0;
-
-    --border: 0.279 0.012 264;
-    --input: 0.279 0.012 264;
-    --ring: 0.585 0.233 277;
-
-    /* Ability colors - brighter for dark mode visibility */
-    --ability-success: 0.627 0.194 163;
-    --ability-success-light: 0.723 0.219 163;
-    --ability-warning: 0.766 0.179 58;
-    --ability-danger: 0.677 0.245 27;
-  }
-
-  /* Claude theme - warm orange accent */
-  .theme-claude {
-    --primary: 0.657 0.195 41;          /* Claude orange */
-    --primary-foreground: 1 0 0;
-    --ring: 0.657 0.195 41;
-  }
-
-  /* Ocean theme - teal/cyan accent */
-  .theme-ocean {
-    --primary: 0.541 0.154 192;         /* teal-600 */
-    --primary-foreground: 1 0 0;
-    --ring: 0.541 0.154 192;
-    --ability-success: 0.541 0.154 192; /* use teal for success too */
-    --ability-success-light: 0.641 0.184 192;
-  }
-
-  /* Apply base styles */
   * {
     @apply border-border;
   }
@@ -108,15 +162,10 @@
   }
 }
 
-/* Component utilities can be added here if needed */
+/* Component utilities */
 @layer components {
   /* Hide MathJax assistive MathML (accessibility fallback that shows as text) */
   mjx-assistive-mml {
     display: none !important;
   }
-}
-
-/* Custom utilities */
-@layer utilities {
-  /* Future: Add custom utility classes here */
 }
