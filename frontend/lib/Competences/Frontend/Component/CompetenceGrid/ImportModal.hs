@@ -30,7 +30,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
@@ -223,7 +223,7 @@ previewDeletedCompetence c =
         [ M.span_
             [class_ "font-medium text-muted-foreground line-through"]
             [M.text $ M.ms c.description]
-        , badge BadgeDestructive "Löschen"
+        , Badge.destructive ("Löschen" :: M.MisoString)
         ]
     ]
 
@@ -264,9 +264,9 @@ levelPreview levels =
           ]
 
 actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = badge BadgePrimary "Neu"
-actionBadge (Update _ _) = badge BadgeSecondary "Aktualisiert"
-actionBadge (NoChange _) = badge BadgeOutline "Unverändert"
+actionBadge (Create _) = Badge.primary ("Neu" :: M.MisoString)
+actionBadge (Update _ _) = Badge.secondary ("Aktualisiert" :: M.MisoString)
+actionBadge (NoChange _) = Badge.outline ("Unverändert" :: M.MisoString)
 
 -- ============================================================================
 -- Apply Import

@@ -36,7 +36,9 @@ import Competences.Document (Document (..), emptyDocument)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
-import Competences.Frontend.View.Badge (BadgeVariant (..), InteractiveBadgeConfig (..), interactiveBadge)
+import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Icon (Icon (IcnCancel))
+import Competences.Frontend.View.Tooltip (Tooltip (..))
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Kind (Type)
@@ -550,13 +552,11 @@ viewResultBadge config model result =
       deleteAction = case config.style of
         MultiStageSelectorEnabled | canDelete -> Just (DeleteResult result)
         _ -> Nothing
-   in interactiveBadge
-        InteractiveBadgeConfig
-          { text = badgeText
-          , tooltip = tooltipContent
-          , onDelete = deleteAction
-          , variant = BadgeSecondary
-          }
+   in Badge.interactive
+        Badge.Secondary
+        (maybe NoTooltip PlainTooltip tooltipContent)
+        (fmap (\a -> (IcnCancel, a)) deleteAction)
+        badgeText
 
 -- | Render the current input cursor showing breadcrumb and partial input
 viewInputCursor

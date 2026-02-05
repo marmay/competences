@@ -1,7 +1,5 @@
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
 module Competences.Frontend.View.Color
-  ( ColorPalette -- opaque, constructor NOT exported
+  ( ColorPalette (..)
   , green
   , lime
   , yellow

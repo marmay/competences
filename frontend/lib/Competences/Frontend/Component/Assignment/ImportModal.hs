@@ -33,7 +33,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View.Badge (BadgeVariant (..), badge)
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
@@ -304,16 +304,16 @@ competenceMatchView cm =
     [ M.span_ [class_ "text-muted-foreground"] [M.text $ M.ms cm.gridName]
     , M.span_ [] [M.text "/"]
     , M.span_ [] [M.text $ M.ms $ T.take 20 cm.description <> if T.length cm.description > 20 then "..." else ""]
-    , badge BadgeOutline (M.ms $ levelToGerman cm.level)
+    , Badge.outline (M.ms $ levelToGerman cm.level)
     , case cm.matched of
-        Just _ -> badge BadgePrimary "OK"
-        Nothing -> badge BadgeDestructive "?"
+        Just _ -> Badge.primary ("OK" :: M.MisoString)
+        Nothing -> Badge.destructive ("?" :: M.MisoString)
     ]
 
 actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = badge BadgePrimary "Neu"
-actionBadge (Update _ _) = badge BadgeSecondary "Aktualisiert"
-actionBadge (NoChange _) = badge BadgeOutline "Unverändert"
+actionBadge (Create _) = Badge.primary ("Neu" :: M.MisoString)
+actionBadge (Update _ _) = Badge.secondary ("Aktualisiert" :: M.MisoString)
+actionBadge (NoChange _) = Badge.outline ("Unverändert" :: M.MisoString)
 
 -- ============================================================================
 -- Apply Import

@@ -216,25 +216,25 @@ taskStatusHeaderBg _ = "bg-muted/50"
 
 purposeBadge :: TaskPurpose -> M.View model a
 purposeBadge purpose =
-  Badge.badge
+  Badge.render
     (purposeBadgeVariant purpose)
     (C.translate' $ C.LblTaskPurpose purpose)
 
 purposeBadgeVariant :: TaskPurpose -> Badge.BadgeVariant
-purposeBadgeVariant Practice = Badge.BadgeSecondary
-purposeBadgeVariant Assessment = Badge.BadgePrimary
+purposeBadgeVariant Practice = Badge.Secondary
+purposeBadgeVariant Assessment = Badge.Primary
 
 solutionTypeBadge :: SolutionType -> M.View model a
 solutionTypeBadge st =
-  Badge.badge (solutionTypeBadgeVariant st) (solutionTypeLabel st)
+  Badge.render (solutionTypeBadgeVariant st) (solutionTypeLabel st)
 
 solutionTypeLabel :: SolutionType -> M.MisoString
 solutionTypeLabel = C.translate' . C.LblSolutionType
 
 solutionTypeBadgeVariant :: SolutionType -> Badge.BadgeVariant
-solutionTypeBadgeVariant Hint = Badge.BadgeSecondary
-solutionTypeBadgeVariant Results = Badge.BadgeOutline
-solutionTypeBadgeVariant Complete = Badge.BadgePrimary
+solutionTypeBadgeVariant Hint = Badge.Secondary
+solutionTypeBadgeVariant Results = Badge.Outline
+solutionTypeBadgeVariant Complete = Badge.Primary
 
 -- ============================================================================
 -- State Update
