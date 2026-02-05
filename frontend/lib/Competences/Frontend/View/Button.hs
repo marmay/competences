@@ -9,7 +9,6 @@ module Competences.Frontend.View.Button
   , ButtonDisabled (..)
   , ToButtonContents (..)
   , ToAction (..)
-  , button
   , button'
   , render
   , primary
@@ -146,36 +145,22 @@ instance ToAction ButtonDisabled a where
 data ButtonConfig a = ButtonConfig
   { contents :: !ButtonContents
   , action :: !(Maybe a)
-  , tooltip :: !(Maybe MisoString)
   }
-
-button :: (ToButtonContents c, ToAction a' a) => c -> a' -> MisoString -> ButtonConfig a
-button c a t =
-  ButtonConfig
-    { contents = toButtonContents c
-    , action = toAction a
-    , tooltip = Just t
-    }
 
 button' :: (ToButtonContents c, ToAction a' a) => c -> a' -> ButtonConfig a
 button' c a =
   ButtonConfig
     { contents = toButtonContents c
     , action = toAction a
-    , tooltip = Nothing
     }
 
 render :: ButtonVariant -> ButtonSize -> ButtonConfig a -> M.View m a
-render v s ButtonConfig {contents = c, action = a, tooltip = t} =
+render v s ButtonConfig {contents = c, action = a} =
   M.button_ attrs [renderContents c]
   where
-    attrs = btnAttrs <> tooltipAttrs
-    btnAttrs = case a of
+    attrs = case a of
       (Just a') -> [M.onClick a', MP.class_ activeClass]
       Nothing -> [MP.disabled_, MP.class_ disabledClass]
-    tooltipAttrs = case t of
-      (Just t') -> [MP.title_ t']
-      Nothing -> []
     -- Basecoat button class naming: btn[-size][-icon][-variant]
     -- Primary has no variant suffix (btn = primary)
     activeClass =
