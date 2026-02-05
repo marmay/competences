@@ -41,6 +41,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Colors qualified as Colors
@@ -370,10 +371,9 @@ assessmentComponent r grid =
                       , if levelInfo.locked
                           then StatusIcon.lockIcon
                           else if hasDesc
-                            then MH.span_ [class_ "group relative cursor-help"]
-                                   [ V.icon [class_ "text-stone-400"] IcnInfo
-                                   , V.groupHoverTooltip (M.ms levelInfo.description)
-                                   ]
+                            then withTooltip (RichTooltip (M.text $ M.ms levelInfo.description)) $
+                                   MH.span_ [class_ "cursor-help"]
+                                     [V.icon [class_ "text-stone-400"] IcnInfo]
                             else V.empty
                       ]
 

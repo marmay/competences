@@ -12,7 +12,7 @@ import Competences.Frontend.WebSocket.CommandSender
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (TooltipPosition (..), withTooltipPosition)
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -46,7 +46,7 @@ connectionStatusComponent ir =
           & #pendingCount .~ change.pendingCount
 
     view m =
-      withTooltipPosition TooltipLeft (tooltipText m) $
+      withTooltip (PlainTooltip (tooltipText m)) $
         M.div_
           [class_ "flex items-center gap-1.5 px-2 py-1 rounded-full cursor-default"]
           [ M.span_ [class_ $ "w-2.5 h-2.5 rounded-full " <> dotClasses m.connectionState] []

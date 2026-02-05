@@ -11,7 +11,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Colors (abilityTextClass)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (withTooltip)
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Svg.Property qualified as MSP
@@ -30,7 +30,7 @@ observationIconView obs =
   let abilityClass = abilityTextClass obs.ability
       abilityIcn = abilityIcon obs.ability
       tooltipText = C.translate' (C.LblAbility obs.ability)
-   in withTooltip tooltipText $
+   in withTooltip (PlainTooltip tooltipText) $
         M.span_
           [class_ abilityClass]
           [icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]

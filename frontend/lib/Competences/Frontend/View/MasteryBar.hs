@@ -7,7 +7,7 @@ where
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (groupHoverTooltip)
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Query.Mastery (MasteryStatus (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -81,15 +81,15 @@ masteryDisplay config =
           studentNames = T.intercalate ", " $ map (.name) studentList
           tooltipContent = label <> "\n" <> M.ms studentNames
           -- Only show tooltip if there are students (no point showing empty tooltip)
-          tooltipView =
+          tip =
             if isZero
-              then M.text ""
-              else groupHoverTooltip tooltipContent
-       in MH.div_
-            [class_ $ "group relative flex items-center gap-0.5" <> opacityClass]
-            [ tooltipView
-            , -- Colored square
-              MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
-            , -- Count
-              MH.span_ [class_ textClass] [M.text $ M.ms $ show count]
-            ]
+              then NoTooltip
+              else RichTooltip (M.text tooltipContent)
+       in withTooltip tip $
+            MH.div_
+              [class_ $ "flex items-center gap-0.5" <> opacityClass]
+              [ -- Colored square
+                MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
+              , -- Count
+                MH.span_ [class_ textClass] [M.text $ M.ms $ show count]
+              ]
