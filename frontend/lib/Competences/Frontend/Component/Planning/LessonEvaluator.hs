@@ -217,7 +217,7 @@ lessonEvaluatorComponent r initialLesson =
               MH.div_
                 [class_ "flex items-center justify-between mb-2"]
                 [ MH.span_ [class_ "font-medium text-sm"] [M.text $ ms user.name]
-                , Button.ghostSm (Button.button' IcnEdit (OpenStudentDetail user.id))
+                , Button.ghostSm (Button.button IcnEdit (OpenStudentDetail user.id))
                 ]
             , -- Participation toggles (two buttons per category)
               viewParticipationControls user.id prs

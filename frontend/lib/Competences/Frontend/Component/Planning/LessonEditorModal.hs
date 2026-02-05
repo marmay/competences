@@ -257,7 +257,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
             ]
         , Modal.modalFooter
             [ Button.cancelButton CloseModal
-            , Button.primary (Button.button' C.LblSave SaveAndClose)
+            , Button.primary (Button.button C.LblSave SaveAndClose)
             ]
         ]
 
@@ -402,7 +402,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         [ MH.div_
             [class_ "flex items-center justify-between mb-2"]
             [ Typography.h4 (C.translate' C.LblLessonPhases)
-            , Button.secondarySm (Button.button' (IcnAdd, C.LblAddPhase) AddPhase)
+            , Button.secondarySm (Button.button (IcnAdd, C.LblAddPhase) AddPhase)
             ]
         , if null m.phases
             then
@@ -440,7 +440,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 ]
             )
             -- Actions
-            [ Button.ghostSm (Button.button' IcnDelete (DeletePhase idx)) ]
+            [ Button.ghostSm (Button.button IcnDelete (DeletePhase idx)) ]
             -- Content
             (viewPhaseEditor idx phase)
 

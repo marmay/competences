@@ -195,4 +195,4 @@ viewToggleButtons
 viewToggleButtons compact possibleValues showValue isSelected =
   (if compact then Button.buttonGroup else V.viewFlow V.hFlow) (map mkButton possibleValues)
   where
-    mkButton a = Button.toggle (isSelected a) (Button.button' (showValue a) (Toggle a))
+    mkButton a = Button.toggle (isSelected a) (Button.button (showValue a) (Toggle a))

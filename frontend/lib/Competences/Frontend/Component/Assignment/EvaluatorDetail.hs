@@ -396,13 +396,13 @@ evaluatorComponent r assignment =
             ]
 
     viewSocialFormButton m sf =
-      Button.toggle (m.selectedSocialForm == sf) (Button.button' (C.LblSocialForm sf) (SetSocialForm sf))
+      Button.toggle (m.selectedSocialForm == sf) (Button.button (C.LblSocialForm sf) (SetSocialForm sf))
 
     viewStudentButton m student =
       let contents = if hasEvidence then Button.toButtonContents (V.IcnApply, ms student.name)
                                     else Button.toButtonContents (ms student.name)
           hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
-      in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button' contents (ToggleStudentSelection student.id)
+      in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button contents (ToggleStudentSelection student.id)
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
@@ -430,7 +430,7 @@ evaluatorComponent r assignment =
                                   <> C.translate' C.LblWillBeEdited
                                   <> ms studentNames
                               ]
-                          , Button.secondarySm (Button.button' C.LblReset ResetLoadedEvidence)
+                          , Button.secondarySm (Button.button C.LblReset ResetLoadedEvidence)
                           ]
                       ]
               -- State A: no evidence loaded — show per-student items with load buttons
@@ -448,7 +448,7 @@ evaluatorComponent r assignment =
             Nothing -> T.pack (show userId)
        in M.div_ [class_ "flex items-center justify-between"]
             [ M.span_ [class_ "text-sm text-yellow-800"] [M.text $ ms userName]
-            , Button.secondarySm (Button.button' C.LblLoadEvidence (LoadStudentEvidence userId))
+            , Button.secondarySm (Button.button C.LblLoadEvidence (LoadStudentEvidence userId))
             ]
 
     viewCompactStudentStatus m taskId userId =

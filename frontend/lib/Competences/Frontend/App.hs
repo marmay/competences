@@ -126,9 +126,9 @@ mkApp ir =
           if isActive
             then M.span_
                    [class_ "bg-white/20 rounded-md"]
-                   [ Button.ghost $ Button.button' lbl (PushURI $ M.toURI p)
+                   [ Button.ghost $ Button.button lbl (PushURI $ M.toURI p)
                    ]
-            else Button.secondary $ Button.button' lbl (PushURI $ M.toURI p)
+            else Button.secondary $ Button.button lbl (PushURI $ M.toURI p)
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"

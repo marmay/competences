@@ -207,8 +207,8 @@ detailComponent r initialPlan =
                 ]
             , MH.div_
                 [class_ "flex gap-1"]
-                [ Button.ghostSm (Button.button' IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
-                , Button.destructiveSm (Button.button' IcnDelete DeleteMesoPlan)
+                [ Button.ghostSm (Button.button IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
+                , Button.destructiveSm (Button.button IcnDelete DeleteMesoPlan)
                 ]
             ]
         , MH.div_
@@ -216,7 +216,7 @@ detailComponent r initialPlan =
             (map (viewLesson m) m.lessons)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.primary (Button.button' (IcnAdd, C.LblAddLesson) CreateNewLesson)
+            [ Button.primary (Button.button (IcnAdd, C.LblAddLesson) CreateNewLesson)
             ]
         ]
 
@@ -238,9 +238,9 @@ detailComponent r initialPlan =
                 ]
             )
             -- Actions
-            [ Button.ghostSm (Button.button' IcnPin (PinLessonEvaluation lesson))
-            , Button.ghostSm (Button.button' IcnEdit (OpenLessonEditorModal lesson))
-            , Button.destructiveSm (Button.button' IcnDelete (DeleteLesson lesson.id))
+            [ Button.ghostSm (Button.button IcnPin (PinLessonEvaluation lesson))
+            , Button.ghostSm (Button.button IcnEdit (OpenLessonEditorModal lesson))
+            , Button.destructiveSm (Button.button IcnDelete (DeleteLesson lesson.id))
             ]
             -- Content
             (viewExpandedLesson m lesson)
@@ -331,6 +331,6 @@ detailComponent r initialPlan =
            in MH.div_
                 [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
                 [ M.text $ M.ms nameText
-                , Button.ghostSm (Button.button' IcnApply (PinAssignmentEvaluation a))
+                , Button.ghostSm (Button.button IcnApply (PinAssignmentEvaluation a))
                 ]
 

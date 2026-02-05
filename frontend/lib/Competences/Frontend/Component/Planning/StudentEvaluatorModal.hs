@@ -429,7 +429,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                     then
                       Button.deleteButton DeleteEvidence
                     else
-                      Button.primary (Button.button' actionLabel (isDisabled, SaveEvidence))
+                      Button.primary (Button.button actionLabel (isDisabled, SaveEvidence))
                 ]
             ]
 
@@ -488,7 +488,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             , MH.div_
                 [class_ "flex gap-2 mt-1 items-start"]
                 [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
-                , Button.primary (Button.button' C.LblAdd (canAdd, AddTask))
+                , Button.primary (Button.button C.LblAdd (canAdd, AddTask))
                 ]
             ]
 

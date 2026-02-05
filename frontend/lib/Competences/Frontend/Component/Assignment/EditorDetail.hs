@@ -114,7 +114,7 @@ editorWrapperComponent r assignment =
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
-            [ Button.outline $ Button.button' (IcnApply, C.LblEvaluateAssignment) PinEvaluation
+            [ Button.outline $ Button.button (IcnApply, C.LblEvaluateAssignment) PinEvaluation
             , V.component
                 ("export-btn-" <> M.ms (show assignment.id))
                 (exportButtonComponent (\m' -> exportAssignment m'.document assignment))

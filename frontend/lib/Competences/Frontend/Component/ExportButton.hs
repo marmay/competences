@@ -64,5 +64,5 @@ exportButtonComponent extractText =
       M.modify $ #exportSuccess .~ False
 
     view m
-      | m.exportSuccess = Button.secondary $ Button.button' IcnApply Button.Disabled
-      | otherwise = Button.secondary $ Button.button' (IcnExport, C.LblExport) RequestExport
+      | m.exportSuccess = Button.secondary $ Button.button IcnApply Button.Disabled
+      | otherwise = Button.secondary $ Button.button (IcnExport, C.LblExport) RequestExport

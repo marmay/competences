@@ -245,7 +245,7 @@ assessmentComponent r grid =
 
               -- "Not Achieved" button
               notAchievedBtn =
-                Button.toggle (currentLevel == Just Nothing) (Button.button' C.LblNotAchieved (SetAssessmentLevel competence Nothing))
+                Button.toggle (currentLevel == Just Nothing) (Button.button C.LblNotAchieved (SetAssessmentLevel competence Nothing))
 
               -- Level buttons - disabled only if no description
               -- Locked levels show a lock icon indicator but remain clickable
@@ -253,8 +253,8 @@ assessmentComponent r grid =
                 let isActive = currentLevel == Just (Just lvl)
                     isEnabled = hasDescription lvl
                     locked = isLocked lvl
-                 in if locked then Button.primary (Button.button' (IcnLock, C.LblCompetenceLevelDescription lvl) Button.Disabled)
-                              else Button.toggle isActive (Button.button' (C.LblCompetenceLevelDescription lvl) (isEnabled, SetAssessmentLevel competence (Just lvl)))
+                 in if locked then Button.primary (Button.button (IcnLock, C.LblCompetenceLevelDescription lvl) Button.Disabled)
+                              else Button.toggle isActive (Button.button (C.LblCompetenceLevelDescription lvl) (isEnabled, SetAssessmentLevel competence (Just lvl)))
 
               -- Delete button (red trash icon)
               deleteBtn = Button.deleteButton (isJust todayAssessment, ClearAssessment competence)

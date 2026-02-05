@@ -169,7 +169,7 @@ competenceGridImportModalComponent r =
                 ]
             , Modal.modalFooter
                 [ Button.cancelButton CloseModal
-                , Button.primary (Button.button' ("Vorschau" :: M.MisoString) ParseInput)
+                , Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
                 , case m.parseResult of
                     Right previews
                       | not (null previews) && any hasChanges previews ->

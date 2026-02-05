@@ -175,8 +175,8 @@ assignmentImportModalComponent r =
                     ]
                 ]
             , Modal.modalFooter
-                [ Button.secondary (Button.button' C.LblCancel CloseModal)
-                , Button.primary (Button.button' ("Vorschau" :: M.MisoString) ParseInput)
+                [ Button.secondary (Button.button C.LblCancel CloseModal)
+                , Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
                 , case m.parseResult of
                     Right previews
                       | not (null previews) && any hasChanges previews ->

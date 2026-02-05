@@ -148,7 +148,7 @@ resourcesComponent r grid =
                in MH.div_ []
                     [ -- Header with back button and competence level info
                       MH.div_ [class_ "flex items-center gap-2 mb-4 border-b border-stone-200 pb-4"]
-                        [ Button.ghostSm (Button.button' ("← Zurück" :: M.MisoString) ClearEditingResource)
+                        [ Button.ghostSm (Button.button ("← Zurück" :: M.MisoString) ClearEditingResource)
                         , case mCompLevelInfo of
                             Nothing -> V.empty
                             Just cli ->
@@ -186,7 +186,7 @@ resourceListView compLevels resources =
                 [ MH.span_
                     [class_ "font-medium text-stone-700 truncate flex-1 mr-2"]
                     [M.text $ M.ms cli.competence.description]
-                , Button.ghostSm (Button.button' (IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
+                , Button.ghostSm (Button.button (IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
                 ]
             , -- Header row 2: Level name + level description
               MH.div_

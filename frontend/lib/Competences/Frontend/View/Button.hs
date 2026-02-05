@@ -9,7 +9,7 @@ module Competences.Frontend.View.Button
   , ButtonDisabled (..)
   , ToButtonContents (..)
   , ToAction (..)
-  , button'
+  , button
   , render
   , primary
   , primarySm
@@ -147,8 +147,8 @@ data ButtonConfig a = ButtonConfig
   , action :: !(Maybe a)
   }
 
-button' :: (ToButtonContents c, ToAction a' a) => c -> a' -> ButtonConfig a
-button' c a =
+button :: (ToButtonContents c, ToAction a' a) => c -> a' -> ButtonConfig a
+button c a =
   ButtonConfig
     { contents = toButtonContents c
     , action = toAction a
@@ -245,11 +245,11 @@ applyButtonC
   , editButtonC
   , moveButtonC
     :: (ToAction a' a) => a' -> ButtonConfig a
-applyButtonC = button' (IcnApply, LblApply)
-cancelButtonC = button' (IcnCancel, LblCancel)
-deleteButtonC = button' (IcnDelete, LblDelete)
-editButtonC = button' (IcnEdit, LblEdit)
-moveButtonC = button' (IcnReorder, LblMove)
+applyButtonC = button (IcnApply, LblApply)
+cancelButtonC = button (IcnCancel, LblCancel)
+deleteButtonC = button (IcnDelete, LblDelete)
+editButtonC = button (IcnEdit, LblEdit)
+moveButtonC = button (IcnReorder, LblMove)
 
 applyButton, cancelButton, deleteButton, editButton, moveButton :: (ToAction a' a) => a' -> M.View m a
 applyButton = primary . applyButtonC

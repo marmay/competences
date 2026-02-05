@@ -188,7 +188,7 @@ bulkEvidenceEditorComponent r =
             [class_ "flex gap-2"]
             [ Button.cancelButton Cancel
             , Button.primary
-                ( Button.button'
+                ( Button.button
                     C.LblSaveAll
                     (not $ Map.null $ Map.filter (not . null) m.studentObservations, SaveAll)
                 )
@@ -263,7 +263,7 @@ bulkEvidenceEditorComponent r =
               MH.div_
                 [class_ "flex justify-end"]
                 [ Button.primary
-                    ( Button.button'
+                    ( Button.button
                         C.LblAddToSelectedStudents
                         (not $ null m'.selectedStudents || null m'.pendingObservations, AddObservationsToSelectedStudents)
                     )

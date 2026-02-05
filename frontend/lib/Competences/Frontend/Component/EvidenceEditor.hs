@@ -146,8 +146,8 @@ modeButton
   -> M.View EvidenceEditorModel EvidenceEditorAction
 modeButton activeMode mode label mIcon =
    case mIcon of
-     Nothing -> Button.toggleSm (mode == activeMode) (Button.button' label (SwitchMode mode))
-     Just icon -> Button.toggleSm (mode == activeMode) (Button.button' (icon, label) (SwitchMode mode))
+     Nothing -> Button.toggleSm (mode == activeMode) (Button.button label (SwitchMode mode))
+     Just icon -> Button.toggleSm (mode == activeMode) (Button.button (icon, label) (SwitchMode mode))
 
 -- ============================================================================
 -- VIEW MODE DETAIL (Read-only)

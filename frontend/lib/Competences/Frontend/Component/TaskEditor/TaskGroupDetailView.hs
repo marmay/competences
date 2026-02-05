@@ -172,7 +172,7 @@ taskGroupEditorComponent r group =
         [ M.div_
             [class_ "flex items-center justify-between mb-4"]
             [ Typography.h3 (C.translate' C.LblSubTasks)
-            , Button.secondary (Button.button' (IcnAdd, C.LblAddSubTask) CreateSubTask)
+            , Button.secondary (Button.button (IcnAdd, C.LblAddSubTask) CreateSubTask)
             ]
         , if null m.subTasks
             then Typography.muted (C.translate' C.LblNoSubTasks)

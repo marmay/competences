@@ -106,16 +106,16 @@ editButton
   , moveToTopButton
   , moveToBottomButton
     :: forall a patch f. Button.ButtonContentsStyle -> a -> M.View (Model a patch f) (Action a patch)
-editButton s a = Button.secondary (Button.button' (s, IcnEdit, C.LblEdit) (StartEditing a :: Action a patch))
-finishEditButton s a = Button.primary (Button.button' (s, IcnApply, C.LblApply) (FinishEditing a :: Action a patch))
-cancelEditButton s a = Button.destructive (Button.button' (s, IcnCancel, C.LblCancel) (CancelEditing a :: Action a patch))
-deleteButton s a = Button.destructive (Button.button' (s, IcnDelete, C.LblDelete) (Delete a :: Action a patch))
-moveButton s a = Button.secondary (Button.button' (s, IcnReorder, C.LblMove) (StartMoving a :: Action a patch))
-cancelMoveButton s _ = Button.destructive (Button.button' (s, IcnCancel, C.LblCancel) (CancelMoving :: Action a patch))
-moveBeforeButton s a = Button.secondary (Button.button' (s, IcnArrowUp, C.LblInsertBefore) (FinishMoving (Before' a) :: Action a patch))
-moveAfterButton s a = Button.secondary (Button.button' (s, IcnArrowDown, C.LblInsertAfter) (FinishMoving (After' a) :: Action a patch))
-moveToTopButton s _ = Button.secondary (Button.button' (s, IcnDoubleArrowUp, C.LblInsertAtTop) (FinishMoving Front' :: Action a patch))
-moveToBottomButton s _ = Button.secondary (Button.button' (s, IcnDoubleArrowDown, C.LblInsertAtBottom) (FinishMoving Back' :: Action a patch))
+editButton s a = Button.secondary (Button.button (s, IcnEdit, C.LblEdit) (StartEditing a :: Action a patch))
+finishEditButton s a = Button.primary (Button.button (s, IcnApply, C.LblApply) (FinishEditing a :: Action a patch))
+cancelEditButton s a = Button.destructive (Button.button (s, IcnCancel, C.LblCancel) (CancelEditing a :: Action a patch))
+deleteButton s a = Button.destructive (Button.button (s, IcnDelete, C.LblDelete) (Delete a :: Action a patch))
+moveButton s a = Button.secondary (Button.button (s, IcnReorder, C.LblMove) (StartMoving a :: Action a patch))
+cancelMoveButton s _ = Button.destructive (Button.button (s, IcnCancel, C.LblCancel) (CancelMoving :: Action a patch))
+moveBeforeButton s a = Button.secondary (Button.button (s, IcnArrowUp, C.LblInsertBefore) (FinishMoving (Before' a) :: Action a patch))
+moveAfterButton s a = Button.secondary (Button.button (s, IcnArrowDown, C.LblInsertAfter) (FinishMoving (After' a) :: Action a patch))
+moveToTopButton s _ = Button.secondary (Button.button (s, IcnDoubleArrowUp, C.LblInsertAtTop) (FinishMoving Front' :: Action a patch))
+moveToBottomButton s _ = Button.secondary (Button.button (s, IcnDoubleArrowDown, C.LblInsertAtBottom) (FinishMoving Back' :: Action a patch))
 
 refocusTargetString :: M.MisoString
 refocusTargetString = "editor-refocus-target"

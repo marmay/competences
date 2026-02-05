@@ -137,7 +137,7 @@ taskSolutionsListComponent r taskId =
         [ Typography.h3 $ C.translate' C.LblSolutions
         , if isTeacher m.projection.connectedUser
             then
-              Button.secondarySm (Button.button' (IcnAdd, C.LblAddSolution) CreateSolution)
+              Button.secondarySm (Button.button (IcnAdd, C.LblAddSolution) CreateSolution)
             else V.empty
         ]
 
@@ -162,7 +162,7 @@ taskSolutionsListComponent r taskId =
             isExpanded
             (ToggleSolution sol.id)
             (solutionTypeBadge sol.solutionType)
-            [ Button.ghostSm (Button.button' IcnDelete (DeleteSolution sol.id))
+            [ Button.ghostSm (Button.button IcnDelete (DeleteSolution sol.id))
             | isOwner
             ]
             ( if isOwner

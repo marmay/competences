@@ -275,7 +275,7 @@ gradingComponent r grid =
                             (M.ms gm.gradeComment)
                             SetGradeComment
                         ]
-                    , Button.primary (Button.button' C.LblApply (isJust gm.selectedGrade, SubmitGrade))
+                    , Button.primary (Button.button C.LblApply (isJust gm.selectedGrade, SubmitGrade))
                     ]
                 ]
             ]
@@ -294,7 +294,7 @@ gradingComponent r grid =
                 Grade4 -> "4"
                 Grade4_5 -> "4-5"
                 Grade5 -> "5"
-           in Button.toggle isSelected (Button.button' shortLabel (SelectGrade (Just g)))
+           in Button.toggle isSelected (Button.button shortLabel (SelectGrade (Just g)))
 
         -- Grade history section
         gradeHistorySection =

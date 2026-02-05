@@ -174,7 +174,7 @@ modeSwitcher currentMode hasTasks hasResources =
     ]
   where
     modeButton mode label hasContent =
-      Button.toggleSm (mode == currentMode) $ Button.button' label (hasContent, SwitchViewMode mode)
+      Button.toggleSm (mode == currentMode) $ Button.button label (hasContent, SwitchViewMode mode)
 
 -- ============================================================================
 -- Status-grouped task view

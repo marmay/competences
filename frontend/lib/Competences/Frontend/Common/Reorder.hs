@@ -82,7 +82,7 @@ viewReorderItem m item =
         then [cancelButton]
         else [moveBeforeButton, moveAfterButton]
   where
-    moveButton = Button.secondary $ Button.button' IcnReorder (ReorderFrom $ item ^. idL)
-    cancelButton = Button.destructive $ Button.button' IcnCancel (CancelReorder :: ReorderAction a)
-    moveBeforeButton = Button.secondary $ Button.button' IcnArrowUp (ReorderBefore $ item ^. idL)
-    moveAfterButton = Button.secondary $ Button.button' IcnArrowDown (ReorderAfter $ item ^. idL)
+    moveButton = Button.secondary $ Button.button IcnReorder (ReorderFrom $ item ^. idL)
+    cancelButton = Button.destructive $ Button.button IcnCancel (CancelReorder :: ReorderAction a)
+    moveBeforeButton = Button.secondary $ Button.button IcnArrowUp (ReorderBefore $ item ^. idL)
+    moveAfterButton = Button.secondary $ Button.button IcnArrowDown (ReorderAfter $ item ^. idL)

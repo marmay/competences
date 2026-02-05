@@ -131,7 +131,7 @@ editorComponent r grid =
             (TE.editorComponent competencesEditor r)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.primary (Button.button' (IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
+            [ Button.primary (Button.button (IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
             , V.component
                 ("export-btn-" <> M.ms (show grid.id))
                 (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))

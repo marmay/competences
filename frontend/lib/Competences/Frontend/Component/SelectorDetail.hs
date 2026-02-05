@@ -150,7 +150,7 @@ selectorDetailComponent config =
            contents = case config.modeIcon mode of
              Nothing -> Button.TextOnly label
              Just icon -> Button.IconText icon label
-       in Button.toggleSm (mode == activeMode) (Button.button' contents (SwitchMode mode))
+       in Button.toggleSm (mode == activeMode) (Button.button contents (SwitchMode mode))
 
 -- | Create an empty model with the given default mode
 emptyModel :: mode -> Model a mode
