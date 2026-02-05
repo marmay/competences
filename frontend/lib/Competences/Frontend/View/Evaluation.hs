@@ -8,6 +8,7 @@
 module Competences.Frontend.View.Evaluation
   ( -- * Pure helpers
     abilityColorClass
+  , abilityPalette
   , computeAggregation
     -- * View primitives
   , viewCompetenceName
@@ -48,6 +49,7 @@ import Competences.Document.Task
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Color qualified as Color
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
@@ -62,7 +64,14 @@ import Miso.String (ms)
 -- PURE HELPERS
 -- ============================================================================
 
--- | Map Ability to CSS color classes for badges
+-- | Map Ability to a type-safe color palette
+abilityPalette :: Ability -> Color.ColorPalette
+abilityPalette SelfReliant = Color.green
+abilityPalette SelfReliantWithSillyMistakes = Color.lime
+abilityPalette WithSupport = Color.yellow
+abilityPalette NotYet = Color.red
+
+-- | Map Ability to CSS color classes for badges (legacy, prefer abilityPalette)
 abilityColorClass :: Ability -> T.Text
 abilityColorClass SelfReliant = "bg-green-100 text-green-800"
 abilityColorClass SelfReliantWithSillyMistakes = "bg-lime-100 text-lime-800"

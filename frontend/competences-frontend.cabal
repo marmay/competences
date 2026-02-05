@@ -106,6 +106,7 @@ library
         Competences.Frontend.View.Button,
         Competences.Frontend.View.Card,
         Competences.Frontend.View.CellStyle,
+        Competences.Frontend.View.Color,
         Competences.Frontend.View.Colors,
         Competences.Frontend.View.Combobox,
         Competences.Frontend.View.Disclosure,

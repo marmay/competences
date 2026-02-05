@@ -2,6 +2,7 @@ module Competences.Frontend.View
   ( module Competences.Frontend.View.Badge
   , module Competences.Frontend.View.Button
   , module Competences.Frontend.View.CellStyle
+  , module Competences.Frontend.View.Color
   , module Competences.Frontend.View.Colors
   , module Competences.Frontend.View.Combobox
   , module Competences.Frontend.View.Disclosure
@@ -24,6 +25,7 @@ module Competences.Frontend.View
 import Competences.Frontend.View.Badge
 import Competences.Frontend.View.Button
 import Competences.Frontend.View.CellStyle
+import Competences.Frontend.View.Color
 import Competences.Frontend.View.Colors
 import Competences.Frontend.View.Combobox
 import Competences.Frontend.View.Disclosure
