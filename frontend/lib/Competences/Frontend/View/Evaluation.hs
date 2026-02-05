@@ -7,8 +7,7 @@
 -- (StudentEvaluatorModal).
 module Competences.Frontend.View.Evaluation
   ( -- * Pure helpers
-    abilityColorClass
-  , abilityPalette
+    abilityPalette
   , computeAggregation
     -- * View primitives
   , viewCompetenceName
@@ -72,11 +71,6 @@ abilityPalette WithSupport = Color.yellow
 abilityPalette NotYet = Color.red
 
 -- | Map Ability to CSS color classes for badges (legacy, prefer abilityPalette)
-abilityColorClass :: Ability -> T.Text
-abilityColorClass SelfReliant = "bg-green-100 text-green-800"
-abilityColorClass SelfReliantWithSillyMistakes = "bg-lime-100 text-lime-800"
-abilityColorClass WithSupport = "bg-yellow-100 text-yellow-800"
-abilityColorClass NotYet = "bg-red-100 text-red-800"
 
 -- | Compute aggregated results: worst (max) ability per competence across all tasks
 computeAggregation :: Map.Map (TaskId, CompetenceLevelId) Ability -> Map.Map CompetenceLevelId Ability

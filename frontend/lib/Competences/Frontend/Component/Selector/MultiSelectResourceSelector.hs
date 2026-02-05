@@ -16,10 +16,11 @@ import Competences.Frontend.SyncContext
   , SyncContext
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Tooltip (Tooltip (NoTooltip))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -156,13 +157,8 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
 
     viewResourceTag :: Resource -> M.View Model Action
     viewResourceTag res =
-      MH.div_
-        [class_ "inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-md text-sm"]
-        [ V.icon [class_ "w-4 h-4 text-muted-foreground"] IcnResources
-        , MH.span_ [] [M.text $ M.ms $ unResourceIdentifier res.identifier]
-        , MH.button_
-            [ class_ "ml-1 text-muted-foreground hover:text-foreground"
-            , MH.onClick (ToggleResource res.id)
-            ]
-            [V.icon [class_ "w-3 h-3"] IcnCancel]
-        ]
+      Badge.interactive
+        Badge.Secondary
+        NoTooltip
+        (Just (IcnCancel, ToggleResource res.id))
+        (IcnResources, M.ms $ unResourceIdentifier res.identifier)
