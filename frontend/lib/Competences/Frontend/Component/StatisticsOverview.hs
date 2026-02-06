@@ -20,8 +20,11 @@ import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Color (ColorPalette (..))
+import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Miso.Html qualified as MH
 import Data.List (sortBy)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
@@ -137,15 +140,13 @@ cellContents m _ d ColSchoolExercises =
 cellContents m _ d ColTotalExercises =
   graduallyColored d.totalTasks (m.maximumHomeExerciseTasks + m.maximumSchoolExerciseTasks)
 cellContents _ _ d ColSelfReliant =
-  V.coloredText_ (V.abilityColor SelfReliant) (M.ms $ show d.selfReliantEvidences)
+  abilityCell SelfReliant d.selfReliantEvidences
 cellContents _ _ d ColSelfReliantWithSillyMistakes =
-  V.coloredText_
-    (V.abilityColor SelfReliantWithSillyMistakes)
-    (M.ms $ show d.selfReliantWithSillyMistakesEvidences)
+  abilityCell SelfReliantWithSillyMistakes d.selfReliantWithSillyMistakesEvidences
 cellContents _ _ d ColWithSupport =
-  V.coloredText_ (V.abilityColor WithSupport) (M.ms $ show d.withSupportEvidences)
+  abilityCell WithSupport d.withSupportEvidences
 cellContents _ _ d ColNotYet =
-  V.coloredText_ (V.abilityColor NotYet) (M.ms $ show d.notYetEvidences)
+  abilityCell NotYet d.notYetEvidences
 cellContents _ _ d ColTotalObservations =
   V.text_
     ( M.ms $
@@ -155,6 +156,14 @@ cellContents _ _ d ColTotalObservations =
             + d.withSupportEvidences
             + d.notYetEvidences
     )
+
+-- | Render ability count with colored background
+abilityCell :: Ability -> Int -> M.View m a
+abilityCell ability count =
+  let palette = abilityPalette ability
+   in MH.span_
+        [class_ $ palette.background <> " " <> palette.foreground <> " px-2 rounded"]
+        [M.text $ M.ms $ show count]
 
 graduallyColored :: Int -> Int -> M.View m a
 graduallyColored value maximumValue =
