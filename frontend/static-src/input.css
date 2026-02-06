@@ -37,6 +37,9 @@
 @source inline("text-grade-{success,warning,danger}-accent");
 @source inline("border-grade-{success,warning,danger}");
 @source inline("border-grade-{success,warning,danger}-accent");
+@source inline("bg-completion-{open,progress,done,assessed,failed}");
+@source inline("text-completion-{open,progress,done,assessed,failed}");
+@source inline("text-completion-{open,progress,done,assessed,failed}-accent");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -122,6 +125,18 @@
   --color-grade-danger: var(--grade-danger);
   --color-grade-danger-accent: var(--grade-danger-accent);
   --color-grade-danger-alt: var(--grade-danger-alt);
+
+  /* Completion status palettes: Accent (icons) */
+  --color-completion-open: var(--completion-open);
+  --color-completion-open-accent: var(--completion-open-accent);
+  --color-completion-progress: var(--completion-progress);
+  --color-completion-progress-accent: var(--completion-progress-accent);
+  --color-completion-done: var(--completion-done);
+  --color-completion-done-accent: var(--completion-done-accent);
+  --color-completion-assessed: var(--completion-assessed);
+  --color-completion-assessed-accent: var(--completion-assessed-accent);
+  --color-completion-failed: var(--completion-failed);
+  --color-completion-failed-accent: var(--completion-failed-accent);
 }
 
 /*
@@ -255,6 +270,31 @@
   --grade-danger: oklch(0.936 0.032 17);  /* red-100 */
   --grade-danger-accent: oklch(0.450 0.200 27);  /* red-800 */
   --grade-danger-alt: oklch(0.960 0.020 17);  /* red-50 */
+
+  /* Completion status colors - for task/assignment progress
+   * Each palette has:
+   *   --completion-{name}: base color (background)
+   *   --completion-{name}-accent: icon/text color
+   */
+  /* Open (muted gray) - not started */
+  --completion-open: oklch(0.869 0.005 264);  /* stone-300 */
+  --completion-open-accent: oklch(0.553 0.013 257);  /* stone-500 */
+
+  /* InProgress (yellow) - working on it */
+  --completion-progress: oklch(0.905 0.182 98);  /* yellow-300 */
+  --completion-progress-accent: oklch(0.666 0.179 58);  /* yellow-600 */
+
+  /* Done (green) - completed by student */
+  --completion-done: oklch(0.871 0.119 142);  /* green-300 */
+  --completion-done-accent: oklch(0.527 0.154 163);  /* green-600 */
+
+  /* Assessed (sky) - teacher verified */
+  --completion-assessed: oklch(0.823 0.111 230);  /* sky-300 */
+  --completion-assessed-accent: oklch(0.541 0.195 231);  /* sky-600 */
+
+  /* Failed (red) - not achieved */
+  --completion-failed: oklch(0.885 0.062 18);  /* red-300 */
+  --completion-failed-accent: oklch(0.577 0.245 27);  /* red-500 */
 }
 
 /* Dark mode */

@@ -23,6 +23,7 @@ import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (RichContent, toRawText, fromTrustedInput)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
   , SelectorTransformedLens
@@ -125,7 +126,7 @@ richTextViewer :: Lens' a RichContent -> a -> M.View (Model a patch f) (Action a
 richTextViewer viewLens a =
   let content = a ^. viewLens
    in if content == mempty
-        then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
+        then Typography.placeholder "No content"
         else renderRichText content
 
 richTextEditor
@@ -142,7 +143,7 @@ richTextEditor viewLens patchLens refocusTarget original patch =
         [ -- Editor panel (left)
           M.div_
             [class_ "flex-1 min-w-0"]
-            [ M.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Markup"]
+            [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
             , M.textarea_
                 ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
                   , M.onChange
@@ -156,11 +157,11 @@ richTextEditor viewLens patchLens refocusTarget original patch =
         , -- Preview panel (right)
           M.div_
             [class_ "flex-1 min-w-0"]
-            [ M.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Preview"]
+            [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
             , M.div_
                 [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
                 [ if currentContent == mempty
-                    then M.span_ [class_ "text-stone-400 italic"] [M.text "No content"]
+                    then Typography.placeholder "No content"
                     else renderRichText currentContent
                 ]
             ]
@@ -315,7 +316,7 @@ optionalDayEditorField viewLens patchLens =
 optionalDayViewer :: Lens' a (Maybe Day) -> a -> M.View (Model a patch f) (Action a patch)
 optionalDayViewer viewLens a =
   case a ^. viewLens of
-    Nothing -> M.span_ [class_ "text-stone-400 italic"] [M.text "Not set"]
+    Nothing -> Typography.placeholder "Not set"
     Just day -> M.input_ [M.type_ "date", M.value_ (showTime day), M.disabled_]
   where
     showTime day = M.toMisoString $ show day
@@ -357,7 +358,7 @@ optionalIntEditorField viewLens patchLens =
 optionalIntViewer :: Lens' a (Maybe Int) -> a -> M.View (Model a patch f) (Action a patch)
 optionalIntViewer viewLens a =
   case a ^. viewLens of
-    Nothing -> M.span_ [class_ "text-stone-400 italic"] [M.text "Not set"]
+    Nothing -> Typography.placeholder "Not set"
     Just n -> M.span_ [] [M.text $ M.ms $ show n]
 
 optionalIntEditor

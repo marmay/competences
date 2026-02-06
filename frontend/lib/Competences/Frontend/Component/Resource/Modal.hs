@@ -29,9 +29,10 @@ import Competences.Document.Task (TaskId)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.ResourceList qualified as ResourceList
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
@@ -41,7 +42,6 @@ import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Svg.Property qualified as MSP
 
 -- ============================================================================
 -- Configuration
@@ -220,9 +220,9 @@ statusGroupHeader group count =
 
 -- | Icon indicator for a status group
 statusGroupDot :: TaskStatusGroup -> M.View model action
-statusGroupDot GroupOpen = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-stone-400"] IcnAbilityNotYet
-statusGroupDot GroupInProgress = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-yellow-500"] IcnAbilitySillyMistakes
-statusGroupDot GroupDone = icon [MSP.stroke_ "currentColor", class_ "w-4 h-4 text-green-500"] IcnAbilitySelfReliant
+statusGroupDot GroupOpen = completionIcon Open
+statusGroupDot GroupInProgress = completionIcon InProgress
+statusGroupDot GroupDone = completionIcon Done
 
 -- | Translated label for a status group
 statusGroupLabel :: TaskStatusGroup -> M.MisoString

@@ -29,6 +29,7 @@ import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -151,29 +152,29 @@ resourceContentEditorField =
     contentViewer res = case res.content of
       InlineContent rc ->
         if rc == mempty
-          then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
+          then Typography.placeholder "Kein Inhalt"
           else MH.div_ [class_ "prose prose-stone prose-sm max-w-none"]
                  [renderRichText rc]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
           [ MH.div_ [class_ "flex items-center gap-2"]
-              [ MH.span_ [class_ "text-xs font-medium text-stone-500"] [M.text "Web-Link"]
+              [ MH.span_ [] [Typography.fieldLabel "Web-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
               ]
           , if desc /= ""
-              then MH.p_ [class_ "text-sm text-stone-600"] [M.text $ M.ms desc]
+              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
               else V.empty
           ]
       VideoLink url desc ->
         MH.div_ [class_ "space-y-1"]
           [ MH.div_ [class_ "flex items-center gap-2"]
-              [ MH.span_ [class_ "text-xs font-medium text-stone-500"] [M.text "Video-Link"]
+              [ MH.span_ [] [Typography.fieldLabel "Video-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
               ]
           , if desc /= ""
-              then MH.p_ [class_ "text-sm text-stone-600"] [M.text $ M.ms desc]
+              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
               else V.empty
           ]
 
@@ -199,7 +200,7 @@ resourceContentEditorField =
                   MH.div_ [class_ "flex gap-4 w-full"]
                     [ -- Editor panel (left)
                       MH.div_ [class_ "flex-1 min-w-0"]
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Markup"]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
                         , MH.textarea_
                             ( [ class_ "w-full min-h-[150px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
                               , MH.onChange
@@ -212,10 +213,10 @@ resourceContentEditorField =
                         ]
                     , -- Preview panel (right)
                       MH.div_ [class_ "flex-1 min-w-0"]
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text "Preview"]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
                         , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
                             [ if rc == mempty
-                                then MH.span_ [class_ "text-stone-400 italic"] [M.text "Kein Inhalt"]
+                                then Typography.placeholder "Kein Inhalt"
                                 else renderRichText rc
                             ]
                         ]
@@ -223,7 +224,7 @@ resourceContentEditorField =
                 WebLink url desc ->
                   MH.div_ [class_ "space-y-2"]
                     [ MH.div_ []
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text $ C.translate' C.LblUrl]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblUrl]
                         , MH.input_
                             [ class_ "w-full p-2 border border-stone-300 rounded-md"
                             , M.type_ "url"
@@ -234,7 +235,7 @@ resourceContentEditorField =
                             ]
                         ]
                     , MH.div_ []
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text $ C.translate' C.LblDescription]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblDescription]
                         , MH.textarea_
                             [ class_ "w-full min-h-[80px] resize-y p-2 border border-stone-300 rounded-md"
                             , M.placeholder_ "Beschreibung des Links..."
@@ -248,7 +249,7 @@ resourceContentEditorField =
                 VideoLink url desc ->
                   MH.div_ [class_ "space-y-2"]
                     [ MH.div_ []
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text $ C.translate' C.LblUrl]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblUrl]
                         , MH.input_
                             [ class_ "w-full p-2 border border-stone-300 rounded-md"
                             , M.type_ "url"
@@ -259,7 +260,7 @@ resourceContentEditorField =
                             ]
                         ]
                     , MH.div_ []
-                        [ MH.span_ [class_ "block text-sm font-medium text-stone-600 mb-1"] [M.text $ C.translate' C.LblDescription]
+                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblDescription]
                         , MH.textarea_
                             [ class_ "w-full min-h-[80px] resize-y p-2 border border-stone-300 rounded-md"
                             , M.placeholder_ "Beschreibung des Videos..."

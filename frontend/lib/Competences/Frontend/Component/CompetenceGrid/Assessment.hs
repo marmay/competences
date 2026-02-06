@@ -48,6 +48,8 @@ import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -59,7 +61,6 @@ import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -469,10 +470,10 @@ assessmentComponent r grid =
             -- | Show assessment icon (checkmark)
             showAssessmentIcon =
               MH.div_ [class_ "flex items-center justify-center w-12"]
-                [MH.span_ [class_ "text-sky-600"] [V.icon [MSP.stroke_ "currentColor"] IcnApply]]
+                [completionIcon Assessed]
 
             -- | Show "Not Achieved" icon (X mark in red)
             showNotAchievedIcon =
               MH.div_ [class_ "flex items-center justify-center w-12"]
-                [MH.span_ [class_ "text-red-500"] [V.icon [MSP.stroke_ "currentColor"] IcnCancel]]
+                [completionIcon Failed]
 

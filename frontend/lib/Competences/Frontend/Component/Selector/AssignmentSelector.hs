@@ -26,6 +26,8 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -222,8 +224,8 @@ assignmentSelectorComponent r parentLens =
     -- | Status icon display: growing icon (yellow) for NeedsWork, checkmark (green) for Completed
     statusIcon :: AssignmentStatus -> M.View Model Action
     statusIcon NotGraded = M.text ""  -- No icon for not graded
-    statusIcon NeedsWork = V.icon [class_ "w-4 h-4 text-yellow-500"] IcnProgress
-    statusIcon Completed = V.icon [class_ "w-4 h-4 text-green-600"] IcnApply
+    statusIcon NeedsWork = completionIcon InProgress
+    statusIcon Completed = completionIcon Done
 
 -- ============================================================================
 -- ASSIGNMENT EDITOR FIELD (for use in Evidence editor etc.)

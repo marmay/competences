@@ -48,6 +48,8 @@ import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Document.Competence (CompetenceLevelId)
@@ -77,8 +79,8 @@ statusLabel = ms . Q.statusLabel
 -- | Status icon display: growing icon (yellow) for NeedsWork, checkmark (green) for Completed
 statusIcon :: AssignmentStatus -> M.View model a
 statusIcon NotGraded = M.text ""  -- No icon for not graded
-statusIcon NeedsWork = icon [class_ "w-5 h-5 text-yellow-500"] IcnProgress
-statusIcon Completed = icon [class_ "w-5 h-5 text-green-600"] IcnApply
+statusIcon NeedsWork = completionIcon InProgress
+statusIcon Completed = completionIcon Done
 
 -- ============================================================================
 -- Viewer Projection (pre-computed data)

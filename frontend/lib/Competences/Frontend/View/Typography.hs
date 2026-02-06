@@ -25,6 +25,10 @@ module Competences.Frontend.View.Typography
   , bold
   , italic
   , underline
+
+    -- * Form helpers
+  , placeholder
+  , fieldLabel
   )
 where
 
@@ -134,4 +138,24 @@ underline :: MisoString -> M.View model action
 underline text =
   M.span_
     [class_ "underline underline-offset-4"]
+    [M.text text]
+
+-- ============================================================================
+-- FORM HELPERS
+-- ============================================================================
+
+-- | Placeholder text for empty states (muted, italic)
+-- Use when displaying "No content", "Not set", etc.
+placeholder :: MisoString -> M.View model action
+placeholder text =
+  M.span_
+    [class_ "text-muted-foreground italic"]
+    [M.text text]
+
+-- | Form field label with consistent styling
+-- Uses Basecoat-inspired label styling (small text, medium weight)
+fieldLabel :: MisoString -> M.View model action
+fieldLabel text =
+  M.label_
+    [class_ "text-sm font-medium text-foreground"]
     [M.text text]

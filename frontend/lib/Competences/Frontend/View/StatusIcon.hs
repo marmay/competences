@@ -2,16 +2,22 @@
 --
 -- Provides a 'Status' type that abstracts achievement/progress/lock state,
 -- and rendering functions for different layout contexts (centered, overlay, inline).
+--
+-- Also provides 'CompletionStatus' icons for task/assignment progress indicators.
 module Competences.Frontend.View.StatusIcon
   ( Status (..)
   , statusIcon
   , statusIconOverlay
   , lockIcon
   , statusColorClass
+    -- * Completion status icons
+  , completionIcon
   )
 where
 
 import Competences.Frontend.View.Color (textClass')
+import Competences.Frontend.View.Color.Completion (CompletionStatus)
+import Competences.Frontend.View.Color.Completion qualified as Completion
 import Competences.Frontend.View.Color.Status qualified as StatusColor
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
@@ -76,3 +82,29 @@ lockIcon =
   M.span_
     [class_ "text-stone-400"]
     [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+
+-- ============================================================================
+-- Completion Status Icons
+-- ============================================================================
+
+-- | Render a completion status icon with appropriate color.
+-- Used for task and assignment progress indicators.
+--
+-- * 'Open' - Circle outline (muted gray)
+-- * 'InProgress' - Growing/progress icon (yellow)
+-- * 'Done' - Checkmark (green)
+-- * 'Assessed' - Checkmark (sky/primary)
+-- * 'Failed' - X mark (red)
+completionIcon :: CompletionStatus -> M.View m a
+completionIcon status =
+  M.span_
+    [class_ $ textClass' (Completion.completionPalette status)]
+    [icon [MP.width_ "16", MP.height_ "16"] (completionStatusIcon status)]
+
+-- | Map completion status to appropriate icon.
+completionStatusIcon :: CompletionStatus -> Icon
+completionStatusIcon Completion.Open = IcnAbilityNotYet
+completionStatusIcon Completion.InProgress = IcnProgress
+completionStatusIcon Completion.Done = IcnApply
+completionStatusIcon Completion.Assessed = IcnApply
+completionStatusIcon Completion.Failed = IcnCancel
