@@ -6,11 +6,15 @@ where
 
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.View.Color (bgClass')
+import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Query.Mastery (MasteryStatus (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
 import Miso.CSS qualified as MC
@@ -22,6 +26,11 @@ data MasteryDisplayConfig = MasteryDisplayConfig
   , stats :: !(Map MasteryStatus Int)
   , students :: !(Map MasteryStatus [User])
   }
+
+-- | Get background class for a mastery status.
+-- Uses mastery palette colors, with stone-300 fallback for NotTried.
+masteryBgClass :: MasteryStatus -> Text
+masteryBgClass status = fromMaybe "bg-stone-300" (bgClass' <$> masteryPalette status)
 
 -- | Render mastery distribution as horizontal stacked bars with tooltips.
 -- Always shows all 6 indicators (dimmed when count is 0) for consistent navigation.
@@ -43,12 +52,12 @@ masteryDisplay config =
     getStudents status = Map.findWithDefault [] status config.students
 
     segments =
-      [ (StreakTwoAssessed, "bg-green-700", C.translate' C.LblMasteryStreakTwoAssessed)
-      , (StreakTwoPlus, "bg-green-500", C.translate' C.LblMasteryStreakTwoPlus)
-      , (OneSuccess, "bg-green-300", C.translate' C.LblMasteryOneSuccess)
-      , (OnlySillyMistakes, "bg-yellow-400", C.translate' C.LblMasteryOnlySillyMistakes)
-      , (MasteryNotYet, "bg-yellow-600", C.translate' C.LblMasteryNotYet)
-      , (NotTried, "bg-stone-300", C.translate' C.LblMasteryNotTried)
+      [ (StreakTwoAssessed, C.translate' C.LblMasteryStreakTwoAssessed)
+      , (StreakTwoPlus, C.translate' C.LblMasteryStreakTwoPlus)
+      , (OneSuccess, C.translate' C.LblMasteryOneSuccess)
+      , (OnlySillyMistakes, C.translate' C.LblMasteryOnlySillyMistakes)
+      , (MasteryNotYet, C.translate' C.LblMasteryNotYet)
+      , (NotTried, C.translate' C.LblMasteryNotTried)
       ]
 
     percentage count =
@@ -57,9 +66,10 @@ masteryDisplay config =
         else 0.0
 
     -- Render bar segment (only if count > 0, otherwise skip to keep bar compact)
-    renderSegment (status, colorClass, _label) =
+    renderSegment (status, _label) =
       let count = getCount status
           pct = percentage count
+          colorClass = masteryBgClass status
        in if count > 0
             then
               MH.div_
@@ -70,13 +80,14 @@ masteryDisplay config =
             else M.text ""
 
     -- Render count indicator with CSS tooltip showing student names
-    renderIndicator (status, colorClass, label) =
+    renderIndicator (status, label) =
       let count = getCount status
           studentList = getStudents status
           isZero = count == 0
           -- Dim both the color box and text when count is 0
           opacityClass = if isZero then " opacity-30" else ""
-          textClass = if isZero then "text-stone-400" else "text-stone-600"
+          textColorClass = if isZero then "text-stone-400" else "text-stone-600"
+          colorClass = masteryBgClass status
           -- Build tooltip content: label on first line, student names on second
           studentNames = T.intercalate ", " $ map (.name) studentList
           tooltipContent = label <> "\n" <> M.ms studentNames
@@ -91,5 +102,5 @@ masteryDisplay config =
               [ -- Colored square
                 MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
               , -- Count
-                MH.span_ [class_ textClass] [M.text $ M.ms $ show count]
+                MH.span_ [class_ textColorClass] [M.text $ M.ms $ show count]
               ]
