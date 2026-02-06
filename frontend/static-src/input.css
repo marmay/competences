@@ -178,25 +178,29 @@
 
   /* Ability colors - traffic light pattern for competence levels
    * Each palette has:
-   *   --ability-{name}: base color (background)
-   *   --ability-{name}-accent: vibrant color (icons, strokes)
-   *   --ability-{name}-alt: light variant (stripe alternation)
+   *   --ability-{name}: base color (background) - light color
+   *   --ability-{name}-accent: contrast color (text, icons) - dark color
+   *   --ability-{name}-alt: light variant (stripe alternation) - lighter color
    */
-  --ability-success: oklch(0.527 0.154 163);
-  --ability-success-accent: var(--ability-success);
-  --ability-success-alt: color-mix(in oklch, var(--ability-success) 50%, white);
+  /* ability-success: SelfReliant */
+  --ability-success: oklch(0.871 0.119 142);  /* green-200 */
+  --ability-success-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --ability-success-alt: oklch(0.922 0.076 145);  /* green-100 */
 
-  --ability-success-light: oklch(0.627 0.194 163);
-  --ability-success-light-accent: var(--ability-success-light);
-  --ability-success-light-alt: color-mix(in oklch, var(--ability-success-light) 50%, white);
+  /* ability-success-light: SelfReliantWithSillyMistakes */
+  --ability-success-light: oklch(0.922 0.076 145);  /* green-100 */
+  --ability-success-light-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --ability-success-light-alt: oklch(0.962 0.044 156);  /* green-50 */
 
-  --ability-warning: oklch(0.666 0.179 58);
-  --ability-warning-accent: var(--ability-warning);
-  --ability-warning-alt: color-mix(in oklch, var(--ability-warning) 50%, white);
+  /* ability-warning: WithSupport */
+  --ability-warning: oklch(0.905 0.182 98);  /* yellow-200 */
+  --ability-warning-accent: oklch(0.476 0.114 61);  /* yellow-800 */
+  --ability-warning-alt: oklch(0.973 0.071 103);  /* yellow-100 */
 
-  --ability-danger: oklch(0.577 0.245 27);
-  --ability-danger-accent: var(--ability-danger);
-  --ability-danger-alt: color-mix(in oklch, var(--ability-danger) 50%, white);
+  /* ability-danger: NotYet */
+  --ability-danger: oklch(0.885 0.062 18);  /* red-200 */
+  --ability-danger-accent: oklch(0.577 0.245 27);  /* red-600 */
+  --ability-danger-alt: oklch(0.936 0.032 17);  /* red-100 */
 
   /* Mastery status colors - graduated greens and yellows
    * Each palette has:
@@ -327,22 +331,26 @@
   --input: oklch(0.279 0.012 264);
   --ring: oklch(0.585 0.233 277);
 
-  /* Ability colors - brighter for dark mode visibility */
-  --ability-success: oklch(0.627 0.194 163);
-  --ability-success-accent: var(--ability-success);
-  --ability-success-alt: color-mix(in oklch, var(--ability-success) 50%, black);
+  /* Ability colors - dark mode: darker backgrounds, lighter text for contrast */
+  /* ability-success: SelfReliant */
+  --ability-success: oklch(0.365 0.110 142);  /* green-800 (dark bg) */
+  --ability-success-accent: oklch(0.871 0.119 142);  /* green-200 (light text) */
+  --ability-success-alt: oklch(0.300 0.090 142);  /* darker green (stripe) */
 
-  --ability-success-light: oklch(0.723 0.219 163);
-  --ability-success-light-accent: var(--ability-success-light);
-  --ability-success-light-alt: color-mix(in oklch, var(--ability-success-light) 50%, black);
+  /* ability-success-light: SelfReliantWithSillyMistakes */
+  --ability-success-light: oklch(0.430 0.110 142);  /* green-700 (dark bg) */
+  --ability-success-light-accent: oklch(0.922 0.076 145);  /* green-100 (light text) */
+  --ability-success-light-alt: oklch(0.365 0.110 142);  /* green-800 (stripe) */
 
-  --ability-warning: oklch(0.766 0.179 58);
-  --ability-warning-accent: var(--ability-warning);
-  --ability-warning-alt: color-mix(in oklch, var(--ability-warning) 50%, black);
+  /* ability-warning: WithSupport */
+  --ability-warning: oklch(0.476 0.114 61);  /* yellow-800 (dark bg) */
+  --ability-warning-accent: oklch(0.905 0.182 98);  /* yellow-200 (light text) */
+  --ability-warning-alt: oklch(0.400 0.100 61);  /* darker yellow (stripe) */
 
-  --ability-danger: oklch(0.677 0.245 27);
-  --ability-danger-accent: var(--ability-danger);
-  --ability-danger-alt: color-mix(in oklch, var(--ability-danger) 50%, black);
+  /* ability-danger: NotYet */
+  --ability-danger: oklch(0.450 0.200 27);  /* red-800 (dark bg) */
+  --ability-danger-accent: oklch(0.885 0.062 18);  /* red-200 (light text) */
+  --ability-danger-alt: oklch(0.380 0.170 27);  /* darker red (stripe) */
 }
 
 /* Claude theme - warm orange accent */
