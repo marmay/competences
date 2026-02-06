@@ -47,6 +47,7 @@ import Competences.Document.Task
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Tailwind (class_)
@@ -88,13 +89,7 @@ viewCompetenceName competences compId =
 viewAbilityBtn :: Maybe Ability -> (Ability -> a) -> Ability -> M.View m a
 viewAbilityBtn currentAbility mkAction ability =
   let isSelected = currentAbility == Just ability
-      buttonClass =
-        if isSelected
-          then "bg-primary text-primary-foreground px-2 py-0.5 text-xs rounded"
-          else "bg-secondary text-secondary-foreground px-2 py-0.5 text-xs rounded hover:bg-secondary/80"
-   in MH.button_
-        [class_ buttonClass, MH.onClick (mkAction ability)]
-        [M.text $ C.translate' $ C.LblAbility ability]
+   in Button.toggleSm isSelected (Button.button (C.LblAbility ability) (Just (mkAction ability)))
 
 -- | Competence name + row of ability buttons
 viewCompetenceRow :: Ix.IxSet CompetenceIxs Competence -> CompetenceLevelId -> Maybe Ability -> (Ability -> a) -> M.View m a
@@ -116,18 +111,13 @@ viewTaskHeader tasks taskId isExcluded toggleAction extraContent =
     Nothing -> MH.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
     Just task ->
       let TaskIdentifier identifier = task.identifier
-          toggleClass =
-            if isExcluded
-              then "px-2 py-1 rounded text-sm cursor-pointer border border-muted-foreground text-muted-foreground hover:bg-muted/50"
-              else "px-2 py-1 rounded text-sm cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
        in MH.div_
             [class_ "mt-3 mb-1 flex items-center justify-between"]
             [ MH.div_
                 [class_ "flex items-center gap-3"]
                 (Typography.h4 (C.translate' C.LblTaskPrefix <> ms identifier) : extraContent)
-            , MH.button_
-                [class_ toggleClass, MH.onClick toggleAction]
-                [M.text $ C.translate' $ if isExcluded then C.LblIncludeTask else C.LblExcludeTask]
+            , Button.toggleSm (not isExcluded)
+                (Button.button (if isExcluded then C.LblIncludeTask else C.LblExcludeTask) (Just toggleAction))
             ]
 
 -- | Collapsible task content (disclosure chevron + rich text).
@@ -211,11 +201,7 @@ viewAggregationSection isStale hasResults computeAction resultsContent =
             [ if isStale
                 then MH.span_ [class_ "text-xs text-yellow-700"] [M.text $ C.translate' C.LblAggregationStale]
                 else M.text ""
-            , MH.button_
-                [ MH.onClick computeAction
-                , class_ "bg-primary text-primary-foreground px-3 py-1 text-sm rounded hover:bg-primary/90"
-                ]
-                [M.text $ C.translate' C.LblComputeAggregation]
+            , Button.primarySm (Button.button C.LblComputeAggregation (Just computeAction))
             ]
         ]
     , if hasResults

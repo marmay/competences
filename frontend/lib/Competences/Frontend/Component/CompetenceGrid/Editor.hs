@@ -34,7 +34,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportCompetenceGrid)
@@ -259,26 +259,10 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             , MH.onChange updateDesc
             , MP.value_ (M.ms currentInfo.description)
             ]
-        , MH.button_
-            ( [ class_ $
-                  "w-7 h-7 flex items-center justify-center rounded border transition-colors "
-                    <> if not hasDescription
-                         then "bg-stone-50 border-stone-200 text-stone-300 cursor-not-allowed"
-                         else if currentInfo.locked
-                           then "bg-stone-200 border-stone-400 text-stone-700 hover:bg-stone-300 cursor-pointer"
-                           else "bg-white border-stone-200 text-stone-400 hover:bg-stone-50 cursor-pointer"
-              , MP.type_ "button"
-              , MH.onClick toggleLock
-              , MP.title_ $
-                  if not hasDescription
-                    then "Add description to enable locking"
-                    else if currentInfo.locked
-                      then "Unlock this level"
-                      else "Lock this level"
-              ]
-                <> [MP.disabled_ | not hasDescription]
+        , Button.toggleSm currentInfo.locked
+            ( Button.button
+                (if currentInfo.locked then IcnLock else IcnLockOpen)
+                (hasDescription, toggleLock)
             )
-            [ icon [MP.width_ "14", MP.height_ "14"] (if currentInfo.locked then IcnLock else IcnLockOpen)
-            ]
         ]
 

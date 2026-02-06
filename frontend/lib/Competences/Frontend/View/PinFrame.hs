@@ -10,12 +10,13 @@ module Competences.Frontend.View.PinFrame
   )
 where
 
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Typography qualified as Typography
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as MP
 
 -- | Pin dialog frame: title bar with title, pin-toggle (minimize) button,
 -- and close button. Content is rendered below the title bar.
@@ -30,19 +31,11 @@ pinFrame title toggleAction closeAction content =
         , M.div_
             [class_ "flex items-center gap-2"]
             [ -- Pin toggle (minimize) button
-              M.button_
-                [ class_ "text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
-                , M.onClick toggleAction
-                , MP.title_ "Minimize"
-                ]
-                [icon [MP.width_ "18", MP.height_ "18"] IcnExpandShrinkArrowRight]
+              withTooltip (PlainTooltip "Minimize") $
+                Button.ghostSm (Button.button IcnExpandShrinkArrowRight (Just toggleAction))
             , -- Close button
-              M.button_
-                [ class_ "text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-muted"
-                , M.onClick closeAction
-                , MP.title_ "Close"
-                ]
-                [icon [MP.width_ "18", MP.height_ "18"] IcnCancel]
+              withTooltip (PlainTooltip "Close") $
+                Button.ghostSm (Button.button IcnCancel (Just closeAction))
             ]
         ]
     , -- Content area
@@ -69,16 +62,9 @@ pinSidebarIcon
   -> M.View m a
 pinSidebarIcon icn title isActive badgeNumber clickAction =
   M.div_
-    [class_ "relative", MP.title_ title]
-    [ M.button_
-        [ class_ $
-            "w-12 h-12 flex items-center justify-center rounded-lg transition-colors "
-              <> if isActive
-                then "bg-accent text-accent-foreground ring-2 ring-primary"
-                else "text-muted-foreground hover:bg-muted hover:text-foreground"
-        , M.onClick clickAction
-        ]
-        [icon [MP.width_ "24", MP.height_ "24"] icn]
+    [class_ "relative"]
+    [ withTooltip (PlainTooltip title) $
+        Button.toggleLg isActive (Button.button icn (Just clickAction))
     , -- Badge overlay
       case badgeNumber of
         Nothing -> M.text ""

@@ -17,6 +17,7 @@ module Competences.Frontend.View.SelectorList
 where
 
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
@@ -38,12 +39,7 @@ selectorHeader title mAddAction =
     [class_ "flex items-center justify-between"]
     [ Typography.h3 title
     , case mAddAction of
-        Just action ->
-          M.button_
-            [ class_ "btn btn-secondary h-9 px-3"
-            , M.onClick action
-            ]
-            [icon [class_ "w-5 h-5"] IcnAdd]
+        Just action -> Button.secondary (Button.button IcnAdd (Just action))
         Nothing -> M.text ""
     ]
 
@@ -64,11 +60,7 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
     [ Typography.h3 title
     , M.div_
         [class_ "relative"]
-        [ M.button_
-            [ class_ "btn btn-secondary h-9 px-3"
-            , M.onClick toggleAction
-            ]
-            [icon [class_ "w-5 h-5"] IcnAdd]
+        [ Button.secondary (Button.button IcnAdd (Just toggleAction))
         , if isOpen
             then
               M.div_

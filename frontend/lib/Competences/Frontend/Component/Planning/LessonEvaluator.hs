@@ -244,13 +244,8 @@ lessonEvaluatorComponent r initialLesson =
           isActive = case mRecord of
             Just pr -> pr.level == pLevel
             Nothing -> False
-          btnClass =
-            if isActive
-              then "px-2 py-0.5 rounded text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 text-center"
-              else "px-2 py-0.5 rounded text-xs cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80 text-center"
-       in MH.button_
-            [class_ btnClass, MH.onClick (ToggleParticipation userId pType pLevel)]
-            [M.text $ C.translate' (C.LblParticipationLevel pType pLevel)]
+       in Button.toggleSm isActive
+            (Button.button (C.LblParticipationLevel pType pLevel) (ToggleParticipation userId pType pLevel))
 
     viewEvidenceBadges m ev =
       let observations = Ix.toList ev.observations

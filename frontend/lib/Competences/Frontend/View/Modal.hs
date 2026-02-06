@@ -16,12 +16,12 @@ module Competences.Frontend.View.Modal
   )
 where
 
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as MP
 
 -- | Modal dialog - styling helper for modal content with shadow and rounded corners
 -- This is an optional styling wrapper; modal components can also style themselves directly.
@@ -62,8 +62,4 @@ modalFooter buttons =
 -- | Close button used in modal headers
 closeButton :: a -> M.View m a
 closeButton closeAction =
-  M.button_
-    [ class_ "text-muted-foreground hover:text-foreground transition-colors"
-    , M.onClick closeAction
-    ]
-    [icon [MP.width_ "20", MP.height_ "20"] IcnCancel]
+  Button.ghost (Button.button IcnCancel (Just closeAction))
