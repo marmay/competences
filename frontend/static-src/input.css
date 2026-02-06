@@ -31,6 +31,12 @@
 @source inline("text-status-{ok,pending,error}-accent");
 @source inline("border-status-{ok,pending,error}");
 @source inline("border-status-{ok,pending,error}-accent");
+@source inline("bg-grade-{success,warning,danger}");
+@source inline("bg-grade-{success,warning,danger}-alt");
+@source inline("text-grade-{success,warning,danger}");
+@source inline("text-grade-{success,warning,danger}-accent");
+@source inline("border-grade-{success,warning,danger}");
+@source inline("border-grade-{success,warning,danger}-accent");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -105,6 +111,17 @@
   --color-status-error: var(--status-error);
   --color-status-error-accent: var(--status-error-accent);
   --color-status-error-alt: var(--status-error-alt);
+
+  /* Grade palettes: Base (bg), Accent (text), Alt (stripe light) */
+  --color-grade-success: var(--grade-success);
+  --color-grade-success-accent: var(--grade-success-accent);
+  --color-grade-success-alt: var(--grade-success-alt);
+  --color-grade-warning: var(--grade-warning);
+  --color-grade-warning-accent: var(--grade-warning-accent);
+  --color-grade-warning-alt: var(--grade-warning-alt);
+  --color-grade-danger: var(--grade-danger);
+  --color-grade-danger-accent: var(--grade-danger-accent);
+  --color-grade-danger-alt: var(--grade-danger-alt);
 }
 
 /*
@@ -217,6 +234,27 @@
   --status-error: oklch(0.885 0.062 18);  /* red-200 */
   --status-error-accent: var(--destructive);  /* uses destructive for icons */
   --status-error-alt: oklch(0.936 0.032 17);  /* red-100 */
+
+  /* Grade colors - traffic light pattern for grade badges
+   * Each palette has:
+   *   --grade-{name}: base color (background)
+   *   --grade-{name}-accent: contrast text color
+   *   --grade-{name}-alt: light variant (stripe alternation)
+   */
+  /* Grade Success (green) - grades 1-3 */
+  --grade-success: oklch(0.922 0.076 145);  /* green-100 */
+  --grade-success-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --grade-success-alt: oklch(0.962 0.044 156);  /* green-50 */
+
+  /* Grade Warning (yellow) - grades 3-4, 4, 4-5 */
+  --grade-warning: oklch(0.973 0.071 103);  /* yellow-100 */
+  --grade-warning-accent: oklch(0.476 0.114 61);  /* yellow-800 */
+  --grade-warning-alt: oklch(0.987 0.026 102);  /* yellow-50 */
+
+  /* Grade Danger (red) - grade 5 */
+  --grade-danger: oklch(0.936 0.032 17);  /* red-100 */
+  --grade-danger-accent: oklch(0.450 0.200 27);  /* red-800 */
+  --grade-danger-alt: oklch(0.960 0.020 17);  /* red-50 */
 }
 
 /* Dark mode */

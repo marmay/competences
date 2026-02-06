@@ -3,8 +3,15 @@ Module: Competences.Frontend.View.Badge
 Description: Basecoat badge components with builder-pattern API
 
 Provides badge components following Basecoat design patterns.
-Two render paths: semantic variants (via Basecoat CSS classes) and
-custom palettes (via 'BadgePalette' record).
+Two color sources (orthogonal to interactivity):
+
+  * Basecoat variants: 'Primary', 'Secondary', 'Destructive', 'Outline'
+  * Semantic palettes: 'PaletteName' from Color module
+
+Two interactivity modes:
+
+  * Static: simple badge display
+  * Interactive: tooltip + optional action button on hover
 -}
 module Competences.Frontend.View.Badge
   ( -- * Badge variants
@@ -14,28 +21,26 @@ module Competences.Frontend.View.Badge
   , BadgeContents (..)
   , ToBadgeContents (..)
 
-    -- * Palette for custom badges
-  , BadgePalette (..)
-
-    -- * Rendering
+    -- * Static badges
   , render
+  , badge
   , primary
   , secondary
   , destructive
   , outline
-  , customBadge
   , badgeCustomView
 
     -- * Interactive badges
   , interactive
-  , customInteractive
+  , paletteInteractive
   )
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
+import Competences.Frontend.View.Color (PaletteName, bgClass', borderClass', textClass')
 import Competences.Frontend.View.Icon (Icon, icon)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
+import Competences.Frontend.View.Tooltip (Tooltip, withTooltip)
 import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -45,14 +50,6 @@ import Miso.String (MisoString)
 -- | Badge variant following Basecoat design system
 data BadgeVariant = Primary | Secondary | Destructive | Outline
   deriving (Eq, Show)
-
--- | Palette for custom-colored badges.
--- Each field is a complete Tailwind CSS class name.
-data BadgePalette = BadgePalette
-  { foreground :: !Text -- ^ Text color class (e.g., "text-green-800")
-  , background :: !Text -- ^ Background class (e.g., "bg-green-100")
-  , border :: !Text -- ^ Border color class (e.g., "border-green-300")
-  }
 
 -- | Badge contents
 data BadgeContents
@@ -83,15 +80,8 @@ instance ToBadgeContents (Icon, Label) where
   toBadgeContents (i, l) = IconText i (translate' l)
 
 -- ============================================================================
--- RENDERING
+-- INTERNAL: Shared rendering
 -- ============================================================================
-
--- | Map a badge variant to its Basecoat CSS class
-variantClass :: BadgeVariant -> Text
-variantClass Primary = "badge"
-variantClass Secondary = "badge-secondary"
-variantClass Destructive = "badge-destructive"
-variantClass Outline = "badge-outline"
 
 -- | Render badge contents as child views
 renderContents :: BadgeContents -> [M.View model action]
@@ -99,96 +89,23 @@ renderContents (TextOnly t) = [M.text t]
 renderContents (IconOnly i) = [icon [] i]
 renderContents (IconText i t) = [icon [] i, M.text t]
 
--- | Render a badge with a Basecoat semantic variant
-render :: (ToBadgeContents c) => BadgeVariant -> c -> M.View model action
-render variant contents =
-  M.span_
-    [class_ $ variantClass variant]
-    (renderContents (toBadgeContents contents))
+-- | Internal: render a static badge with given CSS classes
+renderBadge :: Text -> BadgeContents -> M.View model action
+renderBadge classes contents =
+  M.span_ [class_ classes] (renderContents contents)
 
--- | Render a badge with a custom color palette
-customBadge :: (ToBadgeContents c) => BadgePalette -> c -> M.View model action
-customBadge palette contents =
-  M.span_
-    [ class_ $
-        "inline-flex items-center justify-center gap-1 rounded-full border \
-        \px-2 py-0.5 text-xs font-medium [&>svg]:size-3 "
-          <> palette.background
-          <> " "
-          <> palette.foreground
-          <> " "
-          <> palette.border
-    ]
-    (renderContents (toBadgeContents contents))
-
--- | Render a badge with arbitrary View content (escape hatch)
-badgeCustomView :: BadgeVariant -> M.View model action -> M.View model action
-badgeCustomView variant content =
-  M.span_
-    [class_ $ variantClass variant]
-    [content]
-
--- | Convenience constructors
-primary, secondary, destructive, outline
-  :: (ToBadgeContents c) => c -> M.View model action
-primary = render Primary
-secondary = render Secondary
-destructive = render Destructive
-outline = render Outline
-
--- ============================================================================
--- INTERACTIVE BADGES
--- ============================================================================
-
--- | Render an interactive badge with optional tooltip and action icon
---
--- The action icon (e.g. a cancel icon for delete) appears on hover.
--- Tooltips use the 'Tooltip' type from "View.Tooltip".
-interactive
-  :: (ToBadgeContents c)
-  => BadgeVariant
+-- | Internal: render an interactive badge with given CSS classes
+renderInteractiveBadge
+  :: Text
   -> Tooltip model action
   -> Maybe (Icon, action)
-  -> c
+  -> BadgeContents
   -> M.View model action
-interactive variant tip mAction contents =
+renderInteractiveBadge baseClasses tip mAction contents =
   withTooltip tip $
     M.span_
-      [ class_ $
-          variantClass variant
-            <> " group"
-            <> if hasAction then " pr-1" else ""
-      ]
-      ( renderContents (toBadgeContents contents)
-          <> actionButton mAction
-      )
-  where
-    hasAction = case mAction of Just _ -> True; Nothing -> False
-
--- | Render an interactive badge with a custom color palette
-customInteractive
-  :: (ToBadgeContents c)
-  => BadgePalette
-  -> Tooltip model action
-  -> Maybe (Icon, action)
-  -> c
-  -> M.View model action
-customInteractive palette tip mAction contents =
-  withTooltip tip $
-    M.span_
-      [ class_ $
-          "inline-flex items-center justify-center gap-1 rounded-full border \
-          \px-2 py-0.5 text-xs font-medium [&>svg]:size-3 group "
-            <> palette.background
-            <> " "
-            <> palette.foreground
-            <> " "
-            <> palette.border
-            <> if hasAction then " pr-1" else ""
-      ]
-      ( renderContents (toBadgeContents contents)
-          <> actionButton mAction
-      )
+      [class_ $ baseClasses <> " group" <> if hasAction then " pr-1" else ""]
+      (renderContents contents <> actionButton mAction)
   where
     hasAction = case mAction of Just _ -> True; Nothing -> False
 
@@ -212,3 +129,73 @@ actionButtonClasses =
   \flex items-center justify-center text-secondary-foreground/70 \
   \hover:bg-destructive hover:text-destructive-foreground \
   \transition-opacity focus:opacity-100 [&>svg]:size-3"
+
+-- ============================================================================
+-- COLOR SOURCES: Variant vs Palette
+-- ============================================================================
+
+-- | Map a Basecoat variant to its CSS class
+variantClass :: BadgeVariant -> Text
+variantClass Primary = "badge"
+variantClass Secondary = "badge-secondary"
+variantClass Destructive = "badge-destructive"
+variantClass Outline = "badge-outline"
+
+-- | Basecoat badge class with palette color overrides
+paletteClasses :: PaletteName -> Text
+paletteClasses p = "badge " <> bgClass' p <> " " <> textClass' p <> " " <> borderClass' p
+
+-- ============================================================================
+-- PUBLIC API: Static badges
+-- ============================================================================
+
+-- | Render a badge with a Basecoat semantic variant
+render :: (ToBadgeContents c) => BadgeVariant -> c -> M.View model action
+render variant = renderBadge (variantClass variant) . toBadgeContents
+
+-- | Render a badge with a semantic color palette
+badge :: (ToBadgeContents c) => PaletteName -> c -> M.View model action
+badge palette = renderBadge (paletteClasses palette) . toBadgeContents
+
+-- | Convenience constructors for Basecoat variants
+primary, secondary, destructive, outline
+  :: (ToBadgeContents c) => c -> M.View model action
+primary = render Primary
+secondary = render Secondary
+destructive = render Destructive
+outline = render Outline
+
+-- | Render a badge with arbitrary View content (escape hatch)
+badgeCustomView :: BadgeVariant -> M.View model action -> M.View model action
+badgeCustomView variant content =
+  M.span_ [class_ $ variantClass variant] [content]
+
+-- ============================================================================
+-- PUBLIC API: Interactive badges
+-- ============================================================================
+
+-- | Render an interactive badge with a Basecoat variant
+--
+-- The action icon (e.g. a cancel icon for delete) appears on hover.
+interactive
+  :: (ToBadgeContents c)
+  => BadgeVariant
+  -> Tooltip model action
+  -> Maybe (Icon, action)
+  -> c
+  -> M.View model action
+interactive variant tip mAction =
+  renderInteractiveBadge (variantClass variant) tip mAction . toBadgeContents
+
+-- | Render an interactive badge with a semantic color palette
+--
+-- The action icon (e.g. a cancel icon for delete) appears on hover.
+paletteInteractive
+  :: (ToBadgeContents c)
+  => PaletteName
+  -> Tooltip model action
+  -> Maybe (Icon, action)
+  -> c
+  -> M.View model action
+paletteInteractive palette tip mAction =
+  renderInteractiveBadge (paletteClasses palette) tip mAction . toBadgeContents
