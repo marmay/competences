@@ -429,7 +429,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                     then
                       Button.deleteButton DeleteEvidence
                     else
-                      Button.primary (Button.button actionLabel (isDisabled, SaveEvidence))
+                      Button.primary (Button.button actionLabel (not isDisabled, SaveEvidence))
                 ]
             ]
 
