@@ -55,6 +55,9 @@ data DetailModel = DetailModel
   , expandedLessonId :: !(Maybe LessonId)
   , expandedResources :: !(Set.Set ResourceId)
   , expandedAssignments :: !(Set.Set LessonId)  -- Track which lessons have assignments expanded
+  , expandedResourcesList :: !(Set.Set LessonId)  -- Resources section per lesson
+  , expandedNotes :: !(Set.Set LessonId)  -- Notes section per lesson
+  , expandedPhases :: !(Set.Set LessonId)  -- Phases section per lesson
   , document :: !Document
   }
   deriving (Eq, Generic, Show)
@@ -66,6 +69,9 @@ data DetailAction
   | ToggleLessonExpansion !LessonId
   | ToggleResourceExpanded !ResourceId
   | ToggleAssignmentsExpanded !LessonId
+  | ToggleResourcesListExpanded !LessonId
+  | ToggleNotesExpanded !LessonId
+  | TogglePhasesExpanded !LessonId
   | OpenLessonEditorModal !Lesson
   | OpenMesoPlanEditorModal !MesoPlan
   | DeleteLesson !LessonId
@@ -75,8 +81,17 @@ data DetailAction
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
-projectDetail :: MesoPlan -> Maybe LessonId -> Set.Set ResourceId -> Set.Set LessonId -> Document -> DetailModel
-projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments doc =
+projectDetail
+  :: MesoPlan
+  -> Maybe LessonId
+  -> Set.Set ResourceId
+  -> Set.Set LessonId
+  -> Set.Set LessonId
+  -> Set.Set LessonId
+  -> Set.Set LessonId
+  -> Document
+  -> DetailModel
+projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments prevExpandedResourcesList prevExpandedNotes prevExpandedPhases doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -85,9 +100,12 @@ projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments do
       expanded = case prevExpanded of
         Nothing -> Nothing
         Just lid -> if any (\l -> l.id == lid) lessons' then Just lid else Nothing
-      -- Clean up expanded assignments for lessons that no longer exist
+      -- Clean up expanded states for lessons that no longer exist
       expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
-   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' doc
+      expandedResourcesList' = Set.intersection prevExpandedResourcesList lessonIds
+      expandedNotes' = Set.intersection prevExpandedNotes lessonIds
+      expandedPhases' = Set.intersection prevExpandedPhases lessonIds
+   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' expandedResourcesList' expandedNotes' expandedPhases' doc
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -105,7 +123,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty emptyDocument
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty Set.empty Set.empty emptyDocument
 
     emptyDocument =
       Document
@@ -126,7 +144,7 @@ detailComponent r initialPlan =
         , participationRecords = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources m.expandedAssignments dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources m.expandedAssignments m.expandedResourcesList m.expandedNotes m.expandedPhases dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -166,6 +184,27 @@ detailComponent r initialPlan =
               then Set.delete lessonId m.expandedAssignments
               else Set.insert lessonId m.expandedAssignments
        in m {expandedAssignments = newExpanded}
+
+    update (ToggleResourcesListExpanded lessonId) = M.modify $ \m ->
+      let newExpanded =
+            if Set.member lessonId m.expandedResourcesList
+              then Set.delete lessonId m.expandedResourcesList
+              else Set.insert lessonId m.expandedResourcesList
+       in m {expandedResourcesList = newExpanded}
+
+    update (ToggleNotesExpanded lessonId) = M.modify $ \m ->
+      let newExpanded =
+            if Set.member lessonId m.expandedNotes
+              then Set.delete lessonId m.expandedNotes
+              else Set.insert lessonId m.expandedNotes
+       in m {expandedNotes = newExpanded}
+
+    update (TogglePhasesExpanded lessonId) = M.modify $ \m ->
+      let newExpanded =
+            if Set.member lessonId m.expandedPhases
+              then Set.delete lessonId m.expandedPhases
+              else Set.insert lessonId m.expandedPhases
+       in m {expandedPhases = newExpanded}
 
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
@@ -244,6 +283,7 @@ detailComponent r initialPlan =
 
     viewExpandedLesson m lesson =
       let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
+          resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
        in MH.div_
         [class_ "p-4 border-t border-border bg-background space-y-3"]
         [ -- Date
@@ -265,40 +305,37 @@ detailComponent r initialPlan =
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                in Disclosure.innerDisclosure (ToggleAssignmentsExpanded lesson.id) $
                     Disclosure.contents assignmentsTitle assignmentsExpanded assignmentsBody []
-        , -- Resources (shown directly, each individually expandable)
-          let resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
-           in if null resolvedResources
-                then M.text ""
-                else
-                  MH.div_
-                    []
-                    [ Typography.h4 (C.translate' C.LblLessonResources)
-                    , ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
-                    ]
-        , -- Notes preview
+        , -- Resources collapsible
+          if null resolvedResources
+            then M.text ""
+            else
+              let resourcesExpanded = Set.member lesson.id m.expandedResourcesList
+                  resourcesTitle = C.translate' C.LblLessonResources
+                    <> " (" <> M.ms (show (length resolvedResources)) <> ")"
+                  resourcesBody = ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
+               in Disclosure.innerDisclosure (ToggleResourcesListExpanded lesson.id) $
+                    Disclosure.contents resourcesTitle resourcesExpanded resourcesBody []
+        , -- Notes collapsible
           if lesson.notes == mempty
             then M.text ""
             else
-              MH.div_
-                []
-                [ MH.div_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1"]
-                    [M.text $ C.translate' C.LblLessonNotes]
-                , MH.div_
-                    [class_ "bg-muted/50 rounded-md p-3 text-sm"]
-                    [renderRichText lesson.notes]
-                ]
-        , -- Phases summary
+              let notesExpanded = Set.member lesson.id m.expandedNotes
+                  notesTitle = C.translate' C.LblLessonNotes
+                  notesBody = MH.div_ [class_ "text-sm"] [renderRichText lesson.notes]
+               in Disclosure.innerDisclosure (ToggleNotesExpanded lesson.id) $
+                    Disclosure.contents notesTitle notesExpanded notesBody []
+        , -- Phases collapsible
           if null lesson.phases
             then M.text ""
             else
-              MH.div_
-                []
-                [ Typography.h4 (C.translate' C.LblLessonPhases)
-                , MH.div_
-                    [class_ "space-y-1"]
+              let phasesExpanded = Set.member lesson.id m.expandedPhases
+                  phasesTitle = C.translate' C.LblLessonPhases
+                    <> " (" <> M.ms (show (length lesson.phases)) <> ")"
+                  phasesBody = MH.div_
+                    [class_ "space-y-2"]
                     (zipWith viewPhaseSummary [1 :: Int ..] lesson.phases)
-                ]
+               in Disclosure.innerDisclosure (TogglePhasesExpanded lesson.id) $
+                    Disclosure.contents phasesTitle phasesExpanded phasesBody []
         ]
 
     viewPhaseSummary idx phase =
@@ -306,17 +343,24 @@ detailComponent r initialPlan =
             Presenting -> "border-l-red-500"
             Collaborating -> "border-l-orange-500"
             Assigning -> "border-l-green-500"
+          title = M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title
        in MH.div_
-            [class_ $ "flex items-center gap-2 text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
-            [ MH.span_ [class_ "font-medium"]
-                [M.text $ M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title]
-            , MH.span_ [class_ "text-muted-foreground"]
-                [ M.text $ M.ms (show phase.duration) <> " min"
-                , M.text " · "
-                , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
-                , M.text " · "
-                , M.text $ C.translate' (C.LblActionForm phase.actionForm)
+            [class_ $ "text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
+            [ MH.div_
+                [class_ "flex items-center gap-2"]
+                [ MH.span_ [class_ "font-medium"] [M.text title]
+                , MH.span_ [class_ "text-muted-foreground"]
+                    [ M.text $ M.ms (show phase.duration) <> " min"
+                    , M.text " · "
+                    , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
+                    , M.text " · "
+                    , M.text $ C.translate' (C.LblActionForm phase.actionForm)
+                    ]
                 ]
+            , if Text.null phase.notes
+                then M.text ""
+                else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted"]
+                  [M.text $ M.ms phase.notes]
             ]
 
     viewAssignmentSummary doc aId =
