@@ -109,7 +109,6 @@ library
         Competences.Frontend.View.Color,
         Competences.Frontend.View.Color.Ability,
         Competences.Frontend.View.Color.Grade,
-        Competences.Frontend.View.Colors,
         Competences.Frontend.View.Combobox,
         Competences.Frontend.View.Disclosure,
         Competences.Frontend.View.Component,

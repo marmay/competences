@@ -45,7 +45,8 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.Colors (abilityTextClass)
+import Competences.Frontend.View.Color (ColorPalette (..))
+import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -263,7 +264,7 @@ viewerComponent r user assignment =
 
     viewObservationDetail competences (compLevelId, ability) =
       let (competenceId, level) = compLevelId
-          abilityClass = abilityTextClass ability
+          abilityClass = (abilityPalette ability).foreground
           abilityIcn = abilityIcon ability
           abilityLabel = C.translate' (C.LblAbility ability)
           levelDesc = case Ix.getOne (competences Ix.@= competenceId) of

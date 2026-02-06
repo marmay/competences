@@ -54,7 +54,8 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Colors qualified as Colors
+import Competences.Frontend.View.Color (ColorPalette (..))
+import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
@@ -406,7 +407,7 @@ viewerComponent r grid =
               Nothing -> V.empty
 
           showSummary activityType socialForm ability =
-            let abilityClass = Colors.abilityTextClass ability
+            let abilityClass = (abilityPalette ability).foreground
                 ci = V.coloredStrokeIcon abilityClass
              in V.viewFlow V.hFlow
                   [ ci (V.activityTypeIcon activityType)
