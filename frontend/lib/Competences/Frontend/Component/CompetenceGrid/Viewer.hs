@@ -55,7 +55,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
@@ -409,12 +408,12 @@ viewerComponent r grid =
               Nothing -> V.empty
 
           showSummary activityType socialForm ability =
-            let abilityClass = textClass' (abilityPalette ability)
-                ci = V.coloredStrokeIcon abilityClass
-             in V.viewFlow V.hFlow
-                  [ ci (V.activityTypeIcon activityType)
-                  , ci (V.socialFormIcon socialForm)
-                  ]
+            Badge.badge (abilityPalette ability) $
+              MH.span_
+                [class_ "inline-flex items-center gap-0.5"]
+                [ Icon.icon [] (V.activityTypeIcon activityType)
+                , Icon.icon [] (V.socialFormIcon socialForm)
+                ]
 
           -- Get active assessment
           mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
@@ -473,8 +472,8 @@ viewerComponent r grid =
               , Just p <- masteryPalette ms ->
                   MH.div_
                     [class_ "flex items-center justify-between gap-1 mb-0.5"]
-                    [ Badge.secondary (C.translate' C.LblMasteryBadgeAuto)
-                    , Badge.badge p (masteryBadgeLabel ms)
+                    [ Badge.secondary (Badge.badgeLabel C.LblMasteryBadgeAuto)
+                    , Badge.badge p (Badge.badgeText $ masteryBadgeLabel ms)
                     ]
             _ -> V.empty
 

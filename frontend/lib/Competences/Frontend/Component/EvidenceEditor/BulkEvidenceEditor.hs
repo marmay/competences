@@ -322,7 +322,7 @@ bulkEvidenceEditorComponent r =
        in Badge.interactive
             Badge.Secondary
             (Just (Icon.IcnCancel, RemoveObservation uid obs))
-            label
+            (Badge.badgeText label)
 
     -- Format observation for display
     formatObservation m' obs =

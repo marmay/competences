@@ -223,7 +223,7 @@ previewDeletedCompetence c =
         [ M.span_
             [class_ "font-medium text-muted-foreground line-through"]
             [M.text $ M.ms c.description]
-        , Badge.destructive ("Löschen" :: M.MisoString)
+        , Badge.destructive (Badge.badgeText "Löschen")
         ]
     ]
 
@@ -264,9 +264,9 @@ levelPreview levels =
           ]
 
 actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = Badge.primary ("Neu" :: M.MisoString)
-actionBadge (Update _ _) = Badge.secondary ("Aktualisiert" :: M.MisoString)
-actionBadge (NoChange _) = Badge.outline ("Unverändert" :: M.MisoString)
+actionBadge (Create _) = Badge.primary (Badge.badgeText "Neu")
+actionBadge (Update _ _) = Badge.secondary (Badge.badgeText "Aktualisiert")
+actionBadge (NoChange _) = Badge.outline (Badge.badgeText "Unverändert")
 
 -- ============================================================================
 -- Apply Import

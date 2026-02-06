@@ -159,4 +159,4 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
       Badge.interactive
         Badge.Secondary
         (Just (Icon.IcnCancel, ToggleResource res.id))
-        (Icon.IcnResources, M.ms $ unResourceIdentifier res.identifier)
+        (Badge.badgeIconText Icon.IcnResources (M.ms $ unResourceIdentifier res.identifier))

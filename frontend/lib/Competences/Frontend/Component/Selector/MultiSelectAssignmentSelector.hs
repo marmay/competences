@@ -170,4 +170,4 @@ multiSelectAssignmentSelectorComponent r eligible initResults lensBinding =
       Badge.interactive
         Badge.Secondary
         (Just (Icon.IcnCancel, ToggleAssignment a.id))
-        (Icon.IcnAssignment, M.ms $ unAssignmentName a.name)
+        (Badge.badgeIconText Icon.IcnAssignment (M.ms $ unAssignmentName a.name))

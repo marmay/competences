@@ -304,16 +304,16 @@ competenceMatchView cm =
     [ M.span_ [class_ "text-muted-foreground"] [M.text $ M.ms cm.gridName]
     , M.span_ [] [M.text "/"]
     , M.span_ [] [M.text $ M.ms $ T.take 20 cm.description <> if T.length cm.description > 20 then "..." else ""]
-    , Badge.outline (M.ms $ levelToGerman cm.level)
+    , Badge.outline (Badge.badgeText $ M.ms $ levelToGerman cm.level)
     , case cm.matched of
-        Just _ -> Badge.primary ("OK" :: M.MisoString)
-        Nothing -> Badge.destructive ("?" :: M.MisoString)
+        Just _ -> Badge.primary (Badge.badgeText "OK")
+        Nothing -> Badge.destructive (Badge.badgeText "?")
     ]
 
 actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = Badge.primary ("Neu" :: M.MisoString)
-actionBadge (Update _ _) = Badge.secondary ("Aktualisiert" :: M.MisoString)
-actionBadge (NoChange _) = Badge.outline ("Unverändert" :: M.MisoString)
+actionBadge (Create _) = Badge.primary (Badge.badgeText "Neu")
+actionBadge (Update _ _) = Badge.secondary (Badge.badgeText "Aktualisiert")
+actionBadge (NoChange _) = Badge.outline (Badge.badgeText "Unverändert")
 
 -- ============================================================================
 -- Apply Import

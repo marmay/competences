@@ -276,4 +276,4 @@ lessonEvaluatorComponent r initialLesson =
             formatCompetenceLevelBadge m.competences m.competenceGrids
               (competenceId, level)
        in withTooltip (maybe NoTooltip PlainTooltip tooltipContent) $
-            Badge.badge (Eval.abilityPalette obs.ability) badgeText
+            Badge.badge (Eval.abilityPalette obs.ability) (Badge.badgeText badgeText)

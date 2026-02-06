@@ -14,7 +14,7 @@ import Miso qualified as M
 -- | Create a colored badge for a grade
 -- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
 gradeBadgeView :: Grade -> M.View m action
-gradeBadgeView g = Badge.badge (gradePalette g) (M.ms (gradeShortLabel g) :: M.MisoString)
+gradeBadgeView g = Badge.badge (gradePalette g) (Badge.badgeText $ M.ms $ gradeShortLabel g)
 
 -- | Short label for grade (just the number part)
 gradeShortLabel :: Grade -> T.Text

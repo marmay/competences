@@ -1,6 +1,6 @@
 {- |
 Module: Competences.Frontend.View.Badge
-Description: Basecoat badge components with builder-pattern API
+Description: Basecoat badge components
 
 Provides badge components following Basecoat design patterns.
 Two color sources (orthogonal to interactivity):
@@ -14,31 +14,50 @@ Two interactivity modes:
   * Interactive: optional action button on hover
 
 For tooltips, use 'withTooltip' from the Tooltip module to wrap badges.
+
+== Usage
+
+@
+-- Text badge with variant
+Badge.primary (Badge.badgeText "New")
+
+-- Text badge with palette
+Badge.badge myPalette (Badge.badgeText "Status")
+
+-- Icon + text badge
+Badge.secondary (Badge.badgeIconText Icon.IcnTask "Task 1")
+
+-- Custom content badge
+Badge.badge palette $
+  MH.div_ [class_ "flex gap-1"] [icon1, icon2]
+@
 -}
 module Competences.Frontend.View.Badge
   ( -- * Badge variants
     BadgeVariant (..)
 
-    -- * Badge contents
-  , BadgeContents (..)
-  , ToBadgeContents (..)
-
     -- * Static badges
-  , render
   , badge
+  , variant
   , primary
   , secondary
   , destructive
   , outline
-  , badgeCustomView
 
     -- * Interactive badges
   , interactive
   , paletteInteractive
+
+    -- * Content helpers
+  , badgeText
+  , badgeLabel
+  , badgeIcon
+  , badgeIconText
+  , badgeIconLabel
   )
 where
 
-import Competences.Frontend.Common.Translate (Label (..), translate')
+import Competences.Frontend.Common.Translate (Label, translate')
 import Competences.Frontend.View.Color (PaletteName, bgClass', borderClass', textClass')
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
@@ -52,59 +71,25 @@ import Miso.String (MisoString)
 data BadgeVariant = Primary | Secondary | Destructive | Outline
   deriving (Eq, Show)
 
--- | Badge contents
-data BadgeContents
-  = TextOnly !MisoString
-  | IconOnly !Icon.Icon
-  | IconText !Icon.Icon !MisoString
-  deriving (Eq, Show)
-
-class ToBadgeContents a where
-  toBadgeContents :: a -> BadgeContents
-
-instance ToBadgeContents BadgeContents where
-  toBadgeContents = id
-
-instance ToBadgeContents MisoString where
-  toBadgeContents = TextOnly
-
-instance ToBadgeContents Label where
-  toBadgeContents = TextOnly . translate'
-
-instance ToBadgeContents Icon.Icon where
-  toBadgeContents = IconOnly
-
-instance ToBadgeContents (Icon.Icon, MisoString) where
-  toBadgeContents (i, t) = IconText i t
-
-instance ToBadgeContents (Icon.Icon, Label) where
-  toBadgeContents (i, l) = IconText i (translate' l)
-
 -- ============================================================================
 -- INTERNAL: Shared rendering
 -- ============================================================================
 
--- | Render badge contents as child views
-renderContents :: BadgeContents -> [M.View model action]
-renderContents (TextOnly t) = [M.text t]
-renderContents (IconOnly i) = [Icon.icon [] i]
-renderContents (IconText i t) = [Icon.icon [] i, M.text t]
-
 -- | Internal: render a static badge with given CSS classes
-renderBadge :: Text -> BadgeContents -> M.View model action
-renderBadge classes contents =
-  M.span_ [class_ classes] (renderContents contents)
+renderBadge :: Text -> M.View model action -> M.View model action
+renderBadge classes content =
+  M.span_ [class_ classes] [content]
 
 -- | Internal: render an interactive badge with given CSS classes
 renderInteractiveBadge
   :: Text
   -> Maybe (Icon.Icon, action)
-  -> BadgeContents
   -> M.View model action
-renderInteractiveBadge baseClasses mAction contents =
+  -> M.View model action
+renderInteractiveBadge baseClasses mAction content =
   M.span_
     [class_ $ baseClasses <> " group" <> if hasAction then " pr-1" else ""]
-    (renderContents contents <> actionButton mAction)
+    ([content] <> actionButton mAction)
   where
     hasAction = case mAction of Just _ -> True; Nothing -> False
 
@@ -148,53 +133,73 @@ paletteClasses p = "badge " <> bgClass' p <> " " <> textClass' p <> " " <> borde
 -- PUBLIC API: Static badges
 -- ============================================================================
 
--- | Render a badge with a Basecoat semantic variant
-render :: (ToBadgeContents c) => BadgeVariant -> c -> M.View model action
-render variant = renderBadge (variantClass variant) . toBadgeContents
+-- | Render a badge with a semantic color palette.
+badge :: PaletteName -> M.View model action -> M.View model action
+badge palette = renderBadge (paletteClasses palette)
 
--- | Render a badge with a semantic color palette
-badge :: (ToBadgeContents c) => PaletteName -> c -> M.View model action
-badge palette = renderBadge (paletteClasses palette) . toBadgeContents
+-- | Render a badge with a Basecoat semantic variant.
+variant :: BadgeVariant -> M.View model action -> M.View model action
+variant v = renderBadge (variantClass v)
 
--- | Convenience constructors for Basecoat variants
+-- | Convenience constructors for Basecoat variants.
 primary, secondary, destructive, outline
-  :: (ToBadgeContents c) => c -> M.View model action
-primary = render Primary
-secondary = render Secondary
-destructive = render Destructive
-outline = render Outline
-
--- | Render a badge with arbitrary View content (escape hatch)
-badgeCustomView :: BadgeVariant -> M.View model action -> M.View model action
-badgeCustomView variant content =
-  M.span_ [class_ $ variantClass variant] [content]
+  :: M.View model action -> M.View model action
+primary = variant Primary
+secondary = variant Secondary
+destructive = variant Destructive
+outline = variant Outline
 
 -- ============================================================================
 -- PUBLIC API: Interactive badges
 -- ============================================================================
 
--- | Render an interactive badge with a Basecoat variant
+-- | Render an interactive badge with a Basecoat variant.
 --
 -- The action icon (e.g. a cancel icon for delete) appears on hover.
 -- For tooltips, wrap the result with 'withTooltip' from the Tooltip module.
 interactive
-  :: (ToBadgeContents c)
-  => BadgeVariant
+  :: BadgeVariant
   -> Maybe (Icon.Icon, action)
-  -> c
   -> M.View model action
-interactive variant mAction =
-  renderInteractiveBadge (variantClass variant) mAction . toBadgeContents
+  -> M.View model action
+interactive v mAction =
+  renderInteractiveBadge (variantClass v) mAction
 
--- | Render an interactive badge with a semantic color palette
+-- | Render an interactive badge with a semantic color palette.
 --
 -- The action icon (e.g. a cancel icon for delete) appears on hover.
 -- For tooltips, wrap the result with 'withTooltip' from the Tooltip module.
 paletteInteractive
-  :: (ToBadgeContents c)
-  => PaletteName
+  :: PaletteName
   -> Maybe (Icon.Icon, action)
-  -> c
+  -> M.View model action
   -> M.View model action
 paletteInteractive palette mAction =
-  renderInteractiveBadge (paletteClasses palette) mAction . toBadgeContents
+  renderInteractiveBadge (paletteClasses palette) mAction
+
+-- ============================================================================
+-- Content Helpers
+-- ============================================================================
+
+-- | Badge content with just text.
+badgeText :: MisoString -> M.View model action
+badgeText t = M.text t
+
+-- | Badge content with a translated label.
+badgeLabel :: Label -> M.View model action
+badgeLabel = M.text . translate'
+
+-- | Badge content with just an icon.
+badgeIcon :: Icon.Icon -> M.View model action
+badgeIcon = Icon.icon []
+
+-- | Badge content with icon and text.
+badgeIconText :: Icon.Icon -> MisoString -> M.View model action
+badgeIconText i t =
+  M.span_
+    [class_ "inline-flex items-center gap-1"]
+    [Icon.icon [] i, M.text t]
+
+-- | Badge content with icon and translated label.
+badgeIconLabel :: Icon.Icon -> Label -> M.View model action
+badgeIconLabel i l = badgeIconText i (translate' l)

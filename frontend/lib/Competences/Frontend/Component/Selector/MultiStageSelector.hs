@@ -556,7 +556,7 @@ viewResultBadge config model result =
         Badge.interactive
           Badge.Secondary
           (fmap (\a -> (Icon.IcnCancel, a)) deleteAction)
-          badgeText
+          (Badge.badgeText badgeText)
 
 -- | Render the current input cursor showing breadcrumb and partial input
 viewInputCursor

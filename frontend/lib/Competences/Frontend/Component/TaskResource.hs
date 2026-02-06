@@ -216,9 +216,9 @@ taskStatusHeaderBg _ = "bg-muted/50"
 
 purposeBadge :: TaskPurpose -> M.View model a
 purposeBadge purpose =
-  Badge.render
+  Badge.variant
     (purposeBadgeVariant purpose)
-    (C.translate' $ C.LblTaskPurpose purpose)
+    (Badge.badgeLabel $ C.LblTaskPurpose purpose)
 
 purposeBadgeVariant :: TaskPurpose -> Badge.BadgeVariant
 purposeBadgeVariant Practice = Badge.Secondary
