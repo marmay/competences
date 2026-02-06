@@ -54,8 +54,10 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
+import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Table qualified as Table
@@ -468,17 +470,11 @@ viewerComponent r grid =
             NoAssessment
               | hasDescription
               , let ms = Map.findWithDefault NotTried competenceLevelId userData.userMastery
-              , Just (bgCls, txtCls) <- CellStyle.masteryBadgeColors ms ->
+              , Just p <- masteryPalette ms ->
                   MH.div_
                     [class_ "flex items-center justify-between gap-1 mb-0.5"]
-                    [ -- Auto badge (left)
-                      MH.span_
-                        [class_ "rounded-full px-1.5 text-xs font-medium bg-stone-100 text-stone-500"]
-                        [M.text (C.translate' C.LblMasteryBadgeAuto)]
-                    , -- Mastery badge (right)
-                      MH.span_
-                        [class_ $ "rounded-full px-1.5 text-xs font-medium " <> bgCls <> " " <> txtCls]
-                        [M.text (masteryBadgeLabel ms)]
+                    [ Badge.secondary (C.translate' C.LblMasteryBadgeAuto)
+                    , Badge.badge p (masteryBadgeLabel ms)
                     ]
             _ -> V.empty
 
