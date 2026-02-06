@@ -11,9 +11,10 @@ import Competences.Frontend.WebSocket.CommandSender
   , subscribeConnection
   )
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Color.Status (Status (..))
+import Competences.Frontend.View.StatusDot (statusDot, statusDotAnimated)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -49,14 +50,14 @@ connectionStatusComponent ir =
       withTooltip (PlainTooltip (tooltipText m)) $
         M.div_
           [class_ "flex items-center gap-1.5 px-2 py-1 rounded-full cursor-default"]
-          [ M.span_ [class_ $ "w-2.5 h-2.5 rounded-full " <> dotClasses m.connectionState] []
+          [ connectionDot m.connectionState
           , M.text $ if m.pendingCount > 0 then M.ms (show m.pendingCount) else ""
           ]
 
--- | Dot color and animation classes based on connection state
-dotClasses :: ConnectionState -> Text
-dotClasses Connected = "bg-green-500"
-dotClasses Disconnected = "bg-red-500 animate-pulse"
+-- | Status dot based on connection state
+connectionDot :: ConnectionState -> M.View model action
+connectionDot Connected = statusDot Ok
+connectionDot Disconnected = statusDotAnimated Error
 
 -- | Tooltip text based on state and pending count
 tooltipText :: Model -> M.MisoString
