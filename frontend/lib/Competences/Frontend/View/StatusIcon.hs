@@ -7,11 +7,15 @@ module Competences.Frontend.View.StatusIcon
   , statusIcon
   , statusIconOverlay
   , lockIcon
+  , statusColorClass
   )
 where
 
+import Competences.Frontend.View.Color (textClass')
+import Competences.Frontend.View.Color.Status qualified as StatusColor
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
+import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
@@ -25,19 +29,27 @@ data Status
   | NoStatus
   deriving (Eq, Show)
 
+-- | Get the CSS text color class for a status.
+-- Returns accent color for semantic statuses, neutral for others.
+statusColorClass :: Status -> Text
+statusColorClass Achieved = textClass' $ StatusColor.statusPalette StatusColor.Ok
+statusColorClass InProgress = textClass' $ StatusColor.statusPalette StatusColor.Pending
+statusColorClass Locked = "text-stone-500"
+statusColorClass NoStatus = ""
+
 -- | Render a status icon, centered in its container (for grid cells in Grading view).
 statusIcon :: Status -> M.View m a
 statusIcon Achieved =
   M.div_
-    [class_ "text-green-600 flex justify-center"]
+    [class_ $ statusColorClass Achieved <> " flex justify-center"]
     [icon [MP.width_ "16", MP.height_ "16"] IcnApply]
 statusIcon InProgress =
   M.div_
-    [class_ "text-yellow-600 flex justify-center"]
+    [class_ $ statusColorClass InProgress <> " flex justify-center"]
     [icon [MP.width_ "16", MP.height_ "16"] IcnProgress]
 statusIcon Locked =
   M.div_
-    [class_ "text-stone-500 flex justify-center"]
+    [class_ $ statusColorClass Locked <> " flex justify-center"]
     [icon [MP.width_ "16", MP.height_ "16"] IcnLock]
 statusIcon NoStatus = M.text ""
 
@@ -46,15 +58,15 @@ statusIcon NoStatus = M.text ""
 statusIconOverlay :: Status -> M.View m a
 statusIconOverlay Achieved =
   M.div_
-    [class_ "absolute top-1 right-1 text-green-600"]
+    [class_ $ "absolute top-1 right-1 " <> statusColorClass Achieved]
     [icon [MP.width_ "14", MP.height_ "14"] IcnApply]
 statusIconOverlay InProgress =
   M.div_
-    [class_ "absolute top-1 right-1 text-yellow-600"]
+    [class_ $ "absolute top-1 right-1 " <> statusColorClass InProgress]
     [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
 statusIconOverlay Locked =
   M.div_
-    [class_ "absolute top-1 right-1 text-stone-500"]
+    [class_ $ "absolute top-1 right-1 " <> statusColorClass Locked]
     [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
 statusIconOverlay NoStatus = M.text ""
 
