@@ -22,6 +22,7 @@ import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subsc
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Color (ColorPalette (..))
 import Competences.Frontend.View.Color.Ability (abilityPalette)
+import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Miso.Html qualified as MH
@@ -134,11 +135,11 @@ columnLabel ColTotalObservations = C.translate' C.LblTotalObservations
 cellContents :: Model -> User -> UserStatistics -> StatColumn -> M.View m a
 cellContents _ u _ ColName = V.text_ $ M.ms u.name
 cellContents m _ d ColHomeExercises =
-  graduallyColored d.homeExerciseTasks m.maximumHomeExerciseTasks
+  valueWithWarning d.homeExerciseTasks m.maximumHomeExerciseTasks
 cellContents m _ d ColSchoolExercises =
-  graduallyColored d.schoolExerciseTasks m.maximumSchoolExerciseTasks
+  valueWithWarning d.schoolExerciseTasks m.maximumSchoolExerciseTasks
 cellContents m _ d ColTotalExercises =
-  graduallyColored d.totalTasks (m.maximumHomeExerciseTasks + m.maximumSchoolExerciseTasks)
+  valueWithWarning d.totalTasks (m.maximumHomeExerciseTasks + m.maximumSchoolExerciseTasks)
 cellContents _ _ d ColSelfReliant =
   abilityCell SelfReliant d.selfReliantEvidences
 cellContents _ _ d ColSelfReliantWithSillyMistakes =
@@ -165,11 +166,17 @@ abilityCell ability count =
         [class_ $ palette.background <> " " <> palette.foreground <> " px-2 rounded"]
         [M.text $ M.ms $ show count]
 
-graduallyColored :: Int -> Int -> M.View m a
-graduallyColored value maximumValue =
-  V.coloredText_
-    (V.gradualPercentageColor (fromIntegral value / fromIntegral maximumValue))
-    (M.ms value)
+-- | Render a value with a warning icon if it's below 50% of maximum
+valueWithWarning :: Int -> Int -> M.View m a
+valueWithWarning value maximumValue =
+  let needsWarning = maximumValue > 0 && fromIntegral value < (fromIntegral maximumValue * 0.5 :: Double)
+   in MH.span_
+        [class_ "inline-flex items-center gap-1"]
+        [ M.text $ M.ms $ show value
+        , if needsWarning
+            then icon [class_ "w-4 h-4 text-amber-500"] IcnWarning
+            else M.text ""
+        ]
 
 computeStats :: Document -> Model
 computeStats document =

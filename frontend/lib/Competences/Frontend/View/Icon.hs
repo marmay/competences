@@ -59,6 +59,7 @@ data Icon
   | IcnExport
   | IcnMesoPlan
   | IcnPin
+  | IcnWarning
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 iconDefs :: View m a
@@ -119,6 +120,7 @@ iconId = \case
   IcnExport -> "icon-export"
   IcnMesoPlan -> "icon-meso-plan"
   IcnPin -> "icon-pin"
+  IcnWarning -> "icon-warning"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -420,6 +422,13 @@ iconDefOf' = \case
       , "M5 17h14"
       , "M18 8l-1.5 9h-9L6 8"
       , "M15 3H9a1 1 0 0 0-1 1v4h8V4a1 1 0 0 0-1-1z"
+      ]
+  -- Warning triangle with exclamation mark
+  IcnWarning ->
+    mkPathesDR
+      [ "M12 9v4"
+      , "M12 17h.01"
+      , "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
