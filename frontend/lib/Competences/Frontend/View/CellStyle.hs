@@ -13,6 +13,7 @@ where
 
 import Competences.Frontend.View.Color (bgClass', paletteStripedStyle, textClass')
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
+import Competences.Frontend.View.Color.Status qualified as StatusColor
 import Competences.Frontend.View.StatusIcon (Status (..))
 import Competences.Query.Mastery (MasteryStatus (..))
 import Data.Text (Text)
@@ -21,8 +22,8 @@ import Miso qualified as M
 -- | Background CSS class for a cell based on its visual status.
 -- For cells without a level description, pass 'NoStatus' (yields @\"\"@).
 statusBgClass :: Status -> Text
-statusBgClass Achieved = "bg-green-200"
-statusBgClass InProgress = "bg-yellow-200"
+statusBgClass Achieved = bgClass' $ StatusColor.statusPalette StatusColor.Ok
+statusBgClass InProgress = bgClass' $ StatusColor.statusPalette StatusColor.Pending
 statusBgClass Locked = "bg-stone-200"
 statusBgClass NoStatus = ""
 
