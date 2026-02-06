@@ -98,7 +98,7 @@ renderPinnedDialogs m =
           PinVisible ->
             MH.div_
               [ class_
-                  "fixed inset-[5%] right-20 z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
+                  "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
               ]
               [ pinFrame
                   _title
