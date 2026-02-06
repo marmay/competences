@@ -29,7 +29,7 @@ module Competences.Frontend.View.Color
 where
 
 import Data.Text (Text)
-import Miso.String (MisoString)
+import Miso.String (MisoString, ms)
 
 -- | A semantic color palette name.
 --
@@ -111,13 +111,13 @@ paletteStripedStyle :: PaletteName -> [(MisoString, MisoString)]
 paletteStripedStyle p =
   [ ( "background"
     , "repeating-linear-gradient(135deg, "
-        <> cssVar Alt p
+        <> ms (cssVar Alt p)
         <> " 0px, "
-        <> cssVar Alt p
+        <> ms (cssVar Alt p)
         <> " 4px, "
-        <> cssVar Base p
+        <> ms (cssVar Base p)
         <> " 4px, "
-        <> cssVar Base p
+        <> ms (cssVar Base p)
         <> " 8px)"
     )
   ]
