@@ -27,6 +27,7 @@
 @source inline("border-mastery-{assessed,strong,emerging,partial,not-yet}");
 @source inline("bg-status-{ok,pending,error}");
 @source inline("bg-status-{ok,pending,error}-alt");
+@source inline("bg-status-{ok,pending,error}-accent");
 @source inline("text-status-{ok,pending,error}");
 @source inline("text-status-{ok,pending,error}-accent");
 @source inline("border-status-{ok,pending,error}");
