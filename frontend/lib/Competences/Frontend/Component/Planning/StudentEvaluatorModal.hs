@@ -497,11 +497,8 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     -- ------------------------------------------------------------------
 
     viewManualObservationsSection m =
-      Disclosure.collapsible
-        m.manualObsExpanded
-        ToggleManualObsExpanded
-        (MH.span_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblManualObservations])
-        (viewManualObservationsContent m)
+      Disclosure.disclosure ToggleManualObsExpanded $
+        Disclosure.contents C.LblManualObservations m.manualObsExpanded (viewManualObservationsContent m) []
 
     viewManualObservationsContent m =
       MH.div_

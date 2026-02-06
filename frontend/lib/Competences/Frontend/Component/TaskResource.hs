@@ -140,10 +140,7 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
               then purposeBadge tws.taskPurpose
               else V.empty
           ]
-      titleView =
-        MH.div_
-          [class_ "flex items-center justify-between flex-1"]
-          [titleLeft, titleRight]
+      title = (Icon.IcnTask, M.ms identifier)
       contentView =
         MH.div_
           [class_ "space-y-3"]
@@ -161,7 +158,9 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
               else viewSolutions state liftAction tws.solutions
           ]
    in if isExpandable
-        then Disclosure.collapsibleStyled headerBg isExpanded (liftAction $ ToggleTask tws.task.id) titleView contentView
+        then
+          Disclosure.disclosure (liftAction $ ToggleTask tws.task.id) $
+            Disclosure.contents title isExpanded contentView []
         else
           MH.div_
             [class_ "border rounded-lg overflow-hidden"]
@@ -185,20 +184,16 @@ viewSolutions state liftAction sols =
 viewSolution :: TaskResourceList -> (Action -> a) -> Solution -> M.View model a
 viewSolution state liftAction sol =
   let isExpanded = Set.member sol.id state.expandedSolutions
-   in Disclosure.collapsible
-        isExpanded
-        (liftAction $ ToggleSolution sol.id)
-        ( MH.div_
-            [class_ "flex items-center gap-2"]
-            [Icon.icon [] Icon.IcnSolution, solutionTypeBadge sol.solutionType]
-        )
-        ( if sol.content == mempty
-            then Typography.muted "Kein Inhalt"
-            else
-              MH.div_
-                [class_ "prose prose-stone prose-sm max-w-none"]
-                [renderRichText sol.content]
-        )
+      title = (Icon.IcnSolution, solutionTypeLabel sol.solutionType)
+      bodyView =
+        if sol.content == mempty
+          then Typography.muted "Kein Inhalt"
+          else
+            MH.div_
+              [class_ "prose prose-stone prose-sm max-w-none"]
+              [renderRichText sol.content]
+   in Disclosure.innerDisclosure (liftAction $ ToggleSolution sol.id) $
+        Disclosure.contents title isExpanded bodyView []
 
 -- ============================================================================
 -- Task status header styling
@@ -224,17 +219,8 @@ purposeBadgeVariant :: TaskPurpose -> Badge.BadgeVariant
 purposeBadgeVariant Practice = Badge.Secondary
 purposeBadgeVariant Assessment = Badge.Primary
 
-solutionTypeBadge :: SolutionType -> M.View model a
-solutionTypeBadge st =
-  Badge.render (solutionTypeBadgeVariant st) (solutionTypeLabel st)
-
 solutionTypeLabel :: SolutionType -> M.MisoString
 solutionTypeLabel = C.translate' . C.LblSolutionType
-
-solutionTypeBadgeVariant :: SolutionType -> Badge.BadgeVariant
-solutionTypeBadgeVariant Hint = Badge.Secondary
-solutionTypeBadgeVariant Results = Badge.Outline
-solutionTypeBadgeVariant Complete = Badge.Primary
 
 -- ============================================================================
 -- State Update

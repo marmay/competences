@@ -222,28 +222,13 @@ detailComponent r initialPlan =
 
     viewLesson m lesson =
       let isExpanded = m.expandedLessonId == Just lesson.id
-       in Disclosure.collapsibleWithActions isExpanded (ToggleLessonExpansion lesson.id)
-            -- Title
-            ( MH.div_
-                []
-                [ MH.div_
-                    [class_ "font-medium"]
-                    [M.text $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title]
-                , if lesson.description == mempty
-                    then M.text ""
-                    else
-                      MH.div_
-                        [class_ "text-sm text-muted-foreground"]
-                        [renderRichText lesson.description]
-                ]
-            )
-            -- Actions
-            [ Button.ghostSm (Button.button Icon.IcnPin (PinLessonEvaluation lesson))
-            , Button.ghostSm (Button.button Icon.IcnEdit (OpenLessonEditorModal lesson))
-            , Button.destructiveSm (Button.button Icon.IcnDelete (DeleteLesson lesson.id))
-            ]
-            -- Content
-            (viewExpandedLesson m lesson)
+          title = M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
+       in Disclosure.disclosure (ToggleLessonExpansion lesson.id) $
+            Disclosure.contents title isExpanded (viewExpandedLesson m lesson)
+              [ Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
+              , Disclosure.Action Icon.IcnEdit (OpenLessonEditorModal lesson)
+              , Disclosure.DestructiveAction Icon.IcnDelete (DeleteLesson lesson.id)
+              ]
 
     viewExpandedLesson m lesson =
       let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id

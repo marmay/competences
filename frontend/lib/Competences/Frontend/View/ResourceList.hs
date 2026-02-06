@@ -39,6 +39,7 @@ resourcesListView resources expandedSet toggleExpanded =
     resourceCard res =
       let ResourceIdentifier ident = res.identifier
           displayName = if T.null ident then "(Unbenannt)" else ident
+          disclosureTitle = (Icon.IcnResources, M.ms displayName)
           nameView =
             MH.div_
               [class_ "flex items-center gap-2"]
@@ -50,12 +51,14 @@ resourcesListView resources expandedSet toggleExpanded =
             InlineContent rc ->
               let isExpanded = Set.member res.id expandedSet
                   hasContent = rc /= mempty
+                  bodyView =
+                    MH.div_
+                      [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"]
+                      [M.text (M.ms (toRawText rc))]
                in if hasContent
                     then
-                      Disclosure.collapsible isExpanded (toggleExpanded res.id) nameView $
-                        MH.div_
-                          [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"]
-                          [M.text (M.ms (toRawText rc))]
+                      Disclosure.disclosure (toggleExpanded res.id) $
+                        Disclosure.contents disclosureTitle isExpanded bodyView []
                     else
                       MH.div_
                         [class_ "border rounded-lg overflow-hidden"]

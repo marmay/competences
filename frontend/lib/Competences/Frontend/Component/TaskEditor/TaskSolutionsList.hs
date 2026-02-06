@@ -22,7 +22,6 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -158,32 +157,20 @@ taskSolutionsListComponent r taskId =
     viewSolution m sol =
       let isExpanded = Set.member sol.id m.expandedSolutions
           isOwner = isTeacher m.projection.connectedUser
-       in Disclosure.collapsibleWithActions
-            isExpanded
-            (ToggleSolution sol.id)
-            (solutionTypeBadge sol.solutionType)
-            [ Button.ghostSm (Button.button Icon.IcnDelete (DeleteSolution sol.id))
-            | isOwner
-            ]
-            ( if isOwner
-                then solutionInlineEditor r sol
-                else
-                  if sol.content == mempty
-                    then Typography.muted "Kein Inhalt"
-                    else
-                      MH.div_
-                        [class_ "prose prose-stone prose-sm max-w-none"]
-                        [renderRichText sol.content]
-            )
-
-    solutionTypeBadge :: SolutionType -> M.View m Action
-    solutionTypeBadge st =
-      Badge.render (solutionTypeBadgeVariant st) (solutionTypeLabel st)
+          title = (Icon.IcnSolution, solutionTypeLabel sol.solutionType)
+          bodyView =
+            if isOwner
+              then solutionInlineEditor r sol
+              else
+                if sol.content == mempty
+                  then Typography.muted "Kein Inhalt"
+                  else
+                    MH.div_
+                      [class_ "prose prose-stone prose-sm max-w-none"]
+                      [renderRichText sol.content]
+       in Disclosure.disclosure (ToggleSolution sol.id) $
+            Disclosure.contents title isExpanded bodyView
+              [Disclosure.DestructiveAction Icon.IcnDelete (DeleteSolution sol.id) | isOwner]
 
     solutionTypeLabel :: SolutionType -> M.MisoString
     solutionTypeLabel = C.translate' . C.LblSolutionType
-
-    solutionTypeBadgeVariant :: SolutionType -> Badge.BadgeVariant
-    solutionTypeBadgeVariant Hint = Badge.Secondary
-    solutionTypeBadgeVariant Results = Badge.Outline
-    solutionTypeBadgeVariant Complete = Badge.Primary

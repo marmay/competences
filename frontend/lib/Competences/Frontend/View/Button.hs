@@ -6,6 +6,7 @@ module Competences.Frontend.View.Button
   , ButtonSize (..)
   , ButtonContents (..)
   , ButtonContentsStyle (..)
+  , ButtonConfig (..)
   , ButtonDisabled (..)
   , ToButtonContents (..)
   , ToAction (..)

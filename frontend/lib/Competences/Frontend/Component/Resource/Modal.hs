@@ -31,8 +31,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.ResourceList qualified as ResourceList
-import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
-import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
@@ -195,7 +193,7 @@ groupedTasksView m =
 viewStatusGroup :: Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
 viewStatusGroup m (group, tasks) =
   let isExpanded = not $ Set.member group m.collapsedGroups
-      header = statusGroupHeader group (length tasks)
+      title = statusGroupLabel group
       content =
         taskResourceListView
           m.config.showPurposeBadge
@@ -204,25 +202,8 @@ viewStatusGroup m (group, tasks) =
           tasks
           m.taskListState
           TaskListAction
-   in Disclosure.collapsible isExpanded (ToggleStatusGroup group) header content
-
--- | Header for a status group: colored dot + label + count
-statusGroupHeader :: TaskStatusGroup -> Int -> M.View Model Action
-statusGroupHeader group count =
-  MH.div_
-    [class_ "flex items-center gap-2"]
-    [ statusGroupDot group
-    , MH.span_ [class_ "font-medium"] [M.text $ statusGroupLabel group]
-    , MH.span_
-        [class_ "text-muted-foreground text-sm"]
-        [M.text $ M.ms $ "(" <> show count <> ")"]
-    ]
-
--- | Icon indicator for a status group
-statusGroupDot :: TaskStatusGroup -> M.View model action
-statusGroupDot GroupOpen = completionIcon Open
-statusGroupDot GroupInProgress = completionIcon InProgress
-statusGroupDot GroupDone = completionIcon Done
+   in Disclosure.disclosure (ToggleStatusGroup group) $
+        Disclosure.contents title isExpanded content []
 
 -- | Translated label for a status group
 statusGroupLabel :: TaskStatusGroup -> M.MisoString

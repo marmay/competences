@@ -422,27 +422,10 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     viewPhaseCard :: Model -> Int -> LessonPhase -> M.View Model Action
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
-       in Disclosure.collapsibleWithActions isExpanded (TogglePhaseEdit idx)
-            -- Title
-            ( MH.div_
-                []
-                [ MH.span_
-                    [class_ "font-medium"]
-                    [M.text $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title]
-                , MH.span_
-                    [class_ "text-sm text-muted-foreground ml-3"]
-                    [ M.text $ M.ms (show phase.duration) <> " min"
-                    , M.text " · "
-                    , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
-                    , M.text " · "
-                    , M.text $ C.translate' (C.LblActionForm phase.actionForm)
-                    ]
-                ]
-            )
-            -- Actions
-            [ Button.ghostSm (Button.button Icon.IcnDelete (DeletePhase idx)) ]
-            -- Content
-            (viewPhaseEditor idx phase)
+          title = M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
+       in Disclosure.disclosure (TogglePhaseEdit idx) $
+            Disclosure.contents title isExpanded (viewPhaseEditor idx phase)
+              [Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)]
 
     viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action
     viewPhaseEditor idx phase =
