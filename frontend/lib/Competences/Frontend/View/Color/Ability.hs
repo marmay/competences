@@ -13,31 +13,11 @@ module Competences.Frontend.View.Color.Ability
 where
 
 import Competences.Document.Evidence (Ability (..))
-import Competences.Frontend.View.Color (ColorPalette (..))
+import Competences.Frontend.View.Color (PaletteName (..))
 
--- | Get the color palette for an ability level.
-abilityPalette :: Ability -> ColorPalette
-abilityPalette SelfReliant =
-  ColorPalette
-    { foreground = "text-ability-success"
-    , background = "bg-ability-success"
-    , border = "border-ability-success"
-    }
-abilityPalette SelfReliantWithSillyMistakes =
-  ColorPalette
-    { foreground = "text-ability-success-light"
-    , background = "bg-ability-success-light"
-    , border = "border-ability-success-light"
-    }
-abilityPalette WithSupport =
-  ColorPalette
-    { foreground = "text-ability-warning"
-    , background = "bg-ability-warning"
-    , border = "border-ability-warning"
-    }
-abilityPalette NotYet =
-  ColorPalette
-    { foreground = "text-ability-danger"
-    , background = "bg-ability-danger"
-    , border = "border-ability-danger"
-    }
+-- | Get the color palette name for an ability level.
+abilityPalette :: Ability -> PaletteName
+abilityPalette SelfReliant = PaletteName "ability-success"
+abilityPalette SelfReliantWithSillyMistakes = PaletteName "ability-success-light"
+abilityPalette WithSupport = PaletteName "ability-warning"
+abilityPalette NotYet = PaletteName "ability-danger"

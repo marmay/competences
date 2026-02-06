@@ -4,7 +4,7 @@ Description: Basecoat badge components with builder-pattern API
 
 Provides badge components following Basecoat design patterns.
 Two render paths: semantic variants (via Basecoat CSS classes) and
-custom palettes (via 'ColorPalette' from "View.Color").
+custom palettes (via 'BadgePalette' record).
 -}
 module Competences.Frontend.View.Badge
   ( -- * Badge variants
@@ -13,6 +13,9 @@ module Competences.Frontend.View.Badge
     -- * Badge contents
   , BadgeContents (..)
   , ToBadgeContents (..)
+
+    -- * Palette for custom badges
+  , BadgePalette (..)
 
     -- * Rendering
   , render
@@ -30,7 +33,6 @@ module Competences.Frontend.View.Badge
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
-import Competences.Frontend.View.Color (ColorPalette (..))
 import Competences.Frontend.View.Icon (Icon, icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
@@ -43,6 +45,14 @@ import Miso.String (MisoString)
 -- | Badge variant following Basecoat design system
 data BadgeVariant = Primary | Secondary | Destructive | Outline
   deriving (Eq, Show)
+
+-- | Palette for custom-colored badges.
+-- Each field is a complete Tailwind CSS class name.
+data BadgePalette = BadgePalette
+  { foreground :: !Text -- ^ Text color class (e.g., "text-green-800")
+  , background :: !Text -- ^ Background class (e.g., "bg-green-100")
+  , border :: !Text -- ^ Border color class (e.g., "border-green-300")
+  }
 
 -- | Badge contents
 data BadgeContents
@@ -97,7 +107,7 @@ render variant contents =
     (renderContents (toBadgeContents contents))
 
 -- | Render a badge with a custom color palette
-customBadge :: (ToBadgeContents c) => ColorPalette -> c -> M.View model action
+customBadge :: (ToBadgeContents c) => BadgePalette -> c -> M.View model action
 customBadge palette contents =
   M.span_
     [ class_ $
@@ -158,7 +168,7 @@ interactive variant tip mAction contents =
 -- | Render an interactive badge with a custom color palette
 customInteractive
   :: (ToBadgeContents c)
-  => ColorPalette
+  => BadgePalette
   -> Tooltip model action
   -> Maybe (Icon, action)
   -> c

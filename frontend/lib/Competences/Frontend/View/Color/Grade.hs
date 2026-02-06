@@ -6,16 +6,30 @@
 -- * Grades 1-3: green (good)
 -- * Grades 3-4, 4, 4-5: yellow (warning)
 -- * Grade 5: red (danger)
+--
+-- Note: These palettes use standard Tailwind color classes rather than
+-- custom CSS variables, unlike the ability palettes. This is intentional
+-- as grades don't need striped background support.
 module Competences.Frontend.View.Color.Grade
   ( gradePalette
+  , GradePalette (..)
   )
 where
 
 import Competences.Document.Grade (Grade (..))
-import Competences.Frontend.View.Color (ColorPalette (..))
+import Data.Text (Text)
+
+-- | A simple palette for grade colors.
+-- Unlike 'PaletteName', this stores explicit class names since grades
+-- use standard Tailwind colors without stripe variants.
+data GradePalette = GradePalette
+  { foreground :: !Text -- ^ text color class (e.g., "text-green-800")
+  , background :: !Text -- ^ background class (e.g., "bg-green-100")
+  , border :: !Text -- ^ border color class (e.g., "border-green-300")
+  }
 
 -- | Get the color palette for a grade.
-gradePalette :: Grade -> ColorPalette
+gradePalette :: Grade -> GradePalette
 gradePalette g = case g of
   Grade1 -> greenPalette
   Grade1_2 -> greenPalette
@@ -28,11 +42,11 @@ gradePalette g = case g of
   Grade5 -> redPalette
 
 -- Local palettes using Tailwind colors
-greenPalette :: ColorPalette
-greenPalette = ColorPalette "text-green-800" "bg-green-100" "border-green-300"
+greenPalette :: GradePalette
+greenPalette = GradePalette "text-green-800" "bg-green-100" "border-green-300"
 
-yellowPalette :: ColorPalette
-yellowPalette = ColorPalette "text-yellow-800" "bg-yellow-100" "border-yellow-300"
+yellowPalette :: GradePalette
+yellowPalette = GradePalette "text-yellow-800" "bg-yellow-100" "border-yellow-300"
 
-redPalette :: ColorPalette
-redPalette = ColorPalette "text-red-800" "bg-red-100" "border-red-300"
+redPalette :: GradePalette
+redPalette = GradePalette "text-red-800" "bg-red-100" "border-red-300"

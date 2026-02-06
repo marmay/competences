@@ -7,7 +7,7 @@ where
 
 import Competences.Document.Grade (Grade (..))
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Color.Grade (gradePalette)
+import Competences.Frontend.View.Color.Grade (GradePalette (..), gradePalette)
 import Data.Text qualified as T
 import Miso qualified as M
 
@@ -15,7 +15,13 @@ import Miso qualified as M
 -- Color coding: 1-3 green, 3-4/4/4-5 yellow, 5 red
 gradeBadgeView :: Grade -> M.View m action
 gradeBadgeView g =
-  Badge.customBadge (gradePalette g) (M.ms (gradeShortLabel g) :: M.MisoString)
+  let palette = gradePalette g
+      badgePalette = Badge.BadgePalette
+        { foreground = palette.foreground
+        , background = palette.background
+        , border = palette.border
+        }
+   in Badge.customBadge badgePalette (M.ms (gradeShortLabel g) :: M.MisoString)
 
 -- | Short label for grade (just the number part)
 gradeShortLabel :: Grade -> T.Text

@@ -44,7 +44,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
-import Competences.Frontend.View.Color (ColorPalette (..))
+import Competences.Frontend.View.Color (textClass)
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
@@ -362,13 +362,13 @@ assessmentComponent r grid =
                   hasDesc = not (T.null levelInfo.description)
                   levelName = C.translate' (C.LblCompetenceLevelDescription lvl)
                   -- Gray out if no description or locked
-                  textClass = if hasDesc && not levelInfo.locked then "text-stone-600" else "text-stone-400"
+                  levelTextClass = if hasDesc && not levelInfo.locked then "text-stone-600" else "text-stone-400"
 
                   -- Label with info icon and CSS-based tooltip (group-hover pattern)
                   -- If locked, show lock icon instead of info icon
                   labelWithTooltip =
                     MH.div_ [class_ "w-28 flex items-center gap-1 shrink-0"]
-                      [ MH.span_ [class_ $ "text-xs font-medium " <> textClass] [M.text levelName]
+                      [ MH.span_ [class_ $ "text-xs font-medium " <> levelTextClass] [M.text levelName]
                       , if levelInfo.locked
                           then StatusIcon.lockIcon
                           else if hasDesc
@@ -459,7 +459,7 @@ assessmentComponent r grid =
 
             -- | Show evidence icon for a single evidence entry
             showEvidenceIcon hasLevelDesc actType socialForm ability =
-              let abilityClass = if hasLevelDesc then (abilityPalette ability).foreground else "text-stone-400"
+              let abilityClass = if hasLevelDesc then textClass (abilityPalette ability) else "text-stone-400"
                   ci = V.coloredStrokeIcon abilityClass
                in MH.div_ [class_ "flex items-center justify-center w-12"]
                     [ ci (V.activityTypeIcon actType)
