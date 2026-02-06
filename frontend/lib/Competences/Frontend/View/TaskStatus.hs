@@ -3,7 +3,6 @@
 module Competences.Frontend.View.TaskStatus
   ( viewTaskCompletionStatus
   , viewTaskCompletionStatusFromMap
-  , viewCompactTaskStatus
   )
 where
 
@@ -11,6 +10,9 @@ import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Color (textClass')
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.Color.Completion qualified as Completion
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.TaskStatus (EvidenceRef (..), TaskCompletionStatus (..))
@@ -30,9 +32,9 @@ import Miso.Html qualified as MH
 viewTaskCompletionStatus :: TaskCompletionStatus -> M.View model a
 viewTaskCompletionStatus TaskNotEvaluated = V.empty
 viewTaskCompletionStatus (TaskDone ref) =
-  statusView "text-green-600" IcnApply ref
+  statusView (textClass' $ Completion.completionPalette Done) IcnApply ref
 viewTaskCompletionStatus (TaskNotDone ref) =
-  statusView "text-yellow-500" IcnProgress ref
+  statusView (textClass' $ Completion.completionPalette InProgress) IcnProgress ref
 
 -- | Convenience: look up task status from a map and render.
 -- Returns empty view for tasks not in the map.
@@ -57,16 +59,6 @@ refLabel :: EvidenceRef -> M.MisoString
 refLabel ref = case ref.assignmentName of
   Just (AssignmentName name) -> M.ms name
   Nothing -> C.translate' (C.LblActivityTypeDescription ref.activityType)
-
--- | Compact status dot for use in dense layouts (e.g. evaluator task headers).
--- Green dot for done, yellow for not done, grey for not evaluated.
-viewCompactTaskStatus :: TaskCompletionStatus -> M.View model a
-viewCompactTaskStatus TaskNotEvaluated =
-  MH.div_ [class_ "w-3 h-3 rounded-full bg-stone-200"] []
-viewCompactTaskStatus (TaskDone _) =
-  MH.div_ [class_ "w-3 h-3 rounded-full bg-green-500"] []
-viewCompactTaskStatus (TaskNotDone _) =
-  MH.div_ [class_ "w-3 h-3 rounded-full bg-yellow-400"] []
 
 -- | Format a day as short "dd.mm." (day and month only, no year).
 formatShortDay :: Day -> M.MisoString

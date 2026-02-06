@@ -27,7 +27,8 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.TaskStatus (viewCompactTaskStatus)
+import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
+import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Data.Map.Strict qualified as Map
@@ -455,11 +456,15 @@ evaluatorComponent r assignment =
       let status = fromMaybe TaskNotEvaluated $ do
             userStatuses <- Map.lookup userId m.taskStatuses
             Map.lookup taskId userStatuses
+          completionStatus = case status of
+            TaskNotEvaluated -> Open
+            TaskDone _ -> Done
+            TaskNotDone _ -> InProgress
           studentName = case Ix.getOne (m.users Ix.@= userId) of
             Just u -> u.name
             Nothing -> T.pack (show userId)
        in M.div_ [class_ "group relative", MP.title_ (ms studentName)]
-            [viewCompactTaskStatus status]
+            [completionIcon completionStatus]
 
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
