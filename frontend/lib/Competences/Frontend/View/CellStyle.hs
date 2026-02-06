@@ -11,6 +11,8 @@ module Competences.Frontend.View.CellStyle
   )
 where
 
+import Competences.Frontend.View.Color (bgClass, paletteStripedStyle, textClass)
+import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.StatusIcon (Status (..))
 import Competences.Query.Mastery (MasteryStatus (..))
 import Data.Text (Text)
@@ -36,36 +38,19 @@ stripedStyle =
 -- | Colored diagonal stripe pattern for mastery status in grid cells.
 -- Uses graduated greens for positive states and yellows for not-yet states.
 -- Returns empty list for 'NotTried' (no visual indicator).
+--
+-- The stripe colors are defined via CSS variables in @input.css@:
+-- @--mastery-{status}-stripe-light@ and @--mastery-{status}-stripe-dark@
 masteryStripedStyle :: MasteryStatus -> [(M.MisoString, M.MisoString)]
-masteryStripedStyle StreakTwoAssessed = coloredStripes "rgb(187 247 208)" "rgb(220 252 231)" -- green-200 / green-100
-masteryStripedStyle StreakTwoPlus = coloredStripes "rgb(220 252 231)" "rgb(240 253 244)" -- green-100 / green-50
-masteryStripedStyle OneSuccess = coloredStripes "rgb(240 253 244)" "rgb(255 255 255)" -- green-50 / white
-masteryStripedStyle OnlySillyMistakes = coloredStripes "rgb(254 249 195)" "rgb(254 252 232)" -- yellow-100 / yellow-50
-masteryStripedStyle MasteryNotYet = coloredStripes "rgb(254 240 138)" "rgb(254 249 195)" -- yellow-200 / yellow-100
-masteryStripedStyle NotTried = []
+masteryStripedStyle status = case masteryPalette status of
+  Nothing -> []
+  Just p -> paletteStripedStyle p
 
 -- | Badge color classes for mastery status (bg, text).
 -- Returns 'Nothing' for 'NotTried' (no badge shown).
+--
+-- Uses the mastery palette to derive CSS class names.
 masteryBadgeColors :: MasteryStatus -> Maybe (Text, Text)
-masteryBadgeColors StreakTwoAssessed = Just ("bg-green-100", "text-green-700")
-masteryBadgeColors StreakTwoPlus = Just ("bg-green-50", "text-green-700")
-masteryBadgeColors OneSuccess = Just ("bg-green-50", "text-green-700")
-masteryBadgeColors OnlySillyMistakes = Just ("bg-yellow-50", "text-yellow-700")
-masteryBadgeColors MasteryNotYet = Just ("bg-yellow-100", "text-yellow-800")
-masteryBadgeColors NotTried = Nothing
-
--- | Build a diagonal stripe background with two alternating colors.
-coloredStripes :: M.MisoString -> M.MisoString -> [(M.MisoString, M.MisoString)]
-coloredStripes light dark =
-  [ ( "background"
-    , "repeating-linear-gradient(135deg, "
-        <> light
-        <> " 0px, "
-        <> light
-        <> " 4px, "
-        <> dark
-        <> " 4px, "
-        <> dark
-        <> " 8px)"
-    )
-  ]
+masteryBadgeColors status = case masteryPalette status of
+  Nothing -> Nothing
+  Just p -> Just (bgClass p, textClass p)
