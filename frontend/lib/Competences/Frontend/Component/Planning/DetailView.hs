@@ -19,6 +19,7 @@ import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorMo
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.TaskContent.RichContent (fromTrustedInput)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -293,6 +294,10 @@ detailComponent r initialPlan =
               MH.div_
                 [class_ "text-sm text-muted-foreground"]
                 [M.text $ C.translate' C.LblLessonDate <> ": " <> C.formatDay d]
+        , -- Description
+          if lesson.description == mempty
+            then M.text ""
+            else MH.div_ [class_ "text-sm"] [renderRichText lesson.description]
         , -- Assignments collapsible
           if null lessonAssignmentIds
             then M.text ""
@@ -359,8 +364,8 @@ detailComponent r initialPlan =
                 ]
             , if Text.null phase.notes
                 then M.text ""
-                else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted"]
-                  [M.text $ M.ms phase.notes]
+                else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted text-sm"]
+                  [renderRichText (fromTrustedInput phase.notes)]
             ]
 
     viewAssignmentSummary doc aId =

@@ -474,16 +474,34 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                     (map (actionFormOption phase.actionForm) [minBound .. maxBound])
                 ]
             ]
-        , -- Phase notes
+        , -- Phase notes (split-panel with markup/preview)
           MH.div_
             []
-            [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblPhaseNotes]
-            , MH.textarea_
-                [ class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background min-h-[60px] font-mono text-sm"
-                , MP.value_ (M.ms phase.notes)
-                , MH.onInput (SetPhaseNotes idx . M.fromMisoString)
+            [ MH.label_ [class_ "text-sm font-medium mb-1 block"] [M.text $ C.translate' C.LblPhaseNotes]
+            , MH.div_
+                [class_ "flex gap-4"]
+                [ MH.div_
+                    [class_ "flex-1"]
+                    [ MH.label_
+                        [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
+                        [M.text "Markup"]
+                    , MH.textarea_
+                        [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[60px] font-mono text-sm"
+                        , MP.value_ (M.ms phase.notes)
+                        , MH.onInput (SetPhaseNotes idx . M.fromMisoString)
+                        ]
+                        []
+                    ]
+                , MH.div_
+                    [class_ "flex-1"]
+                    [ MH.label_
+                        [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
+                        [M.text $ C.translate' C.LblPreview]
+                    , MH.div_
+                        [class_ "min-h-[60px] p-2 border border-input rounded-md bg-muted/50 text-sm"]
+                        [renderRichText (fromTrustedInput phase.notes)]
+                    ]
                 ]
-                []
             ]
         ]
 

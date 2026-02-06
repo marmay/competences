@@ -252,7 +252,7 @@ disclosureImpl style mPalette toggleAction dc =
 
     bodyClasses = case style of
       DisclosureDefault -> "px-3 py-2 border-t" :: Text
-      DisclosureNested -> "px-2 py-1.5 border-t border-muted"
+      DisclosureNested -> "pl-6 pr-2 py-1.5 border-t border-muted"
 
 -- | Render title contents.
 renderTitle :: TitleContents -> M.View m a
