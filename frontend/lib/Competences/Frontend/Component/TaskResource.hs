@@ -16,6 +16,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Color (PaletteName)
+import Competences.Frontend.View.Color.Status qualified as Status
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
@@ -25,8 +27,8 @@ import Competences.TaskContent.RichContent (RichContent)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set (Set)
-import Data.Text qualified as T
 import Data.Set qualified as Set
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -125,13 +127,9 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
         Just c -> c /= mempty
       hasSolutions = not (null tws.solutions)
       isExpandable = hasContent || hasSolutions
+      mPalette = taskStatusPalette (Map.lookup tws.task.id statuses)
       headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
-      titleLeft =
-        MH.div_
-          [class_ "flex items-center gap-2"]
-          [ Icon.icon [] Icon.IcnTask
-          , MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
-          ]
+      titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms identifier)
       titleRight =
         MH.div_
           [class_ "flex items-center gap-2"]
@@ -140,7 +138,7 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
               then purposeBadge tws.taskPurpose
               else V.empty
           ]
-      title = (Icon.IcnTask, M.ms identifier)
+      titleView = Disclosure.titleWithAnnotation titleLeft titleRight
       contentView =
         MH.div_
           [class_ "space-y-3"]
@@ -159,8 +157,8 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
           ]
    in if isExpandable
         then
-          Disclosure.disclosure (liftAction $ ToggleTask tws.task.id) $
-            Disclosure.contents title isExpanded contentView []
+          Disclosure.maybePaletteDisclosure mPalette (liftAction $ ToggleTask tws.task.id) $
+            Disclosure.contents titleView isExpanded contentView []
         else
           MH.div_
             [class_ "border rounded-lg overflow-hidden"]
@@ -184,7 +182,7 @@ viewSolutions state liftAction sols =
 viewSolution :: TaskResourceList -> (Action -> a) -> Solution -> M.View model a
 viewSolution state liftAction sol =
   let isExpanded = Set.member sol.id state.expandedSolutions
-      title = (Icon.IcnSolution, solutionTypeLabel sol.solutionType)
+      titleView = Disclosure.titleIconText Icon.IcnSolution (solutionTypeLabel sol.solutionType)
       bodyView =
         if sol.content == mempty
           then Typography.muted "Kein Inhalt"
@@ -193,16 +191,23 @@ viewSolution state liftAction sol =
               [class_ "prose prose-stone prose-sm max-w-none"]
               [renderRichText sol.content]
    in Disclosure.innerDisclosure (liftAction $ ToggleSolution sol.id) $
-        Disclosure.contents title isExpanded bodyView []
+        Disclosure.contents titleView isExpanded bodyView []
 
 -- ============================================================================
--- Task status header styling
+-- Task status styling
 -- ============================================================================
+
+-- | Convert task completion status to a color palette.
+taskStatusPalette :: Maybe TaskCompletionStatus -> Maybe PaletteName
+taskStatusPalette (Just (TaskDone _)) = Just (Status.statusPalette Status.Ok)
+taskStatusPalette (Just (TaskNotDone _)) = Just (Status.statusPalette Status.Pending)
+taskStatusPalette _ = Nothing
 
 -- | Header background class based on task completion status.
-taskStatusHeaderBg :: Maybe TaskCompletionStatus -> T.Text
-taskStatusHeaderBg (Just (TaskDone _)) = "bg-green-50"
-taskStatusHeaderBg (Just (TaskNotDone _)) = "bg-yellow-50"
+-- Used for non-expandable tasks that don't use Disclosure.
+taskStatusHeaderBg :: Maybe TaskCompletionStatus -> Text
+taskStatusHeaderBg (Just (TaskDone _)) = "bg-status-ok"
+taskStatusHeaderBg (Just (TaskNotDone _)) = "bg-status-pending"
 taskStatusHeaderBg _ = "bg-muted/50"
 
 -- ============================================================================

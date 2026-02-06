@@ -500,10 +500,10 @@ evaluatorComponent r assignment =
           isExpanded = case solution.solutionType of
             Results -> not $ Set.member solution.id m.collapsedResults
             _ -> Set.member solution.id m.collapsedResults  -- Non-results: collapsed by default, tracked as "expanded" in set
-          title = (Icon.IcnSolution, C.translate' (C.LblSolutionType solution.solutionType))
+          titleView = Disclosure.titleIconText Icon.IcnSolution (C.translate' (C.LblSolutionType solution.solutionType))
           bodyView = M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText solution.content]
        in Disclosure.innerDisclosure (ToggleSolutionExpanded solution.id) $
-            Disclosure.contents title isExpanded bodyView []
+            Disclosure.contents titleView isExpanded bodyView []
 
     viewStudentEvaluations m taskId =
       if null m.selectedStudents

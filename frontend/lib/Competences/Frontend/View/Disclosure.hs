@@ -6,52 +6,60 @@
 -- == Usage
 --
 -- @
--- -- Simple disclosure
+-- -- Simple disclosure with text title
 -- Disclosure.disclosure toggleAction $
---   Disclosure.contents "Section Title" isExpanded sectionContent []
+--   Disclosure.contents (Disclosure.titleText "Section Title") isExpanded sectionContent []
 --
 -- -- With actions
 -- Disclosure.disclosure toggleAction $
---   Disclosure.contents "Title" isExpanded bodyView
+--   Disclosure.contents (Disclosure.titleText "Title") isExpanded bodyView
 --     [ Action Icon.IcnEdit editAction
 --     , DestructiveAction Icon.IcnDelete deleteAction
 --     ]
 --
 -- -- With icon and title
 -- Disclosure.disclosure toggleAction $
---   Disclosure.contents (Icon.IcnTask, "Task 1.2.3") isExpanded bodyView []
+--   Disclosure.contents (Disclosure.titleIconText Icon.IcnTask "Task 1.2.3") isExpanded bodyView []
+--
+-- -- With left/right content (e.g., title + badge)
+-- Disclosure.disclosure toggleAction $
+--   Disclosure.contents (Disclosure.titleWithAnnotation leftView rightView) isExpanded bodyView []
 --
 -- -- Nested style (inside another disclosure)
 -- Disclosure.innerDisclosure toggleAction $
---   Disclosure.contents "Nested Item" isExpanded nestedContent []
+--   Disclosure.contents (Disclosure.titleText "Nested Item") isExpanded nestedContent []
 --
 -- -- Custom palette
 -- Disclosure.paletteDisclosure myPalette toggleAction $
---   Disclosure.contents "Styled" isExpanded styledContent []
+--   Disclosure.contents (Disclosure.titleText "Styled") isExpanded styledContent []
 -- @
 module Competences.Frontend.View.Disclosure
   ( -- * Core types
     DisclosureStyle (..)
   , DisclosureAction (..)
-  , TitleContents (..)
-  , ToTitleContents (..)
   , DisclosureContents (..)
 
     -- * Content construction
   , contents
+
+    -- * Title helpers
+  , titleIcon
+  , titleIconText
+  , titleText
+  , titleWithAnnotation
 
     -- * Presentation functions
   , disclosure
   , innerDisclosure
   , paletteDisclosure
   , innerPaletteDisclosure
+  , maybePaletteDisclosure
 
     -- * Low-level helpers
   , disclosureChevron
   )
 where
 
-import Competences.Frontend.Common.Translate (Label, translate')
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color (PaletteColor (..), PaletteName, bgClass)
 import Competences.Frontend.View.Icon qualified as Icon
@@ -81,36 +89,10 @@ data DisclosureAction a
     DestructiveAction !Icon.Icon !a
   deriving (Eq, Show)
 
--- | Title content for the disclosure header.
-data TitleContents
-  = -- | Plain text title
-    TextOnly !MisoString
-  | -- | Icon followed by text
-    IconText !Icon.Icon !MisoString
-  deriving (Eq, Show)
-
--- | Convert various types to TitleContents.
-class ToTitleContents a where
-  toTitleContents :: a -> TitleContents
-
-instance ToTitleContents TitleContents where
-  toTitleContents = id
-
-instance ToTitleContents MisoString where
-  toTitleContents = TextOnly
-
-instance ToTitleContents Label where
-  toTitleContents = TextOnly . translate'
-
-instance ToTitleContents (Icon.Icon, MisoString) where
-  toTitleContents (i, t) = IconText i t
-
-instance ToTitleContents (Icon.Icon, Label) where
-  toTitleContents (i, l) = IconText i (translate' l)
-
 -- | Disclosure configuration with content.
+-- The title is a full View, allowing arbitrary content (icons, badges, etc.)
 data DisclosureContents m a = DisclosureContents
-  { title :: !TitleContents
+  { title :: !(M.View m a)
   , body :: !(Maybe (M.View m a))
   , actions :: ![DisclosureAction a]
   }
@@ -125,13 +107,12 @@ data DisclosureContents m a = DisclosureContents
 -- thunk is not forced, so expensive views are not computed when collapsed.
 --
 -- @
--- contents "Title" isExpanded bodyView [Action Icon.IcnEdit editAction]
--- contents (Icon.IcnTask, "Task") isExpanded bodyView []
+-- contents (titleText "Title") isExpanded bodyView [Action Icon.IcnEdit editAction]
+-- contents (titleIconText Icon.IcnTask "Task") isExpanded bodyView []
 -- @
 contents
-  :: (ToTitleContents t)
-  => t
-  -- ^ Title (text, label, or icon+text tuple)
+  :: M.View m a
+  -- ^ Title view (use titleText, titleIconText, or titleWithAnnotation)
   -> Bool
   -- ^ Whether the disclosure is expanded
   -> M.View m a
@@ -139,12 +120,44 @@ contents
   -> [DisclosureAction a]
   -- ^ Header actions
   -> DisclosureContents m a
-contents t expanded bodyView actions' =
+contents titleView expanded bodyView actions' =
   DisclosureContents
-    { title = toTitleContents t
+    { title = titleView
     , body = if expanded then Just bodyView else Nothing
     , actions = actions'
     }
+
+-- ============================================================================
+-- Title Helpers
+-- ============================================================================
+
+-- | Title with just an icon.
+titleIcon :: Icon.Icon -> M.View m a
+titleIcon icon = Icon.icon [] icon
+
+-- | Title with icon and text (common case).
+titleIconText :: Icon.Icon -> MisoString -> M.View m a
+titleIconText icon text =
+  MH.div_
+    [class_ "flex items-center gap-2 min-w-0"]
+    [ Icon.icon [] icon
+    , MH.span_ [class_ "font-medium truncate"] [M.text text]
+    ]
+
+-- | Title with just text.
+titleText :: MisoString -> M.View m a
+titleText t = MH.span_ [class_ "font-medium truncate"] [M.text t]
+
+-- | Title with left and right content.
+-- The right content appears on the far right side of the header.
+-- Useful for adding badges, status indicators, or other annotations.
+titleWithAnnotation :: M.View m a -> M.View m a -> M.View m a
+titleWithAnnotation left right =
+  MH.div_
+    [class_ "flex items-center justify-between w-full"]
+    [ MH.div_ [class_ "min-w-0 flex-1"] [left]
+    , MH.div_ [class_ "shrink-0 ml-2"] [right]
+    ]
 
 -- ============================================================================
 -- Presentation Functions
@@ -185,10 +198,22 @@ paletteDisclosure p = disclosureImpl DisclosureDefault (Just p)
 --
 -- @
 -- innerPaletteDisclosure statusPalette toggleAction $
---   contents "Nested Styled" isExpanded nestedContent []
+--   contents (titleText "Nested Styled") isExpanded nestedContent []
 -- @
 innerPaletteDisclosure :: PaletteName -> a -> DisclosureContents m a -> M.View m a
 innerPaletteDisclosure p = disclosureImpl DisclosureNested (Just p)
+
+-- | Disclosure with optional palette.
+-- When @Nothing@, uses the default muted background.
+-- When @Just palette@, uses the palette's base color.
+--
+-- @
+-- maybePaletteDisclosure mStatus toggleAction $
+--   contents (titleText "Item") isExpanded content []
+-- @
+maybePaletteDisclosure :: Maybe PaletteName -> a -> DisclosureContents m a -> M.View m a
+maybePaletteDisclosure Nothing = disclosure
+maybePaletteDisclosure (Just p) = paletteDisclosure p
 
 -- ============================================================================
 -- Implementation
@@ -236,7 +261,7 @@ disclosureImpl style mPalette toggleAction dc =
     -- Header content
     headerContent =
       [ disclosureChevron isExpanded
-      , MH.div_ [class_ "flex-1 min-w-0"] [renderTitle dc.title]
+      , MH.div_ [class_ "flex-1 min-w-0"] [dc.title]
       ]
         <> actionsView
 
@@ -253,17 +278,6 @@ disclosureImpl style mPalette toggleAction dc =
     bodyClasses = case style of
       DisclosureDefault -> "px-3 py-2 border-t" :: Text
       DisclosureNested -> "pl-6 pr-2 py-1.5 border-t border-muted"
-
--- | Render title contents.
-renderTitle :: TitleContents -> M.View m a
-renderTitle (TextOnly t) =
-  MH.span_ [class_ "font-medium truncate"] [M.text t]
-renderTitle (IconText icon t) =
-  MH.div_
-    [class_ "flex items-center gap-2 min-w-0"]
-    [ Icon.icon [] icon
-    , MH.span_ [class_ "font-medium truncate"] [M.text t]
-    ]
 
 -- | Render an action button.
 -- Note: We need to use an explicit type application or specify the action type

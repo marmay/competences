@@ -39,7 +39,7 @@ resourcesListView resources expandedSet toggleExpanded =
     resourceCard res =
       let ResourceIdentifier ident = res.identifier
           displayName = if T.null ident then "(Unbenannt)" else ident
-          disclosureTitle = (Icon.IcnResources, M.ms displayName)
+          disclosureTitle = Disclosure.titleIconText Icon.IcnResources (M.ms displayName)
           nameView =
             MH.div_
               [class_ "flex items-center gap-2"]

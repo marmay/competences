@@ -157,7 +157,7 @@ taskSolutionsListComponent r taskId =
     viewSolution m sol =
       let isExpanded = Set.member sol.id m.expandedSolutions
           isOwner = isTeacher m.projection.connectedUser
-          title = (Icon.IcnSolution, solutionTypeLabel sol.solutionType)
+          titleView = Disclosure.titleIconText Icon.IcnSolution (solutionTypeLabel sol.solutionType)
           bodyView =
             if isOwner
               then solutionInlineEditor r sol
@@ -169,7 +169,7 @@ taskSolutionsListComponent r taskId =
                       [class_ "prose prose-stone prose-sm max-w-none"]
                       [renderRichText sol.content]
        in Disclosure.disclosure (ToggleSolution sol.id) $
-            Disclosure.contents title isExpanded bodyView
+            Disclosure.contents titleView isExpanded bodyView
               [Disclosure.DestructiveAction Icon.IcnDelete (DeleteSolution sol.id) | isOwner]
 
     solutionTypeLabel :: SolutionType -> M.MisoString

@@ -422,9 +422,9 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     viewPhaseCard :: Model -> Int -> LessonPhase -> M.View Model Action
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
-          title = M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
+          titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
        in Disclosure.disclosure (TogglePhaseEdit idx) $
-            Disclosure.contents title isExpanded (viewPhaseEditor idx phase)
+            Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase)
               [Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)]
 
     viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action

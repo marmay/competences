@@ -274,9 +274,9 @@ detailComponent r initialPlan =
 
     viewLesson m lesson =
       let isExpanded = m.expandedLessonId == Just lesson.id
-          title = M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
+          titleView = Disclosure.titleText $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
        in Disclosure.disclosure (ToggleLessonExpansion lesson.id) $
-            Disclosure.contents title isExpanded (viewExpandedLesson m lesson)
+            Disclosure.contents titleView isExpanded (viewExpandedLesson m lesson)
               [ Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
               , Disclosure.Action Icon.IcnEdit (OpenLessonEditorModal lesson)
               , Disclosure.DestructiveAction Icon.IcnDelete (DeleteLesson lesson.id)
@@ -303,44 +303,44 @@ detailComponent r initialPlan =
             then M.text ""
             else
               let assignmentsExpanded = Set.member lesson.id m.expandedAssignments
-                  assignmentsTitle = C.translate' C.LblLessonAssignments
+                  assignmentsTitleView = Disclosure.titleText $ C.translate' C.LblLessonAssignments
                     <> " (" <> M.ms (show (length lessonAssignmentIds)) <> ")"
                   assignmentsBody = MH.div_
                     [class_ "space-y-1"]
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                in Disclosure.innerDisclosure (ToggleAssignmentsExpanded lesson.id) $
-                    Disclosure.contents assignmentsTitle assignmentsExpanded assignmentsBody []
+                    Disclosure.contents assignmentsTitleView assignmentsExpanded assignmentsBody []
         , -- Resources collapsible
           if null resolvedResources
             then M.text ""
             else
               let resourcesExpanded = Set.member lesson.id m.expandedResourcesList
-                  resourcesTitle = C.translate' C.LblLessonResources
+                  resourcesTitleView = Disclosure.titleText $ C.translate' C.LblLessonResources
                     <> " (" <> M.ms (show (length resolvedResources)) <> ")"
                   resourcesBody = ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
                in Disclosure.innerDisclosure (ToggleResourcesListExpanded lesson.id) $
-                    Disclosure.contents resourcesTitle resourcesExpanded resourcesBody []
+                    Disclosure.contents resourcesTitleView resourcesExpanded resourcesBody []
         , -- Notes collapsible
           if lesson.notes == mempty
             then M.text ""
             else
               let notesExpanded = Set.member lesson.id m.expandedNotes
-                  notesTitle = C.translate' C.LblLessonNotes
+                  notesTitleView = Disclosure.titleText $ C.translate' C.LblLessonNotes
                   notesBody = MH.div_ [class_ "text-sm"] [renderRichText lesson.notes]
                in Disclosure.innerDisclosure (ToggleNotesExpanded lesson.id) $
-                    Disclosure.contents notesTitle notesExpanded notesBody []
+                    Disclosure.contents notesTitleView notesExpanded notesBody []
         , -- Phases collapsible
           if null lesson.phases
             then M.text ""
             else
               let phasesExpanded = Set.member lesson.id m.expandedPhases
-                  phasesTitle = C.translate' C.LblLessonPhases
+                  phasesTitleView = Disclosure.titleText $ C.translate' C.LblLessonPhases
                     <> " (" <> M.ms (show (length lesson.phases)) <> ")"
                   phasesBody = MH.div_
                     [class_ "space-y-2"]
                     (zipWith viewPhaseSummary [1 :: Int ..] lesson.phases)
                in Disclosure.innerDisclosure (TogglePhasesExpanded lesson.id) $
-                    Disclosure.contents phasesTitle phasesExpanded phasesBody []
+                    Disclosure.contents phasesTitleView phasesExpanded phasesBody []
         ]
 
     viewPhaseSummary idx phase =

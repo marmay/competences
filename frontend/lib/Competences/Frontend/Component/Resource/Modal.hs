@@ -203,7 +203,7 @@ viewStatusGroup m (group, tasks) =
           m.taskListState
           TaskListAction
    in Disclosure.disclosure (ToggleStatusGroup group) $
-        Disclosure.contents title isExpanded content []
+        Disclosure.contents (Disclosure.titleText title) isExpanded content []
 
 -- | Translated label for a status group
 statusGroupLabel :: TaskStatusGroup -> M.MisoString

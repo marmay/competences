@@ -498,7 +498,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
 
     viewManualObservationsSection m =
       Disclosure.disclosure ToggleManualObsExpanded $
-        Disclosure.contents C.LblManualObservations m.manualObsExpanded (viewManualObservationsContent m) []
+        Disclosure.contents (Disclosure.titleText $ C.translate' C.LblManualObservations) m.manualObsExpanded (viewManualObservationsContent m) []
 
     viewManualObservationsContent m =
       MH.div_
