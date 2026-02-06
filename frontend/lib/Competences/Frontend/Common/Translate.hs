@@ -865,7 +865,7 @@ defaultTranslation LblWillBeEdited = "\" bearbeitet: "
 -- Lesson evaluator
 defaultTranslation (LblParticipationType Participation) = "Mitarbeit"
 defaultTranslation (LblParticipationType Collaboration) = "Kollaboration"
-defaultTranslation (LblParticipationType PoorWorkEthic) = "Arbeit"
+defaultTranslation (LblParticipationType PoorWorkEthic) = "Arbeitshaltung"
 defaultTranslation (LblParticipationLevel Participation ParticipationLevel1) = "Gut"
 defaultTranslation (LblParticipationLevel Participation ParticipationLevel2) = "Herausragend"
 defaultTranslation (LblParticipationLevel Collaboration ParticipationLevel1) = "Gut"

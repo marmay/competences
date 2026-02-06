@@ -23,7 +23,7 @@ import Miso (Attribute, View)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
-import Miso.String (MisoString)
+import Miso.String (MisoString, ms)
 import Miso.Svg qualified as MS
 import Miso.Svg.Property qualified as MSP
 
@@ -69,6 +69,10 @@ data Icon
   | IcnMesoPlan
   | IcnPin
   | IcnWarning
+  | IcnPlus
+  | IcnPlusPlus
+  | IcnMinus
+  | IcnMinusMinus
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -107,7 +111,7 @@ sizeClass = \case
 iconV :: Variant -> Icon -> View m a
 iconV variant icn =
   MH.span_
-    [M.class_ $ variantStrokeClass variant]
+    [M.class_ $ ms $ variantStrokeClass variant]
     [icon [] icn]
 
 -- | Render icon with specific size
@@ -115,7 +119,7 @@ iconS :: Size -> Icon -> View m a
 iconS size icn =
   MS.svg_
     [ MSP.viewBox_ "0 0 24 24"
-    , M.class_ $ sizeClass size
+    , M.class_ $ ms $ sizeClass size
     , MSP.fill_ "none"
     , MSP.stroke_ "currentColor"
     ]
@@ -125,7 +129,7 @@ iconS size icn =
 iconVS :: Variant -> Size -> Icon -> View m a
 iconVS variant size icn =
   MH.span_
-    [M.class_ $ variantStrokeClass variant]
+    [M.class_ $ ms $ variantStrokeClass variant]
     [iconS size icn]
 
 iconDefs :: View m a
@@ -187,6 +191,10 @@ iconId = \case
   IcnMesoPlan -> "icon-meso-plan"
   IcnPin -> "icon-pin"
   IcnWarning -> "icon-warning"
+  IcnPlus -> "icon-plus-simple"
+  IcnPlusPlus -> "icon-plus-plus"
+  IcnMinus -> "icon-minus"
+  IcnMinusMinus -> "icon-minus-minus"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -496,6 +504,38 @@ iconDefOf' = \case
       , "M12 17h.01"
       , "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
       ]
+  -- Simple plus sign (no circle)
+  IcnPlus ->
+    [ MS.path_
+        [ MSP.d_ "M12 5V19M5 12H19"
+        , MSP.strokeWidth_ "2"
+        , MSP.strokeLinecap_ "round"
+        ]
+    ]
+  -- Double plus (two plus signs side by side)
+  IcnPlusPlus ->
+    [ MS.path_
+        [ MSP.d_ "M7 7V17M3 12H11M17 7V17M13 12H21"
+        , MSP.strokeWidth_ "2"
+        , MSP.strokeLinecap_ "round"
+        ]
+    ]
+  -- Simple minus sign (smaller)
+  IcnMinus ->
+    [ MS.path_
+        [ MSP.d_ "M7 12H17"
+        , MSP.strokeWidth_ "2"
+        , MSP.strokeLinecap_ "round"
+        ]
+    ]
+  -- Double minus (two minus signs side by side with gap)
+  IcnMinusMinus ->
+    [ MS.path_
+        [ MSP.d_ "M3 12H10M14 12H21"
+        , MSP.strokeWidth_ "2"
+        , MSP.strokeLinecap_ "round"
+        ]
+    ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
     mkPathes as = map (\p -> MS.path_ (MSP.d_ p : as))

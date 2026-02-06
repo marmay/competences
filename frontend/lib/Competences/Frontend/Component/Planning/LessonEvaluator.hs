@@ -230,13 +230,16 @@ lessonEvaluatorComponent r initialLesson =
 
     viewParticipationControls userId prs =
       MH.div_
-        [class_ "grid grid-cols-[auto_1fr_1fr] gap-x-2 gap-y-1 items-center mb-2"]
+        [class_ "grid grid-cols-[auto_auto] gap-x-2 gap-y-1 items-center mb-2"]
         (concatMap (viewParticipationRow userId prs) [minBound .. maxBound])
 
     viewParticipationRow userId prs pType =
       [ MH.span_ [class_ "text-xs text-muted-foreground"] [M.text $ C.translate' (C.LblParticipationType pType)]
-      , viewParticipationButton userId prs pType ParticipationLevel1
-      , viewParticipationButton userId prs pType ParticipationLevel2
+      , MH.div_
+          [class_ "flex"]
+          [ viewParticipationButton userId prs pType ParticipationLevel1
+          , viewParticipationButton userId prs pType ParticipationLevel2
+          ]
       ]
 
     viewParticipationButton userId prs pType pLevel =
@@ -244,8 +247,19 @@ lessonEvaluatorComponent r initialLesson =
           isActive = case mRecord of
             Just pr -> pr.level == pLevel
             Nothing -> False
-       in Button.toggleSm isActive
-            (Button.button (C.LblParticipationLevel pType pLevel) (ToggleParticipation userId pType pLevel))
+          icn = participationIcon pType pLevel
+          tooltipText = C.translate' (C.LblParticipationLevel pType pLevel)
+       in withTooltip (PlainTooltip tooltipText) $
+            Button.toggleSm isActive
+              (Button.button icn (ToggleParticipation userId pType pLevel))
+
+    -- | Icon for participation button based on type and level
+    participationIcon :: ParticipationType -> ParticipationLevel -> Icon.Icon
+    participationIcon pType pLevel = case (pType, pLevel) of
+      (PoorWorkEthic, ParticipationLevel1) -> Icon.IcnMinus
+      (PoorWorkEthic, ParticipationLevel2) -> Icon.IcnMinusMinus
+      (_, ParticipationLevel1) -> Icon.IcnPlus
+      (_, ParticipationLevel2) -> Icon.IcnPlusPlus
 
     viewEvidenceBadges m ev =
       let observations = Ix.toList ev.observations
