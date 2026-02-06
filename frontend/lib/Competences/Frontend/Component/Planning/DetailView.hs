@@ -54,6 +54,7 @@ data DetailModel = DetailModel
   , lessons :: ![Lesson]
   , expandedLessonId :: !(Maybe LessonId)
   , expandedResources :: !(Set.Set ResourceId)
+  , expandedAssignments :: !(Set.Set LessonId)  -- Track which lessons have assignments expanded
   , document :: !Document
   }
   deriving (Eq, Generic, Show)
@@ -64,6 +65,7 @@ data DetailAction
   | CreateNewLesson
   | ToggleLessonExpansion !LessonId
   | ToggleResourceExpanded !ResourceId
+  | ToggleAssignmentsExpanded !LessonId
   | OpenLessonEditorModal !Lesson
   | OpenMesoPlanEditorModal !MesoPlan
   | DeleteLesson !LessonId
@@ -73,16 +75,19 @@ data DetailAction
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
-projectDetail :: MesoPlan -> Maybe LessonId -> Set.Set ResourceId -> Document -> DetailModel
-projectDetail plan prevExpanded prevExpandedResources doc =
+projectDetail :: MesoPlan -> Maybe LessonId -> Set.Set ResourceId -> Set.Set LessonId -> Document -> DetailModel
+projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
+      lessonIds = Set.fromList $ map (.id) lessons'
       -- Clear expansion if the lesson no longer exists
       expanded = case prevExpanded of
         Nothing -> Nothing
         Just lid -> if any (\l -> l.id == lid) lessons' then Just lid else Nothing
-   in DetailModel plan' lessons' expanded prevExpandedResources doc
+      -- Clean up expanded assignments for lessons that no longer exist
+      expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
+   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' doc
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -100,7 +105,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty emptyDocument
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty emptyDocument
 
     emptyDocument =
       Document
@@ -121,7 +126,7 @@ detailComponent r initialPlan =
         , participationRecords = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources m.expandedAssignments dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -154,6 +159,13 @@ detailComponent r initialPlan =
               then Set.delete resId m.expandedResources
               else Set.insert resId m.expandedResources
        in m {expandedResources = newExpanded}
+
+    update (ToggleAssignmentsExpanded lessonId) = M.modify $ \m ->
+      let newExpanded =
+            if Set.member lessonId m.expandedAssignments
+              then Set.delete lessonId m.expandedAssignments
+              else Set.insert lessonId m.expandedAssignments
+       in m {expandedAssignments = newExpanded}
 
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
@@ -245,15 +257,14 @@ detailComponent r initialPlan =
           if null lessonAssignmentIds
             then M.text ""
             else
-              MH.nodeHtml "details"
-                [class_ "border border-border rounded-md"]
-                [ MH.nodeHtml "summary"
-                    [class_ "cursor-pointer p-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 rounded-md"]
-                    [M.text $ C.translate' C.LblLessonAssignments <> " (" <> M.ms (show (length lessonAssignmentIds)) <> ")"]
-                , MH.div_
-                    [class_ "p-2 pt-0 space-y-1"]
+              let assignmentsExpanded = Set.member lesson.id m.expandedAssignments
+                  assignmentsTitle = C.translate' C.LblLessonAssignments
+                    <> " (" <> M.ms (show (length lessonAssignmentIds)) <> ")"
+                  assignmentsBody = MH.div_
+                    [class_ "space-y-1"]
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
-                ]
+               in Disclosure.innerDisclosure (ToggleAssignmentsExpanded lesson.id) $
+                    Disclosure.contents assignmentsTitle assignmentsExpanded assignmentsBody []
         , -- Resources (shown directly, each individually expandable)
           let resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
            in if null resolvedResources
