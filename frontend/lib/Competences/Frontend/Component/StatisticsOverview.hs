@@ -22,7 +22,7 @@ import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subsc
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Color (bgClass', textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon (Icon (..), IconSize (..), IconVariant (..), iconVS)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Miso.Html qualified as MH
@@ -174,7 +174,7 @@ valueWithWarning value maximumValue =
         [class_ "inline-flex items-center gap-1"]
         [ M.text $ M.ms $ show value
         , if needsWarning
-            then icon [class_ "w-4 h-4 text-amber-500"] IcnWarning
+            then iconVS IconDestructive IconSmall IcnWarning
             else M.text ""
         ]
 

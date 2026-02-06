@@ -6,13 +6,22 @@
 -- manage to get it to work for now.
 module Competences.Frontend.View.Icon
   ( Icon (..)
+  , IconVariant (..)
+  , IconSize (..)
   , iconDefs
   , icon
+  , iconV
+  , iconS
+  , iconVS
+  , variantStrokeClass
+  , sizeClass
   )
 where
 
+import Data.Text (Text)
 import Miso (Attribute, View)
 import Miso qualified as M
+import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
 import Miso.String (MisoString)
 import Miso.Svg qualified as MS
@@ -61,6 +70,63 @@ data Icon
   | IcnPin
   | IcnWarning
   deriving (Bounded, Eq, Enum, Ord, Show)
+
+-- | Icon color variants based on theme colors
+data IconVariant
+  = IconPrimary       -- ^ --primary color (for emphasis)
+  | IconSecondary     -- ^ --secondary-foreground (subtle)
+  | IconGhost         -- ^ --muted-foreground (very subtle)
+  | IconDestructive   -- ^ --destructive color (danger/delete actions)
+  | IconOnPrimary     -- ^ --primary-foreground (for icons inside primary containers)
+  deriving (Bounded, Eq, Enum, Ord, Show)
+
+-- | Icon size variants to match button sizes
+data IconSize
+  = IconSmall    -- ^ 16px (w-4 h-4) - for small buttons
+  | IconRegular  -- ^ 20px (w-5 h-5) - for regular buttons
+  | IconLarge    -- ^ 24px (w-6 h-6) - for large buttons (current default)
+  deriving (Bounded, Eq, Enum, Ord, Show)
+
+-- | CSS class for variant stroke color
+variantStrokeClass :: IconVariant -> Text
+variantStrokeClass = \case
+  IconPrimary -> "text-primary"
+  IconSecondary -> "text-secondary-foreground"
+  IconGhost -> "text-muted-foreground"
+  IconDestructive -> "text-destructive"
+  IconOnPrimary -> "text-primary-foreground"
+
+-- | CSS classes for icon size
+sizeClass :: IconSize -> Text
+sizeClass = \case
+  IconSmall -> "w-4 h-4"
+  IconRegular -> "w-5 h-5"
+  IconLarge -> "w-6 h-6"
+
+-- | Render icon with variant-based coloring
+iconV :: IconVariant -> Icon -> View m a
+iconV variant icn =
+  MH.span_
+    [M.class_ $ variantStrokeClass variant]
+    [icon [] icn]
+
+-- | Render icon with specific size
+iconS :: IconSize -> Icon -> View m a
+iconS size icn =
+  MS.svg_
+    [ MSP.viewBox_ "0 0 24 24"
+    , M.class_ $ sizeClass size
+    , MSP.fill_ "none"
+    , MSP.stroke_ "currentColor"
+    ]
+    [MS.use_ [M.href_ $ "#" <> iconId icn]]
+
+-- | Render icon with variant and size
+iconVS :: IconVariant -> IconSize -> Icon -> View m a
+iconVS variant size icn =
+  MH.span_
+    [M.class_ $ variantStrokeClass variant]
+    [iconS size icn]
 
 iconDefs :: View m a
 iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]
