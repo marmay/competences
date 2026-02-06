@@ -32,10 +32,10 @@ pinFrame title toggleAction closeAction content =
             [class_ "flex items-center gap-2"]
             [ -- Pin toggle (minimize) button
               withTooltip (PlainTooltip "Minimize") $
-                Button.ghostSm (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))
+                Button.ghost (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))
             , -- Close button
               withTooltip (PlainTooltip "Close") $
-                Button.ghostSm (Button.button Icon.IcnCancel (Just closeAction))
+                Button.ghost (Button.button Icon.IcnCancel (Just closeAction))
             ]
         ]
     , -- Content area

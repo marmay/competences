@@ -331,6 +331,6 @@ detailComponent r initialPlan =
            in MH.div_
                 [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
                 [ M.text $ M.ms nameText
-                , Button.ghostSm (Button.button Icon.IcnApply (PinAssignmentEvaluation a))
+                , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
                 ]
 
