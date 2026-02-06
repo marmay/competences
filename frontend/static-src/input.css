@@ -18,6 +18,10 @@
 @source inline("text-ability-{success,success-light,warning,danger}");
 @source inline("text-ability-{success,success-light,warning-danger}-foreground");
 @source inline("border-ability-{success,success-light,warning,danger}");
+@source inline("bg-mastery-{assessed,strong,emerging,partial,not-yet}");
+@source inline("text-mastery-{assessed,strong,emerging,partial,not-yet}");
+@source inline("text-mastery-{assessed,strong,emerging,partial,not-yet}-foreground");
+@source inline("border-mastery-{assessed,strong,emerging,partial,not-yet}");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -66,6 +70,28 @@
   --color-ability-danger-foreground: var(--ability-danger-foreground);
   --color-ability-danger-stripe-light: var(--ability-danger-stripe-light);
   --color-ability-danger-stripe-dark: var(--ability-danger-stripe-dark);
+
+  /* Mastery status palettes */
+  --color-mastery-assessed: var(--mastery-assessed);
+  --color-mastery-assessed-foreground: var(--mastery-assessed-foreground);
+  --color-mastery-assessed-stripe-light: var(--mastery-assessed-stripe-light);
+  --color-mastery-assessed-stripe-dark: var(--mastery-assessed-stripe-dark);
+  --color-mastery-strong: var(--mastery-strong);
+  --color-mastery-strong-foreground: var(--mastery-strong-foreground);
+  --color-mastery-strong-stripe-light: var(--mastery-strong-stripe-light);
+  --color-mastery-strong-stripe-dark: var(--mastery-strong-stripe-dark);
+  --color-mastery-emerging: var(--mastery-emerging);
+  --color-mastery-emerging-foreground: var(--mastery-emerging-foreground);
+  --color-mastery-emerging-stripe-light: var(--mastery-emerging-stripe-light);
+  --color-mastery-emerging-stripe-dark: var(--mastery-emerging-stripe-dark);
+  --color-mastery-partial: var(--mastery-partial);
+  --color-mastery-partial-foreground: var(--mastery-partial-foreground);
+  --color-mastery-partial-stripe-light: var(--mastery-partial-stripe-light);
+  --color-mastery-partial-stripe-dark: var(--mastery-partial-stripe-dark);
+  --color-mastery-not-yet: var(--mastery-not-yet);
+  --color-mastery-not-yet-foreground: var(--mastery-not-yet-foreground);
+  --color-mastery-not-yet-stripe-light: var(--mastery-not-yet-stripe-light);
+  --color-mastery-not-yet-stripe-dark: var(--mastery-not-yet-stripe-dark);
 }
 
 /*
@@ -131,6 +157,40 @@
   --ability-danger-foreground: oklch(1 0 0);
   --ability-danger-stripe-light: color-mix(in oklch, var(--ability-danger) 50%, white);
   --ability-danger-stripe-dark: var(--ability-danger);
+
+  /* Mastery status colors - graduated greens and yellows
+   * Based on Tailwind green-50/100/200 and yellow-50/100/200 for stripes
+   * Stripe patterns use light/dark variants for diagonal stripes
+   */
+  /* StreakTwoAssessed - verified mastery (green-200 / green-100) */
+  --mastery-assessed: oklch(0.871 0.119 142);  /* green-200 */
+  --mastery-assessed-foreground: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-assessed-stripe-light: oklch(0.922 0.076 145);  /* green-100 */
+  --mastery-assessed-stripe-dark: oklch(0.871 0.119 142);  /* green-200 */
+
+  /* StreakTwoPlus - strong mastery (green-100 / green-50) */
+  --mastery-strong: oklch(0.922 0.076 145);  /* green-100 */
+  --mastery-strong-foreground: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-strong-stripe-light: oklch(0.962 0.044 156);  /* green-50 */
+  --mastery-strong-stripe-dark: oklch(0.922 0.076 145);  /* green-100 */
+
+  /* OneSuccess - emerging mastery (green-50 / white) */
+  --mastery-emerging: oklch(0.962 0.044 156);  /* green-50 */
+  --mastery-emerging-foreground: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-emerging-stripe-light: oklch(1 0 0);  /* white */
+  --mastery-emerging-stripe-dark: oklch(0.962 0.044 156);  /* green-50 */
+
+  /* OnlySillyMistakes - partial understanding (yellow-100 / yellow-50) */
+  --mastery-partial: oklch(0.973 0.071 103);  /* yellow-100 */
+  --mastery-partial-foreground: oklch(0.476 0.114 61);  /* yellow-800 */
+  --mastery-partial-stripe-light: oklch(0.987 0.026 102);  /* yellow-50 */
+  --mastery-partial-stripe-dark: oklch(0.973 0.071 103);  /* yellow-100 */
+
+  /* MasteryNotYet - not yet achieved (yellow-200 / yellow-100) */
+  --mastery-not-yet: oklch(0.945 0.129 101);  /* yellow-200 */
+  --mastery-not-yet-foreground: oklch(0.476 0.114 61);  /* yellow-800 */
+  --mastery-not-yet-stripe-light: oklch(0.973 0.071 103);  /* yellow-100 */
+  --mastery-not-yet-stripe-dark: oklch(0.945 0.129 101);  /* yellow-200 */
 }
 
 /* Dark mode */
