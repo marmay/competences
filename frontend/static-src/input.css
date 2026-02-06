@@ -16,6 +16,7 @@
 @source inline("ring-{primary,ring,accent}");
 @source inline("bg-ability-{success,success-light,warning,danger}");
 @source inline("text-ability-{success,success-light,warning,danger}");
+@source inline("text-ability-{success,success-light,warning-danger}-foreground");
 @source inline("border-ability-{success,success-light,warning,danger}");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
@@ -50,9 +51,21 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ability-success: var(--ability-success);
+  --color-ability-success-foreground: var(--ability-success-foreground);
+  --color-ability-success-stripe-light: var(--ability-success-stripe-light);
+  --color-ability-success-stripe-dark: var(--ability-success-stripe-dark);
   --color-ability-success-light: var(--ability-success-light);
+  --color-ability-success-light-foreground: var(--ability-success-light-foreground);
+  --color-ability-success-light-stripe-light: var(--ability-success-light-stripe-light);
+  --color-ability-success-light-stripe-dark: var(--ability-success-light-stripe-dark);
   --color-ability-warning: var(--ability-warning);
+  --color-ability-warning-foreground: var(--ability-warning-foreground);
+  --color-ability-warning-stripe-light: var(--ability-warning-stripe-light);
+  --color-ability-warning-stripe-dark: var(--ability-warning-stripe-dark);
   --color-ability-danger: var(--ability-danger);
+  --color-ability-danger-foreground: var(--ability-danger-foreground);
+  --color-ability-danger-stripe-light: var(--ability-danger-stripe-light);
+  --color-ability-danger-stripe-dark: var(--ability-danger-stripe-dark);
 }
 
 /*
@@ -92,11 +105,32 @@
   --input: oklch(0.869 0.007 264);
   --ring: oklch(0.511 0.262 276);
 
-  /* Ability colors - traffic light pattern for competence levels */
+  /* Ability colors - traffic light pattern for competence levels
+   * Each palette has:
+   *   --ability-{name}: the semantic color (for text/stroke/icons, used as bg)
+   *   --ability-{name}-foreground: contrast text for on top of bg
+   *   --ability-{name}-stripe-light: light stripe variant (color-mix default)
+   *   --ability-{name}-stripe-dark: dark stripe variant (= base color by default)
+   */
   --ability-success: oklch(0.527 0.154 163);
+  --ability-success-foreground: oklch(1 0 0);
+  --ability-success-stripe-light: color-mix(in oklch, var(--ability-success) 50%, white);
+  --ability-success-stripe-dark: var(--ability-success);
+
   --ability-success-light: oklch(0.627 0.194 163);
+  --ability-success-light-foreground: oklch(1 0 0);
+  --ability-success-light-stripe-light: color-mix(in oklch, var(--ability-success-light) 50%, white);
+  --ability-success-light-stripe-dark: var(--ability-success-light);
+
   --ability-warning: oklch(0.666 0.179 58);
+  --ability-warning-foreground: oklch(0 0 0);
+  --ability-warning-stripe-light: color-mix(in oklch, var(--ability-warning) 50%, white);
+  --ability-warning-stripe-dark: var(--ability-warning);
+
   --ability-danger: oklch(0.577 0.245 27);
+  --ability-danger-foreground: oklch(1 0 0);
+  --ability-danger-stripe-light: color-mix(in oklch, var(--ability-danger) 50%, white);
+  --ability-danger-stripe-dark: var(--ability-danger);
 }
 
 /* Dark mode */
@@ -131,9 +165,24 @@
 
   /* Ability colors - brighter for dark mode visibility */
   --ability-success: oklch(0.627 0.194 163);
+  --ability-success-foreground: oklch(0 0 0);
+  --ability-success-stripe-light: color-mix(in oklch, var(--ability-success) 50%, black);
+  --ability-success-stripe-dark: var(--ability-success);
+
   --ability-success-light: oklch(0.723 0.219 163);
+  --ability-success-light-foreground: oklch(0 0 0);
+  --ability-success-light-stripe-light: color-mix(in oklch, var(--ability-success-light) 50%, black);
+  --ability-success-light-stripe-dark: var(--ability-success-light);
+
   --ability-warning: oklch(0.766 0.179 58);
+  --ability-warning-foreground: oklch(0 0 0);
+  --ability-warning-stripe-light: color-mix(in oklch, var(--ability-warning) 50%, black);
+  --ability-warning-stripe-dark: var(--ability-warning);
+
   --ability-danger: oklch(0.677 0.245 27);
+  --ability-danger-foreground: oklch(0 0 0);
+  --ability-danger-stripe-light: color-mix(in oklch, var(--ability-danger) 50%, black);
+  --ability-danger-stripe-dark: var(--ability-danger);
 }
 
 /* Claude theme - warm orange accent */
