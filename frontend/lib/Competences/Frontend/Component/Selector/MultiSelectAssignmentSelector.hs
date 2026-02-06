@@ -20,7 +20,6 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (NoTooltip))
 import Data.List (sortOn)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -170,6 +169,5 @@ multiSelectAssignmentSelectorComponent r eligible initResults lensBinding =
     viewAssignmentTag a =
       Badge.interactive
         Badge.Secondary
-        NoTooltip
         (Just (IcnCancel, ToggleAssignment a.id))
         (IcnAssignment, M.ms $ unAssignmentName a.name)

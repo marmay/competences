@@ -71,7 +71,6 @@ import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon (Icon (IcnCancel))
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (NoTooltip))
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (intercalate)
 import Data.Map.Strict qualified as Map
@@ -322,7 +321,6 @@ bulkEvidenceEditorComponent r =
       let label = formatObservation m' obs
        in Badge.interactive
             Badge.Secondary
-            NoTooltip
             (Just (IcnCancel, RemoveObservation uid obs))
             label
 

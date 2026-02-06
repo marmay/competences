@@ -39,7 +39,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   , formatCompetenceLevelBadge
   )
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Tooltip (Tooltip (..))
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -266,8 +266,5 @@ lessonEvaluatorComponent r initialLesson =
           ResultView {badgeText, tooltipContent} =
             formatCompetenceLevelBadge m.competences m.competenceGrids
               (competenceId, level)
-       in Badge.paletteInteractive
-            (Eval.abilityPalette obs.ability)
-            (maybe NoTooltip PlainTooltip tooltipContent)
-            Nothing
-            badgeText
+       in withTooltip (maybe NoTooltip PlainTooltip tooltipContent) $
+            Badge.badge (Eval.abilityPalette obs.ability) badgeText

@@ -11,7 +11,9 @@ Two color sources (orthogonal to interactivity):
 Two interactivity modes:
 
   * Static: simple badge display
-  * Interactive: tooltip + optional action button on hover
+  * Interactive: optional action button on hover
+
+For tooltips, use 'withTooltip' from the Tooltip module to wrap badges.
 -}
 module Competences.Frontend.View.Badge
   ( -- * Badge variants
@@ -40,7 +42,6 @@ import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Color (PaletteName, bgClass', borderClass', textClass')
 import Competences.Frontend.View.Icon (Icon, icon)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip, withTooltip)
 import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -97,15 +98,13 @@ renderBadge classes contents =
 -- | Internal: render an interactive badge with given CSS classes
 renderInteractiveBadge
   :: Text
-  -> Tooltip model action
   -> Maybe (Icon, action)
   -> BadgeContents
   -> M.View model action
-renderInteractiveBadge baseClasses tip mAction contents =
-  withTooltip tip $
-    M.span_
-      [class_ $ baseClasses <> " group" <> if hasAction then " pr-1" else ""]
-      (renderContents contents <> actionButton mAction)
+renderInteractiveBadge baseClasses mAction contents =
+  M.span_
+    [class_ $ baseClasses <> " group" <> if hasAction then " pr-1" else ""]
+    (renderContents contents <> actionButton mAction)
   where
     hasAction = case mAction of Just _ -> True; Nothing -> False
 
@@ -177,25 +176,25 @@ badgeCustomView variant content =
 -- | Render an interactive badge with a Basecoat variant
 --
 -- The action icon (e.g. a cancel icon for delete) appears on hover.
+-- For tooltips, wrap the result with 'withTooltip' from the Tooltip module.
 interactive
   :: (ToBadgeContents c)
   => BadgeVariant
-  -> Tooltip model action
   -> Maybe (Icon, action)
   -> c
   -> M.View model action
-interactive variant tip mAction =
-  renderInteractiveBadge (variantClass variant) tip mAction . toBadgeContents
+interactive variant mAction =
+  renderInteractiveBadge (variantClass variant) mAction . toBadgeContents
 
 -- | Render an interactive badge with a semantic color palette
 --
 -- The action icon (e.g. a cancel icon for delete) appears on hover.
+-- For tooltips, wrap the result with 'withTooltip' from the Tooltip module.
 paletteInteractive
   :: (ToBadgeContents c)
   => PaletteName
-  -> Tooltip model action
   -> Maybe (Icon, action)
   -> c
   -> M.View model action
-paletteInteractive palette tip mAction =
-  renderInteractiveBadge (paletteClasses palette) tip mAction . toBadgeContents
+paletteInteractive palette mAction =
+  renderInteractiveBadge (paletteClasses palette) mAction . toBadgeContents

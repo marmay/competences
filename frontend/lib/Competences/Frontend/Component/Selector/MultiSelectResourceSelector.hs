@@ -20,7 +20,6 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon (Icon (..))
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (NoTooltip))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -159,6 +158,5 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
     viewResourceTag res =
       Badge.interactive
         Badge.Secondary
-        NoTooltip
         (Just (IcnCancel, ToggleResource res.id))
         (IcnResources, M.ms $ unResourceIdentifier res.identifier)
