@@ -20,7 +20,7 @@ import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Color (bgClass, textClass)
+import Competences.Frontend.View.Color (bgClass', textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
@@ -163,7 +163,7 @@ abilityCell :: Ability -> Int -> M.View m a
 abilityCell ability count =
   let p = abilityPalette ability
    in MH.span_
-        [class_ $ bgClass p <> " " <> textClass p <> " px-2 rounded"]
+        [class_ $ bgClass' p <> " " <> textClass' p <> " px-2 rounded"]
         [M.text $ M.ms $ show count]
 
 -- | Render a value with a warning icon if it's below 50% of maximum

@@ -1,26 +1,28 @@
 -- | Color palette interface for domain-specific colors.
 --
--- This module defines the 'PaletteName' type and helper functions for deriving
--- CSS class names and variable references. Domain-specific palettes are defined
--- in their own modules:
+-- This module defines the 'PaletteName' type, 'PaletteColor' variants, and
+-- helper functions for deriving CSS class names and variable references.
+-- Domain-specific palettes are defined in their own modules:
 --
 -- * 'Competences.Frontend.View.Color.Ability' - ability level colors
 -- * 'Competences.Frontend.View.Color.Grade' - grade colors
 -- * 'Competences.Frontend.View.Color.Mastery' - mastery status colors
+-- * 'Competences.Frontend.View.Color.Status' - status indicator colors
 module Competences.Frontend.View.Color
   ( -- * Palette name type
     PaletteName (..)
-    -- * CSS class derivation
+    -- * Palette color variants
+  , PaletteColor (..)
+    -- * CSS class derivation (with explicit variant)
   , textClass
-  , textOnBgClass
   , bgClass
   , borderClass
-    -- * Badge palette conversion
-  , toBadgePalette
-    -- * CSS variable references (for inline styles like gradients)
+    -- * CSS class derivation (convenience wrappers with default variants)
+  , textClass'
+  , bgClass'
+  , borderClass'
+    -- * CSS variable references
   , cssVar
-  , cssVarStripeLight
-  , cssVarStripeDark
     -- * Striped background generation
   , paletteStripedStyle
   )
@@ -33,75 +35,89 @@ import Miso.String (MisoString)
 --
 -- Corresponds to CSS variables following Basecoat pattern:
 --
--- * @--{name}@ : the semantic color (text/stroke/icons, background)
--- * @--{name}-foreground@ : contrast text color for on top of bg
--- * @--{name}-stripe-light@ : light variant for striped backgrounds
--- * @--{name}-stripe-dark@ : dark variant for striped backgrounds
+-- * @--{name}@ : base color (background)
+-- * @--{name}-accent@ : accent color (icons, strokes, vibrant)
+-- * @--{name}-alt@ : alternate color (stripes, subtle variant)
 newtype PaletteName = PaletteName {unPaletteName :: Text}
   deriving (Eq, Show)
 
--- | CSS class for text in the palette color (icons, accents).
+-- | Color variant within a palette.
 --
--- @textClass (PaletteName "ability-success")@ = @"text-ability-success"@
-textClass :: PaletteName -> Text
-textClass (PaletteName n) = "text-" <> n
+-- Each palette defines three color variants:
+--
+-- * 'Base' - Background color, the default/primary variant
+-- * 'Accent' - Vibrant color for icons, strokes, and emphasis
+-- * 'Alt' - Alternate/lighter variant for striping and subtle effects
+data PaletteColor
+  = Base
+  | Accent
+  | Alt
+  deriving (Eq, Show)
 
--- | CSS class for contrast text on top of the palette background.
+-- | CSS suffix for a palette color variant.
+colorSuffix :: PaletteColor -> Text
+colorSuffix Base = ""
+colorSuffix Accent = "-accent"
+colorSuffix Alt = "-alt"
+
+-- | CSS class for text in the palette color.
 --
--- @textOnBgClass (PaletteName "ability-success")@ = @"text-ability-success-foreground"@
-textOnBgClass :: PaletteName -> Text
-textOnBgClass (PaletteName n) = "text-" <> n <> "-foreground"
+-- @textClass Accent (PaletteName "ability-success")@ = @"text-ability-success-accent"@
+-- @textClass Base (PaletteName "ability-success")@ = @"text-ability-success"@
+textClass :: PaletteColor -> PaletteName -> Text
+textClass variant (PaletteName n) = "text-" <> n <> colorSuffix variant
 
 -- | CSS class for background color.
 --
--- @bgClass (PaletteName "ability-success")@ = @"bg-ability-success"@
-bgClass :: PaletteName -> Text
-bgClass (PaletteName n) = "bg-" <> n
+-- @bgClass Base (PaletteName "ability-success")@ = @"bg-ability-success"@
+-- @bgClass Alt (PaletteName "ability-success")@ = @"bg-ability-success-alt"@
+bgClass :: PaletteColor -> PaletteName -> Text
+bgClass variant (PaletteName n) = "bg-" <> n <> colorSuffix variant
 
 -- | CSS class for border color.
 --
--- @borderClass (PaletteName "ability-success")@ = @"border-ability-success"@
-borderClass :: PaletteName -> Text
-borderClass (PaletteName n) = "border-" <> n
+-- @borderClass Accent (PaletteName "ability-success")@ = @"border-ability-success-accent"@
+borderClass :: PaletteColor -> PaletteName -> Text
+borderClass variant (PaletteName n) = "border-" <> n <> colorSuffix variant
 
--- | Convert a PaletteName to a tuple of explicit class names (text, bg, border).
--- Useful for building palette records that expect separate fields.
-toBadgePalette :: PaletteName -> (Text, Text, Text)
-toBadgePalette p = (textClass p, bgClass p, borderClass p)
+-- | CSS class for accent text color (icons, strokes).
+-- Convenience wrapper: @textClass' = textClass Accent@
+textClass' :: PaletteName -> Text
+textClass' = textClass Accent
 
--- | CSS variable reference for the base color.
+-- | CSS class for base background color.
+-- Convenience wrapper: @bgClass' = bgClass Base@
+bgClass' :: PaletteName -> Text
+bgClass' = bgClass Base
+
+-- | CSS class for accent border color.
+-- Convenience wrapper: @borderClass' = borderClass Accent@
+borderClass' :: PaletteName -> Text
+borderClass' = borderClass Accent
+
+-- | CSS variable reference for a palette color variant.
 --
--- @cssVar (PaletteName "ability-success")@ = @"var(--ability-success)"@
-cssVar :: PaletteName -> Text
-cssVar (PaletteName n) = "var(--" <> n <> ")"
+-- @cssVar Base (PaletteName "ability-success")@ = @"var(--ability-success)"@
+-- @cssVar Accent (PaletteName "ability-success")@ = @"var(--ability-success-accent)"@
+-- @cssVar Alt (PaletteName "ability-success")@ = @"var(--ability-success-alt)"@
+cssVar :: PaletteColor -> PaletteName -> Text
+cssVar variant (PaletteName n) = "var(--" <> n <> colorSuffix variant <> ")"
 
--- | CSS variable reference for the light stripe variant.
---
--- @cssVarStripeLight (PaletteName "ability-success")@ = @"var(--ability-success-stripe-light)"@
-cssVarStripeLight :: PaletteName -> Text
-cssVarStripeLight (PaletteName n) = "var(--" <> n <> "-stripe-light)"
-
--- | CSS variable reference for the dark stripe variant.
---
--- @cssVarStripeDark (PaletteName "ability-success")@ = @"var(--ability-success-stripe-dark)"@
-cssVarStripeDark :: PaletteName -> Text
-cssVarStripeDark (PaletteName n) = "var(--" <> n <> "-stripe-dark)"
-
--- | Generate striped background style using the palette's stripe variants.
+-- | Generate striped background style using the palette's alt and base variants.
 --
 -- Returns an inline style attribute value for a diagonal stripe pattern
--- using the palette's @-stripe-light@ and @-stripe-dark@ CSS variables.
+-- using the palette's @-alt@ (light) and base (dark) CSS variables.
 paletteStripedStyle :: PaletteName -> [(MisoString, MisoString)]
 paletteStripedStyle p =
   [ ( "background"
     , "repeating-linear-gradient(135deg, "
-        <> cssVarStripeLight p
+        <> cssVar Alt p
         <> " 0px, "
-        <> cssVarStripeLight p
+        <> cssVar Alt p
         <> " 4px, "
-        <> cssVarStripeDark p
+        <> cssVar Base p
         <> " 4px, "
-        <> cssVarStripeDark p
+        <> cssVar Base p
         <> " 8px)"
     )
   ]

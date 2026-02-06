@@ -44,7 +44,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
-import Competences.Frontend.View.Color (textClass)
+import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon (Icon (..))
@@ -459,7 +459,7 @@ assessmentComponent r grid =
 
             -- | Show evidence icon for a single evidence entry
             showEvidenceIcon hasLevelDesc actType socialForm ability =
-              let abilityClass = if hasLevelDesc then textClass (abilityPalette ability) else "text-stone-400"
+              let abilityClass = if hasLevelDesc then textClass' (abilityPalette ability) else "text-stone-400"
                   ci = V.coloredStrokeIcon abilityClass
                in MH.div_ [class_ "flex items-center justify-center w-12"]
                     [ ci (V.activityTypeIcon actType)

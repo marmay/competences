@@ -11,7 +11,7 @@ module Competences.Frontend.View.CellStyle
   )
 where
 
-import Competences.Frontend.View.Color (bgClass, paletteStripedStyle, textClass)
+import Competences.Frontend.View.Color (bgClass', paletteStripedStyle, textClass')
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.StatusIcon (Status (..))
 import Competences.Query.Mastery (MasteryStatus (..))
@@ -53,4 +53,4 @@ masteryStripedStyle status = case masteryPalette status of
 masteryBadgeColors :: MasteryStatus -> Maybe (Text, Text)
 masteryBadgeColors status = case masteryPalette status of
   Nothing -> Nothing
-  Just p -> Just (bgClass p, textClass p)
+  Just p -> Just (bgClass' p, textClass' p)

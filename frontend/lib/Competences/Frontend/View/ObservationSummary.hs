@@ -8,7 +8,7 @@ where
 
 import Competences.Document.Evidence (Ability (..), Observation (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View.Color (textClass)
+import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon (Icon (..), icon)
 import Competences.Frontend.View.Tailwind (class_)
@@ -28,7 +28,7 @@ abilityIcon NotYet = IcnAbilityNotYet
 -- Uses ability icon, colored by ability level, with tooltip showing ability name
 observationIconView :: Observation -> M.View m a
 observationIconView obs =
-  let abilityClass = textClass (abilityPalette obs.ability)
+  let abilityClass = textClass' (abilityPalette obs.ability)
       abilityIcn = abilityIcon obs.ability
       tooltipText = C.translate' (C.LblAbility obs.ability)
    in withTooltip (PlainTooltip tooltipText) $
