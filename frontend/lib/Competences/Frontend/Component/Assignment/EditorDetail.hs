@@ -33,7 +33,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
 import Data.Map qualified as Map
@@ -104,7 +104,7 @@ editorWrapperComponent r assignment =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) IcnAssignment pinTitle)
+            (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view _m =
       MH.div_
@@ -114,7 +114,7 @@ editorWrapperComponent r assignment =
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
-            [ Button.outline $ Button.button (IcnApply, C.LblEvaluateAssignment) PinEvaluation
+            [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
             , V.component
                 ("export-btn-" <> M.ms (show assignment.id))
                 (exportButtonComponent (\m' -> exportAssignment m'.document assignment))

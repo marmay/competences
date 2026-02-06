@@ -13,7 +13,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.Color.Completion qualified as Completion
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.TaskStatus (EvidenceRef (..), TaskCompletionStatus (..))
 import Data.Map.Strict (Map)
@@ -32,9 +32,9 @@ import Miso.Html qualified as MH
 viewTaskCompletionStatus :: TaskCompletionStatus -> M.View model a
 viewTaskCompletionStatus TaskNotEvaluated = V.empty
 viewTaskCompletionStatus (TaskDone ref) =
-  statusView (textClass' $ Completion.completionPalette Done) IcnApply ref
+  statusView (textClass' $ Completion.completionPalette Done) Icon.IcnApply ref
 viewTaskCompletionStatus (TaskNotDone ref) =
-  statusView (textClass' $ Completion.completionPalette InProgress) IcnProgress ref
+  statusView (textClass' $ Completion.completionPalette InProgress) Icon.IcnProgress ref
 
 -- | Convenience: look up task status from a map and render.
 -- Returns empty view for tasks not in the map.
@@ -43,11 +43,11 @@ viewTaskCompletionStatusFromMap statuses taskId =
   maybe V.empty viewTaskCompletionStatus (Map.lookup taskId statuses)
 
 -- | Internal: render status icon + "Stand:" text.
-statusView :: Text -> Icon -> EvidenceRef -> M.View model a
+statusView :: Text -> Icon.Icon -> EvidenceRef -> M.View model a
 statusView colorClass icn ref =
   MH.div_
     [class_ "flex items-center gap-1"]
-    [ icon [class_ $ "w-4 h-4 " <> colorClass] icn
+    [ Icon.icon [class_ $ "w-4 h-4 " <> colorClass] icn
     , MH.span_
         [class_ "text-xs text-muted-foreground"]
         [M.text $ C.translate' C.LblTaskCompletionAsOf <> " " <> refLabel ref <> ", " <> formatShortDay ref.date]

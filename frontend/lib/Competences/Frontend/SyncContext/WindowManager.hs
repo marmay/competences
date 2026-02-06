@@ -41,7 +41,7 @@ module Competences.Frontend.SyncContext.WindowManager
   )
 where
 
-import Competences.Frontend.View.Icon (Icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Control.Monad (forM_)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -81,7 +81,7 @@ data AnyPinnedDialog where
   AnyPinnedDialog ::
     (Eq m, Typeable m) =>
     { apdComponent :: M.Component Model m a
-    , apdIcon :: Icon
+    , apdIcon :: Icon.Icon
     , apdTitle :: MisoString
     } ->
     AnyPinnedDialog

@@ -25,7 +25,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Combobox qualified as Combobox
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.SelectorList qualified as SelectorList
@@ -151,8 +151,8 @@ assignmentSelectorComponent r parentLens =
             (C.translate' C.LblAssignments)
             m.isDropdownOpen
             ToggleDropdown
-            [ SelectorList.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
-            , SelectorList.dropdownItem IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
+            [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
+            , SelectorList.dropdownItem Icon.IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
             ]
         , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
         , viewStatusFilters m
@@ -207,7 +207,7 @@ assignmentSelectorComponent r parentLens =
             [ -- Line 1: Icon + Name
               M.div_
                 [class_ "flex items-center gap-2"]
-                [ V.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] IcnAssignment
+                [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] Icon.IcnAssignment
                 , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unAssignmentName a.name]
                 ]
             , -- Line 2: Date + Status

@@ -10,7 +10,7 @@ import Competences.Document.Evidence (Ability (..), Observation (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Miso qualified as M
@@ -18,11 +18,11 @@ import Miso.Html qualified as M
 import Miso.Svg.Property qualified as MSP
 
 -- | Get icon for an ability level
-abilityIcon :: Ability -> Icon
-abilityIcon SelfReliant = IcnAbilitySelfReliant
-abilityIcon SelfReliantWithSillyMistakes = IcnAbilitySillyMistakes
-abilityIcon WithSupport = IcnAbilityWithSupport
-abilityIcon NotYet = IcnAbilityNotYet
+abilityIcon :: Ability -> Icon.Icon
+abilityIcon SelfReliant = Icon.IcnAbilitySelfReliant
+abilityIcon SelfReliantWithSillyMistakes = Icon.IcnAbilitySillyMistakes
+abilityIcon WithSupport = Icon.IcnAbilityWithSupport
+abilityIcon NotYet = Icon.IcnAbilityNotYet
 
 -- | Render a single observation as a colored icon with tooltip
 -- Uses ability icon, colored by ability level, with tooltip showing ability name
@@ -34,7 +34,7 @@ observationIconView obs =
    in withTooltip (PlainTooltip tooltipText) $
         M.span_
           [class_ abilityClass]
-          [icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
+          [Icon.icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
 
 -- | Render multiple observations as a row of icons
 observationSummaryView :: [Observation] -> M.View m a

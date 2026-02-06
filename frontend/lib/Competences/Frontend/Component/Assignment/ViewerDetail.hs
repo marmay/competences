@@ -47,7 +47,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Tailwind (class_)
@@ -276,7 +276,7 @@ viewerComponent r user assignment =
             [class_ "flex items-center gap-2 text-sm"]
             [ M.span_
                 [class_ abilityClass]
-                [icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
+                [Icon.icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
             , M.span_
                 [class_ $ abilityClass <> " font-medium"]
                 [M.text abilityLabel]
@@ -287,10 +287,10 @@ viewerComponent r user assignment =
                        [M.text $ "– " <> ms levelDesc]
             ]
 
-    abilityIcon SelfReliant = IcnAbilitySelfReliant
-    abilityIcon SelfReliantWithSillyMistakes = IcnAbilitySillyMistakes
-    abilityIcon WithSupport = IcnAbilityWithSupport
-    abilityIcon NotYet = IcnAbilityNotYet
+    abilityIcon SelfReliant = Icon.IcnAbilitySelfReliant
+    abilityIcon SelfReliantWithSillyMistakes = Icon.IcnAbilitySillyMistakes
+    abilityIcon WithSupport = Icon.IcnAbilityWithSupport
+    abilityIcon NotYet = Icon.IcnAbilityNotYet
 
     viewTaskList m =
       let proj = m.projection

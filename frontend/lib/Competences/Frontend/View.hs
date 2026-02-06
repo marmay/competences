@@ -1,3 +1,10 @@
+-- | Re-exports View modules for convenience.
+--
+-- Note: Icon module is NOT re-exported here because its Variant/Size
+-- constructors (Primary, Secondary, Small, etc.) conflict with Button's
+-- variants. Import Icon qualified:
+--
+-- > import Competences.Frontend.View.Icon qualified as Icon
 module Competences.Frontend.View
   ( module Competences.Frontend.View.Button
   , module Competences.Frontend.View.CellStyle
@@ -7,7 +14,6 @@ module Competences.Frontend.View
   , module Competences.Frontend.View.EvidenceIcon
   , module Competences.Frontend.View.Component
   , module Competences.Frontend.View.Form
-  , module Competences.Frontend.View.Icon
   , module Competences.Frontend.View.Layout
   , module Competences.Frontend.View.MainPage
   , module Competences.Frontend.View.Modal
@@ -28,7 +34,6 @@ import Competences.Frontend.View.Disclosure
 import Competences.Frontend.View.EvidenceIcon
 import Competences.Frontend.View.Component
 import Competences.Frontend.View.Form
-import Competences.Frontend.View.Icon
 import Competences.Frontend.View.Layout
 import Competences.Frontend.View.MainPage
 import Competences.Frontend.View.Modal

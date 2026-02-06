@@ -18,7 +18,7 @@ where
 
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -39,7 +39,7 @@ selectorHeader title mAddAction =
     [class_ "flex items-center justify-between"]
     [ Typography.h3 title
     , case mAddAction of
-        Just action -> Button.secondary (Button.button IcnAdd (Just action))
+        Just action -> Button.secondary (Button.button Icon.IcnAdd (Just action))
         Nothing -> M.text ""
     ]
 
@@ -60,7 +60,7 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
     [ Typography.h3 title
     , M.div_
         [class_ "relative"]
-        [ Button.secondary (Button.button IcnAdd (Just toggleAction))
+        [ Button.secondary (Button.button Icon.IcnAdd (Just toggleAction))
         , if isOpen
             then
               M.div_
@@ -71,13 +71,13 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
     ]
 
 -- | Dropdown menu item
-dropdownItem :: Icon -> MisoString -> action -> M.View m action
+dropdownItem :: Icon.Icon -> MisoString -> action -> M.View m action
 dropdownItem icn label action =
   M.button_
     [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer overflow-hidden"
     , M.onClick action
     ]
-    [ icon [class_ "w-4 h-4 shrink-0"] icn
+    [ Icon.icon [class_ "w-4 h-4 shrink-0"] icn
     , M.span_ [class_ "truncate"] [M.text label]
     ]
 
@@ -85,7 +85,7 @@ dropdownItem icn label action =
 selectorItem
   :: Bool
   -- ^ Is selected?
-  -> Icon
+  -> Icon.Icon
   -- ^ Item icon
   -> MisoString
   -- ^ Label text
@@ -99,7 +99,7 @@ selectorItem isSelected icn label action =
           <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
     , M.onClick action
     ]
-    [ icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
+    [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
     , M.span_ [class_ "text-sm truncate"] [M.text label]
     ]
 
@@ -107,7 +107,7 @@ selectorItem isSelected icn label action =
 selectorItemWithBadge
   :: Bool
   -- ^ Is selected?
-  -> Icon
+  -> Icon.Icon
   -- ^ Item icon
   -> MisoString
   -- ^ Label text
@@ -123,7 +123,7 @@ selectorItemWithBadge isSelected icn label mBadge action =
           <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
     , M.onClick action
     ]
-    [ icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
+    [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
     , M.span_ [class_ "text-sm truncate flex-1"] [M.text label]
     , case mBadge of
         Just badgeView -> badgeView

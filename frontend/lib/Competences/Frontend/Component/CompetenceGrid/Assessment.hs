@@ -47,7 +47,7 @@ import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
@@ -255,7 +255,7 @@ assessmentComponent r grid =
                 let isActive = currentLevel == Just (Just lvl)
                     isEnabled = hasDescription lvl
                     locked = isLocked lvl
-                 in if locked then Button.primary (Button.button (IcnLock, C.LblCompetenceLevelDescription lvl) Button.Disabled)
+                 in if locked then Button.primary (Button.button (Icon.IcnLock, C.LblCompetenceLevelDescription lvl) Button.Disabled)
                               else Button.toggle isActive (Button.button (C.LblCompetenceLevelDescription lvl) (isEnabled, SetAssessmentLevel competence (Just lvl)))
 
               -- Delete button (red trash icon)
@@ -375,7 +375,7 @@ assessmentComponent r grid =
                           else if hasDesc
                             then withTooltip (RichTooltip (M.text $ M.ms levelInfo.description)) $
                                    MH.span_ [class_ "cursor-help"]
-                                     [V.icon [class_ "text-stone-400"] IcnInfo]
+                                     [Icon.icon [class_ "text-stone-400"] Icon.IcnInfo]
                             else V.empty
                       ]
 

@@ -10,7 +10,7 @@ import Competences.Frontend.Component.Planning.DetailView (detailView)
 import Competences.Frontend.Component.Selector.MesoPlanSelector (mesoPlanSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty (..))
 import Miso qualified as M
@@ -35,7 +35,7 @@ planningComponent r =
       , SD.modeLabel = \case
           PlanningEdit -> C.translate' C.LblEdit
       , SD.modeIcon = \case
-          PlanningEdit -> Just IcnEdit
+          PlanningEdit -> Just Icon.IcnEdit
       , SD.availableModes = PlanningEdit :| []
       , SD.defaultMode = PlanningEdit
       , SD.emptyView = Typography.muted (C.translate' C.LblSelectMesoPlan)

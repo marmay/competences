@@ -51,7 +51,7 @@ import Competences.Frontend.SyncContext.WindowManager (openModal)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Evaluation qualified as Eval
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.Lesson qualified as QLesson
 import Data.Maybe (fromMaybe)
@@ -218,7 +218,7 @@ lessonEvaluatorComponent r initialLesson =
               MH.div_
                 [class_ "flex items-center justify-between mb-2"]
                 [ MH.span_ [class_ "font-medium text-sm"] [M.text $ ms user.name]
-                , Button.ghostSm (Button.button IcnEdit (OpenStudentDetail user.id))
+                , Button.ghostSm (Button.button Icon.IcnEdit (OpenStudentDetail user.id))
                 ]
             , -- Participation toggles (two buttons per category)
               viewParticipationControls user.id prs

@@ -12,7 +12,7 @@ import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (toRawText)
@@ -42,7 +42,7 @@ resourcesListView resources expandedSet toggleExpanded =
           nameView =
             MH.div_
               [class_ "flex items-center gap-2"]
-              [ icon [class_ "text-sky-600"] IcnResources
+              [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
               , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
               ]
        in case res.content of
@@ -68,7 +68,7 @@ resourcesListView resources expandedSet toggleExpanded =
                 , MP.target_ "_blank"
                 , MP.rel_ "noopener noreferrer"
                 ]
-                [ icon [class_ "text-sky-600"] IcnLink
+                [ Icon.icon [class_ "text-sky-600"] Icon.IcnLink
                 , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
                 , if T.null title || title == ident
                     then V.empty
@@ -82,7 +82,7 @@ resourcesListView resources expandedSet toggleExpanded =
                 , MP.target_ "_blank"
                 , MP.rel_ "noopener noreferrer"
                 ]
-                [ icon [class_ "text-sky-600"] IcnVideo
+                [ Icon.icon [class_ "text-sky-600"] Icon.IcnVideo
                 , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
                 , if T.null title || title == ident
                     then V.empty

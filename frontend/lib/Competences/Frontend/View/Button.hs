@@ -47,7 +47,7 @@ module Competences.Frontend.View.Button
 where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Maybe (maybeToList)
 import Miso qualified as M
@@ -81,8 +81,8 @@ data ButtonSize
 -- | Contents of the button
 data ButtonContents
   = TextOnly !MisoString
-  | IconOnly !Icon
-  | IconText !Icon !MisoString
+  | IconOnly !Icon.Icon
+  | IconText !Icon.Icon !MisoString
   deriving (Eq, Show)
 
 data ButtonContentsStyle
@@ -99,7 +99,7 @@ class ToButtonContents a where
 instance ToButtonContents ButtonContents where
   toButtonContents = id
 
-instance ToButtonContents Icon where
+instance ToButtonContents Icon.Icon where
   toButtonContents = IconOnly
 
 instance ToButtonContents MisoString where
@@ -108,19 +108,19 @@ instance ToButtonContents MisoString where
 instance ToButtonContents Label where
   toButtonContents = TextOnly . translate'
 
-instance ToButtonContents (Icon, MisoString) where
+instance ToButtonContents (Icon.Icon, MisoString) where
   toButtonContents (i, t) = IconText i t
 
-instance ToButtonContents (Icon, Label) where
+instance ToButtonContents (Icon.Icon, Label) where
   toButtonContents (i, l) = IconText i (translate' l)
 
-instance ToButtonContents (ButtonContentsStyle, Icon, MisoString) where
+instance ToButtonContents (ButtonContentsStyle, Icon.Icon, MisoString) where
   toButtonContents = toButtonContents'
 
-instance ToButtonContents (ButtonContentsStyle, Icon, Label) where
+instance ToButtonContents (ButtonContentsStyle, Icon.Icon, Label) where
   toButtonContents = toButtonContents' . (\(s, i, l) -> (s, i, translate' l))
 
-toButtonContents' :: (ButtonContentsStyle, Icon, MisoString) -> ButtonContents
+toButtonContents' :: (ButtonContentsStyle, Icon.Icon, MisoString) -> ButtonContents
 toButtonContents' (TextOnlyS, _, t) = TextOnly t
 toButtonContents' (IconOnlyS, i, _) = IconOnly i
 toButtonContents' (IconTextS, i, t) = IconText i t
@@ -189,8 +189,8 @@ render v s ButtonConfig {contents = c, action = a} =
 
     renderContents :: ButtonContents -> M.View m a
     renderContents (TextOnly t') = M.text_ [t']
-    renderContents (IconOnly i) = icon [] i
-    renderContents (IconText i t') = M.div_ [MP.class_ "flex items-center gap-2"] [icon [] i, M.span_ [] [M.text_ [t']]]
+    renderContents (IconOnly i) = Icon.icon [] i
+    renderContents (IconText i t') = M.div_ [MP.class_ "flex items-center gap-2"] [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
 
 primary
   , primarySm
@@ -245,11 +245,11 @@ applyButtonC
   , editButtonC
   , moveButtonC
     :: (ToAction a' a) => a' -> ButtonConfig a
-applyButtonC = button (IcnApply, LblApply)
-cancelButtonC = button (IcnCancel, LblCancel)
-deleteButtonC = button (IcnDelete, LblDelete)
-editButtonC = button (IcnEdit, LblEdit)
-moveButtonC = button (IcnReorder, LblMove)
+applyButtonC = button (Icon.IcnApply, LblApply)
+cancelButtonC = button (Icon.IcnCancel, LblCancel)
+deleteButtonC = button (Icon.IcnDelete, LblDelete)
+editButtonC = button (Icon.IcnEdit, LblEdit)
+moveButtonC = button (Icon.IcnReorder, LblMove)
 
 applyButton, cancelButton, deleteButton, editButton, moveButton :: (ToAction a' a) => a' -> M.View m a
 applyButton = primary . applyButtonC

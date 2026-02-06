@@ -38,7 +38,7 @@ import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUse
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -133,8 +133,8 @@ modeSwitcher m =
         & (#expandDirection .~ V.Expand V.Center)
     )
     [ Button.buttonGroup
-        [ modeButton m.activeMode EvidenceView (C.translate' C.LblView) (Just IcnView)
-        , modeButton m.activeMode EvidenceEdit (C.translate' C.LblEdit) (Just IcnEdit)
+        [ modeButton m.activeMode EvidenceView (C.translate' C.LblView) (Just Icon.IcnView)
+        , modeButton m.activeMode EvidenceEdit (C.translate' C.LblEdit) (Just Icon.IcnEdit)
         ]
     ]
 
@@ -142,7 +142,7 @@ modeButton
   :: EvidenceMode
   -> EvidenceMode
   -> M.MisoString
-  -> Maybe Icon
+  -> Maybe Icon.Icon
   -> M.View EvidenceEditorModel EvidenceEditorAction
 modeButton activeMode mode label mIcon =
    case mIcon of

@@ -34,7 +34,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportCompetenceGrid)
@@ -131,7 +131,7 @@ editorComponent r grid =
             (TE.editorComponent competencesEditor r)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.primary (Button.button (IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
+            [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
             , V.component
                 ("export-btn-" <> M.ms (show grid.id))
                 (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))
@@ -261,7 +261,7 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             ]
         , Button.toggleSm currentInfo.locked
             ( Button.button
-                (if currentInfo.locked then IcnLock else IcnLockOpen)
+                (if currentInfo.locked then Icon.IcnLock else Icon.IcnLockOpen)
                 (hasDescription, toggleLock)
             )
         ]

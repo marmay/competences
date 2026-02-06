@@ -11,7 +11,7 @@ module Competences.Frontend.View.Disclosure
   )
 where
 
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import Miso qualified as M
@@ -21,7 +21,7 @@ import Miso.Html qualified as MH
 -- Shows a right-pointing arrow when collapsed, down-pointing when expanded.
 disclosureChevron :: Bool -> M.View m a
 disclosureChevron isExpanded =
-  icon [] (if isExpanded then IcnArrowDown else IcnExpandShrinkArrowRight)
+  Icon.icon [] (if isExpanded then Icon.IcnArrowDown else Icon.IcnExpandShrinkArrowRight)
 
 -- | Collapsible card: bordered container, clickable header with chevron, conditional content.
 collapsible :: Bool -> a -> M.View m a -> M.View m a -> M.View m a

@@ -37,7 +37,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -172,7 +172,7 @@ taskGroupEditorComponent r group =
         [ M.div_
             [class_ "flex items-center justify-between mb-4"]
             [ Typography.h3 (C.translate' C.LblSubTasks)
-            , Button.secondary (Button.button (IcnAdd, C.LblAddSubTask) CreateSubTask)
+            , Button.secondary (Button.button (Icon.IcnAdd, C.LblAddSubTask) CreateSubTask)
             ]
         , if null m.subTasks
             then Typography.muted (C.translate' C.LblNoSubTasks)

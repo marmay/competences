@@ -6,8 +6,8 @@
 -- manage to get it to work for now.
 module Competences.Frontend.View.Icon
   ( Icon (..)
-  , IconVariant (..)
-  , IconSize (..)
+  , Variant (..)
+  , Size (..)
   , iconDefs
   , icon
   , iconV
@@ -72,46 +72,46 @@ data Icon
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
-data IconVariant
-  = IconPrimary       -- ^ --primary color (for emphasis)
-  | IconSecondary     -- ^ --secondary-foreground (subtle)
-  | IconGhost         -- ^ --muted-foreground (very subtle)
-  | IconDestructive   -- ^ --destructive color (danger/delete actions)
-  | IconOnPrimary     -- ^ --primary-foreground (for icons inside primary containers)
+data Variant
+  = Primary       -- ^ --primary color (for emphasis)
+  | Secondary     -- ^ --secondary-foreground (subtle)
+  | Ghost         -- ^ --muted-foreground (very subtle)
+  | Destructive   -- ^ --destructive color (danger/delete actions)
+  | OnPrimary     -- ^ --primary-foreground (for icons inside primary containers)
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon size variants to match button sizes
-data IconSize
-  = IconSmall    -- ^ 16px (w-4 h-4) - for small buttons
-  | IconRegular  -- ^ 20px (w-5 h-5) - for regular buttons
-  | IconLarge    -- ^ 24px (w-6 h-6) - for large buttons (current default)
+data Size
+  = Small    -- ^ 16px (w-4 h-4) - for small buttons
+  | Regular  -- ^ 20px (w-5 h-5) - for regular buttons
+  | Large    -- ^ 24px (w-6 h-6) - for large buttons (current default)
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | CSS class for variant stroke color
-variantStrokeClass :: IconVariant -> Text
+variantStrokeClass :: Variant -> Text
 variantStrokeClass = \case
-  IconPrimary -> "text-primary"
-  IconSecondary -> "text-secondary-foreground"
-  IconGhost -> "text-muted-foreground"
-  IconDestructive -> "text-destructive"
-  IconOnPrimary -> "text-primary-foreground"
+  Primary -> "text-primary"
+  Secondary -> "text-secondary-foreground"
+  Ghost -> "text-muted-foreground"
+  Destructive -> "text-destructive"
+  OnPrimary -> "text-primary-foreground"
 
 -- | CSS classes for icon size
-sizeClass :: IconSize -> Text
+sizeClass :: Size -> Text
 sizeClass = \case
-  IconSmall -> "w-4 h-4"
-  IconRegular -> "w-5 h-5"
-  IconLarge -> "w-6 h-6"
+  Small -> "w-4 h-4"
+  Regular -> "w-5 h-5"
+  Large -> "w-6 h-6"
 
 -- | Render icon with variant-based coloring
-iconV :: IconVariant -> Icon -> View m a
+iconV :: Variant -> Icon -> View m a
 iconV variant icn =
   MH.span_
     [M.class_ $ variantStrokeClass variant]
     [icon [] icn]
 
 -- | Render icon with specific size
-iconS :: IconSize -> Icon -> View m a
+iconS :: Size -> Icon -> View m a
 iconS size icn =
   MS.svg_
     [ MSP.viewBox_ "0 0 24 24"
@@ -122,7 +122,7 @@ iconS size icn =
     [MS.use_ [M.href_ $ "#" <> iconId icn]]
 
 -- | Render icon with variant and size
-iconVS :: IconVariant -> IconSize -> Icon -> View m a
+iconVS :: Variant -> Size -> Icon -> View m a
 iconVS variant size icn =
   MH.span_
     [M.class_ $ variantStrokeClass variant]

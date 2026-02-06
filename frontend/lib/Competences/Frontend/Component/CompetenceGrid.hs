@@ -18,7 +18,7 @@ import Competences.Frontend.Component.Selector.CompetenceGridSelector
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty)
 import Miso qualified as M
@@ -67,11 +67,11 @@ competenceGridComponent r initialMode availableModes =
           GridAssessment -> C.translate' C.LblAssess
           GridGrading -> C.translate' C.LblGrade
       , SD.modeIcon = \case
-          GridView -> Just IcnView
-          GridEdit -> Just IcnEdit
-          GridResources -> Just IcnResources
-          GridAssessment -> Just IcnApply
-          GridGrading -> Just IcnEvidence
+          GridView -> Just Icon.IcnView
+          GridEdit -> Just Icon.IcnEdit
+          GridResources -> Just Icon.IcnResources
+          GridAssessment -> Just Icon.IcnApply
+          GridGrading -> Just Icon.IcnEvidence
       , SD.availableModes = availableModes
       , SD.defaultMode = initialMode
       , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)

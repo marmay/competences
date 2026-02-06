@@ -32,7 +32,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (find)
 import Data.Map qualified as Map
@@ -186,7 +186,7 @@ resourceListView compLevels resources =
                 [ MH.span_
                     [class_ "font-medium text-stone-700 truncate flex-1 mr-2"]
                     [M.text $ M.ms cli.competence.description]
-                , Button.ghostSm (Button.button (IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
+                , Button.ghostSm (Button.button (Icon.IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
                 ]
             , -- Header row 2: Level name + level description
               MH.div_
@@ -212,7 +212,7 @@ resourceListView compLevels resources =
         [ class_ "flex items-center gap-3 px-3 py-2 hover:bg-stone-50 cursor-pointer"
         , MH.onClick (EditResource res)
         ]
-        [ icon [class_ "text-stone-400 flex-shrink-0", MP.width_ "16", MP.height_ "16"] IcnResources
+        [ Icon.icon [class_ "text-stone-400 flex-shrink-0", MP.width_ "16", MP.height_ "16"] Icon.IcnResources
         , MH.div_
             [class_ "flex-1 min-w-0"]
             [ MH.span_

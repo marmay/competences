@@ -17,7 +17,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.List (sortOn)
 import Data.Text (Text)
@@ -157,8 +157,8 @@ taskOrGroupSelectorComponent r parentLens =
             (C.translate' C.LblTasksAndGroups)
             m.dropdownOpen
             ToggleDropdown
-            [ SL.dropdownItem IcnTask (C.translate' C.LblNewTask) CreateNewTask
-            , SL.dropdownItem IcnTaskGroup (C.translate' C.LblNewTaskGroup) CreateNewGroup
+            [ SL.dropdownItem Icon.IcnTask (C.translate' C.LblNewTask) CreateNewTask
+            , SL.dropdownItem Icon.IcnTaskGroup (C.translate' C.LblNewTaskGroup) CreateNewGroup
             ]
         , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterTasks) (SetSearchQuery . M.fromMisoString)
         , viewItems m
@@ -178,6 +178,6 @@ taskOrGroupSelectorComponent r parentLens =
     viewItem m item =
       let isSelected = m.selectedItem == Just item || m.newItem == Just item
           (icn, label) = case item of
-            SelectableTask _ -> (IcnTask, ms $ itemIdentifier item)
-            SelectableGroup _ -> (IcnTaskGroup, ms $ itemIdentifier item)
+            SelectableTask _ -> (Icon.IcnTask, ms $ itemIdentifier item)
+            SelectableGroup _ -> (Icon.IcnTaskGroup, ms $ itemIdentifier item)
        in SL.selectorItem isSelected icn label (SelectItem item)

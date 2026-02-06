@@ -6,7 +6,7 @@ where
 import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -64,5 +64,5 @@ exportButtonComponent extractText =
       M.modify $ #exportSuccess .~ False
 
     view m
-      | m.exportSuccess = Button.secondary $ Button.button IcnApply Button.Disabled
-      | otherwise = Button.secondary $ Button.button (IcnExport, C.LblExport) RequestExport
+      | m.exportSuccess = Button.secondary $ Button.button Icon.IcnApply Button.Disabled
+      | otherwise = Button.secondary $ Button.button (Icon.IcnExport, C.LblExport) RequestExport

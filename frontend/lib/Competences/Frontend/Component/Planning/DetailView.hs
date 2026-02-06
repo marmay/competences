@@ -32,7 +32,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -177,7 +177,7 @@ detailComponent r initialPlan =
             <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
        in pinDialog r.windowManager
             (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-            (AnyPinnedDialog (lessonEvaluatorComponent r lesson) IcnMesoPlan pinTitle)
+            (AnyPinnedDialog (lessonEvaluatorComponent r lesson) Icon.IcnMesoPlan pinTitle)
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
       let AssignmentName nameText = assignment.name
@@ -185,7 +185,7 @@ detailComponent r initialPlan =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) IcnAssignment pinTitle)
+            (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view m =
       V.viewFlow
@@ -207,8 +207,8 @@ detailComponent r initialPlan =
                 ]
             , MH.div_
                 [class_ "flex gap-1"]
-                [ Button.ghostSm (Button.button IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
-                , Button.destructiveSm (Button.button IcnDelete DeleteMesoPlan)
+                [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
+                , Button.destructiveSm (Button.button Icon.IcnDelete DeleteMesoPlan)
                 ]
             ]
         , MH.div_
@@ -216,7 +216,7 @@ detailComponent r initialPlan =
             (map (viewLesson m) m.lessons)
         , MH.div_
             [class_ "flex gap-2"]
-            [ Button.primary (Button.button (IcnAdd, C.LblAddLesson) CreateNewLesson)
+            [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddLesson) CreateNewLesson)
             ]
         ]
 
@@ -238,9 +238,9 @@ detailComponent r initialPlan =
                 ]
             )
             -- Actions
-            [ Button.ghostSm (Button.button IcnPin (PinLessonEvaluation lesson))
-            , Button.ghostSm (Button.button IcnEdit (OpenLessonEditorModal lesson))
-            , Button.destructiveSm (Button.button IcnDelete (DeleteLesson lesson.id))
+            [ Button.ghostSm (Button.button Icon.IcnPin (PinLessonEvaluation lesson))
+            , Button.ghostSm (Button.button Icon.IcnEdit (OpenLessonEditorModal lesson))
+            , Button.destructiveSm (Button.button Icon.IcnDelete (DeleteLesson lesson.id))
             ]
             -- Content
             (viewExpandedLesson m lesson)
@@ -331,6 +331,6 @@ detailComponent r initialPlan =
            in MH.div_
                 [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
                 [ M.text $ M.ms nameText
-                , Button.ghostSm (Button.button IcnApply (PinAssignmentEvaluation a))
+                , Button.ghostSm (Button.button Icon.IcnApply (PinAssignmentEvaluation a))
                 ]
 

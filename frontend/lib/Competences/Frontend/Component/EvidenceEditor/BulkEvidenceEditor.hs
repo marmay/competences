@@ -68,7 +68,7 @@ import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.Icon (Icon (IcnCancel))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -321,7 +321,7 @@ bulkEvidenceEditorComponent r =
       let label = formatObservation m' obs
        in Badge.interactive
             Badge.Secondary
-            (Just (IcnCancel, RemoveObservation uid obs))
+            (Just (Icon.IcnCancel, RemoveObservation uid obs))
             label
 
     -- Format observation for display

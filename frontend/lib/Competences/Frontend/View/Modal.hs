@@ -17,7 +17,7 @@ module Competences.Frontend.View.Modal
 where
 
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Miso qualified as M
@@ -62,4 +62,4 @@ modalFooter buttons =
 -- | Close button used in modal headers
 closeButton :: a -> M.View m a
 closeButton closeAction =
-  Button.ghost (Button.button IcnCancel (Just closeAction))
+  Button.ghost (Button.button Icon.IcnCancel (Just closeAction))

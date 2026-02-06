@@ -28,7 +28,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
@@ -146,8 +146,8 @@ competenceGridSelectorComponent r style parentLens =
                 (C.translate' C.LblSelectCompetenceGrids)
                 m.isDropdownOpen
                 ToggleDropdown
-                [ SL.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
-                , SL.dropdownItem IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
+                [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
+                , SL.dropdownItem Icon.IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
                 ]
         , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
         ]
@@ -162,4 +162,4 @@ competenceGridSelectorComponent r style parentLens =
             gridGrade <- QGridGrade.activeGridGrade (m.projection.userGridGrades Ix.@= user.id) c.id
             pure gridGrade.grade
           gradeBadge = gradeBadgeView <$> mGrade
-       in SL.selectorItemWithBadge isSelected IcnCompetenceGrid label gradeBadge (SelectCompetenceGrid c)
+       in SL.selectorItemWithBadge isSelected Icon.IcnCompetenceGrid label gradeBadge (SelectCompetenceGrid c)

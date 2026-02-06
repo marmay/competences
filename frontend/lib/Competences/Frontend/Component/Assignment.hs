@@ -12,7 +12,7 @@ import Competences.Frontend.Component.Assignment.ViewerDetail (viewerDetailView)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty (..))
 import Miso qualified as M
@@ -42,8 +42,8 @@ assignmentComponent r user =
           AssignmentEdit -> C.translate' C.LblEdit
           AssignmentView -> C.translate' C.LblView
       , SD.modeIcon = \case
-          AssignmentEdit -> Just IcnEdit
-          AssignmentView -> Just IcnView
+          AssignmentEdit -> Just Icon.IcnEdit
+          AssignmentView -> Just Icon.IcnView
       , SD.availableModes = availableModes
       , SD.defaultMode = defaultMode
       , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)

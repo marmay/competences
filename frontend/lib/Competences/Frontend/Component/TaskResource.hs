@@ -17,7 +17,7 @@ import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (IcnSolution, IcnTask))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus (..))
@@ -129,7 +129,7 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
       titleLeft =
         MH.div_
           [class_ "flex items-center gap-2"]
-          [ V.icon [] IcnTask
+          [ Icon.icon [] Icon.IcnTask
           , MH.span_ [class_ "font-medium"] [M.text $ M.ms identifier]
           ]
       titleRight =
@@ -190,7 +190,7 @@ viewSolution state liftAction sol =
         (liftAction $ ToggleSolution sol.id)
         ( MH.div_
             [class_ "flex items-center gap-2"]
-            [V.icon [] IcnSolution, solutionTypeBadge sol.solutionType]
+            [Icon.icon [] Icon.IcnSolution, solutionTypeBadge sol.solutionType]
         )
         ( if sol.content == mempty
             then Typography.muted "Kein Inhalt"

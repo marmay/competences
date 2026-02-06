@@ -26,7 +26,7 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (IcnAdd, IcnDelete))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Set (Set)
@@ -137,7 +137,7 @@ taskSolutionsListComponent r taskId =
         [ Typography.h3 $ C.translate' C.LblSolutions
         , if isTeacher m.projection.connectedUser
             then
-              Button.secondarySm (Button.button (IcnAdd, C.LblAddSolution) CreateSolution)
+              Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddSolution) CreateSolution)
             else V.empty
         ]
 
@@ -162,7 +162,7 @@ taskSolutionsListComponent r taskId =
             isExpanded
             (ToggleSolution sol.id)
             (solutionTypeBadge sol.solutionType)
-            [ Button.ghostSm (Button.button IcnDelete (DeleteSolution sol.id))
+            [ Button.ghostSm (Button.button Icon.IcnDelete (DeleteSolution sol.id))
             | isOwner
             ]
             ( if isOwner

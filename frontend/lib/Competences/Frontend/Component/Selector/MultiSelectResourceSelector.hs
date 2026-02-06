@@ -18,7 +18,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -158,5 +158,5 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
     viewResourceTag res =
       Badge.interactive
         Badge.Secondary
-        (Just (IcnCancel, ToggleResource res.id))
-        (IcnResources, M.ms $ unResourceIdentifier res.identifier)
+        (Just (Icon.IcnCancel, ToggleResource res.id))
+        (Icon.IcnResources, M.ms $ unResourceIdentifier res.identifier)

@@ -9,6 +9,7 @@ where
 
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
@@ -34,7 +35,7 @@ data SelectorDetailConfig a mode sm sa = SelectorDetailConfig
   -- to embed the appropriate component for each mode.
   , modeLabel :: !(mode -> MisoString)
   -- ^ Translation function for mode labels (e.g., translate' . LblMode)
-  , modeIcon :: !(mode -> Maybe V.Icon)
+  , modeIcon :: !(mode -> Maybe Icon.Icon)
   -- ^ Optional icon for each mode tab
   , availableModes :: !(NonEmpty mode)
   -- ^ Which modes are available (allows role-based filtering).

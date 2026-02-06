@@ -28,7 +28,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.UIState (readFocusedUser)
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))
 import Data.Time (Day, addDays)
@@ -158,8 +158,8 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
                     (C.translate' C.LblSelectEvidences)
                     m.dropdownOpen
                     ToggleDropdown
-                    [ SL.dropdownItem IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
-                    , SL.dropdownItem IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
+                    [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
+                    , SL.dropdownItem Icon.IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
                     ]
                 else
                   SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
@@ -188,7 +188,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
     viewEvidence m e =
       let isSelected = m.selectedEvidence == Just e || m.newEvidence == Just e
           label = C.formatDay e.date <> " — " <> C.translate' (C.LblActivityTypeDescription e.activityType)
-       in SL.selectorItem isSelected IcnEvidence label (SelectEvidence e)
+       in SL.selectorItem isSelected Icon.IcnEvidence label (SelectEvidence e)
 
     translateDateRange Today = C.translate' C.LblToday
     translateDateRange ThisWeek = C.translate' C.LblThisWeek

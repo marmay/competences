@@ -26,7 +26,7 @@ module Competences.Frontend.View.Combobox
 where
 
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -182,7 +182,7 @@ triggerButton cb =
     [ M.span_
         [class_ "truncate"]
         [M.text $ triggerText cb]
-    , icon [class_ $ "h-4 w-4 text-muted-foreground " <> if cb.isOpen then "rotate-180" else ""] IcnArrowDown
+    , Icon.icon [class_ $ "h-4 w-4 text-muted-foreground " <> if cb.isOpen then "rotate-180" else ""] Icon.IcnArrowDown
     ]
 
 -- | Text to show in the trigger button
@@ -316,6 +316,6 @@ checkbox isChecked =
           ]
     ]
     [ if isChecked
-        then icon [class_ "h-3 w-3 text-primary-foreground"] IcnApply
+        then Icon.icon [class_ "h-3 w-3 text-primary-foreground"] Icon.IcnApply
         else M.text ""
     ]

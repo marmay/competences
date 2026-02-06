@@ -11,7 +11,7 @@ module Competences.Frontend.View.PinFrame
 where
 
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -32,10 +32,10 @@ pinFrame title toggleAction closeAction content =
             [class_ "flex items-center gap-2"]
             [ -- Pin toggle (minimize) button
               withTooltip (PlainTooltip "Minimize") $
-                Button.ghostSm (Button.button IcnExpandShrinkArrowRight (Just toggleAction))
+                Button.ghostSm (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))
             , -- Close button
               withTooltip (PlainTooltip "Close") $
-                Button.ghostSm (Button.button IcnCancel (Just closeAction))
+                Button.ghostSm (Button.button Icon.IcnCancel (Just closeAction))
             ]
         ]
     , -- Content area
@@ -49,7 +49,7 @@ pinFrame title toggleAction closeAction content =
 -- Renders a ~48x48 icon button with optional numeric badge overlay.
 -- Active (currently visible) dialogs are highlighted.
 pinSidebarIcon
-  :: Icon
+  :: Icon.Icon
   -- ^ The icon to display
   -> M.MisoString
   -- ^ Hover text (tooltip)

@@ -40,7 +40,7 @@ where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Color (PaletteName, bgClass', borderClass', textClass')
-import Competences.Frontend.View.Icon (Icon, icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import Miso qualified as M
@@ -55,8 +55,8 @@ data BadgeVariant = Primary | Secondary | Destructive | Outline
 -- | Badge contents
 data BadgeContents
   = TextOnly !MisoString
-  | IconOnly !Icon
-  | IconText !Icon !MisoString
+  | IconOnly !Icon.Icon
+  | IconText !Icon.Icon !MisoString
   deriving (Eq, Show)
 
 class ToBadgeContents a where
@@ -71,13 +71,13 @@ instance ToBadgeContents MisoString where
 instance ToBadgeContents Label where
   toBadgeContents = TextOnly . translate'
 
-instance ToBadgeContents Icon where
+instance ToBadgeContents Icon.Icon where
   toBadgeContents = IconOnly
 
-instance ToBadgeContents (Icon, MisoString) where
+instance ToBadgeContents (Icon.Icon, MisoString) where
   toBadgeContents (i, t) = IconText i t
 
-instance ToBadgeContents (Icon, Label) where
+instance ToBadgeContents (Icon.Icon, Label) where
   toBadgeContents (i, l) = IconText i (translate' l)
 
 -- ============================================================================
@@ -87,8 +87,8 @@ instance ToBadgeContents (Icon, Label) where
 -- | Render badge contents as child views
 renderContents :: BadgeContents -> [M.View model action]
 renderContents (TextOnly t) = [M.text t]
-renderContents (IconOnly i) = [icon [] i]
-renderContents (IconText i t) = [icon [] i, M.text t]
+renderContents (IconOnly i) = [Icon.icon [] i]
+renderContents (IconText i t) = [Icon.icon [] i, M.text t]
 
 -- | Internal: render a static badge with given CSS classes
 renderBadge :: Text -> BadgeContents -> M.View model action
@@ -98,7 +98,7 @@ renderBadge classes contents =
 -- | Internal: render an interactive badge with given CSS classes
 renderInteractiveBadge
   :: Text
-  -> Maybe (Icon, action)
+  -> Maybe (Icon.Icon, action)
   -> BadgeContents
   -> M.View model action
 renderInteractiveBadge baseClasses mAction contents =
@@ -109,7 +109,7 @@ renderInteractiveBadge baseClasses mAction contents =
     hasAction = case mAction of Just _ -> True; Nothing -> False
 
 -- | Render the optional action button that appears on hover
-actionButton :: Maybe (Icon, action) -> [M.View model action]
+actionButton :: Maybe (Icon.Icon, action) -> [M.View model action]
 actionButton Nothing = []
 actionButton (Just (icn, action)) =
   [ M.button_
@@ -118,7 +118,7 @@ actionButton (Just (icn, action)) =
       , M.intProp "tabindex" (-1)
       , M.onClick action
       ]
-      [icon [] icn]
+      [Icon.icon [] icn]
   ]
 
 actionButtonClasses :: Text
@@ -180,7 +180,7 @@ badgeCustomView variant content =
 interactive
   :: (ToBadgeContents c)
   => BadgeVariant
-  -> Maybe (Icon, action)
+  -> Maybe (Icon.Icon, action)
   -> c
   -> M.View model action
 interactive variant mAction =
@@ -193,7 +193,7 @@ interactive variant mAction =
 paletteInteractive
   :: (ToBadgeContents c)
   => PaletteName
-  -> Maybe (Icon, action)
+  -> Maybe (Icon.Icon, action)
   -> c
   -> M.View model action
 paletteInteractive palette mAction =

@@ -59,7 +59,7 @@ import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.CellStyle qualified as CellStyle
@@ -454,7 +454,7 @@ viewerComponent r grid =
               then
                 MH.div_
                   [class_ "absolute bottom-1 right-1 text-sky-600"]
-                  [icon [MP.width_ "14", MP.height_ "14"] IcnResources]
+                  [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnResources]
               else V.empty
 
           cursorClass = if hasResources then " cursor-pointer hover:bg-opacity-80" else ""
@@ -521,7 +521,7 @@ viewerComponent r grid =
               then
                 MH.div_
                   [class_ "absolute bottom-1 right-1 text-sky-600"]
-                  [icon [MP.width_ "14", MP.height_ "14"] IcnResources]
+                  [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnResources]
               else V.empty
 
           cursorClass = if hasResources then " cursor-pointer hover:bg-opacity-80" else ""

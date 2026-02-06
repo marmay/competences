@@ -16,7 +16,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (sortOn)
@@ -119,7 +119,7 @@ mesoPlanSelectorComponent r parentLens =
             (C.translate' C.LblMesoPlans)
             m.isDropdownOpen
             ToggleDropdown
-            [ SelectorList.dropdownItem IcnAdd (C.translate' C.LblCreate) CreateNewPlan
+            [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewPlan
             ]
         , SelectorList.selectorSearchField
             (ms m.searchQuery)
@@ -143,7 +143,7 @@ mesoPlanSelectorComponent r parentLens =
             [ -- Line 1: Icon + Title
               MH.div_
                 [class_ "flex items-center gap-2"]
-                [ V.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] IcnMesoPlan
+                [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] Icon.IcnMesoPlan
                 , MH.span_
                     [class_ "text-sm truncate font-medium"]
                     [M.text $ ms $ if T.null p.title then "(Untitled)" else p.title]

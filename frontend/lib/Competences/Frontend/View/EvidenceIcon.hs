@@ -11,7 +11,7 @@ module Competences.Frontend.View.EvidenceIcon
 where
 
 import Competences.Document.Evidence (ActivityType (..), SocialForm (..))
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import Miso qualified as M
@@ -19,21 +19,21 @@ import Miso.Html qualified as MH
 import Miso.Svg.Property qualified as MSP
 
 -- | Map an 'ActivityType' to its icon.
-activityTypeIcon :: ActivityType -> Icon
-activityTypeIcon Conversation = IcnActivityTypeConversation
-activityTypeIcon Exam = IcnActivityTypeExam
-activityTypeIcon SchoolExercise = IcnActivityTypeSchoolExercise
-activityTypeIcon HomeExercise = IcnActivityTypeHomeExercise
+activityTypeIcon :: ActivityType -> Icon.Icon
+activityTypeIcon Conversation = Icon.IcnActivityTypeConversation
+activityTypeIcon Exam = Icon.IcnActivityTypeExam
+activityTypeIcon SchoolExercise = Icon.IcnActivityTypeSchoolExercise
+activityTypeIcon HomeExercise = Icon.IcnActivityTypeHomeExercise
 
 -- | Map a 'SocialForm' to its icon.
-socialFormIcon :: SocialForm -> Icon
-socialFormIcon Group = IcnSocialFormGroup
-socialFormIcon Individual = IcnSocialFormIndividual
+socialFormIcon :: SocialForm -> Icon.Icon
+socialFormIcon Group = Icon.IcnSocialFormGroup
+socialFormIcon Individual = Icon.IcnSocialFormIndividual
 
 -- | Render an icon coloured by the given CSS class (e.g. an ability class).
 -- Uses @stroke="currentColor"@ so the icon inherits the text colour.
-coloredStrokeIcon :: Text -> Icon -> M.View m a
+coloredStrokeIcon :: Text -> Icon.Icon -> M.View m a
 coloredStrokeIcon colorClass icn =
   MH.span_
     [class_ colorClass]
-    [icon [MSP.stroke_ "currentColor"] icn]
+    [Icon.icon [MSP.stroke_ "currentColor"] icn]

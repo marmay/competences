@@ -14,7 +14,7 @@ import Competences.Document.Id (Id)
 import Competences.Document.Order (Orderable, Reorder (..), idL)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((.~), (?~), (^.))
@@ -82,7 +82,7 @@ viewReorderItem m item =
         then [cancelButton]
         else [moveBeforeButton, moveAfterButton]
   where
-    moveButton = Button.secondary $ Button.button IcnReorder (ReorderFrom $ item ^. idL)
-    cancelButton = Button.destructive $ Button.button IcnCancel (CancelReorder :: ReorderAction a)
-    moveBeforeButton = Button.secondary $ Button.button IcnArrowUp (ReorderBefore $ item ^. idL)
-    moveAfterButton = Button.secondary $ Button.button IcnArrowDown (ReorderAfter $ item ^. idL)
+    moveButton = Button.secondary $ Button.button Icon.IcnReorder (ReorderFrom $ item ^. idL)
+    cancelButton = Button.destructive $ Button.button Icon.IcnCancel (CancelReorder :: ReorderAction a)
+    moveBeforeButton = Button.secondary $ Button.button Icon.IcnArrowUp (ReorderBefore $ item ^. idL)
+    moveAfterButton = Button.secondary $ Button.button Icon.IcnArrowDown (ReorderAfter $ item ^. idL)

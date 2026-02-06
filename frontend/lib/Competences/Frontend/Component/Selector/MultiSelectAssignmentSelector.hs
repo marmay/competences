@@ -18,7 +18,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (sortOn)
 import Data.Set qualified as Set
@@ -169,5 +169,5 @@ multiSelectAssignmentSelectorComponent r eligible initResults lensBinding =
     viewAssignmentTag a =
       Badge.interactive
         Badge.Secondary
-        (Just (IcnCancel, ToggleAssignment a.id))
-        (IcnAssignment, M.ms $ unAssignmentName a.name)
+        (Just (Icon.IcnCancel, ToggleAssignment a.id))
+        (Icon.IcnAssignment, M.ms $ unAssignmentName a.name)

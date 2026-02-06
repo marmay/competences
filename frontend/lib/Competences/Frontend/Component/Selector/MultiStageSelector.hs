@@ -37,7 +37,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Icon (Icon (IcnCancel))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
@@ -555,7 +555,7 @@ viewResultBadge config model result =
    in withTooltip (maybe NoTooltip PlainTooltip tooltipContent) $
         Badge.interactive
           Badge.Secondary
-          (fmap (\a -> (IcnCancel, a)) deleteAction)
+          (fmap (\a -> (Icon.IcnCancel, a)) deleteAction)
           badgeText
 
 -- | Render the current input cursor showing breadcrumb and partial input

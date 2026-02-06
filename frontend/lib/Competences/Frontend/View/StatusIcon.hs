@@ -19,7 +19,7 @@ import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Completion (CompletionStatus)
 import Competences.Frontend.View.Color.Completion qualified as Completion
 import Competences.Frontend.View.Color.Status qualified as StatusColor
-import Competences.Frontend.View.Icon (Icon (..), icon)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import Miso qualified as M
@@ -48,15 +48,15 @@ statusIcon :: Status -> M.View m a
 statusIcon Achieved =
   M.div_
     [class_ $ statusColorClass Achieved <> " flex justify-center"]
-    [icon [MP.width_ "16", MP.height_ "16"] IcnApply]
+    [Icon.icon [MP.width_ "16", MP.height_ "16"] Icon.IcnApply]
 statusIcon InProgress =
   M.div_
     [class_ $ statusColorClass InProgress <> " flex justify-center"]
-    [icon [MP.width_ "16", MP.height_ "16"] IcnProgress]
+    [Icon.icon [MP.width_ "16", MP.height_ "16"] Icon.IcnProgress]
 statusIcon Locked =
   M.div_
     [class_ $ statusColorClass Locked <> " flex justify-center"]
-    [icon [MP.width_ "16", MP.height_ "16"] IcnLock]
+    [Icon.icon [MP.width_ "16", MP.height_ "16"] Icon.IcnLock]
 statusIcon NoStatus = M.text ""
 
 -- | Render a status icon as an absolute-positioned overlay (top-right corner).
@@ -65,15 +65,15 @@ statusIconOverlay :: Status -> M.View m a
 statusIconOverlay Achieved =
   M.div_
     [class_ $ "absolute top-1 right-1 " <> statusColorClass Achieved]
-    [icon [MP.width_ "14", MP.height_ "14"] IcnApply]
+    [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnApply]
 statusIconOverlay InProgress =
   M.div_
     [class_ $ "absolute top-1 right-1 " <> statusColorClass InProgress]
-    [icon [MP.width_ "14", MP.height_ "14"] IcnProgress]
+    [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnProgress]
 statusIconOverlay Locked =
   M.div_
     [class_ $ "absolute top-1 right-1 " <> statusColorClass Locked]
-    [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+    [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnLock]
 statusIconOverlay NoStatus = M.text ""
 
 -- | Small inline lock icon for use in level labels and descriptions.
@@ -81,7 +81,7 @@ lockIcon :: M.View m a
 lockIcon =
   M.span_
     [class_ "text-stone-400"]
-    [icon [MP.width_ "14", MP.height_ "14"] IcnLock]
+    [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnLock]
 
 -- ============================================================================
 -- Completion Status Icons
@@ -99,12 +99,12 @@ completionIcon :: CompletionStatus -> M.View m a
 completionIcon status =
   M.span_
     [class_ $ textClass' (Completion.completionPalette status)]
-    [icon [MP.width_ "16", MP.height_ "16"] (completionStatusIcon status)]
+    [Icon.icon [MP.width_ "16", MP.height_ "16"] (completionStatusIcon status)]
 
 -- | Map completion status to appropriate icon.
-completionStatusIcon :: CompletionStatus -> Icon
-completionStatusIcon Completion.Open = IcnAbilityNotYet
-completionStatusIcon Completion.InProgress = IcnProgress
-completionStatusIcon Completion.Done = IcnApply
-completionStatusIcon Completion.Assessed = IcnApply
-completionStatusIcon Completion.Failed = IcnCancel
+completionStatusIcon :: CompletionStatus -> Icon.Icon
+completionStatusIcon Completion.Open = Icon.IcnAbilityNotYet
+completionStatusIcon Completion.InProgress = Icon.IcnProgress
+completionStatusIcon Completion.Done = Icon.IcnApply
+completionStatusIcon Completion.Assessed = Icon.IcnApply
+completionStatusIcon Completion.Failed = Icon.IcnCancel

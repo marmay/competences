@@ -29,7 +29,7 @@ import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeMo
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Icon (Icon (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -402,7 +402,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         [ MH.div_
             [class_ "flex items-center justify-between mb-2"]
             [ Typography.h4 (C.translate' C.LblLessonPhases)
-            , Button.secondarySm (Button.button (IcnAdd, C.LblAddPhase) AddPhase)
+            , Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddPhase) AddPhase)
             ]
         , if null m.phases
             then
@@ -440,7 +440,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 ]
             )
             -- Actions
-            [ Button.ghostSm (Button.button IcnDelete (DeletePhase idx)) ]
+            [ Button.ghostSm (Button.button Icon.IcnDelete (DeletePhase idx)) ]
             -- Content
             (viewPhaseEditor idx phase)
 

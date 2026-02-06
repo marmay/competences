@@ -25,6 +25,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Evaluation qualified as Eval
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
@@ -400,7 +401,7 @@ evaluatorComponent r assignment =
       Button.toggle (m.selectedSocialForm == sf) (Button.button (C.LblSocialForm sf) (SetSocialForm sf))
 
     viewStudentButton m student =
-      let contents = if hasEvidence then Button.toButtonContents (V.IcnApply, ms student.name)
+      let contents = if hasEvidence then Button.toButtonContents (Icon.IcnApply, ms student.name)
                                     else Button.toButtonContents (ms student.name)
           hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
       in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button contents (ToggleStudentSelection student.id)

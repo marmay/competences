@@ -31,6 +31,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Functor (($>))
@@ -81,7 +82,7 @@ mkApp ir =
     view m =
       M.div_
         [class_ "flex flex-row h-screen"]
-        [ V.iconDefs
+        [ Icon.iconDefs
         , M.div_
             [class_ "flex-1 min-w-0"]
             [ V.mainPage
