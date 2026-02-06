@@ -15,13 +15,22 @@
 @source inline("border-{primary,secondary,destructive,border,input,accent}");
 @source inline("ring-{primary,ring,accent}");
 @source inline("bg-ability-{success,success-light,warning,danger}");
+@source inline("bg-ability-{success,success-light,warning,danger}-alt");
 @source inline("text-ability-{success,success-light,warning,danger}");
-@source inline("text-ability-{success,success-light,warning-danger}-foreground");
+@source inline("text-ability-{success,success-light,warning,danger}-accent");
 @source inline("border-ability-{success,success-light,warning,danger}");
+@source inline("border-ability-{success,success-light,warning,danger}-accent");
 @source inline("bg-mastery-{assessed,strong,emerging,partial,not-yet}");
+@source inline("bg-mastery-{assessed,strong,emerging,partial,not-yet}-alt");
 @source inline("text-mastery-{assessed,strong,emerging,partial,not-yet}");
-@source inline("text-mastery-{assessed,strong,emerging,partial,not-yet}-foreground");
+@source inline("text-mastery-{assessed,strong,emerging,partial,not-yet}-accent");
 @source inline("border-mastery-{assessed,strong,emerging,partial,not-yet}");
+@source inline("bg-status-{ok,pending,error}");
+@source inline("bg-status-{ok,pending,error}-alt");
+@source inline("text-status-{ok,pending,error}");
+@source inline("text-status-{ok,pending,error}-accent");
+@source inline("border-status-{ok,pending,error}");
+@source inline("border-status-{ok,pending,error}-accent");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -54,44 +63,48 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-ability-success: var(--ability-success);
-  --color-ability-success-foreground: var(--ability-success-foreground);
-  --color-ability-success-stripe-light: var(--ability-success-stripe-light);
-  --color-ability-success-stripe-dark: var(--ability-success-stripe-dark);
-  --color-ability-success-light: var(--ability-success-light);
-  --color-ability-success-light-foreground: var(--ability-success-light-foreground);
-  --color-ability-success-light-stripe-light: var(--ability-success-light-stripe-light);
-  --color-ability-success-light-stripe-dark: var(--ability-success-light-stripe-dark);
-  --color-ability-warning: var(--ability-warning);
-  --color-ability-warning-foreground: var(--ability-warning-foreground);
-  --color-ability-warning-stripe-light: var(--ability-warning-stripe-light);
-  --color-ability-warning-stripe-dark: var(--ability-warning-stripe-dark);
-  --color-ability-danger: var(--ability-danger);
-  --color-ability-danger-foreground: var(--ability-danger-foreground);
-  --color-ability-danger-stripe-light: var(--ability-danger-stripe-light);
-  --color-ability-danger-stripe-dark: var(--ability-danger-stripe-dark);
 
-  /* Mastery status palettes */
+  /* Ability palettes: Base (bg), Accent (icons), Alt (stripe light) */
+  --color-ability-success: var(--ability-success);
+  --color-ability-success-accent: var(--ability-success-accent);
+  --color-ability-success-alt: var(--ability-success-alt);
+  --color-ability-success-light: var(--ability-success-light);
+  --color-ability-success-light-accent: var(--ability-success-light-accent);
+  --color-ability-success-light-alt: var(--ability-success-light-alt);
+  --color-ability-warning: var(--ability-warning);
+  --color-ability-warning-accent: var(--ability-warning-accent);
+  --color-ability-warning-alt: var(--ability-warning-alt);
+  --color-ability-danger: var(--ability-danger);
+  --color-ability-danger-accent: var(--ability-danger-accent);
+  --color-ability-danger-alt: var(--ability-danger-alt);
+
+  /* Mastery palettes: Base (bg), Accent (text), Alt (stripe light) */
   --color-mastery-assessed: var(--mastery-assessed);
-  --color-mastery-assessed-foreground: var(--mastery-assessed-foreground);
-  --color-mastery-assessed-stripe-light: var(--mastery-assessed-stripe-light);
-  --color-mastery-assessed-stripe-dark: var(--mastery-assessed-stripe-dark);
+  --color-mastery-assessed-accent: var(--mastery-assessed-accent);
+  --color-mastery-assessed-alt: var(--mastery-assessed-alt);
   --color-mastery-strong: var(--mastery-strong);
-  --color-mastery-strong-foreground: var(--mastery-strong-foreground);
-  --color-mastery-strong-stripe-light: var(--mastery-strong-stripe-light);
-  --color-mastery-strong-stripe-dark: var(--mastery-strong-stripe-dark);
+  --color-mastery-strong-accent: var(--mastery-strong-accent);
+  --color-mastery-strong-alt: var(--mastery-strong-alt);
   --color-mastery-emerging: var(--mastery-emerging);
-  --color-mastery-emerging-foreground: var(--mastery-emerging-foreground);
-  --color-mastery-emerging-stripe-light: var(--mastery-emerging-stripe-light);
-  --color-mastery-emerging-stripe-dark: var(--mastery-emerging-stripe-dark);
+  --color-mastery-emerging-accent: var(--mastery-emerging-accent);
+  --color-mastery-emerging-alt: var(--mastery-emerging-alt);
   --color-mastery-partial: var(--mastery-partial);
-  --color-mastery-partial-foreground: var(--mastery-partial-foreground);
-  --color-mastery-partial-stripe-light: var(--mastery-partial-stripe-light);
-  --color-mastery-partial-stripe-dark: var(--mastery-partial-stripe-dark);
+  --color-mastery-partial-accent: var(--mastery-partial-accent);
+  --color-mastery-partial-alt: var(--mastery-partial-alt);
   --color-mastery-not-yet: var(--mastery-not-yet);
-  --color-mastery-not-yet-foreground: var(--mastery-not-yet-foreground);
-  --color-mastery-not-yet-stripe-light: var(--mastery-not-yet-stripe-light);
-  --color-mastery-not-yet-stripe-dark: var(--mastery-not-yet-stripe-dark);
+  --color-mastery-not-yet-accent: var(--mastery-not-yet-accent);
+  --color-mastery-not-yet-alt: var(--mastery-not-yet-alt);
+
+  /* Status palettes: Base (bg), Accent (icons), Alt (stripe light) */
+  --color-status-ok: var(--status-ok);
+  --color-status-ok-accent: var(--status-ok-accent);
+  --color-status-ok-alt: var(--status-ok-alt);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-accent: var(--status-pending-accent);
+  --color-status-pending-alt: var(--status-pending-alt);
+  --color-status-error: var(--status-error);
+  --color-status-error-accent: var(--status-error-accent);
+  --color-status-error-alt: var(--status-error-alt);
 }
 
 /*
@@ -133,64 +146,77 @@
 
   /* Ability colors - traffic light pattern for competence levels
    * Each palette has:
-   *   --ability-{name}: the semantic color (for text/stroke/icons, used as bg)
-   *   --ability-{name}-foreground: contrast text for on top of bg
-   *   --ability-{name}-stripe-light: light stripe variant (color-mix default)
-   *   --ability-{name}-stripe-dark: dark stripe variant (= base color by default)
+   *   --ability-{name}: base color (background)
+   *   --ability-{name}-accent: vibrant color (icons, strokes)
+   *   --ability-{name}-alt: light variant (stripe alternation)
    */
   --ability-success: oklch(0.527 0.154 163);
-  --ability-success-foreground: oklch(1 0 0);
-  --ability-success-stripe-light: color-mix(in oklch, var(--ability-success) 50%, white);
-  --ability-success-stripe-dark: var(--ability-success);
+  --ability-success-accent: var(--ability-success);
+  --ability-success-alt: color-mix(in oklch, var(--ability-success) 50%, white);
 
   --ability-success-light: oklch(0.627 0.194 163);
-  --ability-success-light-foreground: oklch(1 0 0);
-  --ability-success-light-stripe-light: color-mix(in oklch, var(--ability-success-light) 50%, white);
-  --ability-success-light-stripe-dark: var(--ability-success-light);
+  --ability-success-light-accent: var(--ability-success-light);
+  --ability-success-light-alt: color-mix(in oklch, var(--ability-success-light) 50%, white);
 
   --ability-warning: oklch(0.666 0.179 58);
-  --ability-warning-foreground: oklch(0 0 0);
-  --ability-warning-stripe-light: color-mix(in oklch, var(--ability-warning) 50%, white);
-  --ability-warning-stripe-dark: var(--ability-warning);
+  --ability-warning-accent: var(--ability-warning);
+  --ability-warning-alt: color-mix(in oklch, var(--ability-warning) 50%, white);
 
   --ability-danger: oklch(0.577 0.245 27);
-  --ability-danger-foreground: oklch(1 0 0);
-  --ability-danger-stripe-light: color-mix(in oklch, var(--ability-danger) 50%, white);
-  --ability-danger-stripe-dark: var(--ability-danger);
+  --ability-danger-accent: var(--ability-danger);
+  --ability-danger-alt: color-mix(in oklch, var(--ability-danger) 50%, white);
 
   /* Mastery status colors - graduated greens and yellows
-   * Based on Tailwind green-50/100/200 and yellow-50/100/200 for stripes
-   * Stripe patterns use light/dark variants for diagonal stripes
+   * Each palette has:
+   *   --mastery-{name}: base color (background)
+   *   --mastery-{name}-accent: contrast text color
+   *   --mastery-{name}-alt: light variant (stripe alternation)
    */
   /* StreakTwoAssessed - verified mastery (green-200 / green-100) */
   --mastery-assessed: oklch(0.871 0.119 142);  /* green-200 */
-  --mastery-assessed-foreground: oklch(0.365 0.110 142);  /* green-800 */
-  --mastery-assessed-stripe-light: oklch(0.922 0.076 145);  /* green-100 */
-  --mastery-assessed-stripe-dark: oklch(0.871 0.119 142);  /* green-200 */
+  --mastery-assessed-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-assessed-alt: oklch(0.922 0.076 145);  /* green-100 */
 
   /* StreakTwoPlus - strong mastery (green-100 / green-50) */
   --mastery-strong: oklch(0.922 0.076 145);  /* green-100 */
-  --mastery-strong-foreground: oklch(0.365 0.110 142);  /* green-800 */
-  --mastery-strong-stripe-light: oklch(0.962 0.044 156);  /* green-50 */
-  --mastery-strong-stripe-dark: oklch(0.922 0.076 145);  /* green-100 */
+  --mastery-strong-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-strong-alt: oklch(0.962 0.044 156);  /* green-50 */
 
   /* OneSuccess - emerging mastery (green-50 / white) */
   --mastery-emerging: oklch(0.962 0.044 156);  /* green-50 */
-  --mastery-emerging-foreground: oklch(0.365 0.110 142);  /* green-800 */
-  --mastery-emerging-stripe-light: oklch(1 0 0);  /* white */
-  --mastery-emerging-stripe-dark: oklch(0.962 0.044 156);  /* green-50 */
+  --mastery-emerging-accent: oklch(0.365 0.110 142);  /* green-800 */
+  --mastery-emerging-alt: oklch(1 0 0);  /* white */
 
   /* OnlySillyMistakes - partial understanding (yellow-100 / yellow-50) */
   --mastery-partial: oklch(0.973 0.071 103);  /* yellow-100 */
-  --mastery-partial-foreground: oklch(0.476 0.114 61);  /* yellow-800 */
-  --mastery-partial-stripe-light: oklch(0.987 0.026 102);  /* yellow-50 */
-  --mastery-partial-stripe-dark: oklch(0.973 0.071 103);  /* yellow-100 */
+  --mastery-partial-accent: oklch(0.476 0.114 61);  /* yellow-800 */
+  --mastery-partial-alt: oklch(0.987 0.026 102);  /* yellow-50 */
 
   /* MasteryNotYet - not yet achieved (yellow-200 / yellow-100) */
   --mastery-not-yet: oklch(0.945 0.129 101);  /* yellow-200 */
-  --mastery-not-yet-foreground: oklch(0.476 0.114 61);  /* yellow-800 */
-  --mastery-not-yet-stripe-light: oklch(0.973 0.071 103);  /* yellow-100 */
-  --mastery-not-yet-stripe-dark: oklch(0.945 0.129 101);  /* yellow-200 */
+  --mastery-not-yet-accent: oklch(0.476 0.114 61);  /* yellow-800 */
+  --mastery-not-yet-alt: oklch(0.973 0.071 103);  /* yellow-100 */
+
+  /* Status colors - for achievement/progress indicators
+   * Each palette has:
+   *   --status-{name}: base color (background)
+   *   --status-{name}-accent: icon/text accent color
+   *   --status-{name}-alt: light variant (stripe alternation)
+   */
+  /* Status OK (green) - achieved state */
+  --status-ok: oklch(0.871 0.119 142);  /* green-200 */
+  --status-ok-accent: oklch(0.527 0.154 163);  /* green-600 */
+  --status-ok-alt: oklch(0.922 0.076 145);  /* green-100 */
+
+  /* Status Pending (yellow) - in progress state */
+  --status-pending: oklch(0.905 0.182 98);  /* yellow-200 */
+  --status-pending-accent: oklch(0.666 0.179 58);  /* yellow-600 */
+  --status-pending-alt: oklch(0.973 0.071 103);  /* yellow-100 */
+
+  /* Status Error (red) - links to destructive */
+  --status-error: oklch(0.885 0.062 18);  /* red-200 */
+  --status-error-accent: var(--destructive);  /* uses destructive for icons */
+  --status-error-alt: oklch(0.936 0.032 17);  /* red-100 */
 }
 
 /* Dark mode */
@@ -225,24 +251,20 @@
 
   /* Ability colors - brighter for dark mode visibility */
   --ability-success: oklch(0.627 0.194 163);
-  --ability-success-foreground: oklch(0 0 0);
-  --ability-success-stripe-light: color-mix(in oklch, var(--ability-success) 50%, black);
-  --ability-success-stripe-dark: var(--ability-success);
+  --ability-success-accent: var(--ability-success);
+  --ability-success-alt: color-mix(in oklch, var(--ability-success) 50%, black);
 
   --ability-success-light: oklch(0.723 0.219 163);
-  --ability-success-light-foreground: oklch(0 0 0);
-  --ability-success-light-stripe-light: color-mix(in oklch, var(--ability-success-light) 50%, black);
-  --ability-success-light-stripe-dark: var(--ability-success-light);
+  --ability-success-light-accent: var(--ability-success-light);
+  --ability-success-light-alt: color-mix(in oklch, var(--ability-success-light) 50%, black);
 
   --ability-warning: oklch(0.766 0.179 58);
-  --ability-warning-foreground: oklch(0 0 0);
-  --ability-warning-stripe-light: color-mix(in oklch, var(--ability-warning) 50%, black);
-  --ability-warning-stripe-dark: var(--ability-warning);
+  --ability-warning-accent: var(--ability-warning);
+  --ability-warning-alt: color-mix(in oklch, var(--ability-warning) 50%, black);
 
   --ability-danger: oklch(0.677 0.245 27);
-  --ability-danger-foreground: oklch(0 0 0);
-  --ability-danger-stripe-light: color-mix(in oklch, var(--ability-danger) 50%, black);
-  --ability-danger-stripe-dark: var(--ability-danger);
+  --ability-danger-accent: var(--ability-danger);
+  --ability-danger-alt: color-mix(in oklch, var(--ability-danger) 50%, black);
 }
 
 /* Claude theme - warm orange accent */
