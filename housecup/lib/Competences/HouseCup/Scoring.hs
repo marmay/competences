@@ -12,6 +12,7 @@ import Competences.Document.ParticipationRecord (ParticipationLevel (..), Partic
 import Competences.Document.User (UserId)
 import Competences.HouseCup.Config (ResolvedConfig (..))
 import Competences.Query.Mastery (MasteryStatus (..), getUserMastery)
+import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatus)
 import Data.Text (Text)
 
 type ScoreTable = [(Text, Integer)]
@@ -33,7 +34,7 @@ studentPoints docBefore docAfter userId =
   StudentScore
     { participation = participationPoints docBefore docAfter userId
     , mastery = masteryPoints docBefore docAfter userId
-    , tasks = 0 -- Phase 4
+    , tasks = taskPoints docBefore docAfter userId
     }
 
 -- | Rule 1: Score new participation records.
@@ -74,6 +75,20 @@ masteryTier OnlySillyMistakes = 0
 masteryTier OneSuccess = 1
 masteryTier StreakTwoPlus = 2
 masteryTier StreakTwoAssessed = 3
+
+-- | Rule 3: Score newly completed tasks.
+-- Any task going from not-done to done earns +1.
+taskPoints :: Document -> Document -> UserId -> Integer
+taskPoints docBefore docAfter userId =
+  let allTasks = Ix.toList docAfter.tasks
+   in fromIntegral $ length $ filter becameDone allTasks
+  where
+    becameDone task =
+      let before = taskCompletionStatus docBefore userId task
+          after = taskCompletionStatus docAfter userId task
+       in isDone after && not (isDone before)
+    isDone (TaskDone _) = True
+    isDone _ = False
 
 -- | Compute house points by diffing two document states.
 computePoints :: ResolvedConfig -> Document -> Document -> ScoreTable
