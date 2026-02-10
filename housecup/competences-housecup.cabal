@@ -1,0 +1,58 @@
+cabal-version:      3.4
+name:               competences-housecup
+version:            0.9.1.0
+license:            BSD-3-Clause
+author:             Markus Mayr
+maintainer:         markus.mayr@tuta.com
+category:           Web
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -Werror
+
+library
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
+    exposed-modules:
+        Competences.HouseCup.Config
+        Competences.HouseCup.Database
+        Competences.HouseCup.Scoring
+    build-depends:
+        base ^>=4.21.0.0,
+        aeson,
+        bytestring,
+        competences-common,
+        containers,
+        ixset-typed,
+        postgresql-simple,
+        text,
+        time,
+        uuid-types
+    hs-source-dirs:   lib
+    default-language: GHC2024
+
+executable competences-housecup
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.21.0.0,
+        aeson,
+        bytestring,
+        competences-housecup,
+        optparse-applicative,
+        postgresql-simple,
+        text,
+        time
+    hs-source-dirs:   app
+    default-language: GHC2024
