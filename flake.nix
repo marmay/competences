@@ -38,6 +38,9 @@
               blobs = competences-blobs;
               src = ./.;
             };
+            competences-housecup = import ./nix/housecup.nix {
+              inherit (final) hixProject;
+            };
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
@@ -46,6 +49,7 @@
         # Get packages from pkgs (which now has our overlay applied)
         backend = pkgs.competences-backend;
         frontend = pkgs.competences-frontend;
+        housecup = pkgs.competences-housecup;
       in flake // {
         legacyPackages = pkgs;
 
@@ -53,6 +57,7 @@
         packages = flake.packages // {
           competences-backend = backend;
           competences-frontend = frontend;
+          competences-housecup = housecup;
 
           # Combined package for convenience
           default = pkgs.symlinkJoin {
