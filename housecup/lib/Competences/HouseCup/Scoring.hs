@@ -7,9 +7,11 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
+import Competences.Document.Competence (competenceLevelIdsOf)
 import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationRecord (..), ParticipationType (..))
 import Competences.Document.User (UserId)
 import Competences.HouseCup.Config (ResolvedConfig (..))
+import Competences.Query.Mastery (MasteryStatus (..), getUserMastery)
 import Data.Text (Text)
 
 type ScoreTable = [(Text, Integer)]
@@ -30,7 +32,7 @@ studentPoints :: Document -> Document -> UserId -> StudentScore
 studentPoints docBefore docAfter userId =
   StudentScore
     { participation = participationPoints docBefore docAfter userId
-    , mastery = 0 -- Phase 3
+    , mastery = masteryPoints docBefore docAfter userId
     , tasks = 0 -- Phase 4
     }
 
@@ -50,6 +52,28 @@ scoreRecord r = case (r.participationType, r.level) of
   (Collaboration, ParticipationLevel2) -> 7
   (PoorWorkEthic, ParticipationLevel1) -> -5
   (PoorWorkEthic, ParticipationLevel2) -> -15
+
+-- | Rule 2: Score mastery progression across all competence-levels.
+-- Each step up in mastery tier earns +2 points. Downward changes ignored.
+masteryPoints :: Document -> Document -> UserId -> Integer
+masteryPoints docBefore docAfter userId =
+  let allCompLevelIds = concatMap competenceLevelIdsOf $ Ix.toList docAfter.competences
+   in sum $ map scoreMasteryDelta allCompLevelIds
+  where
+    scoreMasteryDelta clId =
+      let tierBefore = masteryTier $ getUserMastery docBefore userId clId
+          tierAfter = masteryTier $ getUserMastery docAfter userId clId
+       in max 0 (tierAfter - tierBefore) * 2
+
+-- | Map MasteryStatus to a numeric tier for scoring.
+-- None=0, Erste Erfolge=1, Streak=2, Überprüft=3
+masteryTier :: MasteryStatus -> Integer
+masteryTier NotTried = 0
+masteryTier MasteryNotYet = 0
+masteryTier OnlySillyMistakes = 0
+masteryTier OneSuccess = 1
+masteryTier StreakTwoPlus = 2
+masteryTier StreakTwoAssessed = 3
 
 -- | Compute house points by diffing two document states.
 computePoints :: ResolvedConfig -> Document -> Document -> ScoreTable
