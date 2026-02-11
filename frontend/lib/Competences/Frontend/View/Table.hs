@@ -9,6 +9,7 @@ module Competences.Frontend.View.Table
   , TableColumnWidth (..)
   , TableColumnSpec (..)
   , TableCellSpec (..)
+  , autoSizedLabelCol
   , cellContents
   , cellContentsWithSpec
   , defCellSpec
@@ -26,6 +27,7 @@ import Data.Text qualified as T
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html as M
+import Competences.Frontend.Common.Translate (Label, translate')
 
 data TableColumnWidth
   = SingleActionColumn
@@ -41,6 +43,9 @@ data TableColumnSpec = TableColumnSpec
   { width :: !TableColumnWidth
   , title :: !M.MisoString
   } deriving (Eq, Show)
+
+autoSizedLabelCol :: Label -> TableColumnSpec
+autoSizedLabelCol label = TableColumnSpec AutoSizedColumn (translate' label)
 
 -- | Specification for a single table cell including styling
 data TableCellSpec m action = TableCellSpec

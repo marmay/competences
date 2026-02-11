@@ -31,6 +31,7 @@ library
         Competences.Frontend.Common.Translate,
         Competences.Frontend.Common,
         Competences.Frontend.Logging,
+        Competences.Frontend.Component.Deferred,
         Competences.Frontend.Component.Assignment,
         Competences.Frontend.Component.Assignment.EditorDetail,
         Competences.Frontend.Component.Assignment.EvaluatorDetail,

@@ -229,7 +229,7 @@ detailComponent r initialPlan =
             <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
        in pinDialog r.windowManager
             (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-            (AnyPinnedDialog (lessonEvaluatorComponent r lesson) Icon.IcnMesoPlan pinTitle)
+            (AnyPinnedDialog (lessonEvaluatorComponent r lesson.id) Icon.IcnMesoPlan pinTitle)
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
       let AssignmentName nameText = assignment.name

@@ -14,13 +14,11 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
-  ( Competence
-  , CompetenceGrid
-  , CompetenceGridIxs
-  , Document (..)
+  ( Document (..)
+  , LessonId
   , User (..)
   )
-import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence
   ( Ability (..)
   , ActivityType (..)
@@ -30,16 +28,13 @@ import Competences.Document.Evidence
   , TaskEvaluations
   )
 import Competences.Document.Lesson (Lesson (..))
-import Competences.Document.Task
-  ( Task (..)
-  , TaskGroup
-  , TaskGroupIxs
-  , TaskId
-  , TaskIdentifier (..)
-  , TaskIxs
-  )
+import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Deferred (Initializing, _Ready, deferredComponent)
+import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
+import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
@@ -49,9 +44,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
-import Competences.Frontend.Component.Selector.Common (selectorLens)
-import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
-import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Combobox
   ( ComboboxOption (..)
@@ -73,29 +65,32 @@ import Competences.Query.Lesson qualified as QLesson
 import Data.Function ((&))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, isNothing)
-import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (fromMisoString, ms)
+import Optics.Core ((%))
 
 -- ============================================================================
 -- MODEL
 -- ============================================================================
 
+-- | Pre-computed data derived from the Document. Refreshed on every DocumentUpdated.
+data ViewData = ViewData
+  { userName :: !T.Text
+  , lessonDate :: !Day
+  , existingEvidence :: !(Maybe Evidence)
+  , taskViewData :: !(Map.Map TaskId Eval.TaskViewData)
+  , competenceLevelInfos :: !(Map.Map CompetenceLevelId Eval.CompetenceLevelInfo)
+  , baseLessonTaskIds :: !(Set.Set TaskId)
+  }
+  deriving (Eq, Generic, Show)
+
 data StudentEvalModel = StudentEvalModel
-  { lesson :: !Lesson
-  , userId :: !UserId
-  , userName :: !T.Text
-  -- Document-derived data (refreshed on each DocumentUpdated)
-  , tasks :: !(Ix.IxSet TaskIxs Task)
-  , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
-  , competences :: !(Ix.IxSet CompetenceIxs Competence)
-  , competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
-  , lessonTaskIds :: !(Set.Set TaskId)
-  , lessonEvidences :: ![Evidence]
+  { viewData :: !ViewData
   -- Student-specific editing state
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
@@ -144,24 +139,48 @@ data StudentEvalAction
   deriving (Eq, Show)
 
 -- ============================================================================
+-- PRE-COMPUTATION
+-- ============================================================================
+
+computeViewData :: LessonId -> UserId -> Day -> T.Text -> Document -> ViewData
+computeViewData lessonId userId fallbackDate fallbackName doc =
+  let mLesson = QLesson.getLesson doc lessonId
+      evs = QLesson.lessonEvidences doc lessonId
+   in ViewData
+        { userName = maybe fallbackName (.name) $ Ix.getOne (doc.users Ix.@= userId)
+        , lessonDate = fromMaybe fallbackDate (mLesson >>= (.date))
+        , existingEvidence = case filter (\e -> e.userId == Just userId) evs of
+            (e : _) -> Just e
+            [] -> Nothing
+        , taskViewData = Eval.projectTasks doc.taskGroups doc.tasks
+        , competenceLevelInfos = Eval.projectCompetenceLevels doc.competences doc.competenceGrids
+        , baseLessonTaskIds = QLesson.lessonTaskIds doc lessonId
+        }
+
+-- ============================================================================
 -- COMPONENT
 -- ============================================================================
 
 studentEvaluatorModal
   :: SyncContext
   -> WindowManagerRef
-  -> Lesson
+  -> LessonId
   -> UserId
-  -> T.Text
-  -> Maybe Evidence
-  -> M.Component WM.Model StudentEvalModel StudentEvalAction
-studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEvidence =
-  (M.component initialModel update view)
-    { M.subs = [subscribeDocument r DocumentUpdated]
-    }
+  -> M.Component WM.Model (Initializing StudentEvalModel) StudentEvalAction
+studentEvaluatorModal r modalMgr initialLessonId initialUserId =
+  (deferredComponent
+    (\case DocumentUpdated dc -> Just dc; _ -> Nothing)
+    (initFromDocument initialLessonId initialUserId)
+    update
+    view
+  ) { M.subs = [subscribeDocument r DocumentUpdated] }
   where
-    initialModel =
-      let (taskObs, aggResults, initIncluded) = case mEvidence of
+    initFromDocument :: LessonId -> UserId -> Document -> StudentEvalModel
+    initFromDocument lessonId userId doc =
+      let vd = computeViewData lessonId userId (read "2025-01-01") "" doc
+          mLesson = QLesson.getLesson doc lessonId
+          compLevels = maybe [] (.competenceLevels) mLesson
+          (taskObs, aggResults, initIncluded) = case vd.existingEvidence of
             Just ev ->
               ( Map.fromList
                   [ ((tid, clid), ab)
@@ -176,15 +195,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
               )
             Nothing -> (Map.empty, Map.empty, Set.empty)
        in StudentEvalModel
-            { lesson = initialLesson
-            , userId = initialUserId
-            , userName = initialUserName
-            , tasks = Ix.empty
-            , taskGroups = Ix.empty
-            , competences = Ix.empty
-            , competenceGrids = Ix.empty
-            , lessonTaskIds = Set.empty
-            , lessonEvidences = []
+            { viewData = vd
             , taskObservations = taskObs
             , aggregatedResults = aggResults
             , manualObservations = Map.empty
@@ -197,7 +208,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             , taskComboboxOpen = False
             , selectedTaskToAdd = Nothing
             , manualObsExpanded = False
-            , manualCompetenceLevels = initialLesson.competenceLevels
+            , manualCompetenceLevels = compLevels
             }
 
     -- ------------------------------------------------------------------
@@ -205,24 +216,8 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     -- ------------------------------------------------------------------
 
     update (DocumentUpdated dc) = M.modify $ \m ->
-      let doc = dc.document
-          lesson' = fromMaybe m.lesson $ Ix.getOne (doc.lessons Ix.@= m.lesson.id)
-          evs = QLesson.lessonEvidences doc lesson'.id
-          tids = QLesson.lessonTaskIds doc lesson'.id
-          allTids = Set.union tids m.additionalTasks
-          userName' = case Ix.getOne (doc.users Ix.@= m.userId) of
-            Just u -> u.name
-            Nothing -> m.userName
-       in m
-            { lesson = lesson'
-            , userName = userName'
-            , lessonEvidences = evs
-            , lessonTaskIds = allTids
-            , tasks = doc.tasks
-            , taskGroups = doc.taskGroups
-            , competences = doc.competences
-            , competenceGrids = doc.competenceGrids
-            }
+      m { viewData = computeViewData initialLessonId initialUserId
+            m.viewData.lessonDate m.viewData.userName dc.document }
 
     update CloseModal = M.io_ $ closeModal modalMgr
 
@@ -265,7 +260,6 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
         Just tid ->
           m
             { additionalTasks = Set.insert tid m.additionalTasks
-            , lessonTaskIds = Set.insert tid m.lessonTaskIds
             , includedTasks = Set.insert tid m.includedTasks
             , selectedTaskToAdd = Nothing
             , taskSearchQuery = ""
@@ -310,7 +304,6 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
       m <- M.get
       M.io_ $ do
         let sf = m.selectedSocialForm
-            lessonDate = fromMaybe (read "2025-01-01") m.lesson.date
             -- Build tasks map from included tasks
             allTaskIds = Set.toList m.includedTasks
             tasksMap :: Map.Map TaskId TaskEvaluations
@@ -327,7 +320,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                 ]
         -- Build observations from aggregated results
         observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
-        case findStudentEvidence m of
+        case m.viewData.existingEvidence of
           Just existingEv -> do
             -- Lock then modify existing evidence
             let lockCmd = Evidences (OnEvidences (Modify existingEv.id Lock))
@@ -335,7 +328,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                   EvidencePatch
                     { userId = Nothing
                     , activityType = Just (existingEv.activityType, Conversation)
-                    , date = Just (existingEv.date, lessonDate)
+                    , date = Just (existingEv.date, m.viewData.lessonDate)
                     , tasks = Just (existingEv.tasks, tasksMap)
                     , oldTasks = Nothing
                     , observations = Just (existingEv.observations, Ix.fromList observations)
@@ -351,14 +344,14 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
             let evidence =
                   Evidence
                     { id = evidenceId
-                    , userId = Just m.userId
+                    , userId = Just initialUserId
                     , activityType = Conversation
-                    , date = lessonDate
+                    , date = m.viewData.lessonDate
                     , tasks = tasksMap
                     , oldTasks = ""
                     , observations = Ix.fromList observations
                     , assignmentId = Nothing
-                    , lessonId = Just m.lesson.id
+                    , lessonId = Just initialLessonId
                     }
             modifySyncDocument r (Evidences $ OnEvidences $ Create evidence)
         closeModal modalMgr
@@ -367,7 +360,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     update DeleteEvidence = do
       m <- M.get
       M.io_ $ do
-        case findStudentEvidence m of
+        case m.viewData.existingEvidence of
           Just existingEv ->
             modifySyncDocument r (Evidences $ OnEvidences $ Delete existingEv.id)
           Nothing -> pure ()
@@ -384,32 +377,30 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
           , ability = ability
           }
 
-    findStudentEvidence :: StudentEvalModel -> Maybe Evidence
-    findStudentEvidence m =
-      case filter (\e -> e.userId == Just m.userId) m.lessonEvidences of
-        (e : _) -> Just e
-        [] -> Nothing
-
     -- ------------------------------------------------------------------
     -- VIEW
     -- ------------------------------------------------------------------
 
     view m =
-      let sortedTaskIds =
-            map (.id) $
-              Ix.toAscList (Proxy @TaskIdentifier) $
-                m.tasks Ix.@+ Set.toList m.lessonTaskIds
+      let allTaskIds = Set.union m.viewData.baseLessonTaskIds m.additionalTasks
+          sortedTaskIds =
+            map snd $
+              Map.toAscList $
+                Map.fromList
+                  [ (tvd.identifier, tid)
+                  | tid <- Set.toList allTaskIds
+                  , Just tvd <- [Map.lookup tid m.viewData.taskViewData]
+                  ]
           hasAggregatedResults = not $ Map.null m.aggregatedResults
-          existingEvidence = findStudentEvidence m
           -- When evidence exists but all aggregated results deselected, show Delete
-          canDelete = not hasAggregatedResults && not (isNothing existingEvidence)
+          canDelete = not hasAggregatedResults && not (isNothing m.viewData.existingEvidence)
           isDisabled = not hasAggregatedResults || m.aggregationStale
-          actionLabel = C.translate' $ if isNothing existingEvidence then C.LblCreateEvidencesAction else C.LblSaveEvidences
+          actionLabel = C.translate' $ if isNothing m.viewData.existingEvidence then C.LblCreateEvidencesAction else C.LblSaveEvidences
        in MH.div_
             [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
             , class_ "w-full max-w-[90vw] h-[90vh] flex flex-col"
             ]
-            [ Modal.modalHeader (ms m.userName) CloseModal
+            [ Modal.modalHeader (ms m.viewData.userName) CloseModal
             , MH.div_
                 [class_ "px-6 py-4 space-y-4 overflow-y-auto flex-1"]
                 [ -- Task sections
@@ -441,14 +432,14 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
       let isExcluded = not $ Set.member taskId m.includedTasks
        in MH.div_
             [class_ "border-b pb-3"]
-            [ Eval.viewTaskHeader m.tasks taskId isExcluded (ToggleTaskIncluded taskId) []
+            [ Eval.viewTaskHeader m.viewData.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) []
             , if isExcluded
                 then M.text ""
                 else
                   MH.div_
                     []
-                    [ Eval.viewTaskContent m.tasks m.taskGroups m.expandedTaskContent taskId ToggleTaskContentExpanded
-                    , Eval.viewTaskCompetences m.tasks m.taskGroups m.competences m.taskObservations taskId SetTaskObservation
+                    [ Eval.viewTaskContent m.viewData.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
+                    , Eval.viewTaskCompetences m.viewData.taskViewData m.viewData.competenceLevelInfos m.taskObservations taskId SetTaskObservation
                     ]
             ]
 
@@ -457,23 +448,23 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
     -- ------------------------------------------------------------------
 
     viewAddTaskSection m =
-      let availableTasks =
-            filter (\t -> not $ Set.member t.id m.lessonTaskIds) $
-              Ix.toAscList (Proxy @TaskIdentifier) m.tasks
+      let allTaskIds = Set.union m.viewData.baseLessonTaskIds m.additionalTasks
+          availableTasks =
+            Map.toAscList $
+              Map.fromList
+                [ (tvd.identifier, tid)
+                | (tid, tvd) <- Map.toList m.viewData.taskViewData
+                , not $ Set.member tid allTaskIds
+                ]
           filteredTasks =
             if T.null m.taskSearchQuery
               then availableTasks
               else
                 filter
-                  ( \t ->
-                      let TaskIdentifier i = t.identifier
-                       in T.toCaseFold m.taskSearchQuery `T.isInfixOf` T.toCaseFold i
-                  )
+                  (\(ident, _) -> T.toCaseFold m.taskSearchQuery `T.isInfixOf` T.toCaseFold ident)
                   availableTasks
           comboboxOptions =
-            map
-              (\t -> let TaskIdentifier i = t.identifier in ComboboxOption t.id i)
-              filteredTasks
+            map (\(ident, tid) -> ComboboxOption tid ident) filteredTasks
           combobox =
             singleSelectCombobox TaskSearchChanged TaskComboboxToggled TaskComboboxOpenChanged
               & withPlaceholder (fromMisoString $ C.translate' C.LblSelectTask)
@@ -512,7 +503,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
                 (\_ -> m.manualCompetenceLevels)
                 MultiStageSelectorEnabled
                 0
-                (selectorLens #manualCompetenceLevels)
+                (selectorLens (_Ready % #manualCompetenceLevels))
             )
         , -- Ability rows for each selected competence level
           if null m.manualCompetenceLevels
@@ -525,7 +516,7 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
 
     viewManualObservationRow m compId =
       let mAbility = Map.lookup compId m.manualObservations
-       in Eval.viewCompetenceRow m.competences compId mAbility (AddManualObservation compId)
+       in Eval.viewCompetenceRow m.viewData.competenceLevelInfos compId mAbility (AddManualObservation compId)
 
     -- ------------------------------------------------------------------
     -- AGGREGATION SECTION
@@ -536,6 +527,6 @@ studentEvaluatorModal r modalMgr initialLesson initialUserId initialUserName mEv
         m.aggregationStale
         (not $ Map.null m.aggregatedResults)
         ComputeAggregation
-        ( Eval.viewAggregatedResults m.competences m.competenceGrids m.aggregatedResults
-            (Eval.viewAggregatedCompetenceRow m.competences SetAggregatedResult)
+        ( Eval.viewAggregatedResults m.viewData.competenceLevelInfos m.aggregatedResults
+            (Eval.viewAggregatedCompetenceRow m.viewData.competenceLevelInfos SetAggregatedResult)
         )

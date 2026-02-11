@@ -6,8 +6,14 @@
 -- the assignment evaluator (EvaluatorDetail) and the lesson evaluator
 -- (StudentEvaluatorModal).
 module Competences.Frontend.View.Evaluation
-  ( -- * Pure helpers (re-exported from Color.Ability)
-    abilityPalette
+  ( -- * Projection types
+    TaskViewData (..)
+  , CompetenceLevelInfo (..)
+    -- * Projection builders
+  , projectTasks
+  , projectCompetenceLevels
+    -- * Pure helpers (re-exported from Color.Ability)
+  , abilityPalette
   , computeAggregation
     -- * View primitives
   , viewCompetenceName
@@ -33,6 +39,7 @@ import Competences.Document
   , Order
   )
 import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
+import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (Ability (..), abilities)
 import Competences.Document.Task
   ( Task (..)
@@ -48,17 +55,88 @@ import Competences.Document.Task
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.TaskContent.RichContent (RichContent)
+import Data.List (groupBy, sort)
 import Data.Map.Strict qualified as Map
-import Data.Proxy (Proxy (..))
+import Data.Maybe (mapMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
+
+-- ============================================================================
+-- PROJECTION TYPES
+-- ============================================================================
+
+-- | Pre-computed display data for a single task.
+data TaskViewData = TaskViewData
+  { identifier :: !T.Text
+  , content :: !(Maybe RichContent)
+  , competenceLevels :: ![CompetenceLevelId]
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Pre-computed display info for a single competence level.
+data CompetenceLevelInfo = CompetenceLevelInfo
+  { displayName :: !T.Text
+  , gridId :: !CompetenceGridId
+  , gridTitle :: !T.Text
+  , gridOrder :: !Order
+  , competenceOrder :: !Order
+  }
+  deriving (Eq, Generic, Show)
+
+-- ============================================================================
+-- PROJECTION BUILDERS
+-- ============================================================================
+
+-- | Pre-compute display data for all tasks in the document.
+projectTasks :: Ix.IxSet TaskGroupIxs TaskGroup -> Ix.IxSet TaskIxs Task -> Map.Map TaskId TaskViewData
+projectTasks taskGroups tasks =
+  Map.fromList
+    [ (task.id, mkTaskViewData task)
+    | task <- Ix.toList tasks
+    ]
+  where
+    mkTaskViewData task =
+      let TaskIdentifier ident = task.identifier
+          attrs = getTaskAttributes taskGroups task
+       in TaskViewData
+            { identifier = ident
+            , content = getTaskContent taskGroups task
+            , competenceLevels = attrs.primary <> attrs.secondary
+            }
+
+-- | Pre-compute display info for all competence levels in the document.
+projectCompetenceLevels
+  :: Ix.IxSet CompetenceIxs Competence
+  -> Ix.IxSet CompetenceGridIxs CompetenceGrid
+  -> Map.Map CompetenceLevelId CompetenceLevelInfo
+projectCompetenceLevels competences competenceGrids =
+  Map.fromList
+    [ ((comp.id, level), mkInfo comp grid level levelInfo)
+    | comp <- Ix.toList competences
+    , let mGrid = Ix.getOne (competenceGrids Ix.@= comp.competenceGridId)
+    , (level, levelInfo) <- Map.toList comp.levels
+    , Just grid <- [mGrid]
+    ]
+  where
+    mkInfo comp grid _level levelInfo =
+      CompetenceLevelInfo
+        { displayName = levelInfo.description
+        , gridId = grid.id
+        , gridTitle = grid.title
+        , gridOrder = grid.order
+        , competenceOrder = comp.order
+        }
 
 -- ============================================================================
 -- PURE HELPERS
@@ -73,14 +151,12 @@ computeAggregation =
 -- VIEW PRIMITIVES
 -- ============================================================================
 
--- | Resolve CompetenceLevelId to display name from competences IxSet
-viewCompetenceName :: Ix.IxSet CompetenceIxs Competence -> CompetenceLevelId -> M.View m a
-viewCompetenceName competences compId =
-  let (competenceId, level) = compId
-      competenceM = Ix.getOne (competences Ix.@= competenceId)
-      name = case competenceM of
+-- | Resolve CompetenceLevelId to display name from pre-computed map.
+viewCompetenceName :: Map.Map CompetenceLevelId CompetenceLevelInfo -> CompetenceLevelId -> M.View m a
+viewCompetenceName compInfos compId =
+  let name = case Map.lookup compId compInfos of
         Nothing -> C.translate' C.LblCompetence <> " " <> ms (T.pack (show compId))
-        Just comp -> ms $ maybe (comp.description <> " - " <> T.pack (show level)) (.description) (comp.levels Map.!? level)
+        Just info -> ms info.displayName
    in MH.span_ [class_ "flex-1 text-sm"] [M.text name]
 
 -- | Single ability toggle button.
@@ -92,11 +168,11 @@ viewAbilityBtn currentAbility mkAction ability =
    in Button.toggleSm isSelected (Button.button (C.LblAbility ability) (Just (mkAction ability)))
 
 -- | Competence name + row of ability buttons
-viewCompetenceRow :: Ix.IxSet CompetenceIxs Competence -> CompetenceLevelId -> Maybe Ability -> (Ability -> a) -> M.View m a
-viewCompetenceRow competences compId currentAbility mkAction =
+viewCompetenceRow :: Map.Map CompetenceLevelId CompetenceLevelInfo -> CompetenceLevelId -> Maybe Ability -> (Ability -> a) -> M.View m a
+viewCompetenceRow compInfos compId currentAbility mkAction =
   MH.div_
     [class_ "flex items-center gap-2"]
-    [ viewCompetenceName competences compId
+    [ viewCompetenceName compInfos compId
     , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn currentAbility mkAction) abilities)
     ]
 
@@ -105,36 +181,33 @@ viewCompetenceRow competences compId currentAbility mkAction =
 -- ============================================================================
 
 -- | Task header: identifier + include\/exclude toggle + optional extra content (e.g. status dots).
-viewTaskHeader :: Ix.IxSet TaskIxs Task -> TaskId -> Bool -> a -> [M.View m a] -> M.View m a
-viewTaskHeader tasks taskId isExcluded toggleAction extraContent =
-  case Ix.getOne (tasks Ix.@= taskId) of
+viewTaskHeader :: Map.Map TaskId TaskViewData -> TaskId -> Bool -> a -> [M.View m a] -> M.View m a
+viewTaskHeader taskData taskId isExcluded toggleAction extraContent =
+  case Map.lookup taskId taskData of
     Nothing -> MH.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
-    Just task ->
-      let TaskIdentifier identifier = task.identifier
-       in MH.div_
-            [class_ "mt-3 mb-1 flex items-center justify-between"]
-            [ MH.div_
-                [class_ "flex items-center gap-3"]
-                (Typography.h4 (C.translate' C.LblTaskPrefix <> ms identifier) : extraContent)
-            , Button.toggleSm (not isExcluded)
-                (Button.button (if isExcluded then C.LblIncludeTask else C.LblExcludeTask) (Just toggleAction))
-            ]
+    Just tvd ->
+      MH.div_
+        [class_ "mt-3 mb-1 flex items-center justify-between"]
+        [ MH.div_
+            [class_ "flex items-center gap-3"]
+            (Typography.h4 (C.translate' C.LblTaskPrefix <> ms tvd.identifier) : extraContent)
+        , Button.toggleSm (not isExcluded)
+            (Button.button (if isExcluded then C.LblIncludeTask else C.LblExcludeTask) (Just toggleAction))
+        ]
 
 -- | Collapsible task content (disclosure chevron + rich text).
 viewTaskContent
-  :: Ix.IxSet TaskIxs Task
-  -> Ix.IxSet TaskGroupIxs TaskGroup
+  :: Map.Map TaskId TaskViewData
   -> Set.Set TaskId
   -> TaskId
   -> (TaskId -> a)
   -> M.View m a
-viewTaskContent tasks taskGroups expandedSet taskId toggleAction =
-  case Ix.getOne (tasks Ix.@= taskId) of
+viewTaskContent taskData expandedSet taskId toggleAction =
+  case Map.lookup taskId taskData of
     Nothing -> M.text ""
-    Just task ->
-      let content = getTaskContent taskGroups task
-          isExpanded = Set.member taskId expandedSet
-       in case content of
+    Just tvd ->
+      let isExpanded = Set.member taskId expandedSet
+       in case tvd.content of
             Nothing -> M.text ""
             Just c
               | c == mempty -> M.text ""
@@ -155,19 +228,17 @@ viewTaskContent tasks taskGroups expandedSet taskId toggleAction =
 
 -- | Per-task competence evaluations (lists competence rows with ability buttons).
 viewTaskCompetences
-  :: Ix.IxSet TaskIxs Task
-  -> Ix.IxSet TaskGroupIxs TaskGroup
-  -> Ix.IxSet CompetenceIxs Competence
+  :: Map.Map TaskId TaskViewData
+  -> Map.Map CompetenceLevelId CompetenceLevelInfo
   -> Map.Map (TaskId, CompetenceLevelId) Ability
   -> TaskId
   -> (TaskId -> CompetenceLevelId -> Ability -> a)
   -> M.View m a
-viewTaskCompetences tasks taskGroups competences taskObs taskId mkAction =
-  case Ix.getOne (tasks Ix.@= taskId) of
+viewTaskCompetences taskData compInfos taskObs taskId mkAction =
+  case Map.lookup taskId taskData of
     Nothing -> M.text ""
-    Just task ->
-      let attrs = getTaskAttributes taskGroups task
-          compIds = attrs.primary <> attrs.secondary
+    Just tvd ->
+      let compIds = tvd.competenceLevels
        in if null compIds
             then MH.div_ [class_ "mt-2"] [Typography.muted (C.translate' C.LblNoCompetences)]
             else
@@ -176,7 +247,7 @@ viewTaskCompetences tasks taskGroups competences taskObs taskId mkAction =
                 ( map
                     ( \compId ->
                         viewCompetenceRow
-                          competences
+                          compInfos
                           compId
                           (Map.lookup (taskId, compId) taskObs)
                           (mkAction taskId compId)
@@ -209,47 +280,51 @@ viewAggregationSection isStale hasResults computeAction resultsContent =
         else Typography.muted (C.translate' C.LblComputeAggregationHint)
     ]
 
--- | Group aggregated results by competence grid. Delegates to a row renderer for
--- per-component customization (e.g. assignment adds contributing tasks info).
+-- | A single aggregated result enriched with grid/competence ordering info.
+data AggregatedEntry = AggregatedEntry
+  { gridOrder :: !Order
+  , competenceOrder :: !Order
+  , gridTitle :: !T.Text
+  , competenceLevelId :: !CompetenceLevelId
+  , ability :: !Ability
+  }
+  deriving (Eq, Ord)
+
+-- | Group aggregated results by competence grid using pre-computed info.
 viewAggregatedResults
-  :: Ix.IxSet CompetenceIxs Competence
-  -> Ix.IxSet CompetenceGridIxs CompetenceGrid
+  :: Map.Map CompetenceLevelId CompetenceLevelInfo
   -> Map.Map CompetenceLevelId Ability
   -> ((CompetenceLevelId, Ability) -> M.View m a)
   -> M.View m a
-viewAggregatedResults competences competenceGrids aggResults rowRenderer =
-  let compIds = Set.fromList [compId | (compId, _) <- Map.keys aggResults]
-      competencesWithResults = Ix.toAscList (Proxy @Order) $ competences Ix.@+ Set.toList compIds
-      gridIds = Set.fromList $ map (.competenceGridId) competencesWithResults
-      sortedGrids = Ix.toAscList (Proxy @Order) $ competenceGrids Ix.@+ Set.toList gridIds
-   in MH.div_ [class_ "space-y-3"] (map viewGrid sortedGrids)
+viewAggregatedResults compInfos aggResults rowRenderer =
+  let entries = sort $ mapMaybe enrichEntry (Map.toList aggResults)
+      grouped = groupBy (\a b -> a.gridOrder == b.gridOrder) entries
+   in Layout.viewFlow (Layout.vFlow{Layout.gap = Layout.SmallSpace}) (map viewGrid grouped)
   where
-    viewGrid grid =
-      let gridCompetences = Ix.toAscList (Proxy @Order) $ competences Ix.@= grid.id
-          resultsForGrid =
-            [ (compLevelId, ability)
-            | comp <- gridCompetences
-            , (compLevelId@(compId, _), ability) <- Map.toList aggResults
-            , compId == comp.id
-            ]
-       in if null resultsForGrid
-            then M.text ""
-            else
-              MH.div_
-                [class_ "border border-border rounded bg-muted/50"]
-                [ MH.div_ [class_ "px-3 py-2 border-b bg-muted font-medium text-sm"] [M.text $ ms grid.title]
-                , MH.div_ [class_ "p-2 space-y-1"] (map rowRenderer resultsForGrid)
-                ]
+    enrichEntry (compId, ab) = do
+      info <- Map.lookup compId compInfos
+      pure
+        AggregatedEntry
+          { gridOrder = info.gridOrder
+          , competenceOrder = info.competenceOrder
+          , gridTitle = info.gridTitle
+          , competenceLevelId = compId
+          , ability = ab
+          }
+    viewGrid [] = M.text ""
+    viewGrid es@(first : _) =
+      Card.cardWithHeader (ms first.gridTitle) Nothing
+        (map (\e -> rowRenderer (e.competenceLevelId, e.ability)) es)
 
 -- | Default row renderer: competence name + ability buttons.
 viewAggregatedCompetenceRow
-  :: Ix.IxSet CompetenceIxs Competence
+  :: Map.Map CompetenceLevelId CompetenceLevelInfo
   -> (CompetenceLevelId -> Ability -> a)
   -> (CompetenceLevelId, Ability)
   -> M.View m a
-viewAggregatedCompetenceRow competences mkAction (compId, ability) =
+viewAggregatedCompetenceRow compInfos mkAction (compId, ability) =
   MH.div_
     [class_ "flex items-center gap-2"]
-    [ viewCompetenceName competences compId
+    [ viewCompetenceName compInfos compId
     , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn (Just ability) (mkAction compId)) abilities)
     ]

@@ -7,10 +7,10 @@ where
 import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (..), ModifyCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
-import Competences.Document (Assignment (..), Competence, CompetenceGrid, CompetenceGridIxs, Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Competence (CompetenceIxs, CompetenceLevelId)
+import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, socialForms)
-import Competences.Document.Task (Task (..), TaskGroup, TaskGroupIxs, TaskId, TaskIdentifier (..), TaskIxs)
+import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
@@ -72,12 +72,11 @@ evaluatorDetailView r assignment =
 -- Only stores the document subsets actually needed (not the full Document)
 data EvaluatorModel = EvaluatorModel
   { assignment :: !Assignment
-  , tasks :: !(Ix.IxSet TaskIxs Task)
-  , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , users :: !(Ix.IxSet UserIxs User)
-  , competences :: !(Ix.IxSet CompetenceIxs Competence)
-  , competenceGrids :: !(Ix.IxSet CompetenceGridIxs CompetenceGrid)
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
+  -- Pre-computed view data (refreshed on each UpdateDocument)
+  , taskViewData :: !(Map.Map TaskId Eval.TaskViewData)
+  , competenceLevelInfos :: !(Map.Map CompetenceLevelId Eval.CompetenceLevelInfo)
   -- Map from (TaskId, CompetenceLevelId) to Ability - applies to all selected students
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
@@ -131,12 +130,10 @@ evaluatorComponent r assignment =
     model =
       EvaluatorModel
         { assignment = assignment
-        , tasks = Ix.empty
-        , taskGroups = Ix.empty
         , users = Ix.empty
-        , competences = Ix.empty
-        , competenceGrids = Ix.empty
         , solutions = Ix.empty
+        , taskViewData = Map.empty
+        , competenceLevelInfos = Map.empty
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , selectedStudents = Set.empty
@@ -154,7 +151,7 @@ evaluatorComponent r assignment =
     update (UpdateDocument dc) = M.modify $ \m ->
       let doc = dc.document
           -- Look up the current assignment from the document (in case it was edited)
-          updatedAssignment = maybe m.assignment id $ Ix.getOne (doc.assignments Ix.@= m.assignment.id)
+          updatedAssignment = fromMaybe m.assignment $ Ix.getOne (doc.assignments Ix.@= m.assignment.id)
           -- All evidences for this assignment (any date)
           asmtEvidences = Ix.toList $ doc.evidences Ix.@= m.assignment.id :: [Evidence]
           -- Pre-compute per-student task statuses for all assignment students
@@ -163,25 +160,13 @@ evaluatorComponent r assignment =
             [ (sid, taskCompletionStatuses doc sid relevantTasks)
             | sid <- Set.toList updatedAssignment.studentIds
             ]
-       in EvaluatorModel
+       in m
             { assignment = updatedAssignment
-            , tasks = doc.tasks
-            , taskGroups = doc.taskGroups
             , users = doc.users
-            , competences = doc.competences
-            , competenceGrids = doc.competenceGrids
             , solutions = doc.solutions
-            , taskObservations = m.taskObservations
-            , aggregatedResults = m.aggregatedResults
-            , selectedStudents = m.selectedStudents
-            , selectedSocialForm = m.selectedSocialForm
-            , excludedTasks = m.excludedTasks
-            , evaluationDate = m.evaluationDate
-            , expandedTaskContent = m.expandedTaskContent
-            , collapsedResults = m.collapsedResults
+            , taskViewData = Eval.projectTasks doc.taskGroups doc.tasks
+            , competenceLevelInfos = Eval.projectCompetenceLevels doc.competences doc.competenceGrids
             , assignmentEvidences = asmtEvidences
-            , editingEvidence = m.editingEvidence
-            , aggregationStale = m.aggregationStale
             , taskStatuses = allStatuses
             }
 
@@ -366,8 +351,14 @@ evaluatorComponent r assignment =
         then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
         else
           let -- Sort tasks by identifier for consistent display order
-              sortedTaskIds = map (.id) $
-                Ix.toAscList (Proxy @TaskIdentifier) $ m.tasks Ix.@+ m.assignment.tasks
+              sortedTaskIds =
+                map snd $
+                  Map.toAscList $
+                    Map.fromList
+                      [ (tvd.identifier, tid)
+                      | tid <- m.assignment.tasks
+                      , Just tvd <- [Map.lookup tid m.taskViewData]
+                      ]
            in M.div_
                 []
                 [ viewStudentSelection m
@@ -476,11 +467,11 @@ evaluatorComponent r assignment =
               else [M.div_ [class_ "flex gap-0.5 items-center"] (map (viewCompactStudentStatus m taskId) selectedList)]
        in M.div_
             [class_ "border-b pb-4"]
-            [ Eval.viewTaskHeader m.tasks taskId isExcluded (ToggleTaskIncluded taskId) statusDots
+            [ Eval.viewTaskHeader m.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) statusDots
             , if isExcluded
                 then M.text ""
                 else M.div_ []
-                       [ Eval.viewTaskContent m.tasks m.taskGroups m.expandedTaskContent taskId ToggleTaskContentExpanded
+                       [ Eval.viewTaskContent m.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
                        , viewTaskSolutions m taskId
                        , viewStudentEvaluations m taskId
                        ]
@@ -508,7 +499,7 @@ evaluatorComponent r assignment =
     viewStudentEvaluations m taskId =
       if null m.selectedStudents
         then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
-        else Eval.viewTaskCompetences m.tasks m.taskGroups m.competences m.taskObservations taskId SetTaskObservationForAll
+        else Eval.viewTaskCompetences m.taskViewData m.competenceLevelInfos m.taskObservations taskId SetTaskObservationForAll
 
     viewAggregationSection m =
       M.div_
@@ -517,7 +508,7 @@ evaluatorComponent r assignment =
             m.aggregationStale
             (not $ Map.null m.aggregatedResults)
             ComputeAggregation
-            ( Eval.viewAggregatedResults m.competences m.competenceGrids m.aggregatedResults
+            ( Eval.viewAggregatedResults m.competenceLevelInfos m.aggregatedResults
                 (viewAggregatedCompetenceWithTasks m)
             )
         ]
@@ -526,7 +517,7 @@ evaluatorComponent r assignment =
       let contributingTasks = getContributingTasks m compId
        in M.div_
             []
-            [ Eval.viewAggregatedCompetenceRow m.competences SetAggregatedResult (compId, ability)
+            [ Eval.viewAggregatedCompetenceRow m.competenceLevelInfos SetAggregatedResult (compId, ability)
             , if null contributingTasks
                 then M.text ""
                 else M.div_ [class_ "text-xs text-muted-foreground mt-1 ml-1"]
@@ -535,11 +526,9 @@ evaluatorComponent r assignment =
 
     getContributingTasks m compId =
       let taskIds = Map.keys $ Map.filterWithKey (\(_, cid) _ -> cid == compId) m.taskObservations
-          taskIdentifiers = map (\tid -> case Ix.getOne (m.tasks Ix.@= tid) of
-                                   Nothing -> T.pack (show tid)
-                                   Just task -> let TaskIdentifier ident = task.identifier in ident
-                                ) [tid | (tid, _) <- taskIds]
-       in taskIdentifiers
+       in [ maybe (T.pack (show tid)) (.identifier) (Map.lookup tid m.taskViewData)
+          | (tid, _) <- taskIds
+          ]
 
     viewCreateEvidencesButton m =
       let selectedCount = Set.size m.selectedStudents

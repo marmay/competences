@@ -8,6 +8,7 @@ module Competences.Frontend.View.Tooltip
 
     -- * Convenience: View modifier (for standalone use)
   , withTooltip
+  , withTooltip'
   )
 where
 
@@ -65,3 +66,7 @@ withTooltip tip v =
   M.span_
     (tooltipAttrs tip)
     (v : tooltipChild tip)
+
+withTooltip' :: Maybe (Tooltip model action) -> View model action -> View model action
+withTooltip' Nothing = id
+withTooltip' (Just tip) = withTooltip tip

@@ -6,6 +6,8 @@ module Competences.Document.ParticipationRecord
   , ParticipationRecordIxs
   , ParticipationType (..)
   , ParticipationLevel (..)
+  , allParticipationTypes
+  , allParticipationLevels
   )
 where
 
@@ -31,7 +33,10 @@ data ParticipationType
     Collaboration
   | -- | Student shows poor work ethic (Arbeit: Unbemüht / Verweigernd)
     PoorWorkEthic
-  deriving (Bounded, Enum, Eq, Generic, Ord, Show)
+  deriving (Eq, Generic, Ord, Show)
+
+allParticipationTypes :: [ParticipationType]
+allParticipationTypes = [Participation, Collaboration, PoorWorkEthic]
 
 #ifdef WITH_AESON
 instance FromJSON ParticipationType where
@@ -63,7 +68,10 @@ instance Binary ParticipationType
 data ParticipationLevel
   = ParticipationLevel1
   | ParticipationLevel2
-  deriving (Bounded, Enum, Eq, Generic, Ord, Show)
+  deriving (Eq, Generic, Ord, Show)
+
+allParticipationLevels :: [ParticipationLevel]
+allParticipationLevels = [ParticipationLevel1, ParticipationLevel2]
 
 #ifdef WITH_AESON
 instance FromJSON ParticipationLevel

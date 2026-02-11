@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( competenceLevelSelectorComponent
   , competenceLevelEditorField
   , formatCompetenceLevelBadge
+  , formatCompetenceLevelBadge'
   , ResultView (..)
   )
 where
@@ -17,7 +18,6 @@ import Competences.Document
   )
 import Competences.Document.Competence (CompetenceIxs)
 import Competences.Document.Id (Id)
-import Competences.Query.Competence (competenceWithGridIx)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
 import Competences.Frontend.Component.Selector.Common
@@ -44,6 +44,7 @@ import Competences.Frontend.Component.Selector.ObservationSelector
   , levelP
   )
 import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Query.Competence (competenceWithGridIx)
 import Data.Default (Default)
 import Data.List (intercalate)
 import Miso qualified as M
@@ -66,7 +67,8 @@ competenceLevelPipeline =
 competenceLevelConfig
   :: (Document -> [(Id Competence, Level)])
   -> MultiStageSelectorStyle
-  -> Int  -- ^ Minimum number of results required
+  -> Int
+  -- ^ Minimum number of results required
   -> MultiStageSelectorConfig (Id Competence, Level)
 competenceLevelConfig initResults style minResultsCount =
   MultiStageSelectorConfig
@@ -109,22 +111,26 @@ formatCompetenceLevelBadge comps grids (competenceId, level) =
         , tooltipContent = Just "Die Kompetenz existiert nicht länger."
         }
     Just (competence, competenceGrid) ->
-      let competenceGridLabel = competenceGridP.reconstructInput competenceGrid
-          competenceLabel = (competenceP competenceGrid).reconstructInput competence
-          levelLabel = (levelP competence).reconstructInput level
-          label = M.ms $ intercalate "." [competenceGridLabel, competenceLabel, levelLabel]
-          tooltipText =
-            M.ms competenceLabel
-              <> ": "
-              <> M.ms competence.description
-              <> "\n"
-              <> M.ms levelLabel
-              <> ": "
-              <> M.ms (levelDescription level competence)
-       in ResultView
-            { badgeText = label
-            , tooltipContent = Just tooltipText
-            }
+      formatCompetenceLevelBadge' competenceGrid competence level
+
+formatCompetenceLevelBadge' :: CompetenceGrid -> Competence -> Level -> ResultView
+formatCompetenceLevelBadge' competenceGrid competence level =
+  let competenceGridLabel = competenceGridP.reconstructInput competenceGrid
+      competenceLabel = (competenceP competenceGrid).reconstructInput competence
+      levelLabel = (levelP competence).reconstructInput level
+      label = M.ms $ intercalate "." [competenceGridLabel, competenceLabel, levelLabel]
+      tooltipText =
+        M.ms competenceLabel
+          <> ": "
+          <> M.ms competence.description
+          <> "\n"
+          <> M.ms levelLabel
+          <> ": "
+          <> M.ms (levelDescription level competence)
+   in ResultView
+        { badgeText = label
+        , tooltipContent = Just tooltipText
+        }
 
 -- | Thin wrapper for use in 'MultiStageSelectorConfig' which requires @Document@.
 viewCompetenceLevelResult :: Document -> (Id Competence, Level) -> ResultView
@@ -135,7 +141,8 @@ competenceLevelSelectorComponent
   :: SyncContext
   -> (Document -> [(Id Competence, Level)]) -- Function to load initial values
   -> MultiStageSelectorStyle
-  -> Int  -- ^ Minimum number of results required
+  -> Int
+  -- ^ Minimum number of results required
   -> SelectorTransformedLens p [] (Id Competence, Level) f' a'
   -> MultiStageSelectorComponent p (Id Competence, Level)
 competenceLevelSelectorComponent r initResults style minResultsCount =
@@ -145,14 +152,16 @@ competenceLevelEditorField
   :: (Ord p, Default patch)
   => SyncContext
   -> M.MisoString
-  -> Int  -- ^ Minimum number of results required
+  -> Int
+  -- ^ Minimum number of results required
   -> EntityPatchTransformedLens p patch [] (Id Competence, Level) [] (Id Competence, Level)
   -> EditorField p patch f'
 competenceLevelEditorField r key minResultsCount eptl =
   selectorEditorField
     key
     eptl
-    (\entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style minResultsCount)
+    ( \entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style minResultsCount
+    )
     ( MultiStageSelectorDisabled
     , MultiStageSelectorEnabled
     )
