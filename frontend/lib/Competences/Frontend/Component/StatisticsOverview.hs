@@ -96,9 +96,11 @@ statisticsOverviewComponent docRef =
 
     view :: Model -> M.View Model Action
     view m =
-      Layout.viewFlow
-        Layout.vFlow{Layout.extraAttrs = [class_ "h-full min-h-0 overflow-y-auto"]}
-        [Typography.h2 (C.translate' C.LblStatisticsOverview), table]
+      MH.div_
+        [class_ "h-full min-h-0 overflow-y-auto"]
+        [ Layout.vFlow'
+            [Typography.h2 (C.translate' C.LblStatisticsOverview), table]
+        ]
       where
         table =
           Table.viewTable $

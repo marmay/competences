@@ -51,6 +51,7 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core ((.~))
 
@@ -145,27 +146,33 @@ competenceGridImportModalComponent r =
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ Modal.modalHeader (C.translate' C.LblImportCompetenceGrids) CloseModal
             , -- Content
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "flex-1 min-h-0 p-4 overflow-hidden"]}
-                [ -- Left: Input area
-                  Layout.viewFlow
-                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
-                    [ Typography.h3 "Eingabe"
-                    , M.textarea_
-                        [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                        , MP.placeholder_ "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
-                        , MP.value_ (M.ms m.inputText)
-                        , M.onInput (SetInputText . M.fromMisoString)
+              MH.div_
+                [class_ "flex-1 min-h-0 p-4 overflow-hidden"]
+                [ Layout.hFlow Layout.gapM
+                    [ -- Left: Input area
+                      MH.div_
+                        [class_ "min-h-0 flex-1 w-1/2"]
+                        [ Layout.vFlow Layout.gapS
+                            [ Typography.h3 "Eingabe"
+                            , M.textarea_
+                                [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
+                                , MP.placeholder_ "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
+                                , MP.value_ (M.ms m.inputText)
+                                , M.onInput (SetInputText . M.fromMisoString)
+                                ]
+                                []
+                            ]
                         ]
-                        []
-                    ]
-                , -- Right: Preview area
-                  Layout.viewFlow
-                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
-                    [ Typography.h3 "Vorschau"
-                    , M.div_
-                        [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                        [previewView m]
+                    , -- Right: Preview area
+                      MH.div_
+                        [class_ "min-h-0 flex-1 w-1/2"]
+                        [ Layout.vFlow Layout.gapS
+                            [ Typography.h3 "Vorschau"
+                            , M.div_
+                                [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
+                                [previewView m]
+                            ]
+                        ]
                     ]
                 ]
             , Modal.modalFooter
@@ -194,21 +201,22 @@ previewView m = case m.parseResult of
       [class_ "text-muted-foreground italic"]
       [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
   Right previews ->
-    Layout.viewFlow
-      Layout.vFlow{Layout.gap = Layout.MediumSpace}
+    Layout.vFlow Layout.gapM
       (map previewGridView previews)
 
 previewGridView :: GridImportPreview -> M.View Model Action
 previewGridView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
-    [ Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "mb-2"]}
-        [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ gridTitle preview.gridAction]
-        , actionBadge preview.gridAction
+    [ M.div_
+        [class_ "mb-2"]
+        [ Layout.hFlow
+            (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+            [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ gridTitle preview.gridAction]
+            , actionBadge preview.gridAction
+            ]
         ]
-    , Layout.viewFlow
-        Layout.vFlow{Layout.gap = Layout.SmallSpace}
+    , Layout.vFlow Layout.gapS
         ( map previewCompetenceView preview.competenceActions
             ++ map previewDeletedCompetence preview.competencesToDelete
         )
@@ -219,8 +227,8 @@ previewDeletedCompetence :: Competence -> M.View Model Action
 previewDeletedCompetence c =
   M.div_
     [class_ "pl-4 border-l-2 border-destructive/50"]
-    [ Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+    [ Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ M.span_
             [class_ "font-medium text-muted-foreground line-through"]
             [M.text $ M.ms c.description]
@@ -237,8 +245,8 @@ previewCompetenceView :: CompetenceImportAction -> M.View Model Action
 previewCompetenceView ca =
   M.div_
     [class_ "pl-4 border-l-2 border-border"]
-    [ Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+    [ Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ M.span_
             [class_ "font-medium text-sm"]
             [M.text $ M.ms ca.parsedCompetence.description]

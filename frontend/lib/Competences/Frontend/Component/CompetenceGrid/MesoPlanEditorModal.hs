@@ -128,8 +128,7 @@ mesoPlanEditorModal r modalMgr plan =
                     ]
                 ]
             , -- Date range inputs
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.MediumSpace}
+              Layout.hFlow Layout.gapM
                 [ -- Date from
                   MH.div_
                     [class_ "flex-1"]

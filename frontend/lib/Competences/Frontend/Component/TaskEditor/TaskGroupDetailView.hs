@@ -171,10 +171,13 @@ taskGroupEditorComponent r group =
     viewSubTasksSection m =
       M.div_
         [class_ "border-t pt-4"]
-        [ Layout.viewFlow
-            Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between mb-4"]}
-            [ Typography.h3 (C.translate' C.LblSubTasks)
-            , Button.secondary (Button.button (Icon.IcnAdd, C.LblAddSubTask) CreateSubTask)
+        [ M.div_
+            [class_ "mb-4"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+                [ Typography.h3 (C.translate' C.LblSubTasks)
+                , Button.secondary (Button.button (Icon.IcnAdd, C.LblAddSubTask) CreateSubTask)
+                ]
             ]
         , if null m.subTasks
             then Typography.muted (C.translate' C.LblNoSubTasks)
@@ -512,8 +515,8 @@ competenceOverrideEditor r key viewLens patchLens refocusTarget original patch =
     [ -- Checkbox to toggle override mode
       M.label_
         [class_ "cursor-pointer"]
-        [ Layout.viewFlow
-            Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+        [ Layout.hFlow
+            (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
             [ M.input_
                 ( [ type_ "checkbox"
                   , checked_ isOverriding

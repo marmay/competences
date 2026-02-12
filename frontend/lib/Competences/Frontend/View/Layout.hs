@@ -1,14 +1,36 @@
 module Competences.Frontend.View.Layout
-  ( -- * Flow Layout (Foundation)
-    hFlow
-  , vFlow
-  , flow
+  ( -- * Flow Layout
+    FlowDirection (..)
+  , FlowMod
+    -- ** Gap modifiers
+  , gapMicro
+  , gapT
+  , gapS
+  , gapM
+  , gapL
+    -- ** Main-axis alignment modifiers
+  , mainCenter
+  , mainEnd
+  , mainBetween
+    -- ** Cross-axis alignment modifiers
+  , crossStart
+  , crossCenter
+  , crossEnd
+    -- ** Wrapping
+  , flexWrap
+    -- ** Container sizing
+  , wFull
+  , hFull
+    -- ** Combinators
   , viewFlow
-  , Expand (..)
-  , FlowDirection (..)
-  , LayoutSpace (..)
-  , Alignment (..)
-  , FlowLayout (..)
+  , hFlow
+  , vFlow
+  , hFlow'
+  , vFlow'
+    -- ** View modifiers (Layer 2)
+  , addClass
+  , grow
+  , shrink0
 
     -- * Higher-level layouts
   , pageLayout
@@ -28,103 +50,175 @@ module Competences.Frontend.View.Layout
   , flexGrow
   , centeredContent
   , sideMenu
-
-    -- * Sizing attributes (for extraAttrs)
-  , fullHeight
-  , fullScreen
-  , minH0
-  , shrinkAttr
-  , overflowYScroll
-  , overflowYAuto
-  , fullWidth
   )
 where
 
 import Competences.Frontend.View.Tailwind (class_, classes)
 import Data.Text qualified as T
-import GHC.Generics (Generic)
+import Miso (Attribute (..), NS (..), View (..))
 import Miso qualified as M
 import Miso.CSS qualified as MS
 import Miso.Html qualified as M
-import Optics.Core ((&), (.~))
 
 data FlowDirection = HorizontalFlow | VerticalFlow
   deriving (Eq, Show)
 
-data Expand = Expand Alignment | NoExpand
-  deriving (Eq, Show)
+-- ============================================================================
+-- FLOW LAYOUT API
+-- ============================================================================
 
-data LayoutSpace = NoSpace | TinySpace | SmallSpace | MediumSpace | LargeSpace
-  deriving (Eq, Show)
+data Gap = NoGap | MicroGap | TinyGap | SmallGap | MediumGap | LargeGap
 
-data Alignment = Start | Center | End
-  deriving (Eq, Show)
+data MainAlign = MainDefault | MainCenter | MainEnd | MainBetween
 
-data FlowLayout a = FlowLayout
+data CrossAlign = CrossDefault | CrossStart | CrossCenter | CrossEnd
+
+data FlowConfig = FlowConfig
   { direction :: !FlowDirection
-  , expandDirection :: !Expand
-  , expandOrthogonal :: !Expand
-  , gap :: !LayoutSpace
-  , margin :: !LayoutSpace
-  , extraAttrs :: [M.Attribute a]
+  , gap :: !Gap
+  , mainAlign :: !MainAlign
+  , crossAlign :: !CrossAlign
+  , wrap :: !Bool
+  , wFull :: !Bool
+  , hFull :: !Bool
   }
-  deriving (Generic)
+
+defaultFlowConfig :: FlowDirection -> FlowConfig
+defaultFlowConfig d =
+  FlowConfig
+    { direction = d
+    , gap = NoGap
+    , mainAlign = MainDefault
+    , crossAlign = CrossDefault
+    , wrap = False
+    , wFull = False
+    , hFull = False
+    }
+
+-- | Monoid-based modifier for FlowConfig.
+-- Combines left-to-right: @gapS <> crossCenter@ applies gapS first, then crossCenter.
+newtype FlowMod = FlowMod (FlowConfig -> FlowConfig)
+
+instance Semigroup FlowMod where
+  FlowMod f <> FlowMod g = FlowMod (g . f)
+
+instance Monoid FlowMod where
+  mempty = FlowMod id
+
+-- Gap modifiers
+gapMicro, gapT, gapS, gapM, gapL :: FlowMod
+gapMicro = FlowMod $ \c -> c{gap = MicroGap}
+gapT = FlowMod $ \c -> c{gap = TinyGap}
+gapS = FlowMod $ \c -> c{gap = SmallGap}
+gapM = FlowMod $ \c -> c{gap = MediumGap}
+gapL = FlowMod $ \c -> c{gap = LargeGap}
+
+-- Main-axis alignment modifiers
+mainCenter, mainEnd, mainBetween :: FlowMod
+mainCenter = FlowMod $ \c -> c{mainAlign = MainCenter}
+mainEnd = FlowMod $ \c -> c{mainAlign = MainEnd}
+mainBetween = FlowMod $ \c -> c{mainAlign = MainBetween}
+
+-- Cross-axis alignment modifiers
+crossStart, crossCenter, crossEnd :: FlowMod
+crossStart = FlowMod $ \c -> c{crossAlign = CrossStart}
+crossCenter = FlowMod $ \c -> c{crossAlign = CrossCenter}
+crossEnd = FlowMod $ \c -> c{crossAlign = CrossEnd}
+
+-- Wrapping modifier
+flexWrap :: FlowMod
+flexWrap = FlowMod $ \c -> c{wrap = True}
+
+-- Container sizing modifiers
+wFull, hFull :: FlowMod
+wFull = FlowMod $ \c -> c{wFull = True}
+hFull = FlowMod $ \c -> c{hFull = True}
+
+-- | Render a flow layout from a FlowConfig.
+viewFlow :: FlowConfig -> [M.View m a] -> M.View m a
+viewFlow c =
+  M.div_
+    [ classes $
+        filter
+          (not . T.null)
+          [ "flex"
+          , dirCls
+          , gapCls
+          , mainCls
+          , crossCls
+          , wrapCls
+          , wCls
+          , hCls
+          ]
+    ]
+  where
+    dirCls = case c.direction of
+      HorizontalFlow -> "flex-row"
+      VerticalFlow -> "flex-col"
+    gapCls = case c.gap of
+      NoGap -> ""
+      MicroGap -> "gap-0.5"
+      TinyGap -> "gap-1"
+      SmallGap -> "gap-2"
+      MediumGap -> "gap-4"
+      LargeGap -> "gap-8"
+    mainCls = case c.mainAlign of
+      MainDefault -> ""
+      MainCenter -> "justify-center"
+      MainEnd -> "justify-end"
+      MainBetween -> "justify-between"
+    crossCls = case c.crossAlign of
+      CrossDefault -> ""
+      CrossStart -> "items-start"
+      CrossCenter -> "items-center"
+      CrossEnd -> "items-end"
+    wrapCls = if c.wrap then "flex-wrap" else ""
+    wCls = if c.wFull then "w-full" else ""
+    hCls = if c.hFull then "h-full" else ""
+
+-- | Horizontal flow with modifiers.
+hFlow :: FlowMod -> [M.View m a] -> M.View m a
+hFlow (FlowMod f) = viewFlow (f $ defaultFlowConfig HorizontalFlow)
+
+-- | Vertical flow with modifiers.
+vFlow :: FlowMod -> [M.View m a] -> M.View m a
+vFlow (FlowMod f) = viewFlow (f $ defaultFlowConfig VerticalFlow)
+
+-- | Horizontal flow with no modifiers.
+hFlow' :: [M.View m a] -> M.View m a
+hFlow' = hFlow mempty
+
+-- | Vertical flow with no modifiers.
+vFlow' :: [M.View m a] -> M.View m a
+vFlow' = vFlow mempty
+
+-- ============================================================================
+-- VIEW MODIFIERS (Layer 2)
+-- ============================================================================
+
+-- | Add a CSS class to a View node.
+-- For VNode, injects the class directly into the attribute list.
+-- For VText/VComp, wraps in a span.
+addClass :: T.Text -> M.View m a -> M.View m a
+addClass cls (VNode ns tag attrs children) =
+  VNode ns tag (attrs <> [ClassList [M.ms cls]]) children
+addClass cls v =
+  VNode HTML "span" [ClassList [M.ms cls]] [v]
+
+-- | Make a flex child grow to fill available space (flex-1).
+grow :: M.View m a -> M.View m a
+grow = addClass "flex-1"
+
+-- | Prevent a flex child from shrinking (flex-shrink-0).
+shrink0 :: M.View m a -> M.View m a
+shrink0 = addClass "flex-shrink-0"
+
+-- ============================================================================
+-- UTILITIES
+-- ============================================================================
 
 flowSpring :: M.View m a
 flowSpring = M.div_ [class_ "flex-grow"] []
-
-flow :: FlowDirection -> FlowLayout a
-flow d = FlowLayout d NoExpand NoExpand NoSpace NoSpace []
-
-hFlow, vFlow :: FlowLayout a
-hFlow = flow HorizontalFlow
-vFlow = flow VerticalFlow
-
-viewFlow :: FlowLayout a -> [M.View m a] -> M.View m a
-viewFlow l =
-  M.div_
-    ( [classes $ filter (not . T.null)
-        [ "flex"
-        , directionClass
-        , expandDirectionalClass
-        , expandOrthogonalClass
-        , gapClass
-        , marginClass
-        ]
-      ] <> l.extraAttrs
-    )
-  where
-    directionClass = case l.direction of
-      HorizontalFlow -> "flex-row"
-      VerticalFlow -> "flex-col"
-    expandDirectionalClass = case (l.direction, l.expandDirection) of
-      (HorizontalFlow, Expand a) -> "w-full " <> alignD a
-      (VerticalFlow, Expand a) -> alignD a
-      (_, NoExpand) -> ""
-    expandOrthogonalClass = case (l.direction, l.expandOrthogonal) of
-      (HorizontalFlow, Expand a) -> "h-full " <> alignO a
-      (VerticalFlow, Expand a) -> "w-full " <> alignO a
-      (_, NoExpand) -> ""
-    gapClass = case l.gap of
-      NoSpace -> ""
-      TinySpace -> "gap-1"
-      SmallSpace -> "gap-2"
-      MediumSpace -> "gap-4"
-      LargeSpace -> "gap-8"
-    marginClass = case l.margin of
-      NoSpace -> ""
-      TinySpace -> "m-1"
-      SmallSpace -> "m-2"
-      MediumSpace -> "m-4"
-      LargeSpace -> "m-8"
-    alignD a = case a of
-      Start -> "justify-start"
-      Center -> "justify-center"
-      End -> "justify-end"
-    alignO a = case a of
-      Start -> "items-start"
-      Center -> "items-center"
-      End -> "items-end"
 
 visibleIf :: Bool -> M.View m a -> M.View m a
 visibleIf True v = v
@@ -152,10 +246,12 @@ empty = M.div_ [] []
 
 sideMenu :: M.View m a -> M.View m a -> M.View m a
 sideMenu side main =
-  viewFlow
-    (hFlow & (#extraAttrs .~ [class_ "flex-1 h-full"]))
-    [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4"] [side]
-    , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4"] [main]
+  M.div_
+    [class_ "flex-1 h-full"]
+    [ hFlow hFull
+        [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4"] [side]
+        , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4"] [main]
+        ]
     ]
 
 -- ============================================================================
@@ -170,13 +266,16 @@ pageLayout
   -> Maybe (M.View m a) -- ^ Optional footer
   -> M.View m a
 pageLayout maybeHeader content maybeFooter =
-  viewFlow
-    (vFlow & (#expandDirection .~ Expand Start) & (#extraAttrs .~ [class_ "h-screen"]))
-    $ catMaybes
-      [ fmap (\h -> M.header_ [class_ "border-b border-border bg-card"] [h]) maybeHeader
-      , Just $ M.main_ [class_ "flex-1 overflow-y-auto bg-background"] [content]
-      , fmap (\f -> M.footer_ [class_ "border-t border-border bg-card"] [f]) maybeFooter
-      ]
+  M.div_
+    [class_ "h-screen"]
+    [ vFlow
+        mempty
+        $ catMaybes
+          [ fmap (\h -> M.header_ [class_ "border-b border-border bg-card"] [h]) maybeHeader
+          , Just $ M.main_ [class_ "flex-1 overflow-y-auto bg-background"] [content]
+          , fmap (\f -> M.footer_ [class_ "border-t border-border bg-card"] [f]) maybeFooter
+          ]
+    ]
   where
     catMaybes = foldr (\mx xs -> maybe xs (: xs) mx) []
 
@@ -188,8 +287,8 @@ splitView
   -> M.View m a -- ^ Right content
   -> M.View m a
 splitView leftWidth left right =
-  viewFlow
-    (hFlow & (#gap .~ SmallSpace) & (#expandDirection .~ Expand Start))
+  hFlow
+    (gapS <> wFull)
     [ M.div_ [class_ "flex-shrink-0", MS.style_ [("min-width", M.ms (show leftWidth) <> "px")]] [left]
     , M.div_ [class_ "flex-grow"] [right]
     ]
@@ -210,35 +309,3 @@ section maybeTitle content =
     [class_ "space-y-3"]
     $ maybe [] (\title -> [M.h3_ [class_ "text-lg font-semibold text-stone-900"] [M.text title]]) maybeTitle
       <> content
-
--- ============================================================================
--- SIZING ATTRIBUTES (for use with extraAttrs)
--- ============================================================================
-
--- | Full height (h-full)
-fullHeight :: M.Attribute a
-fullHeight = class_ "h-full"
-
--- | Full screen height (h-screen)
-fullScreen :: M.Attribute a
-fullScreen = class_ "h-screen"
-
--- | Minimum height 0 (for flex children to allow shrinking)
-minH0 :: M.Attribute a
-minH0 = class_ "min-h-0"
-
--- | Shrink flex item
-shrinkAttr :: M.Attribute a
-shrinkAttr = class_ "shrink"
-
--- | Vertical scroll overflow
-overflowYScroll :: M.Attribute a
-overflowYScroll = class_ "overflow-y-scroll"
-
--- | Vertical auto overflow
-overflowYAuto :: M.Attribute a
-overflowYAuto = class_ "overflow-y-auto"
-
--- | Full width (w-full)
-fullWidth :: M.Attribute a
-fullWidth = class_ "w-full"

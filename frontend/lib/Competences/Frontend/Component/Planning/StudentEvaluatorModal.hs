@@ -477,10 +477,12 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
        in MH.div_
             [class_ "border-t pt-3"]
             [ Typography.h4 (C.translate' C.LblAddTask)
-            , Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "mt-1 items-start"]}
-                [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
-                , Button.primary (Button.button C.LblAdd (canAdd, AddTask))
+            , MH.div_ [class_ "mt-1"]
+                [ Layout.hFlow
+                    (Layout.gapS <> Layout.crossStart)
+                    [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
+                    , Button.primary (Button.button C.LblAdd (canAdd, AddTask))
+                    ]
                 ]
             ]
 

@@ -236,20 +236,17 @@ viewerComponent r user assignment =
             [ M.div_
                 [class_ "space-y-2"]
                 [ -- Title line with date + status on the right
-                  Layout.viewFlow
-                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center}
+                  Layout.hFlow (Layout.hFull <> Layout.crossCenter)
                     [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
                     , Layout.flowSpring
-                    , Layout.viewFlow
-                        Layout.hFlow
-                          { Layout.gap = Layout.SmallSpace
-                          , Layout.expandOrthogonal = Layout.Expand Layout.Center
-                          , Layout.extraAttrs = [class_ "text-sm"]
-                          }
-                        [ M.span_
-                            [class_ "text-muted-foreground"]
-                            [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
-                        , statusIcon proj.status
+                    , M.div_
+                        [class_ "text-sm"]
+                        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                            [ M.span_
+                                [class_ "text-muted-foreground"]
+                                [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
+                            , statusIcon proj.status
+                            ]
                         ]
                     ]
                 , -- Description (if present, supports math syntax)
@@ -278,23 +275,21 @@ viewerComponent r user assignment =
           levelDesc = case Ix.getOne (competences Ix.@= competenceId) of
             Nothing -> ""
             Just comp -> maybe "" (.description) (comp.levels Map.!? level)
-       in Layout.viewFlow
-            Layout.hFlow
-              { Layout.gap = Layout.SmallSpace
-              , Layout.expandOrthogonal = Layout.Expand Layout.Center
-              , Layout.extraAttrs = [class_ "text-sm"]
-              }
-            [ M.span_
-                [class_ abilityClass]
-                [Icon.icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
-            , M.span_
-                [class_ $ abilityClass <> " font-medium"]
-                [M.text abilityLabel]
-            , if levelDesc == ""
-                then M.text ""
-                else M.span_
-                       [class_ "text-muted-foreground"]
-                       [M.text $ "– " <> ms levelDesc]
+       in M.div_
+            [class_ "text-sm"]
+            [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                [ M.span_
+                    [class_ abilityClass]
+                    [Icon.icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]
+                , M.span_
+                    [class_ $ abilityClass <> " font-medium"]
+                    [M.text abilityLabel]
+                , if levelDesc == ""
+                    then M.text ""
+                    else M.span_
+                           [class_ "text-muted-foreground"]
+                           [M.text $ "– " <> ms levelDesc]
+                ]
             ]
 
     abilityIcon SelfReliant = Icon.IcnAbilitySelfReliant

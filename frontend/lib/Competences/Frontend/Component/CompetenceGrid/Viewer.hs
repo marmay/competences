@@ -310,12 +310,8 @@ viewerComponent r grid =
 
     -- Main view: dispatch based on view data type
     view m =
-      Layout.viewFlow
-        Layout.vFlow
-          { Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.expandOrthogonal = Layout.Expand Layout.Center
-          , Layout.gap = Layout.SmallSpace
-          }
+      Layout.vFlow
+        (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
         [ header
         , description
         , competencesTable m
@@ -326,26 +322,26 @@ viewerComponent r grid =
         -- Header varies by view type
         header = case proj.viewData of
           UserViewData userData ->
-            Layout.viewFlow
-              Layout.hFlow
-                { Layout.expandOrthogonal = Layout.Expand Layout.Center
-                , Layout.extraAttrs = [class_ "w-full"]
-                }
-              [ Typography.h2 (M.ms grid.title)
-              , Layout.flowSpring
-              , case userData.activeGridGrade of
-                  Just gridGrade -> gradeBadgeView gridGrade.grade
-                  Nothing -> Layout.empty
+            MH.div_
+              [class_ "w-full"]
+              [ Layout.hFlow
+                  (Layout.hFull <> Layout.crossCenter)
+                  [ Typography.h2 (M.ms grid.title)
+                  , Layout.flowSpring
+                  , case userData.activeGridGrade of
+                      Just gridGrade -> gradeBadgeView gridGrade.grade
+                      Nothing -> Layout.empty
+                  ]
               ]
           AnalyticsViewData _ ->
-            Layout.viewFlow
-              Layout.hFlow
-                { Layout.expandOrthogonal = Layout.Expand Layout.Center
-                , Layout.extraAttrs = [class_ "w-full"]
-                }
-              [ Typography.h2 (M.ms grid.title)
-              , Layout.flowSpring
-              , Layout.empty
+            MH.div_
+              [class_ "w-full"]
+              [ Layout.hFlow
+                  (Layout.hFull <> Layout.crossCenter)
+                  [ Typography.h2 (M.ms grid.title)
+                  , Layout.flowSpring
+                  , Layout.empty
+                  ]
               ]
 
         description = Typography.paragraph (M.ms grid.description)
@@ -480,33 +476,37 @@ viewerComponent r grid =
               | hasDescription
               , let ms = Map.findWithDefault NotTried competenceLevelId userData.userMastery
               , Just p <- masteryPalette ms ->
-                  Layout.viewFlow
-                    Layout.hFlow
-                      { Layout.gap = Layout.TinySpace
-                      , Layout.expandOrthogonal = Layout.Expand Layout.Center
-                      , Layout.extraAttrs = [class_ "mb-0.5"]
-                      }
-                    [ Badge.secondary (Badge.badgeLabel C.LblMasteryBadgeAuto)
-                    , Layout.flowSpring
-                    , Badge.badge p (Badge.badgeText $ masteryBadgeLabel ms)
+                  MH.div_
+                    [class_ "mb-0.5"]
+                    [ Layout.hFlow
+                        (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
+                        [ Badge.secondary (Badge.badgeLabel C.LblMasteryBadgeAuto)
+                        , Layout.flowSpring
+                        , Badge.badge p (Badge.badgeText $ masteryBadgeLabel ms)
+                        ]
                     ]
             _ -> Layout.empty
 
           cellContent =
-            Layout.viewFlow
-              Layout.vFlow{Layout.extraAttrs = class_ "justify-center min-h-[44px]" : clickHandler}
-              [ statusIcon
-              , masteryBadgeRow
-              , if hasDescription
-                  then Typography.small (M.ms levelInfo.description)
-                  else Layout.empty
-              , if not (null evidenceList)
-                  then
-                    Layout.viewFlow
-                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "flex-wrap mt-1"]}
-                      (map showEvidence evidenceList)
-                  else Layout.empty
-              , resourceIcon
+            MH.div_
+              (class_ "min-h-[44px]" : clickHandler)
+              [ Layout.vFlow Layout.mainCenter
+                  [ statusIcon
+                  , masteryBadgeRow
+                  , if hasDescription
+                      then Typography.small (M.ms levelInfo.description)
+                      else Layout.empty
+                  , if not (null evidenceList)
+                      then
+                        MH.div_
+                          [class_ "mt-1"]
+                          [ Layout.hFlow
+                              (Layout.gapT <> Layout.flexWrap)
+                              (map showEvidence evidenceList)
+                          ]
+                      else Layout.empty
+                  , resourceIcon
+                  ]
               ]
 
           -- Mastery stripes when no assessment exists for this competence
@@ -547,22 +547,24 @@ viewerComponent r grid =
               else []
 
           cellContent =
-            Layout.viewFlow
-              Layout.vFlow{Layout.extraAttrs = class_ "justify-center min-h-[44px]" : clickHandler}
-              [ if hasDescription
-                  then Typography.small (M.ms levelInfo.description)
-                  else Layout.empty
-              , if hasDescription
-                  then
-                    let stats = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStats
-                        students = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStudents
-                     in MasteryBar.masteryDisplay MasteryBar.MasteryDisplayConfig
-                          { totalStudents = analyticsData.totalStudents
-                          , stats = stats
-                          , students = students
-                          }
-                  else Layout.empty
-              , resourceIcon
+            MH.div_
+              (class_ "min-h-[44px]" : clickHandler)
+              [ Layout.vFlow Layout.mainCenter
+                  [ if hasDescription
+                      then Typography.small (M.ms levelInfo.description)
+                      else Layout.empty
+                  , if hasDescription
+                      then
+                        let stats = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStats
+                            students = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStudents
+                         in MasteryBar.masteryDisplay MasteryBar.MasteryDisplayConfig
+                              { totalStudents = analyticsData.totalStudents
+                              , stats = stats
+                              , students = students
+                              }
+                      else Layout.empty
+                  , resourceIcon
+                  ]
               ]
        in TableCellSpec
             { cellClasses = tdClasses

@@ -192,7 +192,7 @@ render v s ButtonConfig {contents = c, action = a} =
     renderContents :: ButtonContents -> M.View m a
     renderContents (TextOnly t') = M.text_ [t']
     renderContents (IconOnly i) = Icon.icon [] i
-    renderContents (IconText i t') = Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center} [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
+    renderContents (IconText i t') = Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
 
 primary
   , primarySm

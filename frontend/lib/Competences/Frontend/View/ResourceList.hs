@@ -41,8 +41,8 @@ resourcesListView resources expandedSet toggleExpanded =
           displayName = if T.null ident then "(Unbenannt)" else ident
           disclosureTitle = Disclosure.titleIconText Icon.IcnResources (M.ms displayName)
           nameView =
-            Layout.viewFlow
-              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+            Layout.hFlow
+              (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
               [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
               , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
               ]
@@ -62,7 +62,10 @@ resourcesListView resources expandedSet toggleExpanded =
                     else
                       MH.div_
                         [class_ "border rounded-lg overflow-hidden"]
-                        [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "px-3 py-2"]} [nameView]]
+                        [ MH.div_
+                            [class_ "px-3 py-2"]
+                            [Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [nameView]]
+                        ]
             -- Web link: direct link card
             WebLink url title ->
               MH.a_

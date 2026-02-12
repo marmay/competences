@@ -108,8 +108,7 @@ editorWrapperComponent r assignment =
             (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view _m =
-      Layout.viewFlow
-        Layout.vFlow{Layout.gap = Layout.MediumSpace}
+      Layout.vFlow Layout.gapM
         [ component
             ("assignment-editor-" <> M.ms (show assignment.id))
             (TE.editorComponent assignmentEditor r)

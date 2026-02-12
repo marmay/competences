@@ -104,7 +104,7 @@ textEditor
   -> M.View (Model a patch f) (Action a patch)
 textEditor viewLens patchLens refocusTarget original patch =
   M.input_ $
-    [ Layout.fullWidth
+    [ class_ "w-full"
     , M.onChange
         (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
     , M.value_ (M.ms $ currentValue original patch viewLens patchLens)
@@ -140,31 +140,33 @@ richTextEditor
   -> M.View (Model a patch f) (Action a patch)
 richTextEditor viewLens patchLens refocusTarget original patch =
   let currentContent = currentValue original patch viewLens patchLens
-   in Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [Layout.fullWidth]}
-        [ -- Editor panel (left)
-          M.div_
-            [class_ "flex-1 min-w-0"]
-            [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
-            , M.textarea_
-                ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
-                  , M.onChange
-                      (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, fromTrustedInput (M.fromMisoString v))))
-                  , M.value_ (M.ms (toRawText currentContent))
-                  ]
-                    <> refocusTargetAttr refocusTarget
-                )
-                []
-            ]
-        , -- Preview panel (right)
-          M.div_
-            [class_ "flex-1 min-w-0"]
-            [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
-            , M.div_
-                [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                [ if currentContent == mempty
-                    then Typography.placeholder "No content"
-                    else renderRichText currentContent
+   in M.div_
+        [class_ "w-full"]
+        [ Layout.hFlow Layout.gapM
+            [ -- Editor panel (left)
+              M.div_
+                [class_ "flex-1 min-w-0"]
+                [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
+                , M.textarea_
+                    ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
+                      , M.onChange
+                          (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, fromTrustedInput (M.fromMisoString v))))
+                      , M.value_ (M.ms (toRawText currentContent))
+                      ]
+                        <> refocusTargetAttr refocusTarget
+                    )
+                    []
+                ]
+            , -- Preview panel (right)
+              M.div_
+                [class_ "flex-1 min-w-0"]
+                [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
+                , M.div_
+                    [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
+                    [ if currentContent == mempty
+                        then Typography.placeholder "No content"
+                        else renderRichText currentContent
+                    ]
                 ]
             ]
         ]
@@ -423,7 +425,7 @@ enumEditor toText viewLens patchLens refocusTarget original patch =
               Just v' -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, v'))
               Nothing -> UpdatePatch original patch
           )
-      , Layout.fullWidth
+      , class_ "w-full"
       ]
         <> refocusTargetAttr refocusTarget
     )

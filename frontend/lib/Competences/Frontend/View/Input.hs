@@ -239,10 +239,13 @@ fieldWrapper :: MisoString -- ^ Label text
              -> M.View model action -- ^ Input element
              -> M.View model action
 fieldWrapper labelText input =
-  Layout.viewFlow
-    Layout.vFlow{Layout.extraAttrs = [class_ "w-full gap-3"]}
-    [ label labelText
-    , input
+  M.div_
+    [class_ "w-full"]
+    [ Layout.addClass "gap-3" $
+        Layout.vFlow'
+          [ label labelText
+          , input
+          ]
     ]
 
 -- | Horizontal field wrapper (label beside input)
@@ -250,10 +253,14 @@ fieldWrapperHorizontal :: MisoString -- ^ Label text
                        -> M.View model action -- ^ Input element
                        -> M.View model action
 fieldWrapperHorizontal labelText input =
-  Layout.viewFlow
-    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-full gap-3"]}
-    [ label labelText
-    , input
+  M.div_
+    [class_ "w-full"]
+    [ Layout.addClass "gap-3" $
+        Layout.hFlow
+          (Layout.hFull <> Layout.crossCenter)
+          [ label labelText
+          , input
+          ]
     ]
 
 -- | Helper text below input

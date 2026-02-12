@@ -174,22 +174,22 @@ bulkEvidenceEditorComponent r =
           .~ []
 
     view m =
-      Layout.viewFlow
-        (Layout.vFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "h-full p-4"]})
-        [ header m
-        , settingsRow m
-        , observationEntry r m
-        , studentList m
+      MH.div_
+        [class_ "h-full p-4"]
+        [ Layout.vFlow Layout.gapM
+            [ header m
+            , settingsRow m
+            , observationEntry r m
+            , studentList m
+            ]
         ]
 
     -- Header with title and save/cancel buttons
     header m =
-      Layout.viewFlow
-        (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
+      Layout.hFlow (Layout.hFull <> Layout.crossCenter)
         [ Typography.h2 (C.translate' C.LblBulkEvidenceEntry)
         , Layout.flowSpring
-        , Layout.viewFlow
-            (Layout.hFlow{Layout.gap = Layout.SmallSpace})
+        , Layout.hFlow Layout.gapS
             [ Button.cancelButton Cancel
             , Button.primary
                 ( Button.button
@@ -201,8 +201,7 @@ bulkEvidenceEditorComponent r =
 
     -- Settings row with date and activity type
     settingsRow m =
-      Layout.viewFlow
-        (Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.expandOrthogonal = Layout.Expand Layout.End})
+      Layout.hFlow (Layout.gapM <> Layout.hFull <> Layout.crossEnd)
         [ MH.div_
             [class_ "w-40"]
             [ Input.fieldWrapper (C.translate' C.LblEvidenceDate) $
@@ -229,36 +228,37 @@ bulkEvidenceEditorComponent r =
     observationEntry r' m' =
       Card.card
         [ Typography.h4 (C.translate' C.LblAddObservation)
-        , Layout.viewFlow
-            (Layout.vFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "mt-2"]})
-            [ -- Student selector
-              Input.fieldWrapper (C.translate' C.LblStudents) $
-                V.componentA
-                  "bulk-student-selector"
-                  [class_ "w-full"]
-                  ( searchableMultiUserSelectorComponent
-                      r'
-                      (studentSelectorConfig m')
-                      studentSelectorLens
-                  )
-            , -- Observation selector
-              Input.fieldWrapper (C.translate' C.LblActivityObservations) $
-                V.componentA
-                  "bulk-observation-selector"
-                  [class_ "w-full"]
-                  ( multiStageSelectorComponent
-                      r'
-                      (bulkObservationConfig r')
-                      observationSelectorLens
-                  )
-            , -- Add button
-              Layout.viewFlow
-                (Layout.hFlow{Layout.expandDirection = Layout.Expand Layout.End})
-                [ Button.primary
-                    ( Button.button
-                        C.LblAddToSelectedStudents
-                        (not $ null m'.selectedStudents || null m'.pendingObservations, AddObservationsToSelectedStudents)
-                    )
+        , MH.div_
+            [class_ "mt-2"]
+            [ Layout.vFlow Layout.gapM
+                [ -- Student selector
+                  Input.fieldWrapper (C.translate' C.LblStudents) $
+                    V.componentA
+                      "bulk-student-selector"
+                      [class_ "w-full"]
+                      ( searchableMultiUserSelectorComponent
+                          r'
+                          (studentSelectorConfig m')
+                          studentSelectorLens
+                      )
+                , -- Observation selector
+                  Input.fieldWrapper (C.translate' C.LblActivityObservations) $
+                    V.componentA
+                      "bulk-observation-selector"
+                      [class_ "w-full"]
+                      ( multiStageSelectorComponent
+                          r'
+                          (bulkObservationConfig r')
+                          observationSelectorLens
+                      )
+                , -- Add button
+                  Layout.hFlow (Layout.wFull <> Layout.mainEnd)
+                    [ Button.primary
+                        ( Button.button
+                            C.LblAddToSelectedStudents
+                            (not $ null m'.selectedStudents || null m'.pendingObservations, AddObservationsToSelectedStudents)
+                        )
+                    ]
                 ]
             ]
         ]
@@ -287,9 +287,11 @@ bulkEvidenceEditorComponent r =
               MH.div_
                 [class_ "flex-1 overflow-y-auto"]
                 [ Typography.h4 (C.translate' C.LblStudentOverview)
-                , Layout.viewFlow
-                    (Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "mt-2"]})
-                    (map (studentCard m') studentsWithObs)
+                , MH.div_
+                    [class_ "mt-2"]
+                    [ Layout.vFlow Layout.gapS
+                        (map (studentCard m') studentsWithObs)
+                    ]
                 ]
 
     -- Card for a single student showing their observations
@@ -301,8 +303,7 @@ bulkEvidenceEditorComponent r =
             [ MH.div_
                 [class_ "mb-2"]
                 [Typography.h4 userName]
-            , Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "flex-wrap"]}
+            , Layout.hFlow (Layout.gapT <> Layout.flexWrap)
                 (map (observationBadge m' uid) observations)
             ]
 

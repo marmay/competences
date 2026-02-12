@@ -240,31 +240,32 @@ detailComponent r initialPlan =
             (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view m =
-      Layout.viewFlow
-        (Layout.vFlow
-          { Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.expandOrthogonal = Layout.Expand Layout.Center
-          , Layout.gap = Layout.SmallSpace
-          })
+      Layout.vFlow
+        (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
         [ -- Plan header with title, dates, edit and delete buttons
-          Layout.viewFlow
-            Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between p-3 bg-muted/30 rounded-lg mb-2"]}
-            [ Layout.viewFlow (Layout.vFlow{Layout.gap = Layout.TinySpace})
-                [ Typography.h2 $ M.ms $ if Text.null m.mesoPlan.title then "(Untitled)" else m.mesoPlan.title
-                , let dr = DateDisplay.formatDateRange m.mesoPlan.dateFrom m.mesoPlan.dateTo
-                   in if dr == ""
-                        then M.text ""
-                        else MH.span_ [class_ "text-sm text-muted-foreground"] [M.text dr]
-                ]
-            , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.TinySpace})
-                [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
-                , Button.destructiveSm (Button.button Icon.IcnDelete DeleteMesoPlan)
+          MH.div_
+            [class_ "p-3 bg-muted/30 rounded-lg mb-2"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+                [ Layout.vFlow Layout.gapT
+                    [ Typography.h2 $ M.ms $ if Text.null m.mesoPlan.title then "(Untitled)" else m.mesoPlan.title
+                    , let dr = DateDisplay.formatDateRange m.mesoPlan.dateFrom m.mesoPlan.dateTo
+                       in if dr == ""
+                            then M.text ""
+                            else MH.span_ [class_ "text-sm text-muted-foreground"] [M.text dr]
+                    ]
+                , Layout.hFlow Layout.gapT
+                    [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
+                    , Button.destructiveSm (Button.button Icon.IcnDelete DeleteMesoPlan)
+                    ]
                 ]
             ]
-        , Layout.viewFlow
-            (Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "w-full"]})
-            (map (viewLesson m) m.lessons)
-        , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.SmallSpace})
+        , MH.div_
+            [class_ "w-full"]
+            [ Layout.vFlow Layout.gapS
+                (map (viewLesson m) m.lessons)
+            ]
+        , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddLesson) CreateNewLesson)
             ]
         ]
@@ -348,8 +349,8 @@ detailComponent r initialPlan =
           title = M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title
        in MH.div_
             [class_ $ "text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
-            [ Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+            [ Layout.hFlow
+                (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
                 [ MH.span_ [class_ "font-medium"] [M.text title]
                 , MH.span_ [class_ "text-muted-foreground"]
                     [ M.text $ M.ms (show phase.duration) <> " min"
@@ -370,9 +371,12 @@ detailComponent r initialPlan =
         Nothing -> MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text "(Unknown assignment)"]
         Just a ->
           let AssignmentName nameText = a.name
-           in Layout.viewFlow
-                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between text-sm p-1 rounded hover:bg-muted/30"]}
-                [ M.text $ M.ms nameText
-                , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
+           in MH.div_
+                [class_ "text-sm p-1 rounded hover:bg-muted/30"]
+                [ Layout.hFlow
+                    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+                    [ M.text $ M.ms nameText
+                    , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
+                    ]
                 ]
 

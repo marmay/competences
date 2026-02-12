@@ -181,12 +181,8 @@ assessmentComponent r grid =
     view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
       Just _ ->
-        Layout.viewFlow
-          (Layout.vFlow
-            { Layout.expandDirection = Layout.Expand Layout.Start
-            , Layout.expandOrthogonal = Layout.Expand Layout.Center
-            , Layout.gap = Layout.SmallSpace
-            })
+        Layout.vFlow
+          (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
           [ header
           , description
           , competenceAssessmentList m
@@ -206,8 +202,7 @@ assessmentComponent r grid =
         description = Typography.paragraph (M.ms grid.description)
 
         competenceAssessmentList am =
-          Layout.viewFlow
-            (Layout.vFlow{Layout.gap = Layout.MediumSpace})
+          Layout.vFlow Layout.gapM
             [ competenceAssessmentCard am c
             | c <- ordered proj.competences
             ]
@@ -228,8 +223,8 @@ assessmentComponent r grid =
                 ]
 
         competenceHeaderWithButtons competence currentLevel todayAssessment =
-          Layout.viewFlow
-            (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
+          Layout.hFlow
+            (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
             [ MH.span_ [class_ "flex-1"] [Typography.paragraph (M.ms competence.description)]
             , assessmentButtons competence currentLevel todayAssessment
             ]
@@ -262,8 +257,7 @@ assessmentComponent r grid =
 
               -- Delete button (red trash icon)
               deleteBtn = Button.deleteButton (isJust todayAssessment, ClearAssessment competence)
-           in Layout.viewFlow
-                (Layout.hFlow{Layout.gap = Layout.TinySpace})
+           in Layout.hFlow Layout.gapT
                 [ notAchievedBtn
                 , levelBtn BasicLevel
                 , levelBtn IntermediateLevel
@@ -349,7 +343,7 @@ assessmentComponent r grid =
               -- "Not Achieved" assessment dates
               notAchievedDates = assessmentsByLevel Nothing
 
-           in Layout.viewFlow Layout.vFlow
+           in Layout.vFlow'
                 ( [ levelLane AdvancedLevel advancedMap (assessmentsByLevel (Just AdvancedLevel)) isInRangeEvidence allColumns
                   , levelLane IntermediateLevel intermediateMap (assessmentsByLevel (Just IntermediateLevel)) isInRangeEvidence allColumns
                   , levelLane BasicLevel basicMap (assessmentsByLevel (Just BasicLevel)) isInRangeEvidence allColumns
@@ -370,16 +364,19 @@ assessmentComponent r grid =
                   -- Label with info icon and CSS-based tooltip (group-hover pattern)
                   -- If locked, show lock icon instead of info icon
                   labelWithTooltip =
-                    Layout.viewFlow
-                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-28 shrink-0"]}
-                      [ MH.span_ [class_ $ "text-xs font-medium " <> levelTextClass] [M.text levelName]
-                      , if levelInfo.locked
-                          then StatusIcon.lockIcon
-                          else if hasDesc
-                            then withTooltip (RichTooltip (M.text $ M.ms levelInfo.description)) $
-                                   MH.span_ [class_ "cursor-help"]
-                                     [Icon.icon [class_ "text-stone-400"] Icon.IcnInfo]
-                            else Layout.empty
+                    MH.div_
+                      [class_ "w-28 shrink-0"]
+                      [ Layout.hFlow
+                          (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
+                          [ MH.span_ [class_ $ "text-xs font-medium " <> levelTextClass] [M.text levelName]
+                          , if levelInfo.locked
+                              then StatusIcon.lockIcon
+                              else if hasDesc
+                                then withTooltip (RichTooltip (M.text $ M.ms levelInfo.description)) $
+                                       MH.span_ [class_ "cursor-help"]
+                                         [Icon.icon [class_ "text-stone-400"] Icon.IcnInfo]
+                                else Layout.empty
+                          ]
                       ]
 
                   -- Build cells for each column
@@ -389,9 +386,12 @@ assessmentComponent r grid =
                   laneExtra = "min-h-[28px] border-b border-stone-100"
                     <> if levelInfo.locked then " bg-stone-50" else ""
 
-               in Layout.viewFlow
-                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ laneExtra]}
-                    (labelWithTooltip : columnCells)
+               in MH.div_
+                    [class_ laneExtra]
+                    [ Layout.hFlow
+                        (Layout.hFull <> Layout.crossCenter)
+                        (labelWithTooltip : columnCells)
+                    ]
 
             -- | Cell for a specific column in a level lane
             cellForColumn hasDesc evidenceMap assessmentDates isInRangeEvidence lvl col =
@@ -418,9 +418,12 @@ assessmentComponent r grid =
               let levelName = C.translate' C.LblNotAchieved
                   -- Label (no tooltip for "Not Achieved")
                   label =
-                    Layout.viewFlow
-                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-28 shrink-0"]}
-                      [MH.span_ [class_ "text-xs font-medium text-stone-400"] [M.text levelName]]
+                    MH.div_
+                      [class_ "w-28 shrink-0"]
+                      [ Layout.hFlow
+                          (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
+                          [MH.span_ [class_ "text-xs font-medium text-stone-400"] [M.text levelName]]
+                      ]
 
                   -- Build cells for each column
                   columnCells = map cellForNotAchieved allColumns
@@ -436,9 +439,12 @@ assessmentComponent r grid =
                           then showNotAchievedIcon
                           else showEmptyCell
 
-               in Layout.viewFlow
-                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-h-[28px] border-b border-stone-100"]}
-                    (label : columnCells)
+               in MH.div_
+                    [class_ "min-h-[28px] border-b border-stone-100"]
+                    [ Layout.hFlow
+                        (Layout.hFull <> Layout.crossCenter)
+                        (label : columnCells)
+                    ]
 
             -- | Empty cell placeholder (maintains column alignment)
             showEmptyCell =
@@ -453,9 +459,12 @@ assessmentComponent r grid =
             -- Shows date for each column (evidence or assessment)
             dateLane columns =
               let columnLabels = map showColumnLabel columns
-               in Layout.viewFlow
-                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-h-[20px] pt-1"]}
-                    (MH.div_ [class_ "w-28 shrink-0"] [] : columnLabels)
+               in MH.div_
+                    [class_ "min-h-[20px] pt-1"]
+                    [ Layout.hFlow
+                        (Layout.hFull <> Layout.crossCenter)
+                        (MH.div_ [class_ "w-28 shrink-0"] [] : columnLabels)
+                    ]
 
             -- | Show a label for a column (date for both evidence and assessment columns)
             showColumnLabel col =
@@ -469,21 +478,30 @@ assessmentComponent r grid =
             showEvidenceIcon hasLevelDesc actType socialForm ability =
               let abilityClass = if hasLevelDesc then textClass' (abilityPalette ability) else "text-stone-400"
                   ci = EvidenceIcon.coloredStrokeIcon abilityClass
-               in Layout.viewFlow
-                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
-                    [ ci (EvidenceIcon.activityTypeIcon actType)
-                    , ci (EvidenceIcon.socialFormIcon socialForm)
+               in MH.div_
+                    [class_ "w-12"]
+                    [ Layout.hFlow
+                        (Layout.hFull <> Layout.crossCenter <> Layout.mainCenter)
+                        [ ci (EvidenceIcon.activityTypeIcon actType)
+                        , ci (EvidenceIcon.socialFormIcon socialForm)
+                        ]
                     ]
 
             -- | Show assessment icon (checkmark)
             showAssessmentIcon =
-              Layout.viewFlow
-                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
-                [completionIcon Assessed]
+              MH.div_
+                [class_ "w-12"]
+                [ Layout.hFlow
+                    (Layout.hFull <> Layout.crossCenter <> Layout.mainCenter)
+                    [completionIcon Assessed]
+                ]
 
             -- | Show "Not Achieved" icon (X mark in red)
             showNotAchievedIcon =
-              Layout.viewFlow
-                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
-                [completionIcon Failed]
+              MH.div_
+                [class_ "w-12"]
+                [ Layout.hFlow
+                    (Layout.hFull <> Layout.crossCenter <> Layout.mainCenter)
+                    [completionIcon Failed]
+                ]
 

@@ -194,6 +194,6 @@ multiListSelectorComponent r config style s =
 viewToggleButtons
   :: forall a m. Bool -> [a] -> (a -> M.MisoString) -> (a -> Bool) -> M.View m (Action a)
 viewToggleButtons compact possibleValues showValue isSelected =
-  (if compact then Button.buttonGroup else Layout.viewFlow Layout.hFlow) (map mkButton possibleValues)
+  (if compact then Button.buttonGroup else Layout.hFlow') (map mkButton possibleValues)
   where
     mkButton a = Button.toggle (isSelected a) (Button.button (showValue a) (Toggle a))

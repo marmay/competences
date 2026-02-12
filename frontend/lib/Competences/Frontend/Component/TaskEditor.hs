@@ -13,6 +13,7 @@ import Competences.Frontend.Component.TaskEditor.TaskGroupDetailView (taskGroupD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -40,7 +41,7 @@ taskEditorComponent r =
 
     view' m =
       Layout.sideMenu
-        (componentA "task-or-group-selector" [Layout.fullHeight] $ taskOrGroupSelectorComponent r #selected)
+        (componentA "task-or-group-selector" [class_ "h-full"] $ taskOrGroupSelectorComponent r #selected)
         (detailView m.selected)
 
     detailView Nothing =

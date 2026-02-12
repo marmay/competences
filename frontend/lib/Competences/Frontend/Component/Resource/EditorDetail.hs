@@ -123,7 +123,7 @@ identifierEditorField =
               Just (_, ResourceIdentifier t) -> t
               Nothing -> origText
          in MH.input_ $
-              [ Layout.fullWidth
+              [ class_ "w-full"
               , MH.onChange
                   (\v -> UpdatePatch original (patch & #identifier ?~ (original.identifier, ResourceIdentifier (M.fromMisoString v))))
               , M.value_ (M.ms currentText)
@@ -159,8 +159,8 @@ resourceContentEditorField =
                  [renderRichText rc]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
-          [ Layout.viewFlow
-              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+          [ Layout.hFlow
+              (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
               [ MH.span_ [] [Typography.fieldLabel "Web-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
@@ -171,8 +171,8 @@ resourceContentEditorField =
           ]
       VideoLink url desc ->
         MH.div_ [class_ "space-y-1"]
-          [ Layout.viewFlow
-              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+          [ Layout.hFlow
+              (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
               [ MH.span_ [] [Typography.fieldLabel "Video-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
@@ -193,8 +193,7 @@ resourceContentEditorField =
             Nothing -> original.content
        in MH.div_ [class_ "space-y-3"]
             [ -- Content type selector
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace}
+              Layout.hFlow Layout.gapS
                 [ contentTypeButton "Inline" (isInline currentContent) (switchToInline original patch)
                 , contentTypeButton "Web-Link" (isWebLink currentContent) (switchToWebLink original patch)
                 , contentTypeButton "Video" (isVideoLink currentContent) (switchToVideoLink original patch)
@@ -202,28 +201,32 @@ resourceContentEditorField =
             , -- Content-specific fields
               case currentContent of
                 InlineContent rc ->
-                  Layout.viewFlow
-                    Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [Layout.fullWidth]}
-                    [ -- Editor panel (left)
-                      MH.div_ [class_ "flex-1 min-w-0"]
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
-                        , MH.textarea_
-                            ( [ class_ "w-full min-h-[150px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
-                              , MH.onChange
-                                  (\v -> UpdatePatch original (patch & #content ?~ (original.content, InlineContent (fromTrustedInput (M.fromMisoString v)))))
-                              , M.value_ (M.ms (toRawText rc))
-                              ]
-                              <> if refocusTarget then [M.id_ "refocus-target"] else []
-                            )
-                            []
-                        ]
-                    , -- Preview panel (right)
-                      MH.div_ [class_ "flex-1 min-w-0"]
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
-                        , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                            [ if rc == mempty
-                                then Typography.placeholder "Kein Inhalt"
-                                else renderRichText rc
+                  MH.div_
+                    [class_ "w-full"]
+                    [ Layout.hFlow Layout.gapM
+                        [ -- Editor panel (left)
+                          MH.div_
+                            [class_ "flex-1 min-w-0"]
+                            [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
+                            , MH.textarea_
+                                ( [ class_ "w-full min-h-[150px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
+                                  , MH.onChange
+                                      (\v -> UpdatePatch original (patch & #content ?~ (original.content, InlineContent (fromTrustedInput (M.fromMisoString v)))))
+                                  , M.value_ (M.ms (toRawText rc))
+                                  ]
+                                  <> if refocusTarget then [M.id_ "refocus-target"] else []
+                                )
+                                []
+                            ]
+                        , -- Preview panel (right)
+                          MH.div_
+                            [class_ "flex-1 min-w-0"]
+                            [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
+                            , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
+                                [ if rc == mempty
+                                    then Typography.placeholder "Kein Inhalt"
+                                    else renderRichText rc
+                                ]
                             ]
                         ]
                     ]

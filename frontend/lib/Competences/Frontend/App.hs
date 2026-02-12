@@ -84,7 +84,7 @@ mkApp ir =
         [class_ "flex flex-row h-screen"]
         [ Icon.iconDefs
         , M.div_
-            [class_ "flex-1 min-w-0"]
+            [class_ "flex-1 min-w-0 flex flex-col"]
             [ V.mainPage
                 (C.translate' C.LblPageTitle)
                 (focusedUserView ir)
@@ -159,7 +159,7 @@ mkApp ir =
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
 
-    mounted key = componentA (M.ms $ show key) [V.minH0, V.fullWidth, V.fullHeight]
+    mounted key = componentA (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
 
 -- | No-op function (CSS is now loaded in HTML head via backend)
 -- Kept for backward compatibility with Main.hs

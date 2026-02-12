@@ -17,6 +17,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.List (sortOn)
@@ -24,6 +25,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
@@ -147,21 +149,20 @@ taskOrGroupSelectorComponent r parentLens =
       SubTask _ _ -> False
 
     view' m =
-      Layout.viewFlow
-        Layout.vFlow
-          { Layout.gap = Layout.SmallSpace
-          , Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.extraAttrs = [Layout.fullHeight]
-          }
-        [ SL.selectorHeaderWithDropdown
-            (C.translate' C.LblTasksAndGroups)
-            m.dropdownOpen
-            ToggleDropdown
-            [ SL.dropdownItem Icon.IcnTask (C.translate' C.LblNewTask) CreateNewTask
-            , SL.dropdownItem Icon.IcnTaskGroup (C.translate' C.LblNewTaskGroup) CreateNewGroup
+      M.div_
+        [class_ "h-full"]
+        [ Layout.vFlow
+            Layout.gapS
+            [ SL.selectorHeaderWithDropdown
+                (C.translate' C.LblTasksAndGroups)
+                m.dropdownOpen
+                ToggleDropdown
+                [ SL.dropdownItem Icon.IcnTask (C.translate' C.LblNewTask) CreateNewTask
+                , SL.dropdownItem Icon.IcnTaskGroup (C.translate' C.LblNewTaskGroup) CreateNewGroup
+                ]
+            , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterTasks) (SetSearchQuery . M.fromMisoString)
+            , viewItems m
             ]
-        , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterTasks) (SetSearchQuery . M.fromMisoString)
-        , viewItems m
         ]
 
     viewItems m =

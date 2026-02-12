@@ -16,7 +16,7 @@ import Data.List.NonEmpty qualified as NE
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.String (MisoString)
-import Optics.Core (Lens', (&), (.~))
+import Optics.Core (Lens', (.~))
 
 -- | Configuration for a selector-detail component
 --
@@ -123,12 +123,8 @@ selectorDetailComponent config =
     detailPanel m = case m.selected of
       Nothing -> config.emptyView
       Just item ->
-        V.viewFlow
-          ( V.vFlow
-              & (#expandDirection .~ V.Expand V.Start)
-              & (#expandOrthogonal .~ V.Expand V.Start)  -- Stretch children to full width
-              & (#gap .~ V.MediumSpace)  -- Spacing between mode switcher and content
-          )
+        V.vFlow
+          (V.gapM <> V.wFull <> V.crossStart)
           [ modeSwitcher m
           , V.flexGrow (config.detailView m.activeMode item)
           ]
@@ -139,10 +135,8 @@ selectorDetailComponent config =
     modeSwitcher m = case config.availableModes of
       _ :| [] -> V.empty  -- Single mode, no switcher needed
       modes ->
-        V.viewFlow
-          ( V.hFlow
-              & (#expandDirection .~ V.Expand V.Center)  -- Center the button group
-          )
+        V.hFlow
+          (V.wFull <> V.mainCenter)
           [Button.buttonGroup (map (modeButton m.activeMode) (NE.toList modes))]
 
     modeButton :: mode -> mode -> M.View (Model a mode) (Action mode)

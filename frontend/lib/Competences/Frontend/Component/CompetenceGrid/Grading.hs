@@ -164,12 +164,8 @@ gradingComponent r grid =
     view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
       Just _ ->
-        Layout.viewFlow
-          Layout.vFlow
-            { Layout.expandDirection = Layout.Expand Layout.Start
-            , Layout.expandOrthogonal = Layout.Expand Layout.Center
-            , Layout.gap = Layout.SmallSpace
-            }
+        Layout.vFlow
+          (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
           [ header
           , description
           , competencesTable
@@ -181,16 +177,16 @@ gradingComponent r grid =
 
         -- Header with title on left and grade badge on right
         header =
-          Layout.viewFlow
-            Layout.hFlow
-              { Layout.expandOrthogonal = Layout.Expand Layout.Center
-              , Layout.extraAttrs = [class_ "w-full"]
-              }
-            [ Typography.h2 (M.ms grid.title)
-            , Layout.flowSpring
-            , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
-                Just gridGrade -> gradeBadgeView gridGrade.grade
-                Nothing -> Layout.empty
+          MH.div_
+            [class_ "w-full"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter)
+                [ Typography.h2 (M.ms grid.title)
+                , Layout.flowSpring
+                , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
+                    Just gridGrade -> gradeBadgeView gridGrade.grade
+                    Nothing -> Layout.empty
+                ]
             ]
         description = Typography.paragraph (M.ms grid.description)
 
@@ -264,15 +260,13 @@ gradingComponent r grid =
         -- Grade entry section with grade buttons and comment input
         gradeEntrySection gm =
           Card.cardWithHeader (C.translate' C.LblEnterGrade) Nothing
-            [ Layout.viewFlow
-                Layout.vFlow{Layout.gap = Layout.SmallSpace}
+            [ Layout.vFlow Layout.gapS
                 [ -- Grade buttons row
-                  Layout.viewFlow
-                    Layout.hFlow{Layout.gap = Layout.TinySpace}
+                  Layout.hFlow Layout.gapT
                     [ gradeButton gm g | g <- grades ]
                 , -- Comment input and submit button row
-                  Layout.viewFlow
-                    Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+                  Layout.hFlow
+                    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
                     [ MH.div_
                         [class_ "flex-1"]
                         [ Input.textInput'
@@ -308,41 +302,37 @@ gradingComponent r grid =
                 then Layout.empty
                 else
                   Card.cardWithHeader (C.translate' C.LblGradeHistory) Nothing
-                    [ Layout.viewFlow
-                        Layout.vFlow{Layout.gap = Layout.SmallSpace}
+                    [ Layout.vFlow Layout.gapS
                         [ gradeHistoryItem g | g <- history ]
                     ]
 
         gradeHistoryItem g =
-          Layout.viewFlow
-            Layout.hFlow
-              { Layout.expandOrthogonal = Layout.Expand Layout.Center
-              , Layout.extraAttrs = [class_ "py-2 border-b border-stone-100 last:border-0"]
-              }
-            [ Layout.viewFlow
-                Layout.hFlow
-                  { Layout.gap = Layout.SmallSpace
-                  , Layout.expandOrthogonal = Layout.Expand Layout.Center
-                  }
-                [ -- Date
-                  MH.span_
-                    [class_ "text-sm text-stone-500"]
-                    [M.text (C.formatDay g.date)]
-                , -- Grade
-                  MH.span_
-                    [class_ "text-sm font-medium"]
-                    [M.text (M.ms $ gradeToText g.grade)]
-                , -- Comment (if any)
-                  case g.comment of
-                    Just c ->
+          MH.div_
+            [class_ "py-2 border-b border-stone-100 last:border-0"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter)
+                [ Layout.hFlow
+                    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                    [ -- Date
                       MH.span_
-                        [class_ "text-sm text-stone-600 italic"]
-                        [M.text (M.ms c)]
-                    Nothing -> Layout.empty
+                        [class_ "text-sm text-stone-500"]
+                        [M.text (C.formatDay g.date)]
+                    , -- Grade
+                      MH.span_
+                        [class_ "text-sm font-medium"]
+                        [M.text (M.ms $ gradeToText g.grade)]
+                    , -- Comment (if any)
+                      case g.comment of
+                        Just c ->
+                          MH.span_
+                            [class_ "text-sm text-stone-600 italic"]
+                            [M.text (M.ms c)]
+                        Nothing -> Layout.empty
+                    ]
+                , Layout.flowSpring
+                , -- Delete button
+                  Button.deleteButton (DeleteGrade g.id)
                 ]
-            , Layout.flowSpring
-            , -- Delete button
-              Button.deleteButton (DeleteGrade g.id)
             ]
 
 -- | Column type for grading table

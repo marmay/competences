@@ -37,16 +37,24 @@ masteryBgClass status = fromMaybe "bg-stone-300" (bgClass' <$> masteryPalette st
 -- Always shows all 6 indicators (dimmed when count is 0) for consistent navigation.
 masteryDisplay :: MasteryDisplayConfig -> M.View m action
 masteryDisplay config =
-  Layout.viewFlow
-    Layout.vFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "mt-1"]}
-    [ -- Stacked horizontal bar (only segments with count > 0)
-      Layout.viewFlow
-        Layout.hFlow{Layout.extraAttrs = [class_ "h-3 rounded overflow-hidden bg-stone-100"]}
-        (map renderSegment segments)
-    , -- Count labels below - always show all 6, with CSS tooltips
-      Layout.viewFlow
-        Layout.hFlow{Layout.extraAttrs = [class_ "gap-x-2 text-xs"]}
-        (map renderIndicator segments)
+  MH.div_
+    [class_ "mt-1"]
+    [ Layout.vFlow
+        Layout.gapT
+        [ -- Stacked horizontal bar (only segments with count > 0)
+          MH.div_
+            [class_ "h-3 rounded overflow-hidden bg-stone-100"]
+            [ Layout.hFlow'
+                (map renderSegment segments)
+            ]
+        , -- Count labels below - always show all 6, with CSS tooltips
+          MH.div_
+            [class_ "text-xs"]
+            [ Layout.addClass "gap-x-2" $
+                Layout.hFlow'
+                  (map renderIndicator segments)
+            ]
+        ]
     ]
   where
     getCount status = Map.findWithDefault 0 status config.stats
@@ -98,10 +106,14 @@ masteryDisplay config =
               then NoTooltip
               else RichTooltip (M.text tooltipContent)
        in withTooltip tip $
-            Layout.viewFlow
-              Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ $ "gap-0.5" <> opacityClass]}
-              [ -- Colored square
-                MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
-              , -- Count
-                MH.span_ [class_ textColorClass] [M.text $ M.ms $ show count]
+            MH.div_
+              [class_ opacityClass]
+              [ Layout.addClass "gap-0.5" $
+                  Layout.hFlow
+                    (Layout.hFull <> Layout.crossCenter)
+                    [ -- Colored square
+                    MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
+                  , -- Count
+                    MH.span_ [class_ textColorClass] [M.text $ M.ms $ show count]
+                  ]
               ]

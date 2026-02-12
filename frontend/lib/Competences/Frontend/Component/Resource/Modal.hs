@@ -136,24 +136,26 @@ resourceModalComponent modalMgr cfg =
 
     view :: Model -> M.View Model Action
     view m =
-      Layout.viewFlow
-        Layout.vFlow{Layout.extraAttrs = [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[66vw] min-w-[66vw] max-w-none h-[90vh]"]}
-        [ Modal.modalHeaderWith
-            (C.translate' C.LblMaterials)
-            [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
-            CloseModal
-        , -- Scrollable content area
-          MH.div_
-            [class_ "flex-1 overflow-y-auto px-8 py-6"]
-            [ case m.viewMode of
-                ViewTasks
-                  | Map.null m.config.taskStatuses ->
-                      -- No focused user: flat list without grouping
-                      taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
-                  | otherwise ->
-                      groupedTasksView m
-                ViewLearningResources ->
-                  ResourceList.resourcesListView m.config.resources m.expandedResources ToggleResourceExpanded
+      MH.div_
+        [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[66vw] min-w-[66vw] max-w-none h-[90vh]"]
+        [ Layout.vFlow'
+            [ Modal.modalHeaderWith
+                (C.translate' C.LblMaterials)
+                [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
+                CloseModal
+            , -- Scrollable content area
+              MH.div_
+                [class_ "flex-1 overflow-y-auto px-8 py-6"]
+                [ case m.viewMode of
+                    ViewTasks
+                      | Map.null m.config.taskStatuses ->
+                          -- No focused user: flat list without grouping
+                          taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
+                      | otherwise ->
+                          groupedTasksView m
+                    ViewLearningResources ->
+                      ResourceList.resourcesListView m.config.resources m.expandedResources ToggleResourceExpanded
+                ]
             ]
         ]
 

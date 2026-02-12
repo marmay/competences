@@ -45,8 +45,8 @@ viewTaskCompletionStatusFromMap statuses taskId =
 -- | Internal: render status icon + "Stand:" text.
 statusView :: Text -> Icon.Icon -> EvidenceRef -> M.View model a
 statusView colorClass icn ref =
-  Layout.viewFlow
-    Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+  Layout.hFlow
+    (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
     [ Icon.icon [class_ $ "w-4 h-4 " <> colorClass] icn
     , MH.span_
         [class_ "text-xs text-muted-foreground"]

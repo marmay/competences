@@ -131,8 +131,8 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
       headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
       titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms identifier)
       titleRight =
-        Layout.viewFlow
-          Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+        Layout.hFlow
+          (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
           [ taskExtra tws.task.id
           , if showPurposeBadge
               then purposeBadge tws.taskPurpose

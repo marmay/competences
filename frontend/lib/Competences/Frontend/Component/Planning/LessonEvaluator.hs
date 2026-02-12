@@ -186,8 +186,7 @@ lessonEvaluatorComponent r lessonId =
               NameCol -> M.text $ M.ms student.name
               ParticipationCol pType -> viewParticipationCell student.id (m.participationRecords Ix.@= student.id) pType
               TasksCol ->
-                Layout.viewFlow
-                  Layout.hFlow
+                Layout.hFlow'
                   [ viewEvidenceBadges m student.id
                   , Layout.flowSpring
                   , Button.editButton (OpenStudentDetail student.id)
@@ -195,7 +194,7 @@ lessonEvaluatorComponent r lessonId =
           }
 
     viewParticipationCell studentId participationRecords pType =
-      Layout.viewFlow Layout.hFlow $
+      Layout.hFlow' $
         map
           (viewParticipationButton studentId participationRecords pType)
           allParticipationLevels
@@ -214,7 +213,7 @@ lessonEvaluatorComponent r lessonId =
 
     viewEvidenceBadges m userId =
       case m.studentBadges Map.!? userId of
-        Just badges -> Layout.viewFlow Layout.hFlow $ map viewBadge badges
+        Just badges -> Layout.hFlow' $ map viewBadge badges
         Nothing -> Typography.placeholder (C.translate' C.LblNoEvidence)
 
     viewBadge b =

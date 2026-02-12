@@ -131,8 +131,8 @@ taskSolutionsListComponent r taskId =
 
     -- Header with title and add button
     viewHeader m =
-      Layout.viewFlow
-        Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
+      Layout.hFlow
+        (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
         [ Typography.h3 $ C.translate' C.LblSolutions
         , if isTeacher m.projection.connectedUser
             then

@@ -26,7 +26,7 @@ editorTableRowView specOf actionSpec viewData =
           TableRowEditorActionColumn -> actionSpec
       , rowContents = \_ r ->
           -- We know that cols matches the fields.
-          Table.tableRow $ map snd r.fieldData <> [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace} $ compactButtons r]
+          Table.tableRow $ map snd r.fieldData <> [Layout.hFlow Layout.gapS $ compactButtons r]
       }
 
 editorTableRowView' :: (Foldable f) => EditorView a patch f M.MisoString

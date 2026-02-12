@@ -119,20 +119,15 @@ editorComponent r grid =
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
     view _m =
-      Layout.viewFlow
-        Layout.vFlow
-          { Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.expandOrthogonal = Layout.Expand Layout.Center
-          , Layout.gap = Layout.SmallSpace
-          }
+      Layout.vFlow
+        (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
         [ component
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
             (TE.editorComponent competenceGridEditor r)
         , component
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
             (TE.editorComponent competencesEditor r)
-        , Layout.viewFlow
-            Layout.hFlow{Layout.gap = Layout.SmallSpace}
+        , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
             , component
                 ("export-btn-" <> M.ms (show grid.id))
@@ -223,8 +218,8 @@ currentLevelInfo original patch lvl =
 levelDescriptionWithLockViewer :: Level -> Competence -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
 levelDescriptionWithLockViewer lvl c =
   let info = Map.findWithDefault (LevelInfo T.empty False) lvl c.levels
-   in Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+   in Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ MH.span_ [class_ "flex-1"] [text_ (M.ms info.description)]
         , if info.locked
             then StatusIcon.lockIcon
@@ -256,8 +251,8 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             newLevelPatch = levelPatch & #locked ?~ (origInfo.locked, newLocked)
             newPatch = patch & #levels % O.at lvl ?~ newLevelPatch
          in UpdatePatch original newPatch
-   in Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+   in Layout.hFlow
+        (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
         [ MH.input_
             [ class_ "flex-1 px-2 py-1 border border-stone-300 rounded text-sm"
             , MH.onChange updateDesc

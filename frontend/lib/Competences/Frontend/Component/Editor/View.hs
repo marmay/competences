@@ -21,7 +21,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~))
+
 
 data EditorViewData a patch f n = EditorViewData
   { fields :: ![n]
@@ -92,7 +92,7 @@ buttons s item =
 -- | Render a row of buttons using appropriate layout
 -- Compact mode uses buttonGroup (connected edges), Extended uses flow with gap
 buttonRow :: Button.ButtonContentsStyle -> [M.View m a] -> M.View m a
-buttonRow Button.IconTextS btns = Layout.viewFlow (Layout.hFlow & (#gap .~ Layout.SmallSpace)) btns
+buttonRow Button.IconTextS btns = Layout.hFlow Layout.gapS btns
 buttonRow _ btns = Button.buttonGroup btns
 
 editButton

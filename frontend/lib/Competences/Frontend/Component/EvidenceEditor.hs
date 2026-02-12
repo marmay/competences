@@ -112,12 +112,7 @@ detailPanel r canEdit _defaultMode m
   | otherwise = case m.selectedEvidence of
       Nothing -> Typography.muted (C.translate' C.LblPleaseSelectItem)
       Just evidence ->
-        V.viewFlow
-          ( V.vFlow
-              & (#expandDirection .~ V.Expand V.Start)
-              & (#expandOrthogonal .~ V.Expand V.Start)
-              & (#gap .~ V.MediumSpace)
-          )
+        V.vFlow (V.gapM <> V.wFull <> V.crossStart)
           [ if canEdit then modeSwitcher m else V.empty
           , V.flexGrow $
               if canEdit
@@ -128,10 +123,7 @@ detailPanel r canEdit _defaultMode m
 -- | Mode switcher buttons
 modeSwitcher :: EvidenceEditorModel -> M.View EvidenceEditorModel EvidenceEditorAction
 modeSwitcher m =
-  V.viewFlow
-    ( V.hFlow
-        & (#expandDirection .~ V.Expand V.Center)
-    )
+  V.hFlow (V.wFull <> V.mainCenter)
     [ Button.buttonGroup
         [ modeButton m.activeMode EvidenceView (C.translate' C.LblView) (Just Icon.IcnView)
         , modeButton m.activeMode EvidenceEdit (C.translate' C.LblEdit) (Just Icon.IcnEdit)

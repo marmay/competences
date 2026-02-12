@@ -42,6 +42,7 @@ import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
@@ -376,24 +377,20 @@ evaluatorComponent r assignment =
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
             [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> C.translate' (C.LblNSelected selectedCount) <> ")"]
-            , Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap mb-4"]}
-                (map (viewStudentButton m) students)
-            , Layout.viewFlow
-                (Layout.hFlow
-                  { Layout.gap = Layout.MediumSpace
-                  , Layout.expandOrthogonal = Layout.Expand Layout.Center
-                  , Layout.extraAttrs = [class_ "mt-3 pt-3 border-t"]
-                  })
-                [ Layout.viewFlow
-                    (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
-                    [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblPhaseSocialForm <> ":"]
-                    , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.SmallSpace}) (map (viewSocialFormButton m) socialForms)
-                    ]
-                , Layout.viewFlow
-                    (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
-                    [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblEvidenceDate <> ":"]
-                    , Input.dateInput dateValue SetEvaluationDate
+            , MH.div_ [class_ "mb-4"]
+                [ Layout.hFlow (Layout.gapS <> Layout.flexWrap)
+                    (map (viewStudentButton m) students)
+                ]
+            , MH.div_ [class_ "mt-3 pt-3 border-t"]
+                [ Layout.hFlow (Layout.gapM <> Layout.hFull <> Layout.crossCenter)
+                    [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                        [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblPhaseSocialForm <> ":"]
+                        , Layout.hFlow Layout.gapS (map (viewSocialFormButton m) socialForms)
+                        ]
+                    , Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                        [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblEvidenceDate <> ":"]
+                        , Input.dateInput dateValue SetEvaluationDate
+                        ]
                     ]
                 ]
             ]
@@ -425,8 +422,7 @@ evaluatorComponent r assignment =
               Just loadedUid ->
                 let loadedName = lookupName loadedUid
                  in M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
-                      [ Layout.viewFlow
-                          (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
+                      [ Layout.hFlow (Layout.hFull <> Layout.crossCenter)
                           [ M.p_ [class_ "text-sm text-yellow-800 font-medium"]
                               [ M.text $
                                   C.translate' C.LblEvidencesBasedOn
@@ -451,8 +447,7 @@ evaluatorComponent r assignment =
       let userName = case Ix.getOne (m.users Ix.@= userId) of
             Just u -> u.name
             Nothing -> T.pack (show userId)
-       in Layout.viewFlow
-            (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
+       in Layout.hFlow (Layout.hFull <> Layout.crossCenter)
             [ M.span_ [class_ "text-sm text-yellow-800"] [M.text $ ms userName]
             , Layout.flowSpring
             , Button.secondarySm (Button.button C.LblLoadEvidence (LoadStudentEvidence userId))
@@ -478,7 +473,7 @@ evaluatorComponent r assignment =
           statusDots =
             if null selectedList
               then []
-              else [Layout.viewFlow Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "gap-0.5"]} (map (viewCompactStudentStatus m taskId) selectedList)]
+              else [Layout.hFlow (Layout.hFull <> Layout.crossCenter <> Layout.gapMicro) (map (viewCompactStudentStatus m taskId) selectedList)]
        in M.div_
             [class_ "border-b pb-4"]
             [ Eval.viewTaskHeader m.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) statusDots
@@ -560,6 +555,7 @@ evaluatorComponent r assignment =
                   else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
             ]
               <> [M.disabled_ | isDisabled]
-       in Layout.viewFlow
-            (Layout.hFlow{Layout.expandDirection = Layout.Expand Layout.End, Layout.extraAttrs = [class_ "mt-6"]})
-            [M.button_ attrs [M.text buttonText]]
+       in MH.div_ [class_ "mt-6"]
+            [ Layout.hFlow (Layout.wFull <> Layout.mainEnd)
+                [M.button_ attrs [M.text buttonText]]
+            ]

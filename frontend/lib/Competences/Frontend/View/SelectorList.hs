@@ -35,8 +35,8 @@ selectorHeader
   -- ^ Optional add action (Nothing = hide button)
   -> M.View m action
 selectorHeader title mAddAction =
-  Layout.viewFlow
-    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
+  Layout.hFlow
+    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
     [ Typography.h3 title
     , case mAddAction of
         Just action -> Button.secondary (Button.button Icon.IcnAdd (Just action))
@@ -55,8 +55,8 @@ selectorHeaderWithDropdown
   -- ^ Dropdown menu items
   -> M.View m action
 selectorHeaderWithDropdown title isOpen toggleAction menuItems =
-  Layout.viewFlow
-    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
+  Layout.hFlow
+    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
     [ Typography.h3 title
     , M.div_
         [class_ "relative"]
@@ -93,19 +93,17 @@ selectorItem
   -- ^ Click action
   -> M.View m action
 selectorItem isSelected icn label action =
-  Layout.viewFlow
-    Layout.hFlow
-      { Layout.gap = Layout.SmallSpace
-      , Layout.expandOrthogonal = Layout.Expand Layout.Center
-      , Layout.extraAttrs =
-          [ class_ $
-              "px-3 py-2 rounded cursor-pointer transition-colors "
-                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-          , M.onClick action
-          ]
-      }
-    [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
-    , M.span_ [class_ "text-sm truncate"] [M.text label]
+  M.div_
+    [ class_ $
+        "px-3 py-2 rounded cursor-pointer transition-colors "
+          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+    , M.onClick action
+    ]
+    [ Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+        [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
+        , M.span_ [class_ "text-sm truncate"] [M.text label]
+        ]
     ]
 
 -- | Single-line selectable list item with icon and optional badge on the right
@@ -122,22 +120,20 @@ selectorItemWithBadge
   -- ^ Click action
   -> M.View m action
 selectorItemWithBadge isSelected icn label mBadge action =
-  Layout.viewFlow
-    Layout.hFlow
-      { Layout.gap = Layout.SmallSpace
-      , Layout.expandOrthogonal = Layout.Expand Layout.Center
-      , Layout.extraAttrs =
-          [ class_ $
-              "px-3 py-2 rounded cursor-pointer transition-colors "
-                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-          , M.onClick action
-          ]
-      }
-    [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
-    , M.span_ [class_ "text-sm truncate flex-1"] [M.text label]
-    , case mBadge of
-        Just badgeView -> badgeView
-        Nothing -> M.text ""
+  M.div_
+    [ class_ $
+        "px-3 py-2 rounded cursor-pointer transition-colors "
+          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+    , M.onClick action
+    ]
+    [ Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+        [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
+        , M.span_ [class_ "text-sm truncate flex-1"] [M.text label]
+        , case mBadge of
+            Just badgeView -> badgeView
+            Nothing -> M.text ""
+        ]
     ]
 
 -- | Multi-line selectable list item (e.g., for Evidence with date + type + users)
@@ -150,17 +146,16 @@ selectorItemMultiLine
   -- ^ Click action
   -> M.View m action
 selectorItemMultiLine isSelected content action =
-  Layout.viewFlow
-    Layout.vFlow
-      { Layout.gap = Layout.TinySpace
-      , Layout.extraAttrs =
-          [ class_ $
-              "px-3 py-2 rounded cursor-pointer transition-colors "
-                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-          , M.onClick action
-          ]
-      }
-    content
+  M.div_
+    [ class_ $
+        "px-3 py-2 rounded cursor-pointer transition-colors "
+          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+    , M.onClick action
+    ]
+    [ Layout.vFlow
+        Layout.gapT
+        content
+    ]
 
 -- | Search/filter input field
 selectorSearchField
@@ -181,6 +176,9 @@ selectorSearchField value placeholder onInput =
 -- | Scrollable list container (grows to fill available space)
 selectorList :: [M.View m action] -> M.View m action
 selectorList items =
-  Layout.viewFlow
-    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-1", Layout.overflowYScroll, Layout.minH0]}
-    items
+  M.div_
+    [class_ "flex-1", class_ "overflow-y-scroll", class_ "min-h-0"]
+    [ Layout.vFlow
+        Layout.gapS
+        items
+    ]

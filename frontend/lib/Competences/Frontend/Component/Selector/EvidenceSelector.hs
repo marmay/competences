@@ -29,12 +29,14 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.UIState (readFocusedUser)
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))
 import Data.Time (Day, addDays)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~), (^.))
 
 data EvidenceSelectorStyle
@@ -147,34 +149,33 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
 
     view m =
       let hasFocusedUser = m.projection.focusedUser /= Nothing
-       in Layout.viewFlow
-            Layout.vFlow
-              { Layout.gap = Layout.SmallSpace
-              , Layout.expandDirection = Layout.Expand Layout.Start
-              , Layout.extraAttrs = [Layout.fullHeight]
-              }
-            [ if style == EvidenceSelectorViewAndCreate && hasFocusedUser
-                then
-                  SL.selectorHeaderWithDropdown
-                    (C.translate' C.LblSelectEvidences)
-                    m.dropdownOpen
-                    ToggleDropdown
-                    [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
-                    , SL.dropdownItem Icon.IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
-                    ]
-                else
-                  SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
-        , component
-            "evidence-selector-date-range"
-            ( ES.enumSelectorComponent'
-                AllTime
-                [Today, ThisWeek, AllTime]
-                ES.ButtonsCompact
-                translateDateRange
-                #filteredDateRange
-            )
-        , viewEvidences m
-        ]
+       in M.div_
+            [class_ "h-full"]
+            [ Layout.vFlow
+                Layout.gapS
+                [ if style == EvidenceSelectorViewAndCreate && hasFocusedUser
+                    then
+                      SL.selectorHeaderWithDropdown
+                        (C.translate' C.LblSelectEvidences)
+                        m.dropdownOpen
+                        ToggleDropdown
+                        [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblNewEvidence) CreateNewEvidence
+                        , SL.dropdownItem Icon.IcnEvidence (C.translate' C.LblBulkEntry) ActivateBulkEditor
+                        ]
+                    else
+                      SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
+                , component
+                    "evidence-selector-date-range"
+                    ( ES.enumSelectorComponent'
+                        AllTime
+                        [Today, ThisWeek, AllTime]
+                        ES.ButtonsCompact
+                        translateDateRange
+                        #filteredDateRange
+                    )
+                , viewEvidences m
+                ]
+            ]
     viewEvidences m =
       let dateRangeFilter :: Ix.IxSet EvidenceIxs Evidence -> Ix.IxSet EvidenceIxs Evidence
           dateRangeFilter = case m.filteredDateRange of

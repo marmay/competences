@@ -278,8 +278,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        Layout.viewFlow
-          (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+        Layout.hFlow Layout.gapM
           [ MH.div_
               [class_ "flex-1"]
               [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
@@ -349,8 +348,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblLessonNotes) $
-        Layout.viewFlow
-          (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+        Layout.hFlow Layout.gapM
           [ MH.div_
               [class_ "flex-1"]
               [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
@@ -373,15 +371,14 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     phasesSection m =
       MH.div_
         [class_ "border-t border-border pt-4"]
-        [ Layout.viewFlow
-            ( Layout.hFlow
-                { Layout.expandOrthogonal = Layout.Expand Layout.Center
-                , Layout.extraAttrs = [class_ "mb-2"]
-                }
-            )
-            [ Typography.h4 (C.translate' C.LblLessonPhases)
-            , Layout.flowSpring
-            , Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddPhase) AddPhase)
+        [ MH.div_
+            [class_ "mb-2"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter)
+                [ Typography.h4 (C.translate' C.LblLessonPhases)
+                , Layout.flowSpring
+                , Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddPhase) AddPhase)
+                ]
             ]
         , if null m.phases
             then
@@ -389,8 +386,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 [class_ "text-center text-muted-foreground py-4"]
                 [M.text $ C.translate' C.LblNoPhases]
             else
-              Layout.viewFlow
-                (Layout.vFlow{Layout.gap = Layout.SmallSpace})
+              Layout.vFlow Layout.gapS
                 (zipWith (viewPhaseCard m) [0 ..] m.phases)
         ]
 
@@ -414,8 +410,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
           Input.fieldWrapper (C.translate' C.LblPhaseTitle) $
             Input.textInput (M.ms phase.title) (SetPhaseTitle idx . M.fromMisoString)
         , -- Duration + Social form + Action form (inline row)
-          Layout.viewFlow
-            (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+          Layout.hFlow Layout.gapM
             [ MH.div_
                 [class_ "w-24"]
                 [ Typography.fieldLabel (C.translate' C.LblPhaseDuration)
@@ -444,8 +439,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
             ]
         , -- Phase notes (split-panel with markup/preview)
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
-            Layout.viewFlow
-              (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+            Layout.hFlow Layout.gapM
               [ MH.div_
                   [class_ "flex-1"]
                   [ MH.label_

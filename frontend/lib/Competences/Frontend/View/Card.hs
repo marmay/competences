@@ -96,4 +96,4 @@ cardFooter :: [M.View model action] -> M.View model action
 cardFooter content =
   M.footer_
     [class_ "px-6"]
-    [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center} content]
+    [Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) content]

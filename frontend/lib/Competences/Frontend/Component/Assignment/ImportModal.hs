@@ -59,6 +59,7 @@ import Data.Time (Day, defaultTimeLocale, formatTime)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core ((.~))
 
@@ -152,27 +153,33 @@ assignmentImportModalComponent r =
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ Modal.modalHeader (C.translate' C.LblImportAssignments) CloseModal
             , -- Content
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "flex-1 min-h-0 p-4 overflow-hidden"]}
-                [ -- Left: Input area
-                  Layout.viewFlow
-                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
-                    [ Typography.h3 "Eingabe"
-                    , M.textarea_
-                        [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                        , MP.placeholder_ placeholderText
-                        , MP.value_ (M.ms m.inputText)
-                        , M.onInput (SetInputText . M.fromMisoString)
+              MH.div_
+                [class_ "flex-1 min-h-0 p-4 overflow-hidden"]
+                [ Layout.hFlow Layout.gapM
+                    [ -- Left: Input area
+                      MH.div_
+                        [class_ "min-h-0 flex-1 w-1/2"]
+                        [ Layout.vFlow Layout.gapS
+                            [ Typography.h3 "Eingabe"
+                            , M.textarea_
+                                [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
+                                , MP.placeholder_ placeholderText
+                                , MP.value_ (M.ms m.inputText)
+                                , M.onInput (SetInputText . M.fromMisoString)
+                                ]
+                                []
+                            ]
                         ]
-                        []
-                    ]
-                , -- Right: Preview area
-                  Layout.viewFlow
-                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
-                    [ Typography.h3 "Vorschau"
-                    , M.div_
-                        [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                        [previewView m]
+                    , -- Right: Preview area
+                      MH.div_
+                        [class_ "min-h-0 flex-1 w-1/2"]
+                        [ Layout.vFlow Layout.gapS
+                            [ Typography.h3 "Vorschau"
+                            , M.div_
+                                [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
+                                [previewView m]
+                            ]
+                        ]
                     ]
                 ]
             , Modal.modalFooter
@@ -217,8 +224,7 @@ previewView m = case m.parseResult of
       [class_ "text-muted-foreground italic"]
       [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
   Right previews ->
-    Layout.viewFlow
-      Layout.vFlow{Layout.gap = Layout.MediumSpace}
+    Layout.vFlow Layout.gapM
       (map previewAssignmentView previews)
 
 previewAssignmentView :: AssignmentImportPreview -> M.View Model Action
@@ -226,10 +232,12 @@ previewAssignmentView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
     [ -- Assignment header
-      Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "mb-2"]}
-        [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ assignmentName preview.assignmentAction]
-        , actionBadge preview.assignmentAction
+      MH.div_
+        [class_ "mb-2"]
+        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+            [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ assignmentName preview.assignmentAction]
+            , actionBadge preview.assignmentAction
+            ]
         ]
     , -- Assignment metadata
       M.div_
@@ -272,8 +280,7 @@ previewTaskView :: TaskImportPreview -> M.View Model Action
 previewTaskView preview =
   M.div_
     [class_ "py-1"]
-    [ Layout.viewFlow
-        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+    [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ M.span_ [class_ "font-medium text-sm"] [M.text $ M.ms $ taskTitle preview.taskAction]
         , actionBadge preview.taskAction
         ]

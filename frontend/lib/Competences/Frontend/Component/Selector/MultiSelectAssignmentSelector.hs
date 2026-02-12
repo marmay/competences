@@ -142,8 +142,8 @@ multiSelectAssignmentSelectorComponent r eligible initResults lensBinding =
           if null m.selectedResults
             then M.text ""
             else
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap"]}
+              Layout.hFlow
+                (Layout.gapS <> Layout.flexWrap)
                 [ viewAssignmentTag a
                 | aId <- m.selectedResults
                 , Just a <- [lookupAssignment aId m.projection.allAssignments]

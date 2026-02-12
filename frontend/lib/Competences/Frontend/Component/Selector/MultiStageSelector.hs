@@ -586,8 +586,7 @@ viewSuggestions model =
               [class_ "text-destructive text-sm py-1"]
               [M.text err]
           ]
-   in Layout.viewFlow
-        Layout.vFlow{Layout.extraAttrs = [class_ "gap-0.5"]}
+   in Layout.vFlow Layout.gapMicro
         (errorView <> map viewSuggestion suggestions)
 
 -- | Render a single suggestion item

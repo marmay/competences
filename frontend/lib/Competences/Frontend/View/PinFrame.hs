@@ -23,26 +23,31 @@ import Miso.Html qualified as M
 -- and close button. Content is rendered below the title bar.
 pinFrame :: M.MisoString -> a -> a -> [M.View m a] -> M.View m a
 pinFrame title toggleAction closeAction content =
-  Layout.viewFlow
-    Layout.vFlow{Layout.extraAttrs = [class_ "h-full"]}
-    [ -- Title bar
-      Layout.viewFlow
-        Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between border-b border-border px-4 py-3 bg-muted/50 rounded-t-xl flex-shrink-0"]}
-        [ Typography.h4 title
-        , Layout.viewFlow
-            Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
-            [ -- Pin toggle (minimize) button
-              withTooltip (PlainTooltip "Minimize") $
-                Button.ghost (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))
-            , -- Close button
-              withTooltip (PlainTooltip "Close") $
-                Button.ghost (Button.button Icon.IcnCancel (Just closeAction))
+  M.div_
+    [class_ "h-full"]
+    [ Layout.vFlow Layout.hFull
+        [ -- Title bar
+          M.div_
+            [class_ "border-b border-border px-4 py-3 bg-muted/50 rounded-t-xl flex-shrink-0"]
+            [ Layout.hFlow
+                (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+                [ Typography.h4 title
+                , Layout.hFlow
+                    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                    [ -- Pin toggle (minimize) button
+                      withTooltip (PlainTooltip "Minimize") $
+                        Button.ghost (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))
+                    , -- Close button
+                      withTooltip (PlainTooltip "Close") $
+                        Button.ghost (Button.button Icon.IcnCancel (Just closeAction))
+                    ]
+                ]
             ]
+        , -- Content area
+          M.div_
+            [class_ "flex-1 min-h-0 overflow-auto p-4"]
+            content
         ]
-    , -- Content area
-      M.div_
-        [class_ "flex-1 min-h-0 overflow-auto p-4"]
-        content
     ]
 
 -- | Sidebar icon button for a pinned dialog.

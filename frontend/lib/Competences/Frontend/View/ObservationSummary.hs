@@ -40,6 +40,6 @@ observationIconView obs =
 -- | Render multiple observations as a row of icons
 observationSummaryView :: [Observation] -> M.View m a
 observationSummaryView observations =
-  Layout.viewFlow
-    Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+  Layout.hFlow
+    (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
     (map observationIconView observations)

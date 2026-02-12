@@ -27,12 +27,14 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 
 -- | Projection type: extracts only the data needed for this component.
@@ -132,24 +134,23 @@ competenceGridSelectorComponent r style parentLens =
             }
 
     view (m :: Model) =
-      Layout.viewFlow
-        Layout.vFlow
-          { Layout.gap = Layout.SmallSpace
-          , Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.extraAttrs = [Layout.fullHeight]
-          }
-        [ case style of
-            CompetenceGridSelectorViewOnlyStyle ->
-              SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing
-            CompetenceGridSelectorViewAndCreateStyle ->
-              SL.selectorHeaderWithDropdown
-                (C.translate' C.LblSelectCompetenceGrids)
-                m.isDropdownOpen
-                ToggleDropdown
-                [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
-                , SL.dropdownItem Icon.IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
-                ]
-        , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
+      M.div_
+        [class_ "h-full"]
+        [ Layout.vFlow
+            Layout.gapS
+            [ case style of
+                CompetenceGridSelectorViewOnlyStyle ->
+                  SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing
+                CompetenceGridSelectorViewAndCreateStyle ->
+                  SL.selectorHeaderWithDropdown
+                    (C.translate' C.LblSelectCompetenceGrids)
+                    m.isDropdownOpen
+                    ToggleDropdown
+                    [ SL.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewCompetenceGrid
+                    , SL.dropdownItem Icon.IcnImport (C.translate' C.LblImportCompetenceGrids) OpenImportModal
+                    ]
+            , SL.selectorList (map (viewCompetenceGrid m) (Ix.toAscList (Proxy @Order) m.projection.allGrids))
+            ]
         ]
 
     viewCompetenceGrid m c =

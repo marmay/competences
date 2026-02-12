@@ -139,10 +139,13 @@ titleIcon icon = Icon.icon [] icon
 -- | Title with icon and text (common case).
 titleIconText :: Icon.Icon -> MisoString -> M.View m a
 titleIconText icon text =
-  Layout.viewFlow
-    Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-w-0"]}
-    [ Icon.icon [] icon
-    , MH.span_ [class_ "font-medium truncate"] [M.text text]
+  MH.div_
+    [class_ "min-w-0"]
+    [ Layout.hFlow
+        (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+        [ Icon.icon [] icon
+        , MH.span_ [class_ "font-medium truncate"] [M.text text]
+        ]
     ]
 
 -- | Title with just text.
@@ -154,10 +157,13 @@ titleText t = MH.span_ [class_ "font-medium truncate"] [M.text t]
 -- Useful for adding badges, status indicators, or other annotations.
 titleWithAnnotation :: M.View m a -> M.View m a -> M.View m a
 titleWithAnnotation left right =
-  Layout.viewFlow
-    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between w-full"]}
-    [ MH.div_ [class_ "min-w-0 flex-1"] [left]
-    , MH.div_ [class_ "shrink-0 ml-2"] [right]
+  MH.div_
+    [class_ "w-full"]
+    [ Layout.hFlow
+        (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+        [ MH.div_ [class_ "min-w-0 flex-1"] [left]
+        , MH.div_ [class_ "shrink-0 ml-2"] [right]
+        ]
     ]
 
 -- ============================================================================
@@ -230,12 +236,13 @@ disclosureImpl
 disclosureImpl style mPalette toggleAction dc =
   MH.div_
     [class_ containerClasses]
-    [ Layout.viewFlow
-        Layout.hFlow
-          { Layout.expandOrthogonal = Layout.Expand Layout.Center
-          , Layout.extraAttrs = [class_ headerExtra, MH.onClick toggleAction]
-          }
-        headerContent
+    [ MH.div_
+        [class_ headerWrapperExtra, MH.onClick toggleAction]
+        [ Layout.addClass headerLayoutExtra $
+            Layout.hFlow
+              (Layout.hFull <> Layout.crossCenter)
+              headerContent
+        ]
     , bodySection
     ]
   where
@@ -253,12 +260,17 @@ disclosureImpl style mPalette toggleAction dc =
       Nothing -> "bg-muted/50" :: Text
       Just p -> bgClass Base p
 
-    -- Extra (non-flex) header classes based on style
-    headerExtra = case style of
+    -- Layout classes added via addClass
+    headerLayoutExtra = case style of
+      DisclosureDefault -> "gap-3" :: Text
+      DisclosureNested -> "gap-2"
+
+    -- Non-layout classes that go on wrapper div
+    headerWrapperExtra = case style of
       DisclosureDefault ->
-        "gap-3 px-3 py-2 cursor-pointer hover:bg-muted transition-colors " <> headerBg
+        "px-3 py-2 cursor-pointer hover:bg-muted transition-colors " <> headerBg
       DisclosureNested ->
-        "gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors " <> headerBg
+        "px-2 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors " <> headerBg
 
     -- Header content
     headerContent =
@@ -269,7 +281,7 @@ disclosureImpl style mPalette toggleAction dc =
 
     actionsView = case dc.actions of
       [] -> []
-      as -> [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "shrink-0"]} (map renderAction as)]
+      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow Layout.gapT (map renderAction as)]]
 
     -- Body section
     bodySection = case dc.body of

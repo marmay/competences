@@ -134,8 +134,8 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
           if null m.selectedResults
             then M.text ""
             else
-              Layout.viewFlow
-                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap"]}
+              Layout.hFlow
+                (Layout.gapS <> Layout.flexWrap)
                 [ viewResourceTag res
                 | resId <- m.selectedResults
                 , Just res <- [lookupResource resId m.projection.allResources]

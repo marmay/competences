@@ -109,23 +109,22 @@ mesoPlanSelectorComponent r parentLens =
     update ToggleDropdown = M.modify $ \m -> m & #isDropdownOpen .~ not m.isDropdownOpen
 
     view' m =
-      Layout.viewFlow
-        Layout.vFlow
-          { Layout.gap = Layout.SmallSpace
-          , Layout.expandDirection = Layout.Expand Layout.Start
-          , Layout.extraAttrs = [Layout.fullHeight]
-          }
-        [ SelectorList.selectorHeaderWithDropdown
-            (C.translate' C.LblMesoPlans)
-            m.isDropdownOpen
-            ToggleDropdown
-            [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewPlan
+      MH.div_
+        [class_ "h-full"]
+        [ Layout.vFlow
+            Layout.gapS
+            [ SelectorList.selectorHeaderWithDropdown
+                (C.translate' C.LblMesoPlans)
+                m.isDropdownOpen
+                ToggleDropdown
+                [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewPlan
+                ]
+            , SelectorList.selectorSearchField
+                (ms m.searchQuery)
+                (C.translate' C.LblFilterMesoPlans)
+                (SetSearchQuery . M.fromMisoString)
+            , SelectorList.selectorList (map (viewPlan m) (filteredPlans m))
             ]
-        , SelectorList.selectorSearchField
-            (ms m.searchQuery)
-            (C.translate' C.LblFilterMesoPlans)
-            (SetSearchQuery . M.fromMisoString)
-        , SelectorList.selectorList (map (viewPlan m) (filteredPlans m))
         ]
 
     filteredPlans m =
