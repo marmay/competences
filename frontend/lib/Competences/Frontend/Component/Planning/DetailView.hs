@@ -29,11 +29,12 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), openModal, pinDialog)
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -43,7 +44,6 @@ import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((&), (.~))
 
 -- ============================================================================
 -- PLANNING DETAIL VIEW
@@ -114,7 +114,7 @@ detailView
   -> MesoPlan
   -> M.View (SD.Model MesoPlan mode) (SD.Action mode)
 detailView r plan =
-  V.component
+  component
     ("planning-detail-" <> M.ms (show plan.id))
     (detailComponent r plan)
 
@@ -169,8 +169,8 @@ detailComponent r initialPlan =
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
-        then m & #expandedLessonId .~ Nothing
-        else m & #expandedLessonId .~ Just lessonId
+        then m{expandedLessonId = Nothing}
+        else m{expandedLessonId = Just lessonId}
 
     update (ToggleResourceExpanded resId) = M.modify $ \m ->
       let newExpanded =
@@ -240,34 +240,31 @@ detailComponent r initialPlan =
             (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view m =
-      V.viewFlow
-        ( V.vFlow
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#expandOrthogonal .~ V.Expand V.Center)
-            & (#gap .~ V.SmallSpace)
-        )
+      Layout.viewFlow
+        (Layout.vFlow
+          { Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+          , Layout.gap = Layout.SmallSpace
+          })
         [ -- Plan header with title, dates, edit and delete buttons
-          MH.div_
-            [class_ "flex items-center justify-between p-3 bg-muted/30 rounded-lg mb-2"]
-            [ MH.div_
-                [class_ "flex flex-col gap-1"]
+          Layout.viewFlow
+            Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between p-3 bg-muted/30 rounded-lg mb-2"]}
+            [ Layout.viewFlow (Layout.vFlow{Layout.gap = Layout.TinySpace})
                 [ Typography.h2 $ M.ms $ if Text.null m.mesoPlan.title then "(Untitled)" else m.mesoPlan.title
                 , let dr = DateDisplay.formatDateRange m.mesoPlan.dateFrom m.mesoPlan.dateTo
                    in if dr == ""
                         then M.text ""
                         else MH.span_ [class_ "text-sm text-muted-foreground"] [M.text dr]
                 ]
-            , MH.div_
-                [class_ "flex gap-1"]
+            , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.TinySpace})
                 [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
                 , Button.destructiveSm (Button.button Icon.IcnDelete DeleteMesoPlan)
                 ]
             ]
-        , MH.div_
-            [class_ "flex flex-col gap-2 w-full"]
+        , Layout.viewFlow
+            (Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "w-full"]})
             (map (viewLesson m) m.lessons)
-        , MH.div_
-            [class_ "flex gap-2"]
+        , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.SmallSpace})
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddLesson) CreateNewLesson)
             ]
         ]
@@ -351,8 +348,8 @@ detailComponent r initialPlan =
           title = M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title
        in MH.div_
             [class_ $ "text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
-            [ MH.div_
-                [class_ "flex items-center gap-2"]
+            [ Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
                 [ MH.span_ [class_ "font-medium"] [M.text title]
                 , MH.span_ [class_ "text-muted-foreground"]
                     [ M.text $ M.ms (show phase.duration) <> " min"
@@ -373,8 +370,8 @@ detailComponent r initialPlan =
         Nothing -> MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text "(Unknown assignment)"]
         Just a ->
           let AssignmentName nameText = a.name
-           in MH.div_
-                [class_ "flex items-center justify-between text-sm p-1 rounded hover:bg-muted/30"]
+           in Layout.viewFlow
+                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between text-sm p-1 rounded hover:bg-muted/30"]}
                 [ M.text $ M.ms nameText
                 , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
                 ]

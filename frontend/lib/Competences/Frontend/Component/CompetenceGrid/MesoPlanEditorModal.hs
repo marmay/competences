@@ -15,6 +15,7 @@ import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Default (def)
 import Data.Text (Text)
@@ -127,8 +128,8 @@ mesoPlanEditorModal r modalMgr plan =
                     ]
                 ]
             , -- Date range inputs
-              MH.div_
-                [class_ "flex gap-4"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.MediumSpace}
                 [ -- Date from
                   MH.div_
                     [class_ "flex-1"]

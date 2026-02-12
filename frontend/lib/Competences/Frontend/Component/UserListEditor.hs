@@ -12,7 +12,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout (centeredContent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Component (component)
@@ -84,7 +84,7 @@ userListEditorComponent r =
             M.div_
               [class_ "flex items-center justify-between w-full"]
               [title, addButton]
-       in V.centeredContent $
+       in centeredContent $
             M.div_
               [class_ "h-full min-h-0 flex flex-col gap-2 w-full max-w-5xl"]
               [ header

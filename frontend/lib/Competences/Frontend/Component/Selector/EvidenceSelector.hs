@@ -27,7 +27,8 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.SyncContext.UIState (readFocusedUser)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))
@@ -146,12 +147,12 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
 
     view m =
       let hasFocusedUser = m.projection.focusedUser /= Nothing
-       in V.viewFlow
-            ( V.vFlow
-                & (#gap .~ V.SmallSpace)
-                & (#expandDirection .~ V.Expand V.Start)
-                & (#extraAttrs .~ [V.fullHeight])
-            )
+       in Layout.viewFlow
+            Layout.vFlow
+              { Layout.gap = Layout.SmallSpace
+              , Layout.expandDirection = Layout.Expand Layout.Start
+              , Layout.extraAttrs = [Layout.fullHeight]
+              }
             [ if style == EvidenceSelectorViewAndCreate && hasFocusedUser
                 then
                   SL.selectorHeaderWithDropdown
@@ -163,7 +164,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
                     ]
                 else
                   SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
-        , V.component
+        , component
             "evidence-selector-date-range"
             ( ES.enumSelectorComponent'
                 AllTime

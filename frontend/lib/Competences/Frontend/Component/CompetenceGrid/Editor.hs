@@ -32,7 +32,9 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
@@ -71,7 +73,7 @@ editorDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 editorDetailView r grid =
-  V.component
+  component
     ("competence-grid-editor-" <> M.ms (show grid.id))
     (editorComponent r grid)
 
@@ -117,22 +119,22 @@ editorComponent r grid =
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
     view _m =
-      V.viewFlow
-        ( V.vFlow
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#expandOrthogonal .~ V.Expand V.Center)
-            & (#gap .~ V.SmallSpace)
-        )
-        [ V.component
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+          , Layout.gap = Layout.SmallSpace
+          }
+        [ component
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
             (TE.editorComponent competenceGridEditor r)
-        , V.component
+        , component
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
             (TE.editorComponent competencesEditor r)
-        , MH.div_
-            [class_ "flex gap-2"]
+        , Layout.viewFlow
+            Layout.hFlow{Layout.gap = Layout.SmallSpace}
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
-            , V.component
+            , component
                 ("export-btn-" <> M.ms (show grid.id))
                 (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))
             ]
@@ -221,11 +223,12 @@ currentLevelInfo original patch lvl =
 levelDescriptionWithLockViewer :: Level -> Competence -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
 levelDescriptionWithLockViewer lvl c =
   let info = Map.findWithDefault (LevelInfo T.empty False) lvl c.levels
-   in MH.div_ [class_ "flex items-center gap-2"]
-        [ MH.span_ [class_ "flex-1"] [V.text_ (M.ms info.description)]
+   in Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+        [ MH.span_ [class_ "flex-1"] [text_ (M.ms info.description)]
         , if info.locked
             then StatusIcon.lockIcon
-            else V.empty
+            else Layout.empty
         ]
 
 -- | Editor for level description with lock toggle
@@ -253,7 +256,8 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             newLevelPatch = levelPatch & #locked ?~ (origInfo.locked, newLocked)
             newPatch = patch & #levels % O.at lvl ?~ newLevelPatch
          in UpdatePatch original newPatch
-   in MH.div_ [class_ "flex items-center gap-1"]
+   in Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
         [ MH.input_
             [ class_ "flex-1 px-2 py-1 border border-stone-300 rounded text-sm"
             , MH.onChange updateDesc

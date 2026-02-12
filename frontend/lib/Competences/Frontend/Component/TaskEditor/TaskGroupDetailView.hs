@@ -35,9 +35,11 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -57,7 +59,7 @@ taskGroupDetailView
   -> TaskGroup
   -> M.View p a
 taskGroupDetailView r group =
-  V.component
+  component
     ("group-editor-" <> M.ms (show group.id))
     (taskGroupEditorComponent r group)
 
@@ -110,7 +112,7 @@ taskGroupEditorComponent r group =
         ]
 
     viewGroupEditor =
-      V.component
+      component
         ("task-group-form-" <> ms (show group.id))
         (TE.editorComponent taskGroupEditor r)
 
@@ -169,8 +171,8 @@ taskGroupEditorComponent r group =
     viewSubTasksSection m =
       M.div_
         [class_ "border-t pt-4"]
-        [ M.div_
-            [class_ "flex items-center justify-between mb-4"]
+        [ Layout.viewFlow
+            Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between mb-4"]}
             [ Typography.h3 (C.translate' C.LblSubTasks)
             , Button.secondary (Button.button (Icon.IcnAdd, C.LblAddSubTask) CreateSubTask)
             ]
@@ -183,10 +185,10 @@ taskGroupEditorComponent r group =
     viewSubTaskEditor task =
       M.div_
         [class_ "space-y-4"]
-        [ V.component
+        [ component
             ("subtask-editor-" <> ms (show task.id))
             (TE.editorComponent (subTaskEditor group.id task.id) r)
-        , V.component
+        , component
             ("subtask-solutions-" <> ms (show task.id))
             (taskSolutionsListComponent r task.id)
         ]
@@ -490,10 +492,10 @@ competenceOverrideViewer
   -> M.View (TE.Model Task SubTaskPatch Maybe) (TE.Action Task SubTaskPatch)
 competenceOverrideViewer viewLens task =
   case task ^. viewLens of
-    Nothing -> V.text_ (C.translate' C.LblInherit)
-    Just [] -> V.text_ (C.translate' C.LblNoCompetences)
+    Nothing -> text_ (C.translate' C.LblInherit)
+    Just [] -> text_ (C.translate' C.LblNoCompetences)
     Just competences ->
-      M.span_ [] [V.text_ (M.ms $ show (length competences) <> " Kompetenzen")]
+      M.span_ [] [text_ (M.ms $ show (length competences) <> " Kompetenzen")]
 
 competenceOverrideEditor
   :: SyncContext
@@ -509,15 +511,18 @@ competenceOverrideEditor r key viewLens patchLens refocusTarget original patch =
     [class_ "space-y-2"]
     [ -- Checkbox to toggle override mode
       M.label_
-        [class_ "flex items-center gap-2 cursor-pointer"]
-        [ M.input_
-            ( [ type_ "checkbox"
-              , checked_ isOverriding
-              , M.onClick toggleOverride
-              ]
-                <> if refocusTarget then [id_ "refocusTarget"] else []
-            )
-        , V.text_ (C.translate' C.LblOverrideCompetences)
+        [class_ "cursor-pointer"]
+        [ Layout.viewFlow
+            Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
+            [ M.input_
+                ( [ type_ "checkbox"
+                  , checked_ isOverriding
+                  , M.onClick toggleOverride
+                  ]
+                    <> if refocusTarget then [id_ "refocusTarget"] else []
+                )
+            , text_ (C.translate' C.LblOverrideCompetences)
+            ]
         ]
     , -- Show selector when overriding
       if isOverriding

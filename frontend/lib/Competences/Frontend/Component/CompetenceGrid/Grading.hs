@@ -33,11 +33,12 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.CellStyle qualified as CellStyle
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
@@ -95,7 +96,7 @@ gradingDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 gradingDetailView r grid =
-  V.component
+  component
     ("competence-grid-grading-" <> M.ms (show grid.id))
     (gradingComponent r grid)
 
@@ -163,12 +164,12 @@ gradingComponent r grid =
     view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
       Just _ ->
-        V.viewFlow
-          ( V.vFlow
-              & #expandDirection .~ V.Expand V.Start
-              & #expandOrthogonal .~ V.Expand V.Center
-              & #gap .~ V.SmallSpace
-          )
+        Layout.viewFlow
+          Layout.vFlow
+            { Layout.expandDirection = Layout.Expand Layout.Start
+            , Layout.expandOrthogonal = Layout.Expand Layout.Center
+            , Layout.gap = Layout.SmallSpace
+            }
           [ header
           , description
           , competencesTable
@@ -180,29 +181,33 @@ gradingComponent r grid =
 
         -- Header with title on left and grade badge on right
         header =
-          MH.div_
-            [class_ "flex items-center justify-between w-full"]
+          Layout.viewFlow
+            Layout.hFlow
+              { Layout.expandOrthogonal = Layout.Expand Layout.Center
+              , Layout.extraAttrs = [class_ "w-full"]
+              }
             [ Typography.h2 (M.ms grid.title)
+            , Layout.flowSpring
             , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
-                Nothing -> V.empty
+                Nothing -> Layout.empty
             ]
         description = Typography.paragraph (M.ms grid.description)
 
         -- Condensed competence table showing assessment status
         competencesTable =
-          V.viewTable $
-            V.defTable
-              { V.columns =
+          Table.viewTable $
+            Table.defTable
+              { Table.columns =
                   [GradingDescriptionColumn]
                     <> map GradingLevelColumn allLevels
-              , V.rows = ordered proj.competences
-              , V.columnSpec = \case
+              , Table.rows = ordered proj.competences
+              , Table.columnSpec = \case
                   GradingDescriptionColumn ->
                     Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
                   GradingLevelColumn l ->
                     Table.TableColumnSpec Table.EqualWidthColumn (C.translate' $ C.LblCompetenceLevelDescription l)
-              , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
+              , Table.rowContents = Table.cellContentsWithSpec $ \competence -> \case
                   GradingDescriptionColumn ->
                     -- Description cell: shows overall competence status
                     let mAssessment = QAssessment.activeAssessment proj.userAssessments competence.id
@@ -259,15 +264,15 @@ gradingComponent r grid =
         -- Grade entry section with grade buttons and comment input
         gradeEntrySection gm =
           Card.cardWithHeader (C.translate' C.LblEnterGrade) Nothing
-            [ V.viewFlow
-                (V.vFlow & #gap .~ V.SmallSpace)
+            [ Layout.viewFlow
+                Layout.vFlow{Layout.gap = Layout.SmallSpace}
                 [ -- Grade buttons row
-                  V.viewFlow
-                    (V.hFlow & #gap .~ V.TinySpace)
+                  Layout.viewFlow
+                    Layout.hFlow{Layout.gap = Layout.TinySpace}
                     [ gradeButton gm g | g <- grades ]
                 , -- Comment input and submit button row
-                  V.viewFlow
-                    (V.hFlow & #gap .~ V.SmallSpace & #expandOrthogonal .~ V.Expand V.Center)
+                  Layout.viewFlow
+                    Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
                     [ MH.div_
                         [class_ "flex-1"]
                         [ Input.textInput'
@@ -300,19 +305,25 @@ gradingComponent r grid =
         gradeHistorySection =
           let history = QGridGrade.gridGradeHistory proj.userGridGrades grid.id
            in if null history
-                then V.empty
+                then Layout.empty
                 else
                   Card.cardWithHeader (C.translate' C.LblGradeHistory) Nothing
-                    [ MH.div_
-                        [class_ "flex flex-col gap-2"]
+                    [ Layout.viewFlow
+                        Layout.vFlow{Layout.gap = Layout.SmallSpace}
                         [ gradeHistoryItem g | g <- history ]
                     ]
 
         gradeHistoryItem g =
-          MH.div_
-            [class_ "flex items-center justify-between py-2 border-b border-stone-100 last:border-0"]
-            [ MH.div_
-                [class_ "flex items-center gap-3"]
+          Layout.viewFlow
+            Layout.hFlow
+              { Layout.expandOrthogonal = Layout.Expand Layout.Center
+              , Layout.extraAttrs = [class_ "py-2 border-b border-stone-100 last:border-0"]
+              }
+            [ Layout.viewFlow
+                Layout.hFlow
+                  { Layout.gap = Layout.SmallSpace
+                  , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                  }
                 [ -- Date
                   MH.span_
                     [class_ "text-sm text-stone-500"]
@@ -327,8 +338,9 @@ gradingComponent r grid =
                       MH.span_
                         [class_ "text-sm text-stone-600 italic"]
                         [M.text (M.ms c)]
-                    Nothing -> V.empty
+                    Nothing -> Layout.empty
                 ]
+            , Layout.flowSpring
             , -- Delete button
               Button.deleteButton (DeleteGrade g.id)
             ]

@@ -63,6 +63,7 @@ where
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color (PaletteColor (..), PaletteName, bgClass)
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import Miso qualified as M
@@ -138,8 +139,8 @@ titleIcon icon = Icon.icon [] icon
 -- | Title with icon and text (common case).
 titleIconText :: Icon.Icon -> MisoString -> M.View m a
 titleIconText icon text =
-  MH.div_
-    [class_ "flex items-center gap-2 min-w-0"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-w-0"]}
     [ Icon.icon [] icon
     , MH.span_ [class_ "font-medium truncate"] [M.text text]
     ]
@@ -153,8 +154,8 @@ titleText t = MH.span_ [class_ "font-medium truncate"] [M.text t]
 -- Useful for adding badges, status indicators, or other annotations.
 titleWithAnnotation :: M.View m a -> M.View m a -> M.View m a
 titleWithAnnotation left right =
-  MH.div_
-    [class_ "flex items-center justify-between w-full"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between w-full"]}
     [ MH.div_ [class_ "min-w-0 flex-1"] [left]
     , MH.div_ [class_ "shrink-0 ml-2"] [right]
     ]
@@ -229,10 +230,11 @@ disclosureImpl
 disclosureImpl style mPalette toggleAction dc =
   MH.div_
     [class_ containerClasses]
-    [ MH.div_
-        [ class_ headerClasses
-        , MH.onClick toggleAction
-        ]
+    [ Layout.viewFlow
+        Layout.hFlow
+          { Layout.expandOrthogonal = Layout.Expand Layout.Center
+          , Layout.extraAttrs = [class_ headerExtra, MH.onClick toggleAction]
+          }
         headerContent
     , bodySection
     ]
@@ -251,12 +253,12 @@ disclosureImpl style mPalette toggleAction dc =
       Nothing -> "bg-muted/50" :: Text
       Just p -> bgClass Base p
 
-    -- Header classes based on style
-    headerClasses = case style of
+    -- Extra (non-flex) header classes based on style
+    headerExtra = case style of
       DisclosureDefault ->
-        "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted transition-colors " <> headerBg
+        "gap-3 px-3 py-2 cursor-pointer hover:bg-muted transition-colors " <> headerBg
       DisclosureNested ->
-        "flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors " <> headerBg
+        "gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors " <> headerBg
 
     -- Header content
     headerContent =
@@ -267,7 +269,7 @@ disclosureImpl style mPalette toggleAction dc =
 
     actionsView = case dc.actions of
       [] -> []
-      as -> [MH.div_ [class_ "flex gap-1 shrink-0"] (map renderAction as)]
+      as -> [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "shrink-0"]} (map renderAction as)]
 
     -- Body section
     bodySection = case dc.body of

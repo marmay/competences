@@ -11,6 +11,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Miso qualified as M
@@ -39,6 +40,6 @@ observationIconView obs =
 -- | Render multiple observations as a row of icons
 observationSummaryView :: [Observation] -> M.View m a
 observationSummaryView observations =
-  M.div_
-    [class_ "flex gap-1 items-center"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
     (map observationIconView observations)

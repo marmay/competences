@@ -31,9 +31,10 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
 import Data.Map qualified as Map
@@ -65,7 +66,7 @@ editorDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 editorDetailView r assignment =
-  V.component
+  component
     ("assignment-editor-wrapper-" <> M.ms (show assignment.id))
     (editorWrapperComponent r assignment)
 
@@ -107,15 +108,15 @@ editorWrapperComponent r assignment =
             (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
     view _m =
-      MH.div_
-        [class_ "flex flex-col gap-4"]
-        [ V.component
+      Layout.viewFlow
+        Layout.vFlow{Layout.gap = Layout.MediumSpace}
+        [ component
             ("assignment-editor-" <> M.ms (show assignment.id))
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
             [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
-            , V.component
+            , component
                 ("export-btn-" <> M.ms (show assignment.id))
                 (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
             ]

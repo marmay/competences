@@ -51,7 +51,7 @@ import Competences.Frontend.MathJax.Manager
   , hashLatex
   , renderFormula
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.TaskContent.AST
 import Data.Bits (xor, (.&.))
@@ -109,7 +109,7 @@ data RichContentAction
 -- The component will manage its own SVG container lifecycle.
 richContentView :: Text -> TaskContent -> M.View p a
 richContentView key content' =
-  V.component
+  component
     ("rich-" <> M.ms key)
     (richContentComponent key content')
 

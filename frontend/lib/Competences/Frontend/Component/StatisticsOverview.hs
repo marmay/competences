@@ -19,7 +19,9 @@ import Competences.Document.Evidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Table qualified as Table
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Color (bgClass', textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon qualified as Icon
@@ -31,7 +33,6 @@ import Data.Map qualified as Map
 import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~))
 
 -- | Statistics Overview Component Model
 -- For teacher view showing all students' statistics
@@ -95,14 +96,14 @@ statisticsOverviewComponent docRef =
 
     view :: Model -> M.View Model Action
     view m =
-      V.viewFlow
-        (V.vFlow & (#extraAttrs .~ [class_ "h-full min-h-0 overflow-y-auto"]))
+      Layout.viewFlow
+        Layout.vFlow{Layout.extraAttrs = [class_ "h-full min-h-0 overflow-y-auto"]}
         [Typography.h2 (C.translate' C.LblStatisticsOverview), table]
       where
         table =
-          V.viewTable $
-            V.defTable
-              { V.columns =
+          Table.viewTable $
+            Table.defTable
+              { Table.columns =
                   [ ColName
                   , ColHomeExercises
                   , ColSchoolExercises
@@ -113,12 +114,12 @@ statisticsOverviewComponent docRef =
                   , ColNotYet
                   , ColTotalObservations
                   ]
-              , V.rows = sortBy (comparing (.name)) $ Map.keys m.byUserStats
-              , V.columnSpec = \c -> V.TableColumnSpec {width = V.AutoSizedColumn, title = columnLabel c}
-              , V.rowContents = \cs u ->
+              , Table.rows = sortBy (comparing (.name)) $ Map.keys m.byUserStats
+              , Table.columnSpec = \c -> Table.TableColumnSpec {Table.width = Table.AutoSizedColumn, Table.title = columnLabel c}
+              , Table.rowContents = \cs u ->
                   case m.byUserStats Map.!? u of
-                    (Just userData) -> V.tableRow $ map (cellContents m u userData) cs
-                    Nothing -> V.tableRow $ map (const $ V.text_ "?") cs
+                    (Just userData) -> Table.tableRow $ map (cellContents m u userData) cs
+                    Nothing -> Table.tableRow $ map (const $ text_ "?") cs
               }
 
 columnLabel :: StatColumn -> M.MisoString
@@ -133,7 +134,7 @@ columnLabel ColNotYet = C.translate' (C.LblAbility NotYet)
 columnLabel ColTotalObservations = C.translate' C.LblTotalObservations
 
 cellContents :: Model -> User -> UserStatistics -> StatColumn -> M.View m a
-cellContents _ u _ ColName = V.text_ $ M.ms u.name
+cellContents _ u _ ColName = text_ $ M.ms u.name
 cellContents m _ d ColHomeExercises =
   valueWithWarning d.homeExerciseTasks m.maximumHomeExerciseTasks
 cellContents m _ d ColSchoolExercises =
@@ -149,7 +150,7 @@ cellContents _ _ d ColWithSupport =
 cellContents _ _ d ColNotYet =
   abilityCell NotYet d.notYetEvidences
 cellContents _ _ d ColTotalObservations =
-  V.text_
+  text_
     ( M.ms $
         show $
           d.selfReliantEvidences

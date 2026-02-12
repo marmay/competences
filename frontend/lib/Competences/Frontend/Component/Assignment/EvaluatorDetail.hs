@@ -23,10 +23,11 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
@@ -63,7 +64,7 @@ evaluatorDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 evaluatorDetailView r assignment =
-  V.component
+  component
     ("assignment-evaluator-" <> M.ms (show assignment.id))
     (evaluatorComponent r assignment)
 
@@ -375,13 +376,22 @@ evaluatorComponent r assignment =
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
             [ M.div_ [class_ "mb-3"] [Typography.h3 $ C.translate' C.LblStudents <> " (" <> C.translate' (C.LblNSelected selectedCount) <> ")"]
-            , M.div_ [class_ "flex flex-wrap gap-2 mb-4"] (map (viewStudentButton m) students)
-            , M.div_ [class_ "flex items-center gap-4 mt-3 pt-3 border-t"]
-                [ M.div_ [class_ "flex items-center gap-2"]
+            , Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap mb-4"]}
+                (map (viewStudentButton m) students)
+            , Layout.viewFlow
+                (Layout.hFlow
+                  { Layout.gap = Layout.MediumSpace
+                  , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                  , Layout.extraAttrs = [class_ "mt-3 pt-3 border-t"]
+                  })
+                [ Layout.viewFlow
+                    (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
                     [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblPhaseSocialForm <> ":"]
-                    , M.div_ [class_ "flex gap-2"] (map (viewSocialFormButton m) socialForms)
+                    , Layout.viewFlow (Layout.hFlow{Layout.gap = Layout.SmallSpace}) (map (viewSocialFormButton m) socialForms)
                     ]
-                , M.div_ [class_ "flex items-center gap-2"]
+                , Layout.viewFlow
+                    (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
                     [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblEvidenceDate <> ":"]
                     , Input.dateInput dateValue SetEvaluationDate
                     ]
@@ -415,7 +425,8 @@ evaluatorComponent r assignment =
               Just loadedUid ->
                 let loadedName = lookupName loadedUid
                  in M.div_ [class_ "my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"]
-                      [ M.div_ [class_ "flex items-center justify-between"]
+                      [ Layout.viewFlow
+                          (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
                           [ M.p_ [class_ "text-sm text-yellow-800 font-medium"]
                               [ M.text $
                                   C.translate' C.LblEvidencesBasedOn
@@ -423,6 +434,7 @@ evaluatorComponent r assignment =
                                   <> C.translate' C.LblWillBeEdited
                                   <> ms studentNames
                               ]
+                          , Layout.flowSpring
                           , Button.secondarySm (Button.button C.LblReset ResetLoadedEvidence)
                           ]
                       ]
@@ -439,8 +451,10 @@ evaluatorComponent r assignment =
       let userName = case Ix.getOne (m.users Ix.@= userId) of
             Just u -> u.name
             Nothing -> T.pack (show userId)
-       in M.div_ [class_ "flex items-center justify-between"]
+       in Layout.viewFlow
+            (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
             [ M.span_ [class_ "text-sm text-yellow-800"] [M.text $ ms userName]
+            , Layout.flowSpring
             , Button.secondarySm (Button.button C.LblLoadEvidence (LoadStudentEvidence userId))
             ]
 
@@ -464,7 +478,7 @@ evaluatorComponent r assignment =
           statusDots =
             if null selectedList
               then []
-              else [M.div_ [class_ "flex gap-0.5 items-center"] (map (viewCompactStudentStatus m taskId) selectedList)]
+              else [Layout.viewFlow Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "gap-0.5"]} (map (viewCompactStudentStatus m taskId) selectedList)]
        in M.div_
             [class_ "border-b pb-4"]
             [ Eval.viewTaskHeader m.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) statusDots
@@ -546,6 +560,6 @@ evaluatorComponent r assignment =
                   else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
             ]
               <> [M.disabled_ | isDisabled]
-       in M.div_
-            [class_ "mt-6 flex justify-end"]
+       in Layout.viewFlow
+            (Layout.hFlow{Layout.expandDirection = Layout.Expand Layout.End, Layout.extraAttrs = [class_ "mt-6"]})
             [M.button_ attrs [M.text buttonText]]

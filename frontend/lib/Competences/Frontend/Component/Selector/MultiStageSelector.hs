@@ -38,6 +38,7 @@ import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, 
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
@@ -585,8 +586,8 @@ viewSuggestions model =
               [class_ "text-destructive text-sm py-1"]
               [M.text err]
           ]
-   in M.div_
-        [class_ "flex flex-col gap-0.5"]
+   in Layout.viewFlow
+        Layout.vFlow{Layout.extraAttrs = [class_ "gap-0.5"]}
         (errorView <> map viewSuggestion suggestions)
 
 -- | Render a single suggestion item

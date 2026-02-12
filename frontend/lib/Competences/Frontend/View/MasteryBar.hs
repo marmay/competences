@@ -16,6 +16,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Competences.Frontend.View.Layout qualified as Layout
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html qualified as MH
@@ -36,15 +37,15 @@ masteryBgClass status = fromMaybe "bg-stone-300" (bgClass' <$> masteryPalette st
 -- Always shows all 6 indicators (dimmed when count is 0) for consistent navigation.
 masteryDisplay :: MasteryDisplayConfig -> M.View m action
 masteryDisplay config =
-  MH.div_
-    [class_ "flex flex-col gap-1 mt-1"]
+  Layout.viewFlow
+    Layout.vFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "mt-1"]}
     [ -- Stacked horizontal bar (only segments with count > 0)
-      MH.div_
-        [class_ "flex h-3 rounded overflow-hidden bg-stone-100"]
+      Layout.viewFlow
+        Layout.hFlow{Layout.extraAttrs = [class_ "h-3 rounded overflow-hidden bg-stone-100"]}
         (map renderSegment segments)
     , -- Count labels below - always show all 6, with CSS tooltips
-      MH.div_
-        [class_ "flex gap-x-2 text-xs"]
+      Layout.viewFlow
+        Layout.hFlow{Layout.extraAttrs = [class_ "gap-x-2 text-xs"]}
         (map renderIndicator segments)
     ]
   where
@@ -97,8 +98,8 @@ masteryDisplay config =
               then NoTooltip
               else RichTooltip (M.text tooltipContent)
        in withTooltip tip $
-            MH.div_
-              [class_ $ "flex items-center gap-0.5" <> opacityClass]
+            Layout.viewFlow
+              Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ $ "gap-0.5" <> opacityClass]}
               [ -- Colored square
                 MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
               , -- Count

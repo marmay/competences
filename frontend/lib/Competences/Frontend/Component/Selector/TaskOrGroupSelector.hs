@@ -16,7 +16,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.List (sortOn)
@@ -147,12 +147,12 @@ taskOrGroupSelectorComponent r parentLens =
       SubTask _ _ -> False
 
     view' m =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [V.fullHeight])
-        )
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.gap = Layout.SmallSpace
+          , Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.extraAttrs = [Layout.fullHeight]
+          }
         [ SL.selectorHeaderWithDropdown
             (C.translate' C.LblTasksAndGroups)
             m.dropdownOpen

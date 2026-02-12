@@ -49,6 +49,7 @@ where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Maybe (maybeToList)
 import Miso qualified as M
@@ -191,7 +192,7 @@ render v s ButtonConfig {contents = c, action = a} =
     renderContents :: ButtonContents -> M.View m a
     renderContents (TextOnly t') = M.text_ [t']
     renderContents (IconOnly i) = Icon.icon [] i
-    renderContents (IconText i t') = M.div_ [MP.class_ "flex items-center gap-2"] [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
+    renderContents (IconText i t') = Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center} [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
 
 primary
   , primarySm

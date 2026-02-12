@@ -26,7 +26,7 @@ import Competences.Frontend.Component.TaskResource
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Competences.Document.Task (TaskId)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Modal qualified as Modal
@@ -136,10 +136,8 @@ resourceModalComponent modalMgr cfg =
 
     view :: Model -> M.View Model Action
     view m =
-      MH.div_
-        [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
-        , class_ "w-[66vw] min-w-[66vw] max-w-none h-[90vh] flex flex-col"
-        ]
+      Layout.viewFlow
+        Layout.vFlow{Layout.extraAttrs = [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[66vw] min-w-[66vw] max-w-none h-[90vh]"]}
         [ Modal.modalHeaderWith
             (C.translate' C.LblMaterials)
             [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
@@ -151,7 +149,7 @@ resourceModalComponent modalMgr cfg =
                 ViewTasks
                   | Map.null m.config.taskStatuses ->
                       -- No focused user: flat list without grouping
-                      taskResourceListView m.config.showPurposeBadge (const V.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
+                      taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
                   | otherwise ->
                       groupedTasksView m
                 ViewLearningResources ->

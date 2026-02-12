@@ -20,6 +20,7 @@ module Competences.Frontend.View.Card
   )
 where
 
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -93,4 +94,6 @@ cardContent content =
 -- | Card footer for actions
 cardFooter :: [M.View model action] -> M.View model action
 cardFooter content =
-  M.footer_ [class_ "flex items-center px-6 gap-2"] content
+  M.footer_
+    [class_ "px-6"]
+    [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center} content]

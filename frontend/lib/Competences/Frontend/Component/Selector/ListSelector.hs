@@ -20,7 +20,8 @@ import Competences.Frontend.SyncContext
   , isInitialUpdate
   , subscribeDocument
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
 import Data.List (find)
 import Data.Set qualified as Set
@@ -130,7 +131,7 @@ singleListSelectorComponent r config style t =
           findValue s = case find (\v -> config.showValue v == s) m.possibleValues of
             (Just v) -> Set v
             Nothing -> Reset
-      SShow -> V.text_ $ maybe "" config.showValue m.selectedValue
+      SShow -> text_ $ maybe "" config.showValue m.selectedValue
 
 multiListSelectorComponent
   :: forall p a f t
@@ -184,7 +185,7 @@ multiListSelectorComponent r config style s =
           m.possibleValues
           config.showValue
           (`Set.member` Set.fromList m.selectedValues)
-      MShow -> V.text_ $ case m.selectedValues of
+      MShow -> text_ $ case m.selectedValues of
         [] -> ""
         _ -> foldl1 (\a b -> a <> ", " <> b) $ map config.showValue m.selectedValues
 
@@ -193,6 +194,6 @@ multiListSelectorComponent r config style s =
 viewToggleButtons
   :: forall a m. Bool -> [a] -> (a -> M.MisoString) -> (a -> Bool) -> M.View m (Action a)
 viewToggleButtons compact possibleValues showValue isSelected =
-  (if compact then Button.buttonGroup else V.viewFlow V.hFlow) (map mkButton possibleValues)
+  (if compact then Button.buttonGroup else Layout.viewFlow Layout.hFlow) (map mkButton possibleValues)
   where
     mkButton a = Button.toggle (isSelected a) (Button.button (showValue a) (Toggle a))

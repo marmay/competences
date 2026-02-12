@@ -29,7 +29,9 @@ import Competences.Frontend.Component.Selector.Common
   , SelectorTransformedLens
   , selectorTransformedLens
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Text (text_)
 import Data.Default (Default (..))
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -91,7 +93,7 @@ textEditorField viewLens patchLens =
     }
 
 textViewer :: Lens' a Text -> a -> M.View (Model a patch f) (Action a patch)
-textViewer viewLens a = V.text_ (M.ms $ a ^. viewLens)
+textViewer viewLens a = text_ (M.ms $ a ^. viewLens)
 
 textEditor
   :: Lens' a Text
@@ -102,7 +104,7 @@ textEditor
   -> M.View (Model a patch f) (Action a patch)
 textEditor viewLens patchLens refocusTarget original patch =
   M.input_ $
-    [ V.fullWidth
+    [ Layout.fullWidth
     , M.onChange
         (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, M.fromMisoString v)))
     , M.value_ (M.ms $ currentValue original patch viewLens patchLens)
@@ -138,8 +140,8 @@ richTextEditor
   -> M.View (Model a patch f) (Action a patch)
 richTextEditor viewLens patchLens refocusTarget original patch =
   let currentContent = currentValue original patch viewLens patchLens
-   in M.div_
-        [class_ "flex gap-4 w-full"]
+   in Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [Layout.fullWidth]}
         [ -- Editor panel (left)
           M.div_
             [class_ "flex-1 min-w-0"]
@@ -211,7 +213,7 @@ selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
+        { viewer = \a -> component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
         , editor = \refocusTarget a _ ->
             componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a editorStyle (l' a))
@@ -233,7 +235,7 @@ selectorEditorFieldNoStyle k eptl mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> V.component (k <> "-viewer") (mkEditorComponent a (l' a))
+        { viewer = \a -> component (k <> "-viewer") (mkEditorComponent a (l' a))
         , editor = \refocusTarget a _ ->
             componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a (l' a))
@@ -262,7 +264,7 @@ selectorEditorFieldWithViewer k eptl mkViewerComponent mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> V.component (k <> "-viewer") (mkViewerComponent a (l' a))
+        { viewer = \a -> component (k <> "-viewer") (mkViewerComponent a (l' a))
         , editor = \refocusTarget a _ ->
             componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a (l' a))
@@ -402,7 +404,7 @@ enumEditorField toText viewLens patchLens =
     }
 
 enumViewer :: (e -> M.MisoString) -> Lens' a e -> a -> M.View (Model a patch f) (Action a patch)
-enumViewer toText viewLens a = V.text_ (toText $ a ^. viewLens)
+enumViewer toText viewLens a = text_ (toText $ a ^. viewLens)
 
 enumEditor
   :: forall a e patch f
@@ -421,7 +423,7 @@ enumEditor toText viewLens patchLens refocusTarget original patch =
               Just v' -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, v'))
               Nothing -> UpdatePatch original patch
           )
-      , V.fullWidth
+      , Layout.fullWidth
       ]
         <> refocusTargetAttr refocusTarget
     )

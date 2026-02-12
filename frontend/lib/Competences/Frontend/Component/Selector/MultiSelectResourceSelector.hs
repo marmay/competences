@@ -19,6 +19,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -133,8 +134,8 @@ multiSelectResourceSelectorComponent r initResults lensBinding =
           if null m.selectedResults
             then M.text ""
             else
-              MH.div_
-                [class_ "flex flex-wrap gap-2"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap"]}
                 [ viewResourceTag res
                 | resId <- m.selectedResults
                 , Just res <- [lookupResource resId m.projection.allResources]

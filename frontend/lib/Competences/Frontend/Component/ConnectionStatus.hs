@@ -10,7 +10,7 @@ import Competences.Frontend.WebSocket.CommandSender
   , ConnectionState (..)
   , subscribeConnection
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Color.Status (Status (..))
 import Competences.Frontend.View.StatusDot (statusDot, statusDotAnimated)
 import Competences.Frontend.View.Tailwind (class_)
@@ -22,7 +22,7 @@ import Optics.Core ((&), (.~))
 
 -- | Connection status indicator for footer
 connectionStatusView :: SyncContext -> M.View p a
-connectionStatusView ir = V.component "connection-status" (connectionStatusComponent ir)
+connectionStatusView ir = component "connection-status" (connectionStatusComponent ir)
 
 data Model = Model
   { connectionState :: !ConnectionState

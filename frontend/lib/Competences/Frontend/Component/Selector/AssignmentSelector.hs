@@ -23,7 +23,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   , syncDocumentEnv
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
@@ -141,12 +141,12 @@ assignmentSelectorComponent r parentLens =
       M.io_ $ openModal r.windowManager (ImportModal.assignmentImportModalComponent r)
 
     view' m =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [V.fullHeight])
-        )
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.gap = Layout.SmallSpace
+          , Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.extraAttrs = [Layout.fullHeight]
+          }
         [ SelectorList.selectorHeaderWithDropdown
             (C.translate' C.LblAssignments)
             m.isDropdownOpen

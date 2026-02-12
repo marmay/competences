@@ -14,7 +14,7 @@ import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Color.Status qualified as Status
@@ -100,7 +100,7 @@ initialState mode statuses tasks =
 -- The taskStatuses map is used to tint disclosure headers by completion status
 taskResourceListView
   :: Bool  -- ^ Show purpose badge (Practice/Assessment)
-  -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const V.empty@ for none
+  -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const empty@ for none
   -> Map TaskId TaskCompletionStatus  -- ^ Task statuses for header tinting
   -> [TaskWithSolutions]
   -> TaskResourceList
@@ -131,28 +131,28 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
       headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
       titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms identifier)
       titleRight =
-        MH.div_
-          [class_ "flex items-center gap-2"]
+        Layout.viewFlow
+          Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
           [ taskExtra tws.task.id
           , if showPurposeBadge
               then purposeBadge tws.taskPurpose
-              else V.empty
+              else Layout.empty
           ]
       titleView = Disclosure.titleWithAnnotation titleLeft titleRight
       contentView =
         MH.div_
           [class_ "space-y-3"]
           [ case tws.taskContent of
-              Nothing -> V.empty
+              Nothing -> Layout.empty
               Just content ->
                 if content == mempty
-                  then V.empty
+                  then Layout.empty
                   else
                     MH.div_
                       [class_ "prose prose-stone prose-sm max-w-none"]
                       [renderRichText content]
           , if null tws.solutions
-              then V.empty
+              then Layout.empty
               else viewSolutions state liftAction tws.solutions
           ]
    in if isExpandable

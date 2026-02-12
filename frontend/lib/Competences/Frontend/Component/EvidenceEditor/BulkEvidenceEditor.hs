@@ -301,8 +301,8 @@ bulkEvidenceEditorComponent r =
             [ MH.div_
                 [class_ "mb-2"]
                 [Typography.h4 userName]
-            , MH.div_
-                [class_ "flex flex-wrap gap-1"]
+            , Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "flex-wrap"]}
                 (map (observationBadge m' uid) observations)
             ]
 

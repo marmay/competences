@@ -4,13 +4,13 @@ module Competences.Frontend.Component.Editor.FlowView
 where
 
 import Competences.Frontend.Component.Editor.View
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Data.Tuple (Solo (..))
-import Optics.Core ((&), (.~), (^.))
+import Optics.Core ((^.))
 
 editorFlowView :: EditorView a patch Solo n
 editorFlowView viewData =
   let (MkSolo item) = viewData ^. #items
-   in V.viewFlow
-        (V.hFlow & #expandDirection .~ V.Expand V.Start & #gap .~ V.SmallSpace)
+   in Layout.viewFlow
+        Layout.hFlow{Layout.expandDirection = Layout.Expand Layout.Start, Layout.gap = Layout.SmallSpace}
         (map snd item.fieldData <> compactButtons item)

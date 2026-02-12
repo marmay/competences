@@ -36,6 +36,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.AssignmentParser (parseAssignmentImport)
@@ -151,11 +152,11 @@ assignmentImportModalComponent r =
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ Modal.modalHeader (C.translate' C.LblImportAssignments) CloseModal
             , -- Content
-              M.div_
-                [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "flex-1 min-h-0 p-4 overflow-hidden"]}
                 [ -- Left: Input area
-                  M.div_
-                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                  Layout.viewFlow
+                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
                     [ Typography.h3 "Eingabe"
                     , M.textarea_
                         [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
@@ -166,8 +167,8 @@ assignmentImportModalComponent r =
                         []
                     ]
                 , -- Right: Preview area
-                  M.div_
-                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                  Layout.viewFlow
+                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
                     [ Typography.h3 "Vorschau"
                     , M.div_
                         [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
@@ -216,8 +217,8 @@ previewView m = case m.parseResult of
       [class_ "text-muted-foreground italic"]
       [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
   Right previews ->
-    M.div_
-      [class_ "flex flex-col gap-4"]
+    Layout.viewFlow
+      Layout.vFlow{Layout.gap = Layout.MediumSpace}
       (map previewAssignmentView previews)
 
 previewAssignmentView :: AssignmentImportPreview -> M.View Model Action
@@ -225,8 +226,8 @@ previewAssignmentView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
     [ -- Assignment header
-      M.div_
-        [class_ "flex items-center gap-2 mb-2"]
+      Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "mb-2"]}
         [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ assignmentName preview.assignmentAction]
         , actionBadge preview.assignmentAction
         ]
@@ -271,8 +272,8 @@ previewTaskView :: TaskImportPreview -> M.View Model Action
 previewTaskView preview =
   M.div_
     [class_ "py-1"]
-    [ M.div_
-        [class_ "flex items-center gap-2"]
+    [ Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
         [ M.span_ [class_ "font-medium text-sm"] [M.text $ M.ms $ taskTitle preview.taskAction]
         , actionBadge preview.taskAction
         ]

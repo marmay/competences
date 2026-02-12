@@ -21,7 +21,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   , syncDocumentEnv
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -131,13 +131,13 @@ taskSolutionsListComponent r taskId =
 
     -- Header with title and add button
     viewHeader m =
-      MH.div_
-        [class_ "flex items-center justify-between"]
+      Layout.viewFlow
+        Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
         [ Typography.h3 $ C.translate' C.LblSolutions
         , if isTeacher m.projection.connectedUser
             then
               Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddSolution) CreateSolution)
-            else V.empty
+            else Layout.empty
         ]
 
     -- List of solutions

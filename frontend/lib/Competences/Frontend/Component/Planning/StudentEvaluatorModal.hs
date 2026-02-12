@@ -58,6 +58,7 @@ import Competences.Frontend.View.Combobox
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Evaluation qualified as Eval
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -476,8 +477,8 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
        in MH.div_
             [class_ "border-t pt-3"]
             [ Typography.h4 (C.translate' C.LblAddTask)
-            , MH.div_
-                [class_ "flex gap-2 mt-1 items-start"]
+            , Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "mt-1 items-start"]}
                 [ MH.div_ [class_ "flex-1"] [renderCombobox combobox]
                 , Button.primary (Button.button C.LblAdd (canAdd, AddTask))
                 ]

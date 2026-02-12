@@ -27,7 +27,9 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
@@ -42,7 +44,7 @@ editorDetailView
   -> Resource
   -> M.View (SD.Model Resource mode) (SD.Action mode)
 editorDetailView r resource =
-  V.component
+  component
     ("resource-editor-" <> M.ms (show resource.id))
     (TE.editorComponent resourceEditor r)
   where
@@ -80,7 +82,7 @@ resourceInlineEditor
   -> Resource
   -> M.View p a
 resourceInlineEditor r resource =
-  V.component
+  component
     ("resource-inline-editor-" <> M.ms (show resource.id))
     (TE.editorComponent inlineEditor r)
   where
@@ -114,14 +116,14 @@ identifierEditorField =
   EditorField
     { viewer = \res ->
         let ResourceIdentifier t = res.identifier
-         in V.text_ (M.ms t)
+         in text_ (M.ms t)
     , editor = \refocusTarget original patch ->
         let ResourceIdentifier origText = original.identifier
             currentText = case patch.identifier of
               Just (_, ResourceIdentifier t) -> t
               Nothing -> origText
          in MH.input_ $
-              [ V.fullWidth
+              [ Layout.fullWidth
               , MH.onChange
                   (\v -> UpdatePatch original (patch & #identifier ?~ (original.identifier, ResourceIdentifier (M.fromMisoString v))))
               , M.value_ (M.ms currentText)
@@ -157,25 +159,27 @@ resourceContentEditorField =
                  [renderRichText rc]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
-          [ MH.div_ [class_ "flex items-center gap-2"]
+          [ Layout.viewFlow
+              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
               [ MH.span_ [] [Typography.fieldLabel "Web-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
               ]
           , if desc /= ""
               then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
-              else V.empty
+              else Layout.empty
           ]
       VideoLink url desc ->
         MH.div_ [class_ "space-y-1"]
-          [ MH.div_ [class_ "flex items-center gap-2"]
+          [ Layout.viewFlow
+              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
               [ MH.span_ [] [Typography.fieldLabel "Video-Link"]
               , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
                   [M.text $ M.ms url]
               ]
           , if desc /= ""
               then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
-              else V.empty
+              else Layout.empty
           ]
 
     contentEditor
@@ -189,7 +193,8 @@ resourceContentEditorField =
             Nothing -> original.content
        in MH.div_ [class_ "space-y-3"]
             [ -- Content type selector
-              MH.div_ [class_ "flex gap-2"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.SmallSpace}
                 [ contentTypeButton "Inline" (isInline currentContent) (switchToInline original patch)
                 , contentTypeButton "Web-Link" (isWebLink currentContent) (switchToWebLink original patch)
                 , contentTypeButton "Video" (isVideoLink currentContent) (switchToVideoLink original patch)
@@ -197,7 +202,8 @@ resourceContentEditorField =
             , -- Content-specific fields
               case currentContent of
                 InlineContent rc ->
-                  MH.div_ [class_ "flex gap-4 w-full"]
+                  Layout.viewFlow
+                    Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [Layout.fullWidth]}
                     [ -- Editor panel (left)
                       MH.div_ [class_ "flex-1 min-w-0"]
                         [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]

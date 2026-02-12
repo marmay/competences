@@ -16,8 +16,9 @@ module Competences.Frontend.View.SelectorList
   )
 where
 
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
+import Data.Function ((&))
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
@@ -25,7 +26,6 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString)
-import Optics.Core ((&), (.~))
 
 -- | Header with title and add button (icon-only)
 selectorHeader
@@ -35,8 +35,8 @@ selectorHeader
   -- ^ Optional add action (Nothing = hide button)
   -> M.View m action
 selectorHeader title mAddAction =
-  M.div_
-    [class_ "flex items-center justify-between"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
     [ Typography.h3 title
     , case mAddAction of
         Just action -> Button.secondary (Button.button Icon.IcnAdd (Just action))
@@ -55,8 +55,8 @@ selectorHeaderWithDropdown
   -- ^ Dropdown menu items
   -> M.View m action
 selectorHeaderWithDropdown title isOpen toggleAction menuItems =
-  M.div_
-    [class_ "flex items-center justify-between"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between"]}
     [ Typography.h3 title
     , M.div_
         [class_ "relative"]
@@ -93,12 +93,17 @@ selectorItem
   -- ^ Click action
   -> M.View m action
 selectorItem isSelected icn label action =
-  M.div_
-    [ class_ $
-        "flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors "
-          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-    , M.onClick action
-    ]
+  Layout.viewFlow
+    Layout.hFlow
+      { Layout.gap = Layout.SmallSpace
+      , Layout.expandOrthogonal = Layout.Expand Layout.Center
+      , Layout.extraAttrs =
+          [ class_ $
+              "px-3 py-2 rounded cursor-pointer transition-colors "
+                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+          , M.onClick action
+          ]
+      }
     [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
     , M.span_ [class_ "text-sm truncate"] [M.text label]
     ]
@@ -117,12 +122,17 @@ selectorItemWithBadge
   -- ^ Click action
   -> M.View m action
 selectorItemWithBadge isSelected icn label mBadge action =
-  M.div_
-    [ class_ $
-        "flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors "
-          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-    , M.onClick action
-    ]
+  Layout.viewFlow
+    Layout.hFlow
+      { Layout.gap = Layout.SmallSpace
+      , Layout.expandOrthogonal = Layout.Expand Layout.Center
+      , Layout.extraAttrs =
+          [ class_ $
+              "px-3 py-2 rounded cursor-pointer transition-colors "
+                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+          , M.onClick action
+          ]
+      }
     [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] icn
     , M.span_ [class_ "text-sm truncate flex-1"] [M.text label]
     , case mBadge of
@@ -140,12 +150,16 @@ selectorItemMultiLine
   -- ^ Click action
   -> M.View m action
 selectorItemMultiLine isSelected content action =
-  M.div_
-    [ class_ $
-        "flex flex-col gap-1 px-3 py-2 rounded cursor-pointer transition-colors "
-          <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
-    , M.onClick action
-    ]
+  Layout.viewFlow
+    Layout.vFlow
+      { Layout.gap = Layout.TinySpace
+      , Layout.extraAttrs =
+          [ class_ $
+              "px-3 py-2 rounded cursor-pointer transition-colors "
+                <> if isSelected then "bg-primary/10 text-primary" else "hover:bg-muted"
+          , M.onClick action
+          ]
+      }
     content
 
 -- | Search/filter input field
@@ -167,6 +181,6 @@ selectorSearchField value placeholder onInput =
 -- | Scrollable list container (grows to fill available space)
 selectorList :: [M.View m action] -> M.View m action
 selectorList items =
-  V.viewFlow
-    (V.vFlow & (#gap .~ V.SmallSpace) & (#extraAttrs .~ [class_ "flex-1", V.overflowYScroll, V.minH0]))
+  Layout.viewFlow
+    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-1", Layout.overflowYScroll, Layout.minH0]}
     items

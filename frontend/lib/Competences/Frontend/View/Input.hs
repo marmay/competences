@@ -34,6 +34,7 @@ module Competences.Frontend.View.Input
   )
 where
 
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import qualified Data.Text as Text
 import Miso qualified as M
@@ -238,8 +239,8 @@ fieldWrapper :: MisoString -- ^ Label text
              -> M.View model action -- ^ Input element
              -> M.View model action
 fieldWrapper labelText input =
-  M.div_
-    [class_ "flex flex-col w-full gap-3"]
+  Layout.viewFlow
+    Layout.vFlow{Layout.extraAttrs = [class_ "w-full gap-3"]}
     [ label labelText
     , input
     ]
@@ -249,8 +250,8 @@ fieldWrapperHorizontal :: MisoString -- ^ Label text
                        -> M.View model action -- ^ Input element
                        -> M.View model action
 fieldWrapperHorizontal labelText input =
-  M.div_
-    [class_ "flex flex-row items-center w-full gap-3"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-full gap-3"]}
     [ label labelText
     , input
     ]

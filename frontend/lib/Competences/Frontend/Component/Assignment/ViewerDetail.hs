@@ -43,8 +43,9 @@ import Competences.Frontend.SyncContext
   , SyncContext
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon qualified as Icon
@@ -133,7 +134,7 @@ viewerDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 viewerDetailView r user assignment =
-  V.component
+  component
     ("assignment-viewer-" <> M.ms (show assignment.id))
     (viewerComponent r user assignment)
 
@@ -235,11 +236,16 @@ viewerComponent r user assignment =
             [ M.div_
                 [class_ "space-y-2"]
                 [ -- Title line with date + status on the right
-                  M.div_
-                    [class_ "flex items-center justify-between"]
+                  Layout.viewFlow
+                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center}
                     [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
-                    , M.div_
-                        [class_ "flex items-center gap-3 text-sm"]
+                    , Layout.flowSpring
+                    , Layout.viewFlow
+                        Layout.hFlow
+                          { Layout.gap = Layout.SmallSpace
+                          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                          , Layout.extraAttrs = [class_ "text-sm"]
+                          }
                         [ M.span_
                             [class_ "text-muted-foreground"]
                             [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
@@ -272,8 +278,12 @@ viewerComponent r user assignment =
           levelDesc = case Ix.getOne (competences Ix.@= competenceId) of
             Nothing -> ""
             Just comp -> maybe "" (.description) (comp.levels Map.!? level)
-       in M.div_
-            [class_ "flex items-center gap-2 text-sm"]
+       in Layout.viewFlow
+            Layout.hFlow
+              { Layout.gap = Layout.SmallSpace
+              , Layout.expandOrthogonal = Layout.Expand Layout.Center
+              , Layout.extraAttrs = [class_ "text-sm"]
+              }
             [ M.span_
                 [class_ abilityClass]
                 [Icon.icon [MSP.stroke_ "currentColor", class_ "w-4 h-4"] abilityIcn]

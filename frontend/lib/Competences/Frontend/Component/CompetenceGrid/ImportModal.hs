@@ -33,6 +33,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Modal qualified as Modal
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.CompetenceGridParser (parseGridImport)
@@ -144,11 +145,11 @@ competenceGridImportModalComponent r =
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
             [ Modal.modalHeader (C.translate' C.LblImportCompetenceGrids) CloseModal
             , -- Content
-              M.div_
-                [class_ "flex-1 min-h-0 flex gap-4 p-4 overflow-hidden"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "flex-1 min-h-0 p-4 overflow-hidden"]}
                 [ -- Left: Input area
-                  M.div_
-                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                  Layout.viewFlow
+                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
                     [ Typography.h3 "Eingabe"
                     , M.textarea_
                         [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
@@ -159,8 +160,8 @@ competenceGridImportModalComponent r =
                         []
                     ]
                 , -- Right: Preview area
-                  M.div_
-                    [class_ "flex flex-col gap-2 min-h-0 flex-1 w-1/2"]
+                  Layout.viewFlow
+                    Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "min-h-0 flex-1 w-1/2"]}
                     [ Typography.h3 "Vorschau"
                     , M.div_
                         [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
@@ -193,21 +194,21 @@ previewView m = case m.parseResult of
       [class_ "text-muted-foreground italic"]
       [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
   Right previews ->
-    M.div_
-      [class_ "flex flex-col gap-4"]
+    Layout.viewFlow
+      Layout.vFlow{Layout.gap = Layout.MediumSpace}
       (map previewGridView previews)
 
 previewGridView :: GridImportPreview -> M.View Model Action
 previewGridView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
-    [ M.div_
-        [class_ "flex items-center gap-2 mb-2"]
+    [ Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "mb-2"]}
         [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ gridTitle preview.gridAction]
         , actionBadge preview.gridAction
         ]
-    , M.div_
-        [class_ "flex flex-col gap-2"]
+    , Layout.viewFlow
+        Layout.vFlow{Layout.gap = Layout.SmallSpace}
         ( map previewCompetenceView preview.competenceActions
             ++ map previewDeletedCompetence preview.competencesToDelete
         )
@@ -218,8 +219,8 @@ previewDeletedCompetence :: Competence -> M.View Model Action
 previewDeletedCompetence c =
   M.div_
     [class_ "pl-4 border-l-2 border-destructive/50"]
-    [ M.div_
-        [class_ "flex items-center gap-2"]
+    [ Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
         [ M.span_
             [class_ "font-medium text-muted-foreground line-through"]
             [M.text $ M.ms c.description]
@@ -236,8 +237,8 @@ previewCompetenceView :: CompetenceImportAction -> M.View Model Action
 previewCompetenceView ca =
   M.div_
     [class_ "pl-4 border-l-2 border-border"]
-    [ M.div_
-        [class_ "flex items-center gap-2"]
+    [ Layout.viewFlow
+        Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
         [ M.span_
             [class_ "font-medium text-sm"]
             [M.text $ M.ms ca.parsedCompetence.description]

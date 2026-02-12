@@ -10,7 +10,7 @@ where
 import Competences.Document (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
@@ -41,8 +41,8 @@ resourcesListView resources expandedSet toggleExpanded =
           displayName = if T.null ident then "(Unbenannt)" else ident
           disclosureTitle = Disclosure.titleIconText Icon.IcnResources (M.ms displayName)
           nameView =
-            MH.div_
-              [class_ "flex items-center gap-2"]
+            Layout.viewFlow
+              Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
               [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
               , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
               ]
@@ -62,7 +62,7 @@ resourcesListView resources expandedSet toggleExpanded =
                     else
                       MH.div_
                         [class_ "border rounded-lg overflow-hidden"]
-                        [MH.div_ [class_ "flex items-center gap-2 px-3 py-2"] [nameView]]
+                        [Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "px-3 py-2"]} [nameView]]
             -- Web link: direct link card
             WebLink url title ->
               MH.a_
@@ -74,7 +74,7 @@ resourcesListView resources expandedSet toggleExpanded =
                 [ Icon.icon [class_ "text-sky-600"] Icon.IcnLink
                 , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
                 , if T.null title || title == ident
-                    then V.empty
+                    then Layout.empty
                     else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
                 ]
             -- Video link: direct link card
@@ -88,6 +88,6 @@ resourcesListView resources expandedSet toggleExpanded =
                 [ Icon.icon [class_ "text-sky-600"] Icon.IcnVideo
                 , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
                 , if T.null title || title == ident
-                    then V.empty
+                    then Layout.empty
                     else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
                 ]

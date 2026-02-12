@@ -12,6 +12,7 @@ where
 
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -22,14 +23,14 @@ import Miso.Html qualified as M
 -- and close button. Content is rendered below the title bar.
 pinFrame :: M.MisoString -> a -> a -> [M.View m a] -> M.View m a
 pinFrame title toggleAction closeAction content =
-  M.div_
-    [class_ "flex flex-col h-full"]
+  Layout.viewFlow
+    Layout.vFlow{Layout.extraAttrs = [class_ "h-full"]}
     [ -- Title bar
-      M.div_
-        [class_ "flex items-center justify-between border-b border-border px-4 py-3 bg-muted/50 rounded-t-xl flex-shrink-0"]
+      Layout.viewFlow
+        Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-between border-b border-border px-4 py-3 bg-muted/50 rounded-t-xl flex-shrink-0"]}
         [ Typography.h4 title
-        , M.div_
-            [class_ "flex items-center gap-2"]
+        , Layout.viewFlow
+            Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
             [ -- Pin toggle (minimize) button
               withTooltip (PlainTooltip "Minimize") $
                 Button.ghost (Button.button Icon.IcnExpandShrinkArrowRight (Just toggleAction))

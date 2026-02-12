@@ -30,8 +30,9 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (find)
@@ -83,7 +84,7 @@ resourcesDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 resourcesDetailView r grid =
-  V.component
+  component
     ("competence-grid-resources-" <> M.ms (show grid.id))
     (resourcesComponent r grid)
 
@@ -147,10 +148,15 @@ resourcesComponent r grid =
                     (levelId : _) -> find (\cli -> (cli.competence.id, cli.level) == levelId) m.gridCompetenceLevels
                in MH.div_ []
                     [ -- Header with back button and competence level info
-                      MH.div_ [class_ "flex items-center gap-2 mb-4 border-b border-stone-200 pb-4"]
+                      Layout.viewFlow
+                        Layout.hFlow
+                          { Layout.gap = Layout.SmallSpace
+                          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                          , Layout.extraAttrs = [class_ "mb-4 border-b border-stone-200 pb-4"]
+                          }
                         [ Button.ghostSm (Button.button ("← Zurück" :: M.MisoString) ClearEditingResource)
                         , case mCompLevelInfo of
-                            Nothing -> V.empty
+                            Nothing -> Layout.empty
                             Just cli ->
                               MH.div_ [class_ "flex-1 min-w-0"]
                                 [ MH.div_ [class_ "font-medium text-stone-700 truncate"]
@@ -181,16 +187,24 @@ resourceListView compLevels resources =
        in MH.div_
             [class_ "border border-stone-200 rounded-lg overflow-hidden"]
             [ -- Header row 1: Competence description + Add button
-              MH.div_
-                [class_ "flex items-center justify-between px-3 py-2 bg-stone-50 border-b border-stone-200"]
+              Layout.viewFlow
+                Layout.hFlow
+                  { Layout.expandOrthogonal = Layout.Expand Layout.Center
+                  , Layout.extraAttrs = [class_ "px-3 py-2 bg-stone-50 border-b border-stone-200"]
+                  }
                 [ MH.span_
                     [class_ "font-medium text-stone-700 truncate flex-1 mr-2"]
                     [M.text $ M.ms cli.competence.description]
+                , Layout.flowSpring
                 , Button.ghostSm (Button.button (Icon.IcnAdd, C.LblAddResource) (CreateResourceForLevel levelId))
                 ]
             , -- Header row 2: Level name + level description
-              MH.div_
-                [class_ "flex items-center gap-2 px-3 py-1.5 bg-stone-100/50 border-b border-stone-200 text-sm min-w-0"]
+              Layout.viewFlow
+                Layout.hFlow
+                  { Layout.gap = Layout.SmallSpace
+                  , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                  , Layout.extraAttrs = [class_ "px-3 py-1.5 bg-stone-100/50 border-b border-stone-200 text-sm min-w-0"]
+                  }
                 [ MH.span_
                     [class_ "font-medium text-stone-600 flex-shrink-0"]
                     [M.text $ C.translate' (C.LblCompetenceLevelDescription cli.level) <> ":"]
@@ -208,10 +222,12 @@ resourceListView compLevels resources =
             ]
 
     resourceRow res =
-      MH.div_
-        [ class_ "flex items-center gap-3 px-3 py-2 hover:bg-stone-50 cursor-pointer"
-        , MH.onClick (EditResource res)
-        ]
+      Layout.viewFlow
+        Layout.hFlow
+          { Layout.gap = Layout.SmallSpace
+          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+          , Layout.extraAttrs = [class_ "px-3 py-2 hover:bg-stone-50 cursor-pointer", MH.onClick (EditResource res)]
+          }
         [ Icon.icon [class_ "text-stone-400 flex-shrink-0", MP.width_ "16", MP.height_ "16"] Icon.IcnResources
         , MH.div_
             [class_ "flex-1 min-w-0"]

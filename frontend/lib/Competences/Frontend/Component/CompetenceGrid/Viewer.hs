@@ -53,12 +53,14 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   , syncDocumentEnv
   )
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.CellStyle qualified as CellStyle
@@ -84,7 +86,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
-import Optics.Core ((&), (.~))
+import Optics.Core ((.~))
 
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 
@@ -164,7 +166,7 @@ viewerDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 viewerDetailView r grid =
-  V.component
+  component
     ("competence-grid-viewer-" <> M.ms (show grid.id))
     (viewerComponent r grid)
 
@@ -308,12 +310,12 @@ viewerComponent r grid =
 
     -- Main view: dispatch based on view data type
     view m =
-      V.viewFlow
-        ( V.vFlow
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#expandOrthogonal .~ V.Expand V.Center)
-            & (#gap .~ V.SmallSpace)
-        )
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.expandOrthogonal = Layout.Expand Layout.Center
+          , Layout.gap = Layout.SmallSpace
+          }
         [ header
         , description
         , competencesTable m
@@ -324,36 +326,44 @@ viewerComponent r grid =
         -- Header varies by view type
         header = case proj.viewData of
           UserViewData userData ->
-            MH.div_
-              [class_ "flex items-center justify-between w-full"]
+            Layout.viewFlow
+              Layout.hFlow
+                { Layout.expandOrthogonal = Layout.Expand Layout.Center
+                , Layout.extraAttrs = [class_ "w-full"]
+                }
               [ Typography.h2 (M.ms grid.title)
+              , Layout.flowSpring
               , case userData.activeGridGrade of
                   Just gridGrade -> gradeBadgeView gridGrade.grade
-                  Nothing -> V.empty
+                  Nothing -> Layout.empty
               ]
           AnalyticsViewData _ ->
-            MH.div_
-              [class_ "flex items-center justify-between w-full"]
+            Layout.viewFlow
+              Layout.hFlow
+                { Layout.expandOrthogonal = Layout.Expand Layout.Center
+                , Layout.extraAttrs = [class_ "w-full"]
+                }
               [ Typography.h2 (M.ms grid.title)
-              , V.empty
+              , Layout.flowSpring
+              , Layout.empty
               ]
 
         description = Typography.paragraph (M.ms grid.description)
 
         -- Table with cells that vary by view type
         competencesTable vm =
-          V.viewTable $
-            V.defTable
-              { V.columns =
+          Table.viewTable $
+            Table.defTable
+              { Table.columns =
                   [ViewerDescriptionColumn]
                     <> map ViewerLevelColumn allLevels
-              , V.rows = ordered vm.projection.competences
-              , V.columnSpec = \case
+              , Table.rows = ordered vm.projection.competences
+              , Table.columnSpec = \case
                   ViewerDescriptionColumn ->
                     Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblCompetenceDescription)
                   ViewerLevelColumn l ->
                     Table.TableColumnSpec Table.EqualWidthColumn (C.translate' $ C.LblCompetenceLevelDescription l)
-              , V.rowContents = V.cellContentsWithSpec $ \competence -> \case
+              , Table.rowContents = Table.cellContentsWithSpec $ \competence -> \case
                   ViewerDescriptionColumn ->
                     renderDescriptionCell proj competence
                   ViewerLevelColumn level ->
@@ -405,14 +415,14 @@ viewerComponent r grid =
             case Ix.getOne (evidence.observations Ix.@= competenceLevelId) of
               Just observation ->
                 showSummary evidence.activityType observation.socialForm observation.ability
-              Nothing -> V.empty
+              Nothing -> Layout.empty
 
           showSummary activityType socialForm ability =
             Badge.badge (abilityPalette ability) $
               MH.span_
                 [class_ "inline-flex items-center gap-0.5"]
-                [ Icon.icon [] (V.activityTypeIcon activityType)
-                , Icon.icon [] (V.socialFormIcon socialForm)
+                [ Icon.icon [] (EvidenceIcon.activityTypeIcon activityType)
+                , Icon.icon [] (EvidenceIcon.socialFormIcon socialForm)
                 ]
 
           -- Get active assessment
@@ -454,7 +464,7 @@ viewerComponent r grid =
                 MH.div_
                   [class_ "absolute bottom-1 right-1 text-sky-600"]
                   [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnResources]
-              else V.empty
+              else Layout.empty
 
           cursorClass = if hasResources then " cursor-pointer hover:bg-opacity-80" else ""
           tdClasses = "relative px-4 py-3 " <> bgClass <> cursorClass
@@ -470,27 +480,32 @@ viewerComponent r grid =
               | hasDescription
               , let ms = Map.findWithDefault NotTried competenceLevelId userData.userMastery
               , Just p <- masteryPalette ms ->
-                  MH.div_
-                    [class_ "flex items-center justify-between gap-1 mb-0.5"]
+                  Layout.viewFlow
+                    Layout.hFlow
+                      { Layout.gap = Layout.TinySpace
+                      , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                      , Layout.extraAttrs = [class_ "mb-0.5"]
+                      }
                     [ Badge.secondary (Badge.badgeLabel C.LblMasteryBadgeAuto)
+                    , Layout.flowSpring
                     , Badge.badge p (Badge.badgeText $ masteryBadgeLabel ms)
                     ]
-            _ -> V.empty
+            _ -> Layout.empty
 
           cellContent =
-            MH.div_
-              (class_ "flex flex-col justify-center min-h-[44px]" : clickHandler)
+            Layout.viewFlow
+              Layout.vFlow{Layout.extraAttrs = class_ "justify-center min-h-[44px]" : clickHandler}
               [ statusIcon
               , masteryBadgeRow
               , if hasDescription
                   then Typography.small (M.ms levelInfo.description)
-                  else V.empty
+                  else Layout.empty
               , if not (null evidenceList)
                   then
-                    MH.div_
-                      [class_ "flex flex-wrap gap-1 mt-1"]
+                    Layout.viewFlow
+                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "flex-wrap mt-1"]}
                       (map showEvidence evidenceList)
-                  else V.empty
+                  else Layout.empty
               , resourceIcon
               ]
 
@@ -521,7 +536,7 @@ viewerComponent r grid =
                 MH.div_
                   [class_ "absolute bottom-1 right-1 text-sky-600"]
                   [Icon.icon [MP.width_ "14", MP.height_ "14"] Icon.IcnResources]
-              else V.empty
+              else Layout.empty
 
           cursorClass = if hasResources then " cursor-pointer hover:bg-opacity-80" else ""
           tdClasses = "relative px-2 py-2" <> cursorClass
@@ -532,11 +547,11 @@ viewerComponent r grid =
               else []
 
           cellContent =
-            MH.div_
-              (class_ "flex flex-col justify-center min-h-[44px]" : clickHandler)
+            Layout.viewFlow
+              Layout.vFlow{Layout.extraAttrs = class_ "justify-center min-h-[44px]" : clickHandler}
               [ if hasDescription
                   then Typography.small (M.ms levelInfo.description)
-                  else V.empty
+                  else Layout.empty
               , if hasDescription
                   then
                     let stats = Map.findWithDefault Map.empty competenceLevelId analyticsData.masteryStats
@@ -546,7 +561,7 @@ viewerComponent r grid =
                           , stats = stats
                           , students = students
                           }
-                  else V.empty
+                  else Layout.empty
               , resourceIcon
               ]
        in TableCellSpec

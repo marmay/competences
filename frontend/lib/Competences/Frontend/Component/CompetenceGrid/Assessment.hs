@@ -39,15 +39,17 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
@@ -61,7 +63,7 @@ import Data.Time (Day, getCurrentTime, utctDay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((&), (.~))
+import Optics.Core ((.~))
 import System.IO.Unsafe (unsafePerformIO)
 
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
@@ -106,7 +108,7 @@ assessmentDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 assessmentDetailView r grid =
-  V.component
+  component
     ("competence-grid-assessment-" <> M.ms (show grid.id))
     (assessmentComponent r grid)
 
@@ -179,12 +181,12 @@ assessmentComponent r grid =
     view m = case m.projection.focusedUser of
       Nothing -> Typography.muted (C.translate' C.LblNoStudentSelected)
       Just _ ->
-        V.viewFlow
-          ( V.vFlow
-              & (#expandDirection .~ V.Expand V.Start)
-              & (#expandOrthogonal .~ V.Expand V.Center)
-              & (#gap .~ V.SmallSpace)
-          )
+        Layout.viewFlow
+          (Layout.vFlow
+            { Layout.expandDirection = Layout.Expand Layout.Start
+            , Layout.expandOrthogonal = Layout.Expand Layout.Center
+            , Layout.gap = Layout.SmallSpace
+            })
           [ header
           , description
           , competenceAssessmentList m
@@ -199,13 +201,13 @@ assessmentComponent r grid =
             [ Typography.h2 (M.ms grid.title)
             , case QGridGrade.activeGridGrade proj.userGridGrades grid.id of
                 Just gridGrade -> gradeBadgeView gridGrade.grade
-                Nothing -> V.empty
+                Nothing -> Layout.empty
             ]
         description = Typography.paragraph (M.ms grid.description)
 
         competenceAssessmentList am =
-          V.viewFlow
-            (V.vFlow & (#gap .~ V.MediumSpace))
+          Layout.viewFlow
+            (Layout.vFlow{Layout.gap = Layout.MediumSpace})
             [ competenceAssessmentCard am c
             | c <- ordered proj.competences
             ]
@@ -226,8 +228,8 @@ assessmentComponent r grid =
                 ]
 
         competenceHeaderWithButtons competence currentLevel todayAssessment =
-          V.viewFlow
-            (V.hFlow & (#gap .~ V.SmallSpace) & (#expandOrthogonal .~ V.Expand V.Center))
+          Layout.viewFlow
+            (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
             [ MH.span_ [class_ "flex-1"] [Typography.paragraph (M.ms competence.description)]
             , assessmentButtons competence currentLevel todayAssessment
             ]
@@ -260,8 +262,8 @@ assessmentComponent r grid =
 
               -- Delete button (red trash icon)
               deleteBtn = Button.deleteButton (isJust todayAssessment, ClearAssessment competence)
-           in V.viewFlow
-                (V.hFlow & (#gap .~ V.TinySpace))
+           in Layout.viewFlow
+                (Layout.hFlow{Layout.gap = Layout.TinySpace})
                 [ notAchievedBtn
                 , levelBtn BasicLevel
                 , levelBtn IntermediateLevel
@@ -347,7 +349,7 @@ assessmentComponent r grid =
               -- "Not Achieved" assessment dates
               notAchievedDates = assessmentsByLevel Nothing
 
-           in MH.div_ [class_ "flex flex-col"]
+           in Layout.viewFlow Layout.vFlow
                 ( [ levelLane AdvancedLevel advancedMap (assessmentsByLevel (Just AdvancedLevel)) isInRangeEvidence allColumns
                   , levelLane IntermediateLevel intermediateMap (assessmentsByLevel (Just IntermediateLevel)) isInRangeEvidence allColumns
                   , levelLane BasicLevel basicMap (assessmentsByLevel (Just BasicLevel)) isInRangeEvidence allColumns
@@ -368,7 +370,8 @@ assessmentComponent r grid =
                   -- Label with info icon and CSS-based tooltip (group-hover pattern)
                   -- If locked, show lock icon instead of info icon
                   labelWithTooltip =
-                    MH.div_ [class_ "w-28 flex items-center gap-1 shrink-0"]
+                    Layout.viewFlow
+                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-28 shrink-0"]}
                       [ MH.span_ [class_ $ "text-xs font-medium " <> levelTextClass] [M.text levelName]
                       , if levelInfo.locked
                           then StatusIcon.lockIcon
@@ -376,17 +379,18 @@ assessmentComponent r grid =
                             then withTooltip (RichTooltip (M.text $ M.ms levelInfo.description)) $
                                    MH.span_ [class_ "cursor-help"]
                                      [Icon.icon [class_ "text-stone-400"] Icon.IcnInfo]
-                            else V.empty
+                            else Layout.empty
                       ]
 
                   -- Build cells for each column
                   columnCells = map (cellForColumn hasDesc evidenceMap assessmentDates isInRangeEvidence lvl) allColumns
 
                   -- Lane background: muted for locked levels
-                  laneClass = "flex items-center min-h-[28px] border-b border-stone-100"
+                  laneExtra = "min-h-[28px] border-b border-stone-100"
                     <> if levelInfo.locked then " bg-stone-50" else ""
 
-               in MH.div_ [class_ laneClass]
+               in Layout.viewFlow
+                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ laneExtra]}
                     (labelWithTooltip : columnCells)
 
             -- | Cell for a specific column in a level lane
@@ -414,7 +418,8 @@ assessmentComponent r grid =
               let levelName = C.translate' C.LblNotAchieved
                   -- Label (no tooltip for "Not Achieved")
                   label =
-                    MH.div_ [class_ "w-28 flex items-center gap-1 shrink-0"]
+                    Layout.viewFlow
+                      Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "w-28 shrink-0"]}
                       [MH.span_ [class_ "text-xs font-medium text-stone-400"] [M.text levelName]]
 
                   -- Build cells for each column
@@ -431,7 +436,8 @@ assessmentComponent r grid =
                           then showNotAchievedIcon
                           else showEmptyCell
 
-               in MH.div_ [class_ "flex items-center min-h-[28px] border-b border-stone-100"]
+               in Layout.viewFlow
+                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-h-[28px] border-b border-stone-100"]}
                     (label : columnCells)
 
             -- | Empty cell placeholder (maintains column alignment)
@@ -447,7 +453,8 @@ assessmentComponent r grid =
             -- Shows date for each column (evidence or assessment)
             dateLane columns =
               let columnLabels = map showColumnLabel columns
-               in MH.div_ [class_ "flex items-center min-h-[20px] pt-1"]
+               in Layout.viewFlow
+                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "min-h-[20px] pt-1"]}
                     (MH.div_ [class_ "w-28 shrink-0"] [] : columnLabels)
 
             -- | Show a label for a column (date for both evidence and assessment columns)
@@ -461,19 +468,22 @@ assessmentComponent r grid =
             -- | Show evidence icon for a single evidence entry
             showEvidenceIcon hasLevelDesc actType socialForm ability =
               let abilityClass = if hasLevelDesc then textClass' (abilityPalette ability) else "text-stone-400"
-                  ci = V.coloredStrokeIcon abilityClass
-               in MH.div_ [class_ "flex items-center justify-center w-12"]
-                    [ ci (V.activityTypeIcon actType)
-                    , ci (V.socialFormIcon socialForm)
+                  ci = EvidenceIcon.coloredStrokeIcon abilityClass
+               in Layout.viewFlow
+                    Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
+                    [ ci (EvidenceIcon.activityTypeIcon actType)
+                    , ci (EvidenceIcon.socialFormIcon socialForm)
                     ]
 
             -- | Show assessment icon (checkmark)
             showAssessmentIcon =
-              MH.div_ [class_ "flex items-center justify-center w-12"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
                 [completionIcon Assessed]
 
             -- | Show "Not Achieved" icon (X mark in red)
             showNotAchievedIcon =
-              MH.div_ [class_ "flex items-center justify-center w-12"]
+              Layout.viewFlow
+                Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "justify-center w-12"]}
                 [completionIcon Failed]
 

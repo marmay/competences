@@ -20,7 +20,8 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField (..), read
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
 import GHC.Generics (Generic)
@@ -33,7 +34,7 @@ editorDetailView
   -> Solution
   -> M.View (SD.Model Solution mode) (SD.Action mode)
 editorDetailView r solution =
-  V.component
+  component
     ("solution-editor-" <> M.ms (show solution.id))
     (TE.editorComponent solutionEditor r)
   where
@@ -73,7 +74,7 @@ editorDetailView r solution =
 taskReadOnlyField :: SyncContext -> EditorField Solution SolutionPatch f
 taskReadOnlyField r =
   readOnlyField $ \solution ->
-    V.component
+    component
       ("task-display-" <> M.ms (show solution.taskId))
       (taskDisplayComponent r solution.taskId)
 
@@ -108,7 +109,7 @@ taskDisplayComponent r taskId =
     view' m =
       if m.taskName == ""
         then Typography.muted "..."
-        else V.text_ m.taskName
+        else text_ m.taskName
 
 -- | Inline editor for a solution - simpler version without the full header
 -- This is used in TaskSolutionsList where we just need the edit fields
@@ -117,7 +118,7 @@ solutionInlineEditor
   -> Solution
   -> M.View p a
 solutionInlineEditor r solution =
-  V.component
+  component
     ("solution-inline-editor-" <> M.ms (show solution.id))
     (TE.editorComponent inlineEditor r)
   where

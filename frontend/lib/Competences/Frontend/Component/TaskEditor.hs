@@ -11,7 +11,8 @@ import Competences.Frontend.Component.Selector.TaskOrGroupSelector
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
 import Competences.Frontend.Component.TaskEditor.TaskGroupDetailView (taskGroupDetailView)
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Component (componentA)
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -38,8 +39,8 @@ taskEditorComponent r =
     update NoOp = pure ()
 
     view' m =
-      V.sideMenu
-        (V.componentA "task-or-group-selector" [V.fullHeight] $ taskOrGroupSelectorComponent r #selected)
+      Layout.sideMenu
+        (componentA "task-or-group-selector" [Layout.fullHeight] $ taskOrGroupSelectorComponent r #selected)
         (detailView m.selected)
 
     detailView Nothing =

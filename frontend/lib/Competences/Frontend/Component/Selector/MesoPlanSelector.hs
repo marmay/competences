@@ -14,7 +14,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SelectorList
@@ -109,12 +109,12 @@ mesoPlanSelectorComponent r parentLens =
     update ToggleDropdown = M.modify $ \m -> m & #isDropdownOpen .~ not m.isDropdownOpen
 
     view' m =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [V.fullHeight])
-        )
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.gap = Layout.SmallSpace
+          , Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.extraAttrs = [Layout.fullHeight]
+          }
         [ SelectorList.selectorHeaderWithDropdown
             (C.translate' C.LblMesoPlans)
             m.isDropdownOpen

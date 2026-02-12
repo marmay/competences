@@ -26,7 +26,7 @@ import Competences.Frontend.SyncContext
   , openModal
   , subscribeWithProjection
   )
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -132,12 +132,12 @@ competenceGridSelectorComponent r style parentLens =
             }
 
     view (m :: Model) =
-      V.viewFlow
-        ( V.vFlow
-            & (#gap .~ V.SmallSpace)
-            & (#expandDirection .~ V.Expand V.Start)
-            & (#extraAttrs .~ [V.fullHeight])
-        )
+      Layout.viewFlow
+        Layout.vFlow
+          { Layout.gap = Layout.SmallSpace
+          , Layout.expandDirection = Layout.Expand Layout.Start
+          , Layout.extraAttrs = [Layout.fullHeight]
+          }
         [ case style of
             CompetenceGridSelectorViewOnlyStyle ->
               SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing

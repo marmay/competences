@@ -3,6 +3,7 @@ module Competences.Frontend.View.MainPage
   )
 where
 
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -22,8 +23,8 @@ mainPage
   -> M.View m a -- ^ Footer content
   -> M.View m a
 mainPage title focusedUserView navItems content footerContent =
-  M.div_
-    [class_ "h-full flex flex-col"]
+  Layout.viewFlow
+    Layout.vFlow{Layout.extraAttrs = [class_ "h-full"]}
     [ navBanner
     , contentArea
     , footer
@@ -33,13 +34,13 @@ mainPage title focusedUserView navItems content footerContent =
       M.nav_
         [class_ "bg-primary text-primary-foreground px-4 py-3 flex-shrink-0"]
         [ -- Top row: title left, focused user right (centered, max-width constrained)
-          M.div_
-            [class_ "max-w-4xl mx-auto w-full flex items-center justify-between mb-2"]
+          Layout.viewFlow
+            Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "max-w-4xl mx-auto w-full justify-between mb-2"]}
             [ M.h1_ [class_ "text-2xl font-bold"] [M.text title]
             , focusedUserView
             ]
         , -- Bottom row: navigation buttons centered
-          M.div_ [class_ "flex flex-wrap gap-2 justify-center"] navItems
+          Layout.viewFlow Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "flex-wrap justify-center"]} navItems
         ]
 
     contentArea =

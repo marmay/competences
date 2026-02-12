@@ -9,7 +9,7 @@ where
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View qualified as V
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.Color.Completion qualified as Completion
@@ -30,7 +30,7 @@ import Miso.Html qualified as MH
 -- * 'TaskNotDone' -> yellow progress icon + "Stand:" text
 -- * 'TaskNotEvaluated' -> empty (no indicator)
 viewTaskCompletionStatus :: TaskCompletionStatus -> M.View model a
-viewTaskCompletionStatus TaskNotEvaluated = V.empty
+viewTaskCompletionStatus TaskNotEvaluated = Layout.empty
 viewTaskCompletionStatus (TaskDone ref) =
   statusView (textClass' $ Completion.completionPalette Done) Icon.IcnApply ref
 viewTaskCompletionStatus (TaskNotDone ref) =
@@ -40,13 +40,13 @@ viewTaskCompletionStatus (TaskNotDone ref) =
 -- Returns empty view for tasks not in the map.
 viewTaskCompletionStatusFromMap :: Map TaskId TaskCompletionStatus -> TaskId -> M.View model a
 viewTaskCompletionStatusFromMap statuses taskId =
-  maybe V.empty viewTaskCompletionStatus (Map.lookup taskId statuses)
+  maybe Layout.empty viewTaskCompletionStatus (Map.lookup taskId statuses)
 
 -- | Internal: render status icon + "Stand:" text.
 statusView :: Text -> Icon.Icon -> EvidenceRef -> M.View model a
 statusView colorClass icn ref =
-  MH.div_
-    [class_ "flex items-center gap-1"]
+  Layout.viewFlow
+    Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.expandOrthogonal = Layout.Expand Layout.Center}
     [ Icon.icon [class_ $ "w-4 h-4 " <> colorClass] icn
     , MH.span_
         [class_ "text-xs text-muted-foreground"]
