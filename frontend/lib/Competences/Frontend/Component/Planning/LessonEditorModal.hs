@@ -30,6 +30,8 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -266,142 +268,119 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     -- ========================================================================
 
     titleSection m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblLessonTitle]
-        , MH.input_
-            [ MP.type_ "text"
-            , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
-            , MP.value_ (M.ms m.titleValue)
-            , MH.onInput (SetTitle . M.fromMisoString)
-            , MP.autofocus_ True
-            ]
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonTitle) $
+        Input.renderInput $
+          (Input.defaultInput
+            & Input.withValue (M.ms m.titleValue)
+            & Input.withOnInput (SetTitle . M.fromMisoString))
+            { Input.attrs = [MP.autofocus_ True]
+            }
 
     descriptionSection m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium mb-2 block"] [M.text $ C.translate' C.LblLessonDescription]
-        , MH.div_
-            [class_ "flex gap-4"]
-            [ MH.div_
-                [class_ "flex-1"]
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text "Markup"]
-                , MH.textarea_
-                    [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[150px] font-mono text-sm"
-                    , MP.value_ (M.ms m.descriptionValue)
-                    , MH.onInput (SetDescription . M.fromMisoString)
-                    ]
-                    []
-                ]
-            , MH.div_
-                [class_ "flex-1"]
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text $ C.translate' C.LblPreview]
-                , MH.div_
-                    [class_ "min-h-[150px] p-3 border border-input rounded-md bg-muted/50"]
-                    [renderRichText (fromTrustedInput m.descriptionValue)]
-                ]
-            ]
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonDescription) $
+        Layout.viewFlow
+          (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+          [ MH.div_
+              [class_ "flex-1"]
+              [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
+              , MH.textarea_
+                  [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[150px] font-mono text-sm"
+                  , MP.value_ (M.ms m.descriptionValue)
+                  , MH.onInput (SetDescription . M.fromMisoString)
+                  ]
+                  []
+              ]
+          , MH.div_
+              [class_ "flex-1"]
+              [ MH.span_ [class_ "block mb-1"] [Typography.muted $ C.translate' C.LblPreview]
+              , MH.div_
+                  [class_ "min-h-[150px] p-3 border border-input rounded-md bg-muted/50"]
+                  [renderRichText (fromTrustedInput m.descriptionValue)]
+              ]
+          ]
 
     competenceLevelSection syncCtx m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium mb-2 block"] [M.text $ C.translate' C.LblLessonCompetences]
-        , componentA
-            "lesson-editor-competence-selector"
-            []
-            ( competenceLevelSelectorComponent
-                syncCtx
-                (\_ -> m.competenceLevels)
-                MultiStageSelectorEnabled
-                0
-                (selectorLens #competenceLevels)
-            )
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
+        componentA
+          "lesson-editor-competence-selector"
+          []
+          ( competenceLevelSelectorComponent
+              syncCtx
+              (\_ -> m.competenceLevels)
+              MultiStageSelectorEnabled
+              0
+              (selectorLens #competenceLevels)
+          )
 
     dateSection m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblLessonDate]
-        , MH.input_
-            [ MP.type_ "date"
-            , class_ "mt-1 w-64 px-3 py-2 border border-input rounded-md bg-background"
-            , MP.value_ (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateValue)
-            , MH.onInput (SetDate . parseDate . M.fromMisoString)
-            ]
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonDate) $
+        MH.div_
+          [class_ "w-64"]
+          [ Input.dateInput
+              (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateValue)
+              (SetDate . parseDate . M.fromMisoString)
+          ]
 
     assignmentsSection syncCtx m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium mb-2 block"] [M.text $ C.translate' C.LblLessonAssignments]
-        , componentA
-            "lesson-editor-assignment-selector"
-            []
-            ( multiSelectAssignmentSelectorComponent
-                syncCtx
-                (\a -> (a.activityType == SchoolExercise || a.activityType == Exam)
-                    && (a.lessonId == Nothing || a.lessonId == Just m.lesson.id))
-                m.selectedAssignments
-                (selectorLens #selectedAssignments)
-            )
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonAssignments) $
+        componentA
+          "lesson-editor-assignment-selector"
+          []
+          ( multiSelectAssignmentSelectorComponent
+              syncCtx
+              ( \a ->
+                  (a.activityType == SchoolExercise || a.activityType == Exam)
+                    && (a.lessonId == Nothing || a.lessonId == Just m.lesson.id)
+              )
+              m.selectedAssignments
+              (selectorLens #selectedAssignments)
+          )
 
     resourcesSection syncCtx m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium mb-2 block"] [M.text $ C.translate' C.LblLessonResources]
-        , componentA
-            "lesson-editor-resource-selector"
-            []
-            ( multiSelectResourceSelectorComponent
-                syncCtx
-                m.selectedResources
-                (selectorLens #selectedResources)
-            )
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonResources) $
+        componentA
+          "lesson-editor-resource-selector"
+          []
+          ( multiSelectResourceSelectorComponent
+              syncCtx
+              m.selectedResources
+              (selectorLens #selectedResources)
+          )
 
     notesSection m =
-      MH.div_
-        []
-        [ MH.label_ [class_ "text-sm font-medium mb-2 block"] [M.text $ C.translate' C.LblLessonNotes]
-        , MH.div_
-            [class_ "flex gap-4"]
-            [ MH.div_
-                [class_ "flex-1"]
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text "Markup"]
-                , MH.textarea_
-                    [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[120px] font-mono text-sm"
-                    , MP.value_ (M.ms m.notesValue)
-                    , MH.onInput (SetNotes . M.fromMisoString)
-                    ]
-                    []
-                ]
-            , MH.div_
-                [class_ "flex-1"]
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text $ C.translate' C.LblPreview]
-                , MH.div_
-                    [class_ "min-h-[120px] p-3 border border-input rounded-md bg-muted/50"]
-                    [renderRichText (fromTrustedInput m.notesValue)]
-                ]
-            ]
-        ]
+      Input.fieldWrapper (C.translate' C.LblLessonNotes) $
+        Layout.viewFlow
+          (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+          [ MH.div_
+              [class_ "flex-1"]
+              [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
+              , MH.textarea_
+                  [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[120px] font-mono text-sm"
+                  , MP.value_ (M.ms m.notesValue)
+                  , MH.onInput (SetNotes . M.fromMisoString)
+                  ]
+                  []
+              ]
+          , MH.div_
+              [class_ "flex-1"]
+              [ MH.span_ [class_ "block mb-1"] [Typography.muted $ C.translate' C.LblPreview]
+              , MH.div_
+                  [class_ "min-h-[120px] p-3 border border-input rounded-md bg-muted/50"]
+                  [renderRichText (fromTrustedInput m.notesValue)]
+              ]
+          ]
 
     phasesSection m =
       MH.div_
         [class_ "border-t border-border pt-4"]
-        [ MH.div_
-            [class_ "flex items-center justify-between mb-2"]
+        [ Layout.viewFlow
+            ( Layout.hFlow
+                { Layout.expandOrthogonal = Layout.Expand Layout.Center
+                , Layout.extraAttrs = [class_ "mb-2"]
+                }
+            )
             [ Typography.h4 (C.translate' C.LblLessonPhases)
+            , Layout.flowSpring
             , Button.secondarySm (Button.button (Icon.IcnAdd, C.LblAddPhase) AddPhase)
             ]
         , if null m.phases
@@ -410,8 +389,8 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 [class_ "text-center text-muted-foreground py-4"]
                 [M.text $ C.translate' C.LblNoPhases]
             else
-              MH.div_
-                [class_ "space-y-2"]
+              Layout.viewFlow
+                (Layout.vFlow{Layout.gap = Layout.SmallSpace})
                 (zipWith (viewPhaseCard m) [0 ..] m.phases)
         ]
 
@@ -432,32 +411,21 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
       MH.div_
         [class_ "p-4 border-t border-border space-y-3 bg-muted/30"]
         [ -- Title
-          MH.div_
-            []
-            [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblPhaseTitle]
-            , MH.input_
-                [ MP.type_ "text"
-                , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-                , MP.value_ (M.ms phase.title)
-                , MH.onInput (SetPhaseTitle idx . M.fromMisoString)
-                ]
-            ]
+          Input.fieldWrapper (C.translate' C.LblPhaseTitle) $
+            Input.textInput (M.ms phase.title) (SetPhaseTitle idx . M.fromMisoString)
         , -- Duration + Social form + Action form (inline row)
-          MH.div_
-            [class_ "flex gap-4"]
+          Layout.viewFlow
+            (Layout.hFlow{Layout.gap = Layout.MediumSpace})
             [ MH.div_
                 [class_ "w-24"]
-                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblPhaseDuration]
-                , MH.input_
-                    [ MP.type_ "number"
-                    , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-                    , MP.value_ (M.ms $ show phase.duration)
-                    , MH.onInput (SetPhaseDuration idx . maybe phase.duration id . readMaybe . M.fromMisoString)
-                    ]
+                [ Typography.fieldLabel (C.translate' C.LblPhaseDuration)
+                , Input.numberInput
+                    (M.ms $ show phase.duration)
+                    (SetPhaseDuration idx . maybe phase.duration id . readMaybe . M.fromMisoString)
                 ]
             , MH.div_
                 [class_ "flex-1"]
-                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblPhaseSocialForm]
+                [ Typography.fieldLabel (C.translate' C.LblPhaseSocialForm)
                 , MH.select_
                     [ class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                     , MH.onChange (SetPhaseSocialForm idx . toEnum . maybe 0 id . readMaybe . M.fromMisoString)
@@ -466,7 +434,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 ]
             , MH.div_
                 [class_ "flex-1"]
-                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblPhaseActionForm]
+                [ Typography.fieldLabel (C.translate' C.LblPhaseActionForm)
                 , MH.select_
                     [ class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                     , MH.onChange (SetPhaseActionForm idx . toEnum . maybe 0 id . readMaybe . M.fromMisoString)
@@ -475,34 +443,31 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 ]
             ]
         , -- Phase notes (split-panel with markup/preview)
-          MH.div_
-            []
-            [ MH.label_ [class_ "text-sm font-medium mb-1 block"] [M.text $ C.translate' C.LblPhaseNotes]
-            , MH.div_
-                [class_ "flex gap-4"]
-                [ MH.div_
-                    [class_ "flex-1"]
-                    [ MH.label_
-                        [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
-                        [M.text "Markup"]
-                    , MH.textarea_
-                        [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[60px] font-mono text-sm"
-                        , MP.value_ (M.ms phase.notes)
-                        , MH.onInput (SetPhaseNotes idx . M.fromMisoString)
-                        ]
-                        []
-                    ]
-                , MH.div_
-                    [class_ "flex-1"]
-                    [ MH.label_
-                        [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
-                        [M.text $ C.translate' C.LblPreview]
-                    , MH.div_
-                        [class_ "min-h-[60px] p-2 border border-input rounded-md bg-muted/50 text-sm"]
-                        [renderRichText (fromTrustedInput phase.notes)]
-                    ]
-                ]
-            ]
+          Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
+            Layout.viewFlow
+              (Layout.hFlow{Layout.gap = Layout.MediumSpace})
+              [ MH.div_
+                  [class_ "flex-1"]
+                  [ MH.label_
+                      [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
+                      [M.text "Markup"]
+                  , MH.textarea_
+                      [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[60px] font-mono text-sm"
+                      , MP.value_ (M.ms phase.notes)
+                      , MH.onInput (SetPhaseNotes idx . M.fromMisoString)
+                      ]
+                      []
+                  ]
+              , MH.div_
+                  [class_ "flex-1"]
+                  [ MH.label_
+                      [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
+                      [M.text $ C.translate' C.LblPreview]
+                  , MH.div_
+                      [class_ "min-h-[60px] p-2 border border-input rounded-md bg-muted/50 text-sm"]
+                      [renderRichText (fromTrustedInput phase.notes)]
+                  ]
+              ]
         ]
 
 -- ============================================================================

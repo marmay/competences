@@ -70,6 +70,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (intercalate)
@@ -173,8 +174,8 @@ bulkEvidenceEditorComponent r =
           .~ []
 
     view m =
-      MH.div_
-        [class_ "flex flex-col h-full gap-4 p-4"]
+      Layout.viewFlow
+        (Layout.vFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "h-full p-4"]})
         [ header m
         , settingsRow m
         , observationEntry r m
@@ -183,11 +184,12 @@ bulkEvidenceEditorComponent r =
 
     -- Header with title and save/cancel buttons
     header m =
-      MH.div_
-        [class_ "flex items-center justify-between"]
+      Layout.viewFlow
+        (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center})
         [ Typography.h2 (C.translate' C.LblBulkEvidenceEntry)
-        , MH.div_
-            [class_ "flex gap-2"]
+        , Layout.flowSpring
+        , Layout.viewFlow
+            (Layout.hFlow{Layout.gap = Layout.SmallSpace})
             [ Button.cancelButton Cancel
             , Button.primary
                 ( Button.button
@@ -199,8 +201,8 @@ bulkEvidenceEditorComponent r =
 
     -- Settings row with date and activity type
     settingsRow m =
-      MH.div_
-        [class_ "flex gap-4 items-end"]
+      Layout.viewFlow
+        (Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.expandOrthogonal = Layout.Expand Layout.End})
         [ MH.div_
             [class_ "w-40"]
             [ Input.fieldWrapper (C.translate' C.LblEvidenceDate) $
@@ -208,20 +210,18 @@ bulkEvidenceEditorComponent r =
             ]
         , MH.div_
             [class_ "w-48"]
-            [ MH.label_
-                [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                [M.text $ C.translate' C.LblActivityType]
-            , MH.select_
-                [ class_ "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                , MH.onChange (\s -> SetActivityType (read (M.fromMisoString s) :: ActivityType))
-                ]
-                [ MH.option_
-                    [ MP.value_ (M.ms $ show t)
-                    , MP.selected_ (t == m.activityType)
-                    ]
-                    [M.text $ C.translate' $ C.LblActivityTypeDescription t]
-                | t <- activityTypes
-                ]
+            [ Input.fieldWrapper (C.translate' C.LblActivityType) $
+                MH.select_
+                  [ class_ "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  , MH.onChange (\s -> SetActivityType (read (M.fromMisoString s) :: ActivityType))
+                  ]
+                  [ MH.option_
+                      [ MP.value_ (M.ms $ show t)
+                      , MP.selected_ (t == m.activityType)
+                      ]
+                      [M.text $ C.translate' $ C.LblActivityTypeDescription t]
+                  | t <- activityTypes
+                  ]
             ]
         ]
 
@@ -229,41 +229,31 @@ bulkEvidenceEditorComponent r =
     observationEntry r' m' =
       Card.card
         [ Typography.h4 (C.translate' C.LblAddObservation)
-        , MH.div_
-            [class_ "flex flex-col gap-4 mt-2"]
+        , Layout.viewFlow
+            (Layout.vFlow{Layout.gap = Layout.MediumSpace, Layout.extraAttrs = [class_ "mt-2"]})
             [ -- Student selector
-              MH.div_
-                []
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text $ C.translate' C.LblStudents]
-                , V.componentA
-                    "bulk-student-selector"
-                    [class_ "w-full"]
-                    ( searchableMultiUserSelectorComponent
-                        r'
-                        (studentSelectorConfig m')
-                        studentSelectorLens
-                    )
-                ]
+              Input.fieldWrapper (C.translate' C.LblStudents) $
+                V.componentA
+                  "bulk-student-selector"
+                  [class_ "w-full"]
+                  ( searchableMultiUserSelectorComponent
+                      r'
+                      (studentSelectorConfig m')
+                      studentSelectorLens
+                  )
             , -- Observation selector
-              MH.div_
-                []
-                [ MH.label_
-                    [class_ "text-sm font-medium text-muted-foreground mb-1 block"]
-                    [M.text $ C.translate' C.LblActivityObservations]
-                , V.componentA
-                    "bulk-observation-selector"
-                    [class_ "w-full"]
-                    ( multiStageSelectorComponent
-                        r'
-                        (bulkObservationConfig r')
-                        observationSelectorLens
-                    )
-                ]
+              Input.fieldWrapper (C.translate' C.LblActivityObservations) $
+                V.componentA
+                  "bulk-observation-selector"
+                  [class_ "w-full"]
+                  ( multiStageSelectorComponent
+                      r'
+                      (bulkObservationConfig r')
+                      observationSelectorLens
+                  )
             , -- Add button
-              MH.div_
-                [class_ "flex justify-end"]
+              Layout.viewFlow
+                (Layout.hFlow{Layout.expandDirection = Layout.Expand Layout.End})
                 [ Button.primary
                     ( Button.button
                         C.LblAddToSelectedStudents
@@ -297,8 +287,8 @@ bulkEvidenceEditorComponent r =
               MH.div_
                 [class_ "flex-1 overflow-y-auto"]
                 [ Typography.h4 (C.translate' C.LblStudentOverview)
-                , MH.div_
-                    [class_ "flex flex-col gap-3 mt-2"]
+                , Layout.viewFlow
+                    (Layout.vFlow{Layout.gap = Layout.SmallSpace, Layout.extraAttrs = [class_ "mt-2"]})
                     (map (studentCard m') studentsWithObs)
                 ]
 
@@ -309,7 +299,7 @@ bulkEvidenceEditorComponent r =
             Nothing -> M.ms $ show uid
        in Card.card
             [ MH.div_
-                [class_ "flex items-center justify-between mb-2"]
+                [class_ "mb-2"]
                 [Typography.h4 userName]
             , MH.div_
                 [class_ "flex flex-wrap gap-1"]
