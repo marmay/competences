@@ -10,7 +10,7 @@ import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
-import Competences.Document.Order (orderMax)
+import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Document.Resource (ResourceId)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
@@ -60,6 +60,7 @@ data DetailModel = DetailModel
   , expandedNotes :: !(Set.Set LessonId)  -- Notes section per lesson
   , expandedPhases :: !(Set.Set LessonId)  -- Phases section per lesson
   , document :: !Document
+  , reorderFrom :: !(Maybe LessonId)  -- Which lesson is being moved (reorder mode)
   }
   deriving (Eq, Generic, Show)
 
@@ -79,6 +80,9 @@ data DetailAction
   | DeleteMesoPlan
   | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
+  | StartReorder !LessonId
+  | CancelReorder
+  | ReorderTo !(Reorder Lesson)
   deriving (Eq, Show)
 
 -- | Project from document to minimal model, preserving UI state
@@ -106,7 +110,7 @@ projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments pr
       expandedResourcesList' = Set.intersection prevExpandedResourcesList lessonIds
       expandedNotes' = Set.intersection prevExpandedNotes lessonIds
       expandedPhases' = Set.intersection prevExpandedPhases lessonIds
-   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' expandedResourcesList' expandedNotes' expandedPhases' doc
+   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' expandedResourcesList' expandedNotes' expandedPhases' doc Nothing
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -124,7 +128,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty Set.empty Set.empty emptyDocument
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty Set.empty Set.empty emptyDocument Nothing
 
     emptyDocument =
       Document
@@ -239,6 +243,22 @@ detailComponent r initialPlan =
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
             (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
 
+    update (StartReorder lid) =
+      M.modify $ \m -> m{reorderFrom = Just lid}
+
+    update CancelReorder =
+      M.modify $ \m -> m{reorderFrom = Nothing}
+
+    update (ReorderTo target) = do
+      m <- M.get
+      case m.reorderFrom of
+        Nothing -> pure ()
+        Just fromId -> do
+          M.io_ $ case orderPosition m.document.lessons fromId of
+            Nothing -> pure ()
+            Just pos -> modifySyncDocument r (Lessons $ ReorderLesson pos target)
+          M.modify $ \m' -> m'{reorderFrom = Nothing}
+
     view m =
       Layout.vFlow
         (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
@@ -273,12 +293,25 @@ detailComponent r initialPlan =
     viewLesson m lesson =
       let isExpanded = m.expandedLessonId == Just lesson.id
           titleView = Disclosure.titleText $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
-       in Disclosure.disclosure (ToggleLessonExpansion lesson.id) $
-            Disclosure.contents titleView isExpanded (viewExpandedLesson m lesson)
+          actions = case m.reorderFrom of
+            Nothing ->
+              -- Normal mode: Pin, Edit, Reorder, Delete
               [ Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
               , Disclosure.Action Icon.IcnEdit (OpenLessonEditorModal lesson)
+              , Disclosure.Action Icon.IcnReorder (StartReorder lesson.id)
               , Disclosure.DestructiveAction Icon.IcnDelete (DeleteLesson lesson.id)
               ]
+            Just fromId
+              | fromId == lesson.id ->
+                  -- Source lesson: Cancel
+                  [Disclosure.DestructiveAction Icon.IcnCancel CancelReorder]
+              | otherwise ->
+                  -- Target lesson: Before/After
+                  [ Disclosure.Action Icon.IcnArrowUp (ReorderTo (Before lesson.id))
+                  , Disclosure.Action Icon.IcnArrowDown (ReorderTo (After lesson.id))
+                  ]
+       in Disclosure.disclosure (ToggleLessonExpansion lesson.id) $
+            Disclosure.contents titleView isExpanded (viewExpandedLesson m lesson) actions
 
     viewExpandedLesson m lesson =
       let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
