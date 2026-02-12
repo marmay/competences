@@ -54,6 +54,7 @@ import Competences.Document.Task
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color.Ability (abilityPalette)
@@ -170,10 +171,12 @@ viewAbilityBtn currentAbility mkAction ability =
 -- | Competence name + row of ability buttons
 viewCompetenceRow :: Map.Map CompetenceLevelId CompetenceLevelInfo -> CompetenceLevelId -> Maybe Ability -> (Ability -> a) -> M.View m a
 viewCompetenceRow compInfos compId currentAbility mkAction =
-  MH.div_
-    [class_ "flex items-center gap-2"]
+  Layout.viewFlow
+    (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
     [ viewCompetenceName compInfos compId
-    , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn currentAbility mkAction) abilities)
+    , Layout.viewFlow
+        (Layout.hFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "shrink-0"]})
+        (map (viewAbilityBtn currentAbility mkAction) abilities)
     ]
 
 -- ============================================================================
@@ -186,11 +189,12 @@ viewTaskHeader taskData taskId isExcluded toggleAction extraContent =
   case Map.lookup taskId taskData of
     Nothing -> MH.div_ [] [M.text $ C.translate' C.LblTaskNotFound <> ": " <> ms (show taskId)]
     Just tvd ->
-      MH.div_
-        [class_ "mt-3 mb-1 flex items-center justify-between"]
-        [ MH.div_
-            [class_ "flex items-center gap-3"]
+      Layout.viewFlow
+        (Layout.hFlow{Layout.expandOrthogonal = Layout.Expand Layout.Center, Layout.extraAttrs = [class_ "mt-3 mb-1"]})
+        [ Layout.viewFlow
+            (Layout.hFlow{Layout.gap = Layout.MediumSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
             (Typography.h4 (C.translate' C.LblTaskPrefix <> ms tvd.identifier) : extraContent)
+        , Layout.flowSpring
         , Button.toggleSm (not isExcluded)
             (Button.button (if isExcluded then C.LblIncludeTask else C.LblExcludeTask) (Just toggleAction))
         ]
@@ -214,12 +218,18 @@ viewTaskContent taskData expandedSet taskId toggleAction =
               | otherwise ->
                   MH.div_
                     [class_ "mb-2"]
-                    [ MH.div_
-                        [ class_ "flex items-center gap-2 cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
-                        , MH.onClick (toggleAction taskId)
-                        ]
+                    [ Layout.viewFlow
+                        ( Layout.hFlow
+                            { Layout.gap = Layout.SmallSpace
+                            , Layout.expandOrthogonal = Layout.Expand Layout.Center
+                            , Layout.extraAttrs =
+                                [ class_ "cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
+                                , MH.onClick (toggleAction taskId)
+                                ]
+                            }
+                        )
                         [ Disclosure.disclosureChevron isExpanded
-                        , MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translate' C.LblTaskStatement]
+                        , Typography.muted (C.translate' C.LblTaskStatement)
                         ]
                     , if isExpanded
                         then MH.div_ [class_ "ml-6 mb-2 prose prose-sm prose-stone max-w-none"] [renderRichText c]
@@ -242,8 +252,8 @@ viewTaskCompetences taskData compInfos taskObs taskId mkAction =
        in if null compIds
             then MH.div_ [class_ "mt-2"] [Typography.muted (C.translate' C.LblNoCompetences)]
             else
-              MH.div_
-                [class_ "mt-2 space-y-1"]
+              Layout.viewFlow
+                (Layout.vFlow{Layout.gap = Layout.TinySpace, Layout.extraAttrs = [class_ "mt-2"]})
                 ( map
                     ( \compId ->
                         viewCompetenceRow
@@ -264,13 +274,18 @@ viewAggregationSection :: Bool -> Bool -> a -> M.View m a -> M.View m a
 viewAggregationSection isStale hasResults computeAction resultsContent =
   MH.div_
     [class_ "border-t pt-4"]
-    [ MH.div_
-        [class_ "flex items-center justify-between mb-3"]
+    [ Layout.viewFlow
+        ( Layout.hFlow
+            { Layout.expandOrthogonal = Layout.Expand Layout.Center
+            , Layout.extraAttrs = [class_ "mb-3"]
+            }
+        )
         [ Typography.h4 (C.translate' C.LblAggregatedResults)
-        , MH.div_
-            [class_ "flex items-center gap-2"]
+        , Layout.flowSpring
+        , Layout.viewFlow
+            (Layout.hFlow{Layout.gap = Layout.SmallSpace, Layout.expandOrthogonal = Layout.Expand Layout.Center})
             [ if isStale
-                then MH.span_ [class_ "text-xs text-yellow-700"] [M.text $ C.translate' C.LblAggregationStale]
+                then Badge.outline (Badge.badgeText (C.translate' C.LblAggregationStale))
                 else M.text ""
             , Button.primarySm (Button.button C.LblComputeAggregation (Just computeAction))
             ]
@@ -323,8 +338,4 @@ viewAggregatedCompetenceRow
   -> (CompetenceLevelId, Ability)
   -> M.View m a
 viewAggregatedCompetenceRow compInfos mkAction (compId, ability) =
-  MH.div_
-    [class_ "flex items-center gap-2"]
-    [ viewCompetenceName compInfos compId
-    , MH.div_ [class_ "flex gap-1 shrink-0"] (map (viewAbilityBtn (Just ability) (mkAction compId)) abilities)
-    ]
+  viewCompetenceRow compInfos compId (Just ability) (mkAction compId)
