@@ -4,11 +4,12 @@ This document describes how to create a new release of the competences applicati
 
 ## Version Locations
 
-Version numbers need to be updated in **5 files**:
+Version numbers need to be updated in **6 files**:
 
 | File | Format | Example |
 |------|--------|---------|
 | `common/competences-common.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
+| `markdown/competences-markdown.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
 | `backend/competences-backend.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
 | `frontend/competences-frontend.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
 | `housecup/competences-housecup.cabal` | `X.Y.Z.0` | `version: 0.8.0.0` |
@@ -35,7 +36,7 @@ git log --oneline <last-release-tag-or-commit>..HEAD
 
 ### 2. Update versions
 
-Update the version string in all 5 files listed above.
+Update the version string in all 6 files listed above.
 
 ### 3. Build the frontend
 
@@ -73,10 +74,11 @@ cabal test all
 
 ### 7. Create release commit
 
-Stage exactly these 7 paths (the 5 version files + flake.lock + submodule pointer):
+Stage exactly these 8 paths (the 6 version files + flake.lock + submodule pointer):
 ```bash
 git add \
   common/competences-common.cabal \
+  markdown/competences-markdown.cabal \
   backend/competences-backend.cabal \
   frontend/competences-frontend.cabal \
   housecup/competences-housecup.cabal \
