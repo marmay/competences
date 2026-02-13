@@ -35,7 +35,7 @@ mainPage title focusedUserView navItems content footerContent =
   where
     navBanner =
       M.nav_
-        [class_ "bg-primary text-primary-foreground px-4 py-3 flex-shrink-0"]
+        [class_ "bg-primary text-primary-foreground px-4 py-3 flex-shrink-0 print:hidden"]
         [ -- Top row: title left, focused user right (centered, max-width constrained)
           MH.div_
             [class_ "max-w-4xl mx-auto w-full mb-2"]
@@ -56,5 +56,5 @@ mainPage title focusedUserView navItems content footerContent =
 
     footer =
       M.footer_
-        [class_ "flex-shrink-0 bg-muted px-4 py-2 text-center text-sm text-muted-foreground"]
+        [class_ "flex-shrink-0 bg-muted px-4 py-2 text-center text-sm text-muted-foreground print:hidden"]
         [footerContent]

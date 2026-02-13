@@ -92,7 +92,7 @@ mkApp ir =
                 (page (m ^. #uri))
                 (footerView ir)
             ]
-        , V.component "window-host" (windowHostComponent ir.windowManager)
+        , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
         ]
 
     footerView ir' =

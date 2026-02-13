@@ -306,6 +306,11 @@ data Label
   | LblSelectTask
   | LblAdd
   | LblBack
+    -- Print
+  | LblPrint
+  | LblPrintTasks
+  | LblPrintSolutions
+  | LblPrintAll
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -584,6 +589,11 @@ labels' =
   , LblSelectTask
   , LblAdd
   , LblBack
+    -- Print
+  , LblPrint
+  , LblPrintTasks
+  , LblPrintSolutions
+  , LblPrintAll
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -883,6 +893,11 @@ defaultTranslation LblAddTask = "Aufgabe hinzufügen"
 defaultTranslation LblSelectTask = "Aufgabe auswählen..."
 defaultTranslation LblAdd = "Hinzufügen"
 defaultTranslation LblBack = "Zurück"
+-- Print
+defaultTranslation LblPrint = "Drucken"
+defaultTranslation LblPrintTasks = "Aufgaben"
+defaultTranslation LblPrintSolutions = "Lösungen"
+defaultTranslation LblPrintAll = "Alles"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

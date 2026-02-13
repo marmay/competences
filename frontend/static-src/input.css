@@ -388,3 +388,14 @@
     display: none !important;
   }
 }
+
+/* Print layout: flatten containers so print-only content flows naturally */
+@media print {
+  body, body > div, body > div > div,
+  main, main > div {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+}

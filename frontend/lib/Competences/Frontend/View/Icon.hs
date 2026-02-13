@@ -73,6 +73,7 @@ data Icon
   | IcnPlusPlus
   | IcnMinus
   | IcnMinusMinus
+  | IcnPrint
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -195,6 +196,7 @@ iconId = \case
   IcnPlusPlus -> "icon-plus-plus"
   IcnMinus -> "icon-minus"
   IcnMinusMinus -> "icon-minus-minus"
+  IcnPrint -> "icon-print"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -536,6 +538,13 @@ iconDefOf' = \case
         , MSP.strokeLinecap_ "round"
         ]
     ]
+  -- Printer icon (Lucide printer)
+  IcnPrint ->
+    mkPathesDR
+      [ "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+      , "M6 9V3h12v6"
+      , "M6 15h12v6H6z"
+      ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
     mkPathes as = map (\p -> MS.path_ (MSP.d_ p : as))

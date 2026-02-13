@@ -12,6 +12,7 @@ import Competences.Document
   ( Assignment (..)
   , Competence (..)
   , Document (..)
+  , Solution (..)
   , User (..)
   )
 import Competences.Document.Assignment (AssignmentName (..))
@@ -64,10 +65,29 @@ import Data.Map.Strict qualified as Map
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.DSL (jsg, (#))
+import Miso.Event (onCreated)
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
+
+-- ============================================================================
+-- Print Content Selection
+-- ============================================================================
+
+-- | What to include in printed output
+data PrintContent = PrintTasks | PrintSolutions | PrintBoth
+  deriving (Eq, Show)
+
+-- | Trigger browser print dialog.
+-- Safe to call after DOM has been patched (e.g., from onCreated sentinel).
+triggerPrint :: IO ()
+triggerPrint = do
+  window <- jsg ("window" :: MisoString)
+  _ <- window # ("print" :: MisoString) $ ([] :: [MisoString])
+  pure ()
 
 -- ============================================================================
 -- Status Helpers (delegate to Query module)
@@ -142,12 +162,18 @@ viewerDetailView r user assignment =
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
   , taskListState :: !TaskResourceList
+  , printMode :: !PrintContent
+  , printDropdownOpen :: !Bool
+  , printPending :: !Bool
   }
   deriving (Eq, Generic, Show)
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
   | TaskListAction !TRL.Action
+  | TogglePrintDropdown
+  | DoPrintWith !PrintContent
+  | ExecutePrint
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -160,6 +186,9 @@ viewerComponent r user assignment =
     model = ViewerModel
       { projection = emptyProjection user.role assignment
       , taskListState = initialState TasksExpanded Map.empty []
+      , printMode = PrintBoth
+      , printDropdownOpen = False
+      , printPending = False
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -222,12 +251,36 @@ viewerComponent r user assignment =
     update (TaskListAction action) =
       M.modify $ \m -> m & #taskListState .~ updateTaskResourceList action m.taskListState
 
+    update TogglePrintDropdown =
+      M.modify $ \m -> m & #printDropdownOpen .~ not m.printDropdownOpen
+
+    update (DoPrintWith mode) =
+      M.modify $ \m -> m & #printMode .~ mode
+                          & #printDropdownOpen .~ False
+                          & #printPending .~ True
+
+    update ExecutePrint = do
+      M.modify $ \m -> m & #printPending .~ False
+      M.io_ triggerPrint
+
     view' m =
       M.div_
-        [class_ "space-y-6"]
-        [ viewAssignmentHeader m
-        , viewTaskList m
+        []
+        [ M.div_
+            [class_ "space-y-6 print:hidden"]
+            [ viewAssignmentHeader m
+            , viewTaskList m
+            ]
+        , M.div_
+            [class_ "hidden print:block"]
+            [viewPrintContent m]
+        , printSentinel m
         ]
+
+    printSentinel :: ViewerModel -> M.View ViewerModel ViewerAction
+    printSentinel m
+      | m.printPending = M.div_ [onCreated ExecutePrint, class_ "hidden"] []
+      | otherwise = M.text ""
 
     viewAssignmentHeader m =
       let proj = m.projection
@@ -235,7 +288,7 @@ viewerComponent r user assignment =
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
-                [ -- Title line with date + status on the right
+                [ -- Title line with date + status + print on the right
                   Layout.hFlow (Layout.hFull <> Layout.crossCenter)
                     [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
                     , Layout.flowSpring
@@ -246,6 +299,7 @@ viewerComponent r user assignment =
                                 [class_ "text-muted-foreground"]
                                 [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
                             , statusIcon proj.status
+                            , viewPrintDropdown m
                             ]
                         ]
                     ]
@@ -307,5 +361,98 @@ viewerComponent r user assignment =
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
             , taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState TaskListAction
             ]
+
+    -- ========================================================================
+    -- Print Dropdown
+    -- ========================================================================
+
+    viewPrintDropdown :: ViewerModel -> M.View ViewerModel ViewerAction
+    viewPrintDropdown m =
+      M.div_
+        [class_ "relative"]
+        [ M.button_
+            [ class_ "inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            , M.onClick TogglePrintDropdown
+            , MP.title_ (C.translate' C.LblPrint)
+            ]
+            [Icon.iconS Icon.Small Icon.IcnPrint]
+        , if m.printDropdownOpen
+            then viewPrintDropdownMenu
+            else M.text ""
+        ]
+
+    viewPrintDropdownMenu :: M.View ViewerModel ViewerAction
+    viewPrintDropdownMenu =
+      M.div_
+        [class_ "absolute right-0 top-full mt-1 z-50 min-w-36 bg-popover text-popover-foreground border border-border rounded-md shadow-lg py-1"]
+        [ M.div_
+            [class_ "fixed inset-0 z-[-1]", M.onClick TogglePrintDropdown]
+            []
+        , printDropdownItem PrintTasks C.LblPrintTasks
+        , printDropdownItem PrintSolutions C.LblPrintSolutions
+        , printDropdownItem PrintBoth C.LblPrintAll
+        ]
+
+    printDropdownItem :: PrintContent -> C.Label -> M.View ViewerModel ViewerAction
+    printDropdownItem mode lbl =
+      M.button_
+        [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+        , M.onClick (DoPrintWith mode)
+        ]
+        [ Icon.iconS Icon.Small Icon.IcnPrint
+        , M.text (C.translate' lbl)
+        ]
+
+    -- ========================================================================
+    -- Print Content (hidden on screen, visible in print)
+    -- ========================================================================
+
+    viewPrintContent :: ViewerModel -> M.View ViewerModel ViewerAction
+    viewPrintContent m =
+      let proj = m.projection
+          asmtName = assignmentNameToText proj.currentAssignment.name
+          asmtDate = C.formatDay proj.currentAssignment.assignmentDate
+       in M.div_
+            [class_ "space-y-6"]
+            ( [ M.h1_ [class_ "text-2xl font-bold"] [M.text asmtName]
+              , M.p_ [class_ "text-sm text-muted-foreground"] [M.text asmtDate]
+              ]
+              <> concatMap (viewPrintTask m.printMode) proj.tasksWithSolutions
+            )
+
+    viewPrintTask :: PrintContent -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
+    viewPrintTask mode tws =
+      let TaskIdentifier ident = tws.task.identifier
+          showTask = mode == PrintTasks || mode == PrintBoth
+          showSolutions = mode == PrintSolutions || mode == PrintBoth
+       in [ M.div_
+              [class_ "space-y-2 mt-4"]
+              ( [M.h2_ [class_ "text-lg font-semibold"] [M.text $ ms ident]]
+                <> [ M.div_
+                       [class_ "prose prose-stone prose-sm max-w-none"]
+                       [renderRichText content]
+                   | showTask
+                   , Just content <- [tws.taskContent]
+                   ]
+                <> [ M.div_
+                       [class_ "mt-2 space-y-1"]
+                       (map viewPrintSolution tws.solutions)
+                   | showSolutions
+                   , not (null tws.solutions)
+                   ]
+              )
+          ]
+
+    viewPrintSolution :: Solution -> M.View ViewerModel ViewerAction
+    viewPrintSolution sol =
+      M.div_
+        [class_ "pl-4 border-l-2 border-muted space-y-1"]
+        [ M.p_
+            [class_ "text-xs font-medium text-muted-foreground"]
+            [M.text $ C.translate' (C.LblSolutionType sol.solutionType)]
+        , M.div_
+            [class_ "prose prose-stone prose-sm max-w-none"]
+            [renderRichText sol.content]
+        ]
 
     assignmentNameToText (AssignmentName t) = ms t

@@ -135,9 +135,10 @@ selectorDetailComponent config =
     modeSwitcher m = case config.availableModes of
       _ :| [] -> V.empty  -- Single mode, no switcher needed
       modes ->
-        V.hFlow
-          (V.wFull <> V.mainCenter)
-          [Button.buttonGroup (map (modeButton m.activeMode) (NE.toList modes))]
+        V.addClass "print:hidden" $
+          V.hFlow
+            (V.wFull <> V.mainCenter)
+            [Button.buttonGroup (map (modeButton m.activeMode) (NE.toList modes))]
 
     modeButton :: mode -> mode -> M.View (Model a mode) (Action mode)
     modeButton activeMode mode =
