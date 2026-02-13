@@ -152,7 +152,7 @@ taskOrGroupSelectorComponent r parentLens =
       M.div_
         [class_ "h-full"]
         [ Layout.vFlow
-            Layout.gapS
+            (Layout.gapS <> Layout.hFull)
             [ SL.selectorHeaderWithDropdown
                 (C.translate' C.LblTasksAndGroups)
                 m.dropdownOpen

@@ -152,7 +152,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
        in M.div_
             [class_ "h-full"]
             [ Layout.vFlow
-                Layout.gapS
+                (Layout.gapS <> Layout.hFull)
                 [ if style == EvidenceSelectorViewAndCreate && hasFocusedUser
                     then
                       SL.selectorHeaderWithDropdown

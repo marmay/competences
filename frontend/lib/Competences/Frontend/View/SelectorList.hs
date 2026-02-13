@@ -36,7 +36,7 @@ selectorHeader
   -> M.View m action
 selectorHeader title mAddAction =
   Layout.hFlow
-    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+    (Layout.crossCenter <> Layout.mainBetween)
     [ Typography.h3 title
     , case mAddAction of
         Just action -> Button.secondary (Button.button Icon.IcnAdd (Just action))
@@ -56,7 +56,7 @@ selectorHeaderWithDropdown
   -> M.View m action
 selectorHeaderWithDropdown title isOpen toggleAction menuItems =
   Layout.hFlow
-    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+    (Layout.crossCenter <> Layout.mainBetween)
     [ Typography.h3 title
     , M.div_
         [class_ "relative"]
@@ -176,9 +176,6 @@ selectorSearchField value placeholder onInput =
 -- | Scrollable list container (grows to fill available space)
 selectorList :: [M.View m action] -> M.View m action
 selectorList items =
-  M.div_
-    [class_ "flex-1", class_ "overflow-y-scroll", class_ "min-h-0"]
-    [ Layout.vFlow
-        Layout.gapS
-        items
-    ]
+  Layout.grow $
+    Layout.vScrollable $
+      Layout.vFlow Layout.gapS items

@@ -144,7 +144,7 @@ assignmentSelectorComponent r parentLens =
       M.div_
         [class_ "h-full"]
         [ Layout.vFlow
-            Layout.gapS
+            (Layout.gapS <> Layout.hFull)
             [ SelectorList.selectorHeaderWithDropdown
                 (C.translate' C.LblAssignments)
                 m.isDropdownOpen

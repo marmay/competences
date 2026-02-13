@@ -137,7 +137,7 @@ competenceGridSelectorComponent r style parentLens =
       M.div_
         [class_ "h-full"]
         [ Layout.vFlow
-            Layout.gapS
+            (Layout.gapS <> Layout.hFull)
             [ case style of
                 CompetenceGridSelectorViewOnlyStyle ->
                   SL.selectorHeader (C.translate' C.LblSelectCompetenceGrids) Nothing

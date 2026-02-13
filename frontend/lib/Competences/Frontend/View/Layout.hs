@@ -234,8 +234,8 @@ centeredContent :: M.View m a -> M.View m a
 centeredContent v = M.div_ [class_ "w-full h-full min-h-0 flex justify-center"] [v]
 
 hScrollable, vScrollable :: M.View m a -> M.View m a
-hScrollable v = M.div_ [class_ "overflow-x-auto w-full"] [v]
-vScrollable v = M.div_ [class_ "overflow-y-auto h-full"] [v]
+hScrollable = addClass "overflow-x-scroll min-w-0"
+vScrollable = addClass "overflow-y-scroll min-h-0"
 
 hBorder, vBorder :: M.View m a
 hBorder = M.div_ [class_ "h-1 w-full bg-sky-800"] []

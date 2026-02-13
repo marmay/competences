@@ -112,7 +112,7 @@ mesoPlanSelectorComponent r parentLens =
       MH.div_
         [class_ "h-full"]
         [ Layout.vFlow
-            Layout.gapS
+            (Layout.gapS <> Layout.hFull)
             [ SelectorList.selectorHeaderWithDropdown
                 (C.translate' C.LblMesoPlans)
                 m.isDropdownOpen

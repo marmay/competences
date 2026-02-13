@@ -44,7 +44,8 @@ masteryDisplay config =
         [ -- Stacked horizontal bar (only segments with count > 0)
           MH.div_
             [class_ "h-3 rounded overflow-hidden bg-stone-100"]
-            [ Layout.hFlow'
+            [ Layout.hFlow
+                Layout.hFull
                 (map renderSegment segments)
             ]
         , -- Count labels below - always show all 6, with CSS tooltips
