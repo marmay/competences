@@ -19,7 +19,6 @@ import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorMo
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.TaskContent.RichContent (fromTrustedInput)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -393,10 +392,10 @@ detailComponent r initialPlan =
                     , M.text $ C.translate' (C.LblActionForm phase.actionForm)
                     ]
                 ]
-            , if Text.null phase.notes
+            , if phase.notes == mempty
                 then M.text ""
                 else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted text-sm"]
-                  [renderRichText (fromTrustedInput phase.notes)]
+                  [renderRichText phase.notes]
             ]
 
     viewAssignmentSummary doc aId =

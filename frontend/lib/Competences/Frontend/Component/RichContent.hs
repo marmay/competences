@@ -29,15 +29,16 @@ module Competences.Frontend.Component.RichContent
   ( -- * Convenience functions
     renderRichText
   , documentView
-  , taskContentView
 
     -- * Component
   , richContentView
   , richContentComponent
 
+    -- * Internal (used by MarkdownEditor preview)
+  , renderMarkdownText
+
     -- * Types (re-exported)
   , MD.Document (..)
-  , TaskContent (..)
   )
 where
 
@@ -56,9 +57,6 @@ import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.AST qualified as MD
 import Competences.Markdown.Parser qualified as Markdown
-import Competences.TaskContent.AST (TaskContent (..))
-import Competences.TaskContent.AST qualified as Old
-import Competences.TaskContent.Parser (parseTaskContent)
 import Competences.TaskContent.RichContent (RichContent, toRawText)
 import Data.Bits (xor, (.&.))
 import Data.Char (ord)
@@ -305,51 +303,25 @@ documentView doc =
   let key = hashDocument doc
    in richContentView key doc
 
--- | Backward-compatible: render old TaskContent AST to Miso view
---
--- Uses the old TaskContent component. Prefer 'documentView' for new code.
-taskContentView :: TaskContent -> M.View p a
-taskContentView ast =
-  let key = hashTaskContent ast
-   in richContentView key (taskContentToDocument ast)
-
 -- | Convenience function to parse and render rich content in one step
 --
--- Tries new markdown parser first, falls back to old parser.
 -- On parse failure, shows the raw text in a code block with error styling.
 renderRichText :: RichContent -> M.View p a
-renderRichText rc =
-  let raw = toRawText rc
-   in case Markdown.parseMarkdown raw of
-        Right doc -> documentView doc
-        Left _newErr ->
-          -- Try old parser as fallback for backward compatibility
-          case parseTaskContent raw of
-            Right ast -> taskContentView ast
-            Left _oldErr ->
-              -- Both parsers failed - show raw text
-              M.pre_
-                [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
-                [M.text (ms raw)]
+renderRichText rc = renderMarkdownText (toRawText rc)
 
--- | Convert old TaskContent to new Document AST for unified rendering
-taskContentToDocument :: TaskContent -> MD.Document
-taskContentToDocument (TaskContent blocks) = MD.Document (map convertBlock blocks)
-  where
-    convertBlock = \case
-      Old.Paragraph inlines -> MD.Paragraph (map convertInline inlines)
-      Old.SubTaskList items -> MD.LetterList (map convertListItem items)
-      Old.SubQuestionList items -> MD.OrderedList 1 (map convertListItem items)
-      Old.MathBlock latex -> MD.MathBlock latex
-      Old.Heading level inlines -> MD.Heading level (map convertInline inlines)
-
-    convertListItem item = map convertBlock item.content
-
-    convertInline = \case
-      Old.Plain t -> MD.Plain t
-      Old.Emph inlines -> MD.Emph (map convertInline inlines)
-      Old.Strong inlines -> MD.Strong (map convertInline inlines)
-      Old.MathInline latex -> MD.MathInline latex
+-- | Parse and render raw 'Text' as markdown.
+--
+-- Useful for rendering 'Text' fields (e.g. phase notes) that aren't
+-- wrapped in 'RichContent'. On parse failure, shows the raw text
+-- in a code block with error styling.
+renderMarkdownText :: Text -> M.View p a
+renderMarkdownText raw =
+  case Markdown.parseMarkdown raw of
+    Right doc -> documentView doc
+    Left _err ->
+      M.pre_
+        [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
+        [M.text (ms raw)]
 
 -- | Generate a stable hash key from Document
 hashDocument :: MD.Document -> Text
@@ -357,10 +329,3 @@ hashDocument (MD.Document blocks) =
   let str = show blocks
       djb2Hash = foldl' (\h c -> ((h * 33) `xor` ord c) .&. 0x7FFFFFFF) 5381 str
    in "md-" <> T.pack (showHex djb2Hash "")
-
--- | Generate a stable hash key from old TaskContent (backward compat)
-hashTaskContent :: TaskContent -> Text
-hashTaskContent (TaskContent blocks) =
-  let str = show blocks
-      djb2Hash = foldl' (\h c -> ((h * 33) `xor` ord c) .&. 0x7FFFFFFF) 5381 str
-   in "tc-" <> T.pack (showHex djb2Hash "")

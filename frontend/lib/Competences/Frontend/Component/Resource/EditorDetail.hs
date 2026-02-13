@@ -24,10 +24,12 @@ import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
+import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.Component.Editor.EditorField (mkFieldLens)
+import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Tailwind (class_)
@@ -36,7 +38,7 @@ import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
-import Optics.Core ((&), (?~), (^.))
+import Optics.Core (Lens', lens, (&), (.~), (?~), (^.))
 
 -- | Detail view for editing a resource
 editorDetailView
@@ -201,35 +203,9 @@ resourceContentEditorField =
             , -- Content-specific fields
               case currentContent of
                 InlineContent rc ->
-                  MH.div_
-                    [class_ "w-full"]
-                    [ Layout.hFlow Layout.gapM
-                        [ -- Editor panel (left)
-                          MH.div_
-                            [class_ "flex-1 min-w-0"]
-                            [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
-                            , MH.textarea_
-                                ( [ class_ "w-full min-h-[150px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
-                                  , MH.onChange
-                                      (\v -> UpdatePatch original (patch & #content ?~ (original.content, InlineContent (fromTrustedInput (M.fromMisoString v)))))
-                                  , M.value_ (M.ms (toRawText rc))
-                                  ]
-                                  <> if refocusTarget then [M.id_ "refocus-target"] else []
-                                )
-                                []
-                            ]
-                        , -- Preview panel (right)
-                          MH.div_
-                            [class_ "flex-1 min-w-0"]
-                            [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
-                            , MH.div_ [class_ "min-h-[150px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                                [ if rc == mempty
-                                    then Typography.placeholder "Kein Inhalt"
-                                    else renderRichText rc
-                                ]
-                            ]
-                        ]
-                    ]
+                  componentA "rc-resource-editor"
+                    (if refocusTarget then [M.id_ "refocus-target"] else [])
+                    (richContentEditorComponent rc (resourceRichContentLens original))
                 WebLink url desc ->
                   MH.div_ [class_ "space-y-2"]
                     [ MH.div_ []
@@ -304,3 +280,19 @@ resourceContentEditorField =
         , MH.onClick action
         ]
         [M.text label]
+
+-- | Lens into the 'RichContent' inside a resource's 'InlineContent'.
+--
+-- GET: extracts 'RichContent' from 'InlineContent', returns 'mempty' for other variants.
+-- SET: wraps the 'RichContent' in 'InlineContent' and updates the patch.
+--
+-- This is safe because the component is only rendered when the content type is InlineContent.
+resourceRichContentLens :: Resource -> Lens' (Model Resource ResourcePatch f) RichContent
+resourceRichContentLens original = lens getter setter
+  where
+    baseLens = mkFieldLens #content #content original
+    getter model = case model ^. baseLens of
+      InlineContent rc -> rc
+      _ -> mempty
+    setter model rc =
+      model & baseLens .~ InlineContent rc

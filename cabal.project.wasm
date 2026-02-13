@@ -1,6 +1,7 @@
 packages:
     common
     frontend
+    markdown
 
 package competences-common
     flags: -aeson

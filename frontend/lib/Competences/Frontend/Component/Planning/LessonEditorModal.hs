@@ -22,8 +22,8 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
-import Competences.Frontend.Component.MarkdownEditor (markdownEditorView)
-import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
+import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
@@ -44,7 +44,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
-import Optics.Core ((&), (.~), (?~))
+import Optics.Core (Lens', lens, (&), (.~), (?~))
 import Text.Read (readMaybe)
 
 -- ============================================================================
@@ -56,7 +56,7 @@ data Model = Model
   { lesson :: !Lesson
   , -- Editable fields:
     titleValue :: !Text
-  , descriptionValue :: !Text
+  , description :: !RichContent
   , competenceLevels :: ![CompetenceLevelId]
   , dateValue :: !(Maybe Day)
   , initialAssignments :: ![AssignmentId]
@@ -64,12 +64,9 @@ data Model = Model
   , selectedAssignments :: ![AssignmentId]
   , selectedResources :: ![ResourceId]
   , phases :: ![LessonPhase]
-  , notesValue :: !Text
+  , notes :: !RichContent
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
-  , descriptionPreview :: !Bool
-  , notesPreview :: !Bool
-  , phaseNotesPreview :: !(Maybe Int)
   }
   deriving (Eq, Generic)
 
@@ -79,9 +76,7 @@ data Model = Model
 
 data Action
   = SetTitle !Text
-  | SetDescription !Text
   | SetDate !(Maybe Day)
-  | SetNotes !Text
   | -- Phase actions:
     AddPhase
   | DeletePhase !Int
@@ -90,11 +85,6 @@ data Action
   | SetPhaseDuration !Int !Int
   | SetPhaseSocialForm !Int !TeachingSocialForm
   | SetPhaseActionForm !Int !ActionForm
-  | SetPhaseNotes !Int !Text
-  | -- Preview toggles:
-    ToggleDescriptionPreview
-  | ToggleNotesPreview
-  | TogglePhaseNotesPreview !Int
   | -- Save/Cancel:
     SaveAndClose
   | CloseModal
@@ -115,31 +105,22 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
       Model
         { lesson = lesson'
         , titleValue = lesson'.title
-        , descriptionValue = toRawText lesson'.description
+        , description = lesson'.description
         , competenceLevels = lesson'.competenceLevels
         , dateValue = lesson'.date
         , initialAssignments = assignmentIds
         , selectedAssignments = assignmentIds
         , selectedResources = lesson'.resources
         , phases = lesson'.phases
-        , notesValue = toRawText lesson'.notes
+        , notes = lesson'.notes
         , editingPhaseIndex = Nothing
-        , descriptionPreview = False
-        , notesPreview = False
-        , phaseNotesPreview = Nothing
         }
 
     update (SetTitle t) =
       M.modify $ \m -> m {titleValue = t}
 
-    update (SetDescription d) =
-      M.modify $ \m -> m {descriptionValue = d}
-
     update (SetDate d) =
       M.modify $ \m -> m {dateValue = d}
-
-    update (SetNotes n) =
-      M.modify $ \m -> m {notesValue = n}
 
     -- Phase actions
     update AddPhase =
@@ -150,7 +131,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 , socialForm = WholeClass
                 , duration = 10
                 , actionForm = Presenting
-                , notes = ""
+                , notes = mempty
                 }
             newPhases = m.phases <> [newPhase]
             newIdx = length m.phases
@@ -184,46 +165,28 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     update (SetPhaseActionForm idx af) =
       M.modify $ \m -> m & #phases .~ updateAt idx (\p -> p & #actionForm .~ af) m.phases
 
-    update (SetPhaseNotes idx n) =
-      M.modify $ \m -> m & #phases .~ updateAt idx (\p -> p & #notes .~ n) m.phases
-
-    update ToggleDescriptionPreview =
-      M.modify $ \m -> m {descriptionPreview = not m.descriptionPreview}
-
-    update ToggleNotesPreview =
-      M.modify $ \m -> m {notesPreview = not m.notesPreview}
-
-    update (TogglePhaseNotesPreview idx) =
-      M.modify $ \m ->
-        m
-          { phaseNotesPreview =
-              if m.phaseNotesPreview == Just idx then Nothing else Just idx
-          }
-
     update SaveAndClose = do
       m <- M.get
       M.io_ $ do
         let old = m.lesson
             -- Build lesson patch with only changed fields
-            newDescription = fromTrustedInput m.descriptionValue
-            newNotes = fromTrustedInput m.notesValue
             patch =
               def
                 & (if old.title /= m.titleValue then #title ?~ (old.title, m.titleValue) else id)
-                & (if old.description /= newDescription then #description ?~ (old.description, newDescription) else id)
+                & (if old.description /= m.description then #description ?~ (old.description, m.description) else id)
                 & (if old.competenceLevels /= m.competenceLevels then #competenceLevels ?~ (old.competenceLevels, m.competenceLevels) else id)
                 & (if old.date /= m.dateValue then #date ?~ (old.date, m.dateValue) else id)
                 & (if old.resources /= m.selectedResources then #resources ?~ (old.resources, m.selectedResources) else id)
                 & (if old.phases /= m.phases then #phases ?~ (old.phases, m.phases) else id)
-                & (if old.notes /= newNotes then #notes ?~ (old.notes, newNotes) else id)
+                & (if old.notes /= m.notes then #notes ?~ (old.notes, m.notes) else id)
             hasLessonChanges =
               old.title /= m.titleValue
-                || old.description /= newDescription
+                || old.description /= m.description
                 || old.competenceLevels /= m.competenceLevels
                 || old.date /= m.dateValue
                 || old.resources /= m.selectedResources
                 || old.phases /= m.phases
-                || old.notes /= newNotes
+                || old.notes /= m.notes
 
             -- Compute assignment diff (assignments are now linked via Assignment.lessonId)
             assignmentsAdded = filter (`notElem` m.initialAssignments) m.selectedAssignments
@@ -301,12 +264,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        markdownEditorView
-          m.descriptionValue
-          m.descriptionPreview
-          SetDescription
-          ToggleDescriptionPreview
-          "150px"
+        componentA "lesson-description" [] (richContentEditorComponent m.description #description)
 
     competenceLevelSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
@@ -358,12 +316,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblLessonNotes) $
-        markdownEditorView
-          m.notesValue
-          m.notesPreview
-          SetNotes
-          ToggleNotesPreview
-          "120px"
+        componentA "lesson-notes" [] (richContentEditorComponent m.notes #notes)
 
     phasesSection m =
       MH.div_
@@ -396,11 +349,11 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
       let isExpanded = m.editingPhaseIndex == Just idx
           titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
        in Disclosure.disclosure (TogglePhaseEdit idx) $
-            Disclosure.contents titleView isExpanded (viewPhaseEditor m idx phase)
+            Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase)
               [Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)]
 
-    viewPhaseEditor :: Model -> Int -> LessonPhase -> M.View Model Action
-    viewPhaseEditor m' idx phase =
+    viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action
+    viewPhaseEditor idx phase =
       MH.div_
         [class_ "p-4 border-t border-border space-y-3 bg-muted/30"]
         [ -- Title
@@ -436,12 +389,8 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
             ]
         , -- Phase notes
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
-            markdownEditorView
-              phase.notes
-              (m'.phaseNotesPreview == Just idx)
-              (SetPhaseNotes idx)
-              (TogglePhaseNotesPreview idx)
-              "60px"
+            componentA ("phase-notes-" <> M.ms (show idx)) []
+              (richContentEditorComponent phase.notes (phaseNotesLens idx))
         ]
 
 -- ============================================================================
@@ -483,3 +432,20 @@ deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs =
   let (before, after) = splitAt idx xs
    in before <> drop 1 after
+
+-- | Safe list indexing
+listIndex :: Int -> [a] -> Maybe a
+listIndex _ [] = Nothing
+listIndex 0 (x : _) = Just x
+listIndex n (_ : xs)
+  | n < 0 = Nothing
+  | otherwise = listIndex (n - 1) xs
+
+-- | Lens into a specific phase's notes field
+phaseNotesLens :: Int -> Lens' Model RichContent
+phaseNotesLens idx = lens getter setter
+  where
+    getter m = case listIndex idx m.phases of
+      Just phase -> phase.notes
+      Nothing -> mempty
+    setter m rc = m & #phases .~ updateAt idx (\p -> p & #notes .~ rc) m.phases

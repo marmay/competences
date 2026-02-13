@@ -22,7 +22,6 @@ module Competences.TaskContent.RichContent
   ) where
 
 import Competences.Markdown.Parser qualified as Markdown
-import Competences.TaskContent.Parser (ParseError)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -30,6 +29,9 @@ import Data.Binary (Binary)
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
+
+-- | Parse error message (previously re-exported from the old attoparsec parser)
+type ParseError = String
 
 -- | Raw markup text that is expected to be parseable as 'TaskContent'.
 newtype RichContent = RichContent {unRichContent :: Text}

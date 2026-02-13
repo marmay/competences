@@ -83,7 +83,7 @@ data LessonPhase = LessonPhase
   , duration :: !Int
   -- ^ Duration in minutes
   , actionForm :: !ActionForm
-  , notes :: !Text
+  , notes :: !RichContent
   }
   deriving (Eq, Generic, Ord, Show)
 

@@ -20,8 +20,9 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
+import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.TaskContent.RichContent (RichContent, toRawText, fromTrustedInput)
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Frontend.Component.Selector.Common
@@ -29,8 +30,7 @@ import Competences.Frontend.Component.Selector.Common
   , SelectorTransformedLens
   , selectorTransformedLens
   )
-import Competences.Frontend.View.Component (component)
-import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Text (text_)
 import Data.Default (Default (..))
 import Data.Map qualified as Map
@@ -44,7 +44,6 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
 import Optics.Core (Lens', at, lens, (%), (&), (?~), (^.))
 import Optics.Core qualified as O
-import Competences.Frontend.View.Component (componentA)
 
 data EditorField a patch f = EditorField
   { viewer :: !(a -> M.View (Model a patch f) (Action a patch))
@@ -116,12 +115,22 @@ msIso = O.iso M.ms M.fromMisoString
 
 -- | Rich text editor field with markup rendering
 --   Viewer: renders task content markup (paragraphs, emphasis, math, lists)
---   Editor: textarea for entering markup
-richTextEditorField :: Lens' a RichContent -> Lens' patch (Change RichContent) -> EditorField a patch f
+--   Editor: self-contained component with edit/preview toggle
+richTextEditorField
+  :: (Ord a, Default patch)
+  => Lens' a RichContent
+  -> Lens' patch (Change RichContent)
+  -> EditorField a patch f
 richTextEditorField viewLens patchLens =
   EditorField
     { viewer = richTextViewer viewLens
-    , editor = richTextEditor viewLens patchLens
+    , editor = \refocusTarget original patch ->
+        componentA
+          "rc-editor"
+          (refocusTargetAttr refocusTarget)
+          (richContentEditorComponent
+            (currentValue original patch viewLens patchLens)
+            (mkFieldLens viewLens patchLens original))
     }
 
 richTextViewer :: Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)
@@ -130,46 +139,6 @@ richTextViewer viewLens a =
    in if content == mempty
         then Typography.placeholder "No content"
         else renderRichText content
-
-richTextEditor
-  :: Lens' a RichContent
-  -> Lens' patch (Change RichContent)
-  -> Bool
-  -> a
-  -> patch
-  -> M.View (Model a patch f) (Action a patch)
-richTextEditor viewLens patchLens refocusTarget original patch =
-  let currentContent = currentValue original patch viewLens patchLens
-   in M.div_
-        [class_ "w-full"]
-        [ Layout.hFlow Layout.gapM
-            [ -- Editor panel (left)
-              M.div_
-                [class_ "flex-1 min-w-0"]
-                [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Markup"]
-                , M.textarea_
-                    ( [ class_ "w-full min-h-[200px] resize-y font-mono text-sm p-2 border border-stone-300 rounded-md"
-                      , M.onChange
-                          (\v -> UpdatePatch original (patch & patchLens ?~ (original ^. viewLens, fromTrustedInput (M.fromMisoString v))))
-                      , M.value_ (M.ms (toRawText currentContent))
-                      ]
-                        <> refocusTargetAttr refocusTarget
-                    )
-                    []
-                ]
-            , -- Preview panel (right)
-              M.div_
-                [class_ "flex-1 min-w-0"]
-                [ M.span_ [class_ "block mb-1"] [Typography.fieldLabel "Preview"]
-                , M.div_
-                    [class_ "min-h-[200px] p-3 border border-stone-200 rounded-md bg-stone-50 overflow-auto"]
-                    [ if currentContent == mempty
-                        then Typography.placeholder "No content"
-                        else renderRichText currentContent
-                    ]
-                ]
-            ]
-        ]
 
 boolEditorField :: Lens' a Bool -> Lens' patch (Change Bool) -> EditorField a patch f
 boolEditorField viewLens patchLens =
