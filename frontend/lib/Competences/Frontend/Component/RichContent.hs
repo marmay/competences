@@ -19,15 +19,16 @@
 --
 -- @
 -- import Competences.Frontend.Component.RichContent (richContentView)
--- import Competences.TaskContent.Parser (parseTaskContent)
+-- import Competences.Markdown.Parser (parseMarkdown)
 --
--- case parseTaskContent text of
---   Right ast -> richContentView componentKey ast
+-- case parseMarkdown text of
+--   Right doc -> documentView componentKey doc
 --   Left err -> errorView err
 -- @
 module Competences.Frontend.Component.RichContent
   ( -- * Convenience functions
     renderRichText
+  , documentView
   , taskContentView
 
     -- * Component
@@ -35,12 +36,12 @@ module Competences.Frontend.Component.RichContent
   , richContentComponent
 
     -- * Types (re-exported)
+  , MD.Document (..)
   , TaskContent (..)
   )
 where
 
-import Competences.TaskContent.Parser (parseTaskContent)
-import Competences.TaskContent.RichContent (RichContent, toRawText)
+import Competences.Frontend.Component.Geometry (renderGeometryText)
 import Competences.Frontend.MathJax.Manager
   ( ComponentContainerId (..)
   , FormulaId (..)
@@ -53,7 +54,12 @@ import Competences.Frontend.MathJax.Manager
   )
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.TaskContent.AST
+import Competences.Markdown.AST qualified as MD
+import Competences.Markdown.Parser qualified as Markdown
+import Competences.TaskContent.AST (TaskContent (..))
+import Competences.TaskContent.AST qualified as Old
+import Competences.TaskContent.Parser (parseTaskContent)
+import Competences.TaskContent.RichContent (RichContent, toRawText)
 import Data.Bits (xor, (.&.))
 import Data.Char (ord)
 import Data.Map.Strict (Map)
@@ -66,8 +72,8 @@ import Miso.Event (onBeforeDestroyed)
 import Miso.Html qualified as M
 import Miso.Html.Property (height_, href_, width_)
 import Miso.String (ms)
-import Numeric (showHex)
 import Miso.Svg.Element qualified as Svg
+import Numeric (showHex)
 import Optics.Core ((.~))
 
 -- | Render state
@@ -80,7 +86,7 @@ data RenderState
 
 -- | Model tracks the content and render state
 data RichContentModel = RichContentModel
-  { content :: !TaskContent
+  { content :: !MD.Document
   -- ^ Parsed AST
   , containerId :: !ComponentContainerId
   -- ^ Unique container ID for this instance
@@ -103,19 +109,19 @@ data RichContentAction
     Unmounted
   deriving (Eq, Show)
 
--- | Create a RichContent view
+-- | Create a RichContent view from a new Document AST
 --
 -- @key@ should be unique per content instance (e.g., task ID).
 -- The component will manage its own SVG container lifecycle.
-richContentView :: Text -> TaskContent -> M.View p a
-richContentView key content' =
+richContentView :: Text -> MD.Document -> M.View p a
+richContentView key doc =
   component
     ("rich-" <> M.ms key)
-    (richContentComponent key content')
+    (richContentComponent key doc)
 
 -- | The RichContent component
-richContentComponent :: Text -> TaskContent -> M.Component p RichContentModel RichContentAction
-richContentComponent key content' =
+richContentComponent :: Text -> MD.Document -> M.Component p RichContentModel RichContentAction
+richContentComponent key doc =
   (M.component model update view)
     { M.initialAction = Just RenderMath
     , M.eventPropagation = True
@@ -125,7 +131,7 @@ richContentComponent key content' =
 
     model =
       RichContentModel
-        { content = content'
+        { content = doc
         , containerId = containerId'
         , renderedFormulas = Map.empty
         , renderState = Pending
@@ -161,56 +167,76 @@ richContentComponent key content' =
       Pending -> M.text "" -- Empty during render
       Ready -> renderContent m.renderedFormulas m.content
 
--- | Extract all math formulas from content AST
-extractFormulas :: TaskContent -> [(MathDisplay, Text)]
-extractFormulas (TaskContent blocks) = concatMap extractFromBlock blocks
+-- | Extract all math formulas from a Document AST
+extractFormulas :: MD.Document -> [(MathDisplay, Text)]
+extractFormulas (MD.Document blocks) = concatMap extractFromBlock blocks
 
-extractFromBlock :: Block -> [(MathDisplay, Text)]
+extractFromBlock :: MD.Block -> [(MathDisplay, Text)]
 extractFromBlock = \case
-  Paragraph inlines -> concatMap extractFromInline inlines
-  SubTaskList items -> concatMap (concatMap extractFromBlock . (.content)) items
-  SubQuestionList items -> concatMap (concatMap extractFromBlock . (.content)) items
-  MathBlock latex -> [(Block, latex)]
-  Heading _ inlines -> concatMap extractFromInline inlines
+  MD.Paragraph inlines -> concatMap extractFromInline inlines
+  MD.Heading _ inlines -> concatMap extractFromInline inlines
+  MD.FencedCodeBlock _ _ -> []
+  MD.OrderedList _ items -> concatMap (concatMap extractFromBlock) items
+  MD.LetterList items -> concatMap (concatMap extractFromBlock) items
+  MD.MathBlock latex -> [(Block, latex)]
+  MD.ThematicBreak -> []
 
-extractFromInline :: Inline -> [(MathDisplay, Text)]
+extractFromInline :: MD.Inline -> [(MathDisplay, Text)]
 extractFromInline = \case
-  Plain _ -> []
-  Emph inlines -> concatMap extractFromInline inlines
-  Strong inlines -> concatMap extractFromInline inlines
-  MathInline latex -> [(Inline, latex)]
+  MD.Plain _ -> []
+  MD.Emph inlines -> concatMap extractFromInline inlines
+  MD.Strong inlines -> concatMap extractFromInline inlines
+  MD.Code _ -> []
+  MD.MathInline latex -> [(Inline, latex)]
+  MD.Link _ inlines _ -> concatMap extractFromInline inlines
+  MD.SoftLineBreak -> []
+  MD.HardLineBreak -> []
 
 -- | Render a single formula to the container
 renderSingleFormula :: ComponentContainerId -> (MathDisplay, Text) -> IO (Maybe RenderedFormula)
 renderSingleFormula cid (display, latex) = renderFormula cid display latex
 
--- | Render content AST with SVG references for math, including cleanup hook
-renderContent :: Map FormulaId RenderedFormula -> TaskContent -> M.View RichContentModel RichContentAction
-renderContent formulas (TaskContent blocks) =
+-- | Render Document AST with SVG references for math, including cleanup hook
+renderContent :: Map FormulaId RenderedFormula -> MD.Document -> M.View RichContentModel RichContentAction
+renderContent formulas (MD.Document blocks) =
   M.div_
     [ class_ "rich-content space-y-4"
     , onBeforeDestroyed Unmounted -- Trigger cleanup BEFORE component unmounts
     ]
     $ map (renderBlock formulas) blocks
 
-renderBlock :: Map FormulaId RenderedFormula -> Block -> M.View RichContentModel RichContentAction
+renderBlock :: Map FormulaId RenderedFormula -> MD.Block -> M.View RichContentModel RichContentAction
 renderBlock formulas = \case
-  Paragraph inlines ->
+  MD.Paragraph inlines ->
     M.p_ [class_ "text-stone-800 leading-relaxed"] $
       map (renderInline formulas) inlines
-  SubTaskList items ->
-    M.ol_
-      [class_ "list-[lower-alpha] ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
-      $ map (renderListItem formulas) items
-  SubQuestionList items ->
+  MD.Heading level inlines ->
+    let (tag, classes) = headingStyle level
+     in tag [class_ classes] $ map (renderInline formulas) inlines
+  MD.FencedCodeBlock info body ->
+    case info of
+      Just "geometry" -> renderGeometryText body
+      Just "svg" ->
+        -- SVG source displayed as code (raw HTML injection not supported in Miso)
+        M.pre_
+          [class_ "bg-stone-100 border border-stone-200 rounded-md p-3 text-sm font-mono overflow-x-auto"]
+          [M.code_ [] [M.text (ms body)]]
+      _ ->
+        M.pre_
+          [class_ "bg-stone-100 border border-stone-200 rounded-md p-3 text-sm font-mono overflow-x-auto"]
+          [M.code_ [] [M.text (ms body)]]
+  MD.OrderedList _start items ->
     M.ol_
       [class_ "list-decimal ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
       $ map (renderListItem formulas) items
-  MathBlock latex ->
+  MD.LetterList items ->
+    M.ol_
+      [class_ "list-[lower-alpha] ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
+      $ map (renderListItem formulas) items
+  MD.MathBlock latex ->
     svgUseRef formulas (hashLatex Block latex) Block
-  Heading level inlines ->
-    let (tag, classes) = headingStyle level
-     in tag [class_ classes] $ map (renderInline formulas) inlines
+  MD.ThematicBreak ->
+    M.hr_ [class_ "border-t border-stone-300 my-4"]
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
@@ -221,20 +247,30 @@ headingStyle 4 = (M.h4_, "text-base font-semibold text-stone-700 mb-2")
 headingStyle 5 = (M.h5_, "text-sm font-semibold text-stone-700 mb-1")
 headingStyle _ = (M.h6_, "text-sm font-medium text-stone-600 mb-1")
 
-renderListItem :: Map FormulaId RenderedFormula -> ListItem -> M.View RichContentModel RichContentAction
-renderListItem formulas item =
+renderListItem :: Map FormulaId RenderedFormula -> [MD.Block] -> M.View RichContentModel RichContentAction
+renderListItem formulas blocks =
   M.li_ [class_ "text-stone-800 leading-relaxed pl-1"] $
-    map (renderBlock formulas) item.content
+    map (renderBlock formulas) blocks
 
-renderInline :: Map FormulaId RenderedFormula -> Inline -> M.View RichContentModel RichContentAction
+renderInline :: Map FormulaId RenderedFormula -> MD.Inline -> M.View RichContentModel RichContentAction
 renderInline formulas = \case
-  Plain text -> M.text (ms text)
-  Emph inlines ->
+  MD.Plain text -> M.text (ms text)
+  MD.Emph inlines ->
     M.em_ [class_ "italic"] $ map (renderInline formulas) inlines
-  Strong inlines ->
+  MD.Strong inlines ->
     M.strong_ [class_ "font-semibold"] $ map (renderInline formulas) inlines
-  MathInline latex ->
+  MD.Code text ->
+    M.code_ [class_ "bg-stone-100 px-1.5 py-0.5 rounded text-sm font-mono"] [M.text (ms text)]
+  MD.MathInline latex ->
     svgUseRef formulas (hashLatex Inline latex) Inline
+  MD.Link url inlines _title ->
+    M.a_
+      [ M.textProp (ms ("href" :: Text)) (ms url)
+      , class_ "text-sky-600 hover:text-sky-700 underline"
+      ]
+      $ map (renderInline formulas) inlines
+  MD.SoftLineBreak -> M.text " "
+  MD.HardLineBreak -> M.br_ []
 
 -- | Create SVG with <use> reference to rendered formula
 -- Uses dimensions from RenderedFormula for proper sizing
@@ -260,38 +296,71 @@ svgUseRef formulas fid display =
             ]
 
 -- ============================================================================
--- Convenience functions (merged from View.TaskContent)
+-- Convenience functions
 -- ============================================================================
 
--- | Render parsed TaskContent AST to Miso view
+-- | Render a Document AST to Miso view
+documentView :: MD.Document -> M.View p a
+documentView doc =
+  let key = hashDocument doc
+   in richContentView key doc
+
+-- | Backward-compatible: render old TaskContent AST to Miso view
 --
--- Uses RichContent component which renders math formulas to a hidden
--- SVG container and references them via <use> elements.
+-- Uses the old TaskContent component. Prefer 'documentView' for new code.
 taskContentView :: TaskContent -> M.View p a
 taskContentView ast =
-  -- Generate a stable key from the content for component identity
-  let key = hashContent ast
-   in richContentView key ast
+  let key = hashTaskContent ast
+   in richContentView key (taskContentToDocument ast)
 
 -- | Convenience function to parse and render rich content in one step
 --
+-- Tries new markdown parser first, falls back to old parser.
 -- On parse failure, shows the raw text in a code block with error styling.
 renderRichText :: RichContent -> M.View p a
 renderRichText rc =
   let raw = toRawText rc
-   in case parseTaskContent raw of
-        Left _err ->
-          -- Parse error - show raw text as fallback
-          M.pre_
-            [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
-            [M.text (ms raw)]
-        Right ast ->
-          taskContentView ast
+   in case Markdown.parseMarkdown raw of
+        Right doc -> documentView doc
+        Left _newErr ->
+          -- Try old parser as fallback for backward compatibility
+          case parseTaskContent raw of
+            Right ast -> taskContentView ast
+            Left _oldErr ->
+              -- Both parsers failed - show raw text
+              M.pre_
+                [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
+                [M.text (ms raw)]
 
--- | Generate a stable hash key from TaskContent
--- Uses DJB2-like hash (works on 32-bit WASM)
-hashContent :: TaskContent -> Text
-hashContent (TaskContent blocks) =
+-- | Convert old TaskContent to new Document AST for unified rendering
+taskContentToDocument :: TaskContent -> MD.Document
+taskContentToDocument (TaskContent blocks) = MD.Document (map convertBlock blocks)
+  where
+    convertBlock = \case
+      Old.Paragraph inlines -> MD.Paragraph (map convertInline inlines)
+      Old.SubTaskList items -> MD.LetterList (map convertListItem items)
+      Old.SubQuestionList items -> MD.OrderedList 1 (map convertListItem items)
+      Old.MathBlock latex -> MD.MathBlock latex
+      Old.Heading level inlines -> MD.Heading level (map convertInline inlines)
+
+    convertListItem item = map convertBlock item.content
+
+    convertInline = \case
+      Old.Plain t -> MD.Plain t
+      Old.Emph inlines -> MD.Emph (map convertInline inlines)
+      Old.Strong inlines -> MD.Strong (map convertInline inlines)
+      Old.MathInline latex -> MD.MathInline latex
+
+-- | Generate a stable hash key from Document
+hashDocument :: MD.Document -> Text
+hashDocument (MD.Document blocks) =
+  let str = show blocks
+      djb2Hash = foldl' (\h c -> ((h * 33) `xor` ord c) .&. 0x7FFFFFFF) 5381 str
+   in "md-" <> T.pack (showHex djb2Hash "")
+
+-- | Generate a stable hash key from old TaskContent (backward compat)
+hashTaskContent :: TaskContent -> Text
+hashTaskContent (TaskContent blocks) =
   let str = show blocks
       djb2Hash = foldl' (\h c -> ((h * 33) `xor` ord c) .&. 0x7FFFFFFF) 5381 str
    in "tc-" <> T.pack (showHex djb2Hash "")

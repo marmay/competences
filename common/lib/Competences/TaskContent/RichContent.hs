@@ -6,7 +6,7 @@
 -- RichContent AST (serialised back to text) or read from a trusted
 -- serialisation source.  It does /not/ require that parsing has actually
 -- been performed — it merely records the /expectation/ that
--- 'Competences.TaskContent.Parser.parseTaskContent' will succeed.
+-- 'Competences.Markdown.Parser.parseMarkdown' will succeed.
 --
 -- The constructor is intentionally hidden.  All creation paths are:
 --
@@ -21,12 +21,14 @@ module Competences.TaskContent.RichContent
   , fromTrustedInput
   ) where
 
-import Competences.TaskContent.Parser (ParseError, parseTaskContent)
+import Competences.Markdown.Parser qualified as Markdown
+import Competences.TaskContent.Parser (ParseError)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 
 -- | Raw markup text that is expected to be parseable as 'TaskContent'.
@@ -48,11 +50,12 @@ instance Monoid RichContent where
 toRawText :: RichContent -> Text
 toRawText (RichContent t) = t
 
--- | Validate that the given text is parseable as TaskContent markup.
+-- | Validate that the given text is parseable as markdown.
+-- Uses the new megaparsec-based parser for better error messages.
 -- Returns 'Left' with a parse error on failure, or wraps into 'RichContent' on success.
 validateRichContent :: Text -> Either ParseError RichContent
-validateRichContent t = case parseTaskContent t of
-  Left err -> Left err
+validateRichContent t = case Markdown.parseMarkdown t of
+  Left err -> Left (T.unpack $ Markdown.formatParseError err)
   Right _ -> Right (RichContent t)
 
 -- | Wrap text from a trusted input source (e.g. a frontend textarea)

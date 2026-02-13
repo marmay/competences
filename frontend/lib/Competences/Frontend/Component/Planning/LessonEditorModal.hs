@@ -22,7 +22,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.MarkdownEditor (markdownEditorView)
 import Competences.TaskContent.RichContent (toRawText, fromTrustedInput)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
@@ -67,6 +67,9 @@ data Model = Model
   , notesValue :: !Text
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
+  , descriptionPreview :: !Bool
+  , notesPreview :: !Bool
+  , phaseNotesPreview :: !(Maybe Int)
   }
   deriving (Eq, Generic)
 
@@ -88,6 +91,10 @@ data Action
   | SetPhaseSocialForm !Int !TeachingSocialForm
   | SetPhaseActionForm !Int !ActionForm
   | SetPhaseNotes !Int !Text
+  | -- Preview toggles:
+    ToggleDescriptionPreview
+  | ToggleNotesPreview
+  | TogglePhaseNotesPreview !Int
   | -- Save/Cancel:
     SaveAndClose
   | CloseModal
@@ -117,6 +124,9 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         , phases = lesson'.phases
         , notesValue = toRawText lesson'.notes
         , editingPhaseIndex = Nothing
+        , descriptionPreview = False
+        , notesPreview = False
+        , phaseNotesPreview = Nothing
         }
 
     update (SetTitle t) =
@@ -176,6 +186,19 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     update (SetPhaseNotes idx n) =
       M.modify $ \m -> m & #phases .~ updateAt idx (\p -> p & #notes .~ n) m.phases
+
+    update ToggleDescriptionPreview =
+      M.modify $ \m -> m {descriptionPreview = not m.descriptionPreview}
+
+    update ToggleNotesPreview =
+      M.modify $ \m -> m {notesPreview = not m.notesPreview}
+
+    update (TogglePhaseNotesPreview idx) =
+      M.modify $ \m ->
+        m
+          { phaseNotesPreview =
+              if m.phaseNotesPreview == Just idx then Nothing else Just idx
+          }
 
     update SaveAndClose = do
       m <- M.get
@@ -278,25 +301,12 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        Layout.hFlow Layout.gapM
-          [ MH.div_
-              [class_ "flex-1"]
-              [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
-              , MH.textarea_
-                  [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[150px] font-mono text-sm"
-                  , MP.value_ (M.ms m.descriptionValue)
-                  , MH.onInput (SetDescription . M.fromMisoString)
-                  ]
-                  []
-              ]
-          , MH.div_
-              [class_ "flex-1"]
-              [ MH.span_ [class_ "block mb-1"] [Typography.muted $ C.translate' C.LblPreview]
-              , MH.div_
-                  [class_ "min-h-[150px] p-3 border border-input rounded-md bg-muted/50"]
-                  [renderRichText (fromTrustedInput m.descriptionValue)]
-              ]
-          ]
+        markdownEditorView
+          m.descriptionValue
+          m.descriptionPreview
+          SetDescription
+          ToggleDescriptionPreview
+          "150px"
 
     competenceLevelSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
@@ -348,25 +358,12 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblLessonNotes) $
-        Layout.hFlow Layout.gapM
-          [ MH.div_
-              [class_ "flex-1"]
-              [ MH.span_ [class_ "block mb-1"] [Typography.muted "Markup"]
-              , MH.textarea_
-                  [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[120px] font-mono text-sm"
-                  , MP.value_ (M.ms m.notesValue)
-                  , MH.onInput (SetNotes . M.fromMisoString)
-                  ]
-                  []
-              ]
-          , MH.div_
-              [class_ "flex-1"]
-              [ MH.span_ [class_ "block mb-1"] [Typography.muted $ C.translate' C.LblPreview]
-              , MH.div_
-                  [class_ "min-h-[120px] p-3 border border-input rounded-md bg-muted/50"]
-                  [renderRichText (fromTrustedInput m.notesValue)]
-              ]
-          ]
+        markdownEditorView
+          m.notesValue
+          m.notesPreview
+          SetNotes
+          ToggleNotesPreview
+          "120px"
 
     phasesSection m =
       MH.div_
@@ -399,11 +396,11 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
       let isExpanded = m.editingPhaseIndex == Just idx
           titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
        in Disclosure.disclosure (TogglePhaseEdit idx) $
-            Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase)
+            Disclosure.contents titleView isExpanded (viewPhaseEditor m idx phase)
               [Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)]
 
-    viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action
-    viewPhaseEditor idx phase =
+    viewPhaseEditor :: Model -> Int -> LessonPhase -> M.View Model Action
+    viewPhaseEditor m' idx phase =
       MH.div_
         [class_ "p-4 border-t border-border space-y-3 bg-muted/30"]
         [ -- Title
@@ -437,31 +434,14 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                     (map (actionFormOption phase.actionForm) [minBound .. maxBound])
                 ]
             ]
-        , -- Phase notes (split-panel with markup/preview)
+        , -- Phase notes
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
-            Layout.hFlow Layout.gapM
-              [ MH.div_
-                  [class_ "flex-1"]
-                  [ MH.label_
-                      [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
-                      [M.text "Markup"]
-                  , MH.textarea_
-                      [ class_ "w-full px-3 py-2 border border-input rounded-md bg-background min-h-[60px] font-mono text-sm"
-                      , MP.value_ (M.ms phase.notes)
-                      , MH.onInput (SetPhaseNotes idx . M.fromMisoString)
-                      ]
-                      []
-                  ]
-              , MH.div_
-                  [class_ "flex-1"]
-                  [ MH.label_
-                      [class_ "text-xs font-medium text-muted-foreground mb-1 block"]
-                      [M.text $ C.translate' C.LblPreview]
-                  , MH.div_
-                      [class_ "min-h-[60px] p-2 border border-input rounded-md bg-muted/50 text-sm"]
-                      [renderRichText (fromTrustedInput phase.notes)]
-                  ]
-              ]
+            markdownEditorView
+              phase.notes
+              (m'.phaseNotesPreview == Just idx)
+              (SetPhaseNotes idx)
+              (TogglePhaseNotesPreview idx)
+              "60px"
         ]
 
 -- ============================================================================

@@ -93,6 +93,7 @@ library
         base64-bytestring,
         binary,
         bytestring,
+        competences-markdown,
         containers,
         data-default,
         extra,
