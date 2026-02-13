@@ -36,30 +36,16 @@ where
 import Competences.Document.Competence (Level (..))
 import Competences.Document.Solution (SolutionType (..))
 import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Import.ParserUtils
 import Competences.Import.Types
   ( ParsedSolution (..)
   , ParsedTask (..)
   , levelFromGerman
   )
-import Data.Attoparsec.Text
-  ( Parser
-  , char
-  , endOfInput
-  , endOfLine
-  , many'
-  , option
-  , parseOnly
-  , peekChar
-  , satisfy
-  , skipSpace
-  , skipWhile
-  , string
-  )
 import Data.Text (Text)
 import Data.Text qualified as T
-
--- | Parse error message
-type ParseError = String
+import Text.Megaparsec (anySingle, eof, lookAhead, many, optional)
+import Text.Megaparsec.Char (char, string)
 
 -- | Parse task import format
 --
@@ -68,13 +54,13 @@ type ParseError = String
 parseTaskImport :: Text -> Either ParseError [ParsedTask]
 parseTaskImport input
   | T.null (T.strip input) = Right []
-  | otherwise = parseOnly (tasksP <* endOfInput) input
+  | otherwise = runParser' (tasksP <* eof) input
 
 -- | Parse multiple tasks
 tasksP :: Parser [ParsedTask]
 tasksP = do
   skipBlankLines
-  tasks <- many' taskP
+  tasks <- many taskP
   skipBlankLines
   pure tasks
 
@@ -82,7 +68,7 @@ tasksP = do
 taskP :: Parser ParsedTask
 taskP = do
   (ident, replaces) <- taskHeaderP
-  sections <- many' sectionP
+  sections <- many sectionP
   skipBlankLines
 
   -- Extract sections by type
@@ -129,14 +115,14 @@ sectionP = do
 -- | Parse section content until next # or ## or end
 sectionContentP :: Parser Text
 sectionContentP = do
-  lines' <- many' contentLineP
+  lines' <- many contentLineP
   pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with # or ##)
 contentLineP :: Parser Text
 contentLineP = do
   -- Peek to check if we're at a heading or end of input
-  mc <- peekChar
+  mc <- optional (lookAhead anySingle)
   case mc of
     Just '#' -> fail "section boundary"
     Nothing -> fail "end of input"
@@ -188,32 +174,3 @@ parseCompetenceList content =
 
     mapMaybe :: (a -> Maybe b) -> [a] -> [b]
     mapMaybe f = foldr (\x acc -> maybe acc (: acc) (f x)) []
-
--- ============================================================================
--- Utilities
--- ============================================================================
-
--- | Parse (Ersetzt: original) clause
-parseReplacesClause :: Text -> (Text, Maybe Text)
-parseReplacesClause input =
-  case T.breakOn "(Ersetzt:" input of
-    (before, after)
-      | T.null after -> (input, Nothing)
-      | otherwise ->
-          let original = T.strip $ T.dropEnd 1 $ T.drop 9 after
-           in (T.strip before, Just original)
-
--- | Take content until end of line
-takeLineContent :: Parser Text
-takeLineContent = do
-  content <- many' (satisfy (\c -> c /= '\n' && c /= '\r'))
-  option () (endOfLine *> pure ())
-  pure (T.pack content)
-
--- | Skip horizontal whitespace
-skipHorizontalSpace :: Parser ()
-skipHorizontalSpace = skipWhile (\c -> c == ' ' || c == '\t')
-
--- | Skip blank lines
-skipBlankLines :: Parser ()
-skipBlankLines = skipSpace

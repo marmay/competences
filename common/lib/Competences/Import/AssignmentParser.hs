@@ -44,6 +44,7 @@ import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Competence (Level (..))
 import Competences.Document.Solution (SolutionType (..))
 import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Import.ParserUtils
 import Competences.Import.Types
   ( ParsedAssignment (..)
   , ParsedSolution (..)
@@ -51,27 +52,12 @@ import Competences.Import.Types
   , activityTypeFromGerman
   , levelFromGerman
   )
-import Data.Attoparsec.Text
-  ( Parser
-  , char
-  , endOfInput
-  , endOfLine
-  , many'
-  , option
-  , parseOnly
-  , peekChar
-  , satisfy
-  , skipSpace
-  , skipWhile
-  , string
-  )
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
-
--- | Parse error message
-type ParseError = String
+import Text.Megaparsec (anySingle, eof, lookAhead, many, optional)
+import Text.Megaparsec.Char (char, string)
 
 -- | Parse assignment import format
 --
@@ -80,13 +66,13 @@ type ParseError = String
 parseAssignmentImport :: Text -> Either ParseError [ParsedAssignment]
 parseAssignmentImport input
   | T.null (T.strip input) = Right []
-  | otherwise = parseOnly (assignmentsP <* endOfInput) input
+  | otherwise = runParser' (assignmentsP <* eof) input
 
 -- | Parse multiple assignments
 assignmentsP :: Parser [ParsedAssignment]
 assignmentsP = do
   skipBlankLines
-  assignments <- many' assignmentP
+  assignments <- many assignmentP
   skipBlankLines
   pure assignments
 
@@ -94,8 +80,8 @@ assignmentsP = do
 assignmentP :: Parser ParsedAssignment
 assignmentP = do
   (name, replacesName) <- assignmentHeaderP
-  sections <- many' assignmentSectionP
-  tasks <- many' taskP
+  sections <- many assignmentSectionP
+  tasks <- many taskP
   skipBlankLines
 
   -- Extract sections
@@ -134,7 +120,7 @@ data Section = Section
 assignmentSectionP :: Parser Section
 assignmentSectionP = do
   _ <- string "##"
-  mc <- peekChar
+  mc <- optional (lookAhead anySingle)
   -- Don't parse ### (task headers) as ## sections
   case mc of
     Just '#' -> fail "task header"
@@ -148,13 +134,13 @@ assignmentSectionP = do
 -- | Parse section content until next # or ## or ### or end
 sectionContentP :: Parser Text
 sectionContentP = do
-  lines' <- many' contentLineP
+  lines' <- many contentLineP
   pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with #)
 contentLineP :: Parser Text
 contentLineP = do
-  mc <- peekChar
+  mc <- optional (lookAhead anySingle)
   case mc of
     Just '#' -> fail "section boundary"
     Nothing -> fail "end of input"
@@ -204,7 +190,7 @@ parseAngaben content =
 taskP :: Parser ParsedTask
 taskP = do
   (ident, replaces) <- taskHeaderP
-  sections <- many' taskSectionP
+  sections <- many taskSectionP
   skipBlankLines
 
   -- Extract sections
@@ -244,13 +230,13 @@ taskSectionP = do
 -- | Parse task section content (until next #### or ### or # or end)
 taskSectionContentP :: Parser Text
 taskSectionContentP = do
-  lines' <- many' taskContentLineP
+  lines' <- many taskContentLineP
   pure (T.strip $ T.intercalate "\n" lines')
 
 -- | Parse a content line (not starting with # or ##)
 taskContentLineP :: Parser Text
 taskContentLineP = do
-  mc <- peekChar
+  mc <- optional (lookAhead anySingle)
   case mc of
     Just '#' -> fail "section boundary"
     Nothing -> fail "end of input"
@@ -294,32 +280,3 @@ parseCompetenceList content =
 
     mapMaybe :: (a -> Maybe b) -> [a] -> [b]
     mapMaybe f = foldr (\x acc -> maybe acc (: acc) (f x)) []
-
--- ============================================================================
--- Utilities
--- ============================================================================
-
--- | Parse (Ersetzt: original) clause
-parseReplacesClause :: Text -> (Text, Maybe Text)
-parseReplacesClause input =
-  case T.breakOn "(Ersetzt:" input of
-    (before, after)
-      | T.null after -> (input, Nothing)
-      | otherwise ->
-          let original = T.strip $ T.dropEnd 1 $ T.drop 9 after
-           in (T.strip before, Just original)
-
--- | Take content until end of line
-takeLineContent :: Parser Text
-takeLineContent = do
-  content <- many' (satisfy (\c -> c /= '\n' && c /= '\r'))
-  option () (endOfLine >> pure ())
-  pure (T.pack content)
-
--- | Skip horizontal whitespace
-skipHorizontalSpace :: Parser ()
-skipHorizontalSpace = skipWhile (\c -> c == ' ' || c == '\t')
-
--- | Skip blank lines
-skipBlankLines :: Parser ()
-skipBlankLines = skipSpace

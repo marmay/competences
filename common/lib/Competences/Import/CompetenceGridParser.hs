@@ -22,33 +22,18 @@ module Competences.Import.CompetenceGridParser
 where
 
 import Competences.Document.Competence (Level (..))
+import Competences.Import.ParserUtils
 import Competences.Import.Types
   ( ParsedCompetence (..)
   , ParsedGrid (..)
   , levelFromGerman
   )
-import Data.Attoparsec.Text
-  ( Parser
-  , char
-  , endOfInput
-  , endOfLine
-  , many'
-  , option
-  , parseOnly
-  , satisfy
-  , skipSpace
-  , skipWhile
-  , string
-  , takeWhile1
-  )
-import Data.Char (isSpace)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
-
--- | Parse error message
-type ParseError = String
+import Text.Megaparsec (eof, many, satisfy, takeWhile1P, (<?>))
+import Text.Megaparsec.Char (char, string)
 
 -- | Parse competence grid import format
 --
@@ -57,13 +42,13 @@ type ParseError = String
 parseGridImport :: Text -> Either ParseError [ParsedGrid]
 parseGridImport input
   | T.null (T.strip input) = Right []
-  | otherwise = parseOnly (gridsP <* endOfInput) input
+  | otherwise = runParser' (gridsP <* eof) input
 
 -- | Parse multiple grids
 gridsP :: Parser [ParsedGrid]
 gridsP = do
   skipBlankLines
-  grids <- many' gridP
+  grids <- many gridP
   skipBlankLines
   pure grids
 
@@ -72,7 +57,7 @@ gridP :: Parser ParsedGrid
 gridP = do
   title <- h1P
   skipBlankLines
-  competences <- many' competenceP
+  competences <- many competenceP
   pure
     ParsedGrid
       { title = title
@@ -114,7 +99,7 @@ competenceP = do
 -- | Parse level items (- Wesentlich: ..., etc.)
 levelsP :: Parser (Map Level Text)
 levelsP = do
-  items <- many' levelItemP
+  items <- many levelItemP
   pure (Map.fromList items)
 
 -- | Parse a single level item: - LevelName: Description
@@ -123,12 +108,12 @@ levelItemP = do
   skipHorizontalSpace
   _ <- char '-'
   skipHorizontalSpace
-  levelName <- takeWhile1 (\c -> c /= ':' && c /= '\n')
+  levelName <- takeWhile1P Nothing (\c -> c /= ':' && c /= '\n') <?> "level name"
   _ <- char ':'
   skipHorizontalSpace
   desc <- takeLineContent
   -- Collect continuation lines (indented)
-  continuations <- many' continuationLine
+  continuations <- many continuationLine
   let fullDesc = T.strip $ T.intercalate " " (T.strip desc : map T.strip continuations)
   skipBlankLines
   case levelFromGerman (T.strip levelName) of
@@ -139,37 +124,8 @@ levelItemP = do
 continuationLine :: Parser Text
 continuationLine = do
   skipHorizontalSpace
-  c <- satisfy (\x -> not (isSpace x) && x /= '-' && x /= '#')
+  c <- satisfy (\x -> not (isHSpace x) && x /= '-' && x /= '#' && x /= '\n' && x /= '\r')
   rest <- takeLineContent
   pure (T.cons c rest)
-
--- ============================================================================
--- Utilities
--- ============================================================================
-
--- | Parse (Ersetzt: original) clause from description
--- Returns (new description, Maybe original)
-parseReplacesClause :: Text -> (Text, Maybe Text)
-parseReplacesClause input =
-  case T.breakOn "(Ersetzt:" input of
-    (before, after)
-      | T.null after -> (input, Nothing)
-      | otherwise ->
-          let -- Remove "(Ersetzt:" prefix and trailing ")"
-              original = T.strip $ T.dropEnd 1 $ T.drop 9 after
-           in (T.strip before, Just original)
-
--- | Take content until end of line
-takeLineContent :: Parser Text
-takeLineContent = do
-  content <- many' (satisfy (\c -> c /= '\n' && c /= '\r'))
-  option () (endOfLine *> pure ())
-  pure (T.pack content)
-
--- | Skip horizontal whitespace (spaces and tabs, not newlines)
-skipHorizontalSpace :: Parser ()
-skipHorizontalSpace = skipWhile (\c -> c == ' ' || c == '\t')
-
--- | Skip blank lines and whitespace
-skipBlankLines :: Parser ()
-skipBlankLines = skipSpace
+  where
+    isHSpace c = c == ' ' || c == '\t'
