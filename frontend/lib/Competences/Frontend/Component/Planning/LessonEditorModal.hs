@@ -67,6 +67,7 @@ data Model = Model
   , notes :: !RichContent
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
+  , reorderPhaseFrom :: !(Maybe Int)
   }
   deriving (Eq, Generic)
 
@@ -85,6 +86,10 @@ data Action
   | SetPhaseDuration !Int !Int
   | SetPhaseSocialForm !Int !TeachingSocialForm
   | SetPhaseActionForm !Int !ActionForm
+  | -- Reorder actions:
+    StartPhaseReorder !Int
+  | CancelPhaseReorder
+  | PhaseReorderTo !Int !Int -- source index, target index
   | -- Save/Cancel:
     SaveAndClose
   | CloseModal
@@ -114,6 +119,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         , phases = lesson'.phases
         , notes = lesson'.notes
         , editingPhaseIndex = Nothing
+        , reorderPhaseFrom = Nothing
         }
 
     update (SetTitle t) =
@@ -164,6 +170,25 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
 
     update (SetPhaseActionForm idx af) =
       M.modify $ \m -> m & #phases .~ updateAt idx (\p -> p & #actionForm .~ af) m.phases
+
+    -- Reorder actions
+    update (StartPhaseReorder idx) =
+      M.modify $ \m -> m & #reorderPhaseFrom .~ Just idx
+
+    update CancelPhaseReorder =
+      M.modify $ \m -> m & #reorderPhaseFrom .~ Nothing
+
+    update (PhaseReorderTo src tgt) =
+      M.modify $ \m ->
+        let newPhases = moveElement src tgt m.phases
+            -- Adjust editingPhaseIndex to follow the moved phase
+            newExpanded = case m.editingPhaseIndex of
+              Just i
+                | i == src -> Just (if tgt > src then tgt - 1 else tgt)
+                | i >= min src tgt && i <= max src tgt ->
+                    Just (if src < tgt then i - 1 else i + 1)
+              other -> other
+         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #reorderPhaseFrom .~ Nothing
 
     update SaveAndClose = do
       m <- M.get
@@ -348,9 +373,20 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
           titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
+          actions = case m.reorderPhaseFrom of
+            Nothing ->
+              [ Disclosure.Action Icon.IcnReorder (StartPhaseReorder idx)
+              , Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)
+              ]
+            Just fromIdx
+              | fromIdx == idx ->
+                  [Disclosure.DestructiveAction Icon.IcnCancel CancelPhaseReorder]
+              | otherwise ->
+                  [ Disclosure.Action Icon.IcnArrowUp (PhaseReorderTo fromIdx idx)
+                  , Disclosure.Action Icon.IcnArrowDown (PhaseReorderTo fromIdx (idx + 1))
+                  ]
        in Disclosure.disclosure (TogglePhaseEdit idx) $
-            Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase)
-              [Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)]
+            Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase) actions
 
     viewPhaseEditor :: Int -> LessonPhase -> M.View Model Action
     viewPhaseEditor idx phase =
@@ -418,6 +454,19 @@ parseDate :: Text -> Maybe Day
 parseDate t
   | Text.null t = Nothing
   | otherwise = parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack t)
+
+-- | Move element from source index to before target index (target is in original list).
+moveElement :: Int -> Int -> [a] -> [a]
+moveElement from to xs
+  | from == to || from + 1 == to = xs -- no-op
+  | otherwise =
+      case splitAt from xs of
+        (before, e : rest) ->
+          let removed = before <> rest
+              insertIdx = if to > from then to - 1 else to
+              (b2, a2) = splitAt insertIdx removed
+           in b2 <> [e] <> a2
+        _ -> xs
 
 -- | Update element at index
 updateAt :: Int -> (a -> a) -> [a] -> [a]
