@@ -2,18 +2,13 @@
 
 -- |
 -- Module      : Competences.Frontend.Component.RichContent
--- Description : Rich content component with MathJax formula rendering
+-- Description : Rich content component with SVG embedding (MathJax + raw SVG)
 --
--- A single Miso component that manages content containing math formulas.
--- Formulas are rendered to SVGs in a hidden container outside Miso's
--- virtual DOM, and referenced via <svg><use href="..."/></svg>.
---
--- Architecture:
--- - Each component instance gets a unique container ID
--- - On mount: create container, render all formulas
--- - On content change: clear container, re-render formulas
--- - On unmount: destroy container (cleanup)
--- - View: render AST with <use> references for math
+-- A single Miso component that manages content containing math formulas
+-- and raw SVG blocks. MathJax formulas are rendered to data URLs via
+-- 'renderFormula', and raw SVGs are encoded purely via 'svgToDataUrl'.
+-- Both are displayed as @\<img\>@ elements, which browsers fully sandbox
+-- (no script execution, no event handlers, no external resource loading).
 --
 -- Usage:
 --
@@ -43,15 +38,13 @@ module Competences.Frontend.Component.RichContent
 where
 
 import Competences.Frontend.Component.Geometry (renderGeometryText)
-import Competences.Frontend.MathJax.Manager
-  ( ComponentContainerId (..)
-  , FormulaId (..)
+import Competences.Frontend.SvgEmbed.Manager
+  ( EmbeddedSymbol (..)
   , MathDisplay (..)
-  , RenderedFormula (..)
-  , createComponentContainer
-  , destroyComponentContainer
+  , SymbolId (..)
   , hashLatex
   , renderFormula
+  , svgToDataUrl
   )
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tailwind (class_)
@@ -66,11 +59,8 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Event (onBeforeDestroyed)
 import Miso.Html qualified as M
-import Miso.Html.Property (height_, href_, width_)
 import Miso.String (ms)
-import Miso.Svg.Element qualified as Svg
 import Numeric (showHex)
 import Optics.Core ((.~))
 
@@ -86,10 +76,8 @@ data RenderState
 data RichContentModel = RichContentModel
   { content :: !MD.Document
   -- ^ Parsed AST
-  , containerId :: !ComponentContainerId
-  -- ^ Unique container ID for this instance
-  , renderedFormulas :: !(Map FormulaId RenderedFormula)
-  -- ^ Formulas that have been rendered, with their dimensions
+  , embeddedSymbols :: !(Map SymbolId EmbeddedSymbol)
+  -- ^ MathJax-rendered formulas with their data URLs and dimensions
   , renderState :: !RenderState
   -- ^ Current render state
   }
@@ -97,20 +85,17 @@ data RichContentModel = RichContentModel
 
 -- | Component actions
 data RichContentAction
-  = -- | Initial action: create container and render all formulas
+  = -- | Initial action: render all MathJax formulas
     RenderMath
   | -- | All formulas rendered successfully
-    MathRendered !(Map FormulaId RenderedFormula)
+    SymbolsReady !(Map SymbolId EmbeddedSymbol)
   | -- | Rendering failed
     MathFailed !Text
-  | -- | Component unmounting: cleanup container
-    Unmounted
   deriving (Eq, Show)
 
 -- | Create a RichContent view from a new Document AST
 --
 -- @key@ should be unique per content instance (e.g., task ID).
--- The component will manage its own SVG container lifecycle.
 richContentView :: Text -> MD.Document -> M.View p a
 richContentView key doc =
   component
@@ -119,51 +104,41 @@ richContentView key doc =
 
 -- | The RichContent component
 richContentComponent :: Text -> MD.Document -> M.Component p RichContentModel RichContentAction
-richContentComponent key doc =
+richContentComponent _key doc =
   (M.component model update view)
     { M.initialAction = Just RenderMath
     , M.eventPropagation = True
     }
   where
-    containerId' = ComponentContainerId key
-
     model =
       RichContentModel
         { content = doc
-        , containerId = containerId'
-        , renderedFormulas = Map.empty
+        , embeddedSymbols = Map.empty
         , renderState = Pending
         }
 
     update RenderMath = do
       m <- M.get
-      -- Create container and render formulas
       M.io $ do
-        createComponentContainer m.containerId
         let formulas = extractFormulas m.content
-        rendered <- mapM (renderSingleFormula m.containerId) formulas
-        let successful = Map.fromList [(rf.formulaId, rf) | Just rf <- rendered]
-        pure $ MathRendered successful
+        rendered <- mapM (\(d, l) -> renderFormula d l) formulas
+        let successful = Map.fromList
+              [(es.symbolId, es) | Just es <- rendered]
+        pure $ SymbolsReady successful
 
-    update (MathRendered formulaMap) =
+    update (SymbolsReady symbolMap) =
       M.modify $ \m ->
         m
-          { renderedFormulas = formulaMap
+          { embeddedSymbols = symbolMap
           , renderState = Ready
           }
 
     update (MathFailed _err) =
-      -- On failure, still show content (formulas will be empty)
       M.modify $ #renderState .~ Ready
 
-    update Unmounted = do
-      m <- M.get
-      -- Cleanup: destroy container when component unmounts
-      M.io_ $ destroyComponentContainer m.containerId
-
     view m = case m.renderState of
-      Pending -> M.text "" -- Empty during render
-      Ready -> renderContent m.renderedFormulas m.content
+      Pending -> M.text ""
+      Ready -> renderContent m.embeddedSymbols m.content
 
 -- | Extract all math formulas from a Document AST
 extractFormulas :: MD.Document -> [(MathDisplay, Text)]
@@ -190,35 +165,31 @@ extractFromInline = \case
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []
 
--- | Render a single formula to the container
-renderSingleFormula :: ComponentContainerId -> (MathDisplay, Text) -> IO (Maybe RenderedFormula)
-renderSingleFormula cid (display, latex) = renderFormula cid display latex
-
--- | Render Document AST with SVG references for math, including cleanup hook
-renderContent :: Map FormulaId RenderedFormula -> MD.Document -> M.View RichContentModel RichContentAction
-renderContent formulas (MD.Document blocks) =
+-- | Render Document AST with <img> data URLs for embedded symbols
+renderContent :: Map SymbolId EmbeddedSymbol -> MD.Document -> M.View RichContentModel RichContentAction
+renderContent symbols (MD.Document blocks) =
   M.div_
-    [ class_ "rich-content space-y-4"
-    , onBeforeDestroyed Unmounted -- Trigger cleanup BEFORE component unmounts
-    ]
-    $ map (renderBlock formulas) blocks
+    [class_ "rich-content space-y-4"]
+    $ map (renderBlock symbols) blocks
 
-renderBlock :: Map FormulaId RenderedFormula -> MD.Block -> M.View RichContentModel RichContentAction
-renderBlock formulas = \case
+renderBlock :: Map SymbolId EmbeddedSymbol -> MD.Block -> M.View RichContentModel RichContentAction
+renderBlock symbols = \case
   MD.Paragraph inlines ->
     M.p_ [class_ "text-stone-800 leading-relaxed"] $
-      map (renderInline formulas) inlines
+      map (renderInline symbols) inlines
   MD.Heading level inlines ->
     let (tag, classes) = headingStyle level
-     in tag [class_ classes] $ map (renderInline formulas) inlines
+     in tag [class_ classes] $ map (renderInline symbols) inlines
   MD.FencedCodeBlock info body ->
     case info of
       Just "geometry" -> renderGeometryText body
       Just "svg" ->
-        -- SVG source displayed as code (raw HTML injection not supported in Miso)
-        M.pre_
-          [class_ "bg-stone-100 border border-stone-200 rounded-md p-3 text-sm font-mono overflow-x-auto"]
-          [M.code_ [] [M.text (ms body)]]
+        M.div_ [class_ "flex justify-center my-4"]
+          [ M.img_
+              [ M.textProp (ms ("src" :: Text)) (ms (svgToDataUrl body))
+              , M.textProp (ms ("style" :: Text)) (ms ("max-width:100%;height:auto" :: Text))
+              ]
+          ]
       _ ->
         M.pre_
           [class_ "bg-stone-100 border border-stone-200 rounded-md p-3 text-sm font-mono overflow-x-auto"]
@@ -226,13 +197,13 @@ renderBlock formulas = \case
   MD.OrderedList _start items ->
     M.ol_
       [class_ "list-decimal ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
-      $ map (renderListItem formulas) items
+      $ map (renderListItem symbols) items
   MD.LetterList items ->
     M.ol_
       [class_ "list-[lower-alpha] ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
-      $ map (renderListItem formulas) items
+      $ map (renderListItem symbols) items
   MD.MathBlock latex ->
-    svgUseRef formulas (hashLatex Block latex) Block
+    mathImgRef symbols (hashLatex Block latex) Block
   MD.ThematicBreak ->
     M.hr_ [class_ "border-t border-stone-300 my-4"]
 
@@ -245,52 +216,49 @@ headingStyle 4 = (M.h4_, "text-base font-semibold text-stone-700 mb-2")
 headingStyle 5 = (M.h5_, "text-sm font-semibold text-stone-700 mb-1")
 headingStyle _ = (M.h6_, "text-sm font-medium text-stone-600 mb-1")
 
-renderListItem :: Map FormulaId RenderedFormula -> [MD.Block] -> M.View RichContentModel RichContentAction
-renderListItem formulas blocks =
+renderListItem :: Map SymbolId EmbeddedSymbol -> [MD.Block] -> M.View RichContentModel RichContentAction
+renderListItem symbols blocks =
   M.li_ [class_ "text-stone-800 leading-relaxed pl-1"] $
-    map (renderBlock formulas) blocks
+    map (renderBlock symbols) blocks
 
-renderInline :: Map FormulaId RenderedFormula -> MD.Inline -> M.View RichContentModel RichContentAction
-renderInline formulas = \case
+renderInline :: Map SymbolId EmbeddedSymbol -> MD.Inline -> M.View RichContentModel RichContentAction
+renderInline symbols = \case
   MD.Plain text -> M.text (ms text)
   MD.Emph inlines ->
-    M.em_ [class_ "italic"] $ map (renderInline formulas) inlines
+    M.em_ [class_ "italic"] $ map (renderInline symbols) inlines
   MD.Strong inlines ->
-    M.strong_ [class_ "font-semibold"] $ map (renderInline formulas) inlines
+    M.strong_ [class_ "font-semibold"] $ map (renderInline symbols) inlines
   MD.Code text ->
     M.code_ [class_ "bg-stone-100 px-1.5 py-0.5 rounded text-sm font-mono"] [M.text (ms text)]
   MD.MathInline latex ->
-    svgUseRef formulas (hashLatex Inline latex) Inline
+    mathImgRef symbols (hashLatex Inline latex) Inline
   MD.Link url inlines _title ->
     M.a_
       [ M.textProp (ms ("href" :: Text)) (ms url)
       , class_ "text-sky-600 hover:text-sky-700 underline"
       ]
-      $ map (renderInline formulas) inlines
+      $ map (renderInline symbols) inlines
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
 
--- | Create SVG with <use> reference to rendered formula
--- Uses dimensions from RenderedFormula for proper sizing
--- Uses Miso.Svg.Element to ensure proper SVG namespace
-svgUseRef :: Map FormulaId RenderedFormula -> FormulaId -> MathDisplay -> M.View RichContentModel RichContentAction
-svgUseRef formulas fid display =
-  case Map.lookup fid formulas of
+-- | Create <img> element with data URL for a MathJax-rendered formula
+mathImgRef :: Map SymbolId EmbeddedSymbol -> SymbolId -> MathDisplay -> M.View RichContentModel RichContentAction
+mathImgRef symbols sid display =
+  case Map.lookup sid symbols of
     Nothing ->
-      -- Formula not rendered yet - show placeholder
       M.span_ [class_ "text-red-500"] [M.text "[math]"]
-    Just rf ->
+    Just es ->
       let wrapperClasses = case display of
-            Block -> "mathjax-block flex justify-center my-2"
-            Inline -> "mathjax-inline inline-block"
-       in Svg.svg_
+            Block -> "flex justify-center my-2"
+            Inline -> "inline-block"
+          styleVal =
+            "width:" <> es.width
+              <> ";height:" <> es.height
+              <> ";vertical-align:" <> es.verticalAlign
+       in M.img_
             [ class_ wrapperClasses
-            , width_ (ms rf.width)
-            , height_ (ms rf.height)
-            , M.textProp (ms ("style" :: Text)) (ms ("vertical-align: " <> rf.verticalAlign))
-            ]
-            [ Svg.use_
-                [href_ (ms ("#" <> fid.unFormulaId))]
+            , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+            , M.textProp (ms ("style" :: Text)) (ms styleVal)
             ]
 
 -- ============================================================================
