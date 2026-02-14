@@ -153,6 +153,9 @@ extractFromBlock = \case
   MD.LetterList items -> concatMap (concatMap extractFromBlock) items
   MD.MathBlock latex -> [(Block, latex)]
   MD.ThematicBreak -> []
+  MD.Admonition _ mTitle blocks ->
+    maybe [] (concatMap extractFromInline) mTitle
+      ++ concatMap extractFromBlock blocks
 
 extractFromInline :: MD.Inline -> [(MathDisplay, Text)]
 extractFromInline = \case
@@ -206,6 +209,8 @@ renderBlock symbols = \case
     mathImgRef symbols (hashLatex Block latex) Block
   MD.ThematicBreak ->
     M.hr_ [class_ "border-t border-stone-300 my-4"]
+  MD.Admonition adType mTitle bodyBlocks ->
+    renderAdmonition symbols adType mTitle bodyBlocks
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
@@ -220,6 +225,37 @@ renderListItem :: Map SymbolId EmbeddedSymbol -> [MD.Block] -> M.View RichConten
 renderListItem symbols blocks =
   M.li_ [class_ "text-stone-800 leading-relaxed pl-1"] $
     map (renderBlock symbols) blocks
+
+renderAdmonition
+  :: Map SymbolId EmbeddedSymbol
+  -> MD.AdmonitionType
+  -> Maybe [MD.Inline]
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderAdmonition symbols adType mTitle bodyBlocks =
+  let label = admonitionLabel adType
+      titleView =
+        M.div_
+          [class_ "font-semibold text-stone-900 mb-2"]
+          $ case mTitle of
+            Nothing -> [M.text (ms label)]
+            Just inlines ->
+              M.text (ms (label <> ". "))
+                : map (renderInline symbols) inlines
+   in M.div_
+        [class_ "border-l-4 border-stone-300 pl-4 my-4"]
+        (titleView : map (renderBlock symbols) bodyBlocks)
+
+-- | German display label for each admonition type
+admonitionLabel :: MD.AdmonitionType -> Text
+admonitionLabel = \case
+  MD.Definition -> "Definition"
+  MD.Theorem -> "Satz"
+  MD.Lemma -> "Lemma"
+  MD.Proof -> "Beweis"
+  MD.Remark -> "Bemerkung"
+  MD.Merksatz -> "Merksatz"
+  MD.Example -> "Beispiel"
 
 renderInline :: Map SymbolId EmbeddedSymbol -> MD.Inline -> M.View RichContentModel RichContentAction
 renderInline symbols = \case

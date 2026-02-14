@@ -14,6 +14,7 @@ import Competences.Markdown.AST
 import Competences.Markdown.Parser.Inline (inlinesP)
 import Control.Monad (guard, void)
 import Data.Char (isLower)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void (Void)
@@ -40,6 +41,7 @@ blockP =
     , mathBlockP
     , letterListP
     , orderedListP
+    , admonitionP
     , paragraphP
     ]
 
@@ -184,6 +186,59 @@ numberMarkerP = do
   _ <- char '.'
   _ <- lookAhead (char ' ')
   pure $ read (T.unpack digits)
+
+-- | Admonition block: > [!type] optional title
+admonitionP :: Parser Block
+admonitionP = try $ do
+  _ <- char '>'
+  hspace
+  _ <- string "[!"
+  typeName <- takeWhile1P (Just "admonition type") (\c -> c /= ']' && c /= '\n')
+  _ <- char ']'
+  -- Optional title: rest of first line, parsed as inlines
+  titleText <- optional (hspace1 *> restOfLine)
+  -- Body lines: each starts with > on a new line
+  bodyLines <- many $ try $ do
+    _ <- newline
+    _ <- char '>'
+    line <- takeWhileP Nothing (/= '\n')
+    -- Strip one leading space if present ("> text" -> "text", ">" -> "")
+    pure $ fromMaybe line (T.stripPrefix " " line)
+  -- Parse collected body as blocks (recursive)
+  let adType = parseAdmonitionType typeName
+      bodyText = T.intercalate "\n" bodyLines
+      bodyBlocks = fromMaybe [] $ do
+        Document blocks <- parseMaybe documentP bodyText
+        pure blocks
+  -- Parse title inlines (if present)
+  let titleInlines = case titleText of
+        Nothing -> Nothing
+        Just t | T.null (T.strip t) -> Nothing
+        Just t -> case parseMaybe inlinesP t of
+          Nothing -> Nothing
+          Just inlines -> Just inlines
+  pure $ Admonition adType titleInlines bodyBlocks
+
+-- | Consume rest of line without the newline
+restOfLine :: Parser Text
+restOfLine = takeWhile1P (Just "title text") (/= '\n')
+
+-- | Map type name string to AdmonitionType (case-insensitive, with German aliases)
+parseAdmonitionType :: Text -> AdmonitionType
+parseAdmonitionType t = case T.toLower (T.strip t) of
+  "definition" -> Definition
+  "theorem" -> Theorem
+  "satz" -> Theorem
+  "lemma" -> Lemma
+  "proof" -> Proof
+  "beweis" -> Proof
+  "remark" -> Remark
+  "bemerkung" -> Remark
+  "merksatz" -> Merksatz
+  "remember" -> Merksatz
+  "example" -> Example
+  "beispiel" -> Example
+  _ -> Remark -- fallback
 
 -- | Paragraph: inline content terminated by blank line or eof
 paragraphP :: Parser Block

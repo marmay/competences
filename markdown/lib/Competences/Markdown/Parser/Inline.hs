@@ -65,6 +65,8 @@ softLineBreakP = SoftLineBreak <$ try softNewline
       notFollowedBy (void $ string "***") -- thematic break
       notFollowedBy (void $ string "```") -- fenced code
       notFollowedBy (void $ string "~~~") -- fenced code
+      -- Don't consume if it looks like an admonition start
+      notFollowedBy (try $ char '>' *> hspace *> string "[!")
       -- Don't consume if it looks like a list item at start of line
       notFollowedBy (try letterListMarker)
       notFollowedBy (try numberListMarker)

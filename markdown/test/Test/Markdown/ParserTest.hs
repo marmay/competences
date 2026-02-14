@@ -23,6 +23,7 @@ parserTests =
     , testGroup "Lettered lists" letteredListTests
     , testGroup "Thematic breaks" thematicBreakTests
     , testGroup "Line breaks" lineBreakTests
+    , testGroup "Admonitions" admonitionTests
     , testGroup "Backward compatibility" backwardCompatTests
     ]
 
@@ -193,6 +194,41 @@ lineBreakTests =
         "hard break"
         (Document [Paragraph [Plain "Line one", HardLineBreak, Plain "Line two"]])
         "Line one\\\nLine two"
+  ]
+
+admonitionTests :: [TestTree]
+admonitionTests =
+  [ testCase "definition with title" $
+      assertParse
+        "def"
+        (Document [Admonition Definition (Just [Plain "Primzahl"]) [Paragraph [Plain "Eine Primzahl ist..."]]])
+        "> [!definition] Primzahl\n> Eine Primzahl ist..."
+  , testCase "theorem without title" $
+      assertParse
+        "thm"
+        (Document [Admonition Theorem Nothing [Paragraph [Plain "Es gilt..."]]])
+        "> [!theorem]\n> Es gilt..."
+  , testCase "proof with math" $
+      assertParse
+        "proof"
+        (Document [Admonition Proof Nothing [Paragraph [Plain "Sei ", MathInline "p", Plain " eine Primzahl."]]])
+        "> [!proof]\n> Sei $p$ eine Primzahl."
+  , testCase "german type alias" $
+      assertParse
+        "satz"
+        (Document [Admonition Theorem (Just [Plain "Euklid"]) [Paragraph [Plain "Body"]]])
+        "> [!satz] Euklid\n> Body"
+  , testCase "multi-paragraph body" $
+      assertBlockCount "multi-para admonition" 1
+        "> [!remark]\n> First paragraph.\n>\n> Second paragraph."
+  , testCase "case insensitive type" $
+      assertParse
+        "case"
+        (Document [Admonition Definition Nothing [Paragraph [Plain "Body"]]])
+        "> [!Definition]\n> Body"
+  , testCase "admonition after paragraph" $
+      assertBlockCount "para then admonition" 2
+        "Some text.\n\n> [!theorem]\n> Body"
   ]
 
 -- | Tests for backward compatibility with existing TaskContent markup

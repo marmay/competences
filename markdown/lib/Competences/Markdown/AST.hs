@@ -15,11 +15,13 @@
 -- * Lettered lists (@a. b. c.@ extension)
 -- * Thematic breaks (@---@ or @***@)
 -- * Soft and hard line breaks
+-- * Admonition blocks (definition, theorem, proof, etc.)
 module Competences.Markdown.AST
   ( -- * Document structure
     Document (..)
   , Block (..)
   , Inline (..)
+  , AdmonitionType (..)
   , Url
   )
 where
@@ -46,6 +48,23 @@ data Block
     MathBlock !Text
   | -- | Thematic break (--- or ***)
     ThematicBreak
+  | -- | Admonition block with type, optional title, and body blocks
+    --   > [!theorem] Title text
+    --   > Body paragraph...
+    Admonition !AdmonitionType !(Maybe [Inline]) ![Block]
+  deriving (Eq, Show)
+
+-- | Admonition types for math content callouts
+data AdmonitionType
+  = Definition
+  | Theorem
+  | Lemma
+  | Proof
+  | -- | Additional info or context ("Bemerkung")
+    Remark
+  | -- | Key takeaway — "Remember this!"
+    Merksatz
+  | Example
   deriving (Eq, Show)
 
 -- | Inline elements within paragraphs and list items
