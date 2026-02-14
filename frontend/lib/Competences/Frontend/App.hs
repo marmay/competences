@@ -7,19 +7,19 @@ where
 
 import Competences.Document (User (..))
 import Competences.Document.User (isStudent, isTeacher)
-import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
-import Competences.Frontend.Component.WindowHost (windowHostComponent)
-import Competences.Frontend.Component.Planning (planningComponent)
-import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.LessonNotes (LessonNotesMode (..), lessonNotesComponent)
+import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
+import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
+import Competences.Frontend.Component.WindowHost (windowHostComponent)
+import Competences.Frontend.Page
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , FocusedUserChange (..)
@@ -32,11 +32,11 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Component (componentA)
+import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.NavBar qualified as NavBar
 import Competences.Frontend.View.Tailwind (class_)
-import Data.Functor (($>))
+import Competences.Query.User qualified as QUser
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -75,27 +75,37 @@ mkApp ir =
     }
   where
     env = syncDocumentEnv ir
-    model = Model {uri = M.toURI CompetenceGrid, connectedUser = env ^. #connectedUser}
+    model =
+      Model
+        { uri = M.toURI CompetenceGrid
+        , connectedUser = env ^. #connectedUser
+        }
 
     update (SetURI uri) = M.modify $ #uri .~ uri
     update (PushURI uri) = M.io_ $ M.pushURI uri
 
     view :: Model -> M.View Model Action
     view m =
-      M.div_
-        [class_ "flex flex-row h-screen"]
-        [ Icon.iconDefs
-        , M.div_
-            [class_ "flex-1 min-w-0 flex flex-col"]
-            [ V.mainPage
-                (C.translate' C.LblPageTitle)
-                (focusedUserView ir)
-                (navButtons m)
-                (page (m ^. #uri))
-                (footerView ir)
+      let currentPage = either (const CompetenceGrid) id $ M.route (m ^. #uri)
+          teacher = isTeacher m.connectedUser
+          categories = if teacher then NavBar.teacherCategories else NavBar.studentCategories
+          extras = if teacher then NavBar.teacherExtraCategories else []
+          navigate p = PushURI (M.toURI p)
+       in M.div_
+            [class_ "flex flex-row h-screen"]
+            [ Icon.iconDefs
+            , M.div_
+                [class_ "flex-1 min-w-0 flex flex-col"]
+                [ V.mainPage
+                    (NavBar.burgerMenuView navigate currentPage categories extras)
+                    (C.translate' C.LblPageTitle)
+                    (map (NavBar.navCategoryView teacher navigate currentPage) categories)
+                    (focusedUserView ir)
+                    (page (m ^. #uri))
+                    (footerView ir)
+                ]
+            , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
             ]
-        , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
-        ]
 
     footerView ir' =
       M.div_
@@ -103,38 +113,6 @@ mkApp ir =
         [ M.span_ [] [M.text "© 2025-2026 Markus Mayr"]
         , connectionStatusView ir'
         ]
-
-    navButtons m' =
-      let currentPage = M.route (m' ^. #uri)
-          nb = navButton currentPage
-       in if isTeacher m'.connectedUser
-            then
-              [ nb C.LblCompetenceGrid CompetenceGrid
-              , nb C.LblMesoPlanning Planning
-              , nb C.LblEvidences Evidences
-              , nb C.LblSelfContainedTasks ManageTasks
-              , nb C.LblManageResources ManageResources
-              , nb C.LblLessonNotesEntries ManageLessonNotes
-              , nb C.LblAssignments ManageAssignments
-              , nb C.LblStatisticsOverview StatisticsOverview
-              , nb C.LblManageUsers ManageUsers
-              ]
-            else
-              [ nb C.LblCompetenceGrid CompetenceGrid
-              , nb C.LblEvidences Evidences
-              , nb C.LblLessonNotesEntries ManageLessonNotes
-              , nb C.LblAssignments ViewAssignments
-              ]
-
-    navButton currentPage lbl p =
-      let isActive = currentPage == Right p
-       in -- Active button gets a subtle white background wrapper
-          if isActive
-            then M.span_
-                   [class_ "bg-white/20 rounded-md"]
-                   [ Button.ghost $ Button.button lbl (PushURI $ M.toURI p)
-                   ]
-            else Button.secondary $ Button.button lbl (PushURI $ M.toURI p)
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"
@@ -177,47 +155,6 @@ mkApp ir =
 -- Kept for backward compatibility with Main.hs
 withTailwindPlay :: App -> App
 withTailwindPlay = id
-
-data Page
-  = CompetenceGrid
-  | Planning
-  | Evidences
-  | ManageTasks
-  | ManageResources
-  | ManageLessonNotes
-  | ViewAssignments
-  | ManageAssignments
-  | StatisticsOverview
-  | ManageUsers
-  deriving (Eq, Show)
-
-instance M.Router Page where
-  routeParser =
-    M.routes
-      [ M.path "grid" $> CompetenceGrid
-      , M.path "planning" $> Planning
-      , M.path "evidences" $> Evidences
-      , M.path "tasks" $> ManageTasks
-      , M.path "resources" $> ManageResources
-      , M.path "lesson-notes" $> ManageLessonNotes
-      , M.path "assignments" $> ViewAssignments
-      , M.path "manage-assignments" $> ManageAssignments
-      , M.path "statistics-overview" $> StatisticsOverview
-      , M.path "users" $> ManageUsers
-      ]
-  fromRoute CompetenceGrid = [M.toPath "grid"]
-  fromRoute Planning = [M.toPath "planning"]
-  fromRoute Evidences = [M.toPath "evidences"]
-  fromRoute ManageTasks = [M.toPath "tasks"]
-  fromRoute ManageResources = [M.toPath "resources"]
-  fromRoute ManageLessonNotes = [M.toPath "lesson-notes"]
-  fromRoute ViewAssignments = [M.toPath "assignments"]
-  fromRoute ManageAssignments = [M.toPath "manage-assignments"]
-  fromRoute StatisticsOverview = [M.toPath "statistics-overview"]
-  fromRoute ManageUsers = [M.toPath "users"]
-
-instance M.ToKey Page where
-  toKey = M.toKey . show
 
 -- ============================================================================
 -- FOCUSED USER VIEW (Nav bar component)

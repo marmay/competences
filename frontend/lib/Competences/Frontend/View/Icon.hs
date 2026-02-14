@@ -74,6 +74,8 @@ data Icon
   | IcnMinus
   | IcnMinusMinus
   | IcnPrint
+  | IcnMenu
+  | IcnLessonNotes
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -90,6 +92,7 @@ data Size
   = Small    -- ^ 16px (w-4 h-4) - for small buttons
   | Regular  -- ^ 20px (w-5 h-5) - for regular buttons
   | Large    -- ^ 24px (w-6 h-6) - for large buttons (current default)
+  | XLarge   -- ^ 28px (w-7 h-7) - for nav bar icons
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | CSS class for variant stroke color
@@ -107,6 +110,7 @@ sizeClass = \case
   Small -> "w-4 h-4"
   Regular -> "w-5 h-5"
   Large -> "w-6 h-6"
+  XLarge -> "w-7 h-7"
 
 -- | Render icon with variant-based coloring
 iconV :: Variant -> Icon -> View m a
@@ -132,6 +136,7 @@ iconVS variant size icn =
   MH.span_
     [M.class_ $ ms $ variantStrokeClass variant]
     [iconS size icn]
+
 
 iconDefs :: View m a
 iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]
@@ -197,6 +202,8 @@ iconId = \case
   IcnMinus -> "icon-minus"
   IcnMinusMinus -> "icon-minus-minus"
   IcnPrint -> "icon-print"
+  IcnMenu -> "icon-menu"
+  IcnLessonNotes -> "icon-lesson-notes"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -544,6 +551,22 @@ iconDefOf' = \case
       [ "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
       , "M6 9V3h12v6"
       , "M6 15h12v6H6z"
+      ]
+  -- Hamburger menu icon (3 horizontal lines)
+  IcnMenu ->
+    mkPathesDR
+      [ "M4 6h16"
+      , "M4 12h16"
+      , "M4 18h16"
+      ]
+  -- Lesson notes icon (notebook with lines)
+  IcnLessonNotes ->
+    mkPathesD
+      [ "M4 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z"
+      , "M8 2v20"
+      , "M11 7h5"
+      , "M11 11h5"
+      , "M11 15h3"
       ]
   where
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
