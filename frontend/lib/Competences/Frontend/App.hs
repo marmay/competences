@@ -16,6 +16,7 @@ import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
+import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.SyncContext
@@ -111,6 +112,7 @@ mkApp ir =
               , nb C.LblMesoPlanning Planning
               , nb C.LblEvidences Evidences
               , nb C.LblSelfContainedTasks ManageTasks
+              , nb C.LblManageResources ManageResources
               , nb C.LblAssignments ManageAssignments
               , nb C.LblStatisticsOverview StatisticsOverview
               , nb C.LblManageUsers ManageUsers
@@ -138,6 +140,7 @@ mkApp ir =
         Planning -> planning
         Evidences -> evidences
         ManageTasks -> manageTasks
+        ManageResources -> manageResources
         ViewAssignments -> viewAssignments
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
@@ -147,11 +150,12 @@ mkApp ir =
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
-        then GridView :| [GridEdit, GridResources, GridAssessment, GridGrading]
+        then GridView :| [GridEdit, GridAssessment, GridGrading]
         else GridView :| []
     planning = mounted Planning $ planningComponent ir
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent ir
+    manageResources = mounted ManageResources $ resourceEditorComponent ir
     -- Both routes use the unified assignment component
     -- Teachers see Edit/Evaluate/View modes, students see View mode only
     viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
@@ -171,6 +175,7 @@ data Page
   | Planning
   | Evidences
   | ManageTasks
+  | ManageResources
   | ViewAssignments
   | ManageAssignments
   | StatisticsOverview
@@ -184,6 +189,7 @@ instance M.Router Page where
       , M.path "planning" $> Planning
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
+      , M.path "resources" $> ManageResources
       , M.path "assignments" $> ViewAssignments
       , M.path "manage-assignments" $> ManageAssignments
       , M.path "statistics-overview" $> StatisticsOverview
@@ -193,6 +199,7 @@ instance M.Router Page where
   fromRoute Planning = [M.toPath "planning"]
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
+  fromRoute ManageResources = [M.toPath "resources"]
   fromRoute ViewAssignments = [M.toPath "assignments"]
   fromRoute ManageAssignments = [M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]

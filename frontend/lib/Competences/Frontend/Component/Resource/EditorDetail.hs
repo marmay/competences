@@ -1,6 +1,5 @@
 module Competences.Frontend.Component.Resource.EditorDetail
   ( editorDetailView
-  , resourceInlineEditor
   )
 where
 
@@ -23,12 +22,12 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.Component.Editor.EditorField (mkFieldLens)
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Text (text_)
@@ -44,7 +43,7 @@ import Optics.Core (Lens', lens, (&), (.~), (?~), (^.))
 editorDetailView
   :: SyncContext
   -> Resource
-  -> M.View (SD.Model Resource mode) (SD.Action mode)
+  -> M.View p a
 editorDetailView r resource =
   component
     ("resource-editor-" <> M.ms (show resource.id))
@@ -72,41 +71,6 @@ editorDetailView r resource =
                            )
         `TE.addNamedField` ( C.translate' C.LblResourceCompetenceLevels
                            , competenceLevelEditorField r "resource-levels" 1 competenceLevelsLens  -- minResults=1: resources must have at least one level
-                           )
-        `TE.addNamedField` ( C.translate' C.LblResourceContent
-                           , resourceContentEditorField
-                           )
-
--- | Inline editor for a resource - simpler version without the full header
--- This is used in the modal where we just need the edit fields
-resourceInlineEditor
-  :: SyncContext
-  -> Resource
-  -> M.View p a
-resourceInlineEditor r resource =
-  component
-    ("resource-inline-editor-" <> M.ms (show resource.id))
-    (TE.editorComponent inlineEditor r)
-  where
-    resourceEditable =
-      TE.editable
-        ( \d ->
-            fmap
-              (\res -> (res, (d ^. #locks) Map.!? ResourceLock res.id))
-              (Ix.getOne $ d.resources Ix.@= resource.id)
-        )
-        & (#modify ?~ (\res modify -> Resources $ OnResources (EC.Modify res.id modify)))
-
-    -- Inline editor without header or delete button
-    inlineEditor =
-      TE.editor
-        (TE.editorFormViewInline id)  -- Use inline form view (no header)
-        resourceEditable
-        `TE.addNamedField` ( C.translate' C.LblResourceIdentifier
-                           , identifierEditorField
-                           )
-        `TE.addNamedField` ( C.translate' C.LblResourceCompetenceLevels
-                           , competenceLevelEditorField r "resource-inline-levels" 1 competenceLevelsLens  -- minResults=1: resources must have at least one level
                            )
         `TE.addNamedField` ( C.translate' C.LblResourceContent
                            , resourceContentEditorField
@@ -195,10 +159,10 @@ resourceContentEditorField =
             Nothing -> original.content
        in MH.div_ [class_ "space-y-3"]
             [ -- Content type selector
-              Layout.hFlow Layout.gapS
-                [ contentTypeButton "Inline" (isInline currentContent) (switchToInline original patch)
-                , contentTypeButton "Web-Link" (isWebLink currentContent) (switchToWebLink original patch)
-                , contentTypeButton "Video" (isVideoLink currentContent) (switchToVideoLink original patch)
+              Button.buttonGroup
+                [ Button.toggleSm (isInline currentContent) (Button.button ("Inline" :: M.MisoString) (switchToInline original patch))
+                , Button.toggleSm (isWebLink currentContent) (Button.button ("Web-Link" :: M.MisoString) (switchToWebLink original patch))
+                , Button.toggleSm (isVideoLink currentContent) (Button.button ("Video" :: M.MisoString) (switchToVideoLink original patch))
                 ]
             , -- Content-specific fields
               case currentContent of
@@ -270,16 +234,6 @@ resourceContentEditorField =
     switchToInline original patch = UpdatePatch original (patch & #content ?~ (original.content, InlineContent mempty))
     switchToWebLink original patch = UpdatePatch original (patch & #content ?~ (original.content, WebLink "" ""))
     switchToVideoLink original patch = UpdatePatch original (patch & #content ?~ (original.content, VideoLink "" ""))
-
-    contentTypeButton label isActive action =
-      MH.button_
-        [ class_ $ "px-3 py-1.5 text-sm rounded-md transition-colors "
-            <> if isActive
-                 then "bg-sky-600 text-white"
-                 else "bg-stone-100 text-stone-700 hover:bg-stone-200"
-        , MH.onClick action
-        ]
-        [M.text label]
 
 -- | Lens into the 'RichContent' inside a resource's 'InlineContent'.
 --

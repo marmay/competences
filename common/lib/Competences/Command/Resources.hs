@@ -82,7 +82,7 @@ handleResourcesCommand userId (OnResources c) d =
   case c of
     -- Validate new resources before creating
     Create r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext userId c d
-    CreateAndLock r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext userId c d
+    CreateAndLock _r -> interpretEntityCommand resourceContext userId c d
     -- Other operations use applyPatch which already validates
     _ -> interpretEntityCommand resourceContext userId c d
   where
