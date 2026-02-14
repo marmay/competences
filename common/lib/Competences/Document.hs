@@ -20,6 +20,7 @@ module Competences.Document
   , module Competences.Document.User
   , module Competences.Document.MesoPlan
   , module Competences.Document.Lesson
+  , module Competences.Document.LessonNotes
   , module Competences.Document.ParticipationRecord
   )
 where
@@ -61,6 +62,12 @@ import Competences.Document.Lesson
   , LessonPhase (..)
   , TeachingSocialForm (..)
   , ActionForm (..)
+  )
+import Competences.Document.LessonNotes
+  ( LessonNotes (..)
+  , LessonNotesId
+  , LessonNotesIxs
+  , mkLessonNotes
   )
 import Competences.Document.MesoPlan
   ( MesoPlan (..)
@@ -110,6 +117,7 @@ data Document = Document
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
   , mesoPlans :: !(Ix.IxSet MesoPlanIxs MesoPlan)
   , lessons :: !(Ix.IxSet LessonIxs Lesson)
+  , lessonNotes :: !(Ix.IxSet LessonNotesIxs LessonNotes)
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   }
   deriving (Eq, Generic, Show)
@@ -134,6 +142,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "solutions" .!= [])
       <*> fmap Ix.fromList (v .:? "mesoPlans" .!= [])
       <*> fmap Ix.fromList (v .:? "lessons" .!= [])
+      <*> fmap Ix.fromList (v .:? "lessonNotes" .!= [])
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
 
 instance ToJSON Document where
@@ -153,6 +162,7 @@ instance ToJSON Document where
       , "solutions" .= Ix.toList d.solutions
       , "mesoPlans" .= Ix.toList d.mesoPlans
       , "lessons" .= Ix.toList d.lessons
+      , "lessonNotes" .= Ix.toList d.lessonNotes
       , "participationRecords" .= Ix.toList d.participationRecords
       ]
 #endif
@@ -174,6 +184,7 @@ emptyDocument =
     , solutions = Ix.empty
     , mesoPlans = Ix.empty
     , lessons = Ix.empty
+    , lessonNotes = Ix.empty
     , participationRecords = Ix.empty
     }
 
@@ -195,7 +206,7 @@ projectDocument user doc
         & #mesoPlans .~ Ix.empty -- Planning is teacher-only
         & #lessons .~ Ix.empty
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
-        -- competenceGrids, competences, resources, tasks, taskGroups: students see all (public materials)
+        -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
     -- Student can see locks on entities they have access to
@@ -219,6 +230,7 @@ projectDocument user doc
           Nothing -> False
       SolutionLock _ -> True -- Solutions are visible to all users
       ResourceLock _ -> True -- Resources are visible to all users
+      LessonNotesLock _ -> True -- Lesson notes are visible to all users
       MesoPlanLock _ -> False -- Planning is teacher-only
       LessonLock _ -> False
       ParticipationRecordLock prid ->

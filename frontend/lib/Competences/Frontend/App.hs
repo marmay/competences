@@ -16,6 +16,7 @@ import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
+import Competences.Frontend.Component.LessonNotes (LessonNotesMode (..), lessonNotesComponent)
 import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
@@ -113,6 +114,7 @@ mkApp ir =
               , nb C.LblEvidences Evidences
               , nb C.LblSelfContainedTasks ManageTasks
               , nb C.LblManageResources ManageResources
+              , nb C.LblLessonNotesEntries ManageLessonNotes
               , nb C.LblAssignments ManageAssignments
               , nb C.LblStatisticsOverview StatisticsOverview
               , nb C.LblManageUsers ManageUsers
@@ -120,6 +122,7 @@ mkApp ir =
             else
               [ nb C.LblCompetenceGrid CompetenceGrid
               , nb C.LblEvidences Evidences
+              , nb C.LblLessonNotesEntries ManageLessonNotes
               , nb C.LblAssignments ViewAssignments
               ]
 
@@ -141,6 +144,7 @@ mkApp ir =
         Evidences -> evidences
         ManageTasks -> manageTasks
         ManageResources -> manageResources
+        ManageLessonNotes -> manageLessonNotes
         ViewAssignments -> viewAssignments
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
@@ -156,6 +160,10 @@ mkApp ir =
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks = mounted ManageTasks $ taskEditorComponent ir
     manageResources = mounted ManageResources $ resourceEditorComponent ir
+    manageLessonNotes = mounted ManageLessonNotes $ lessonNotesComponent ir lessonNotesDefaultMode lessonNotesAvailableModes lessonNotesCanCreate
+    lessonNotesDefaultMode = if isTeacher model.connectedUser then LessonNotesEdit else LessonNotesView
+    lessonNotesAvailableModes = if isTeacher model.connectedUser then LessonNotesEdit :| [LessonNotesView] else LessonNotesView :| []
+    lessonNotesCanCreate = isTeacher model.connectedUser
     -- Both routes use the unified assignment component
     -- Teachers see Edit/Evaluate/View modes, students see View mode only
     viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
@@ -176,6 +184,7 @@ data Page
   | Evidences
   | ManageTasks
   | ManageResources
+  | ManageLessonNotes
   | ViewAssignments
   | ManageAssignments
   | StatisticsOverview
@@ -190,6 +199,7 @@ instance M.Router Page where
       , M.path "evidences" $> Evidences
       , M.path "tasks" $> ManageTasks
       , M.path "resources" $> ManageResources
+      , M.path "lesson-notes" $> ManageLessonNotes
       , M.path "assignments" $> ViewAssignments
       , M.path "manage-assignments" $> ManageAssignments
       , M.path "statistics-overview" $> StatisticsOverview
@@ -200,6 +210,7 @@ instance M.Router Page where
   fromRoute Evidences = [M.toPath "evidences"]
   fromRoute ManageTasks = [M.toPath "tasks"]
   fromRoute ManageResources = [M.toPath "resources"]
+  fromRoute ManageLessonNotes = [M.toPath "lesson-notes"]
   fromRoute ViewAssignments = [M.toPath "assignments"]
   fromRoute ManageAssignments = [M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "statistics-overview"]

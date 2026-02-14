@@ -9,9 +9,9 @@ import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
+import Competences.Document.LessonNotes (LessonNotes (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
-import Competences.Document.Resource (ResourceId)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
@@ -34,10 +34,8 @@ import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.Maybe (mapMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
@@ -53,9 +51,7 @@ data DetailModel = DetailModel
   { mesoPlan :: !MesoPlan
   , lessons :: ![Lesson]
   , expandedLessonId :: !(Maybe LessonId)
-  , expandedResources :: !(Set.Set ResourceId)
   , expandedAssignments :: !(Set.Set LessonId)  -- Track which lessons have assignments expanded
-  , expandedResourcesList :: !(Set.Set LessonId)  -- Resources section per lesson
   , expandedNotes :: !(Set.Set LessonId)  -- Notes section per lesson
   , expandedPhases :: !(Set.Set LessonId)  -- Phases section per lesson
   , document :: !Document
@@ -68,9 +64,7 @@ data DetailAction
   = DocumentUpdated !DocumentChange
   | CreateNewLesson
   | ToggleLessonExpansion !LessonId
-  | ToggleResourceExpanded !ResourceId
   | ToggleAssignmentsExpanded !LessonId
-  | ToggleResourcesListExpanded !LessonId
   | ToggleNotesExpanded !LessonId
   | TogglePhasesExpanded !LessonId
   | OpenLessonEditorModal !Lesson
@@ -88,14 +82,12 @@ data DetailAction
 projectDetail
   :: MesoPlan
   -> Maybe LessonId
-  -> Set.Set ResourceId
-  -> Set.Set LessonId
   -> Set.Set LessonId
   -> Set.Set LessonId
   -> Set.Set LessonId
   -> Document
   -> DetailModel
-projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments prevExpandedResourcesList prevExpandedNotes prevExpandedPhases doc =
+projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -106,10 +98,9 @@ projectDetail plan prevExpanded prevExpandedResources prevExpandedAssignments pr
         Just lid -> if any (\l -> l.id == lid) lessons' then Just lid else Nothing
       -- Clean up expanded states for lessons that no longer exist
       expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
-      expandedResourcesList' = Set.intersection prevExpandedResourcesList lessonIds
       expandedNotes' = Set.intersection prevExpandedNotes lessonIds
       expandedPhases' = Set.intersection prevExpandedPhases lessonIds
-   in DetailModel plan' lessons' expanded prevExpandedResources expandedAssignments' expandedResourcesList' expandedNotes' expandedPhases' doc Nothing
+   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -127,7 +118,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty Set.empty Set.empty emptyDocument Nothing
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing
 
     emptyDocument =
       Document
@@ -145,10 +136,11 @@ detailComponent r initialPlan =
         , competenceGridGrades = Ix.empty
         , mesoPlans = Ix.empty
         , lessons = Ix.empty
+        , lessonNotes = Ix.empty
         , participationRecords = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedResources m.expandedAssignments m.expandedResourcesList m.expandedNotes m.expandedPhases dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -168,19 +160,12 @@ detailComponent r initialPlan =
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [])
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [] [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
         then m{expandedLessonId = Nothing}
         else m{expandedLessonId = Just lessonId}
-
-    update (ToggleResourceExpanded resId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member resId m.expandedResources
-              then Set.delete resId m.expandedResources
-              else Set.insert resId m.expandedResources
-       in m {expandedResources = newExpanded}
 
     update (ToggleAssignmentsExpanded lessonId) = M.modify $ \m ->
       let newExpanded =
@@ -188,13 +173,6 @@ detailComponent r initialPlan =
               then Set.delete lessonId m.expandedAssignments
               else Set.insert lessonId m.expandedAssignments
        in m {expandedAssignments = newExpanded}
-
-    update (ToggleResourcesListExpanded lessonId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member lessonId m.expandedResourcesList
-              then Set.delete lessonId m.expandedResourcesList
-              else Set.insert lessonId m.expandedResourcesList
-       in m {expandedResourcesList = newExpanded}
 
     update (ToggleNotesExpanded lessonId) = M.modify $ \m ->
       let newExpanded =
@@ -213,8 +191,9 @@ detailComponent r initialPlan =
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
       let assignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
+          lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
       M.io_ $
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson assignmentIds)
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson assignmentIds lessonNotesIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       openModal r.windowManager (mesoPlanEditorModal r r.windowManager plan)
@@ -314,7 +293,6 @@ detailComponent r initialPlan =
 
     viewExpandedLesson m lesson =
       let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
-          resolvedResources = mapMaybe (\rId -> Ix.getOne (m.document.resources Ix.@= rId)) lesson.resources
        in MH.div_
         [class_ "p-4 border-t border-border bg-background space-y-3"]
         [ -- Date
@@ -340,22 +318,12 @@ detailComponent r initialPlan =
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                in Disclosure.innerDisclosure (ToggleAssignmentsExpanded lesson.id) $
                     Disclosure.contents assignmentsTitleView assignmentsExpanded assignmentsBody []
-        , -- Resources collapsible
-          if null resolvedResources
-            then M.text ""
-            else
-              let resourcesExpanded = Set.member lesson.id m.expandedResourcesList
-                  resourcesTitleView = Disclosure.titleText $ C.translate' C.LblLessonResources
-                    <> " (" <> M.ms (show (length resolvedResources)) <> ")"
-                  resourcesBody = ResourceList.resourcesListView resolvedResources m.expandedResources ToggleResourceExpanded
-               in Disclosure.innerDisclosure (ToggleResourcesListExpanded lesson.id) $
-                    Disclosure.contents resourcesTitleView resourcesExpanded resourcesBody []
         , -- Notes collapsible
           if lesson.notes == mempty
             then M.text ""
             else
               let notesExpanded = Set.member lesson.id m.expandedNotes
-                  notesTitleView = Disclosure.titleText $ C.translate' C.LblLessonNotes
+                  notesTitleView = Disclosure.titleText $ C.translate' C.LblTeachingNotes
                   notesBody = MH.div_ [class_ "text-sm"] [renderRichText lesson.notes]
                in Disclosure.innerDisclosure (ToggleNotesExpanded lesson.id) $
                     Disclosure.contents notesTitleView notesExpanded notesBody []

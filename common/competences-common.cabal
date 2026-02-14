@@ -37,6 +37,7 @@ library
         Competences.Command.Evidences
         Competences.Command.Interpret
         Competences.Command.Lessons
+        Competences.Command.LessonNotes
         Competences.Command.MesoPlans
         Competences.Command.ParticipationRecords
         Competences.Command.Resources
@@ -56,6 +57,7 @@ library
         Competences.Document.Grade
         Competences.Document.Id
         Competences.Document.Lesson
+        Competences.Document.LessonNotes
         Competences.Document.Lock
         Competences.Document.MesoPlan
         Competences.Document.Order

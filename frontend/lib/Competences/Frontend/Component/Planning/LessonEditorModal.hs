@@ -10,17 +10,20 @@ module Competences.Frontend.Component.Planning.LessonEditorModal
   )
 where
 
-import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), LessonPatch (..), LessonsCommand (..), ModifyCommand (..))
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (Assignments, Lessons), EntityCommand (..), LessonNotesCommand (..), LessonPatch (..), LessonsCommand (..), ModifyCommand (..))
+import Competences.Command qualified as Cmd
+import Competences.Command.LessonNotes (LessonNotesPatch (..))
 import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (ActionForm (..), Lesson (..), LessonPhase (..), TeachingSocialForm (..))
-import Competences.Document.Resource (ResourceId)
+import Competences.Document.LessonNotes (LessonNotes (..), LessonNotesId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Common.ListReorder (ListReorderAction (..), ListReorderState (..), initialListReorderState, listReorderButtons, ListReorderButtons (..), moveElement)
 import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
-import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent)
+import Competences.Frontend.Component.Selector.MultiSelectLessonNotesSelector (multiSelectLessonNotesSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
@@ -62,12 +65,14 @@ data Model = Model
   , initialAssignments :: ![AssignmentId]
     -- ^ Assignment IDs linked to this lesson at time of opening the editor
   , selectedAssignments :: ![AssignmentId]
-  , selectedResources :: ![ResourceId]
+  , initialLessonNotes :: ![LessonNotesId]
+    -- ^ Lesson note IDs linked to this lesson at time of opening the editor
+  , selectedLessonNotes :: ![LessonNotesId]
   , phases :: ![LessonPhase]
   , notes :: !RichContent
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
-  , reorderPhaseFrom :: !(Maybe Int)
+  , phaseReorderState :: !ListReorderState
   }
   deriving (Eq, Generic)
 
@@ -87,9 +92,7 @@ data Action
   | SetPhaseSocialForm !Int !TeachingSocialForm
   | SetPhaseActionForm !Int !ActionForm
   | -- Reorder actions:
-    StartPhaseReorder !Int
-  | CancelPhaseReorder
-  | PhaseReorderTo !Int !Int -- source index, target index
+    PhaseReorder !ListReorderAction
   | -- Save/Cancel:
     SaveAndClose
   | CloseModal
@@ -102,8 +105,8 @@ data Action
 -- | Create the lesson editor modal component.
 -- The @assignmentIds@ parameter provides the assignment IDs currently linked
 -- to this lesson (queried from the document via Assignment.lessonId index).
-lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> [AssignmentId] -> M.Component p Model Action
-lessonEditorModal r modalMgr lesson' assignmentIds =
+lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> [AssignmentId] -> [LessonNotesId] -> M.Component p Model Action
+lessonEditorModal r modalMgr lesson' assignmentIds lessonNotesIds =
   M.component model update (view r)
   where
     model =
@@ -115,11 +118,12 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         , dateValue = lesson'.date
         , initialAssignments = assignmentIds
         , selectedAssignments = assignmentIds
-        , selectedResources = lesson'.resources
+        , initialLessonNotes = lessonNotesIds
+        , selectedLessonNotes = lessonNotesIds
         , phases = lesson'.phases
         , notes = lesson'.notes
         , editingPhaseIndex = Nothing
-        , reorderPhaseFrom = Nothing
+        , phaseReorderState = initialListReorderState
         }
 
     update (SetTitle t) =
@@ -172,13 +176,13 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
       M.modify $ \m -> m & #phases .~ updateAt idx (\p -> p & #actionForm .~ af) m.phases
 
     -- Reorder actions
-    update (StartPhaseReorder idx) =
-      M.modify $ \m -> m & #reorderPhaseFrom .~ Just idx
+    update (PhaseReorder (StartListReorder idx)) =
+      M.modify $ \m -> m & #phaseReorderState .~ ListReorderState (Just idx)
 
-    update CancelPhaseReorder =
-      M.modify $ \m -> m & #reorderPhaseFrom .~ Nothing
+    update (PhaseReorder CancelListReorder) =
+      M.modify $ \m -> m & #phaseReorderState .~ initialListReorderState
 
-    update (PhaseReorderTo src tgt) =
+    update (PhaseReorder (ListReorderTo src tgt)) =
       M.modify $ \m ->
         let newPhases = moveElement src tgt m.phases
             -- Adjust editingPhaseIndex to follow the moved phase
@@ -188,7 +192,7 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 | i >= min src tgt && i <= max src tgt ->
                     Just (if src < tgt then i - 1 else i + 1)
               other -> other
-         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #reorderPhaseFrom .~ Nothing
+         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #phaseReorderState .~ initialListReorderState
 
     update SaveAndClose = do
       m <- M.get
@@ -201,7 +205,6 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 & (if old.description /= m.description then #description ?~ (old.description, m.description) else id)
                 & (if old.competenceLevels /= m.competenceLevels then #competenceLevels ?~ (old.competenceLevels, m.competenceLevels) else id)
                 & (if old.date /= m.dateValue then #date ?~ (old.date, m.dateValue) else id)
-                & (if old.resources /= m.selectedResources then #resources ?~ (old.resources, m.selectedResources) else id)
                 & (if old.phases /= m.phases then #phases ?~ (old.phases, m.phases) else id)
                 & (if old.notes /= m.notes then #notes ?~ (old.notes, m.notes) else id)
             hasLessonChanges =
@@ -209,7 +212,6 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
                 || old.description /= m.description
                 || old.competenceLevels /= m.competenceLevels
                 || old.date /= m.dateValue
-                || old.resources /= m.selectedResources
                 || old.phases /= m.phases
                 || old.notes /= m.notes
 
@@ -231,6 +233,18 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
         mapM_ (\aId -> linkAssignment aId Nothing (Just m.lesson.id)) assignmentsAdded
         -- Unlink removed assignments from this lesson
         mapM_ (\aId -> linkAssignment aId (Just m.lesson.id) Nothing) assignmentsRemoved
+
+        -- Compute lesson notes diff (lesson notes are linked via LessonNotes.lessonId)
+        let lessonNotesAdded = filter (`notElem` m.initialLessonNotes) m.selectedLessonNotes
+            lessonNotesRemoved = filter (`notElem` m.selectedLessonNotes) m.initialLessonNotes
+
+        -- Link newly added lesson notes to this lesson
+        let linkLessonNote lnId oldLessonId newLessonId = do
+              modifySyncDocument r (Cmd.LessonNotes $ OnLessonNotes $ Modify lnId Lock)
+              modifySyncDocument r (Cmd.LessonNotes $ OnLessonNotes $ Modify lnId (Release (def & #lessonId ?~ (oldLessonId, newLessonId))))
+        mapM_ (\lnId -> linkLessonNote lnId Nothing (Just m.lesson.id)) lessonNotesAdded
+        -- Unlink removed lesson notes from this lesson
+        mapM_ (\lnId -> linkLessonNote lnId (Just m.lesson.id) Nothing) lessonNotesRemoved
 
         closeModal modalMgr
 
@@ -261,8 +275,8 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
               dateSection m
             , -- Section 5: Assignments
               assignmentsSection syncCtx m
-            , -- Section 6: Resources
-              resourcesSection syncCtx m
+            , -- Section 6: Lesson Notes
+              lessonNotesSection syncCtx m
             , -- Section 7: Notes (split-panel)
               notesSection m
             , -- Section 8: Phases
@@ -328,19 +342,20 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
               (selectorLens #selectedAssignments)
           )
 
-    resourcesSection syncCtx m =
-      Input.fieldWrapper (C.translate' C.LblLessonResources) $
+    lessonNotesSection syncCtx m =
+      Input.fieldWrapper (C.translate' C.LblLessonNotesEntries) $
         componentA
-          "lesson-editor-resource-selector"
+          "lesson-editor-lesson-notes-selector"
           []
-          ( multiSelectResourceSelectorComponent
+          ( multiSelectLessonNotesSelectorComponent
               syncCtx
-              m.selectedResources
-              (selectorLens #selectedResources)
+              (\ln -> ln.lessonId == Nothing || ln.lessonId == Just m.lesson.id)
+              m.selectedLessonNotes
+              (selectorLens #selectedLessonNotes)
           )
 
     notesSection m =
-      Input.fieldWrapper (C.translate' C.LblLessonNotes) $
+      Input.fieldWrapper (C.translate' C.LblTeachingNotes) $
         componentA "lesson-notes" [] (richContentEditorComponent m.notes #notes)
 
     phasesSection m =
@@ -373,18 +388,17 @@ lessonEditorModal r modalMgr lesson' assignmentIds =
     viewPhaseCard m idx phase =
       let isExpanded = m.editingPhaseIndex == Just idx
           titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
-          actions = case m.reorderPhaseFrom of
-            Nothing ->
-              [ Disclosure.Action Icon.IcnReorder (StartPhaseReorder idx)
+          actions = case listReorderButtons m.phaseReorderState idx of
+            ShowReorderStart ->
+              [ Disclosure.Action Icon.IcnReorder (PhaseReorder (StartListReorder idx))
               , Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)
               ]
-            Just fromIdx
-              | fromIdx == idx ->
-                  [Disclosure.DestructiveAction Icon.IcnCancel CancelPhaseReorder]
-              | otherwise ->
-                  [ Disclosure.Action Icon.IcnArrowUp (PhaseReorderTo fromIdx idx)
-                  , Disclosure.Action Icon.IcnArrowDown (PhaseReorderTo fromIdx (idx + 1))
-                  ]
+            ShowReorderCancel ->
+              [Disclosure.DestructiveAction Icon.IcnCancel (PhaseReorder CancelListReorder)]
+            ShowReorderTargets fromIdx thisIdx ->
+              [ Disclosure.Action Icon.IcnArrowUp (PhaseReorder (ListReorderTo fromIdx thisIdx))
+              , Disclosure.Action Icon.IcnArrowDown (PhaseReorder (ListReorderTo fromIdx (thisIdx + 1)))
+              ]
        in Disclosure.disclosure (TogglePhaseEdit idx) $
             Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase) actions
 
@@ -454,19 +468,6 @@ parseDate :: Text -> Maybe Day
 parseDate t
   | Text.null t = Nothing
   | otherwise = parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack t)
-
--- | Move element from source index to before target index (target is in original list).
-moveElement :: Int -> Int -> [a] -> [a]
-moveElement from to xs
-  | from == to || from + 1 == to = xs -- no-op
-  | otherwise =
-      case splitAt from xs of
-        (before, e : rest) ->
-          let removed = before <> rest
-              insertIdx = if to > from then to - 1 else to
-              (b2, a2) = splitAt insertIdx removed
-           in b2 <> [e] <> a2
-        _ -> xs
 
 -- | Update element at index
 updateAt :: Int -> (a -> a) -> [a] -> [a]

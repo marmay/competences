@@ -156,6 +156,7 @@ data Label
   | LblSelectAssignment
   | LblSelectAssignments
   | LblSelectResources
+  | LblSelectLessonNotes
   | LblSelectAll
   | LblDeselectAll
   | LblView
@@ -256,7 +257,7 @@ data Label
   | LblLessonAssignments
   | LblLessonResources
   | LblLessonPhases
-  | LblLessonNotes
+  | LblTeachingNotes
   | LblAddLesson
   | LblNoLessons
   | LblNoLesson
@@ -312,6 +313,13 @@ data Label
   | LblPrintTasks
   | LblPrintSolutions
   | LblPrintAll
+    -- Lesson Notes
+  | LblLessonNotesEntries
+  | LblFilterLessonNotes
+  | LblNewLessonNotes
+  | LblLessonNotesDate
+  | LblLessonNotesTitle
+  | LblLessonNotesResources
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -430,6 +438,7 @@ labels' =
   , LblSelectAssignment
   , LblSelectAssignments
   , LblSelectResources
+  , LblSelectLessonNotes
   , LblSelectAll
   , LblDeselectAll
   , LblView
@@ -528,7 +537,7 @@ labels' =
   , LblLessonAssignments
   , LblLessonResources
   , LblLessonPhases
-  , LblLessonNotes
+  , LblTeachingNotes
   , LblAddLesson
   , LblNoLessons
   , LblNoLesson
@@ -596,6 +605,13 @@ labels' =
   , LblPrintTasks
   , LblPrintSolutions
   , LblPrintAll
+    -- Lesson Notes
+  , LblLessonNotesEntries
+  , LblFilterLessonNotes
+  , LblNewLessonNotes
+  , LblLessonNotesDate
+  , LblLessonNotesTitle
+  , LblLessonNotesResources
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -729,6 +745,7 @@ defaultTranslation LblNoAssignmentSelected = "Kein Auftrag ausgewählt"
 defaultTranslation LblSelectAssignment = "Auftrag auswählen..."
 defaultTranslation LblSelectAssignments = "Aufträge auswählen..."
 defaultTranslation LblSelectResources = "Ressourcen auswählen..."
+defaultTranslation LblSelectLessonNotes = "Unterrichtsnotizen auswählen..."
 defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"
@@ -790,7 +807,7 @@ defaultTranslation LblWebLink = "Web-Link"
 defaultTranslation LblVideoLink = "Video-Link"
 defaultTranslation LblAddResource = "Ressource hinzufügen"
 defaultTranslation LblNoResources = "Keine Ressourcen"
-defaultTranslation LblManageResources = "Ressourcen verwalten"
+defaultTranslation LblManageResources = "Ressourcen"
 defaultTranslation LblFilterResources = "Ressourcen filtern..."
 defaultTranslation LblUrl = "URL"
 defaultTranslation LblDescription = "Beschreibung"
@@ -833,7 +850,7 @@ defaultTranslation LblLessonDate = "Datum"
 defaultTranslation LblLessonAssignments = "Aufträge"
 defaultTranslation LblLessonResources = "Ressourcen"
 defaultTranslation LblLessonPhases = "Unterrichtsphasen"
-defaultTranslation LblLessonNotes = "Notizen"
+defaultTranslation LblTeachingNotes = "Lehrnotizen"
 defaultTranslation LblAddLesson = "Einheit hinzufügen"
 defaultTranslation LblNoLessons = "Keine Einheiten"
 defaultTranslation LblNoLesson = "Keine Einheit"
@@ -901,6 +918,13 @@ defaultTranslation LblPrint = "Drucken"
 defaultTranslation LblPrintTasks = "Aufgaben"
 defaultTranslation LblPrintSolutions = "Lösungen"
 defaultTranslation LblPrintAll = "Alles"
+-- Lesson Notes
+defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
+defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
+defaultTranslation LblNewLessonNotes = "Neue Unterrichtsnotiz"
+defaultTranslation LblLessonNotesDate = "Datum"
+defaultTranslation LblLessonNotesTitle = "Titel"
+defaultTranslation LblLessonNotesResources = "Ressourcen"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

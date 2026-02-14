@@ -119,6 +119,7 @@ assignmentImportModalComponent r =
         , competenceGridGrades = Ix.empty
         , mesoPlans = Ix.empty
         , lessons = Ix.empty
+        , lessonNotes = Ix.empty
         , participationRecords = Ix.empty
         }
 

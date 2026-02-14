@@ -16,6 +16,7 @@ module Competences.Command
   , module Competences.Command.Resources
   , module Competences.Command.MesoPlans
   , module Competences.Command.Lessons
+  , module Competences.Command.LessonNotes
   , module Competences.Command.ParticipationRecords
   )
 where
@@ -29,6 +30,7 @@ import Competences.Command.CompetenceGridGrades (CompetenceGridGradePatch (..), 
 import Competences.Command.Competences (CompetenceGridPatch (..), CompetencePatch (..), LevelInfoPatch (..), CompetencesCommand (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
 import Competences.Command.Lessons (LessonsCommand (..), LessonPatch (..), handleLessonsCommand)
+import Competences.Command.LessonNotes (LessonNotesCommand (..), LessonNotesPatch (..), handleLessonNotesCommand)
 import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), handleMesoPlansCommand)
 import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..), ParticipationRecordPatch (..), handleParticipationRecordsCommand)
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
@@ -58,6 +60,7 @@ data Command
   | Resources !ResourcesCommand
   | MesoPlans !MesoPlansCommand
   | Lessons !LessonsCommand
+  | LessonNotes !LessonNotesCommand
   | ParticipationRecords !ParticipationRecordsCommand
   deriving (Eq, Generic, Show)
 
@@ -89,4 +92,5 @@ handleCommand userId cmd d = case cmd of
   Resources c -> handleResourcesCommand userId c d
   MesoPlans c -> handleMesoPlansCommand userId c d
   Lessons c -> handleLessonsCommand userId c d
+  LessonNotes c -> handleLessonNotesCommand userId c d
   ParticipationRecords c -> handleParticipationRecordsCommand userId c d
