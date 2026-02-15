@@ -16,6 +16,7 @@ where
 import Competences.Frontend.Common.Translate qualified as C
 import Data.List (intercalate)
 import Competences.Frontend.Page
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
@@ -124,11 +125,7 @@ navCategoryView isTeacher navigate currentPage cat =
                 "pb-0.5 border-b-2 "
                   <> if active then "border-primary-foreground" else "border-transparent"
             ]
-            [ MH.button_
-                [ class_ "p-1 rounded-md hover:bg-white/10 text-primary-foreground cursor-pointer"
-                , MH.onClick (navigate cat.categoryPage)
-                ]
-                [Icon.iconS Icon.XLarge cat.categoryIcon]
+            [ Button.primaryLg (Button.ButtonConfig (Button.SizedIcon Icon.XLarge cat.categoryIcon) (Just (navigate cat.categoryPage)))
             ]
         , categoryTooltip isTeacher navigate currentPage cat
         ]
@@ -165,17 +162,9 @@ categoryTooltip isTeacher navigate currentPage cat =
 -- | Clickable sub-entry within a teacher tooltip.
 tooltipEntry :: (Page -> a) -> Page -> NavEntry -> View m a
 tooltipEntry navigate currentPage entry =
-  MH.div_
-    [ class_ $
-        "flex items-center gap-2 px-2 py-1 text-sm rounded cursor-pointer "
-          <> if currentPage == entry.entryPage
-            then "bg-accent text-accent-foreground"
-            else "hover:bg-muted"
-    , MH.onClick (navigate entry.entryPage)
-    ]
-    [ Icon.iconS Icon.Small entry.entryIcon
-    , MH.span_ [] [M.text entry.entryLabel]
-    ]
+  Button.toggleGhostSm
+    (currentPage == entry.entryPage)
+    (Button.ButtonConfig (Button.IconText entry.entryIcon entry.entryLabel) (Just (navigate entry.entryPage)))
 
 -- | Burger menu as a CSS-only hover dropdown (replaces overlay sidebar).
 burgerMenuView :: (Page -> a) -> Page -> [NavCategory] -> [(MisoString, [NavEntry])] -> View m a

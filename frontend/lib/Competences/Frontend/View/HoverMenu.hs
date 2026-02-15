@@ -10,6 +10,7 @@ module Competences.Frontend.View.HoverMenu
   )
 where
 
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Miso (View)
@@ -44,17 +45,7 @@ hoverMenu trigger items =
 -- | A single clickable entry in a hover menu (icon + label).
 hoverMenuEntry :: Bool -> Icon.Icon -> MisoString -> a -> View m a
 hoverMenuEntry isActive icn label action =
-  MH.div_
-    [ class_ $
-        "flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm "
-          <> if isActive
-            then "bg-accent text-accent-foreground"
-            else "hover:bg-muted"
-    , MH.onClick action
-    ]
-    [ Icon.iconS Icon.Small icn
-    , MH.span_ [] [M.text label]
-    ]
+  Button.toggleGhostSm isActive (Button.ButtonConfig (Button.IconText icn label) (Just action))
 
 -- | Small uppercase section heading within a menu.
 hoverMenuHeading :: MisoString -> View m a

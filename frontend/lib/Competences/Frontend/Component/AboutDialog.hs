@@ -53,7 +53,7 @@ aboutButtonComponent ir = M.component model update view
 
     view _m =
       withTooltip (PlainTooltip "Info") $
-        Button.primary (Button.button Icon.IcnInfo OpenAboutDialog)
+        Button.primaryLg (Button.button Icon.IcnInfo OpenAboutDialog)
 
 -- ============================================================================
 -- ABOUT MODAL

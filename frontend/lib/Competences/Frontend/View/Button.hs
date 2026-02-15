@@ -33,6 +33,9 @@ module Competences.Frontend.View.Button
   , toggle
   , toggleSm
   , toggleLg
+  , toggleGhost
+  , toggleGhostSm
+  , toggleGhostLg
   , applyButtonC
   , cancelButtonC
   , deleteButtonC
@@ -84,6 +87,7 @@ data ButtonSize
 data ButtonContents
   = TextOnly !MisoString
   | IconOnly !Icon.Icon
+  | SizedIcon !Icon.Size !Icon.Icon -- ^ Custom-sized icon, no text
   | IconText !Icon.Icon !MisoString
   deriving (Eq, Show)
 
@@ -109,6 +113,9 @@ instance ToButtonContents MisoString where
 
 instance ToButtonContents Label where
   toButtonContents = TextOnly . translate'
+
+instance ToButtonContents (Icon.Size, Icon.Icon) where
+  toButtonContents (s, i) = SizedIcon s i
 
 instance ToButtonContents (Icon.Icon, MisoString) where
   toButtonContents (i, t) = IconText i t
@@ -184,6 +191,7 @@ render v s ButtonConfig {contents = c, action = a} =
         sizeClass Large = Just "lg"
 
         iconClass (IconOnly _) = Just "icon"
+        iconClass (SizedIcon _ _) = Just "icon"
         iconClass _ = Nothing
     disabledClass =
       let baseClass = case s of Small -> "btn-sm"; Regular -> "btn"; Large -> "btn-lg"
@@ -191,8 +199,14 @@ render v s ButtonConfig {contents = c, action = a} =
 
     renderContents :: ButtonContents -> M.View m a
     renderContents (TextOnly t') = M.text_ [t']
-    renderContents (IconOnly i) = Icon.icon [] i
-    renderContents (IconText i t') = Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [Icon.icon [] i, M.span_ [] [M.text_ [t']]]
+    renderContents (IconOnly i) = Icon.iconS (toIconSize s) i
+    renderContents (SizedIcon sz i) = Icon.iconS sz i
+    renderContents (IconText i t') = Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [Icon.iconS (toIconSize s) i, M.span_ [] [M.text_ [t']]]
+
+toIconSize :: ButtonSize -> Icon.Size
+toIconSize Small = Icon.Small
+toIconSize Regular = Icon.Regular
+toIconSize Large = Icon.Large
 
 primary
   , primarySm
@@ -240,6 +254,15 @@ toggle, toggleSm, toggleLg :: Bool -> ButtonConfig a -> M.View m a
 toggle t = toggle' t Regular
 toggleSm t = toggle' t Small
 toggleLg t = toggle' t Large
+
+toggleGhost' :: Bool -> ButtonSize -> ButtonConfig a -> M.View m a
+toggleGhost' True = render Secondary
+toggleGhost' False = render Ghost
+
+toggleGhost, toggleGhostSm, toggleGhostLg :: Bool -> ButtonConfig a -> M.View m a
+toggleGhost t = toggleGhost' t Regular
+toggleGhostSm t = toggleGhost' t Small
+toggleGhostLg t = toggleGhost' t Large
 
 applyButtonC
   , cancelButtonC
