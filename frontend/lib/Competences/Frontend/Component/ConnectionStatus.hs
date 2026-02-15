@@ -5,19 +5,16 @@ where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.SyncContext (SyncContext, getCommandSender)
+import Competences.Frontend.View.Component (component)
+import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.WebSocket.CommandSender
   ( ConnectionChange (..)
   , ConnectionState (..)
   , subscribeConnection
   )
-import Competences.Frontend.View.Component (component)
-import Competences.Frontend.View.Color.Status (Status (..))
-import Competences.Frontend.View.StatusDot (statusDot, statusDotAnimated)
-import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as M
 import Optics.Core ((&), (.~))
 
 -- | Connection status indicator for footer
@@ -48,16 +45,13 @@ connectionStatusComponent ir =
 
     view m =
       withTooltip (PlainTooltip (tooltipText m)) $
-        M.div_
-          [class_ "flex items-center gap-1.5 px-2 py-1 rounded-full cursor-default"]
-          [ connectionDot m.connectionState
-          , M.text $ if m.pendingCount > 0 then M.ms (show m.pendingCount) else ""
-          ]
+        connectionIcon m.connectionState m.pendingCount
 
--- | Status dot based on connection state
-connectionDot :: ConnectionState -> M.View model action
-connectionDot Connected = statusDot Ok
-connectionDot Disconnected = statusDotAnimated Error
+-- | Icon based on connection state and pending count
+connectionIcon :: ConnectionState -> Int -> M.View model action
+connectionIcon Connected 0 = Icon.iconFull Icon.OnPrimary Icon.Large Icon.Static Icon.IcnCloudCheck
+connectionIcon Connected _ = Icon.iconFull Icon.OnPrimary Icon.Large Icon.Pulse Icon.IcnCloudSync
+connectionIcon Disconnected _ = Icon.iconFull Icon.OnPrimary Icon.Large Icon.Pulse Icon.IcnCloudOff
 
 -- | Tooltip text based on state and pending count
 tooltipText :: Model -> M.MisoString

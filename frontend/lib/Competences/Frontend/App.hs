@@ -101,18 +101,11 @@ mkApp ir =
                     (C.translate' C.LblPageTitle)
                     (map (NavBar.navCategoryView teacher navigate currentPage) categories)
                     (focusedUserView ir)
+                    (connectionStatusView ir)
                     (page (m ^. #uri))
-                    (footerView ir)
                 ]
             , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
             ]
-
-    footerView ir' =
-      M.div_
-        [class_ "flex items-center justify-between w-full"]
-        [ M.span_ [] [M.text "© 2025-2026 Markus Mayr"]
-        , connectionStatusView ir'
-        ]
 
     page uri = case M.route uri of
       Left _ -> V.text_ "404"

@@ -8,13 +8,16 @@ module Competences.Frontend.View.Icon
   ( Icon (..)
   , Variant (..)
   , Size (..)
+  , Animation (..)
   , iconDefs
   , icon
   , iconV
   , iconS
   , iconVS
+  , iconFull
   , variantStrokeClass
   , sizeClass
+  , animationClass
   )
 where
 
@@ -76,6 +79,9 @@ data Icon
   | IcnPrint
   | IcnMenu
   | IcnLessonNotes
+  | IcnCloudCheck -- ^ Connected, all synced (cloud + checkmark)
+  | IcnCloudSync -- ^ Connected, sending/receiving (cloud + arrows)
+  | IcnCloudOff -- ^ Disconnected (cloud + slash)
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -94,6 +100,18 @@ data Size
   | Large    -- ^ 24px (w-6 h-6) - for large buttons (current default)
   | XLarge   -- ^ 28px (w-7 h-7) - for nav bar icons
   deriving (Bounded, Eq, Enum, Ord, Show)
+
+-- | Animation variants for icons
+data Animation
+  = Static -- ^ No animation
+  | Pulse -- ^ animate-pulse (gentle pulsing opacity)
+  deriving (Bounded, Eq, Enum, Ord, Show)
+
+-- | CSS class for animation
+animationClass :: Animation -> Text
+animationClass = \case
+  Static -> ""
+  Pulse -> "animate-pulse"
 
 -- | CSS class for variant stroke color
 variantStrokeClass :: Variant -> Text
@@ -137,6 +155,13 @@ iconVS variant size icn =
     [M.class_ $ ms $ variantStrokeClass variant]
     [iconS size icn]
 
+
+-- | Render icon with variant, size, and animation
+iconFull :: Variant -> Size -> Animation -> Icon -> View m a
+iconFull variant size anim icn =
+  MH.span_
+    [M.class_ $ ms $ variantStrokeClass variant <> " " <> animationClass anim]
+    [iconS size icn]
 
 iconDefs :: View m a
 iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]
@@ -204,6 +229,9 @@ iconId = \case
   IcnPrint -> "icon-print"
   IcnMenu -> "icon-menu"
   IcnLessonNotes -> "icon-lesson-notes"
+  IcnCloudCheck -> "icon-cloud-check"
+  IcnCloudSync -> "icon-cloud-sync"
+  IcnCloudOff -> "icon-cloud-off"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -568,7 +596,29 @@ iconDefOf' = \case
       , "M11 11h5"
       , "M11 15h3"
       ]
+  -- Cloud + checkmark in bottom-right (connected, synced)
+  IcnCloudCheck ->
+    mkPathesDR
+      [ cloudBase
+      , "M13 21l2 2 4-4" -- checkmark
+      ]
+  -- Cloud + up/down arrows in bottom-right (connected, syncing)
+  IcnCloudSync ->
+    mkPathesDR
+      [ cloudBase
+      , "M14 22v-5l-2 2m2-2l2 2" -- up arrow
+      , "M19 17v5l-2-2m2 2l2-2" -- down arrow
+      ]
+  -- Cloud + diagonal slash (disconnected)
+  IcnCloudOff ->
+    mkPathesDR
+      [ cloudBase
+      , "M2 2l20 20" -- slash
+      ]
   where
+    -- Consistent cloud outline shared by all cloud status icons (Lucide cloud)
+    cloudBase :: M.MisoString
+    cloudBase = "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"
     mkPathes :: [M.Attribute a] -> [M.MisoString] -> [M.View m a]
     mkPathes as = map (\p -> MS.path_ (MSP.d_ p : as))
     mkPathesD = mkPathes [MSP.strokeWidth_ "1.5", MSP.fill_ "none"]

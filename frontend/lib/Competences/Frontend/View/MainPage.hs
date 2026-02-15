@@ -10,27 +10,25 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
 
--- | Main page layout with single-row nav banner, scrollable content, and footer.
+-- | Main page layout with single-row nav banner and scrollable content.
 --
 -- Structure:
--- - Single-row nav banner: [burger] Title [category icons] StudentName
+-- - Single-row nav banner: [burger] Title [category icons] StudentName [connection status]
 -- - Content area (flex-1, fills available space)
--- - Footer at bottom (fixed, always visible)
 mainPage
   :: View m a -- ^ Burger menu button (or empty for students)
   -> MisoString -- ^ Page title
   -> [View m a] -- ^ Category icon buttons
   -> View m a -- ^ Focused user view
+  -> View m a -- ^ Connection status indicator
   -> View m a -- ^ Main content
-  -> View m a -- ^ Footer content
   -> View m a
-mainPage burgerBtn title categoryIcons focusedUserView content footerContent =
+mainPage burgerBtn title categoryIcons focusedUserView connectionStatus content =
   MH.div_
     [class_ "flex-1 min-h-0"]
     [ Layout.vFlow Layout.hFull
         [ navBanner
         , contentArea
-        , footer
         ]
     ]
   where
@@ -47,6 +45,7 @@ mainPage burgerBtn title categoryIcons focusedUserView content footerContent =
                 , Layout.hFlow (Layout.gapS <> Layout.crossCenter) categoryIcons
                 , Layout.flowSpring
                 , focusedUserView
+                , connectionStatus
                 ]
             ]
         ]
@@ -55,8 +54,3 @@ mainPage burgerBtn title categoryIcons focusedUserView content footerContent =
       MH.main_
         [class_ "flex-1 min-h-0 p-4 flex bg-background"]
         [content]
-
-    footer =
-      MH.footer_
-        [class_ "flex-shrink-0 bg-muted px-4 py-2 text-center text-sm text-muted-foreground print:hidden"]
-        [footerContent]
