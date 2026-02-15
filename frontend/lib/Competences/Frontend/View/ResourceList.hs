@@ -15,7 +15,7 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.TaskContent.RichContent (toRawText)
+import Competences.Frontend.Component.RichContent (renderRichText)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Miso qualified as M
@@ -53,8 +53,8 @@ resourcesListView resources expandedSet toggleExpanded =
                   hasContent = rc /= mempty
                   bodyView =
                     MH.div_
-                      [class_ "prose prose-stone prose-sm max-w-none whitespace-pre-wrap"]
-                      [M.text (M.ms (toRawText rc))]
+                      [class_ "prose prose-stone prose-sm max-w-none"]
+                      [renderRichText rc]
                in if hasContent
                     then
                       Disclosure.disclosure (toggleExpanded res.id) $
