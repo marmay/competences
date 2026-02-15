@@ -56,7 +56,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
-import Text.Megaparsec (anySingle, eof, lookAhead, many, optional)
+import Text.Megaparsec (anySingle, eof, lookAhead, many, optional, try)
 import Text.Megaparsec.Char (char, string)
 
 -- | Parse assignment import format
@@ -119,12 +119,13 @@ data Section = Section
 -- | Parse a ## section (stops at ### or next #)
 assignmentSectionP :: Parser Section
 assignmentSectionP = do
-  _ <- string "##"
-  mc <- optional (lookAhead anySingle)
-  -- Don't parse ### (task headers) as ## sections
-  case mc of
-    Just '#' -> fail "task header"
-    _ -> pure ()
+  _ <- try $ do
+    _ <- string "##"
+    mc <- optional (lookAhead anySingle)
+    -- Don't parse ### (task headers) as ## sections
+    case mc of
+      Just '#' -> fail "task header"
+      _ -> pure ()
   skipHorizontalSpace
   name <- takeLineContent
   skipBlankLines
