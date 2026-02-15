@@ -9,7 +9,7 @@ module Competences.Protocol
 where
 
 import Competences.Command (Command)
-import Competences.Document (Document, User)
+import Competences.Document (Document, User, UserId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -50,7 +50,7 @@ data ClientMessage
   = -- | Authenticate with JWT token (must be first message after connection).
     -- Removes token from URL to prevent logging in server logs, browser history, etc.
     -- Includes client version information for compatibility checking.
-    Authenticate !Text !ClientInfo
+    Authenticate !Text !ClientInfo !(Maybe UserId)
   | -- | Send a command to be validated and applied by the server.
     SendCommand !Command
   | -- | Keep-alive ping to prevent connection timeout.

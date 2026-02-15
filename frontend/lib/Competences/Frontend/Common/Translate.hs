@@ -320,6 +320,9 @@ data Label
   | LblLessonNotesDate
   | LblLessonNotesTitle
   | LblLessonNotesResources
+    -- Impersonation
+  | LblViewAsStudent
+  | LblReturnToTeacher
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -612,6 +615,8 @@ labels' =
   , LblLessonNotesDate
   , LblLessonNotesTitle
   , LblLessonNotesResources
+  , LblViewAsStudent
+  , LblReturnToTeacher
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -925,6 +930,9 @@ defaultTranslation LblNewLessonNotes = "Neue Unterrichtsnotiz"
 defaultTranslation LblLessonNotesDate = "Datum"
 defaultTranslation LblLessonNotesTitle = "Titel"
 defaultTranslation LblLessonNotesResources = "Ressourcen"
+-- Impersonation
+defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
+defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

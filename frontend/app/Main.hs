@@ -5,8 +5,8 @@ module Main (main) where
 #ifdef WASM
 
 import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..))
-import Competences.Document (User (..), UserRole (..), emptyDocument)
-import Competences.Document.Id (nilId)
+import Competences.Document (User (..), UserId, UserRole (..), emptyDocument)
+import Competences.Document.Id (mkId, nilId)
 import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.Common.Translate qualified as C
@@ -24,6 +24,7 @@ import Competences.Frontend.WebSocket.Protocol (AuthenticationException (..), wi
 import Control.Concurrent (forkIO)
 import Control.Exception (catch)
 import Control.Monad (void)
+import Data.Maybe (isJust)
 import Data.Text qualified as T
 import Miso qualified as M
 import Miso.DSL (jsg, fromJSVal, (!), setField)
@@ -41,7 +42,7 @@ main = do
         -- Fallback: use test user with disconnected CommandSender
         let user = User nilId "Test User" Teacher (Office365Id "")
         sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
-        env <- mkSyncDocumentEnv user sender
+        env <- mkSyncDocumentEnv user sender False
         ref <- mkSyncDocument env
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user
@@ -57,6 +58,11 @@ main = do
         let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
         let wsUrl = wsProtocol <> host <> "/"
 
+        -- Parse ?impersonate=<uuid> query parameter
+        (Just search) <- location ! "search" >>= fromJSVal @T.Text
+        let mImpersonate = parseImpersonateParam search
+            imp = isJust mImpersonate
+
         -- Fork action that starts the Miso app
         let forkApp ref = void $ forkIO $ do
               -- Set window title with localized text
@@ -66,11 +72,20 @@ main = do
 
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
-        let initial = mkInitialHandler jwtToken forkApp
-            reconnect = mkReconnectHandler jwtToken
+        let initial = mkInitialHandler jwtToken mImpersonate imp forkApp
+            reconnect = mkReconnectHandler jwtToken mImpersonate
 
         withWebSocket wsUrl initial reconnect
           `catch` handleAuthFailure location
+
+-- | Parse the ?impersonate=<uuid> query parameter from a URL search string
+parseImpersonateParam :: T.Text -> Maybe UserId
+parseImpersonateParam search =
+  let params = T.dropWhile (== '?') search
+      pairs = map (T.breakOn "=") $ T.splitOn "&" params
+   in case [T.drop 1 v | (k, v) <- pairs, k == "impersonate", not (T.null v)] of
+        (uuid : _) -> mkId uuid
+        _ -> Nothing
 
 -- | Handle authentication failure by redirecting to login
 handleAuthFailure :: M.JSVal -> AuthenticationException -> IO ()

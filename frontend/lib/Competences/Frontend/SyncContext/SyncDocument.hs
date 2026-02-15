@@ -134,6 +134,7 @@ data SyncDocumentEnv = SyncDocumentEnv
   { currentDay :: !Day
   , connectedUser :: !User
   , commandSender :: !CommandSender  -- Reference to CommandSender for network operations
+  , impersonating :: !Bool  -- Whether the teacher is impersonating a student
   }
   deriving (Generic)
 
@@ -243,10 +244,10 @@ issueInitialUpdate r = do
   d <- readMVar r.syncDocument
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument InitialUpdate)
 
-mkSyncDocumentEnv :: (MonadIO m) => User -> CommandSender -> m SyncDocumentEnv
-mkSyncDocumentEnv u sender = do
+mkSyncDocumentEnv :: (MonadIO m) => User -> CommandSender -> Bool -> m SyncDocumentEnv
+mkSyncDocumentEnv u sender imp = do
   d <- (.utctDay) <$> liftIO getCurrentTime
-  pure $ SyncDocumentEnv d u sender
+  pure $ SyncDocumentEnv d u sender imp
 
 nextId :: (MonadUnliftIO m) => SyncContext -> m (Id a)
 nextId r = modifyMVar r.randomGen (pure . swap . random)

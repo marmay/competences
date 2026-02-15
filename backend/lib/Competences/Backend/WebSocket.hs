@@ -16,7 +16,8 @@ import Competences.Backend.State
   , updateDocument
   )
 import Competences.Command.Common (AffectedUsers (..))
-import Competences.Document (User (..), UserId, UserRole (..), projectDocument)
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Exception (finally)
@@ -39,7 +40,7 @@ wsHandler state jwtSecret pending = do
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
     case decodeOrFail authMsg of
-      Right (_, _, Authenticate token _clientInfo) -> do
+      Right (_, _, Authenticate token _clientInfo mImpersonate) -> do
         case extractUserFromJWT' jwtSecret token of
           Left err -> do
             putStrLn $ "Authentication failed: " <> err
@@ -47,8 +48,24 @@ wsHandler state jwtSecret pending = do
             -- Close connection after failed auth
           Right (userId, userName, userRole, o365Id) -> do
             let user = User userId userName userRole o365Id
-            putStrLn $ "Authentication successful for: " <> T.unpack userName
-            handleClient state userId user conn
+            case mImpersonate of
+              Nothing -> do
+                putStrLn $ "Authentication successful for: " <> T.unpack userName
+                handleClient state userId user conn
+              Just targetUserId -> do
+                if userRole /= Teacher
+                  then do
+                    putStrLn $ "Impersonation rejected: user " <> T.unpack userName <> " is not a teacher"
+                    WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Only teachers can impersonate")
+                  else do
+                    doc <- getDocument state
+                    case Ix.getOne (doc.users Ix.@= targetUserId) of
+                      Nothing -> do
+                        putStrLn $ "Impersonation rejected: target user not found: " <> show targetUserId
+                        WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Target user not found")
+                      Just targetUser -> do
+                        putStrLn $ "Impersonation: " <> T.unpack userName <> " viewing as " <> T.unpack targetUser.name
+                        handleClient state targetUser.id targetUser conn
       Right (_, _, _otherMsg) -> do
         putStrLn "First message must be Authenticate"
         WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "First message must be authentication")
@@ -95,7 +112,7 @@ handleClient state uid user conn = do
 -- | Handle individual client messages
 handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
 handleClientMessage state uid user clientMsg conn = case clientMsg of
-  Authenticate _ _ -> do
+  Authenticate _ _ _ -> do
     -- Authentication should only happen as the first message before handleClient is called
     putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
     -- Ignore - user is already authenticated

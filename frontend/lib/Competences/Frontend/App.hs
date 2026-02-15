@@ -4,7 +4,8 @@ module Competences.Frontend.App
   )
 where
 
-import Competences.Document (User (..))
+import Competences.Document (User (..), UserId)
+import Competences.Document.Id (idToText)
 import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
@@ -43,8 +44,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.DSL (jsg, setField, (!))
 import Miso.Html qualified as M
 import Miso.Html.Property qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.Router qualified as M
 import Optics.Core ((&), (.~), (^.))
 
@@ -97,18 +100,20 @@ mkApp ir =
             [ Icon.iconDefs
             , M.div_
                 [class_ "flex-1 min-w-0 flex flex-col"]
-                [ V.mainPage
-                    (NavBar.burgerMenuView navigate currentPage categories extras)
-                    (C.translate' C.LblPageTitle)
-                    (map (NavBar.navCategoryView teacher navigate currentPage) categories)
-                    (focusedUserView ir)
-                    ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
-                        [ aboutButtonView ir
-                        , connectionStatusView ir
-                        ]
-                    )
-                    (page (m ^. #uri))
-                ]
+                ( [ impersonationBanner env m | env.impersonating ]
+                    ++ [ V.mainPage
+                          (NavBar.burgerMenuView navigate currentPage categories extras)
+                          (C.translate' C.LblPageTitle)
+                          (map (NavBar.navCategoryView teacher navigate currentPage) categories)
+                          (focusedUserView ir)
+                          ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+                              [ aboutButtonView ir
+                              , connectionStatusView ir
+                              ]
+                          )
+                          (page (m ^. #uri))
+                       ]
+                )
             , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
             ]
 
@@ -177,6 +182,7 @@ data FocusedUserAction
   | OpenDropdown
   | CloseDropdown
   | SelectUser !(Maybe User)
+  | ImpersonateUser !UserId
   deriving (Eq, Show)
 
 -- | Focused user component that shows a selector for teachers
@@ -221,6 +227,11 @@ focusedUserComponent ir =
       M.io_ $ setFocusedUser (getFocusedUserRef ir) maybeUser
       M.modify $ \m -> m & #isDropdownOpen .~ False & #searchText .~ ""
 
+    update (ImpersonateUser uid) =
+      M.io_ $ do
+        location <- jsg "window" ! ("location" :: M.MisoString)
+        setField location ("href" :: M.MisoString) (M.ms $ "/?impersonate=" <> idToText uid)
+
     view m
       | isStudent m.connectedUser = viewStudentFocusedUser m
       | otherwise = viewTeacherFocusedUser m
@@ -236,7 +247,7 @@ viewStudentFocusedUser m =
 viewTeacherFocusedUser :: FocusedUserModel -> M.View FocusedUserModel FocusedUserAction
 viewTeacherFocusedUser m =
   M.div_
-    [class_ "relative"]
+    [class_ "relative flex items-center gap-1"]
     [ -- Button to open dropdown
       M.button_
         [ class_ "flex items-center gap-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-primary-foreground"
@@ -245,6 +256,16 @@ viewTeacherFocusedUser m =
         [ M.span_ [] [M.text $ focusedUserLabel m]
         , M.span_ [class_ "text-xs"] [M.text "▼"]
         ]
+    , -- Impersonate button (only when a specific student is focused)
+      case m.focusedUser of
+        Just u ->
+          M.button_
+            [ class_ "p-1 rounded bg-white/10 hover:bg-white/20 text-primary-foreground"
+            , MP.title_ (C.translate' C.LblViewAsStudent)
+            , M.onClick (ImpersonateUser u.id)
+            ]
+            [Icon.iconS Icon.Small Icon.IcnView]
+        Nothing -> M.text ""
     , -- Dropdown menu (when open)
       if m.isDropdownOpen
         then viewDropdown m
@@ -322,3 +343,39 @@ filteredStudents m
   | otherwise =
       let searchLower = Text.toLower m.searchText
        in filter (\u -> searchLower `Text.isInfixOf` Text.toLower u.name) m.allStudents
+
+-- ============================================================================
+-- IMPERSONATION BANNER
+-- ============================================================================
+
+-- | Banner shown when the teacher is impersonating a student
+impersonationBanner :: SyncDocumentEnv -> Model -> M.View Model Action
+impersonationBanner _env m =
+  V.component "impersonation-banner" (impersonationBannerComponent m.connectedUser)
+
+data ImpersonationBannerAction = ReturnToTeacher
+  deriving (Eq, Show)
+
+impersonationBannerComponent :: User -> M.Component p User ImpersonationBannerAction
+impersonationBannerComponent user =
+  M.component user update view
+  where
+    update ReturnToTeacher =
+      M.io_ $ do
+        location <- jsg "window" ! ("location" :: M.MisoString)
+        setField location ("href" :: M.MisoString) ("/" :: M.MisoString)
+
+    view u =
+      M.div_
+        [class_ "bg-amber-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0 print:hidden"]
+        [ M.div_
+            [class_ "flex items-center gap-2"]
+            [ Icon.iconS Icon.Small Icon.IcnView
+            , M.span_ [class_ "font-medium"] [M.text $ M.ms u.name]
+            ]
+        , M.button_
+            [ class_ "px-3 py-1 rounded bg-white/20 hover:bg-white/30 text-white font-medium text-sm"
+            , M.onClick ReturnToTeacher
+            ]
+            [M.text $ C.translate' C.LblReturnToTeacher]
+        ]

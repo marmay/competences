@@ -11,7 +11,7 @@ module Competences.Frontend.WebSocket.Handlers
   )
 where
 
-import Competences.Document (Document, User (..))
+import Competences.Document (Document, User (..), UserId)
 import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.SyncContext
@@ -46,8 +46,8 @@ import Miso qualified as M
 -- ============================================================================
 
 -- | Send authentication message with client version info
-sendAuth :: Text -> WebSocket -> IO ()
-sendAuth token ws = ws.send (Authenticate token clientInfo)
+sendAuth :: Text -> Maybe UserId -> WebSocket -> IO ()
+sendAuth token mImpersonate ws = ws.send (Authenticate token clientInfo mImpersonate)
   where
     clientInfo = ClientInfo frontendVersion
 
@@ -88,22 +88,24 @@ operationLoop ref ws = loop `catch` handleDisconnect
 -- Returns (SyncContext, CommandSender) for reconnection
 mkInitialHandler
   :: Text                         -- ^ JWT token
-  -> (SyncContext -> IO ())   -- ^ Fork action (starts Miso app)
+  -> Maybe UserId                 -- ^ Impersonation target
+  -> Bool                         -- ^ Whether impersonating
+  -> (SyncContext -> IO ())       -- ^ Fork action (starts Miso app)
   -> WebSocket
   -> IO (SyncContext, CommandSender)
-mkInitialHandler token forkApp ws = do
+mkInitialHandler token mImpersonate impersonating forkApp ws = do
   -- Create CommandSender for safe command sending
   sender <- mkCommandSender
 
   -- Authenticate
-  sendAuth token ws
+  sendAuth token mImpersonate ws
   (doc, user, srvInfo) <- waitForSnapshot ws
 
   -- Update sender with new connection (this also notifies subscribers of Connected state)
   updateWebSocket sender ws
 
   -- Create SyncContext with CommandSender reference
-  env <- mkSyncDocumentEnv user sender
+  env <- mkSyncDocumentEnv user sender impersonating
   ref <- mkSyncDocument env
   setSyncDocument ref doc
   setServerInfo ref srvInfo
@@ -123,12 +125,13 @@ mkInitialHandler token forkApp ws = do
 -- | Reconnection handler: re-authenticate, update state, run operation
 mkReconnectHandler
   :: Text                            -- ^ JWT token
-  -> (SyncContext, CommandSender)  -- ^ Previous state and sender
+  -> Maybe UserId                    -- ^ Impersonation target
+  -> (SyncContext, CommandSender)    -- ^ Previous state and sender
   -> WebSocket
   -> IO (SyncContext, CommandSender)
-mkReconnectHandler token (ref, sender) ws = do
+mkReconnectHandler token mImpersonate (ref, sender) ws = do
   -- Re-authenticate
-  sendAuth token ws
+  sendAuth token mImpersonate ws
   (doc, _user, srvInfo) <- waitForSnapshot ws
 
   -- Update sender with new connection (resends pending, notifies subscribers)
