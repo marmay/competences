@@ -64,7 +64,8 @@ import Competences.Document.Lesson
   , ActionForm (..)
   )
 import Competences.Document.LessonNotes
-  ( LessonNotes (..)
+  ( LessonNoteItem (..)
+  , LessonNotes (..)
   , LessonNotesId
   , LessonNotesIxs
   , mkLessonNotes

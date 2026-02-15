@@ -86,7 +86,7 @@ library
         Competences.Frontend.Component.Selector.LessonSelector,
         Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector,
         Competences.Frontend.Component.Selector.MultiSelectLessonNotesSelector,
-        Competences.Frontend.Component.Selector.MultiSelectResourceSelector,
+        Competences.Frontend.Component.Selector.MultiSelectItemSelector,
         Competences.Frontend.Component.Selector.ResourceSelector,
         Competences.Frontend.Component.Selector.ObservationSelector,
         Competences.Frontend.Component.Selector.TaskOrGroupSelector,

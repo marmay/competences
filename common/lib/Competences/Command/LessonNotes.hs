@@ -11,12 +11,11 @@ import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Lesson (LessonId)
-import Competences.Document.LessonNotes (LessonNotes (..))
-import Competences.Document.Resource (ResourceId)
+import Competences.Document.LessonNotes (LessonNoteItem (..), LessonNotes (..))
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..), withObject, (.:?), (.!=))
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
@@ -31,7 +30,7 @@ data LessonNotesPatch = LessonNotesPatch
   { date :: !(Change Day)
   , lessonId :: !(Change (Maybe LessonId))
   , title :: !(Change Text)
-  , resources :: !(Change [ResourceId])
+  , items :: !(Change [LessonNoteItem])
   }
   deriving (Eq, Generic, Show)
 
@@ -42,9 +41,27 @@ newtype LessonNotesCommand = OnLessonNotes (EntityCommand LessonNotes LessonNote
 instance Binary LessonNotesPatch
 
 #ifdef WITH_AESON
-instance FromJSON LessonNotesPatch
-
 instance ToJSON LessonNotesPatch
+
+instance FromJSON LessonNotesPatch where
+  parseJSON = withObject "LessonNotesPatch" $ \v -> do
+    d <- v .:? "date" .!= Nothing
+    l <- v .:? "lessonId" .!= Nothing
+    t <- v .:? "title" .!= Nothing
+    -- Try "items" first, fall back to "resources" (wrapping as LessonResource)
+    mi <- v .:? "items"
+    mr <- v .:? "resources"
+    let is = case mi of
+          Just i -> i
+          Nothing -> case mr of
+            Just (Just (old, new)) -> Just (map LessonResource old, map LessonResource new)
+            _ -> Nothing
+    pure LessonNotesPatch
+      { date = d
+      , lessonId = l
+      , title = t
+      , items = is
+      }
 #endif
 
 instance Binary LessonNotesCommand
@@ -62,7 +79,7 @@ instance Default LessonNotesPatch where
       { date = Nothing
       , lessonId = Nothing
       , title = Nothing
-      , resources = Nothing
+      , items = Nothing
       }
 
 -- | Apply a patch to a LessonNotes entry
@@ -72,7 +89,7 @@ applyLessonNotesPatch ln patch =
     patchField' @"date" patch
       >=> patchField' @"lessonId" patch
       >=> patchField' @"title" patch
-      >=> patchField' @"resources" patch
+      >=> patchField' @"items" patch
 
 -- | Handle a LessonNotes context command
 handleLessonNotesCommand :: UserId -> LessonNotesCommand -> Document -> UpdateResult
@@ -91,4 +108,3 @@ handleLessonNotesCommand userId (OnLessonNotes c) d =
     affectedUsersForLessonNotes :: LessonNotes -> Document -> AffectedUsers
     affectedUsersForLessonNotes _ d' =
       AffectedUsers $ map (.id) $ IxSet.toList $ d' ^. #users
-

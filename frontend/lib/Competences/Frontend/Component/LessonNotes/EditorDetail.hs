@@ -19,7 +19,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchLens, entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
-import Competences.Frontend.Component.Selector.MultiSelectResourceSelector (multiSelectResourceSelectorComponent, multiSelectResourceViewerComponent)
+import Competences.Frontend.Component.Selector.MultiSelectItemSelector (multiSelectItemSelectorComponent, multiSelectItemViewerComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Component (componentA)
@@ -65,19 +65,19 @@ editorDetailView r ln =
                            , lessonEditorField r ("lesson-notes-editor-" <> M.ms (show ln.id) <> "-lesson")
                                (entityPatchTransformedLens #lessonId #lessonId id id)
                            )
-        `TE.addNamedField` ( C.translate' C.LblLessonNotesResources
-                           , resourcesEditorField r
+        `TE.addNamedField` ( C.translate' C.LblLessonNotesItems
+                           , itemsEditorField r
                            )
 
--- | Editor field for the resources list using multi-select resource selector
--- Viewer: read-only list of resource names
--- Editor: combobox + reorderable list with action buttons
-resourcesEditorField
+-- | Editor field for the items list using multi-select item selector
+-- Viewer: read-only list of resource/task names
+-- Editor: two comboboxes + reorderable list with action buttons
+itemsEditorField
   :: SyncContext
   -> EditorField LessonNotes LessonNotesPatch f
-resourcesEditorField r =
+itemsEditorField r =
   selectorEditorFieldWithViewer
-    "lesson-notes-resources"
-    (entityPatchLens #resources #resources)
-    (\ln stl -> multiSelectResourceViewerComponent r ln.resources stl)
-    (\ln stl -> multiSelectResourceSelectorComponent r ln.resources stl)
+    "lesson-notes-items"
+    (entityPatchLens #items #items)
+    (\ln stl -> multiSelectItemViewerComponent r ln.items stl)
+    (\ln stl -> multiSelectItemSelectorComponent r ln.items stl)

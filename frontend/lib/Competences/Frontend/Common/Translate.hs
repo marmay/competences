@@ -320,6 +320,8 @@ data Label
   | LblLessonNotesDate
   | LblLessonNotesTitle
   | LblLessonNotesResources
+  | LblLessonNotesItems
+  | LblSelectTasks
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
@@ -615,6 +617,8 @@ labels' =
   , LblLessonNotesDate
   , LblLessonNotesTitle
   , LblLessonNotesResources
+  , LblLessonNotesItems
+  , LblSelectTasks
   , LblViewAsStudent
   , LblReturnToTeacher
   ]
@@ -930,6 +934,8 @@ defaultTranslation LblNewLessonNotes = "Neue Unterrichtsnotiz"
 defaultTranslation LblLessonNotesDate = "Datum"
 defaultTranslation LblLessonNotesTitle = "Titel"
 defaultTranslation LblLessonNotesResources = "Ressourcen"
+defaultTranslation LblLessonNotesItems = "Materialien"
+defaultTranslation LblSelectTasks = "Aufgaben auswählen..."
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"
