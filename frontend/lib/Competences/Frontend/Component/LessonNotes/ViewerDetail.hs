@@ -10,7 +10,6 @@ import Competences.Document
   , LessonNotes (..)
   , Resource (..)
   )
-import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -25,7 +24,6 @@ import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Maybe (mapMaybe)
-import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -56,13 +54,11 @@ viewerProjection ln doc _ =
 
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
-  , expandedResources :: !(Set.Set ResourceId)
   }
   deriving (Eq, Generic, Show)
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
-  | ToggleResourceExpanded !ResourceId
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -86,19 +82,10 @@ viewerComponent r ln =
   where
     model = ViewerModel
       { projection = ViewerProjection ln [] Nothing
-      , expandedResources = Set.empty
       }
 
     update (ProjectionChanged change) =
       M.modify $ \m -> m & #projection .~ change.projection
-
-    update (ToggleResourceExpanded resId) =
-      M.modify $ \m ->
-        let newExpanded =
-              if Set.member resId m.expandedResources
-                then Set.delete resId m.expandedResources
-                else Set.insert resId m.expandedResources
-         in m & #expandedResources .~ newExpanded
 
     view' m =
       let proj = m.projection
@@ -126,6 +113,6 @@ viewerComponent r ln =
                 , -- Resources
                   if null proj.resolvedResources
                     then M.text ""
-                    else ResourceList.resourcesListView proj.resolvedResources m.expandedResources ToggleResourceExpanded
+                    else ResourceList.resourcesExpandedListView proj.resolvedResources
                 ]
             ]
