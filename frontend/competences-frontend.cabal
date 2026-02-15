@@ -179,6 +179,8 @@ library
         unliftio
     if flag(wasm)
         cpp-options: -DWASM
+    autogen-modules:  Paths_competences_frontend
+    other-modules:    Paths_competences_frontend
     hs-source-dirs:   lib
     default-language: GHC2024
 

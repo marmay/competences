@@ -4,7 +4,10 @@ module Competences.Backend.BuildInfo
 where
 
 import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Version (showVersion)
+import Paths_competences_backend (version)
 
--- | Backend version, kept in sync with competences-backend.cabal
+-- | Backend version, derived from competences-backend.cabal
 backendVersion :: Text
-backendVersion = "0.10.0.0"
+backendVersion = T.pack (showVersion version)

@@ -71,6 +71,8 @@ library
         wai-websockets,
         warp,
         websockets
+    autogen-modules:  Paths_competences_backend
+    other-modules:    Paths_competences_backend
     hs-source-dirs:   lib
     default-language: GHC2024
 

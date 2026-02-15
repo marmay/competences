@@ -4,7 +4,10 @@ module Competences.Frontend.BuildInfo
 where
 
 import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Version (showVersion)
+import Paths_competences_frontend (version)
 
--- | Frontend version, kept in sync with competences-frontend.cabal
+-- | Frontend version, derived from competences-frontend.cabal
 frontendVersion :: Text
-frontendVersion = "0.10.0.0"
+frontendVersion = T.pack (showVersion version)
