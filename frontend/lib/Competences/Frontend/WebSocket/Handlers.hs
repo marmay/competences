@@ -12,6 +12,7 @@ module Competences.Frontend.WebSocket.Handlers
 where
 
 import Competences.Document (Document, User (..))
+import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.SyncContext
   ( SyncContext
@@ -19,6 +20,7 @@ import Competences.Frontend.SyncContext
   , mkSyncDocument
   , mkSyncDocumentEnv
   , rejectCommand
+  , setServerInfo
   , setSyncDocument
   )
 import Competences.Frontend.WebSocket.CommandSender
@@ -32,7 +34,7 @@ import Competences.Frontend.WebSocket.Protocol
   , DisconnectedException (..)
   , WebSocket (..)
   )
-import Competences.Protocol (ClientMessage (..), ServerMessage (..))
+import Competences.Protocol (ClientInfo (..), ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Exception (catch, throwIO)
 import Control.Monad (forever)
 import Data.Text (Text)
@@ -43,16 +45,18 @@ import Miso qualified as M
 -- BUILDING BLOCKS
 -- ============================================================================
 
--- | Send authentication message
+-- | Send authentication message with client version info
 sendAuth :: Text -> WebSocket -> IO ()
-sendAuth token ws = ws.send (Authenticate token)
+sendAuth token ws = ws.send (Authenticate token clientInfo)
+  where
+    clientInfo = ClientInfo frontendVersion
 
 -- | Wait for InitialSnapshot, throws AuthenticationException on failure
-waitForSnapshot :: WebSocket -> IO (Document, User)
+waitForSnapshot :: WebSocket -> IO (Document, User, ServerInfo)
 waitForSnapshot ws = do
   msg <- ws.receive
   case msg of
-    InitialSnapshot doc user -> pure (doc, user)
+    InitialSnapshot doc user srvInfo -> pure (doc, user, srvInfo)
     AuthenticationFailed reason -> throwIO (AuthenticationException reason)
     other -> throwIO (AuthenticationException $ "Unexpected message during handshake: " <> T.pack (show other))
 
@@ -93,7 +97,7 @@ mkInitialHandler token forkApp ws = do
 
   -- Authenticate
   sendAuth token ws
-  (doc, user) <- waitForSnapshot ws
+  (doc, user, srvInfo) <- waitForSnapshot ws
 
   -- Update sender with new connection (this also notifies subscribers of Connected state)
   updateWebSocket sender ws
@@ -102,6 +106,7 @@ mkInitialHandler token forkApp ws = do
   env <- mkSyncDocumentEnv user sender
   ref <- mkSyncDocument env
   setSyncDocument ref doc
+  setServerInfo ref srvInfo
 
   -- Fork the Miso application
   logInfo $ M.ms $ "Starting app for user: " <> T.unpack user.name
@@ -124,13 +129,14 @@ mkReconnectHandler
 mkReconnectHandler token (ref, sender) ws = do
   -- Re-authenticate
   sendAuth token ws
-  (doc, _user) <- waitForSnapshot ws
+  (doc, _user, srvInfo) <- waitForSnapshot ws
 
   -- Update sender with new connection (resends pending, notifies subscribers)
   updateWebSocket sender ws
 
   -- Update SyncDocument with new document from server
   setSyncDocument ref doc
+  setServerInfo ref srvInfo
 
   logInfo "Reconnected and synchronized"
 

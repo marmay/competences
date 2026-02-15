@@ -9,6 +9,7 @@ import Competences.Document (User (..))
 import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment (assignmentComponent)
+import Competences.Frontend.Component.AboutDialog (aboutButtonView)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
@@ -34,6 +35,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.NavBar qualified as NavBar
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.User qualified as QUser
@@ -101,7 +103,11 @@ mkApp ir =
                     (C.translate' C.LblPageTitle)
                     (map (NavBar.navCategoryView teacher navigate currentPage) categories)
                     (focusedUserView ir)
-                    (connectionStatusView ir)
+                    ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+                        [ aboutButtonView ir
+                        , connectionStatusView ir
+                        ]
+                    )
                     (page (m ^. #uri))
                 ]
             , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]

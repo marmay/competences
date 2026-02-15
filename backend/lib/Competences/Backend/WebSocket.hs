@@ -6,6 +6,7 @@ module Competences.Backend.WebSocket
 where
 
 import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
+import Competences.Backend.BuildInfo (backendVersion)
 import Competences.Backend.State
   ( AppState
   , broadcastToUsers
@@ -17,7 +18,7 @@ import Competences.Backend.State
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Document (User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.User (Office365Id)
-import Competences.Protocol (ClientMessage (..), ServerMessage (..))
+import Competences.Protocol (ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Exception (finally)
 import Control.Monad (forever)
 import Data.Binary (decodeOrFail)
@@ -38,7 +39,7 @@ wsHandler state jwtSecret pending = do
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
     case decodeOrFail authMsg of
-      Right (_, _, Authenticate token) -> do
+      Right (_, _, Authenticate token _clientInfo) -> do
         case extractUserFromJWT' jwtSecret token of
           Left err -> do
             putStrLn $ "Authentication failed: " <> err
@@ -74,7 +75,8 @@ handleClient state uid user conn = do
   -- Send initial snapshot with authenticated user (projected based on user identity)
   doc <- getDocument state
   let projectedDoc = projectDocument user doc
-  WS.sendBinaryData conn (Bin.encode $ InitialSnapshot projectedDoc user)
+      srvInfo = ServerInfo backendVersion
+  WS.sendBinaryData conn (Bin.encode $ InitialSnapshot projectedDoc user srvInfo)
 
   -- Handle messages and cleanup on disconnect
   flip finally (cleanup uid) $ do
@@ -93,7 +95,7 @@ handleClient state uid user conn = do
 -- | Handle individual client messages
 handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
 handleClientMessage state uid user clientMsg conn = case clientMsg of
-  Authenticate _ -> do
+  Authenticate _ _ -> do
     -- Authentication should only happen as the first message before handleClient is called
     putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
     -- Ignore - user is already authenticated

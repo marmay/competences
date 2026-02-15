@@ -23,6 +23,9 @@ module Competences.Frontend.SyncContext.SyncDocument
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
+    -- * Server Info
+  , setServerInfo
+  , readServerInfo
     -- * Focused User (re-exported from UIState)
   , FocusedUserRef
   , FocusedUserState (..)
@@ -38,6 +41,7 @@ where
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
+import Competences.Protocol (ServerInfo (..))
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SyncContext.WindowManager
   ( WindowManagerRef
@@ -70,7 +74,7 @@ import Miso qualified as M
 import Miso.Subscription.Util (createSub)
 import Optics.Core ((&), (.~))
 import System.Random (StdGen, newStdGen, random)
-import UnliftIO (MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newMVar, readMVar)
+import UnliftIO (IORef, MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newIORef, newMVar, readIORef, readMVar, writeIORef)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -111,6 +115,7 @@ data SyncContext = SyncContext
   , env :: !SyncDocumentEnv
   , focusedUserRef :: !FocusedUserRef
   , windowManager :: !WindowManagerRef
+  , serverInfoRef :: !(IORef ServerInfo)
   }
 
 -- | Get the environment from a SyncContext
@@ -138,7 +143,8 @@ mkSyncDocument env = do
   randomGen <- newStdGen >>= newMVar
   focusedUser <- mkFocusedUserRef env.connectedUser
   winMgr <- liftIO newWindowManager
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr
+  srvInfo <- newIORef defaultServerInfo
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -146,7 +152,8 @@ mkSyncDocument' env rgen m = do
   randomGen' <- newMVar rgen
   focusedUser <- mkFocusedUserRef env.connectedUser
   winMgr <- liftIO newWindowManager
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr
+  srvInfo <- newIORef defaultServerInfo
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo
 
 readSyncDocument :: (MonadIO m) => SyncContext -> m SyncDocument
 readSyncDocument d = readMVar d.syncDocument
@@ -291,6 +298,18 @@ applyRemoteCommand d cmd = do
       issueDocumentChange (DocumentChange localDoc' (DocumentChanged syncDoc.localDocument cmd))
 
     pure syncDoc'
+
+-- | Default ServerInfo used before the first handshake completes.
+defaultServerInfo :: ServerInfo
+defaultServerInfo = ServerInfo ""
+
+-- | Write a new ServerInfo received from the backend.
+setServerInfo :: (MonadIO m) => SyncContext -> ServerInfo -> m ()
+setServerInfo r si = liftIO $ writeIORef r.serverInfoRef si
+
+-- | Read the current ServerInfo.
+readServerInfo :: (MonadIO m) => SyncContext -> m ServerInfo
+readServerInfo r = liftIO $ readIORef r.serverInfoRef
 
 -- | Replay local changes on top of a document, filtering out invalid ones
 -- Returns (resulting document, valid localChanges)
