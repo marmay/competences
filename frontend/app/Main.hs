@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..))
 import Competences.Document (User (..), UserRole (..), emptyDocument)
 import Competences.Document.Id (nilId)
 import Competences.Document.User (Office365Id (..))
-import Competences.Frontend.App (mkApp, runApp, withTailwindPlay)
+import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.SyncContext
   ( mkSyncDocument
@@ -45,7 +45,7 @@ main = do
         ref <- mkSyncDocument env
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user
-        runApp $ withTailwindPlay $ mkApp ref
+        runApp $ mkApp ref
 
       Just jwtToken -> do
         logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
@@ -62,7 +62,7 @@ main = do
               -- Set window title with localized text
               htmlDoc <- jsg "document"
               setField htmlDoc "title" (C.translate' C.LblPageTitle)
-              runApp $ withTailwindPlay $ mkApp ref
+              runApp $ mkApp ref
 
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
@@ -194,7 +194,7 @@ main = do
   -- bracket (readDocument env opt.inputDocumentPath) (writeDocument opt.outputDocumentPath) $ \document -> do
   --   run opt.port $ do
   --     modifySyncDocument document $ Users $ OnUsers $ Create user
-  --     runApp $ withTailwindPlay $ mkApp document
+  --     runApp $ mkApp document
 
 -- readDocument :: SyncDocumentEnv -> Maybe FilePath -> IO SyncDocumentRef
 -- readDocument e (Just p) = do

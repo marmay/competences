@@ -147,7 +147,6 @@ library
         Competences.Frontend.View.ResourceList,
         Competences.Frontend.View.SelectorList,
         Competences.Frontend.View.SidePanel,
-        Competences.Frontend.View.StatusDot,
         Competences.Frontend.View.StatusIcon,
         Competences.Frontend.View.Table,
         Competences.Frontend.View.TagInput,

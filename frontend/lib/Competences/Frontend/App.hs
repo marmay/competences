@@ -1,7 +1,6 @@
 module Competences.Frontend.App
   ( runApp
   , mkApp
-  , withTailwindPlay
   )
 where
 
@@ -149,11 +148,6 @@ mkApp ir =
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
 
     mounted key = componentA (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
-
--- | No-op function (CSS is now loaded in HTML head via backend)
--- Kept for backward compatibility with Main.hs
-withTailwindPlay :: App -> App
-withTailwindPlay = id
 
 -- ============================================================================
 -- FOCUSED USER VIEW (Nav bar component)

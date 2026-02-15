@@ -17,7 +17,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (.~))
 
--- | Connection status indicator for footer
+-- | Connection status indicator for nav bar
 connectionStatusView :: SyncContext -> M.View p a
 connectionStatusView ir = component "connection-status" (connectionStatusComponent ir)
 
