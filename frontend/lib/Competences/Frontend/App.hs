@@ -72,8 +72,8 @@ appEvents = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
 runApp :: App -> IO ()
 runApp = M.startComponent appEvents
 
-mkApp :: SyncContext -> App
-mkApp ir =
+mkApp :: SyncContext -> M.URI -> App
+mkApp ir initialUri =
   (M.component model update view)
     { M.subs = [M.uriSub SetURI]
     }
@@ -81,7 +81,7 @@ mkApp ir =
     env = syncDocumentEnv ir
     model =
       Model
-        { uri = M.toURI CompetenceGrid
+        { uri = initialUri
         , connectedUser = env ^. #connectedUser
         }
 
@@ -230,7 +230,7 @@ focusedUserComponent ir =
     update (ImpersonateUser uid) =
       M.io_ $ do
         location <- jsg "window" ! ("location" :: M.MisoString)
-        setField location ("href" :: M.MisoString) (M.ms $ "/?impersonate=" <> idToText uid)
+        setField location ("href" :: M.MisoString) (M.ms $ "/app/grid?impersonate=" <> idToText uid)
 
     view m
       | isStudent m.connectedUser = viewStudentFocusedUser m
@@ -363,7 +363,7 @@ impersonationBannerComponent user =
     update ReturnToTeacher =
       M.io_ $ do
         location <- jsg "window" ! ("location" :: M.MisoString)
-        setField location ("href" :: M.MisoString) ("/" :: M.MisoString)
+        setField location ("href" :: M.MisoString) ("/app/grid" :: M.MisoString)
 
     view u =
       M.div_

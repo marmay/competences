@@ -24,13 +24,16 @@ import Competences.Document.User (Office365Id (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.Char qualified as Char
 import Data.IxSet.Typed qualified as Ix
+import Data.Tagged (Tagged (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
-import Network.HTTP.Types (urlEncode)
+import Network.HTTP.Types (status302, urlEncode)
+import Network.Wai (Application, pathInfo, rawQueryString, responseLBS)
 import Servant
   ( (:<|>) (..)
   , (:>)
@@ -66,8 +69,7 @@ data FrontendHashes = FrontendHashes
   }
 
 type AppAPI =
-  -- OAuth initiation - redirect to Office365 with state parameter for CSRF protection
-  -- (Headers set via throwError err302 with custom errHeaders)
+  -- Root redirect to /app/grid
   Get '[HTML] NoContent
     -- OAuth callback - exchange code for token and serve frontend
     :<|> "oauth" :> "callback"
@@ -77,46 +79,75 @@ type AppAPI =
            :> Get '[HTML] Html
     -- Static files
     :<|> "static" :> Raw
+    -- App catch-all - initiate OAuth with return URL preservation
+    :<|> "app" :> Raw
 
 appAPI :: Proxy AppAPI
 appAPI = Proxy
 
 server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FrontendHashes -> Servant.Server AppAPI
 server state oauth2Config jwtSecret staticDir hashes =
-  oauthInitHandler oauth2Config
+  rootRedirectHandler
     :<|> oauthCallbackHandler state oauth2Config jwtSecret hashes
     :<|> serveDirectoryWebApp staticDir
+    :<|> appCatchAllHandler oauth2Config
 
 -- | Cookie name for OAuth state parameter
 oauthStateCookieName :: BS.ByteString
 oauthStateCookieName = "oauth_state"
 
--- | Redirect to Office365 login with CSRF protection via state parameter
-oauthInitHandler :: OAuth2Config -> Handler NoContent
-oauthInitHandler config = do
+-- | Cookie name for return URL after OAuth
+oauthReturnUrlCookieName :: BS.ByteString
+oauthReturnUrlCookieName = "oauth_return_url"
+
+-- | Redirect root "/" to "/app/grid"
+rootRedirectHandler :: Handler NoContent
+rootRedirectHandler =
+  throwError err302 {errHeaders = [("Location", "/app/grid")]}
+
+-- | Catch-all handler for /app/* routes
+-- Saves the requested URL in a cookie and redirects to Office365 OAuth
+appCatchAllHandler :: OAuth2Config -> Tagged Handler Application
+appCatchAllHandler config = Tagged $ \req respond -> do
+  -- Reconstruct the return URL from the request
+  -- Servant strips the "app" segment, so pathInfo has segments after /app/
+  let segments = pathInfo req
+      queryStr = decodeUtf8 $ rawQueryString req
+      returnUrl = validateReturnUrl $ "/app/" <> T.intercalate "/" segments <> queryStr
+
   -- Generate random state for CSRF protection
-  state <- liftIO $ UUID.toText <$> UUID.nextRandom
+  csrfState <- UUID.toText <$> UUID.nextRandom
 
   -- Build authorization URL with state parameter
-  let authUrl = getAuthorizationUrlWithState config state
+  let authUrl = getAuthorizationUrlWithState config csrfState
 
-  -- Create cookie with state value (HttpOnly for security)
-  -- Note: SameSite=Lax is the browser default for cookies without SameSite set
-  let cookie = defaultSetCookie
-        { setCookieName = oauthStateCookieName
-        , setCookieValue = encodeUtf8 state
-        , setCookiePath = Just "/oauth/callback"
-        , setCookieHttpOnly = True
-        }
-      cookieBS = renderSetCookieBS cookie
+  -- Create cookies (both scoped to /oauth/callback, HttpOnly)
+  let stateCookie =
+        renderSetCookieBS $
+          defaultSetCookie
+            { setCookieName = oauthStateCookieName
+            , setCookieValue = encodeUtf8 csrfState
+            , setCookiePath = Just "/oauth/callback"
+            , setCookieHttpOnly = True
+            }
+      returnUrlCookie =
+        renderSetCookieBS $
+          defaultSetCookie
+            { setCookieName = oauthReturnUrlCookieName
+            , setCookieValue = encodeUtf8 returnUrl
+            , setCookiePath = Just "/oauth/callback"
+            , setCookieHttpOnly = True
+            }
 
-  -- Redirect with state cookie
-  throwError err302
-    { errHeaders =
-        [ ("Location", encodeUtf8 authUrl)
-        , ("Set-Cookie", cookieBS)
-        ]
-    }
+  -- Redirect to Office365 with both cookies
+  respond $
+    responseLBS
+      status302
+      [ ("Location", encodeUtf8 authUrl)
+      , ("Set-Cookie", stateCookie)
+      , ("Set-Cookie", returnUrlCookie)
+      ]
+      ""
 
 
 -- | Build OAuth authorization URL with state parameter
@@ -184,6 +215,9 @@ oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState
   -- Generate JWT
   jwt <- liftIO $ generateJWT jwtSecret user
 
+  -- Extract return URL from cookie (defaults to /app/grid)
+  let returnUrl = extractReturnUrlFromCookie maybeCookie
+
   -- Read current file hashes (may have been updated by file watcher)
   wasmHash <- liftIO $ readFileHash hashes.wasmHash
   indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
@@ -192,7 +226,7 @@ oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState
   outputCssHash <- liftIO $ readFileHash hashes.outputCssHash
 
   -- Serve frontend HTML with JWT and hashes embedded
-  pure $ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
+  pure $ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -201,6 +235,26 @@ extractStateFromCookie Nothing = Nothing
 extractStateFromCookie (Just cookieHeader) =
   let cookies = parseCookies (encodeUtf8 cookieHeader)
    in decodeUtf8 <$> lookup oauthStateCookieName cookies
+
+-- | Extract return URL from Cookie header (defaults to /app/grid)
+extractReturnUrlFromCookie :: Maybe Text -> Text
+extractReturnUrlFromCookie Nothing = "/app/grid"
+extractReturnUrlFromCookie (Just cookieHeader) =
+  let cookies = parseCookies (encodeUtf8 cookieHeader)
+   in case decodeUtf8 <$> lookup oauthReturnUrlCookieName cookies of
+        Just url -> validateReturnUrl url
+        Nothing -> "/app/grid"
+
+-- | Validate a return URL to prevent open redirect and XSS attacks.
+-- Must start with "/app" and contain only safe URL characters.
+-- Explicitly excludes ' and \ which would break JS string literals.
+validateReturnUrl :: Text -> Text
+validateReturnUrl url
+  | T.isPrefixOf "/app" url && T.all isSafeUrlChar url = url
+  | otherwise = "/app/grid"
+  where
+    isSafeUrlChar c =
+      Char.isAlphaNum c || c `elem` ("-._~:/?#[]@!$&()*+,;=%" :: [Char])
 
 -- | Find existing user by email address stored in office365Id field
 findUserByEmail :: AppState -> Text -> IO (Maybe User)
@@ -225,9 +279,9 @@ cspHeaderValue = T.intercalate "; "
   , "form-action 'self'"                 -- Restrict form submissions
   ]
 
--- | Render frontend HTML with JWT and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Html
-renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash = H.docTypeHtml $ do
+-- | Render frontend HTML with JWT, return URL, and WASM hash embedded
+renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Text -> Html
+renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -256,7 +310,9 @@ renderFrontendHTML jwt wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash 
       \window.COMPETENCES_DEBUG = false;\n\
       \// File hashes for cache busting\n\
       \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';\n\
-      \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';"
+      \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';\n\
+      \// Restore original URL after OAuth redirect\n\
+      \history.replaceState(null, '', '" <> returnUrl <> "');"
   H.body ! A.class_ "theme-claude" $ do
     -- Load application code (with cache-busting hash)
     let indexJsUrl = "/static/index.js?v=" <> indexJsHash

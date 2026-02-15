@@ -46,7 +46,8 @@ main = do
         ref <- mkSyncDocument env
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user
-        runApp $ mkApp ref
+        uri <- M.getURI
+        runApp $ mkApp ref uri
 
       Just jwtToken -> do
         logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
@@ -65,10 +66,11 @@ main = do
 
         -- Fork action that starts the Miso app
         let forkApp ref = void $ forkIO $ do
+              initialUri <- M.getURI
               -- Set window title with localized text
               htmlDoc <- jsg "document"
               setField htmlDoc "title" (C.translate' C.LblPageTitle)
-              runApp $ mkApp ref
+              runApp $ mkApp ref initialUri
 
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
@@ -91,7 +93,7 @@ parseImpersonateParam search =
 handleAuthFailure :: M.JSVal -> AuthenticationException -> IO ()
 handleAuthFailure location (AuthenticationException reason) = do
   logError $ M.ms $ "Authentication failed: " <> T.unpack reason
-  setField location "href" ("/" :: T.Text)
+  setField location "href" ("/app/grid" :: T.Text)
 
 
 foreign export javascript "hs_start" main :: IO ()

@@ -59,6 +59,7 @@ library
         servant,
         servant-blaze,
         servant-server,
+        tagged,
         servant-websockets,
         stm,
         text,
