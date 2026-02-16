@@ -35,7 +35,7 @@ import Competences.Frontend.WebSocket.Protocol
   , WebSocket (..)
   )
 import Competences.Protocol (ClientInfo (..), ClientMessage (..), ServerInfo (..), ServerMessage (..))
-import Control.Exception (catch, throwIO)
+import Control.Exception (SomeException, catch, finally, throwIO)
 import Control.Monad (forever)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -72,13 +72,17 @@ operationLoop ref ws = loop `catch` handleDisconnect
     loop :: IO ()
     loop = forever $ do
       msg <- ws.receive
-      case msg of
-        ApplyCommand cmd -> applyRemoteCommand ref cmd
-        CommandRejected cmd err -> do
-          logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
-          rejectCommand ref cmd
-        KeepAliveResponse -> pure ()
-        other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
+      handleMessage msg `catch` \(e :: SomeException) ->
+        logWarn $ M.ms $ "Error handling message: " <> show e
+
+    handleMessage :: ServerMessage -> IO ()
+    handleMessage msg = case msg of
+      ApplyCommand cmd -> applyRemoteCommand ref cmd
+      CommandRejected cmd err -> do
+        logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
+        rejectCommand ref cmd
+      KeepAliveResponse -> pure ()
+      other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
 
 -- ============================================================================
 -- COMPOSED HANDLERS
@@ -114,11 +118,8 @@ mkInitialHandler token mImpersonate impersonating forkApp ws = do
   logInfo $ M.ms $ "Starting app for user: " <> T.unpack user.name
   forkApp ref
 
-  -- Run operation loop until disconnect
-  operationLoop ref ws
-
-  -- Disconnect happened, clear sender
-  clearWebSocket sender
+  -- Run operation loop until disconnect, always clear sender on exit
+  operationLoop ref ws `finally` clearWebSocket sender
 
   pure (ref, sender)
 
@@ -143,10 +144,7 @@ mkReconnectHandler token mImpersonate (ref, sender) ws = do
 
   logInfo "Reconnected and synchronized"
 
-  -- Run operation loop until disconnect
-  operationLoop ref ws
-
-  -- Disconnect happened, clear sender
-  clearWebSocket sender
+  -- Run operation loop until disconnect, always clear sender on exit
+  operationLoop ref ws `finally` clearWebSocket sender
 
   pure (ref, sender)

@@ -19,7 +19,7 @@ import Competences.Frontend.WebSocket
 import Competences.Protocol (ClientMessage, ServerMessage)
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
 import Control.Concurrent.STM (atomically, newTQueueIO, readTQueue, writeTQueue)
-import Control.Exception (Exception, catch, throwIO)
+import Control.Exception (Exception, SomeException, catch, fromException, throwIO, try)
 import Control.Monad (when)
 import Data.Text (Text)
 import GHC.Conc (threadDelay)
@@ -106,24 +106,37 @@ withWebSocket
   -> (a -> WebSocket -> IO a)       -- ^ Reconnection handler
   -> IO ()
 withWebSocket url initial continuation = do
-  ws <- connectBlocking url
-  a <- initial ws  -- May throw AuthenticationException
-  reconnectLoop 0 a
+  initialResult <- tryHandler (connectBlocking url >>= initial)
+  case initialResult of
+    Left _ -> reconnectLoop 1 Nothing
+    Right a -> reconnectLoop 0 (Just a)
   where
-    reconnectLoop (attempt :: Int) a = do
-      -- Exponential backoff: 1s, 2s, 4s, 8s, max 15s
-      let delaySeconds = min 15 ((2 :: Int) ^ attempt)
-      when (attempt > 0) $ do
-        logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
-        threadDelay (delaySeconds * 1000000)
-
-      -- Try to reconnect
-      connectResult <- (Right <$> connectBlocking url) `catch` \(_ :: DisconnectedException) ->
-        pure (Left ())
-
+    reconnectLoop (attempt :: Int) mState = do
+      backoff attempt
+      connectResult <- tryConnect
       case connectResult of
-        Left () -> reconnectLoop (attempt + 1) a  -- Connection failed, retry
+        Left () -> reconnectLoop (attempt + 1) mState
         Right ws' -> do
-          -- Run continuation, may throw AuthenticationException
-          a' <- continuation a ws'
-          reconnectLoop 0 a'  -- Success, reset attempt counter
+          handlerResult <- case mState of
+            Nothing -> tryHandler (initial ws')
+            Just a -> tryHandler (continuation a ws')
+          case handlerResult of
+            Left _ -> reconnectLoop (attempt + 1) mState
+            Right a' -> reconnectLoop 0 (Just a')
+
+    backoff attempt = when (attempt > 0) $ do
+      let delaySeconds = min 15 ((2 :: Int) ^ attempt)
+      logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
+      threadDelay (delaySeconds * 1000000)
+
+    tryConnect = (Right <$> connectBlocking url) `catch` \(_ :: DisconnectedException) ->
+      pure (Left ())
+
+    -- Catch all exceptions except AuthenticationException (which is fatal)
+    tryHandler action = try action >>= \case
+      Left e
+        | Just authEx <- fromException @AuthenticationException e -> throwIO authEx
+        | otherwise -> do
+            logInfo $ M.ms $ "Handler exception (will retry): " <> show @SomeException e
+            pure (Left e)
+      Right a -> pure (Right a)
