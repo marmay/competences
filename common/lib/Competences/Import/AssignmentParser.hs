@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- |
 -- Module      : Competences.Import.AssignmentParser
 -- Description : Parser for assignment import format with embedded tasks
 --
--- Parses the markdown-like assignment import format:
+-- Parses the markdown assignment import format via two-stage parsing:
+-- first parse as markdown, then extract structured data from the AST.
 --
 -- @
 -- # Assignment Name (Ersetzt: Original Name)
@@ -41,10 +40,15 @@ module Competences.Import.AssignmentParser
 where
 
 import Competences.Document.ActivityType (ActivityType (..))
-import Competences.Document.Competence (Level (..))
+import Competences.Document.Competence (Level)
 import Competences.Document.Solution (SolutionType (..))
 import Competences.Document.Task (TaskIdentifier (..))
-import Competences.Import.ParserUtils
+import Competences.Import.ASTExtract
+  ( blocksToText
+  , bulletListItemTexts
+  , groupByHeading
+  )
+import Competences.Import.ParserUtils (ParseError, parseReplacesClause)
 import Competences.Import.Types
   ( ParsedAssignment (..)
   , ParsedSolution (..)
@@ -52,12 +56,12 @@ import Competences.Import.Types
   , activityTypeFromGerman
   , levelFromGerman
   )
-import Data.Maybe (fromMaybe)
+import Competences.Markdown.AST (Block (..), Document (..))
+import Competences.Markdown.Parser (parseMarkdown)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
-import Text.Megaparsec (anySingle, eof, lookAhead, many, optional, try)
-import Text.Megaparsec.Char (char, string)
 
 -- | Parse assignment import format
 --
@@ -66,92 +70,59 @@ import Text.Megaparsec.Char (char, string)
 parseAssignmentImport :: Text -> Either ParseError [ParsedAssignment]
 parseAssignmentImport input
   | T.null (T.strip input) = Right []
-  | otherwise = runParser' (assignmentsP <* eof) input
+  | otherwise = case parseMarkdown input of
+      Left err -> Left (show err)
+      Right (Document blocks) ->
+        Right $ map parseAssignment (groupByHeading 1 blocks)
 
--- | Parse multiple assignments
-assignmentsP :: Parser [ParsedAssignment]
-assignmentsP = do
-  skipBlankLines
-  assignments <- many assignmentP
-  skipBlankLines
-  pure assignments
-
--- | Parse a single assignment
-assignmentP :: Parser ParsedAssignment
-assignmentP = do
-  (name, replacesName) <- assignmentHeaderP
-  sections <- many assignmentSectionP
-  tasks <- many taskP
-  skipBlankLines
-
-  -- Extract sections
-  let description = fromMaybe "" $ findSection "Beschreibung" sections
+-- | Extract a ParsedAssignment from a heading-1 section
+parseAssignment :: (Text, [Block]) -> ParsedAssignment
+parseAssignment (headingText, blocks) =
+  let (name, replacesName) = parseReplacesClause headingText
+      -- Split blocks into ## sections (before ###) and ### tasks
+      (sectionBlocks, taskBlocks) = splitAtHeading 3 blocks
+      sections = groupByHeading 2 sectionBlocks
+      description = fromMaybe "" $ findSection "Beschreibung" sections
       angaben = fromMaybe "" $ findSection "Angaben" sections
       (date, actType) = parseAngaben angaben
+      tasks = map parseAssignmentTask (groupByHeading 3 taskBlocks)
+   in ParsedAssignment
+        { name = name
+        , replacesName = replacesName
+        , description = description
+        , assignmentDate = date
+        , activityType = actType
+        , tasks = tasks
+        }
 
-  pure
-    ParsedAssignment
-      { name = name
-      , replacesName = replacesName
-      , description = description
-      , assignmentDate = date
-      , activityType = actType
-      , tasks = tasks
-      }
+-- | Split blocks into those before the first heading of the given level, and the rest
+splitAtHeading :: Int -> [Block] -> ([Block], [Block])
+splitAtHeading level = span (not . isHeadingOfLevel)
+  where
+    isHeadingOfLevel (Heading n _) = n == level
+    isHeadingOfLevel _ = False
 
--- | Parse assignment header: # Name (Ersetzt: Original)
-assignmentHeaderP :: Parser (Text, Maybe Text)
-assignmentHeaderP = do
-  _ <- char '#'
-  skipHorizontalSpace
-  content <- takeLineContent
-  let (name, replaces) = parseReplacesClause (T.strip content)
-  skipBlankLines
-  pure (name, replaces)
+-- | Extract a ParsedTask from a heading-3 section (within an assignment)
+parseAssignmentTask :: (Text, [Block]) -> ParsedTask
+parseAssignmentTask (headingText, blocks) =
+  let (ident, replaces) = parseReplacesClause headingText
+      sections = groupByHeading 4 blocks
+      contentSection = findSection "Angabe" sections
+      solutions = extractSolutions sections
+      competenceRefs = extractCompetences sections
+   in ParsedTask
+        { identifier = TaskIdentifier ident
+        , replacesIdentifier = TaskIdentifier <$> replaces
+        , content = fromMaybe "" contentSection
+        , solutions = solutions
+        , competenceRefs = competenceRefs
+        }
 
--- | A parsed section (## Heading + content)
-data Section = Section
-  { sectionName :: !Text
-  , sectionContent :: !Text
-  }
-  deriving (Show)
-
--- | Parse a ## section (stops at ### or next #)
-assignmentSectionP :: Parser Section
-assignmentSectionP = do
-  _ <- try $ do
-    _ <- string "##"
-    mc <- optional (lookAhead anySingle)
-    -- Don't parse ### (task headers) as ## sections
-    case mc of
-      Just '#' -> fail "task header"
-      _ -> pure ()
-  skipHorizontalSpace
-  name <- takeLineContent
-  skipBlankLines
-  content <- sectionContentP
-  pure Section{sectionName = T.strip name, sectionContent = content}
-
--- | Parse section content until next # or ## or ### or end
-sectionContentP :: Parser Text
-sectionContentP = do
-  lines' <- many contentLineP
-  pure (T.strip $ T.intercalate "\n" lines')
-
--- | Parse a content line (not starting with #)
-contentLineP :: Parser Text
-contentLineP = do
-  mc <- optional (lookAhead anySingle)
-  case mc of
-    Just '#' -> fail "section boundary"
-    Nothing -> fail "end of input"
-    _ -> takeLineContent
-
--- | Find section by name
-findSection :: Text -> [Section] -> Maybe Text
+-- | Find a section by name and return its content as text
+findSection :: Text -> [(Text, [Block])] -> Maybe Text
 findSection name sections =
-  case filter (\s -> s.sectionName == name) sections of
-    (s : _) -> Just s.sectionContent
+  case filter (\(n, _) -> n == name) sections of
+    ((_, blocks) : _) -> Just (blocksToText blocks)
     [] -> Nothing
 
 -- | Parse the ## Angaben section to extract date and type
@@ -183,101 +154,48 @@ parseAngaben content =
               | T.strip k == key -> Just (T.strip $ T.drop 1 v)
               | otherwise -> go rest
 
--- ============================================================================
--- Task Parsing (### level)
--- ============================================================================
-
--- | Parse a single task (### heading + #### sections)
-taskP :: Parser ParsedTask
-taskP = do
-  (ident, replaces) <- taskHeaderP
-  sections <- many taskSectionP
-  skipBlankLines
-
-  -- Extract sections
-  let contentSection = findSection "Angabe" sections
-      solutions = extractSolutions sections
-      competenceRefs = extractCompetences sections
-
-  pure
-    ParsedTask
-      { identifier = TaskIdentifier ident
-      , replacesIdentifier = TaskIdentifier <$> replaces
-      , content = fromMaybe "" contentSection
-      , solutions = solutions
-      , competenceRefs = competenceRefs
-      }
-
--- | Parse task header: ### Identifier (Ersetzt: Original)
-taskHeaderP :: Parser (Text, Maybe Text)
-taskHeaderP = do
-  _ <- string "###"
-  skipHorizontalSpace
-  content <- takeLineContent
-  let (ident, replaces) = parseReplacesClause (T.strip content)
-  skipBlankLines
-  pure (ident, replaces)
-
--- | Parse a #### section within a task
-taskSectionP :: Parser Section
-taskSectionP = do
-  _ <- string "####"
-  skipHorizontalSpace
-  name <- takeLineContent
-  skipBlankLines
-  content <- taskSectionContentP
-  pure Section{sectionName = T.strip name, sectionContent = content}
-
--- | Parse task section content (until next #### or ### or # or end)
-taskSectionContentP :: Parser Text
-taskSectionContentP = do
-  lines' <- many taskContentLineP
-  pure (T.strip $ T.intercalate "\n" lines')
-
--- | Parse a content line (not starting with # or ##)
-taskContentLineP :: Parser Text
-taskContentLineP = do
-  mc <- optional (lookAhead anySingle)
-  case mc of
-    Just '#' -> fail "section boundary"
-    Nothing -> fail "end of input"
-    _ -> takeLineContent
-
 -- | Extract solutions from sections
-extractSolutions :: [Section] -> [ParsedSolution]
+extractSolutions :: [(Text, [Block])] -> [ParsedSolution]
 extractSolutions = concatMap toSolution
   where
-    toSolution s
-      | s.sectionName == "Hinweis" =
-          [ParsedSolution Hint s.sectionContent]
-      | s.sectionName == "Ergebnis" =
-          [ParsedSolution Results s.sectionContent]
-      | s.sectionName == "Komplettlösung" =
-          [ParsedSolution Complete s.sectionContent]
+    toSolution (name, blocks)
+      | name == "Hinweis" = [ParsedSolution Hint (blocksToText blocks)]
+      | name == "Ergebnis" = [ParsedSolution Results (blocksToText blocks)]
+      | name == "Komplettlösung" = [ParsedSolution Complete (blocksToText blocks)]
       | otherwise = []
 
 -- | Extract competence references from #### Kompetenzen section
-extractCompetences :: [Section] -> [(Text, Text, Level)]
+extractCompetences :: [(Text, [Block])] -> [(Text, Text, Level)]
 extractCompetences sections =
-  case findSection "Kompetenzen" sections of
+  case findSectionBlocks "Kompetenzen" sections of
     Nothing -> []
-    Just content -> parseCompetenceList content
+    Just blocks -> parseCompetenceList blocks
 
--- | Parse competence list:
--- - Grid / Description / Level
-parseCompetenceList :: Text -> [(Text, Text, Level)]
-parseCompetenceList content =
-  mapMaybe parseCompetenceLine (T.lines content)
-  where
-    parseCompetenceLine line =
-      let stripped = T.strip $ T.dropWhile (== '-') $ T.strip line
-          parts = T.splitOn "/" stripped
-       in case parts of
-            [grid, desc, levelText] ->
-              case levelFromGerman (T.strip levelText) of
-                Just level -> Just (T.strip grid, T.strip desc, level)
-                Nothing -> Nothing
-            _ -> Nothing
+-- | Find a section by name and return its raw blocks
+findSectionBlocks :: Text -> [(Text, [Block])] -> Maybe [Block]
+findSectionBlocks name sections =
+  case filter (\(n, _) -> n == name) sections of
+    ((_, blocks) : _) -> Just blocks
+    [] -> Nothing
 
-    mapMaybe :: (a -> Maybe b) -> [a] -> [b]
-    mapMaybe f = foldr (\x acc -> maybe acc (: acc) (f x)) []
+-- | Parse competence list from blocks containing a BulletList
+parseCompetenceList :: [Block] -> [(Text, Text, Level)]
+parseCompetenceList blocks =
+  let itemTexts = concatMap getBulletItemTexts blocks
+   in mapMaybe parseCompetenceLine itemTexts
+
+-- | Extract bullet list item texts from a block
+getBulletItemTexts :: Block -> [Text]
+getBulletItemTexts (BulletList items) = bulletListItemTexts items
+getBulletItemTexts _ = []
+
+-- | Parse a single competence line: "Grid / Description / Level"
+parseCompetenceLine :: Text -> Maybe (Text, Text, Level)
+parseCompetenceLine line =
+  let parts = T.splitOn "/" (T.strip line)
+   in case parts of
+        [grid, desc, levelText] ->
+          case levelFromGerman (T.strip levelText) of
+            Just level -> Just (T.strip grid, T.strip desc, level)
+            Nothing -> Nothing
+        _ -> Nothing

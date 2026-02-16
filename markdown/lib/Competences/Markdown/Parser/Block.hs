@@ -41,6 +41,7 @@ blockP =
     , mathBlockP
     , letterListP
     , orderedListP
+    , bulletListP
     , admonitionP
     , paragraphP
     ]
@@ -170,6 +171,44 @@ orderedListItemP = do
       notFollowedBy (try letterMarkerP)
       notFollowedBy (try numberMarkerP)
       inlinesP
+
+-- | Bullet list: - item, * item, + item
+bulletListP :: Parser Block
+bulletListP = do
+  firstItem <- try bulletListItemP
+  restItems <- many (try $ blankLinesBetweenItems *> bulletListItemP)
+  pure $ BulletList (firstItem : restItems)
+  where
+    blankLinesBetweenItems = do
+      _ <- newline
+      skipBlankLines
+
+-- | Single bullet list item
+bulletListItemP :: Parser [Block]
+bulletListItemP = do
+  _ <- bulletMarkerP
+  hspace
+  firstLine <- inlinesP
+  continuations <- many (try continuationLine)
+  let allInlines = firstLine ++ concatMap addSoftBreak continuations
+  pure [Paragraph allInlines]
+  where
+    addSoftBreak inlines = SoftLineBreak : inlines
+
+    continuationLine = do
+      _ <- newline
+      _ <- hspace1 -- indented continuation
+      notFollowedBy (try bulletMarkerP)
+      notFollowedBy (try letterMarkerP)
+      notFollowedBy (try numberMarkerP)
+      inlinesP
+
+-- | Parse bullet marker: -, *, or + followed by space
+bulletMarkerP :: Parser Char
+bulletMarkerP = do
+  c <- oneOf ("-*+" :: String)
+  _ <- lookAhead (char ' ')
+  pure c
 
 -- | Parse letter marker: a. b. c. etc. (lowercase only)
 letterMarkerP :: Parser Char

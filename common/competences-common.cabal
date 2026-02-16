@@ -66,6 +66,7 @@ library
         Competences.Document.Solution
         Competences.Document.Task
         Competences.Document.User
+        Competences.Import.ASTExtract
         Competences.Import.AssignmentParser
         Competences.Import.CompetenceGridParser
         Competences.Import.Export
@@ -90,8 +91,6 @@ library
         Competences.TaskContent.RichContent
     build-depends:
         base ^>=4.21.0.0,
-        megaparsec,
-        parser-combinators,
         base64-bytestring,
         binary,
         bytestring,

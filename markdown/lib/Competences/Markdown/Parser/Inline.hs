@@ -68,9 +68,14 @@ softLineBreakP = SoftLineBreak <$ try softNewline
       -- Don't consume if it looks like an admonition start
       notFollowedBy (try $ char '>' *> hspace *> string "[!")
       -- Don't consume if it looks like a list item at start of line
+      notFollowedBy (try bulletListMarker)
       notFollowedBy (try letterListMarker)
       notFollowedBy (try numberListMarker)
       pure ()
+
+    bulletListMarker = do
+      _ <- oneOf ("-*+" :: String)
+      void $ char ' '
 
     letterListMarker = do
       _ <- lowerChar

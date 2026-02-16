@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- |
 -- Module      : Competences.Import.CompetenceGridParser
 -- Description : Parser for competence grid import format
 --
--- Parses the markdown-like competence grid import format:
+-- Parses the markdown competence grid import format via two-stage parsing:
+-- first parse as markdown, then extract structured data from the AST.
 --
 -- @
 -- # Grid Title
@@ -21,19 +20,24 @@ module Competences.Import.CompetenceGridParser
   )
 where
 
-import Competences.Document.Competence (Level (..))
-import Competences.Import.ParserUtils
+import Competences.Document.Competence (Level)
+import Competences.Import.ASTExtract
+  ( groupByHeading
+  , inlinesToText
+  )
+import Competences.Import.ParserUtils (ParseError, parseReplacesClause)
 import Competences.Import.Types
   ( ParsedCompetence (..)
   , ParsedGrid (..)
   , levelFromGerman
   )
+import Competences.Markdown.AST (Block (..), Document (..), Inline)
+import Competences.Markdown.Parser (parseMarkdown)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Text.Megaparsec (eof, many, satisfy, takeWhile1P, (<?>))
-import Text.Megaparsec.Char (char, string)
 
 -- | Parse competence grid import format
 --
@@ -42,90 +46,55 @@ import Text.Megaparsec.Char (char, string)
 parseGridImport :: Text -> Either ParseError [ParsedGrid]
 parseGridImport input
   | T.null (T.strip input) = Right []
-  | otherwise = runParser' (gridsP <* eof) input
+  | otherwise = case parseMarkdown input of
+      Left err -> Left (show err)
+      Right (Document blocks) ->
+        Right $ map parseGrid (groupByHeading 1 blocks)
 
--- | Parse multiple grids
-gridsP :: Parser [ParsedGrid]
-gridsP = do
-  skipBlankLines
-  grids <- many gridP
-  skipBlankLines
-  pure grids
+-- | Extract a ParsedGrid from a heading-1 section
+parseGrid :: (Text, [Block]) -> ParsedGrid
+parseGrid (title, blocks) =
+  ParsedGrid
+    { title = title
+    , competences = map parseCompetence (groupByHeading 2 blocks)
+    }
 
--- | Parse a single grid (# heading followed by ## competences)
-gridP :: Parser ParsedGrid
-gridP = do
-  title <- h1P
-  skipBlankLines
-  competences <- many competenceP
-  pure
-    ParsedGrid
-      { title = title
-      , competences = competences
-      }
+-- | Extract a ParsedCompetence from a heading-2 section
+parseCompetence :: (Text, [Block]) -> ParsedCompetence
+parseCompetence (headingText, blocks) =
+  let (desc, replaces) = parseReplacesClause headingText
+      levels = extractLevels blocks
+   in ParsedCompetence
+        { description = desc
+        , replacesDescription = replaces
+        , levels = levels
+        }
 
--- | Parse # heading (grid title)
-h1P :: Parser Text
-h1P = do
-  _ <- char '#'
-  skipHorizontalSpace
-  title <- takeLineContent
-  skipBlankLines
-  pure (T.strip title)
+-- | Extract level descriptions from blocks (expecting a BulletList)
+extractLevels :: [Block] -> Map Level Text
+extractLevels blocks =
+  let items = concatMap getBulletItems blocks
+      parsed = mapMaybe parseLevelItem items
+   in Map.fromList parsed
 
--- | Parse ## heading with optional (Ersetzt: ...) clause
-h2P :: Parser (Text, Maybe Text)
-h2P = do
-  _ <- string "##"
-  skipHorizontalSpace
-  content <- takeLineContent
-  let (desc, replaces) = parseReplacesClause (T.strip content)
-  skipBlankLines
-  pure (desc, replaces)
+-- | Extract bullet list items from a block
+getBulletItems :: Block -> [[Block]]
+getBulletItems (BulletList items) = items
+getBulletItems _ = []
 
--- | Parse a single competence (## heading + level items)
-competenceP :: Parser ParsedCompetence
-competenceP = do
-  (desc, replaces) <- h2P
-  levels <- levelsP
-  skipBlankLines
-  pure
-    ParsedCompetence
-      { description = desc
-      , replacesDescription = replaces
-      , levels = levels
-      }
+-- | Parse a level item text: "Wesentlich: Description text"
+parseLevelItem :: [Block] -> Maybe (Level, Text)
+parseLevelItem itemBlocks =
+  let text = inlinesToText $ concatMap extractInlines itemBlocks
+   in case T.breakOn ":" text of
+        (levelName, rest)
+          | not (T.null rest) ->
+              case levelFromGerman (T.strip levelName) of
+                Just level -> Just (level, T.strip (T.drop 1 rest))
+                Nothing -> Nothing
+        _ -> Nothing
 
--- | Parse level items (- Wesentlich: ..., etc.)
-levelsP :: Parser (Map Level Text)
-levelsP = do
-  items <- many levelItemP
-  pure (Map.fromList items)
-
--- | Parse a single level item: - LevelName: Description
-levelItemP :: Parser (Level, Text)
-levelItemP = do
-  skipHorizontalSpace
-  _ <- char '-'
-  skipHorizontalSpace
-  levelName <- takeWhile1P Nothing (\c -> c /= ':' && c /= '\n') <?> "level name"
-  _ <- char ':'
-  skipHorizontalSpace
-  desc <- takeLineContent
-  -- Collect continuation lines (indented)
-  continuations <- many continuationLine
-  let fullDesc = T.strip $ T.intercalate " " (T.strip desc : map T.strip continuations)
-  skipBlankLines
-  case levelFromGerman (T.strip levelName) of
-    Just level -> pure (level, fullDesc)
-    Nothing -> fail $ "Unknown level: " <> T.unpack levelName
-
--- | Parse continuation line (starts with whitespace, not - or #)
-continuationLine :: Parser Text
-continuationLine = do
-  skipHorizontalSpace
-  c <- satisfy (\x -> not (isHSpace x) && x /= '-' && x /= '#' && x /= '\n' && x /= '\r')
-  rest <- takeLineContent
-  pure (T.cons c rest)
-  where
-    isHSpace c = c == ' ' || c == '\t'
+-- | Extract inlines from paragraph blocks
+extractInlines :: Block -> [Inline]
+extractInlines (Paragraph inlines) = inlines
+extractInlines _ = []

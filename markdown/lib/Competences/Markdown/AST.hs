@@ -12,6 +12,7 @@
 -- * Links (@[text](url)@ and @[text](url "title")@)
 -- * Fenced code blocks (with optional info string)
 -- * Ordered lists (@1. 2. 3.@)
+-- * Bullet lists (@- item@, @* item@, @+ item@)
 -- * Lettered lists (@a. b. c.@ extension)
 -- * Thematic breaks (@---@ or @***@)
 -- * Soft and hard line breaks
@@ -42,6 +43,8 @@ data Block
     FencedCodeBlock !(Maybe Text) !Text
   | -- | Ordered list with start number. Each item is a list of blocks.
     OrderedList !Int ![[Block]]
+  | -- | Bullet list (-, *, + markers). Each item is a list of blocks.
+    BulletList ![[Block]]
   | -- | Lettered list (a. b. c. extension). Each item is a list of blocks.
     LetterList ![[Block]]
   | -- | Display math block ($$...$$ or \[...\])

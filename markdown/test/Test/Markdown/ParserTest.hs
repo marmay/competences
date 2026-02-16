@@ -20,6 +20,7 @@ parserTests =
     , testGroup "Fenced code blocks" fencedCodeTests
     , testGroup "Links" linkTests
     , testGroup "Ordered lists" orderedListTests
+    , testGroup "Bullet lists" bulletListTests
     , testGroup "Lettered lists" letteredListTests
     , testGroup "Thematic breaks" thematicBreakTests
     , testGroup "Line breaks" lineBreakTests
@@ -163,6 +164,40 @@ orderedListTests =
         "ordered"
         (Document [OrderedList 1 [[Paragraph [Plain "First"]], [Paragraph [Plain "Second"]]]])
         "1. First\n2. Second"
+  ]
+
+bulletListTests :: [TestTree]
+bulletListTests =
+  [ testCase "simple bullet list with dash" $
+      assertParse
+        "dash bullets"
+        (Document [BulletList [[Paragraph [Plain "Alpha"]], [Paragraph [Plain "Beta"]]]])
+        "- Alpha\n- Beta"
+  , testCase "bullet list with asterisk" $
+      assertParse
+        "asterisk bullets"
+        (Document [BulletList [[Paragraph [Plain "One"]], [Paragraph [Plain "Two"]]]])
+        "* One\n* Two"
+  , testCase "bullet list with plus" $
+      assertParse
+        "plus bullets"
+        (Document [BulletList [[Paragraph [Plain "X"]], [Paragraph [Plain "Y"]]]])
+        "+ X\n+ Y"
+  , testCase "bullet list with inline formatting" $
+      assertParse
+        "bullets+emph"
+        (Document [BulletList [[Paragraph [Emph [Plain "bold"]]], [Paragraph [Plain "plain"]]]])
+        "- *bold*\n- plain"
+  , testCase "bullet list not confused with thematic break" $
+      assertParse
+        "dash vs thematic"
+        (Document [ThematicBreak])
+        "---"
+  , testCase "mixed markers" $
+      assertParse
+        "mixed"
+        (Document [BulletList [[Paragraph [Plain "A"]], [Paragraph [Plain "B"]], [Paragraph [Plain "C"]]]])
+        "- A\n* B\n+ C"
   ]
 
 letteredListTests :: [TestTree]

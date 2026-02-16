@@ -150,6 +150,7 @@ extractFromBlock = \case
   MD.Heading _ inlines -> concatMap extractFromInline inlines
   MD.FencedCodeBlock _ _ -> []
   MD.OrderedList _ items -> concatMap (concatMap extractFromBlock) items
+  MD.BulletList items -> concatMap (concatMap extractFromBlock) items
   MD.LetterList items -> concatMap (concatMap extractFromBlock) items
   MD.MathBlock latex -> [(Block, latex)]
   MD.ThematicBreak -> []
@@ -200,6 +201,10 @@ renderBlock symbols = \case
   MD.OrderedList _start items ->
     M.ol_
       [class_ "list-decimal ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
+      $ map (renderListItem symbols) items
+  MD.BulletList items ->
+    M.ul_
+      [class_ "list-disc ml-6 space-y-2"]
       $ map (renderListItem symbols) items
   MD.LetterList items ->
     M.ol_
