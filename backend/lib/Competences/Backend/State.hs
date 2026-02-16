@@ -1,6 +1,7 @@
 module Competences.Backend.State
   ( AppState (..)
   , ClientConnection (..)
+  , ConnectionId (..)
   , initAppState
   , loadAppState
   , saveAppState
@@ -29,6 +30,10 @@ import Data.Text (Text)
 import Database.PostgreSQL.Simple (Connection)
 import Network.WebSockets qualified as WS
 
+-- | Unique identifier for a WebSocket connection
+newtype ConnectionId = ConnectionId Int
+  deriving (Eq, Ord, Show)
+
 -- | Client connection information
 data ClientConnection = ClientConnection
   { userId :: !UserId
@@ -40,8 +45,10 @@ data ClientConnection = ClientConnection
 data AppState = AppState
   { document :: !(TVar Document)
   -- ^ Current document state
-  , clients :: !(TVar (Map UserId ClientConnection))
-  -- ^ Connected WebSocket clients by user ID
+  , clients :: !(TVar (Map UserId (Map ConnectionId ClientConnection)))
+  -- ^ Connected WebSocket clients by user ID, supporting multiple connections per user
+  , nextConnectionId :: !(TVar Int)
+  -- ^ Counter for generating unique connection IDs
   , dbPool :: !(Pool Connection)
   -- ^ Database connection pool for command/snapshot persistence
   }
@@ -51,7 +58,8 @@ initAppState :: Pool Connection -> IO AppState
 initAppState pool = do
   doc <- newTVarIO emptyDocument
   conns <- newTVarIO Map.empty
-  pure $ AppState doc conns pool
+  nextId <- newTVarIO 0
+  pure $ AppState doc conns nextId pool
 
 -- | Load application state from file (deprecated - use database loading instead)
 -- Returns empty state if file doesn't exist
@@ -69,7 +77,8 @@ loadAppState path pool = do
       pure d
   docVar <- newTVarIO doc
   conns <- newTVarIO Map.empty
-  pure $ AppState docVar conns pool
+  nextId <- newTVarIO 0
+  pure $ AppState docVar conns nextId pool
 
 -- | Save application state to file
 saveAppState :: FilePath -> AppState -> IO ()
@@ -111,21 +120,29 @@ updateDocument state uid cmd = do
 
       pure $ Right (doc', affected)
 
--- | Register a new client connection
-registerClient :: AppState -> UserId -> User -> WS.Connection -> IO ()
+-- | Register a new client connection, returning a unique ConnectionId
+registerClient :: AppState -> UserId -> User -> WS.Connection -> IO ConnectionId
 registerClient state uid user conn = atomically $ do
-  let client = ClientConnection uid user conn
-  modifyTVar' state.clients $ Map.insert uid client
+  connId <- readTVar state.nextConnectionId
+  modifyTVar' state.nextConnectionId (+ 1)
+  let cid = ConnectionId connId
+      client = ClientConnection uid user conn
+  modifyTVar' state.clients $ Map.alter (Just . Map.insert cid client . maybe Map.empty id) uid
+  pure cid
 
--- | Unregister a client connection
-unregisterClient :: AppState -> UserId -> IO ()
-unregisterClient state uid = atomically $
-  modifyTVar' state.clients $ Map.delete uid
+-- | Unregister a specific client connection
+unregisterClient :: AppState -> UserId -> ConnectionId -> IO ()
+unregisterClient state uid cid = atomically $
+  modifyTVar' state.clients $ Map.update removeConn uid
+  where
+    removeConn inner =
+      let inner' = Map.delete cid inner
+       in if Map.null inner' then Nothing else Just inner'
 
 -- | Get all connected clients
 getConnectedClients :: AppState -> IO [ClientConnection]
 getConnectedClients state =
-  Map.elems <$> readTVarIO state.clients
+  concatMap Map.elems . Map.elems <$> readTVarIO state.clients
 
 -- | Broadcast a message to specific users
 broadcastToUsers :: AppState -> [UserId] -> ServerMessage -> IO ()
@@ -136,4 +153,5 @@ broadcastToUsers state userIds msg = do
   forM_ uniqueUserIds $ \uid ->
     case Map.lookup uid clients of
       Nothing -> pure () -- User not connected
-      Just client -> WS.sendBinaryData client.connection (Bin.encode msg)
+      Just conns -> forM_ (Map.elems conns) $ \client ->
+        WS.sendBinaryData client.connection (Bin.encode msg)

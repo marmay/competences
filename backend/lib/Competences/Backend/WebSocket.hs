@@ -9,6 +9,7 @@ import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
 import Competences.Backend.BuildInfo (backendVersion)
 import Competences.Backend.State
   ( AppState
+  , ConnectionId
   , broadcastToUsers
   , getDocument
   , registerClient
@@ -86,8 +87,8 @@ handleClient :: AppState -> UserId -> User -> WS.Connection -> IO ()
 handleClient state uid user conn = do
   putStrLn $ "Client connected: " <> T.unpack user.name <> " (" <> show uid <> ")"
 
-  -- Register client
-  registerClient state uid user conn
+  -- Register client and get unique connection ID
+  connId <- registerClient state uid user conn
 
   -- Send initial snapshot with authenticated user (projected based on user identity)
   doc <- getDocument state
@@ -96,7 +97,7 @@ handleClient state uid user conn = do
   WS.sendBinaryData conn (Bin.encode $ InitialSnapshot projectedDoc user srvInfo)
 
   -- Handle messages and cleanup on disconnect
-  flip finally (cleanup uid) $ do
+  flip finally (cleanup uid connId) $ do
     forever $ do
       msg <- WS.receiveData conn
       case decodeOrFail msg of
@@ -105,9 +106,10 @@ handleClient state uid user conn = do
           -- Ignore invalid messages rather than disconnecting
         Right (_, _, clientMsg) -> handleClientMessage state uid user clientMsg conn
   where
-    cleanup userId = do
-      putStrLn $ "Client disconnected: " <> show userId
-      unregisterClient state userId
+    cleanup :: UserId -> ConnectionId -> IO ()
+    cleanup userId cid = do
+      putStrLn $ "Client disconnected: " <> show userId <> " (" <> show cid <> ")"
+      unregisterClient state userId cid
 
 -- | Handle individual client messages
 handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> IO ()
