@@ -39,6 +39,7 @@ renderGeometry result =
         , SP.viewBox_ (ms vb)
         , M.textProp "width" (ms (T.pack (show w) <> "cm"))
         , M.textProp "height" (ms (T.pack (show h) <> "cm"))
+        , M.textProp "font-family" "var(--font-sans)"
         ]
         [ -- Background layer
           Svg.g_ [class_ "geometry-bg"] (map renderPrimitive (background result))
@@ -104,8 +105,8 @@ computeViewBox prims
           yMax = maximum ys
           rangeX = max 1 (xMax - xMin)
           rangeY = max 1 (yMax - yMin)
-          padX = max 0.5 (rangeX * 0.15)
-          padY = max 0.5 (rangeY * 0.15)
+          padX = max 0.8 (rangeX * 0.15)
+          padY = max 0.8 (rangeY * 0.15)
           -- SVG Y axis is flipped (positive down), so we negate Y
           vbX = xMin - padX
           vbY = -(yMax + padY)
@@ -170,27 +171,49 @@ renderPrimitive = \case
       , SP.strokeWidth_ "0.03"
       ]
   RenderTick (Vec2 x y) txt env ->
-    Svg.g_
-      []
-      [ -- Tick mark
-        Svg.line_
-          [ SP.x1_ (ms $ show x)
-          , SP.y1_ (ms $ show (-y - 0.1))
-          , SP.x2_ (ms $ show x)
-          , SP.y2_ (ms $ show (-y + 0.1))
-          , SP.stroke_ (ms $ envColor env)
-          , SP.strokeWidth_ "0.02"
+    let isYAxis = x == 0
+     in Svg.g_
+          []
+          [ -- Tick mark
+            Svg.line_
+              ( ( if isYAxis
+                    then
+                      [ SP.x1_ (ms $ show (x - 0.1))
+                      , SP.y1_ (ms $ show (-y))
+                      , SP.x2_ (ms $ show (x + 0.1))
+                      , SP.y2_ (ms $ show (-y))
+                      ]
+                    else
+                      [ SP.x1_ (ms $ show x)
+                      , SP.y1_ (ms $ show (-y - 0.1))
+                      , SP.x2_ (ms $ show x)
+                      , SP.y2_ (ms $ show (-y + 0.1))
+                      ]
+                )
+                  <> [ SP.stroke_ (ms $ envColor env)
+                     , SP.strokeWidth_ "0.02"
+                     ]
+              )
+          , -- Tick label
+            Svg.text_
+              ( ( if isYAxis
+                    then
+                      [ SP.x_ (ms $ show (x - 0.2))
+                      , SP.y_ (ms $ show (-y + 0.12))
+                      , SP.textAnchor_ "end"
+                      ]
+                    else
+                      [ SP.x_ (ms $ show x)
+                      , SP.y_ (ms $ show (-y + 0.5))
+                      , SP.textAnchor_ "middle"
+                      ]
+                )
+                  <> [ SP.fontSize_ "0.35"
+                     , SP.fill_ (ms $ envColor env)
+                     ]
+              )
+              [M.text (ms txt)]
           ]
-      , -- Tick label
-        Svg.text_
-          [ SP.x_ (ms $ show x)
-          , SP.y_ (ms $ show (-y + 0.5))
-          , SP.textAnchor_ "middle"
-          , SP.fontSize_ "0.35"
-          , SP.fill_ (ms $ envColor env)
-          ]
-          [M.text (ms txt)]
-      ]
   RenderGridLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
       [ SP.x1_ (ms $ show x1)
@@ -224,11 +247,11 @@ envDashAttr env = case lineStyle env of
 -- | Offset and anchor for label positions
 labelOffset :: LabelPosition -> (Double, Double, Text)
 labelOffset = \case
-  Above -> (0, -0.55, "middle")
-  Below -> (0, 0.55, "middle")
-  LeftOf -> (-0.55, 0, "end")
-  RightOf -> (0.55, 0, "start")
-  AboveLeft -> (-0.45, -0.45, "end")
-  AboveRight -> (0.45, -0.45, "start")
-  BelowLeft -> (-0.45, 0.45, "end")
-  BelowRight -> (0.45, 0.45, "start")
+  Above -> (0, -0.30, "middle")
+  Below -> (0, 0.30, "middle")
+  LeftOf -> (-0.30, 0, "end")
+  RightOf -> (0.30, 0, "start")
+  AboveLeft -> (-0.25, -0.25, "end")
+  AboveRight -> (0.25, -0.25, "start")
+  BelowLeft -> (-0.25, 0.25, "end")
+  BelowRight -> (0.25, 0.25, "start")

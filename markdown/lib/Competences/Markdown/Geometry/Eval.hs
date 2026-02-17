@@ -168,7 +168,7 @@ evalLabel = \case
             dx = bx - ax
             dy = by - ay
             len = sqrt (dx * dx + dy * dy)
-            offset = 0.6
+            offset = 0.15
             (nx, ny)
               | len == 0 = (0, offset)
               | otherwise =
@@ -185,7 +185,9 @@ evalLabel = \case
 
 -- | Convert segment side to a label position based on segment direction
 segmentSideToPosition :: SegmentSide -> Double -> Double -> LabelPosition
-segmentSideToPosition _side _dx _dy = Above
+segmentSideToPosition side _dx _dy = case side of
+  SegAbove -> Above
+  SegBelow -> Below
 
 -- -----------------------------------------------------------------
 -- Segment ref resolution
@@ -267,10 +269,10 @@ generateAxes pts
       let allVecs = Map.elems pts
           xs = [x | Vec2 x _ <- allVecs]
           ys = [y | Vec2 _ y <- allVecs]
-          minX = minimum xs - 1
-          maxX = maximum xs + 1
-          minY = minimum ys - 1
-          maxY = maximum ys + 1
+          minX = min 0 (minimum xs) - 1
+          maxX = max 0 (maximum xs) + 1
+          minY = min 0 (minimum ys) - 1
+          maxY = max 0 (maximum ys) + 1
           axisEnv = defaultDrawEnv {layer = Background, color = NamedColor "gray"}
           tickEnv = axisEnv
           -- X axis
