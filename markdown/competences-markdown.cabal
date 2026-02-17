@@ -23,6 +23,7 @@ library
         Competences.Markdown.Geometry.AST
         Competences.Markdown.Geometry.Eval
         Competences.Markdown.Geometry.Parser
+        Competences.Markdown.Validation
     build-depends:
         base ^>=4.21.0.0,
         containers,
@@ -44,6 +45,7 @@ test-suite competences-markdown-test
     other-modules:
         Test.Markdown.ParserTest
         Test.Markdown.GeometryTest
+        Test.Markdown.ValidationTest
     build-depends:
         base ^>=4.21.0.0,
         competences-markdown,

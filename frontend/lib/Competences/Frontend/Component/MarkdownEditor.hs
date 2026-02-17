@@ -8,6 +8,10 @@
 --
 -- The component only propagates valid parses to the parent, so the parent
 -- always holds a well-formed 'RichContent' value.
+--
+-- Validation (markdown + geometry blocks) is debounced: errors are only
+-- computed after 1 second of typing silence, avoiding wasteful re-parses
+-- on every keystroke.
 module Competences.Frontend.Component.MarkdownEditor
   ( -- * Stateless view helper
     markdownTextarea
@@ -23,7 +27,9 @@ import Competences.Frontend.Component.RichContent (renderMarkdownText)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Parser qualified as Markdown
+import Competences.Markdown.Validation (ValidationError (..), validateMarkdown)
 import Competences.TaskContent.RichContent (RichContent, fromTrustedInput, toRawText)
+import Control.Concurrent (threadDelay)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -37,11 +43,10 @@ import Optics.Core qualified as O
 -- Stateless view helpers
 -- ============================================================================
 
--- | A markdown textarea with parse error display.
+-- | A markdown textarea (no inline validation).
 --
--- Extracted from 'markdownEditorView' so it can be reused (e.g. inside
--- 'richContentEditorComponent').  Extra attributes (e.g. an id for
--- refocus-target) can be passed via the first parameter.
+-- Renders a textarea with optional error-border styling. Validation errors
+-- are displayed separately by the component view.
 markdownTextarea
   :: [M.Attribute action]
   -- ^ Extra attributes for the textarea
@@ -51,27 +56,21 @@ markdownTextarea
   -- ^ Action constructor for text changes
   -> Text
   -- ^ Minimum height CSS value
+  -> Bool
+  -- ^ Whether to show error border
   -> M.View model action
-markdownTextarea extraAttrs rawText onTextChange minHeight =
-  let hasError = checkParseError rawText
-   in MH.div_
-        []
-        [ MH.textarea_
-            ( [ class_ $
-                  "w-full px-3 py-2 border rounded-md bg-background font-mono text-sm resize-y"
-                    <> (if hasError then " border-red-300" else " border-input")
-              , MP.value_ (ms rawText)
-              , MH.onInput (onTextChange . M.fromMisoString)
-              , MC.style_ [("min-height", ms minHeight)]
-              ]
-                <> extraAttrs
-            )
-            []
-        , -- Show parse error below textarea
-          if hasError
-            then parseErrorBox rawText
-            else M.text ""
-        ]
+markdownTextarea extraAttrs rawText onTextChange minHeight hasError =
+  MH.textarea_
+    ( [ class_ $
+          "w-full px-3 py-2 border rounded-md bg-background font-mono text-sm resize-y"
+            <> (if hasError then " border-red-300" else " border-input")
+      , MP.value_ (ms rawText)
+      , MH.onInput (onTextChange . M.fromMisoString)
+      , MC.style_ [("min-height", ms minHeight)]
+      ]
+        <> extraAttrs
+    )
+    []
 
 -- ============================================================================
 -- RichContent editor component
@@ -85,6 +84,10 @@ data RichContentEditorModel = RichContentEditorModel
   -- ^ Edit/preview toggle state
   , validContent :: !RichContent
   -- ^ Bound to parent — only updated when parse succeeds
+  , validationGen :: !Int
+  -- ^ Generation counter for debouncing validation
+  , validationErrors :: ![ValidationError]
+  -- ^ Last validation result
   }
   deriving (Eq, Generic)
 
@@ -94,6 +97,8 @@ data RichContentEditorAction
     RCSetText !Text
   | -- | Toggle edit / preview
     RCTogglePreview
+  | -- | Debounced validation trigger (carries generation counter)
+    RCValidate !Int
   deriving (Eq, Show)
 
 -- | A self-contained Miso component for editing 'RichContent'.
@@ -102,6 +107,10 @@ data RichContentEditorAction
 -- parent's 'RichContent' field.  The component manages its own raw-text buffer
 -- and preview toggle.  Only valid parses are propagated to the parent via a
 -- child-to-parent binding (@\<---@).
+--
+-- Validation is debounced: after each keystroke, a 1-second timer is started.
+-- If no further keystrokes arrive, validation runs and errors are displayed.
+-- Stale timers are discarded via a generation counter.
 --
 -- @
 -- componentA "rc-editor" []
@@ -114,6 +123,7 @@ richContentEditorComponent
 richContentEditorComponent initialContent parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #validContent]
+    , M.initialAction = Just (RCValidate 0)
     }
   where
     model =
@@ -121,16 +131,34 @@ richContentEditorComponent initialContent parentLens =
         { rawText = toRawText initialContent
         , previewing = False
         , validContent = initialContent
+        , validationGen = 0
+        , validationErrors = []
         }
 
     update (RCSetText txt) = do
-      M.modify $ \m -> m{rawText = txt}
-      case Markdown.parseMarkdown txt of
-        Right _doc -> M.modify $ \m -> m{validContent = fromTrustedInput txt}
-        Left _err -> pure () -- keep last valid value
+      m <- M.get
+      let gen = m.validationGen + 1
+      M.modify $ \m' -> m'{rawText = txt, validationGen = gen}
+      -- Schedule debounced validation
+      M.io $ do
+        threadDelay 1000000
+        pure (RCValidate gen)
 
     update RCTogglePreview =
       M.modify $ \m -> m{previewing = not m.previewing}
+
+    update (RCValidate gen) = do
+      m <- M.get
+      -- Only run if this is the most recent generation (not stale)
+      if gen /= m.validationGen
+        then pure ()
+        else do
+          let errors = validateMarkdown m.rawText
+          M.modify $ \m' -> m'{validationErrors = errors}
+          -- Update validContent if markdown is valid
+          case Markdown.parseMarkdown m.rawText of
+            Right _doc -> M.modify $ \m' -> m'{validContent = fromTrustedInput m.rawText}
+            Left _err -> pure ()
 
     view m =
       MH.div_
@@ -146,8 +174,23 @@ richContentEditorComponent initialContent parentLens =
         , -- Content area
           if m.previewing
             then previewView (toRawText m.validContent) "150px"
-            else markdownTextarea [] m.rawText RCSetText "150px"
+            else editView m
         ]
+
+-- | Edit view: textarea + validation errors
+editView :: RichContentEditorModel -> M.View RichContentEditorModel RichContentEditorAction
+editView m =
+  MH.div_
+    []
+    [ markdownTextarea [] m.rawText RCSetText "150px" (not $ null m.validationErrors)
+    , -- Show validation errors below textarea
+      if null m.validationErrors
+        then M.text ""
+        else
+          MH.div_
+            [class_ "mt-2 space-y-1"]
+            (map validationErrorView m.validationErrors)
+    ]
 
 -- ============================================================================
 -- Shared helpers
@@ -163,18 +206,11 @@ previewView rawText minHeight =
     [ renderMarkdownText rawText
     ]
 
--- | Check if text has a parse error
-checkParseError :: Text -> Bool
-checkParseError t = case Markdown.parseMarkdown t of
-  Left _ -> True
-  Right _ -> False
-
--- | Show a styled parse error box
-parseErrorBox :: Text -> M.View model action
-parseErrorBox raw =
-  case Markdown.parseMarkdown raw of
-    Left err ->
-      MH.div_
-        [class_ "mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs font-mono whitespace-pre-wrap"]
-        [M.text $ ms $ Markdown.formatParseError err]
-    Right _ -> M.text ""
+-- | Render a single validation error with its context label
+validationErrorView :: ValidationError -> M.View model action
+validationErrorView err =
+  MH.div_
+    [class_ "p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs font-mono whitespace-pre-wrap"]
+    [ MH.span_ [class_ "font-semibold"] [M.text $ ms $ err.context <> ": "]
+    , M.text $ ms err.message
+    ]
