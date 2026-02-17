@@ -11,7 +11,6 @@ import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
 import Miso qualified as M
 
@@ -41,6 +40,6 @@ resourceEditorComponent r =
         (detailView m.selected)
 
     detailView Nothing =
-      Typography.muted (C.translate' C.LblPleaseSelectItem)
+      Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just resource) =
       editorDetailView r resource

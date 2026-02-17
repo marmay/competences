@@ -110,7 +110,7 @@ detailPanel r canEdit _defaultMode m
   | m.bulkEditorActive =
       V.component "bulk-evidence-editor" (bulkEvidenceEditorComponent r)
   | otherwise = case m.selectedEvidence of
-      Nothing -> Typography.muted (C.translate' C.LblPleaseSelectItem)
+      Nothing -> V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
       Just evidence ->
         V.vFlow (V.gapM <> V.wFull <> V.crossStart)
           [ if canEdit then modeSwitcher m else V.empty

@@ -49,6 +49,7 @@ module Competences.Frontend.View.Layout
   , fixedWidth
   , flexGrow
   , centeredContent
+  , centeredPlaceholder
   , sideMenu
   )
 where
@@ -232,6 +233,13 @@ flexGrow v = M.div_ [class_ "flex-grow w-full"] [v]
 
 centeredContent :: M.View m a -> M.View m a
 centeredContent v = M.div_ [class_ "w-full h-full min-h-0 flex justify-center"] [v]
+
+-- | Centered placeholder text for empty content areas (e.g., "please select an item")
+centeredPlaceholder :: M.MisoString -> M.View m a
+centeredPlaceholder msg =
+  M.div_
+    [class_ "w-full h-full min-h-0 flex items-center justify-center"]
+    [M.span_ [class_ "text-sm text-muted-foreground"] [M.text msg]]
 
 hScrollable, vScrollable :: M.View m a -> M.View m a
 hScrollable = addClass "overflow-x-scroll min-w-0"

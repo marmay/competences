@@ -13,7 +13,7 @@ import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSel
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty (..))
 import Miso qualified as M
 
@@ -46,7 +46,7 @@ assignmentComponent r user =
           AssignmentView -> Just Icon.IcnView
       , SD.availableModes = availableModes
       , SD.defaultMode = defaultMode
-      , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
+      , SD.emptyView = Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
       }
   where
     -- Teachers get Edit + View modes, students only get View mode

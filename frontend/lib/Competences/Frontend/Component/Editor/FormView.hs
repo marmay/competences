@@ -24,7 +24,7 @@ editorFormView onMissing title toText viewData =
 
 editorFormView' :: Foldable f => M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
 editorFormView' = editorFormView onMissing
-  where onMissing = V.text_ (C.translate' C.LblPleaseSelectItem)
+  where onMissing = V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
 
 editorFormViewS :: M.MisoString -> (n -> M.MisoString) -> EditorView a patch Solo n
 editorFormViewS title toText viewData =

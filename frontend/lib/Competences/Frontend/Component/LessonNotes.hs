@@ -12,7 +12,7 @@ import Competences.Frontend.Component.Selector.LessonNotesSelector (lessonNotesS
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty)
 import Miso qualified as M
 
@@ -46,5 +46,5 @@ lessonNotesComponent r defaultMode availableModes canCreate =
           LessonNotesView -> Just Icon.IcnView
       , SD.availableModes = availableModes
       , SD.defaultMode = defaultMode
-      , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
+      , SD.emptyView = Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
       }

@@ -18,7 +18,7 @@ import Competences.Frontend.Component.Selector.CompetenceGridSelector
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty)
 import Miso qualified as M
 
@@ -70,5 +70,5 @@ competenceGridComponent r initialMode availableModes =
           GridGrading -> Just Icon.IcnEvidence
       , SD.availableModes = availableModes
       , SD.defaultMode = initialMode
-      , SD.emptyView = Typography.muted (C.translate' C.LblPleaseSelectItem)
+      , SD.emptyView = Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
       }
