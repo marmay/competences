@@ -289,6 +289,9 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
     -- Prevents XSS attacks by restricting script/style sources
     H.meta ! A.httpEquiv "Content-Security-Policy" ! A.content (H.toValue cspHeaderValue)
     H.title "Meine Mathe-Kompetenzen"
+    -- Favicon (inline SVG - competence grid icon in sky-600)
+    H.link ! A.rel "icon" ! A.type_ "image/svg+xml"
+      ! A.href "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='1.5'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>"
     -- Load Tailwind CSS + Basecoat (single unified build)
     let outputCssUrl = "/static/output.css?v=" <> outputCssHash
     H.link ! A.rel "stylesheet" ! A.href (H.toValue outputCssUrl)
