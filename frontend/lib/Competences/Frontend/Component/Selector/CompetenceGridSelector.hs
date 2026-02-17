@@ -101,12 +101,12 @@ competenceGridSelectorComponent r style parentLens =
         Just c' -> m & (#selectedCompetenceGrid ?~ c') & (#newCompetenceGrid .~ Nothing)
         Nothing -> m & (#newCompetenceGrid ?~ c)
 
-    update CreateNewCompetenceGrid =
-      M.io $ do
-        competenceGridId <- nextId r
-        let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
-        modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create competenceGrid)
-        pure (SelectCompetenceGrid competenceGrid)
+    update CreateNewCompetenceGrid = M.withSink $ \s -> do
+      competenceGridId <- nextId r
+      let competenceGrid = CompetenceGrid competenceGridId orderMax "" ""
+      modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create competenceGrid)
+      s ToggleDropdown
+      s (SelectCompetenceGrid competenceGrid)
 
     update (ProjectionChanged change) =
       M.modify $ updateFromProjection change.projection

@@ -123,6 +123,7 @@ assignmentSelectorComponent r parentLens =
       let today = syncDocumentEnv r ^. #currentDay
       let newAssignment = mkAssignment assignmentId (AssignmentName "") today
       modifySyncDocument r $ Assignments (OnAssignments (CreateAndLock newAssignment))
+      s ToggleDropdown
       s (SelectAssignment newAssignment)
 
     update (SetSearchQuery q) = M.modify $ \m ->
