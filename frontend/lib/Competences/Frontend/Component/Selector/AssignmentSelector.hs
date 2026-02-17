@@ -102,8 +102,11 @@ data Action
   deriving (Eq, Show)
 
 assignmentSelectorComponent
-  :: SyncContext -> Lens' p (Maybe Assignment) -> M.Component p Model Action
-assignmentSelectorComponent r parentLens =
+  :: SyncContext
+  -> Maybe (Ix.IxSet AssignmentIxs Assignment -> Maybe Assignment)
+  -> Lens' p (Maybe Assignment)
+  -> M.Component p Model Action
+assignmentSelectorComponent r initialSelection parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedAssignment]
     , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
@@ -135,7 +138,12 @@ assignmentSelectorComponent r parentLens =
       m & #searchQuery .~ q
 
     update (ProjectionChanged change) =
-      M.modify $ #projection .~ change.projection
+      M.modify $ \m ->
+        let m' = m & #projection .~ change.projection
+         in case (change.changeInfo, m'.selectedAssignment, initialSelection) of
+              (InitialSnapshot, Nothing, Just f) ->
+                m' & #selectedAssignment .~ f change.projection.assignments
+              _ -> m'
 
     update ToggleDropdown = M.modify $ \m -> m & #isDropdownOpen .~ not m.isDropdownOpen
 

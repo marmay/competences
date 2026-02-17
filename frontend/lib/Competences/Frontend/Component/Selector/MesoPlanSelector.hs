@@ -8,7 +8,8 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), MesoPlan (..), MesoPlanIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
-  ( ProjectedChange (..)
+  ( ChangeInfo (..)
+  , ProjectedChange (..)
   , SyncContext (..)
   , modifySyncDocument
   , nextId
@@ -61,8 +62,11 @@ data Action
   deriving (Eq, Show)
 
 mesoPlanSelectorComponent
-  :: SyncContext -> Lens' p (Maybe MesoPlan) -> M.Component p Model Action
-mesoPlanSelectorComponent r parentLens =
+  :: SyncContext
+  -> Maybe (Ix.IxSet MesoPlanIxs MesoPlan -> Maybe MesoPlan)
+  -> Lens' p (Maybe MesoPlan)
+  -> M.Component p Model Action
+mesoPlanSelectorComponent r initialSelection parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedPlan]
     , M.subs = [subscribeWithProjection r selectorProjection ProjectionChanged]
@@ -102,9 +106,13 @@ mesoPlanSelectorComponent r parentLens =
             -- Update selected plan from new projection
             selectedPlan' = m.selectedPlan >>= \sel ->
               Ix.getOne (proj'.mesoPlans Ix.@= sel.id)
-         in m
+            m' = m
               & (#projection .~ proj')
               & (#selectedPlan .~ selectedPlan')
+         in case (change.changeInfo, m'.selectedPlan, initialSelection) of
+              (InitialSnapshot, Nothing, Just f) ->
+                m' & #selectedPlan .~ f proj'.mesoPlans
+              _ -> m'
 
     update ToggleDropdown = M.modify $ \m -> m & #isDropdownOpen .~ not m.isDropdownOpen
 

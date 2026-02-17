@@ -12,6 +12,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
+  , isInitialUpdate
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -46,8 +47,12 @@ data Action
   deriving (Eq, Show)
 
 lessonNotesSelectorComponent
-  :: SyncContext -> Bool -> Lens' p (Maybe LessonNotes) -> M.Component p Model Action
-lessonNotesSelectorComponent r canCreate parentLens =
+  :: SyncContext
+  -> Bool
+  -> Maybe (Ix.IxSet LessonNotesIxs LessonNotes -> Maybe LessonNotes)
+  -> Lens' p (Maybe LessonNotes)
+  -> M.Component p Model Action
+lessonNotesSelectorComponent r canCreate initialSelection parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -81,11 +86,15 @@ lessonNotesSelectorComponent r canCreate parentLens =
                 Just ln' -> Just ln'
                 Nothing -> m.newItem
             Nothing -> Nothing
-       in m
+          m' = m
             { allNotes = allNotes'
             , selectedItem = validatedSelected
             , newItem = validatedNew
             }
+       in case (isInitialUpdate dc.change, m'.selectedItem, initialSelection) of
+            (True, Nothing, Just f) ->
+              m' {selectedItem = f allNotes'}
+            _ -> m'
 
     view' m =
       M.div_

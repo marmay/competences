@@ -9,7 +9,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Planning.DetailView (detailView)
 import Competences.Frontend.Component.Selector.MesoPlanSelector (mesoPlanSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
+import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List.NonEmpty (NonEmpty (..))
@@ -30,6 +31,7 @@ planningComponent r =
     SD.SelectorDetailConfig
       { SD.selectorId = "planning"
       , SD.selectorComponent = mesoPlanSelectorComponent r
+          (Just $ QDefault.defaultMesoPlan r.env.currentDay)
       , SD.detailView = \mode plan -> case mode of
           PlanningEdit -> detailView r plan
       , SD.modeLabel = \case

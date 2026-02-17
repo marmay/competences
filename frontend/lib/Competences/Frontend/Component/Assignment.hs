@@ -10,8 +10,9 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EditorDetail (editorDetailView)
 import Competences.Frontend.Component.Assignment.ViewerDetail (viewerDetailView)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
+import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty (..))
@@ -35,6 +36,7 @@ assignmentComponent r user =
     SD.SelectorDetailConfig
       { SD.selectorId = "assignment"
       , SD.selectorComponent = assignmentSelectorComponent r
+          (Just $ QDefault.defaultAssignment r.env.currentDay)
       , SD.detailView = \mode assignment -> case mode of
           AssignmentEdit -> editorDetailView r assignment
           AssignmentView -> viewerDetailView r user assignment

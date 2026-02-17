@@ -10,7 +10,8 @@ import Competences.Frontend.Component.LessonNotes.EditorDetail (editorDetailView
 import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewerDetailView)
 import Competences.Frontend.Component.Selector.LessonNotesSelector (lessonNotesSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
+import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty)
@@ -35,6 +36,7 @@ lessonNotesComponent r defaultMode availableModes canCreate =
     SD.SelectorDetailConfig
       { SD.selectorId = "lesson-notes"
       , SD.selectorComponent = lessonNotesSelectorComponent r canCreate
+          (Just $ QDefault.defaultLessonNotes r.env.currentDay)
       , SD.detailView = \mode ln -> case mode of
           LessonNotesEdit -> editorDetailView r ln
           LessonNotesView -> viewerDetailView r ln

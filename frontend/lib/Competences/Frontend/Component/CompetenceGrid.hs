@@ -17,6 +17,7 @@ import Competences.Frontend.Component.Selector.CompetenceGridSelector
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.List.NonEmpty (NonEmpty)
@@ -51,7 +52,7 @@ competenceGridComponent r initialMode availableModes =
                 if GridEdit `elem` availableModes
                   then CompetenceGridSelectorViewAndCreateStyle
                   else CompetenceGridSelectorViewOnlyStyle
-           in competenceGridSelectorComponent r style sel
+           in competenceGridSelectorComponent r style (Just QDefault.defaultCompetenceGrid) sel
       , SD.detailView = \mode grid ->
           case mode of
             GridView -> viewerDetailView r grid

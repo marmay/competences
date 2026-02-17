@@ -19,7 +19,8 @@ import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
-  ( ProjectedChange (..)
+  ( ChangeInfo (..)
+  , ProjectedChange (..)
   , SyncContext (..)
   , modifySyncDocument
   , nextId
@@ -81,9 +82,10 @@ data CompetenceGridSelectorStyle
 competenceGridSelectorComponent
   :: SyncContext
   -> CompetenceGridSelectorStyle
+  -> Maybe (Ix.IxSet CompetenceGridIxs CompetenceGrid -> Maybe CompetenceGrid)
   -> Lens' p (Maybe CompetenceGrid)
   -> M.Component p Model Action
-competenceGridSelectorComponent r style parentLens =
+competenceGridSelectorComponent r style initialSelection parentLens =
   (M.component model update view)
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedCompetenceGrid]
     , M.subs = [subscribeWithProjection r gridSelectorProjection ProjectionChanged]
@@ -109,7 +111,12 @@ competenceGridSelectorComponent r style parentLens =
       s (SelectCompetenceGrid competenceGrid)
 
     update (ProjectionChanged change) =
-      M.modify $ updateFromProjection change.projection
+      M.modify $ \m ->
+        let m' = updateFromProjection change.projection m
+         in case (change.changeInfo, m'.selectedCompetenceGrid, initialSelection) of
+              (InitialSnapshot, Nothing, Just f) ->
+                m' & #selectedCompetenceGrid .~ f change.projection.allGrids
+              _ -> m'
 
     update ToggleDropdown =
       M.modify $ \m -> m & #isDropdownOpen .~ not m.isDropdownOpen

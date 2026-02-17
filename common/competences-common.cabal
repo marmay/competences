@@ -76,6 +76,7 @@ library
         Competences.Import.Types
         Competences.Protocol
         Competences.Query.Assignment
+        Competences.Query.DefaultSelection
         Competences.Query.Competence
         Competences.Query.CompetenceAssessment
         Competences.Query.CompetenceGrid
