@@ -19,6 +19,7 @@ source-repository-package
 
 -- Local miso checkout with component leak fix + scheduler crash fix
 source-repository-package
+  --sha256: 18gh0svvhrm2gr6jb6pbqizw6sri85ry9slfc3a13gm21xvjza4q
   type: git
   location: https://github.com/marmay/miso
   tag: 6395a4821d22fd0baec14d7f32ce816bedde7c4e
