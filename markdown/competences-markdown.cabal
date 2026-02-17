@@ -21,11 +21,13 @@ library
         Competences.Markdown.Parser.Block
         Competences.Markdown.Parser.Inline
         Competences.Markdown.Geometry.AST
+        Competences.Markdown.Geometry.Eval
         Competences.Markdown.Geometry.Parser
     build-depends:
         base ^>=4.21.0.0,
         containers,
         megaparsec,
+        mtl,
         parser-combinators,
         text
     hs-source-dirs:   lib
@@ -41,9 +43,11 @@ test-suite competences-markdown-test
     main-is:          Main.hs
     other-modules:
         Test.Markdown.ParserTest
+        Test.Markdown.GeometryTest
     build-depends:
         base ^>=4.21.0.0,
         competences-markdown,
+        containers,
         tasty,
         tasty-hunit,
         text

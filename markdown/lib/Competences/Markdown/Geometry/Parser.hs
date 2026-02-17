@@ -1,14 +1,19 @@
 -- |
 -- Module      : Competences.Markdown.Geometry.Parser
--- Description : Parser for the geometry DSL
+-- Description : Parser for the geometry DSL (V1)
 --
--- Parses line-oriented geometry commands from fenced code blocks.
+-- Keyword-dispatch parser. The @labeled@ suffix is desugared here into
+-- separate 'Draw' + 'Label' commands — the AST and evaluator never see it.
 --
 -- @
--- point A (0, 0)
--- point B (4, 0)
--- segment A B
--- label A "A" below-left
+-- defPoint A (0, 0)
+-- defPointBy M (midpoint A B)
+-- defSegment c A -- B
+-- drawPoint A labeled "A" below-left
+-- drawSegment A -- B labeled "c" below 0.4
+-- axes {
+--   dashed { drawSegment M -- C }
+-- }
 -- @
 module Competences.Markdown.Geometry.Parser
   ( parseGeometry
@@ -25,106 +30,232 @@ import Text.Megaparsec.Char.Lexer qualified as L
 
 type Parser = Parsec Void Text
 
--- | Parse geometry DSL text into a scene
-parseGeometry :: Text -> Either (ParseErrorBundle Text Void) GeometryScene
+-- | Parse geometry DSL text into a list of commands
+parseGeometry :: Text -> Either (ParseErrorBundle Text Void) [Command]
 parseGeometry input
-  | T.null (T.strip input) = Right (GeometryScene [])
-  | otherwise = parse sceneP "geometry" input
+  | T.null (T.strip input) = Right []
+  | otherwise = parse (commandsP <* ws <* eof) "geometry" input
 
-sceneP :: Parser GeometryScene
-sceneP = do
-  skipMany blankLine
-  cmds <- sepEndBy commandP (some blankLine <|> (eof *> pure []))
-  eof
-  pure $ GeometryScene cmds
+-- | Parse zero or more commands (top-level or inside a block).
+-- Uses 'try' so that whitespace consumed before a failed command attempt
+-- is rolled back, allowing the caller to see @}@ or EOF.
+commandsP :: Parser [Command]
+commandsP = concat <$> many (try (ws *> commandP))
+
+-- | Parse a single command. Returns a list because @labeled@ desugars to two.
+commandP :: Parser [Command]
+commandP = do
+  kw <- lexeme keywordP
+  case kw of
+    "defPoint" -> one <$> defPointP
+    "defPointBy" -> one <$> defPointByP
+    "defSegment" -> one <$> defSegmentP
+    "drawPoint" -> drawPointP
+    "drawSegment" -> drawSegmentP
+    "labelPoint" -> one <$> labelPointP
+    "labelSegment" -> one <$> labelSegmentP
+    -- Modifier blocks
+    "color" -> one <$> colorBlockP
+    "dashed" -> one <$> modifierBlockP (EnvMod SetDashed)
+    "thick" -> one <$> modifierBlockP (EnvMod SetThick)
+    "thin" -> one <$> modifierBlockP (EnvMod SetThin)
+    "axes" -> one <$> modifierBlockP (AutoDec Axes)
+    "grid" -> one <$> modifierBlockP (AutoDec Grid)
+    "labelAll" -> one <$> labelAllBlockP
+    "background" -> one <$> modifierBlockP (LayerMod Background)
+    "foreground" -> one <$> modifierBlockP (LayerMod Foreground)
+    _ -> fail $ "Unknown command: " <> T.unpack kw
   where
-    blankLine = hspace *> newline
+    one x = [x]
 
-commandP :: Parser GeometryCommand
-commandP =
-  hspace
-    *> choice
-      [ pointP
-      , segmentP
-      , lineP
-      , circleP
-      , angleP
-      , labelP
-      ]
+-- -----------------------------------------------------------------
+-- Definition commands
+-- -----------------------------------------------------------------
 
-pointP :: Parser GeometryCommand
-pointP = do
-  _ <- string "point"
-  hspace1
-  name <- nameP
-  hspace1
-  _ <- char '('
-  hspace
-  x <- doubleP
-  hspace
-  _ <- char ','
-  hspace
-  y <- doubleP
-  hspace
-  _ <- char ')'
-  pure $ DefinePoint name (Coord x y)
+-- | @defPoint A (x, y)@
+defPointP :: Parser Command
+defPointP = do
+  name <- lexeme nameP
+  vec <- vec2P
+  pure $ DefPoint name vec
 
-segmentP :: Parser GeometryCommand
-segmentP = do
-  _ <- string "segment"
-  hspace1
-  a <- nameP
-  hspace1
-  b <- nameP
-  pure $ DrawSegment a b
+-- | @defPointBy M (construction ...)@
+defPointByP :: Parser Command
+defPointByP = do
+  name <- lexeme nameP
+  constr <- constructionP
+  pure $ DefPointBy name constr
 
-lineP :: Parser GeometryCommand
-lineP = do
-  _ <- string "line"
-  hspace1
-  a <- nameP
-  hspace1
-  b <- nameP
-  pure $ DrawLine a b
+-- | @defSegment s A -- B@
+defSegmentP :: Parser Command
+defSegmentP = do
+  name <- lexeme nameP
+  a <- lexeme nameP
+  _ <- lexeme (string "--")
+  b <- lexeme nameP
+  pure $ DefSegment name a b
 
-circleP :: Parser GeometryCommand
-circleP = do
-  _ <- string "circle"
-  hspace1
-  center <- nameP
-  hspace1
-  radius <- doubleP
-  pure $ DrawCircle center radius
+-- -----------------------------------------------------------------
+-- Draw commands (with optional labeled suffix)
+-- -----------------------------------------------------------------
 
-angleP :: Parser GeometryCommand
-angleP = do
-  _ <- string "angle"
-  hspace1
-  a <- nameP
-  hspace1
-  b <- nameP
-  hspace1
-  c <- nameP
-  pure $ DrawAngle a b c
+-- | @drawPoint A@ or @drawPoint A labeled "A" below-left@
+drawPointP :: Parser [Command]
+drawPointP = do
+  name <- lexeme nameP
+  mLabel <- optional (lexeme (string "labeled") *> pointLabelTailP name)
+  pure $ [Draw (DrawPoint name)] <> maybe [] (\lbl -> [Label lbl]) mLabel
 
-labelP :: Parser GeometryCommand
-labelP = do
-  _ <- string "label"
-  hspace1
-  name <- nameP
-  hspace1
-  _ <- char '"'
-  txt <- takeWhileP (Just "label text") (/= '"')
-  _ <- char '"'
-  hspace1
-  pos <- labelPositionP
-  pure $ Label name txt pos
+-- | @drawSegment s@ or @drawSegment A -- B@, with optional @labeled@
+drawSegmentP :: Parser [Command]
+drawSegmentP = do
+  name1 <- lexeme nameP
+  segRef <-
+    (lexeme (string "--") *> (SegInline name1 <$> lexeme nameP))
+      <|> pure (SegByName name1)
+  mLabel <- optional (lexeme (string "labeled") *> segmentLabelTailP segRef)
+  pure $ [Draw (DrawSegment segRef)] <> maybe [] (\lbl -> [Label lbl]) mLabel
 
+-- -----------------------------------------------------------------
+-- Label commands
+-- -----------------------------------------------------------------
+
+-- | @labelPoint A "text" above@
+labelPointP :: Parser Command
+labelPointP = do
+  name <- lexeme nameP
+  lbl <- pointLabelTailP name
+  pure $ Label lbl
+
+-- | @labelSegment s "text" above 0.4@ or @labelSegment A -- B "text" above@
+labelSegmentP :: Parser Command
+labelSegmentP = do
+  name1 <- lexeme nameP
+  segRef <-
+    (lexeme (string "--") *> (SegInline name1 <$> lexeme nameP))
+      <|> pure (SegByName name1)
+  lbl <- segmentLabelTailP segRef
+  pure $ Label lbl
+
+-- -----------------------------------------------------------------
+-- Label tail parsers (shared by draw-labeled and label commands)
+-- -----------------------------------------------------------------
+
+-- | Parse @"text" position@ for a point label
+pointLabelTailP :: Name -> Parser LabelPrimitive
+pointLabelTailP name = do
+  txt <- lexeme quotedTextP
+  pos <- lexeme labelPositionP
+  pure $ LabelAtPoint name txt pos
+
+-- | Parse @"text" side [fraction]@ for a segment label
+segmentLabelTailP :: SegmentRef -> Parser LabelPrimitive
+segmentLabelTailP ref = do
+  txt <- lexeme quotedTextP
+  side <- lexeme segmentSideP
+  frac <- option 0.5 (lexeme doubleP)
+  pure $ LabelOnSegment ref txt side frac
+
+-- -----------------------------------------------------------------
+-- Point constructions
+-- -----------------------------------------------------------------
+
+-- | Parse a parenthesized point construction
+constructionP :: Parser PointConstruction
+constructionP = between (lexeme (char '(')) (char ')') innerConstructionP
+
+innerConstructionP :: Parser PointConstruction
+innerConstructionP = do
+  kw <- lexeme keywordP
+  case kw of
+    "midpoint" -> do
+      a <- lexeme nameP
+      b <- lexeme nameP
+      pure $ Midpoint a b
+    "lerp" -> do
+      a <- lexeme nameP
+      b <- lexeme nameP
+      t <- lexeme doubleP
+      pure $ Lerp a b t
+    "rotate" -> do
+      center <- lexeme nameP
+      degrees <- lexeme doubleP
+      p <- lexeme nameP
+      pure $ Rotate center degrees p
+    "reflect" -> do
+      ref <- lexeme lineRefP
+      p <- lexeme nameP
+      pure $ Reflect ref p
+    "translate" -> do
+      v <- lexeme vec2P
+      p <- lexeme nameP
+      pure $ Translate v p
+    _ -> fail $ "Unknown construction: " <> T.unpack kw
+
+-- | Parse @(line A B)@
+lineRefP :: Parser LineRef
+lineRefP = between (lexeme (char '(')) (lexeme (char ')')) $ do
+  _ <- lexeme (string "line")
+  a <- lexeme nameP
+  b <- lexeme nameP
+  pure $ LineThrough a b
+
+-- -----------------------------------------------------------------
+-- Modifier blocks
+-- -----------------------------------------------------------------
+
+-- | @color <name> { ... }@
+colorBlockP :: Parser Command
+colorBlockP = do
+  name <- lexeme nameP
+  modifierBlockP (EnvMod (SetColor (NamedColor name)))
+
+-- | @labelAll <position> { ... }@
+labelAllBlockP :: Parser Command
+labelAllBlockP = do
+  pos <- lexeme labelPositionP
+  modifierBlockP (AutoDec (LabelAll pos))
+
+-- | Parse @{ commands }@ with a given modifier
+modifierBlockP :: Modifier -> Parser Command
+modifierBlockP modifier = do
+  _ <- lexeme (char '{')
+  cmds <- commandsP
+  ws
+  _ <- char '}'
+  pure $ ModifierBlock modifier cmds
+
+-- -----------------------------------------------------------------
+-- Primitives
+-- -----------------------------------------------------------------
+
+-- | Parse a parenthesized (x, y) coordinate
+vec2P :: Parser Vec2
+vec2P = between (lexeme (char '(')) (char ')') $ do
+  x <- lexeme doubleP
+  _ <- lexeme (char ',')
+  y <- lexeme doubleP
+  pure $ Vec2 x y
+
+-- | Keyword: sequence of alphanumeric characters (no underscores — those are names)
+keywordP :: Parser Text
+keywordP = T.pack <$> some alphaNumChar
+
+-- | Name: alphanumeric + underscores
 nameP :: Parser Name
 nameP = T.pack <$> some (alphaNumChar <|> char '_')
 
+-- | Quoted string: @"text"@
+quotedTextP :: Parser Text
+quotedTextP = do
+  _ <- char '"'
+  txt <- takeWhileP (Just "label text") (/= '"')
+  _ <- char '"'
+  pure txt
+
+-- | Double literal (signed, supports both integer and decimal notation)
 doubleP :: Parser Double
-doubleP = L.signed hspace L.float <|> (fromIntegral <$> L.signed hspace (L.decimal :: Parser Int))
+doubleP = L.signed hspace (try L.float <|> (fromIntegral <$> (L.decimal :: Parser Int)))
 
 labelPositionP :: Parser LabelPosition
 labelPositionP =
@@ -138,3 +269,18 @@ labelPositionP =
     , LeftOf <$ string "left"
     , RightOf <$ string "right"
     ]
+
+segmentSideP :: Parser SegmentSide
+segmentSideP =
+  choice
+    [ SegAbove <$ string "above"
+    , SegBelow <$ string "below"
+    ]
+
+-- | Consume horizontal whitespace + newlines (used between commands)
+ws :: Parser ()
+ws = L.space space1 empty empty
+
+-- | Consume trailing horizontal whitespace after a token
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme (L.space hspace1 empty empty)

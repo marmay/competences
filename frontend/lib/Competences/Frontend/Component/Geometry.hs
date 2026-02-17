@@ -1,10 +1,10 @@
 -- |
 -- Module      : Competences.Frontend.Component.Geometry
--- Description : SVG renderer for the geometry DSL
+-- Description : SVG renderer for the geometry DSL (V1)
 --
--- Converts a 'GeometryScene' (parsed from fenced code blocks with info
--- string @geometry@) into an SVG Miso view. Auto-computes viewBox from
--- point positions with padding.
+-- Converts geometry DSL text (parsed → evaluated → 'RenderResult') into an
+-- SVG Miso view. Renders three layers: background → main → foreground.
+-- Y-axis is flipped for mathematical convention (positive up).
 module Competences.Frontend.Component.Geometry
   ( renderGeometry
   , renderGeometryText
@@ -13,9 +13,8 @@ where
 
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
+import Competences.Markdown.Geometry.Eval (evalScene)
 import Competences.Markdown.Geometry.Parser (parseGeometry)
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
@@ -25,20 +24,26 @@ import Miso.String (ms)
 import Miso.Svg.Element qualified as Svg
 import Miso.Svg.Property qualified as SP
 
--- | Render a GeometryScene to an SVG Miso view
-renderGeometry :: GeometryScene -> M.View model action
-renderGeometry scene@(GeometryScene cmds) =
-  let points = collectPoints cmds
-      vb = computeViewBox points
+-- | Render a RenderResult to an SVG Miso view
+renderGeometry :: RenderResult -> M.View model action
+renderGeometry result =
+  let allPrims = background result <> main result <> foreground result
+      vb = computeViewBox allPrims
    in Svg.svg_
         [ class_ "geometry-scene mx-auto my-2"
         , SP.viewBox_ (ms vb)
         , width_ "400"
         , height_ "300"
         ]
-        (renderCommands points scene)
+        [ -- Background layer
+          Svg.g_ [class_ "geometry-bg"] (map renderPrimitive (background result))
+        , -- Main layer
+          Svg.g_ [class_ "geometry-main"] (map renderPrimitive (main result))
+        , -- Foreground layer
+          Svg.g_ [class_ "geometry-fg"] (map renderPrimitive (foreground result))
+        ]
 
--- | Parse geometry text and render, showing errors if parse fails
+-- | Parse geometry text, evaluate, and render. Shows errors if parse fails.
 renderGeometryText :: Text -> M.View model action
 renderGeometryText txt =
   case parseGeometry txt of
@@ -46,126 +51,150 @@ renderGeometryText txt =
       MH.div_
         [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
         [M.text $ ms ("Geometry parse error" :: Text)]
-    Right scene -> renderGeometry scene
+    Right cmds -> renderGeometry (evalScene cmds)
 
--- | Collect all named points from the commands
-collectPoints :: [GeometryCommand] -> Map Name Coord
-collectPoints = foldl' go Map.empty
-  where
-    go acc (DefinePoint name coord) = Map.insert name coord acc
-    go acc _ = acc
+-- -----------------------------------------------------------------
+-- ViewBox computation
+-- -----------------------------------------------------------------
 
--- | Compute SVG viewBox from points with padding
--- Returns "minX minY width height" string
-computeViewBox :: Map Name Coord -> Text
-computeViewBox points
-  | Map.null points = "-1 -1 2 2"
+-- | Compute SVG viewBox from all render primitives
+computeViewBox :: [RenderPrimitive] -> Text
+computeViewBox prims
+  | null vecs = "-1 -1 2 2"
   | otherwise =
-      let coords = Map.elems points
-          xs = map (\(Coord x _) -> x) coords
-          ys = map (\(Coord _ y) -> y) coords
-          minX = minimum xs
-          maxX = maximum xs
-          minY = minimum ys
-          maxY = maximum ys
-          -- Add padding (15% of range or at least 0.5)
-          rangeX = max 1 (maxX - minX)
-          rangeY = max 1 (maxY - minY)
+      let xs = [x | Vec2 x _ <- vecs]
+          ys = [y | Vec2 _ y <- vecs]
+          xMin = minimum xs
+          xMax = maximum xs
+          yMin = minimum ys
+          yMax = maximum ys
+          rangeX = max 1 (xMax - xMin)
+          rangeY = max 1 (yMax - yMin)
           padX = max 0.5 (rangeX * 0.15)
           padY = max 0.5 (rangeY * 0.15)
           -- SVG Y axis is flipped (positive down), so we negate Y
-          vbX = minX - padX
-          vbY = -(maxY + padY)
+          vbX = xMin - padX
+          vbY = -(yMax + padY)
           vbW = rangeX + 2 * padX
           vbH = rangeY + 2 * padY
        in T.pack $ show vbX <> " " <> show vbY <> " " <> show vbW <> " " <> show vbH
+  where
+    vecs = concatMap primVecs prims
 
--- | Render all commands to SVG elements
-renderCommands :: Map Name Coord -> GeometryScene -> [M.View model action]
-renderCommands points (GeometryScene cmds) = concatMap (renderCommand points) cmds
+-- | Extract all Vec2 positions from a render primitive
+primVecs :: RenderPrimitive -> [Vec2]
+primVecs = \case
+  RenderDot v _ -> [v]
+  RenderSegment v1 v2 _ -> [v1, v2]
+  RenderLabel v _ _ _ -> [v]
+  RenderAxisLine v1 v2 _ -> [v1, v2]
+  RenderTick v _ _ -> [v]
+  RenderGridLine v1 v2 _ -> [v1, v2]
 
-renderCommand :: Map Name Coord -> GeometryCommand -> [M.View model action]
-renderCommand points = \case
-  DefinePoint _name coord ->
-    -- Render point as a small filled circle
-    let (Coord x y) = coord
-     in [ Svg.circle_
-            [ SP.cx_ (ms $ show x)
-            , SP.cy_ (ms $ show (-y)) -- Flip Y axis
-            , SP.r_ "0.08"
-            , SP.fill_ "currentColor"
-            ]
-        ]
-  DrawSegment name1 name2 ->
-    case (Map.lookup name1 points, Map.lookup name2 points) of
-      (Just (Coord x1 y1), Just (Coord x2 y2)) ->
-        [ Svg.line_
-            [ SP.x1_ (ms $ show x1)
-            , SP.y1_ (ms $ show (-y1))
-            , SP.x2_ (ms $ show x2)
-            , SP.y2_ (ms $ show (-y2))
-            , SP.stroke_ "currentColor"
-            , SP.strokeWidth_ "0.04"
-            ]
-        ]
-      _ -> []
-  DrawLine name1 name2 ->
-    case (Map.lookup name1 points, Map.lookup name2 points) of
-      (Just (Coord x1 y1), Just (Coord x2 y2)) ->
-        let dx = x2 - x1
-            dy = y2 - y1
-            ext = 10.0 :: Double
-         in [ Svg.line_
-                [ SP.x1_ (ms $ show (x1 - ext * dx))
-                , SP.y1_ (ms $ show (-(y1 - ext * dy)))
-                , SP.x2_ (ms $ show (x2 + ext * dx))
-                , SP.y2_ (ms $ show (-(y2 + ext * dy)))
-                , SP.stroke_ "currentColor"
-                , SP.strokeWidth_ "0.03"
-                , SP.strokeDasharray_ "0.1,0.08"
-                ]
-            ]
-      _ -> []
-  DrawCircle centerName radius ->
-    case Map.lookup centerName points of
-      Just (Coord cx cy) ->
-        [ Svg.circle_
-            [ SP.cx_ (ms $ show cx)
-            , SP.cy_ (ms $ show (-cy))
-            , SP.r_ (ms $ show radius)
-            , SP.fill_ "none"
-            , SP.stroke_ "currentColor"
-            , SP.strokeWidth_ "0.04"
-            ]
-        ]
-      Nothing -> []
-  DrawAngle _name1 _name2 _name3 ->
-    -- Angle arcs are complex - placeholder for now
-    []
-  Label name txt pos ->
-    case Map.lookup name points of
-      Just coord -> [renderLabel txt coord pos]
-      Nothing -> []
+-- -----------------------------------------------------------------
+-- Primitive rendering
+-- -----------------------------------------------------------------
 
--- | Render a text label at a position relative to a coordinate
-renderLabel :: Text -> Coord -> LabelPosition -> M.View model action
-renderLabel txt (Coord x y) pos =
-  let offset = 0.25 :: Double
-      (dx, dy, anchor) = case pos of
-        Above -> (0, -offset, "middle" :: Text)
-        Below -> (0, offset, "middle")
-        LeftOf -> (-offset, 0, "end")
-        RightOf -> (offset, 0, "start")
-        AboveLeft -> (-offset, -offset, "end")
-        AboveRight -> (offset, -offset, "start")
-        BelowLeft -> (-offset, offset, "end")
-        BelowRight -> (offset, offset, "start")
-   in Svg.text_
-        [ SP.x_ (ms $ show (x + dx))
-        , SP.y_ (ms $ show (-(y - dy)))
-        , M.textProp (ms ("text-anchor" :: Text)) (ms anchor)
-        , M.textProp (ms ("font-size" :: Text)) (ms ("0.35" :: Text))
-        , SP.fill_ "currentColor"
-        , M.textProp (ms ("dominant-baseline" :: Text)) (ms ("central" :: Text))
-        ]
-        [M.text (ms txt)]
+-- | Render a single primitive to SVG
+renderPrimitive :: RenderPrimitive -> M.View model action
+renderPrimitive = \case
+  RenderDot (Vec2 x y) env ->
+    Svg.circle_
+      [ SP.cx_ (ms $ show x)
+      , SP.cy_ (ms $ show (-y))
+      , SP.r_ "0.08"
+      , SP.fill_ (ms $ envColor env)
+      ]
+  RenderSegment (Vec2 x1 y1) (Vec2 x2 y2) env ->
+    Svg.line_
+      [ SP.x1_ (ms $ show x1)
+      , SP.y1_ (ms $ show (-y1))
+      , SP.x2_ (ms $ show x2)
+      , SP.y2_ (ms $ show (-y2))
+      , SP.stroke_ (ms $ envColor env)
+      , SP.strokeWidth_ (ms $ envStrokeWidth env)
+      , envDashAttr env
+      ]
+  RenderLabel (Vec2 x y) txt pos env ->
+    let (dx, dy, anchor) = labelOffset pos
+     in Svg.text_
+          [ SP.x_ (ms $ show (x + dx))
+          , SP.y_ (ms $ show (-(y - dy)))
+          , M.textProp (ms ("text-anchor" :: Text)) (ms anchor)
+          , M.textProp (ms ("font-size" :: Text)) (ms ("0.35" :: Text))
+          , SP.fill_ (ms $ envColor env)
+          , M.textProp (ms ("dominant-baseline" :: Text)) (ms ("central" :: Text))
+          ]
+          [M.text (ms txt)]
+  RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
+    Svg.line_
+      [ SP.x1_ (ms $ show x1)
+      , SP.y1_ (ms $ show (-y1))
+      , SP.x2_ (ms $ show x2)
+      , SP.y2_ (ms $ show (-y2))
+      , SP.stroke_ (ms $ envColor env)
+      , SP.strokeWidth_ "0.03"
+      ]
+  RenderTick (Vec2 x y) txt env ->
+    Svg.g_
+      []
+      [ -- Tick mark
+        Svg.line_
+          [ SP.x1_ (ms $ show x)
+          , SP.y1_ (ms $ show (-y - 0.08))
+          , SP.x2_ (ms $ show x)
+          , SP.y2_ (ms $ show (-y + 0.08))
+          , SP.stroke_ (ms $ envColor env)
+          , SP.strokeWidth_ "0.02"
+          ]
+      , -- Tick label
+        Svg.text_
+          [ SP.x_ (ms $ show x)
+          , SP.y_ (ms $ show (-y + 0.35))
+          , M.textProp (ms ("text-anchor" :: Text)) (ms ("middle" :: Text))
+          , M.textProp (ms ("font-size" :: Text)) (ms ("0.25" :: Text))
+          , SP.fill_ (ms $ envColor env)
+          ]
+          [M.text (ms txt)]
+      ]
+  RenderGridLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
+    Svg.line_
+      [ SP.x1_ (ms $ show x1)
+      , SP.y1_ (ms $ show (-y1))
+      , SP.x2_ (ms $ show x2)
+      , SP.y2_ (ms $ show (-y2))
+      , SP.stroke_ (ms $ envColor env)
+      , SP.strokeWidth_ "0.01"
+      ]
+
+-- -----------------------------------------------------------------
+-- Environment to SVG attributes
+-- -----------------------------------------------------------------
+
+envColor :: DrawEnv -> Text
+envColor env = case color env of
+  CurrentColor -> "currentColor"
+  NamedColor c -> c
+
+envStrokeWidth :: DrawEnv -> Text
+envStrokeWidth env = case lineWidth env of
+  ThinWidth -> "0.02"
+  NormalWidth -> "0.04"
+  ThickWidth -> "0.08"
+
+envDashAttr :: DrawEnv -> M.Attribute action
+envDashAttr env = case lineStyle env of
+  Solid -> SP.strokeDasharray_ "none"
+  Dashed -> SP.strokeDasharray_ "0.12,0.08"
+
+-- | Offset and anchor for label positions
+labelOffset :: LabelPosition -> (Double, Double, Text)
+labelOffset = \case
+  Above -> (0, -0.4, "middle")
+  Below -> (0, 0.4, "middle")
+  LeftOf -> (-0.4, 0, "end")
+  RightOf -> (0.4, 0, "start")
+  AboveLeft -> (-0.3, -0.3, "end")
+  AboveRight -> (0.3, -0.3, "start")
+  BelowLeft -> (-0.3, 0.3, "end")
+  BelowRight -> (0.3, 0.3, "start")

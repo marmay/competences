@@ -1,0 +1,331 @@
+-- |
+-- Module      : Competences.Markdown.Geometry.Eval
+-- Description : Evaluator for the geometry DSL (V1)
+--
+-- Pure evaluation of 'Command' lists into 'RenderResult'.
+-- Uses State monad internally for point/segment maps and draw environment.
+-- Auto-decorators (axes, grid, labelAll) inspect the render log.
+module Competences.Markdown.Geometry.Eval
+  ( evalScene
+  )
+where
+
+import Competences.Markdown.Geometry.AST
+import Control.Monad.State.Strict (State, gets, modify', runState)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as T
+
+-- | Evaluation state
+data EvalState = EvalState
+  { esPoints :: !(Map Name Vec2)
+  , esSegments :: !(Map Name (Name, Name))
+  , esDrawEnv :: !DrawEnv
+  }
+
+-- | Evaluation monad
+type Eval a = State EvalState a
+
+-- | Evaluate a list of commands into a three-layer render result
+evalScene :: [Command] -> RenderResult
+evalScene cmds =
+  let initState =
+        EvalState
+          { esPoints = Map.empty
+          , esSegments = Map.empty
+          , esDrawEnv = defaultDrawEnv
+          }
+      (result, _log) = fst $ runState (evalCommands cmds) initState
+   in result
+
+-- | Evaluate commands, returning render result and render log
+evalCommands :: [Command] -> Eval (RenderResult, RenderLog)
+evalCommands cmds = do
+  results <- mapM evalCommand cmds
+  pure $ mconcat results
+
+-- | Evaluate a single command
+evalCommand :: Command -> Eval (RenderResult, RenderLog)
+evalCommand = \case
+  DefPoint name vec -> do
+    modify' $ \s -> s {esPoints = Map.insert name vec (esPoints s)}
+    let lg = mempty {allPoints = Map.singleton name vec}
+    pure (mempty, lg)
+  DefPointBy name constr -> do
+    mVec <- evalConstruction constr
+    case mVec of
+      Nothing -> pure (mempty, mempty)
+      Just vec -> do
+        modify' $ \s -> s {esPoints = Map.insert name vec (esPoints s)}
+        let lg = mempty {allPoints = Map.singleton name vec}
+        pure (mempty, lg)
+  DefSegment name a b -> do
+    modify' $ \s -> s {esSegments = Map.insert name (a, b) (esSegments s)}
+    pure (mempty, mempty)
+  Draw prim -> evalDraw prim
+  Label prim -> evalLabel prim
+  ModifierBlock modifier children -> evalModifierBlock modifier children
+
+-- -----------------------------------------------------------------
+-- Point constructions
+-- -----------------------------------------------------------------
+
+evalConstruction :: PointConstruction -> Eval (Maybe Vec2)
+evalConstruction = \case
+  Midpoint a b -> do
+    pts <- gets esPoints
+    pure $ do
+      Vec2 ax ay <- Map.lookup a pts
+      Vec2 bx by <- Map.lookup b pts
+      Just $ Vec2 ((ax + bx) / 2) ((ay + by) / 2)
+  Lerp a b t -> do
+    pts <- gets esPoints
+    pure $ do
+      Vec2 ax ay <- Map.lookup a pts
+      Vec2 bx by <- Map.lookup b pts
+      Just $ Vec2 (ax + t * (bx - ax)) (ay + t * (by - ay))
+  Rotate center degrees point -> do
+    pts <- gets esPoints
+    pure $ do
+      Vec2 cx cy <- Map.lookup center pts
+      Vec2 px py <- Map.lookup point pts
+      let rad = degrees * pi / 180
+          dx = px - cx
+          dy = py - cy
+          cosR = cos rad
+          sinR = sin rad
+      Just $ Vec2 (cx + dx * cosR - dy * sinR) (cy + dx * sinR + dy * cosR)
+  Reflect (LineThrough a b) point -> do
+    pts <- gets esPoints
+    pure $ do
+      Vec2 ax ay <- Map.lookup a pts
+      Vec2 bx by <- Map.lookup b pts
+      Vec2 px py <- Map.lookup point pts
+      let dx = bx - ax
+          dy = by - ay
+          lenSq = dx * dx + dy * dy
+      if lenSq == 0
+        then Nothing
+        else do
+          let t = ((px - ax) * dx + (py - ay) * dy) / lenSq
+              projX = ax + t * dx
+              projY = ay + t * dy
+          Just $ Vec2 (2 * projX - px) (2 * projY - py)
+  Translate (Vec2 dx dy) point -> do
+    pts <- gets esPoints
+    pure $ do
+      Vec2 px py <- Map.lookup point pts
+      Just $ Vec2 (px + dx) (py + dy)
+
+-- -----------------------------------------------------------------
+-- Draw evaluation
+-- -----------------------------------------------------------------
+
+evalDraw :: DrawPrimitive -> Eval (RenderResult, RenderLog)
+evalDraw = \case
+  DrawPoint name -> do
+    pts <- gets esPoints
+    env <- gets esDrawEnv
+    case Map.lookup name pts of
+      Nothing -> pure (mempty, mempty)
+      Just vec -> do
+        let prim = RenderDot vec env
+            lg = mempty {drawnPoints = [(name, vec)], allPoints = Map.singleton name vec}
+        pure (emitToLayer env prim, lg)
+  DrawSegment segRef -> do
+    mEndpoints <- resolveSegmentRef segRef
+    env <- gets esDrawEnv
+    case mEndpoints of
+      Nothing -> pure (mempty, mempty)
+      Just (v1, v2) -> do
+        let prim = RenderSegment v1 v2 env
+        pure (emitToLayer env prim, mempty)
+
+-- -----------------------------------------------------------------
+-- Label evaluation
+-- -----------------------------------------------------------------
+
+evalLabel :: LabelPrimitive -> Eval (RenderResult, RenderLog)
+evalLabel = \case
+  LabelAtPoint name txt pos -> do
+    pts <- gets esPoints
+    env <- gets esDrawEnv
+    case Map.lookup name pts of
+      Nothing -> pure (mempty, mempty)
+      Just vec -> do
+        let prim = RenderLabel vec txt pos env
+        pure (emitToLayer env prim, mempty)
+  LabelOnSegment segRef txt side frac -> do
+    mEndpoints <- resolveSegmentRef segRef
+    env <- gets esDrawEnv
+    case mEndpoints of
+      Nothing -> pure (mempty, mempty)
+      Just (Vec2 ax ay, Vec2 bx by) -> do
+        let -- Position along segment
+            mx = ax + frac * (bx - ax)
+            my = ay + frac * (by - ay)
+            -- Perpendicular direction (left of A→B)
+            dx = bx - ax
+            dy = by - ay
+            len = sqrt (dx * dx + dy * dy)
+            offset = 0.45
+            (nx, ny)
+              | len == 0 = (0, offset)
+              | otherwise =
+                  let perpX = -dy / len
+                      perpY = dx / len
+                   in case side of
+                        SegAbove -> (perpX * offset, perpY * offset)
+                        SegBelow -> (-perpX * offset, -perpY * offset)
+            labelVec = Vec2 (mx + nx) (my + ny)
+            -- Choose label position based on perpendicular direction
+            labelPos = segmentSideToPosition side dx dy
+            prim = RenderLabel labelVec txt labelPos env
+        pure (emitToLayer env prim, mempty)
+
+-- | Convert segment side to a label position based on segment direction
+segmentSideToPosition :: SegmentSide -> Double -> Double -> LabelPosition
+segmentSideToPosition _side _dx _dy = Above
+
+-- -----------------------------------------------------------------
+-- Segment ref resolution
+-- -----------------------------------------------------------------
+
+resolveSegmentRef :: SegmentRef -> Eval (Maybe (Vec2, Vec2))
+resolveSegmentRef = \case
+  SegByName name -> do
+    segs <- gets esSegments
+    pts <- gets esPoints
+    pure $ do
+      (a, b) <- Map.lookup name segs
+      v1 <- Map.lookup a pts
+      v2 <- Map.lookup b pts
+      Just (v1, v2)
+  SegInline a b -> do
+    pts <- gets esPoints
+    pure $ do
+      v1 <- Map.lookup a pts
+      v2 <- Map.lookup b pts
+      Just (v1, v2)
+
+-- -----------------------------------------------------------------
+-- Modifier blocks
+-- -----------------------------------------------------------------
+
+evalModifierBlock :: Modifier -> [Command] -> Eval (RenderResult, RenderLog)
+evalModifierBlock modifier children = do
+  savedEnv <- gets esDrawEnv
+  -- Apply environment modifier
+  case modifier of
+    EnvMod envMod -> applyEnvMod envMod
+    LayerMod layer -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {layer = layer}}
+    AutoDec _ -> pure ()
+  -- Evaluate children
+  (childResult, childLog) <- evalCommands children
+  -- Restore environment
+  modify' $ \s -> s {esDrawEnv = savedEnv}
+  -- Apply auto-decorations
+  case modifier of
+    AutoDec dec -> do
+      decorations <- evalAutoDecorator dec childLog savedEnv
+      pure (childResult <> decorations, childLog)
+    _ -> pure (childResult, childLog)
+
+applyEnvMod :: EnvModifier -> Eval ()
+applyEnvMod = \case
+  SetColor c -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {color = c}}
+  SetDashed -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineStyle = Dashed}}
+  SetThick -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThickWidth}}
+  SetThin -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThinWidth}}
+
+-- -----------------------------------------------------------------
+-- Auto-decorators
+-- -----------------------------------------------------------------
+
+evalAutoDecorator :: AutoDecorator -> RenderLog -> DrawEnv -> Eval RenderResult
+evalAutoDecorator = \case
+  LabelAll pos -> \lg _env -> do
+    currentEnv <- gets esDrawEnv
+    let fgEnv = currentEnv {layer = Foreground}
+        labels =
+          [ RenderLabel vec name pos fgEnv
+          | (name, vec) <- drawnPoints lg
+          ]
+    pure $ mempty {foreground = labels}
+  Axes -> \_lg _env -> do
+    pts <- gets esPoints
+    pure $ generateAxes pts
+  Grid -> \_lg _env -> do
+    pts <- gets esPoints
+    pure $ generateGrid pts
+
+-- | Generate coordinate axes with integer tick marks
+generateAxes :: Map Name Vec2 -> RenderResult
+generateAxes pts
+  | Map.null pts = mempty
+  | otherwise =
+      let allVecs = Map.elems pts
+          xs = [x | Vec2 x _ <- allVecs]
+          ys = [y | Vec2 _ y <- allVecs]
+          minX = minimum xs - 1
+          maxX = maximum xs + 1
+          minY = minimum ys - 1
+          maxY = maximum ys + 1
+          axisEnv = defaultDrawEnv {layer = Background, color = NamedColor "gray"}
+          tickEnv = axisEnv
+          -- X axis
+          xAxis = RenderAxisLine (Vec2 minX 0) (Vec2 maxX 0) axisEnv
+          -- Y axis
+          yAxis = RenderAxisLine (Vec2 0 minY) (Vec2 0 maxY) axisEnv
+          -- X ticks
+          xTicks =
+            [ RenderTick (Vec2 (fromIntegral i) 0) (T.pack $ show i) tickEnv
+            | i <- [ceiling minX .. floor maxX :: Int]
+            , i /= 0
+            ]
+          -- Y ticks
+          yTicks =
+            [ RenderTick (Vec2 0 (fromIntegral i)) (T.pack $ show i) tickEnv
+            | i <- [ceiling minY .. floor maxY :: Int]
+            , i /= 0
+            ]
+       in mempty {background = [xAxis, yAxis] <> xTicks <> yTicks}
+
+-- | Generate a unit grid covering the scene bounds
+generateGrid :: Map Name Vec2 -> RenderResult
+generateGrid pts
+  | Map.null pts = mempty
+  | otherwise =
+      let allVecs = Map.elems pts
+          xs = [x | Vec2 x _ <- allVecs]
+          ys = [y | Vec2 _ y <- allVecs]
+          minX = fromIntegral (floor (minimum xs) - 1 :: Int)
+          maxX = fromIntegral (ceiling (maximum xs) + 1 :: Int)
+          minY = fromIntegral (floor (minimum ys) - 1 :: Int)
+          maxY = fromIntegral (ceiling (maximum ys) + 1 :: Int)
+          gridEnv = defaultDrawEnv {layer = Background, color = NamedColor "lightgray"}
+          -- Vertical grid lines
+          vLines =
+            [ RenderGridLine (Vec2 x minY) (Vec2 x maxY) gridEnv
+            | i <- [round minX .. round maxX :: Int]
+            , let x = fromIntegral i
+            ]
+          -- Horizontal grid lines
+          hLines =
+            [ RenderGridLine (Vec2 minX y) (Vec2 maxX y) gridEnv
+            | i <- [round minY .. round maxY :: Int]
+            , let y = fromIntegral i
+            ]
+       in mempty {background = vLines <> hLines}
+
+-- -----------------------------------------------------------------
+-- Helpers
+-- -----------------------------------------------------------------
+
+-- | Route a render primitive to the appropriate layer
+emitToLayer :: DrawEnv -> RenderPrimitive -> RenderResult
+emitToLayer env prim = case layer env of
+  Background -> mempty {background = [prim]}
+  Main -> mempty {main = [prim]}
+  Foreground -> mempty {foreground = [prim]}
+
