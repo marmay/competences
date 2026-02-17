@@ -14,7 +14,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
 import Control.Concurrent.STM (atomically, readTVar, writeTVar)
 import Control.Exception (finally)
-import Control.Monad (when)
+import Control.Monad (foldM, unless, when)
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BS
@@ -142,21 +142,32 @@ main = do
   -- Load document from database
   putStrLn "Loading document from database..."
   mSnapshot <- DB.loadLatestSnapshot pool
-  (doc, initialGen, replayedCommands) <- case mSnapshot of
+  (doc, initialGen, replayedCommands, migrationCmds) <- case mSnapshot of
     Nothing -> die "No document found in database. Provide --init-document to initialize."
-    Just (snapshot, gen) -> do
+    Just (rawSnapshot, gen, migCmds) -> do
       putStrLn $ "Loaded snapshot at generation " <> show gen
-      -- Load and replay commands since snapshot
+      -- Apply migration commands first (v1→v2 schema upgrade)
+      let systemUserId = Competences.Document.Id.Id UUID.nil
+      snapshot <- applyMigrationCmds systemUserId rawSnapshot migCmds
+      -- Then replay user commands since snapshot
       commands <- DB.loadCommandsSince pool gen
       putStrLn $ "Replaying " <> show (length commands) <> " commands since snapshot"
       doc' <- replayCommands snapshot commands
-      pure (doc', gen + fromIntegral (length commands), length commands)
+      pure (doc', gen + fromIntegral (length commands), length commands, migCmds)
 
   putStrLn $ "Document loaded (generation " <> show initialGen <> ")"
 
+  -- Persist migration commands + new snapshot if schema migration produced any
+  unless (null migrationCmds) $ do
+    putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
+    let systemUserId = Competences.Document.Id.Id UUID.nil
+    latestGen <- foldM (\_ cmd -> DB.saveCommand pool systemUserId cmd) initialGen migrationCmds
+    DB.saveSnapshot pool doc latestGen
+    putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
+
   -- Create recovery snapshot if we replayed any commands (non-graceful shutdown recovery)
   -- This avoids replaying the same commands again on next startup
-  when (replayedCommands > 0) $ do
+  when (replayedCommands > 0 && null migrationCmds) $ do
     putStrLn $ "Non-graceful shutdown detected: creating recovery snapshot..."
     DB.saveSnapshot pool doc initialGen
     putStrLn $ "Recovery snapshot created at generation " <> show initialGen
@@ -211,6 +222,14 @@ replayCommands doc ((gen, userId, cmd) : rest) =
   case handleCommand userId cmd doc of
     Left err -> die $ "Failed to replay command at generation " <> show gen <> ": " <> T.unpack err
     Right (doc', _) -> replayCommands doc' rest
+
+-- | Apply migration commands to a document, aborting on failure
+applyMigrationCmds :: Competences.Document.User.UserId -> Document -> [Command] -> IO Document
+applyMigrationCmds _userId doc [] = pure doc
+applyMigrationCmds userId doc (cmd : rest) =
+  case handleCommand userId cmd doc of
+    Left err -> die $ "Failed to apply migration command: " <> T.unpack err
+    Right (doc', _) -> applyMigrationCmds userId doc' rest
 
 -- | Periodic snapshot timer (every 15 minutes)
 -- Checks if snapshot should be taken based on time and command count

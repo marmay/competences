@@ -2,6 +2,7 @@
 
 module Competences.Command
   ( Command (..)
+  , MigrationCommand (..)
   , CommandId
   , handleCommand
   , module Competences.Command.Common
@@ -35,8 +36,10 @@ import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..),
 import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..), ParticipationRecordPatch (..), handleParticipationRecordsCommand)
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
-import Competences.Document (Document (..), User (..))
+import Competences.Document (Document (..), Lesson (..), User (..))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id)
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -44,7 +47,20 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
+import Optics.Core ((&), (.~), (%~), (^.))
+
+-- | Migration commands for schema evolution
+data MigrationCommand
+  = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
+  deriving (Eq, Generic, Show)
+
+instance Binary MigrationCommand
+
+#ifdef WITH_AESON
+instance FromJSON MigrationCommand
+
+instance ToJSON MigrationCommand
+#endif
 
 -- | Top-level command type wrapping all context commands
 data Command
@@ -62,6 +78,7 @@ data Command
   | Lessons !LessonsCommand
   | LessonNotes !LessonNotesCommand
   | ParticipationRecords !ParticipationRecordsCommand
+  | Migration !MigrationCommand
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -94,3 +111,17 @@ handleCommand userId cmd d = case cmd of
   Lessons c -> handleLessonsCommand userId c d
   LessonNotes c -> handleLessonNotesCommand userId c d
   ParticipationRecords c -> handleParticipationRecordsCommand userId c d
+  Migration c -> handleMigrationCommand c d
+
+-- | Handle migration commands (system-level, userId not used)
+handleMigrationCommand :: MigrationCommand -> Document -> UpdateResult
+handleMigrationCommand (UpdateLessonAssignments updates) d =
+  let applyUpdate doc (lid, aids) =
+        case Ix.getOne (doc.lessons Ix.@= lid) of
+          Nothing -> doc
+          Just lesson ->
+            let lesson' = lesson & #assignments .~ aids
+             in doc & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
+      doc' = foldl' applyUpdate d updates
+      allUserIds = map (.id) $ Ix.toList $ doc' ^. #users
+   in Right (doc', AffectedUsers allUserIds)

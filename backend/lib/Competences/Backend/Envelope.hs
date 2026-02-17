@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 {- |
 Module: Competences.Backend.Envelope
@@ -25,22 +26,28 @@ module Competences.Backend.Envelope
   )
 where
 
-import Competences.Command (Command)
-import Competences.Document (Document)
+import Competences.Command (Command (..), MigrationCommand (..))
+import Competences.Document (Document (..))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id (..))
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
 import Data.Aeson
   ( FromJSON (..)
   , Result (..)
   , ToJSON (..)
-  , Value
+  , Value (..)
   , fromJSON
   , object
   , toJSON
   , withObject
   , (.:)
+  , (.:?)
   , (.=)
   )
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types (Parser, parseMaybe)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack)
 import Data.UUID.Types qualified as UUID
 import GHC.Generics (Generic)
@@ -51,7 +58,7 @@ currentCommandVersion = 1
 
 -- | Current version of snapshot envelope schema
 currentSnapshotVersion :: Int
-currentSnapshotVersion = 1
+currentSnapshotVersion = 2
 
 -- | Envelope for storing commands with version and metadata
 data CommandEnvelope = CommandEnvelope
@@ -139,21 +146,52 @@ wrapSnapshot doc =
     , payload = toJSON doc
     }
 
--- | Unwrap a snapshot envelope, applying migrations if needed
-unwrapSnapshot :: SnapshotEnvelope -> Either Text Document
+-- | Unwrap a snapshot envelope, applying migrations if needed.
+-- Returns the migrated document and any compensating commands that must be
+-- persisted to the command log to make the migration reproducible on replay.
+unwrapSnapshot :: SnapshotEnvelope -> Either Text (Document, [Command])
 unwrapSnapshot env = case env.version of
-  1 ->
+  1 -> do
+    -- V1 snapshot: Assignment had lessonId, Lesson had no assignments field.
+    -- Parse the document (FromJSON backward compat handles missing/extra fields),
+    -- then migrate lessonId links into Lesson.assignments.
+    doc <- case fromJSON env.payload of
+      Success d -> Right d
+      Error err -> Left $ "Failed to parse snapshot v1: " <> pack err
+    let linkMap = extractAssignmentLessonLinks env.payload
+        cmds
+          | Map.null linkMap = []
+          | otherwise = [Migration (UpdateLessonAssignments (Map.toList linkMap))]
+    Right (doc, cmds)
+  2 ->
     -- Current version: direct parse
     case fromJSON env.payload of
-      Success doc -> Right doc
-      Error err -> Left $ "Failed to parse snapshot v1: " <> pack err
+      Success doc -> Right (doc, [])
+      Error err -> Left $ "Failed to parse snapshot v2: " <> pack err
   v ->
     Left $ "Unknown snapshot version: " <> pack (show v)
 
--- Future versions example:
---  2 -> do
---    -- Parse as DocumentV1 and migrate to current
---    docV1 <- case fromJSON env.payload of
---      Success doc -> Right doc
---      Error err -> Left $ "Failed to parse snapshot v2: " <> show err
---    Right $ migrateDocumentV1toV2 docV1
+-- | Extract Assignment.lessonId links from a v1 snapshot's raw JSON.
+-- Returns a map from LessonId to list of AssignmentIds that referenced it.
+extractAssignmentLessonLinks :: Value -> Map.Map LessonId [AssignmentId]
+extractAssignmentLessonLinks payload =
+  case payload of
+    Object docObj ->
+      case KM.lookup "assignments" docObj of
+        Nothing -> Map.empty
+        Just assignmentsVal ->
+          let links = parseMaybe parseLinks assignmentsVal
+           in maybe Map.empty id links
+    _ -> Map.empty
+  where
+    parseLinks = withObject "AssignmentIxSet" $ \v -> do
+      -- IxSet serializes as {"ixSet": [...]}
+      items <- v .: "ixSet" :: Parser [Value]
+      pairs <- mapM parseLink items
+      pure $ Map.fromListWith (<>) [(lid, [aid]) | (aid, Just lid) <- pairs]
+
+    parseLink = withObject "Assignment" $ \v -> do
+      aid <- v .: "id"
+      mLid <- v .:? "lessonId"
+      pure (aid :: AssignmentId, mLid :: Maybe LessonId)
+

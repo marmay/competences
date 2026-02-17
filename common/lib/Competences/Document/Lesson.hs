@@ -15,13 +15,14 @@ where
 
 import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id)
 import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.Order (Order, Orderable)
 import Competences.Document.Resource (ResourceId)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
@@ -103,7 +104,7 @@ type LessonId = Id Lesson
 
 -- | Unified lesson entity. Combines meso-level planning (title, description,
 -- competence levels) with lesson-level detail (date, resources, phases, notes).
--- Assignments link back to lessons via 'Assignment.lessonId'.
+-- Assignments are linked via 'assignments' field.
 data Lesson = Lesson
   { id :: !LessonId
   , mesoPlanId :: !MesoPlanId
@@ -115,6 +116,8 @@ data Lesson = Lesson
   , competenceLevels :: ![CompetenceLevelId]
   -- Lesson-level fields (expanded view):
   , date :: !(Maybe Day)
+  , assignments :: ![AssignmentId]
+  -- ^ Assignments linked to this lesson
   , resources :: ![ResourceId]
   , phases :: ![LessonPhase]
   , notes :: !RichContent
@@ -122,7 +125,7 @@ data Lesson = Lesson
   }
   deriving (Eq, Generic, Ord, Show)
 
-type LessonIxs = '[LessonId, MesoPlanId, Order, Day]
+type LessonIxs = '[LessonId, MesoPlanId, Order, Day, AssignmentId]
 
 instance Ix.Indexable LessonIxs Lesson where
   indices =
@@ -131,9 +134,23 @@ instance Ix.Indexable LessonIxs Lesson where
       (Ix.ixFun $ singleton . (.mesoPlanId))
       (Ix.ixFun $ singleton . (.order))
       (Ix.ixFun $ \l -> maybeToList l.date)
+      (Ix.ixFun (.assignments))
 
 #ifdef WITH_AESON
-instance FromJSON Lesson
+instance FromJSON Lesson where
+  parseJSON = withObject "Lesson" $ \v ->
+    Lesson
+      <$> v .: "id"
+      <*> v .: "mesoPlanId"
+      <*> v .: "order"
+      <*> v .: "title"
+      <*> v .:? "description" .!= mempty
+      <*> v .: "competenceLevels"
+      <*> v .: "date"
+      <*> v .:? "assignments" .!= []
+      <*> v .:? "resources" .!= []
+      <*> v .:? "phases" .!= []
+      <*> v .:? "notes" .!= mempty
 
 instance ToJSON Lesson
 #endif

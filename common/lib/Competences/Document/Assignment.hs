@@ -12,7 +12,6 @@ where
 import Competences.Common.BinaryOrphans ()
 import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Id (Id)
-import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
@@ -49,7 +48,6 @@ data Assignment = Assignment
   , activityType :: !ActivityType
   , studentIds :: !(Set UserId)
   , tasks :: ![TaskId]
-  , lessonId :: !(Maybe LessonId)
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -57,6 +55,7 @@ data Assignment = Assignment
 -- JSON instances
 instance FromJSON Assignment where
   parseJSON = withObject "Assignment" $ \v ->
+    -- Old JSON with lessonId field is silently ignored (not requested)
     Assignment
       <$> v .: "id"
       <*> v .: "name"
@@ -65,7 +64,6 @@ instance FromJSON Assignment where
       <*> v .: "activityType"
       <*> v .: "studentIds"
       <*> v .: "tasks"
-      <*> v .:? "lessonId" .!= Nothing
 
 instance ToJSON Assignment
 #endif
@@ -77,8 +75,7 @@ instance Binary Assignment
 -- - AssignmentId (primary key lookup)
 -- - UserId (query assignments for a specific student)
 -- - Day (filter by date range)
--- - LessonId (query assignments for a specific lesson)
-type AssignmentIxs = '[AssignmentId, UserId, Day, LessonId]
+type AssignmentIxs = '[AssignmentId, UserId, Day]
 
 -- | Make an assignment indexable
 instance Indexable AssignmentIxs Assignment where
@@ -87,7 +84,6 @@ instance Indexable AssignmentIxs Assignment where
       (ixFun (\a -> [a.id]))
       (ixFun (\a -> Set.toList a.studentIds))
       (ixFun (\a -> [a.assignmentDate]))
-      (ixFun (\a -> maybe [] (: []) a.lessonId))
 
 -- | Helper to create an assignment with default values
 mkAssignment :: AssignmentId -> AssignmentName -> Day -> Assignment
@@ -100,5 +96,4 @@ mkAssignment aid aname date =
     , activityType = SchoolExercise
     , studentIds = mempty
     , tasks = []
-    , lessonId = Nothing
     }

@@ -155,12 +155,13 @@ detailComponent r initialPlan =
                 , description = mempty
                 , competenceLevels = []
                 , date = Nothing
+                , assignments = []
                 , resources = []
                 , phases = []
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [] [])
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
@@ -190,10 +191,9 @@ detailComponent r initialPlan =
 
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
-      let assignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
-          lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
+      let lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
       M.io_ $
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson assignmentIds lessonNotesIds)
+        openModal r.windowManager (lessonEditorModal r r.windowManager lesson lessonNotesIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       openModal r.windowManager (mesoPlanEditorModal r r.windowManager plan)
@@ -292,7 +292,7 @@ detailComponent r initialPlan =
             Disclosure.contents titleView isExpanded (viewExpandedLesson m lesson) actions
 
     viewExpandedLesson m lesson =
-      let lessonAssignmentIds = map (.id) $ Ix.toList $ m.document.assignments Ix.@= lesson.id
+      let lessonAssignmentIds = lesson.assignments
        in MH.div_
         [class_ "p-4 border-t border-border bg-background space-y-3"]
         [ -- Date

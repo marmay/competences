@@ -334,7 +334,7 @@ evaluatorComponent r assignment =
                 , oldTasks = ""
                 , observations = Ix.fromList observations
                 , assignmentId = Just asmt.id
-                , lessonId = asmt.lessonId
+                , lessonId = Nothing
                 }
           pure [Evidences (OnEvidences (Create evidence))]
       where

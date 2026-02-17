@@ -14,9 +14,10 @@ module Competences.Query.Lesson
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), Evidence (..), Lesson, LessonId, MesoPlan, MesoPlanId, Order)
+import Competences.Document (Assignment (..), Document (..), Evidence (..), Lesson (..), LessonId, MesoPlan, MesoPlanId, Order)
 import Competences.Document.Task (TaskId)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 
@@ -34,9 +35,9 @@ mesoPlanLessons doc planId =
   Ix.toAscList (Proxy @Order) $ doc.lessons Ix.@= planId
 
 -- | All assignments linked to a lesson.
-lessonAssignments :: Document -> LessonId -> [Assignment]
-lessonAssignments doc lessonId =
-  Ix.toList $ doc.assignments Ix.@= lessonId
+lessonAssignments :: Document -> Lesson -> [Assignment]
+lessonAssignments doc lesson =
+  mapMaybe (\aid -> Ix.getOne (doc.assignments Ix.@= aid)) lesson.assignments
 
 -- | All evidences collected during a lesson.
 lessonEvidences :: Document -> LessonId -> [Evidence]
@@ -46,6 +47,9 @@ lessonEvidences doc lessonId =
 -- | All task IDs associated with a lesson (derived from assignments + evidences).
 lessonTaskIds :: Document -> LessonId -> Set.Set TaskId
 lessonTaskIds doc lessonId =
-  let fromAssignments = Set.fromList $ concatMap (.tasks) $ lessonAssignments doc lessonId
+  let mLesson = getLesson doc lessonId
+      fromAssignments = case mLesson of
+        Nothing -> Set.empty
+        Just lesson -> Set.fromList $ concatMap (.tasks) $ lessonAssignments doc lesson
       fromEvidences = Set.fromList $ concatMap (Map.keys . (.tasks)) $ lessonEvidences doc lessonId
    in Set.union fromAssignments fromEvidences

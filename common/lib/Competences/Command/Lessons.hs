@@ -16,6 +16,7 @@ import Competences.Command.Interpret
   )
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonPhase)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
@@ -40,6 +41,7 @@ data LessonPatch = LessonPatch
   , description :: !(Change RichContent)
   , competenceLevels :: !(Change [CompetenceLevelId])
   , date :: !(Change (Maybe Day))
+  , assignments :: !(Change [AssignmentId])
   , resources :: !(Change [ResourceId])
   , phases :: !(Change [LessonPhase])
   , notes :: !(Change RichContent)
@@ -72,6 +74,7 @@ instance Default LessonPatch where
       , description = Nothing
       , competenceLevels = Nothing
       , date = Nothing
+      , assignments = Nothing
       , resources = Nothing
       , phases = Nothing
       , notes = Nothing
@@ -85,6 +88,7 @@ applyLessonPatch lesson patch =
       >=> patchField' @"description" patch
       >=> patchField' @"competenceLevels" patch
       >=> patchField' @"date" patch
+      >=> patchField' @"assignments" patch
       >=> patchField' @"resources" patch
       >=> patchField' @"phases" patch
       >=> patchField' @"notes" patch
