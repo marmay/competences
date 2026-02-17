@@ -37,7 +37,8 @@ module Competences.Frontend.Component.RichContent
   )
 where
 
-import Competences.Frontend.Component.Geometry (renderGeometryText)
+import Competences.Frontend.Component.Geometry (renderGeometryBlock)
+import Competences.Markdown.Geometry.Parser (isGeometryInfo)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
   , MathDisplay (..)
@@ -186,7 +187,7 @@ renderBlock symbols = \case
      in tag [class_ classes] $ map (renderInline symbols) inlines
   MD.FencedCodeBlock info body ->
     case info of
-      Just "geometry" -> renderGeometryText body
+      Just i | isGeometryInfo i -> renderGeometryBlock info body
       Just "svg" ->
         M.div_ [class_ "flex justify-center my-4"]
           [ M.img_

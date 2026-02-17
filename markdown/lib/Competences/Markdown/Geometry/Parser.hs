@@ -17,6 +17,12 @@
 -- @
 module Competences.Markdown.Geometry.Parser
   ( parseGeometry
+
+    -- * Version helpers
+  , currentGeometryVersion
+  , parseGeometryVersion
+  , isGeometryInfo
+  , geometryVersionText
   )
 where
 
@@ -27,6 +33,7 @@ import Data.Void (Void)
 import Text.Megaparsec hiding (Label)
 import Text.Megaparsec.Char
 import Text.Megaparsec.Char.Lexer qualified as L
+import Text.Read (readMaybe)
 
 type Parser = Parsec Void Text
 
@@ -35,6 +42,43 @@ parseGeometry :: Text -> Either (ParseErrorBundle Text Void) [Command]
 parseGeometry input
   | T.null (T.strip input) = Right []
   | otherwise = parse (commandsP <* ws <* eof) "geometry" input
+
+-- -----------------------------------------------------------------
+-- Version helpers
+-- -----------------------------------------------------------------
+
+-- | The current geometry DSL version supported by the parser/renderer.
+currentGeometryVersion :: GeometryVersion
+currentGeometryVersion = (1, 0)
+
+-- | Parse a version string like @"V1.0"@ into a 'GeometryVersion'.
+parseGeometryVersion :: Text -> Maybe GeometryVersion
+parseGeometryVersion t = case T.uncons t of
+  Just ('V', rest) -> case T.splitOn "." rest of
+    [majT, minT] -> do
+      maj <- readMaybe (T.unpack majT)
+      mn <- readMaybe (T.unpack minT)
+      Just (maj, mn)
+    _ -> Nothing
+  _ -> Nothing
+
+-- | Check whether a fenced code block info string indicates a geometry block.
+-- The info string is @"geometry"@ optionally followed by a version tag.
+isGeometryInfo :: Text -> Bool
+isGeometryInfo t =
+  let w = T.strip t
+   in w == "geometry" || "geometry " `T.isPrefixOf` w
+
+-- | Extract the version text (e.g. @"V1.0"@) from an info string like
+-- @"geometry V1.0"@. Returns 'Nothing' for plain @"geometry"@.
+geometryVersionText :: Text -> Maybe Text
+geometryVersionText t =
+  let w = T.strip t
+   in case T.stripPrefix "geometry " w of
+        Nothing -> Nothing
+        Just rest ->
+          let v = T.strip rest
+           in if T.null v then Nothing else Just v
 
 -- | Parse zero or more commands (top-level or inside a block).
 -- Uses 'try' so that whitespace consumed before a failed command attempt

@@ -36,6 +36,9 @@ module Competences.Markdown.Geometry.AST
   , LabelPosition (..)
   , SegmentSide (..)
 
+    -- * Version
+  , GeometryVersion
+
     -- * Render output
   , RenderPrimitive (..)
   , RenderResult (..)
@@ -46,6 +49,9 @@ where
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
+
+-- | DSL version: (major, minor)
+type GeometryVersion = (Int, Int)
 
 -- | Top-level commands
 data Command

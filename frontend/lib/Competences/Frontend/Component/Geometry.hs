@@ -8,13 +8,19 @@
 module Competences.Frontend.Component.Geometry
   ( renderGeometry
   , renderGeometryText
+  , renderGeometryBlock
   )
 where
 
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
-import Competences.Markdown.Geometry.Parser (parseGeometry)
+import Competences.Markdown.Geometry.Parser
+  ( currentGeometryVersion
+  , geometryVersionText
+  , parseGeometry
+  , parseGeometryVersion
+  )
 import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
@@ -52,6 +58,35 @@ renderGeometryText txt =
         [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
         [M.text $ ms ("Geometry parse error" :: Text)]
     Right cmds -> renderGeometry (evalScene cmds)
+
+-- | Render a geometry fenced code block, checking the version tag first.
+--
+-- Takes the full info string (e.g. @"geometry V1.0"@) and the block body.
+-- If the version is unsupported, shows an error instead of rendering.
+renderGeometryBlock :: Maybe Text -> Text -> M.View model action
+renderGeometryBlock mInfo body =
+  case mInfo >>= geometryVersionText of
+    Nothing -> renderGeometryText body
+    Just vText -> case parseGeometryVersion vText of
+      Nothing ->
+        versionErrorView $ "Unbekannte Versionsangabe: " <> vText
+      Just (maj, _min)
+        | maj > fst currentGeometryVersion ->
+            versionErrorView $
+              "Dieser Geometrie-Block benötigt Version " <> vText
+                <> ", aber nur V"
+                <> T.pack (show (fst currentGeometryVersion))
+                <> "."
+                <> T.pack (show (snd currentGeometryVersion))
+                <> " wird unterstützt."
+        | otherwise -> renderGeometryText body
+
+-- | Error view for unsupported geometry versions
+versionErrorView :: Text -> M.View model action
+versionErrorView msg =
+  MH.div_
+    [class_ "text-amber-700 bg-amber-50 font-mono text-sm p-2 rounded border border-amber-200"]
+    [M.text $ ms msg]
 
 -- -----------------------------------------------------------------
 -- ViewBox computation

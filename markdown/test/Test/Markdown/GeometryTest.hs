@@ -2,7 +2,13 @@ module Test.Markdown.GeometryTest (geometryTests) where
 
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
-import Competences.Markdown.Geometry.Parser (parseGeometry)
+import Competences.Markdown.Geometry.Parser
+  ( currentGeometryVersion
+  , geometryVersionText
+  , isGeometryInfo
+  , parseGeometry
+  , parseGeometryVersion
+  )
 import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -13,6 +19,7 @@ geometryTests =
     "Geometry DSL"
     [ parserGroup
     , evalGroup
+    , versionGroup
     ]
 
 -- | Parse and assert the result equals expected commands
@@ -362,6 +369,42 @@ evalGroup =
             let result = evalScene cmds
             -- 3 segments + 1 point
             length (main result) @?= 4
+    ]
+
+-- -----------------------------------------------------------------
+-- Version tests
+-- -----------------------------------------------------------------
+
+versionGroup :: TestTree
+versionGroup =
+  testGroup
+    "Version"
+    [ testCase "currentGeometryVersion is (1, 0)" $
+        currentGeometryVersion @?= (1, 0)
+    , testCase "parseGeometryVersion V1.0" $
+        parseGeometryVersion "V1.0" @?= Just (1, 0)
+    , testCase "parseGeometryVersion V2.3" $
+        parseGeometryVersion "V2.3" @?= Just (2, 3)
+    , testCase "parseGeometryVersion invalid — no V prefix" $
+        parseGeometryVersion "1.0" @?= Nothing
+    , testCase "parseGeometryVersion invalid — no dot" $
+        parseGeometryVersion "V10" @?= Nothing
+    , testCase "parseGeometryVersion invalid — not a number" $
+        parseGeometryVersion "Vx.y" @?= Nothing
+    , testCase "isGeometryInfo \"geometry\"" $
+        isGeometryInfo "geometry" @?= True
+    , testCase "isGeometryInfo \"geometry V1.0\"" $
+        isGeometryInfo "geometry V1.0" @?= True
+    , testCase "isGeometryInfo \"python\"" $
+        isGeometryInfo "python" @?= False
+    , testCase "isGeometryInfo \"geometryX\"" $
+        isGeometryInfo "geometryX" @?= False
+    , testCase "geometryVersionText \"geometry\"" $
+        geometryVersionText "geometry" @?= Nothing
+    , testCase "geometryVersionText \"geometry V1.0\"" $
+        geometryVersionText "geometry V1.0" @?= Just "V1.0"
+    , testCase "geometryVersionText \"geometry  V2.1\"" $
+        geometryVersionText "geometry  V2.1" @?= Just "V2.1"
     ]
 
 -- -----------------------------------------------------------------
