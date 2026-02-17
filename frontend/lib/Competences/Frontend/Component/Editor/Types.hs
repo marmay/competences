@@ -9,9 +9,12 @@ where
 import Competences.Document (User, UserId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Reorder (..))
+import Competences.Frontend.Component.MarkdownEditor (ContentState)
 import Competences.Frontend.SyncContext (DocumentChange)
+import Competences.TaskContent.RichContent (RichContent)
 import Data.Foldable (toList)
 import Data.Map qualified as Map
+import Data.Text (Text)
 import GHC.Generics (Generic)
 
 data Model a patch f = Model
@@ -20,6 +23,7 @@ data Model a patch f = Model
   , reorderFrom :: !(Maybe a)
   , refocusTarget :: !(Maybe a)
   , users :: !(Map.Map UserId User)
+  , contentStates :: !(Map.Map a (Map.Map Text (ContentState RichContent)))
   }
   deriving (Generic)
 
@@ -28,6 +32,7 @@ instance (Eq a, Eq patch, Functor f, Foldable f) => Eq (Model a patch f) where
     fmap toList a.entries == fmap toList b.entries
       && a.patches == b.patches
       && a.reorderFrom == b.reorderFrom
+      && a.contentStates == b.contentStates
 
 data Action a patch
   = StartEditing !a

@@ -20,7 +20,7 @@ where
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
-import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
+import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.View.Tailwind (class_)
@@ -34,6 +34,7 @@ import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Text (text_)
 import Data.Default (Default (..))
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
@@ -113,15 +114,46 @@ textEditor viewLens patchLens refocusTarget original patch =
 msIso :: O.Iso' Text M.MisoString
 msIso = O.iso M.ms M.fromMisoString
 
+-- | Create a lens from Model to 'ContentState RichContent' for a specific entity.
+--
+-- On 'get': returns the stored 'ContentState', defaulting to 'Valid' with the
+-- current value if no state is recorded.
+-- On 'set': writes the state into 'contentStates', and — when 'Valid' —
+-- also writes the value into 'patches'.
+mkContentStateLens
+  :: (Ord a, Default patch)
+  => Text
+  -> Lens' a RichContent
+  -> Lens' patch (Change RichContent)
+  -> a
+  -> Lens' (Model a patch f) (ContentState RichContent)
+mkContentStateLens fieldName viewLens patchLens original = lens getter setter
+  where
+    getter m = case Map.lookup original m.contentStates >>= Map.lookup fieldName of
+      Just cs -> cs
+      Nothing -> Valid (currentValue original (Map.findWithDefault def original m.patches) viewLens patchLens)
+
+    setter m cs@(Valid rc) =
+      m
+        { contentStates = insertCS m cs
+        , patches = Map.alter (Just . setPatch) original m.patches
+        }
+      where
+        setPatch = maybe (def & patchLens ?~ (original ^. viewLens, rc)) (\p -> p & patchLens ?~ (original ^. viewLens, rc))
+    setter m cs = m{contentStates = insertCS m cs}
+
+    insertCS m cs = Map.alter (Just . Map.insert fieldName cs . fromMaybe Map.empty) original m.contentStates
+
 -- | Rich text editor field with markup rendering
 --   Viewer: renders task content markup (paragraphs, emphasis, math, lists)
 --   Editor: self-contained component with edit/preview toggle
 richTextEditorField
   :: (Ord a, Default patch)
-  => Lens' a RichContent
+  => Text
+  -> Lens' a RichContent
   -> Lens' patch (Change RichContent)
   -> EditorField a patch f
-richTextEditorField viewLens patchLens =
+richTextEditorField fieldName viewLens patchLens =
   EditorField
     { viewer = richTextViewer viewLens
     , editor = \refocusTarget original patch ->
@@ -130,7 +162,7 @@ richTextEditorField viewLens patchLens =
           (refocusTargetAttr refocusTarget)
           (richContentEditorComponent
             (currentValue original patch viewLens patchLens)
-            (mkFieldLens viewLens patchLens original))
+            (mkContentStateLens fieldName viewLens patchLens original))
     }
 
 richTextViewer :: Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)

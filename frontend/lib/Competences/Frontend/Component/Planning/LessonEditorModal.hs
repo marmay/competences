@@ -25,7 +25,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiSelectLessonNotesSelector (multiSelectLessonNotesSelectorComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
-import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
+import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
@@ -39,6 +39,7 @@ import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (def)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day)
@@ -59,7 +60,7 @@ data Model = Model
   { lesson :: !Lesson
   , -- Editable fields:
     titleValue :: !Text
-  , description :: !RichContent
+  , description :: !(ContentState RichContent)
   , competenceLevels :: ![CompetenceLevelId]
   , dateValue :: !(Maybe Day)
   , initialAssignments :: ![AssignmentId]
@@ -69,7 +70,8 @@ data Model = Model
     -- ^ Lesson note IDs linked to this lesson at time of opening the editor
   , selectedLessonNotes :: ![LessonNotesId]
   , phases :: ![LessonPhase]
-  , notes :: !RichContent
+  , notes :: !(ContentState RichContent)
+  , phaseNoteStates :: !(Map.Map Int (ContentState RichContent))
   , -- UI state:
     editingPhaseIndex :: !(Maybe Int)
   , phaseReorderState :: !ListReorderState
@@ -112,7 +114,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
       Model
         { lesson = lesson'
         , titleValue = lesson'.title
-        , description = lesson'.description
+        , description = Valid lesson'.description
         , competenceLevels = lesson'.competenceLevels
         , dateValue = lesson'.date
         , initialAssignments = lesson'.assignments
@@ -120,7 +122,8 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
         , initialLessonNotes = lessonNotesIds
         , selectedLessonNotes = lessonNotesIds
         , phases = lesson'.phases
-        , notes = lesson'.notes
+        , notes = Valid lesson'.notes
+        , phaseNoteStates = Map.empty
         , editingPhaseIndex = Nothing
         , phaseReorderState = initialListReorderState
         }
@@ -154,7 +157,13 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
                 | i == idx -> Nothing
                 | i > idx -> Just (i - 1)
               other -> other
-         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded
+            -- Remove deleted index and shift keys > idx down by 1
+            newNoteStates = Map.fromList
+              [ (if k > idx then k - 1 else k, v)
+              | (k, v) <- Map.toList m.phaseNoteStates
+              , k /= idx
+              ]
+         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #phaseNoteStates .~ newNoteStates
 
     update (TogglePhaseEdit idx) =
       M.modify $ \m ->
@@ -191,30 +200,45 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
                 | i >= min src tgt && i <= max src tgt ->
                     Just (if src < tgt then i - 1 else i + 1)
               other -> other
-         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #phaseReorderState .~ initialListReorderState
+            -- Remap phaseNoteStates keys to follow the move
+            remapKey k
+              | k == src = if tgt > src then tgt - 1 else tgt
+              | k >= min src tgt && k <= max src tgt =
+                  if src < tgt then k - 1 else k + 1
+              | otherwise = k
+            newNoteStates = Map.fromList
+              [(remapKey k, v) | (k, v) <- Map.toList m.phaseNoteStates]
+         in m & #phases .~ newPhases & #editingPhaseIndex .~ newExpanded & #phaseReorderState .~ initialListReorderState & #phaseNoteStates .~ newNoteStates
 
     update SaveAndClose = do
       m <- M.get
       M.io_ $ do
         let old = m.lesson
+            descriptionValue = contentValue old.description m.description
+            notesValue = contentValue old.notes m.notes
+            -- Merge phase note states into phases
+            resolvedPhases = zipWith resolvePhaseNotes [0 ..] m.phases
+            resolvePhaseNotes i phase = case Map.lookup i m.phaseNoteStates of
+              Just (Valid rc) -> phase & #notes .~ rc
+              _ -> phase
             -- Build lesson patch with only changed fields
             patch =
               def
                 & (if old.title /= m.titleValue then #title ?~ (old.title, m.titleValue) else id)
-                & (if old.description /= m.description then #description ?~ (old.description, m.description) else id)
+                & (if old.description /= descriptionValue then #description ?~ (old.description, descriptionValue) else id)
                 & (if old.competenceLevels /= m.competenceLevels then #competenceLevels ?~ (old.competenceLevels, m.competenceLevels) else id)
                 & (if old.date /= m.dateValue then #date ?~ (old.date, m.dateValue) else id)
                 & (if old.assignments /= m.selectedAssignments then #assignments ?~ (old.assignments, m.selectedAssignments) else id)
-                & (if old.phases /= m.phases then #phases ?~ (old.phases, m.phases) else id)
-                & (if old.notes /= m.notes then #notes ?~ (old.notes, m.notes) else id)
+                & (if old.phases /= resolvedPhases then #phases ?~ (old.phases, resolvedPhases) else id)
+                & (if old.notes /= notesValue then #notes ?~ (old.notes, notesValue) else id)
             hasLessonChanges =
               old.title /= m.titleValue
-                || old.description /= m.description
+                || old.description /= descriptionValue
                 || old.competenceLevels /= m.competenceLevels
                 || old.date /= m.dateValue
                 || old.assignments /= m.selectedAssignments
-                || old.phases /= m.phases
-                || old.notes /= m.notes
+                || old.phases /= resolvedPhases
+                || old.notes /= notesValue
 
         -- Save lesson field changes (including assignment list)
         if hasLessonChanges
@@ -273,7 +297,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
             ]
         , Modal.modalFooter
             [ Button.cancelButton CloseModal
-            , Button.primary (Button.button C.LblSave SaveAndClose)
+            , Button.primary (Button.button C.LblSave (allContentReady m, SaveAndClose))
             ]
         ]
 
@@ -292,7 +316,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        componentA "lesson-description" [] (richContentEditorComponent m.description #description)
+        componentA "lesson-description" [] (richContentEditorComponent (contentValue mempty m.description) #description)
 
     competenceLevelSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
@@ -344,7 +368,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblTeachingNotes) $
-        componentA "lesson-notes" [] (richContentEditorComponent m.notes #notes)
+        componentA "lesson-notes" [] (richContentEditorComponent (contentValue mempty m.notes) #notes)
 
     phasesSection m =
       MH.div_
@@ -428,7 +452,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
         , -- Phase notes
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
             componentA ("phase-notes-" <> M.ms (show idx)) []
-              (richContentEditorComponent phase.notes (phaseNotesLens idx))
+              (richContentEditorComponent phase.notes (phaseNoteStateLens idx))
         ]
 
 -- ============================================================================
@@ -479,11 +503,26 @@ listIndex n (_ : xs)
   | n < 0 = Nothing
   | otherwise = listIndex (n - 1) xs
 
--- | Lens into a specific phase's notes field
-phaseNotesLens :: Int -> Lens' Model RichContent
-phaseNotesLens idx = lens getter setter
+-- | Get the 'ContentState' for a specific phase's notes.
+phaseNoteState :: Model -> Int -> ContentState RichContent
+phaseNoteState m idx = Map.findWithDefault
+  (Valid $ maybe mempty (.notes) $ listIndex idx m.phases)
+  idx m.phaseNoteStates
+
+-- | Lens into a specific phase's notes as 'ContentState'.
+-- On 'Valid', dual-writes into both 'phaseNoteStates' and 'phases'.
+phaseNoteStateLens :: Int -> Lens' Model (ContentState RichContent)
+phaseNoteStateLens idx = lens getter setter
   where
-    getter m = case listIndex idx m.phases of
-      Just phase -> phase.notes
-      Nothing -> mempty
-    setter m rc = m & #phases .~ updateAt idx (\p -> p & #notes .~ rc) m.phases
+    getter m = phaseNoteState m idx
+    setter m cs@(Valid rc) = m
+      & #phaseNoteStates .~ Map.insert idx cs m.phaseNoteStates
+      & #phases .~ updateAt idx (\p -> p & #notes .~ rc) m.phases
+    setter m cs = m & #phaseNoteStates .~ Map.insert idx cs m.phaseNoteStates
+
+-- | Check if all rich-content fields are ready (not debouncing or invalid).
+allContentReady :: Model -> Bool
+allContentReady m =
+  isContentValid m.description
+    && isContentValid m.notes
+    && all isContentValid (Map.elems m.phaseNoteStates)

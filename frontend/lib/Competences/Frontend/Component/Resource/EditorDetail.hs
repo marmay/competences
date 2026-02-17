@@ -17,16 +17,15 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
-import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
+import Competences.Frontend.Component.Editor.EditorField (EditorField (..), mkFieldLens)
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
-import Competences.Frontend.Component.MarkdownEditor (richContentEditorComponent)
+import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.Component.Editor.EditorField (mkFieldLens)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -34,6 +33,8 @@ import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
@@ -241,12 +242,18 @@ resourceContentEditorField =
 -- SET: wraps the 'RichContent' in 'InlineContent' and updates the patch.
 --
 -- This is safe because the component is only rendered when the content type is InlineContent.
-resourceRichContentLens :: Resource -> Lens' (Model Resource ResourcePatch f) RichContent
+resourceRichContentLens :: Resource -> Lens' (Model Resource ResourcePatch f) (ContentState RichContent)
 resourceRichContentLens original = lens getter setter
   where
+    fieldName = "content" :: Text
     baseLens = mkFieldLens #content #content original
-    getter model = case model ^. baseLens of
-      InlineContent rc -> rc
-      _ -> mempty
-    setter model rc =
-      model & baseLens .~ InlineContent rc
+    getter model = case Map.lookup original model.contentStates >>= Map.lookup fieldName of
+      Just cs -> cs
+      _ -> case model ^. baseLens of
+        InlineContent rc -> Valid rc
+        _ -> Valid mempty
+    setter model cs@(Valid rc) =
+      (model{contentStates = insertCS model cs}) & baseLens .~ InlineContent rc
+    setter model cs = model{contentStates = insertCS model cs}
+
+    insertCS m cs = Map.alter (Just . Map.insert fieldName cs . fromMaybe Map.empty) original m.contentStates

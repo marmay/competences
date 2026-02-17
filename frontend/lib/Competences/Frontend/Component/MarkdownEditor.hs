@@ -20,6 +20,11 @@ module Competences.Frontend.Component.MarkdownEditor
   , richContentEditorComponent
   , RichContentEditorModel
   , RichContentEditorAction
+
+    -- * Content state wrapper
+  , ContentState (..)
+  , contentValue
+  , isContentValid
   )
 where
 
@@ -31,6 +36,7 @@ import Competences.Markdown.Validation (ValidationError (..), validateMarkdown)
 import Competences.TaskContent.RichContent (RichContent, fromTrustedInput, toRawText)
 import Control.Concurrent (threadDelay)
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
@@ -73,6 +79,33 @@ markdownTextarea extraAttrs rawText onTextChange minHeight hasError =
     []
 
 -- ============================================================================
+-- Content state wrapper
+-- ============================================================================
+
+-- | Wrapper that communicates a field's readiness state to the parent.
+--
+-- Used by the MarkdownEditor to signal whether content is still being
+-- debounced, has been validated successfully, or failed validation.
+data ContentState a
+  = -- | User is still typing; debounce timer has not fired yet
+    Debouncing
+  | -- | Content parsed and validated successfully
+    Valid !a
+  | -- | Content failed validation with an error message
+    Invalid !Text
+  deriving (Eq, Show, Generic)
+
+-- | Extract the value from a 'ContentState', falling back to a default.
+contentValue :: a -> ContentState a -> a
+contentValue _ (Valid a) = a
+contentValue fallback _ = fallback
+
+-- | Check if a 'ContentState' is 'Valid'.
+isContentValid :: ContentState a -> Bool
+isContentValid (Valid _) = True
+isContentValid _ = False
+
+-- ============================================================================
 -- RichContent editor component
 -- ============================================================================
 
@@ -83,7 +116,9 @@ data RichContentEditorModel = RichContentEditorModel
   , previewing :: !Bool
   -- ^ Edit/preview toggle state
   , validContent :: !RichContent
-  -- ^ Bound to parent — only updated when parse succeeds
+  -- ^ Internal: for preview rendering (always last valid parse)
+  , contentState :: !(ContentState RichContent)
+  -- ^ Exposed via binding — communicates readiness to parent
   , validationGen :: !Int
   -- ^ Generation counter for debouncing validation
   , validationErrors :: ![ValidationError]
@@ -118,11 +153,11 @@ data RichContentEditorAction
 -- @
 richContentEditorComponent
   :: RichContent
-  -> O.Lens' p RichContent
+  -> O.Lens' p (ContentState RichContent)
   -> M.Component p RichContentEditorModel RichContentEditorAction
 richContentEditorComponent initialContent parentLens =
   (M.component model update view)
-    { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #validContent]
+    { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #contentState]
     , M.initialAction = Just (RCValidate 0)
     }
   where
@@ -131,6 +166,7 @@ richContentEditorComponent initialContent parentLens =
         { rawText = toRawText initialContent
         , previewing = False
         , validContent = initialContent
+        , contentState = Valid initialContent
         , validationGen = 0
         , validationErrors = []
         }
@@ -138,7 +174,7 @@ richContentEditorComponent initialContent parentLens =
     update (RCSetText txt) = do
       m <- M.get
       let gen = m.validationGen + 1
-      M.modify $ \m' -> m'{rawText = txt, validationGen = gen}
+      M.modify $ \m' -> m'{rawText = txt, validationGen = gen, contentState = Debouncing}
       -- Schedule debounced validation
       M.io $ do
         threadDelay 1000000
@@ -154,11 +190,14 @@ richContentEditorComponent initialContent parentLens =
         then pure ()
         else do
           let errors = validateMarkdown m.rawText
-          M.modify $ \m' -> m'{validationErrors = errors}
-          -- Update validContent if markdown is valid
           case Markdown.parseMarkdown m.rawText of
-            Right _doc -> M.modify $ \m' -> m'{validContent = fromTrustedInput m.rawText}
-            Left _err -> pure ()
+            Right _doc ->
+              let rc = fromTrustedInput m.rawText
+               in M.modify $ \m' ->
+                    m'{validationErrors = errors, validContent = rc, contentState = Valid rc}
+            Left err ->
+              M.modify $ \m' ->
+                m'{validationErrors = errors, contentState = Invalid (T.pack $ show err)}
 
     view m =
       MH.div_

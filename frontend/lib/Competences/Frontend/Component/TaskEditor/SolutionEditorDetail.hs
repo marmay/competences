@@ -65,7 +65,7 @@ editorDetailView r solution =
                                #solutionType
                            )
         `TE.addNamedField` ( C.translate' C.LblSolutionContent
-                           , TE.richTextEditorField #content #content
+                           , TE.richTextEditorField "content" #content #content
                            )
 
 -- | Read-only field showing the task identifier
@@ -143,5 +143,5 @@ solutionInlineEditor r solution =
                                #solutionType
                            )
         `TE.addNamedField` ( C.translate' C.LblSolutionContent
-                           , TE.richTextEditorField #content #content
+                           , TE.richTextEditorField "content" #content #content
                            )

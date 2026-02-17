@@ -31,4 +31,4 @@ source-repository-package
     --sha256: 1dmana082isjsmn1xyzy0c8byfily7gdrv3f2nrbp6f6r1imzp8x
     type: git
     location: https://github.com/marmay/miso
-    tag: 696f38022202ccdca597b439988144560538032c
+    tag: 6395a4821d22fd0baec14d7f32ce816bedde7c4e

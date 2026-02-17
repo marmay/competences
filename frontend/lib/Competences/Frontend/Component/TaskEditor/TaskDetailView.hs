@@ -70,7 +70,7 @@ taskDetailView r task =
                            , TE.textEditorField identifierViewLens identifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
-                           , TE.richTextEditorField contentViewLens contentPatchLens
+                           , TE.richTextEditorField "content" contentViewLens contentPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField

@@ -144,7 +144,7 @@ editorWrapperComponent r assignment =
                            , TE.textEditorField nameViewLens namePatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignmentDescription
-                           , TE.richTextEditorField #description #description
+                           , TE.richTextEditorField "description" #description #description
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignmentDate
                            , TE.dayEditorField #assignmentDate #assignmentDate

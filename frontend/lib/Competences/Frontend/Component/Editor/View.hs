@@ -54,6 +54,7 @@ data EditorViewItem a patch f n = EditorViewItem
   , editState :: !EditState
   , deleteState :: !DeleteState
   , moveState :: !MoveState
+  , canApply :: !Bool
   }
   deriving (Generic)
 
@@ -77,7 +78,8 @@ buttons s item =
       [buttonRow s [moveToTopButton s a, cancelMoveButton s a, moveToBottomButton s a]]
     (_, PotentialMoveTarget, _) ->
       [buttonRow s [moveBeforeButton s a, moveAfterButton s a]]
-    (Editing, _, _) -> [buttonRow s [finishEditButton s a, cancelEditButton s a]]
+    (Editing, _, _) ->
+      [buttonRow s $ [finishEditButton s a | item.canApply] ++ [cancelEditButton s a]]
     (e, m, d) -> [buttonRow s (concat [editButtons e, moveButtons m, deleteButtons d])]
 
   where

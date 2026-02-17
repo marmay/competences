@@ -31,6 +31,7 @@ import Competences.Frontend.Component.Editor.Editable
   )
 import Competences.Frontend.Component.Editor.EditorField
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
+import Competences.Frontend.Component.MarkdownEditor (isContentValid)
 import Competences.Frontend.Component.Editor.View
   ( DeleteState (..)
   , EditState (..)
@@ -84,7 +85,7 @@ editorComponent e r =
     { M.subs = [subscribeDocument r UpdateDocument]
     }
   where
-    model = Model Nothing Map.empty Nothing Nothing Map.empty
+    model = Model Nothing Map.empty Nothing Nothing Map.empty Map.empty
 
     runCommand :: Maybe Command -> IO ()
     runCommand Nothing = pure ()
@@ -100,11 +101,14 @@ editorComponent e r =
       M.io_ $ do
         runCommand $ withModify e.editable a Lock
         M.focus refocusTargetString
-    update (CancelEditing a) = M.io_ $ runCommand $ withModify e.editable a (Release def)
+    update (CancelEditing a) = do
+      M.modify $ #contentStates %~ Map.delete a
+      M.io_ $ runCommand $ withModify e.editable a (Release def)
     update (FinishEditing a) = do
-      patches <- (^. #patches) <$> M.get
+      m <- M.get
+      M.modify $ #contentStates %~ Map.delete a
       M.io_ $ runCommand $ do
-        p <- patches Map.!? a
+        p <- m.patches Map.!? a
         withModify e.editable a (Release p)
     update (StartMoving a) = M.modify (#reorderFrom ?~ a)
     update CancelMoving = M.modify (#reorderFrom .~ Nothing)
@@ -122,13 +126,15 @@ editorComponent e r =
       M.io_ $ M.focus refocusTargetString
 
     updateModel :: Document -> Model a patch f -> Model a patch f
-    updateModel d (Model _ patches reorderFrom _ _) =
+    updateModel d (Model _ patches reorderFrom _ _ contentStates) =
       let es = e.editable.get d
           myEdits = filter (\(_, u) -> u == Just (syncDocumentEnv r ^. #connectedUser % #id)) (toList es)
           patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe def (Map.lookup e' patches))) myEdits
           refocusTarget = listToMaybe (Map.keys (patches' `Map.difference` patches) <> Map.keys patches')
           users = Map.fromList $ map (\u -> (u ^. #id, u)) (IxSet.toList $ d ^. #users)
-       in Model (Just es) patches' reorderFrom refocusTarget users
+          -- Retain content states only for entities still being edited
+          contentStates' = Map.restrictKeys contentStates (Map.keysSet patches')
+       in Model (Just es) patches' reorderFrom refocusTarget users contentStates'
 
     view :: Model a patch f -> M.View (Model a patch f) (Action a patch)
     view m = case m.entries of
@@ -166,4 +172,5 @@ editorComponent e r =
             | editState == Editing =
                 zipWith (\(n, f) t -> (n, f.editor t item item')) e.fields (refocusTarget : repeat False)
             | otherwise = fmap (\(n, f) -> (n, f.viewer item)) e.fields
-       in EditorViewItem {item, editState, moveState, deleteState, fieldData}
+          canApply = all isContentValid (Map.findWithDefault Map.empty item m.contentStates)
+       in EditorViewItem {item, editState, moveState, deleteState, fieldData, canApply}
