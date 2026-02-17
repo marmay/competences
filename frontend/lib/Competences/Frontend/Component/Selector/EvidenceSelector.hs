@@ -168,7 +168,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
                     "evidence-selector-date-range"
                     ( ES.enumSelectorComponent'
                         AllTime
-                        [Today, ThisWeek, AllTime]
+                        [ThisWeek, AllTime]
                         ES.ButtonsCompact
                         translateDateRange
                         #filteredDateRange
