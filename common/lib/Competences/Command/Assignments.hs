@@ -7,17 +7,18 @@ module Competences.Command.Assignments
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
-import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
+import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Interpret (EntityCommandContext (..), interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assignment
   ( Assignment (..)
+  , AssignmentId
   , AssignmentName
   )
 import Competences.Document.Evidence (ActivityType)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
-import Control.Monad ((>=>))
+import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -27,7 +28,7 @@ import Data.IxSet.Typed qualified as IxSet
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Competences.TaskContent.RichContent (RichContent)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Optics.Core ((&), (^.))
@@ -83,10 +84,25 @@ applyAssignmentPatch assignment patch =
       >=> patchField' @"studentIds" patch
       >=> patchField' @"tasks" patch
 
+-- | Validate that no lessons or evidences reference this assignment
+validateAssignmentNotReferenced :: Document -> AssignmentId -> Either Text ()
+validateAssignmentNotReferenced doc aid = do
+  let referencingLessons = IxSet.toList $ doc.lessons IxSet.@= aid
+  unless (null referencingLessons) $
+    Left $ "Assignment is referenced by " <> pack (show (length referencingLessons)) <> " lesson(s)"
+  let referencingEvidences = IxSet.toList $ doc.evidences IxSet.@= aid
+  unless (null referencingEvidences) $
+    Left $ "Assignment is referenced by " <> pack (show (length referencingEvidences)) <> " evidence(s)"
+
 -- | Handle an Assignments context command
 handleAssignmentsCommand :: UserId -> AssignmentsCommand -> Document -> UpdateResult
-handleAssignmentsCommand userId (OnAssignments c) =
-  interpretEntityCommand assignmentContext userId c
+handleAssignmentsCommand userId (OnAssignments c) d = case c of
+  Delete aid -> do
+    validateAssignmentNotReferenced d aid
+    (d', a) <- assignmentContext.delete aid d
+    pure (d', assignmentContext.affectedUsers a d)
+  _ ->
+    interpretEntityCommand assignmentContext userId c d
   where
     assignmentContext =
       mkEntityCommandContext
@@ -98,10 +114,10 @@ handleAssignmentsCommand userId (OnAssignments c) =
 
     -- Affected users: all teachers + assigned students
     affectedUsersForAssignment :: Assignment -> Document -> AffectedUsers
-    affectedUsersForAssignment a d =
+    affectedUsersForAssignment a doc =
       AffectedUsers $
         map (.id) $
-          IxSet.toList (d ^. #users)
+          IxSet.toList (doc ^. #users)
             & filter
               ( \u ->
                   u.id `Set.member` a.studentIds || u.role == Teacher
