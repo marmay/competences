@@ -25,7 +25,6 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property (height_, width_)
 import Miso.String (ms)
 import Miso.Svg.Element qualified as Svg
 import Miso.Svg.Property qualified as SP
@@ -38,8 +37,8 @@ renderGeometry result =
    in Svg.svg_
         [ class_ "geometry-scene mx-auto my-2 max-w-full h-auto"
         , SP.viewBox_ (ms vb)
-        , width_ (ms (T.pack (show w) <> "cm"))
-        , height_ (ms (T.pack (show h) <> "cm"))
+        , M.textProp "width" (ms (T.pack (show w) <> "cm"))
+        , M.textProp "height" (ms (T.pack (show h) <> "cm"))
         ]
         [ -- Background layer
           Svg.g_ [class_ "geometry-bg"] (map renderPrimitive (background result))
@@ -137,7 +136,7 @@ renderPrimitive = \case
     Svg.circle_
       [ SP.cx_ (ms $ show x)
       , SP.cy_ (ms $ show (-y))
-      , SP.r_ "0.08"
+      , SP.r_ "0.1"
       , SP.fill_ (ms $ envColor env)
       ]
   RenderSegment (Vec2 x1 y1) (Vec2 x2 y2) env ->
@@ -155,10 +154,10 @@ renderPrimitive = \case
      in Svg.text_
           [ SP.x_ (ms $ show (x + dx))
           , SP.y_ (ms $ show (-(y - dy)))
-          , M.textProp (ms ("text-anchor" :: Text)) (ms anchor)
-          , M.textProp (ms ("font-size" :: Text)) (ms ("0.35" :: Text))
+          , SP.textAnchor_ (ms anchor)
+          , SP.fontSize_ "0.45"
           , SP.fill_ (ms $ envColor env)
-          , M.textProp (ms ("dominant-baseline" :: Text)) (ms ("central" :: Text))
+          , SP.dominantBaseline_ "central"
           ]
           [M.text (ms txt)]
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
@@ -176,18 +175,18 @@ renderPrimitive = \case
       [ -- Tick mark
         Svg.line_
           [ SP.x1_ (ms $ show x)
-          , SP.y1_ (ms $ show (-y - 0.08))
+          , SP.y1_ (ms $ show (-y - 0.1))
           , SP.x2_ (ms $ show x)
-          , SP.y2_ (ms $ show (-y + 0.08))
+          , SP.y2_ (ms $ show (-y + 0.1))
           , SP.stroke_ (ms $ envColor env)
           , SP.strokeWidth_ "0.02"
           ]
       , -- Tick label
         Svg.text_
           [ SP.x_ (ms $ show x)
-          , SP.y_ (ms $ show (-y + 0.35))
-          , M.textProp (ms ("text-anchor" :: Text)) (ms ("middle" :: Text))
-          , M.textProp (ms ("font-size" :: Text)) (ms ("0.25" :: Text))
+          , SP.y_ (ms $ show (-y + 0.5))
+          , SP.textAnchor_ "middle"
+          , SP.fontSize_ "0.35"
           , SP.fill_ (ms $ envColor env)
           ]
           [M.text (ms txt)]
@@ -225,11 +224,11 @@ envDashAttr env = case lineStyle env of
 -- | Offset and anchor for label positions
 labelOffset :: LabelPosition -> (Double, Double, Text)
 labelOffset = \case
-  Above -> (0, -0.4, "middle")
-  Below -> (0, 0.4, "middle")
-  LeftOf -> (-0.4, 0, "end")
-  RightOf -> (0.4, 0, "start")
-  AboveLeft -> (-0.3, -0.3, "end")
-  AboveRight -> (0.3, -0.3, "start")
-  BelowLeft -> (-0.3, 0.3, "end")
-  BelowRight -> (0.3, 0.3, "start")
+  Above -> (0, -0.55, "middle")
+  Below -> (0, 0.55, "middle")
+  LeftOf -> (-0.55, 0, "end")
+  RightOf -> (0.55, 0, "start")
+  AboveLeft -> (-0.45, -0.45, "end")
+  AboveRight -> (0.45, -0.45, "start")
+  BelowLeft -> (-0.45, 0.45, "end")
+  BelowRight -> (0.45, 0.45, "start")
