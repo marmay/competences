@@ -156,11 +156,11 @@ assignmentImportModalComponent r =
             , -- Content
               MH.div_
                 [class_ "flex-1 min-h-0 p-4 overflow-hidden"]
-                [ Layout.hFlow Layout.gapM
+                [ Layout.hFlow (Layout.gapM <> Layout.hFull)
                     [ -- Left: Input area
                       MH.div_
-                        [class_ "min-h-0 flex-1 w-1/2"]
-                        [ Layout.vFlow Layout.gapS
+                        [class_ "min-h-0 flex-1 w-1/2 h-full"]
+                        [ Layout.vFlow (Layout.gapS <> Layout.hFull)
                             [ Typography.h3 "Eingabe"
                             , M.textarea_
                                 [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
@@ -173,8 +173,8 @@ assignmentImportModalComponent r =
                         ]
                     , -- Right: Preview area
                       MH.div_
-                        [class_ "min-h-0 flex-1 w-1/2"]
-                        [ Layout.vFlow Layout.gapS
+                        [class_ "min-h-0 flex-1 w-1/2 h-full"]
+                        [ Layout.vFlow (Layout.gapS <> Layout.hFull)
                             [ Typography.h3 "Vorschau"
                             , M.div_
                                 [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
