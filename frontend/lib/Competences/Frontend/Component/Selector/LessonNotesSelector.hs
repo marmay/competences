@@ -19,10 +19,11 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
-import Data.Proxy (Proxy (..))
+import Data.List (sortBy)
+import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (Day, getCurrentTime, utctDay)
+import Data.Time (getCurrentTime, utctDay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -100,7 +101,8 @@ lessonNotesSelectorComponent r canCreate parentLens =
         ]
 
     viewItems m =
-      let allItems = Ix.toDescList (Proxy @Day) m.allNotes
+      let allItems = sortBy (comparing (Down . (.date)) <> comparing (.title))
+                       $ Ix.toList m.allNotes
           query = T.toLower m.searchQuery
           filteredItems =
             if T.null query
