@@ -34,12 +34,12 @@ import Miso.Svg.Property qualified as SP
 renderGeometry :: RenderResult -> M.View model action
 renderGeometry result =
   let allPrims = background result <> main result <> foreground result
-      vb = computeViewBox allPrims
+      (vb, w, h) = computeViewBox allPrims
    in Svg.svg_
-        [ class_ "geometry-scene mx-auto my-2"
+        [ class_ "geometry-scene mx-auto my-2 max-w-full h-auto"
         , SP.viewBox_ (ms vb)
-        , width_ "400"
-        , height_ "300"
+        , width_ (ms (T.pack (show w) <> "cm"))
+        , height_ (ms (T.pack (show h) <> "cm"))
         ]
         [ -- Background layer
           Svg.g_ [class_ "geometry-bg"] (map renderPrimitive (background result))
@@ -92,10 +92,10 @@ versionErrorView msg =
 -- ViewBox computation
 -- -----------------------------------------------------------------
 
--- | Compute SVG viewBox from all render primitives
-computeViewBox :: [RenderPrimitive] -> Text
+-- | Compute SVG viewBox string and physical dimensions (in coordinate units = cm)
+computeViewBox :: [RenderPrimitive] -> (Text, Double, Double)
 computeViewBox prims
-  | null vecs = "-1 -1 2 2"
+  | null vecs = ("-1 -1 2 2", 2, 2)
   | otherwise =
       let xs = [x | Vec2 x _ <- vecs]
           ys = [y | Vec2 _ y <- vecs]
@@ -112,7 +112,7 @@ computeViewBox prims
           vbY = -(yMax + padY)
           vbW = rangeX + 2 * padX
           vbH = rangeY + 2 * padY
-       in T.pack $ show vbX <> " " <> show vbY <> " " <> show vbW <> " " <> show vbH
+       in (T.pack $ show vbX <> " " <> show vbY <> " " <> show vbW <> " " <> show vbH, vbW, vbH)
   where
     vecs = concatMap primVecs prims
 

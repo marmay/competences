@@ -426,4 +426,9 @@
     overflow: visible !important;
     padding: 0 !important;
   }
+
+  /* Let geometry SVGs print at exact physical cm dimensions */
+  .geometry-scene {
+    max-width: none !important;
+  }
 }
