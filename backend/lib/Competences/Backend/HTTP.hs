@@ -314,6 +314,10 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
       \// Restore original URL after OAuth redirect\n\
       \history.replaceState(null, '', '" <> returnUrl <> "');"
   H.body ! A.class_ "theme-claude" $ do
+    -- Loading indicator (replaced when Miso mounts)
+    H.div ! A.class_ "flex items-center justify-center h-screen" $
+      H.p ! A.class_ "text-lg text-muted-foreground" $
+        "Anwendung wird geladen\x2026"
     -- Load application code (with cache-busting hash)
     let indexJsUrl = "/static/index.js?v=" <> indexJsHash
     H.script ! A.src (H.toValue indexJsUrl) ! A.type_ "module" $ ""

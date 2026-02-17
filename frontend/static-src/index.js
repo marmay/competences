@@ -31,4 +31,5 @@ const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
 Object.assign(instance_exports, instance.exports);
 
 wasi.initialize(instance);
+document.querySelector('body > div')?.remove();
 await instance.exports.hs_start(globalThis.example);
