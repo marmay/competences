@@ -56,6 +56,6 @@ enumSelectorComponent' defaultChoice choices style showValue parentLens =
       ButtonsCompact ->
         Button.buttonGroup (map (mkButton m.selected) choices')
 
-    mkButton s a = Button.toggle (a == s) (Button.button (showValue a) (Select a))
+    mkButton s a = Button.toggleSm (a == s) (Button.button (showValue a) (Select a))
 
     choices' = if defaultChoice `elem` choices then choices else defaultChoice : choices

@@ -128,6 +128,8 @@ data Label
   | LblNoSubTasks
   | LblFilterTasks
   | LblFilterAssignments
+  | LblFilterAllAssignments
+  | LblFilterNotGraded
   | LblTaskIdentifier
   | LblTaskContent
   | LblTaskPrimaryCompetences
@@ -416,6 +418,8 @@ labels' =
   , LblNoSubTasks
   , LblFilterTasks
   , LblFilterAssignments
+  , LblFilterAllAssignments
+  , LblFilterNotGraded
   , LblTaskIdentifier
   , LblTaskContent
   , LblTaskPrimaryCompetences
@@ -725,6 +729,8 @@ defaultTranslation LblAddSubTask = "Unteraufgabe"
 defaultTranslation LblNoSubTasks = "Keine Unteraufgaben"
 defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
 defaultTranslation LblFilterAssignments = "Nach Name filtern..."
+defaultTranslation LblFilterAllAssignments = "Alle"
+defaultTranslation LblFilterNotGraded = "Nicht korrigiert"
 defaultTranslation LblTaskIdentifier = "Bezeichnung"
 defaultTranslation LblTaskContent = "Inhalt"
 defaultTranslation LblTaskPrimaryCompetences = "Primäre Kompetenzen"

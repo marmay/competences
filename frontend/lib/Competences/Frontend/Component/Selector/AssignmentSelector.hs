@@ -11,6 +11,7 @@ import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAss
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
+import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
@@ -23,6 +24,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   , syncDocumentEnv
   )
+import Competences.Frontend.View.Component (componentIf)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
@@ -34,6 +36,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
 import Data.Default (Default)
 import Data.List (find, sortOn)
+import Data.Maybe (isJust)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -76,12 +79,15 @@ selectorProjection doc mUser =
         , statusMap
         }
 
+data AssignmentFilter = AllAssignments | NotGradedOnly
+  deriving (Eq, Show)
+
 data Model = Model
   { projection :: !SelectorProjection
   , selectedAssignment :: !(Maybe Assignment)  -- bound to parent
   , newAssignment :: !(Maybe Assignment)       -- temporary for new assignments
   , searchQuery :: !Text
-  , showIncompleteOnly :: !Bool
+  , assignmentFilter :: !AssignmentFilter
   , isDropdownOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -90,7 +96,6 @@ data Action
   = SelectAssignment !Assignment
   | CreateNewAssignment
   | SetSearchQuery !Text
-  | SetShowIncompleteOnly !Bool
   | ProjectionChanged !(ProjectedChange SelectorProjection)
   | ToggleDropdown
   | OpenImportModal
@@ -109,7 +114,7 @@ assignmentSelectorComponent r parentLens =
       , selectedAssignment = Nothing
       , newAssignment = Nothing
       , searchQuery = ""
-      , showIncompleteOnly = True  -- Default to showing only not-graded assignments
+      , assignmentFilter = NotGradedOnly
       , isDropdownOpen = False
       }
 
@@ -128,9 +133,6 @@ assignmentSelectorComponent r parentLens =
 
     update (SetSearchQuery q) = M.modify $ \m ->
       m & #searchQuery .~ q
-
-    update (SetShowIncompleteOnly b) = M.modify $ \m ->
-      m & #showIncompleteOnly .~ b
 
     update (ProjectionChanged change) =
       M.modify $ #projection .~ change.projection
@@ -160,24 +162,18 @@ assignmentSelectorComponent r parentLens =
         ]
 
     viewStatusFilters m =
-      case m.projection.focusedUser of
-        Nothing -> M.text "" -- No filters when no user is focused
-        Just _ ->
-          M.div_
-            [class_ "flex gap-1"]
-            [ filterButton m False "Alle"
-            , filterButton m True "Nicht korrigiert"
-            ]
+      componentIf (isJust m.projection.focusedUser)
+        "assignment-status-filter"
+        ( ES.enumSelectorComponent'
+            NotGradedOnly
+            [AllAssignments, NotGradedOnly]
+            ES.ButtonsCompact
+            translateAssignmentFilter
+            #assignmentFilter
+        )
 
-    filterButton m filterValue label =
-      let isActive = m.showIncompleteOnly == filterValue
-          baseClass = "px-2 py-1 text-xs rounded-full cursor-pointer transition-colors "
-          activeClass = if isActive then "bg-primary text-primary-foreground" else "bg-muted hover:bg-muted/80"
-       in M.button_
-            [ class_ (baseClass <> activeClass)
-            , M.onClick (SetShowIncompleteOnly filterValue)
-            ]
-            [M.text label]
+    translateAssignmentFilter AllAssignments = C.translate' C.LblFilterAllAssignments
+    translateAssignmentFilter NotGradedOnly = C.translate' C.LblFilterNotGraded
 
     filteredAssignments m =
       let proj = m.projection
@@ -191,8 +187,8 @@ assignmentSelectorComponent r parentLens =
           isNotGraded a = case Map.lookup a.id proj.statusMap of
             Just NotGraded -> True
             _ -> False  -- NeedsWork and Completed are both "graded"
-       in case (proj.focusedUser, m.showIncompleteOnly) of
-            (Just _, True) -> filter isNotGraded textFiltered
+       in case (proj.focusedUser, m.assignmentFilter) of
+            (Just _, NotGradedOnly) -> filter isNotGraded textFiltered
             _ -> textFiltered
 
     unAssignmentName (AssignmentName t) = t
