@@ -17,9 +17,13 @@ module Competences.Frontend.View.Card
   , cardHeader
   , cardContent
   , cardFooter
+
+    -- * Inline content cards
+  , contentCard
   )
 where
 
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Miso qualified as M
@@ -97,3 +101,21 @@ cardFooter content =
   M.footer_
     [class_ "px-6"]
     [Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) content]
+
+-- | Lightweight bordered card with icon and title header.
+-- Body sections are rendered below the header; each section
+-- manages its own padding (use @"px-3 pb-3"@ for content sections).
+contentCard :: Icon.Icon -> MisoString -> [M.View model action] -> M.View model action
+contentCard icon name body =
+  M.div_
+    [class_ "border rounded-lg overflow-hidden"]
+    ( M.div_
+        [class_ "px-3 py-2"]
+        [ Layout.hFlow
+            (Layout.gapS <> Layout.crossCenter)
+            [ Icon.icon [class_ "text-sky-600"] icon
+            , M.span_ [class_ "font-medium"] [M.text name]
+            ]
+        ]
+        : body
+    )

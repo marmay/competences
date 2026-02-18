@@ -5,6 +5,7 @@ module Competences.Frontend.Component.TaskResource
   , Action (..)
   , initialState
   , taskResourceListView
+  , taskExpandedCard
   , updateTaskResourceList
   )
 where
@@ -16,6 +17,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Color.Status qualified as Status
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -192,6 +194,45 @@ viewSolution state liftAction sol =
               [renderRichText sol.content]
    in Disclosure.innerDisclosure (liftAction $ ToggleSolution sol.id) $
         Disclosure.contents titleView isExpanded bodyView []
+
+-- ============================================================================
+-- Always-expanded views (for lesson notes viewer)
+-- ============================================================================
+
+-- | Render a task always expanded (no disclosure, no status palette).
+-- Shows task content and solutions inline.
+taskExpandedCard :: TaskWithSolutions -> M.View model action
+taskExpandedCard tws =
+  let TaskIdentifier identifier = tws.task.identifier
+      displayName = if identifier == mempty then "(Unbenannt)" else identifier
+   in Card.contentCard Icon.IcnTask (M.ms displayName) $
+        [ case tws.taskContent of
+            Just rc
+              | rc /= mempty ->
+                  MH.div_
+                    [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
+                    [renderRichText rc]
+            _ -> Layout.empty
+        , if null tws.solutions
+            then Layout.empty
+            else
+              MH.div_
+                [class_ "px-3 pb-3 space-y-3"]
+                (map solutionInlineView tws.solutions)
+        ]
+
+-- | Render a solution always visible with type label (no disclosure).
+solutionInlineView :: Solution -> M.View model action
+solutionInlineView sol =
+  Layout.vFlow Layout.gapMicro
+    [ Typography.small (solutionTypeLabel sol.solutionType)
+    , if sol.content == mempty
+        then Layout.empty
+        else
+          MH.div_
+            [class_ "prose prose-stone prose-sm max-w-none"]
+            [renderRichText sol.content]
+    ]
 
 -- ============================================================================
 -- Task status styling

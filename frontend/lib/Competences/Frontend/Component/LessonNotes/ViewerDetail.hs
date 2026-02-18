@@ -12,12 +12,12 @@ import Competences.Document
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
-  , Task (..)
   )
-import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext
@@ -43,7 +43,7 @@ import Optics.Core ((&), (.~))
 
 data ResolvedItem
   = ResolvedResource !Resource
-  | ResolvedTask !Task
+  | ResolvedTask !TaskWithSolutions
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -67,7 +67,12 @@ viewerProjection ln doc _ =
 
 resolveItem :: Document -> LessonNoteItem -> Maybe ResolvedItem
 resolveItem doc (LessonResource rid) = ResolvedResource <$> Ix.getOne (doc.resources Ix.@= rid)
-resolveItem doc (LessonTask tid) = ResolvedTask <$> Ix.getOne (doc.tasks Ix.@= tid)
+resolveItem doc (LessonTask tid) = do
+  task <- Ix.getOne (doc.tasks Ix.@= tid)
+  let composedContent = getTaskContent doc.taskGroups task
+      sols = Ix.toList (doc.solutions Ix.@= tid)
+      purpose = (getTaskAttributes doc.taskGroups task).purpose
+  Just $ ResolvedTask $ TaskWithSolutions task composedContent purpose sols
 
 -- ============================================================================
 -- Model & Action
@@ -141,67 +146,38 @@ viewerComponent r ln =
 -- | Render a resolved item in the viewer
 viewResolvedItem :: ResolvedItem -> M.View model action
 viewResolvedItem (ResolvedResource res) = viewResourceCard res
-viewResolvedItem (ResolvedTask task) = viewTaskCard task
+viewResolvedItem (ResolvedTask tws) = taskExpandedCard tws
 
 -- | Render a resource card (same pattern as ResourceList.resourcesExpandedListView)
 viewResourceCard :: Resource -> M.View model action
 viewResourceCard res =
   let ResourceIdentifier ident = res.identifier
       displayName = if T.null ident then "(Unbenannt)" else ident
-      nameView =
-        Layout.hFlow
-          (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-          [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
-          , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-          ]
    in case res.content of
         InlineContent rc ->
-          MH.div_
-            [class_ "border rounded-lg overflow-hidden"]
-            [ MH.div_
-                [class_ "px-3 py-2"]
-                [nameView]
-            , if rc /= mempty
+          Card.contentCard Icon.IcnResources (M.ms displayName)
+            [ if rc /= mempty
                 then
                   MH.div_
                     [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
                     [renderRichText rc]
                 else Layout.empty
             ]
-        WebLink url title ->
-          MH.a_
-            [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
-            , MP.href_ (M.ms url)
-            , MP.target_ "_blank"
-            , MP.rel_ "noopener noreferrer"
-            ]
-            [ Icon.icon [class_ "text-sky-600"] Icon.IcnLink
-            , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-            , if T.null title || title == ident
-                then Layout.empty
-                else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
-            ]
-        VideoLink url title ->
-          MH.a_
-            [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
-            , MP.href_ (M.ms url)
-            , MP.target_ "_blank"
-            , MP.rel_ "noopener noreferrer"
-            ]
-            [ Icon.icon [class_ "text-sky-600"] Icon.IcnVideo
-            , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-            , if T.null title || title == ident
-                then Layout.empty
-                else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
-            ]
+        WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
+        VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
 
--- | Render a task card (simplified inline view)
-viewTaskCard :: Task -> M.View model action
-viewTaskCard task =
-  let TaskIdentifier ident = task.identifier
-      displayName = if T.null ident then "(Unbenannt)" else ident
-   in MH.div_
-        [class_ "flex items-center gap-2 px-4 py-3 border rounded-lg"]
-        [ Icon.icon [class_ "text-sky-600"] Icon.IcnTask
-        , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-        ]
+-- | Render a link card (web or video) with icon, name, and optional title
+viewLinkCard :: Icon.Icon -> T.Text -> T.Text -> T.Text -> T.Text -> M.View model action
+viewLinkCard icon ident displayName url title =
+  MH.a_
+    [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
+    , MP.href_ (M.ms url)
+    , MP.target_ "_blank"
+    , MP.rel_ "noopener noreferrer"
+    ]
+    [ Icon.icon [class_ "text-sky-600"] icon
+    , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
+    , if T.null title || title == ident
+        then Layout.empty
+        else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
+    ]
