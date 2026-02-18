@@ -290,18 +290,24 @@ mathImgRef symbols sid display =
     Nothing ->
       M.span_ [class_ "text-red-500"] [M.text "[math]"]
     Just es ->
-      let wrapperClasses = case display of
-            Block -> "flex justify-center my-2"
-            Inline -> "inline-block"
-          styleVal =
+      let styleVal =
             "width:" <> es.width
               <> ";height:" <> es.height
               <> ";vertical-align:" <> es.verticalAlign
-       in M.img_
-            [ class_ wrapperClasses
-            , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
-            , M.textProp (ms ("style" :: Text)) (ms styleVal)
-            ]
+          img =
+            M.img_
+              [ M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+              , M.textProp (ms ("style" :: Text)) (ms styleVal)
+              ]
+       in case display of
+            Block ->
+              M.div_ [class_ "flex justify-center my-2"] [img]
+            Inline ->
+              M.img_
+                [ class_ "inline-block"
+                , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+                , M.textProp (ms ("style" :: Text)) (ms styleVal)
+                ]
 
 -- ============================================================================
 -- Convenience functions
