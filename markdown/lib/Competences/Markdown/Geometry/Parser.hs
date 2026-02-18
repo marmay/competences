@@ -318,7 +318,9 @@ segmentSideP :: Parser SegmentSide
 segmentSideP =
   choice
     [ SegAbove <$ string "above"
+    , SegAbove <$ string "left"
     , SegBelow <$ string "below"
+    , SegBelow <$ string "right"
     ]
 
 -- | Consume horizontal whitespace + newlines (used between commands)
