@@ -183,11 +183,20 @@ evalLabel = \case
             prim = RenderLabel labelVec txt labelPos env
         pure (emitToLayer env prim, mempty)
 
--- | Convert segment side to a label position based on segment direction
+-- | Convert segment side to a label position based on segment direction.
+--
+-- Computes the perpendicular direction from the segment and picks the
+-- visually appropriate 'LabelPosition'. For horizontal segments this
+-- yields 'Above'/'Below'; for vertical segments 'LeftOf'/'RightOf';
+-- for diagonals whichever axis dominates.
 segmentSideToPosition :: SegmentSide -> Double -> Double -> LabelPosition
-segmentSideToPosition side _dx _dy = case side of
-  SegAbove -> Above
-  SegBelow -> Below
+segmentSideToPosition side dx dy =
+  let (px, py) = case side of
+        SegAbove -> (-dy, dx) -- left perpendicular
+        SegBelow -> (dy, -dx) -- right perpendicular
+   in if abs py > abs px
+        then if py > 0 then Above else Below
+        else if px < 0 then LeftOf else RightOf
 
 -- -----------------------------------------------------------------
 -- Segment ref resolution
