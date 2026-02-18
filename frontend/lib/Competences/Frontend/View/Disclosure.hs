@@ -237,7 +237,7 @@ disclosureImpl style mPalette toggleAction dc =
   MH.div_
     [class_ containerClasses]
     [ MH.div_
-        [class_ headerWrapperExtra, MH.onClick toggleAction]
+        [class_ headerWrapperExtra]
         [ Layout.addClass headerLayoutExtra $
             Layout.hFlow
               (Layout.hFull <> Layout.crossCenter)
@@ -268,14 +268,19 @@ disclosureImpl style mPalette toggleAction dc =
     -- Non-layout classes that go on wrapper div
     headerWrapperExtra = case style of
       DisclosureDefault ->
-        "px-3 py-2 cursor-pointer hover:bg-muted transition-colors " <> headerBg
+        "px-3 py-2 hover:bg-muted transition-colors " <> headerBg
       DisclosureNested ->
-        "px-2 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors " <> headerBg
+        "px-2 py-1.5 hover:bg-muted/50 transition-colors " <> headerBg
 
     -- Header content
     headerContent =
-      [ disclosureChevron isExpanded
-      , MH.div_ [class_ "flex-1 min-w-0"] [dc.title]
+      [ MH.div_
+          [ class_ $ "flex items-center flex-1 min-w-0 cursor-pointer " <> headerLayoutExtra
+          , MH.onClick toggleAction
+          ]
+          [ disclosureChevron isExpanded
+          , MH.div_ [class_ "flex-1 min-w-0"] [dc.title]
+          ]
       ]
         <> actionsView
 
