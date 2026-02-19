@@ -222,22 +222,10 @@ viewTaskContent taskData expandedSet taskId toggleAction =
             Just c
               | c == mempty -> M.text ""
               | otherwise ->
-                  MH.div_
-                    [class_ "mb-2"]
-                    [ MH.div_
-                        [ class_ "cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
-                        , MH.onClick (toggleAction taskId)
-                        ]
-                        [ Layout.hFlow
-                            (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-                            [ Disclosure.disclosureChevron isExpanded
-                            , Typography.muted (C.translate' C.LblTaskStatement)
-                            ]
-                        ]
-                    , if isExpanded
-                        then MH.div_ [class_ "ml-6 mb-2 prose prose-sm prose-stone max-w-none"] [renderRichText c]
-                        else M.text ""
-                    ]
+                  let titleView = Disclosure.titleText (C.translate' C.LblTaskStatement)
+                      bodyView = MH.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText c]
+                   in Disclosure.innerDisclosure (toggleAction taskId) $
+                        Disclosure.contents titleView isExpanded bodyView []
 
 -- | Per-task competence evaluations (lists competence rows with ability buttons).
 viewTaskCompetences
