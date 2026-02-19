@@ -28,7 +28,6 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
-import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -97,17 +96,16 @@ data Action
     PhaseReorder !ListReorderAction
   | -- Save/Cancel:
     SaveAndClose
-  | CloseModal
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
--- | Create the lesson editor modal component.
--- Assignments are now stored directly on the lesson via 'lesson.assignments'.
-lessonEditorModal :: SyncContext -> WindowManagerRef -> Lesson -> [LessonNotesId] -> M.Component p Model Action
-lessonEditorModal r modalMgr lesson' lessonNotesIds =
+-- | Create the lesson editor content component.
+-- Pass @Just closeAction@ when used in a context that supports programmatic close.
+lessonEditorModal :: SyncContext -> Maybe (IO ()) -> Lesson -> [LessonNotesId] -> M.Component p Model Action
+lessonEditorModal r mClose lesson' lessonNotesIds =
   M.component model update (view r)
   where
     model =
@@ -259,10 +257,9 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
         -- Unlink removed lesson notes from this lesson
         mapM_ (\lnId -> linkLessonNote lnId (Just m.lesson.id) Nothing) lessonNotesRemoved
 
-        closeModal modalMgr
-
-    update CloseModal =
-      M.io_ $ closeModal modalMgr
+        case mClose of
+          Just close -> close
+          Nothing -> pure ()
 
     -- ========================================================================
     -- View
@@ -270,14 +267,9 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
 
     view :: SyncContext -> Model -> M.View Model Action
     view syncCtx m =
-      MH.div_
-        [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
-        , class_ "w-[900px] max-w-[95vw] max-h-[90vh] flex flex-col"
-        ]
-        [ Modal.modalHeader (C.translate' C.LblLesson) CloseModal
-        , -- Scrollable form content
-          MH.div_
-            [class_ "px-6 py-4 space-y-6 overflow-y-auto"]
+      Layout.vFlow Layout.hFull
+        [ -- Scrollable form content
+          Layout.scrollContent $ Layout.padL $ Layout.vFlow Layout.gapM
             [ -- Section 1: Title
               titleSection m
             , -- Section 2: Description (split-panel)
@@ -296,8 +288,7 @@ lessonEditorModal r modalMgr lesson' lessonNotesIds =
               phasesSection m
             ]
         , Modal.modalFooter
-            [ Button.cancelButton CloseModal
-            , Button.primary (Button.button C.LblSave (allContentReady m, SaveAndClose))
+            [ Button.primary (Button.button C.LblSave (allContentReady m, SaveAndClose))
             ]
         ]
 

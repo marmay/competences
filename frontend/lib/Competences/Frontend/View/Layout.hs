@@ -31,6 +31,10 @@ module Competences.Frontend.View.Layout
   , addClass
   , grow
   , shrink0
+  , scrollContent
+  , padS
+  , padM
+  , padL
 
     -- * Higher-level layouts
   , pageLayout
@@ -213,6 +217,24 @@ grow = addClass "flex-1"
 -- | Prevent a flex child from shrinking (flex-shrink-0).
 shrink0 :: M.View m a -> M.View m a
 shrink0 = addClass "flex-shrink-0"
+
+-- | A scrollable content region that grows to fill available space.
+-- Combines flex-1, min-h-0, and overflow-y-auto for correct flex scroll behavior.
+-- Typical use: main content area in a vFlow where siblings (header/footer) are shrink0.
+scrollContent :: M.View m a -> M.View m a
+scrollContent = addClass "flex-1 min-h-0 overflow-y-auto"
+
+-- | Small uniform padding (p-2, 0.5rem).
+padS :: M.View m a -> M.View m a
+padS = addClass "p-2"
+
+-- | Medium uniform padding (p-4, 1rem).
+padM :: M.View m a -> M.View m a
+padM = addClass "p-4"
+
+-- | Large uniform padding (p-6, 1.5rem).
+padL :: M.View m a -> M.View m a
+padL = addClass "p-6"
 
 -- ============================================================================
 -- UTILITIES

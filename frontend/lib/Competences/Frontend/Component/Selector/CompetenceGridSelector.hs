@@ -18,13 +18,14 @@ import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), Compe
 import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , closeModal
   , modifySyncDocument
   , nextId
-  , openModal
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Layout qualified as Layout
@@ -123,7 +124,8 @@ competenceGridSelectorComponent r style initialSelection parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ openModal r.windowManager (ImportModal.competenceGridImportModalComponent r)
+      let cfg = FramedModalConfig (C.translate' C.LblImportCompetenceGrids) ModalWide ModalFull
+      M.io_ $ openFramedModal r.windowManager cfg (ImportModal.competenceGridImportModalComponent r (Just $ closeModal r.windowManager))
 
     updateFromProjection :: GridSelectorProjection -> Model -> Model
     updateFromProjection proj m =

@@ -29,9 +29,11 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( ResultView (..)
   , formatCompetenceLevelBadge'
   )
+import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -46,6 +48,7 @@ import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tooltip qualified as Tooltip
 import Competences.Frontend.View.Typography qualified as Typography
 import Control.Monad (when)
+import Data.List (find)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
@@ -165,8 +168,11 @@ lessonEvaluatorComponent r lessonId =
 
     -- Open student detail as a modal
     update (OpenStudentDetail userId) = do
-      M.io_ $ do
-        WM.openModal r.windowManager (studentEvaluatorModal r r.windowManager lessonId userId)
+      m <- M.get
+      let userName = maybe "" (.name) $ find (\u -> u.id == userId) m.students
+          cfg = FramedModalConfig (M.ms userName) ModalWide ModalFull
+      M.io_ $
+        openFramedModal r.windowManager cfg (studentEvaluatorModal r (Just $ closeModal r.windowManager) lessonId userId)
 
     -- ------------------------------------------------------------------
     -- VIEW

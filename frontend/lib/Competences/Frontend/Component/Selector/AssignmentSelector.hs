@@ -13,14 +13,15 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
+  , closeModal
   , modifySyncDocument
   , nextId
-  , openModal
   , subscribeWithProjection
   , syncDocumentEnv
   )
@@ -149,7 +150,8 @@ assignmentSelectorComponent r initialSelection parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ openModal r.windowManager (ImportModal.assignmentImportModalComponent r)
+      let cfg = FramedModalConfig (C.translate' C.LblImportAssignments) ModalWide ModalFull
+      M.io_ $ openFramedModal r.windowManager cfg (ImportModal.assignmentImportModalComponent r (Just $ closeModal r.windowManager))
 
     view' m =
       M.div_

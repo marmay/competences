@@ -2,7 +2,7 @@
 -- Module      : Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal
 -- Description : Modal component for editing MesoPlan fields
 --
--- Used via the central WindowManager to edit title and date range of a meso plan.
+-- Chrome-free content component. Wrapped by FramedModal when opened as a modal.
 module Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal
   ( mesoPlanEditorModal
   )
@@ -12,10 +12,9 @@ import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanPatch (
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
-import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Default (def)
 import Data.Text (Text)
@@ -38,8 +37,16 @@ data Model = Model
   , titleValue :: !Text
   , dateFromValue :: !(Maybe Day)
   , dateToValue :: !(Maybe Day)
+  , onClose :: !(Maybe (IO ()))
   }
-  deriving (Eq, Generic)
+  deriving (Generic)
+
+instance Eq Model where
+  a == b =
+    a.mesoPlan == b.mesoPlan
+      && a.titleValue == b.titleValue
+      && a.dateFromValue == b.dateFromValue
+      && a.dateToValue == b.dateToValue
 
 -- ============================================================================
 -- Actions
@@ -50,16 +57,16 @@ data Action
   | SetDateFrom !(Maybe Day)
   | SetDateTo !(Maybe Day)
   | SaveAndClose
-  | CloseModal
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
--- | Create the meso plan editor modal component
-mesoPlanEditorModal :: SyncContext -> WindowManagerRef -> MesoPlan -> M.Component p Model Action
-mesoPlanEditorModal r modalMgr plan =
+-- | Create the meso plan editor content component.
+-- Pass @Just closeAction@ when used in a context that supports programmatic close.
+mesoPlanEditorModal :: SyncContext -> Maybe (IO ()) -> MesoPlan -> M.Component p Model Action
+mesoPlanEditorModal r mClose plan =
   M.component model update view
   where
     model =
@@ -68,6 +75,7 @@ mesoPlanEditorModal r modalMgr plan =
         , titleValue = plan.title
         , dateFromValue = plan.dateFrom
         , dateToValue = plan.dateTo
+        , onClose = mClose
         }
 
     update (SetTitle t) =
@@ -100,62 +108,53 @@ mesoPlanEditorModal r modalMgr plan =
             modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id Lock)
             modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (Release patch))
           else pure ()
-        closeModal modalMgr
-
-    update CloseModal =
-      M.io_ $ closeModal modalMgr
+        case m.onClose of
+          Just close -> close
+          Nothing -> pure ()
 
     view :: Model -> M.View Model Action
     view m =
       MH.div_
-        [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
-        , class_ "w-[500px] max-w-[95vw] flex flex-col"
-        ]
-        [ Modal.modalHeader (C.translate' C.LblEditMesoPlan) CloseModal
-        , -- Form content
+        [class_ "px-6 py-4 space-y-4"]
+        [ -- Title input
           MH.div_
-            [class_ "px-6 py-4 space-y-4"]
-            [ -- Title input
+            []
+            [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblEditMesoPlan]
+            , MH.input_
+                [ MP.type_ "text"
+                , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
+                , MP.value_ (M.ms m.titleValue)
+                , MH.onInput (SetTitle . M.fromMisoString)
+                , MP.autofocus_ True
+                ]
+            ]
+        , -- Date range inputs
+          Layout.hFlow Layout.gapM
+            [ -- Date from
               MH.div_
-                []
-                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblMesoPlanTitle]
+                [class_ "flex-1"]
+                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblMesoPlanDateFrom]
                 , MH.input_
-                    [ MP.type_ "text"
+                    [ MP.type_ "date"
                     , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
-                    , MP.value_ (M.ms m.titleValue)
-                    , MH.onInput (SetTitle . M.fromMisoString)
-                    , MP.autofocus_ True
+                    , MP.value_ (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateFromValue)
+                    , MH.onInput (SetDateFrom . parseDate . M.fromMisoString)
                     ]
                 ]
-            , -- Date range inputs
-              Layout.hFlow Layout.gapM
-                [ -- Date from
-                  MH.div_
-                    [class_ "flex-1"]
-                    [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblMesoPlanDateFrom]
-                    , MH.input_
-                        [ MP.type_ "date"
-                        , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
-                        , MP.value_ (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateFromValue)
-                        , MH.onInput (SetDateFrom . parseDate . M.fromMisoString)
-                        ]
-                    ]
-                , -- Date to
-                  MH.div_
-                    [class_ "flex-1"]
-                    [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblMesoPlanDateTo]
-                    , MH.input_
-                        [ MP.type_ "date"
-                        , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
-                        , MP.value_ (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateToValue)
-                        , MH.onInput (SetDateTo . parseDate . M.fromMisoString)
-                        ]
+            , -- Date to
+              MH.div_
+                [class_ "flex-1"]
+                [ MH.label_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblMesoPlanDateTo]
+                , MH.input_
+                    [ MP.type_ "date"
+                    , class_ "mt-1 w-full px-3 py-2 border border-input rounded-md bg-background"
+                    , MP.value_ (M.ms $ maybe "" (formatTime defaultTimeLocale "%Y-%m-%d") m.dateToValue)
+                    , MH.onInput (SetDateTo . parseDate . M.fromMisoString)
                     ]
                 ]
             ]
         , Modal.modalFooter
-            [ Button.cancelButton CloseModal
-            , Button.applyButton SaveAndClose
+            [ Button.applyButton SaveAndClose
             ]
         ]
 

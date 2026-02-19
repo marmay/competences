@@ -42,8 +42,6 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
-import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Combobox
   ( ComboboxOption (..)
@@ -72,7 +70,7 @@ import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.String (fromMisoString, ms)
+import Miso.String (fromMisoString)
 import Optics.Core ((%))
 
 -- ============================================================================
@@ -164,11 +162,11 @@ computeViewData lessonId userId fallbackDate fallbackName doc =
 
 studentEvaluatorModal
   :: SyncContext
-  -> WindowManagerRef
+  -> Maybe (IO ())
   -> LessonId
   -> UserId
-  -> M.Component WM.Model (Initializing StudentEvalModel) StudentEvalAction
-studentEvaluatorModal r modalMgr initialLessonId initialUserId =
+  -> M.Component p (Initializing StudentEvalModel) StudentEvalAction
+studentEvaluatorModal r mClose initialLessonId initialUserId =
   (deferredComponent
     (\case DocumentUpdated dc -> Just dc; _ -> Nothing)
     (initFromDocument initialLessonId initialUserId)
@@ -220,7 +218,9 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
       m { viewData = computeViewData initialLessonId initialUserId
             m.viewData.lessonDate m.viewData.userName dc.document }
 
-    update CloseModal = M.io_ $ closeModal modalMgr
+    update CloseModal = M.io_ $ case mClose of
+      Just close -> close
+      Nothing -> pure ()
 
     -- Task observations
     update (SetTaskObservation taskId compId ability) = M.modify $ \m ->
@@ -355,7 +355,7 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
                     , lessonId = Just initialLessonId
                     }
             modifySyncDocument r (Evidences $ OnEvidences $ Create evidence)
-        closeModal modalMgr
+        case mClose of { Just close -> close; Nothing -> pure () }
 
     -- Delete existing evidence
     update DeleteEvidence = do
@@ -365,7 +365,7 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
           Just existingEv ->
             modifySyncDocument r (Evidences $ OnEvidences $ Delete existingEv.id)
           Nothing -> pure ()
-        closeModal modalMgr
+        case mClose of { Just close -> close; Nothing -> pure () }
 
     mkObservation :: SocialForm -> (CompetenceLevelId, Ability) -> IO Observation
     mkObservation sf (compId, ability) = do
@@ -397,13 +397,8 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
           canDelete = not hasAggregatedResults && not (isNothing m.viewData.existingEvidence)
           isDisabled = not hasAggregatedResults || m.aggregationStale
           actionLabel = C.translate' $ if isNothing m.viewData.existingEvidence then C.LblCreateEvidencesAction else C.LblSaveEvidences
-       in MH.div_
-            [ class_ "bg-popover text-popover-foreground rounded-xl shadow-lg"
-            , class_ "w-full max-w-[90vw] h-[90vh] flex flex-col"
-            ]
-            [ Modal.modalHeader (ms m.viewData.userName) CloseModal
-            , MH.div_
-                [class_ "px-6 py-4 space-y-4 overflow-y-auto flex-1"]
+       in Layout.vFlow Layout.hFull
+            [ Layout.scrollContent $ Layout.padL $ Layout.vFlow Layout.gapM
                 [ -- Task sections
                   if null sortedTaskIds
                     then Typography.muted (C.translate' C.LblLessonNoTasks)
@@ -416,8 +411,7 @@ studentEvaluatorModal r modalMgr initialLessonId initialUserId =
                   viewAggregationSection m
                 ]
             , Modal.modalFooter
-                [ Button.cancelButton CloseModal
-                , if canDelete
+                [ if canDelete
                     then
                       Button.deleteButton DeleteEvidence
                     else

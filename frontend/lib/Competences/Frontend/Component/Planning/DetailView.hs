@@ -14,6 +14,7 @@ import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -23,11 +24,12 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), openModal, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
@@ -161,7 +163,8 @@ detailComponent r initialPlan =
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson [])
+        let cfg = FramedModalConfig (C.translate' C.LblLesson) ModalWide ModalFull
+        openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
@@ -192,11 +195,13 @@ detailComponent r initialPlan =
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
       let lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
+          cfg = FramedModalConfig (C.translate' C.LblLesson) ModalWide ModalFull
       M.io_ $
-        openModal r.windowManager (lessonEditorModal r r.windowManager lesson lessonNotesIds)
+        openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson lessonNotesIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
-      openModal r.windowManager (mesoPlanEditorModal r r.windowManager plan)
+      let cfg = FramedModalConfig (C.translate' C.LblEditMesoPlan) ModalNarrow ModalAuto
+       in openFramedModal r.windowManager cfg (mesoPlanEditorModal r (Just $ closeModal r.windowManager) plan)
 
     update (DeleteLesson lessonId) = M.io_ $
       modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)

@@ -4,20 +4,20 @@ module Competences.Frontend.Component.AboutDialog
 where
 
 import Competences.Frontend.BuildInfo (frontendVersion)
+import Competences.Frontend.Component.FramedModal
+  ( FramedModalConfig (..)
+  , ModalHeight (..)
+  , ModalWidth (..)
+  , openFramedModal
+  )
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , readServerInfo
-  )
-import Competences.Frontend.SyncContext.WindowManager
-  ( WindowManagerRef
-  , closeModal
-  , openModal
   )
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -49,14 +49,19 @@ aboutButtonComponent ir = M.component model update view
 
     update OpenAboutDialog = M.io_ $ do
       srvInfo <- readServerInfo ir
-      openModal ir.windowManager (aboutModalComponent ir.windowManager srvInfo)
+      let cfg = FramedModalConfig
+            { title = "Meine Kompetenzen"
+            , width = ModalNarrow
+            , height = ModalAuto
+            }
+      openFramedModal ir.windowManager cfg (aboutModalContent srvInfo)
 
     view _m =
       withTooltip (PlainTooltip "Info") $
         Button.primaryLg (Button.button Icon.IcnInfo OpenAboutDialog)
 
 -- ============================================================================
--- ABOUT MODAL
+-- ABOUT MODAL (chrome-free content)
 -- ============================================================================
 
 newtype ModalModel = ModalModel
@@ -64,37 +69,26 @@ newtype ModalModel = ModalModel
   }
   deriving (Eq, Generic, Show)
 
-data ModalAction = CloseAbout
+data ModalAction = NoOp
   deriving (Eq, Show)
 
-aboutModalComponent :: WindowManagerRef -> ServerInfo -> M.Component p ModalModel ModalAction
-aboutModalComponent wmRef srvInfo = M.component model update view
+aboutModalContent :: ServerInfo -> M.Component p ModalModel ModalAction
+aboutModalContent srvInfo = M.component model update view
   where
     model = ModalModel srvInfo
 
-    update CloseAbout = M.io_ $ closeModal wmRef
+    update NoOp = pure ()
 
     view m =
-      Modal.modalDialog
-        []
-        [ Modal.modalHeader "Meine Kompetenzen" CloseAbout
-        , modalBody m
-        , Modal.modalFooter
-            [ Button.secondary (Button.button ("Schlie\223en" :: M.MisoString) CloseAbout)
+      MH.div_
+        [class_ "px-6 py-4"]
+        [ Layout.vFlow
+            Layout.gapM
+            [ versionSection m
+            , licenseSection
+            , copyrightSection
             ]
         ]
-
-modalBody :: ModalModel -> M.View m ModalAction
-modalBody m =
-  MH.div_
-    [class_ "px-6 py-4"]
-    [ Layout.vFlow
-        Layout.gapM
-        [ versionSection m
-        , licenseSection
-        , copyrightSection
-        ]
-    ]
 
 versionSection :: ModalModel -> M.View m a
 versionSection m =

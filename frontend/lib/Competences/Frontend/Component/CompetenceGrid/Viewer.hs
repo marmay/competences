@@ -44,6 +44,7 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -51,7 +52,6 @@ import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
-  , openModal
   , subscribeWithProjection
   , syncDocumentEnv
   )
@@ -308,7 +308,8 @@ viewerComponent r grid =
           resources = Map.findWithDefault [] clId m.projection.learningResources
           showPurposeBadge = m.projection.connectedUserRole == Teacher
           cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge m.projection.taskStatuses
-      M.io_ $ openModal r.windowManager (ResourceModal.resourceModalComponent r.windowManager cfg)
+      let frameCfg = FramedModalConfig (C.translate' C.LblMaterials) ModalWide ModalFull
+      M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent cfg)
 
     -- Main view: dispatch based on view data type
     view m =

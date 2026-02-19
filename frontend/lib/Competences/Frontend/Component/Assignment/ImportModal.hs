@@ -24,19 +24,17 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Document.User (User (..))
 import Competences.Query.User qualified as QUser
-import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.AssignmentParser (parseAssignmentImport)
@@ -83,15 +81,14 @@ data Action
   | SetInputText !Text
   | ParseInput
   | ApplyImport
-  | CloseModal
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
-assignmentImportModalComponent :: SyncContext -> M.Component p Model Action
-assignmentImportModalComponent r =
+assignmentImportModalComponent :: SyncContext -> Maybe (IO ()) -> M.Component p Model Action
+assignmentImportModalComponent r mClose =
   (M.component model update view)
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
@@ -141,58 +138,51 @@ assignmentImportModalComponent r =
       case m.parseResult of
         Right previews -> M.io_ $ do
           applyPreviews r m.document previews
-          closeModal r.windowManager
+          case mClose of
+            Just close -> close
+            Nothing -> pure ()
         Left _ -> pure ()
-
-    update CloseModal =
-      M.io_ $ closeModal r.windowManager
 
     view :: Model -> M.View Model Action
     view m =
-      -- Note: No modal wrapper needed - the parent WindowHost component provides the backdrop
-      M.div_
-        [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[80vw] h-[80vh] max-w-[80vw] flex flex-col"]
-            [ Modal.modalHeader (C.translate' C.LblImportAssignments) CloseModal
-            , -- Content
-              MH.div_
-                [class_ "flex-1 min-h-0 p-4 overflow-hidden"]
-                [ Layout.hFlow (Layout.gapM <> Layout.hFull)
-                    [ -- Left: Input area
-                      MH.div_
-                        [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                        [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                            [ Typography.h3 "Eingabe"
-                            , M.textarea_
-                                [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                                , MP.placeholder_ placeholderText
-                                , MP.value_ (M.ms m.inputText)
-                                , M.onInput (SetInputText . M.fromMisoString)
-                                ]
-                                []
+      Layout.vFlow Layout.hFull
+        [ -- Content
+          Layout.scrollContent $ Layout.padM $
+            Layout.hFlow (Layout.gapM <> Layout.hFull)
+                [ -- Left: Input area
+                  MH.div_
+                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
+                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
+                        [ Typography.h3 "Eingabe"
+                        , M.textarea_
+                            [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
+                            , MP.placeholder_ placeholderText
+                            , MP.value_ (M.ms m.inputText)
+                            , M.onInput (SetInputText . M.fromMisoString)
                             ]
+                            []
                         ]
-                    , -- Right: Preview area
-                      MH.div_
-                        [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                        [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                            [ Typography.h3 "Vorschau"
-                            , M.div_
-                                [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                                [previewView m]
-                            ]
+                    ]
+                , -- Right: Preview area
+                  MH.div_
+                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
+                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
+                        [ Typography.h3 "Vorschau"
+                        , M.div_
+                            [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
+                            [previewView m]
                         ]
                     ]
                 ]
-            , Modal.modalFooter
-                [ Button.secondary (Button.button C.LblCancel CloseModal)
-                , Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
-                , case m.parseResult of
-                    Right previews
-                      | not (null previews) && any hasChanges previews ->
-                          Button.applyButton ApplyImport
-                    _ -> M.text ""
-                ]
+        , Modal.modalFooter
+            [ Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
+            , case m.parseResult of
+                Right previews
+                  | not (null previews) && any hasChanges previews ->
+                      Button.applyButton ApplyImport
+                _ -> M.text ""
             ]
+        ]
 
 placeholderText :: M.MisoString
 placeholderText =

@@ -29,11 +29,9 @@ import Competences.Document.Task (TaskId)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
-import Competences.Frontend.SyncContext.WindowManager (WindowManagerRef, closeModal)
 import Competences.Query.TaskStatus (TaskCompletionStatus, TaskStatusGroup (..), groupByTaskStatus)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -83,15 +81,14 @@ data Action
   | SwitchViewMode !ResourceViewMode
   | ToggleResourceExpanded !ResourceId
   | ToggleStatusGroup !TaskStatusGroup
-  | CloseModal
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: WindowManagerRef -> ResourceModalConfig -> M.Component p Model Action
-resourceModalComponent modalMgr cfg =
+resourceModalComponent :: ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent cfg =
   M.component model update view
   where
     -- Determine default view mode based on available content
@@ -131,32 +128,21 @@ resourceModalComponent modalMgr cfg =
                 else Set.insert group m.collapsedGroups
          in m {collapsedGroups = newCollapsed}
 
-    update CloseModal =
-      M.io_ $ closeModal modalMgr
-
     view :: Model -> M.View Model Action
     view m =
-      MH.div_
-        [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[66vw] min-w-[66vw] max-w-none h-[90vh]"]
-        [ Layout.vFlow Layout.hFull
-            [ Modal.modalHeaderWith
-                (C.translate' C.LblMaterials)
-                [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
-                CloseModal
-            , -- Scrollable content area
-              MH.div_
-                [class_ "flex-1 overflow-y-auto px-8 py-6"]
-                [ case m.viewMode of
-                    ViewTasks
-                      | Map.null m.config.taskStatuses ->
-                          -- No focused user: flat list without grouping
-                          taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
-                      | otherwise ->
-                          groupedTasksView m
-                    ViewLearningResources ->
-                      ResourceList.resourcesListView m.config.resources m.expandedResources ToggleResourceExpanded
-                ]
-            ]
+      Layout.scrollContent $ Layout.padL $ Layout.vFlow Layout.gapM
+        [ -- Mode switcher
+          modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)
+        , -- Content
+          case m.viewMode of
+            ViewTasks
+              | Map.null m.config.taskStatuses ->
+                  -- No focused user: flat list without grouping
+                  taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
+              | otherwise ->
+                  groupedTasksView m
+            ViewLearningResources ->
+              ResourceList.resourcesListView m.config.resources m.expandedResources ToggleResourceExpanded
         ]
 
 -- ============================================================================
