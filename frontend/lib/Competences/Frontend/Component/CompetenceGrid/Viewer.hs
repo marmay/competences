@@ -19,6 +19,8 @@ import Competences.Document
   , ResourceIdentifier (..)
   , Task (..)
   , allLevels
+  , getLevelInfo
+  , hasLevelContent
   , ordered
   )
 import Competences.Document.Evidence
@@ -188,7 +190,7 @@ viewerComponent r grid =
             [ (c.id, level)
             | c <- Ix.toList gridCompetences
             , level <- allLevels
-            , let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level c.levels
+            , let levelInfo = getLevelInfo level c
             , not (T.null levelInfo.description)
             ]
           -- Compute view-specific data based on focused user
@@ -366,6 +368,10 @@ viewerComponent r grid =
                     renderLevelCell proj competence level
               }
 
+    -- | Look up mastery status for a competence level (defaults to NotTried)
+    lookupMastery :: UserData -> CompetenceLevelId -> MasteryStatus
+    lookupMastery ud clId = Map.findWithDefault NotTried clId ud.userMastery
+
     -- Render description cell (first column)
     renderDescriptionCell proj competence =
       let (bgClass, bgStyle) = case proj.viewData of
@@ -373,7 +379,11 @@ viewerComponent r grid =
               let mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
                in case mAssessment of
                     Nothing ->
-                      let ms = Map.findWithDefault NotTried (competence.id, BasicLevel) userData.userMastery
+                      let firstNonEmptyLevel = listToMaybe
+                            [ level | level <- allLevels, hasLevelContent level competence ]
+                          ms = maybe NotTried
+                            (\lvl -> lookupMastery userData (competence.id, lvl))
+                            firstNonEmptyLevel
                        in ("", CellStyle.masteryStripedStyle ms)
                     Just assessment -> case assessment.level of
                       Nothing -> ("bg-yellow-200", [])
@@ -387,7 +397,7 @@ viewerComponent r grid =
 
     -- Render level cell (varies by view type)
     renderLevelCell proj competence level =
-      let levelInfo = Map.findWithDefault (LevelInfo T.empty False) level competence.levels
+      let levelInfo = getLevelInfo level competence
           hasDescription = not (T.null levelInfo.description)
           competenceLevelId = (competence.id, level)
 
@@ -474,7 +484,7 @@ viewerComponent r grid =
           masteryBadgeRow = case cellStatus of
             NoAssessment
               | hasDescription
-              , let ms = Map.findWithDefault NotTried competenceLevelId userData.userMastery
+              , let ms = lookupMastery userData competenceLevelId
               , Just p <- masteryPalette ms ->
                   MH.div_
                     [class_ "mb-0.5"]
@@ -514,7 +524,7 @@ viewerComponent r grid =
             NoAssessment
               | hasDescription ->
                   CellStyle.masteryStripedStyle $
-                    Map.findWithDefault NotTried competenceLevelId userData.userMastery
+                    lookupMastery userData competenceLevelId
             _ -> []
        in TableCellSpec
             { cellClasses = tdClasses

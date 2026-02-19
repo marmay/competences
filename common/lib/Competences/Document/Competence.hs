@@ -9,6 +9,7 @@ module Competences.Document.Competence
   , LevelInfo (..)
   , allLevels
   , competenceLevelIdsOf
+  , getLevelInfo
   , levelDescription
   , isLevelLocked
   , hasLevelContent
@@ -67,6 +68,10 @@ allLevels = [BasicLevel, IntermediateLevel, AdvancedLevel]
 competenceLevelIdsOf :: Competence -> [CompetenceLevelId]
 competenceLevelIdsOf competence =
    map (competence.id,) $ M.keys competence.levels
+
+-- | Get level info (empty if not present)
+getLevelInfo :: Level -> Competence -> LevelInfo
+getLevelInfo lvl c = M.findWithDefault (LevelInfo T.empty False) lvl c.levels
 
 -- | Get description for a level (empty if not present)
 levelDescription :: Level -> Competence -> Text

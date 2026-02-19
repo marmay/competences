@@ -39,6 +39,7 @@ import Competences.Document.Competence
   , Level (..)
   , LevelInfo (..)
   , allLevels
+  , getLevelInfo
   , levelDescription
   , isLevelLocked
   , hasLevelContent
