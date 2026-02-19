@@ -20,6 +20,7 @@ import Competences.Document
   )
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (idToText)
+import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionType (..))
 import Competences.Document.Task
@@ -81,6 +82,7 @@ data TaskResourcesModel = TaskResourcesModel
   , ungroupedTasks :: ![DiscoveredTask]
   , expandedResources :: !(Set ResourceId)
   , expandedDiscoveredTasks :: !(Set TaskId)
+  , collapsedLessonNotes :: !(Set LessonNotesId)
   }
   deriving (Eq, Generic, Show)
 
@@ -89,6 +91,7 @@ data Action
   = UpdateResources !DocumentChange
   | ToggleResourceExpanded !ResourceId
   | ToggleDiscoveredTaskExpanded !TaskId
+  | ToggleLessonNoteGroup !LessonNotesId
   | OpenLessonNotes !LessonNotes
   deriving (Eq, Show)
 
@@ -111,6 +114,7 @@ taskResourcesComponent r taskId =
       , ungroupedTasks = []
       , expandedResources = Set.empty
       , expandedDiscoveredTasks = Set.empty
+      , collapsedLessonNotes = Set.empty
       }
 
     update (UpdateResources docChange) =
@@ -135,6 +139,14 @@ taskResourcesComponent r taskId =
                 then Set.delete tid m.expandedDiscoveredTasks
                 else Set.insert tid m.expandedDiscoveredTasks
          in m & #expandedDiscoveredTasks .~ newExpanded
+
+    update (ToggleLessonNoteGroup lnId) =
+      M.modify $ \m ->
+        let newCollapsed =
+              if Set.member lnId m.collapsedLessonNotes
+                then Set.delete lnId m.collapsedLessonNotes
+                else Set.insert lnId m.collapsedLessonNotes
+         in m & #collapsedLessonNotes .~ newCollapsed
 
     update (OpenLessonNotes ln) = M.io_ $
       openFramedModal r.windowManager
@@ -255,34 +267,27 @@ groupByLessonNotes lns resourceIdSet discoveredTaskIdSet resourceMap discoveredT
 -- Views
 -- ============================================================================
 
--- | Render a lesson note group with clickable header.
+-- | Render a lesson note group as a collapsible innerDisclosure.
 viewLessonNoteGroup
   :: TaskResourcesModel
   -> (LessonNotes, [Resource], [DiscoveredTask])
   -> M.View TaskResourcesModel Action
 viewLessonNoteGroup m (ln, resources, discoveredTasks) =
-  MH.div_
-    [class_ "space-y-2"]
-    [ -- Clickable lesson note header
-      MH.button_
-        [ class_ "flex items-center gap-2 text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors"
-        , MH.onClick (OpenLessonNotes ln)
-        ]
-        [ Icon.icon [] Icon.IcnLessonNotes
-        , MH.span_ [] [M.text $ ms ln.title]
-        , MH.span_
-            [class_ "text-muted-foreground font-normal"]
-            [M.text $ C.formatDay ln.date]
-        ]
-    , -- Resources
-      if null resources
-        then Layout.empty
-        else ResourceList.resourcesListView resources m.expandedResources ToggleResourceExpanded
-    , -- Discovered tasks
-      if null discoveredTasks
-        then Layout.empty
-        else MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask m) discoveredTasks)
-    ]
+  let isExpanded = not (Set.member ln.id m.collapsedLessonNotes)
+      titleView = Disclosure.titleIconText Icon.IcnLessonNotes (ms ln.title)
+      bodyView =
+        MH.div_
+          [class_ "space-y-2"]
+          [ if null resources
+              then Layout.empty
+              else ResourceList.resourcesListView resources m.expandedResources ToggleResourceExpanded
+          , if null discoveredTasks
+              then Layout.empty
+              else MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask m) discoveredTasks)
+          ]
+      openAction = Disclosure.Action Icon.IcnOpenModal (OpenLessonNotes ln)
+   in Disclosure.innerDisclosure (ToggleLessonNoteGroup ln.id) $
+        Disclosure.contents titleView isExpanded bodyView [openAction]
 
 -- | Render ungrouped resources and tasks under a heading.
 viewUngrouped :: TaskResourcesModel -> [M.View TaskResourcesModel Action]

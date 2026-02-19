@@ -79,6 +79,7 @@ data Icon
   | IcnPrint
   | IcnMenu
   | IcnLessonNotes
+  | IcnOpenModal -- ^ Square with arrow out (open in modal)
   | IcnCloudCheck -- ^ Connected, all synced (cloud + checkmark)
   | IcnCloudSync -- ^ Connected, sending/receiving (cloud + arrows)
   | IcnCloudOff -- ^ Disconnected (cloud + slash)
@@ -229,6 +230,7 @@ iconId = \case
   IcnPrint -> "icon-print"
   IcnMenu -> "icon-menu"
   IcnLessonNotes -> "icon-lesson-notes"
+  IcnOpenModal -> "icon-open-modal"
   IcnCloudCheck -> "icon-cloud-check"
   IcnCloudSync -> "icon-cloud-sync"
   IcnCloudOff -> "icon-cloud-off"
@@ -595,6 +597,13 @@ iconDefOf' = \case
       , "M11 7h5"
       , "M11 11h5"
       , "M11 15h3"
+      ]
+  -- External link / open-in-modal icon (square with arrow pointing out)
+  IcnOpenModal ->
+    mkPathesDR
+      [ "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+      , "M15 3h6v6"
+      , "M10 14L21 3"
       ]
   -- Cloud + checkmark in bottom-right (connected, synced)
   IcnCloudCheck ->
