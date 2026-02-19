@@ -305,8 +305,7 @@ viewerComponent r user assignment =
         []
         [ M.div_
             [class_ "space-y-6 print:hidden"]
-            [ viewAssignmentHeader m
-            , viewTaskList m
+            [ viewAssignment m
             ]
         , M.div_
             [class_ "hidden print:block"]
@@ -319,9 +318,11 @@ viewerComponent r user assignment =
       | m.printPending = M.div_ [onCreated ExecutePrint, class_ "hidden"] []
       | otherwise = M.text ""
 
-    viewAssignmentHeader m =
+    viewAssignment m =
       let proj = m.projection
           desc = proj.currentAssignment.description
+          showPurposeBadge = proj.connectedUserRole == Teacher
+          taskStatusRenderer = viewTaskCompletionStatusFromMap proj.taskStatuses
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
@@ -350,7 +351,13 @@ viewerComponent r user assignment =
                 , -- Accumulated observations list (one per competence level)
                   viewObservationList proj
                 ]
+            , M.div_
+              [class_ "space-y-4"]
+              ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
+                [ taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
+              )
             ]
+
 
     viewObservationList proj =
       if Map.null proj.accumulatedObs
@@ -388,17 +395,6 @@ viewerComponent r user assignment =
     abilityIcon SelfReliantWithSillyMistakes = Icon.IcnAbilitySillyMistakes
     abilityIcon WithSupport = Icon.IcnAbilityWithSupport
     abilityIcon NotYet = Icon.IcnAbilityNotYet
-
-    viewTaskList m =
-      let proj = m.projection
-          -- Only show purpose badges for teachers
-          showPurposeBadge = proj.connectedUserRole == Teacher
-          taskStatusRenderer = viewTaskCompletionStatusFromMap proj.taskStatuses
-       in M.div_
-            [class_ "space-y-4"]
-            [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction
-            ]
 
     viewTaskResources :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
     viewTaskResources m syncCtx taskId
