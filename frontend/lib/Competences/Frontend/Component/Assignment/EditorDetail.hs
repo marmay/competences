@@ -29,7 +29,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
@@ -105,7 +105,7 @@ editorWrapperComponent r assignment =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
+            (AnyPinnedDialog (evaluatorComponent r assignment) (WindowChrome pinTitle Icon.IcnAssignment))
 
     view _m =
       Layout.vFlow Layout.gapM

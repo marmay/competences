@@ -14,7 +14,6 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Default (def)
 import Data.Text (Text)
@@ -153,7 +152,7 @@ mesoPlanEditorModal r mClose plan =
                     ]
                 ]
             ]
-        , Modal.modalFooter
+        , Layout.actionFooter
             [ Button.applyButton SaveAndClose
             ]
         ]

@@ -13,8 +13,14 @@
 --   For long-lived work surfaces like lesson evaluation. At most one visible at a time;
 --   opening/restoring a pin minimizes the currently visible one. Deduplicated by 'PinId'.
 module Competences.Frontend.SyncContext.WindowManager
-  ( -- * Types
-    WindowManagerRef (..)
+  ( -- * Shared chrome types
+    WindowChrome (..)
+  , ModalConfig (..)
+  , ModalWidth (..)
+  , ModalHeight (..)
+
+    -- * Types
+  , WindowManagerRef (..)
   , AnyModal (..)
   , AnyPinnedDialog (..)
   , PinId (..)
@@ -27,6 +33,7 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Modal API (blocking dialogs)
   , openModal
+  , openFramedModal
   , closeModal
 
     -- * Pin API (persistent dialogs)
@@ -53,6 +60,43 @@ import Miso.Subscription.Util (createSub)
 import UnliftIO (MVar, modifyMVar, modifyMVar_, newMVar)
 
 -- ---------------------------------------------------------------------------
+-- Shared chrome types
+-- ---------------------------------------------------------------------------
+
+-- | Shared window chrome for both modals and pinned dialogs.
+-- Defines the icon and title displayed in the title bar.
+data WindowChrome = WindowChrome
+  { title :: !MisoString
+  , icon :: !Icon.Icon
+  }
+  deriving (Eq, Show)
+
+-- | Width of the modal dialog.
+data ModalWidth
+  = -- | Wide modal (~85vw, capped). For editors, importers.
+    ModalWide
+  | -- | Narrow modal (~max-w-lg). For dialogs, confirmations.
+    ModalNarrow
+  deriving (Eq, Show)
+
+-- | Height of the modal dialog.
+data ModalHeight
+  = -- | Full height (~90vh), content scrolls inside.
+    ModalFull
+  | -- | Content-driven height, max ~90vh with scroll on overflow.
+    ModalAuto
+  deriving (Eq, Show)
+
+-- | Configuration for a framed modal.
+data ModalConfig = ModalConfig
+  { chrome :: !WindowChrome
+  , width :: !ModalWidth
+  , height :: !ModalHeight
+  , pinnable :: !(Maybe ())
+  -- ^ @Just ()@ = show pin button (pinning logic handled by WindowHost)
+  }
+
+-- ---------------------------------------------------------------------------
 -- Public types
 -- ---------------------------------------------------------------------------
 
@@ -66,29 +110,31 @@ newtype PinId = PinId Text
 data PinVisibility = PinVisible | PinMinimized
   deriving (Eq, Show)
 
--- | Existential wrapper for a modal component.
+-- | Existential wrapper for a modal component with its configuration.
 data AnyModal where
-  AnyModal :: (Eq m, Typeable m) => M.Component Model m a -> AnyModal
+  AnyModal
+    :: (Eq m, Typeable m)
+    => !(M.Component Model m a)
+    -> !ModalConfig
+    -> AnyModal
 
 instance Eq AnyModal where
-  AnyModal c1 == AnyModal c2 =
+  AnyModal c1 _ == AnyModal c2 _ =
     case cast c2.model of
       Just m2 -> c1.model == m2
       Nothing -> False
 
--- | Existential wrapper for a pinned dialog component.
+-- | Existential wrapper for a pinned dialog component with its chrome.
 data AnyPinnedDialog where
-  AnyPinnedDialog ::
-    (Eq m, Typeable m) =>
-    { apdComponent :: M.Component Model m a
-    , apdIcon :: Icon.Icon
-    , apdTitle :: MisoString
-    } ->
-    AnyPinnedDialog
+  AnyPinnedDialog
+    :: (Eq m, Typeable m)
+    => !(M.Component Model m a)
+    -> !WindowChrome
+    -> AnyPinnedDialog
 
 instance Eq AnyPinnedDialog where
-  AnyPinnedDialog c1 i1 t1 == AnyPinnedDialog c2 i2 t2 =
-    i1 == i2 && t1 == t2 && case cast c2.model of
+  AnyPinnedDialog c1 ch1 == AnyPinnedDialog c2 ch2 =
+    ch1 == ch2 && case cast c2.model of
       Just m2 -> c1.model == m2
       Nothing -> False
 
@@ -152,12 +198,23 @@ newWindowManager = WindowManagerRef <$> newMVar emptyState
 
 -- | Open a blocking modal. Renders above everything including pinned dialogs.
 -- Replaces any currently open modal.
-openModal :: (Eq m, Typeable m) => WindowManagerRef -> M.Component Model m a -> IO ()
-openModal (WindowManagerRef ref) comp = do
+openModal :: WindowManagerRef -> AnyModal -> IO ()
+openModal (WindowManagerRef ref) modal = do
   modifyMVar_ ref $ \s -> do
-    let s' = s {currentModal = Just (AnyModal comp)}
+    let s' = s {currentModal = Just modal}
     notifyHandlers s'
     pure s'
+
+-- | Open a modal with standard chrome (title bar, close button, sizing)
+-- rendered by WindowHost. Convenience wrapper around 'openModal' + 'AnyModal'.
+openFramedModal
+  :: (Eq m, Typeable m)
+  => WindowManagerRef
+  -> ModalConfig
+  -> M.Component Model m a
+  -> IO ()
+openFramedModal wmRef cfg comp =
+  openModal wmRef (AnyModal comp cfg)
 
 -- | Close the active modal.
 closeModal :: WindowManagerRef -> IO ()

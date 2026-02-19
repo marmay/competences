@@ -42,6 +42,9 @@ module Competences.Frontend.View.Layout
   , formLayout
   , section
 
+    -- * Action bars
+  , actionFooter
+
     -- * Utilities
   , empty
   , flowSpring
@@ -235,6 +238,18 @@ padM = addClass "p-4"
 -- | Large uniform padding (p-6, 1.5rem).
 padL :: M.View m a -> M.View m a
 padL = addClass "p-6"
+
+-- ============================================================================
+-- ACTION BARS
+-- ============================================================================
+
+-- | Footer bar with right-aligned action buttons, separated by a top border.
+-- Use in any context (modal, pin, inline) for a consistent action area.
+actionFooter :: [M.View m a] -> M.View m a
+actionFooter buttons =
+  M.div_
+    [class_ "flex justify-end gap-2 border-t border-border px-6 py-4"]
+    buttons
 
 -- ============================================================================
 -- UTILITIES

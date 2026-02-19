@@ -57,7 +57,6 @@ import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Lesson qualified as QLesson
@@ -410,7 +409,7 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
                 , -- Aggregation
                   viewAggregationSection m
                 ]
-            , Modal.modalFooter
+            , Layout.actionFooter
                 [ if canDelete
                     then
                       Button.deleteButton DeleteEvidence

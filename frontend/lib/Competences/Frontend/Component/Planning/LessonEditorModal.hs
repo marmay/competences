@@ -34,7 +34,6 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Default (def)
@@ -287,7 +286,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
             , -- Section 8: Phases
               phasesSection m
             ]
-        , Modal.modalFooter
+        , Layout.actionFooter
             [ Button.primary (Button.button C.LblSave (allContentReady m, SaveAndClose))
             ]
         ]

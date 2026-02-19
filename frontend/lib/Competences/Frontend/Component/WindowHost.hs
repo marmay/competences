@@ -22,18 +22,18 @@ import Competences.Frontend.SyncContext.WindowManager
   , PinId (..)
   , PinVisibility (..)
   , WindowChange (..)
+  , WindowChrome (..)
   , WindowManagerRef
   , closeModal
   , subscribeWindows
   , toggleDialog
   , unpinDialog
   )
-import Competences.Frontend.View.PinFrame (pinFrame, pinSidebarIcon)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.WindowFrame (modalFrame, pinFrame, pinSidebarIcon)
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Event (onClick)
 
 -- | Actions for the WindowHost component.
 data Action
@@ -93,7 +93,7 @@ renderPinnedDialogs m =
   where
     renderOnePin pid = case Map.lookup pid m.pinnedDialogs of
       Nothing -> M.text ""
-      Just (AnyPinnedDialog comp _icon _title, visibility) ->
+      Just (AnyPinnedDialog comp chrome, visibility) ->
         case visibility of
           PinVisible ->
             MH.div_
@@ -101,7 +101,7 @@ renderPinnedDialogs m =
                   "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
               ]
               [ pinFrame
-                  _title
+                  chrome
                   (TogglePin pid)
                   (ClosePin pid)
                   [MH.div_ [class_ "flex-1 min-h-0"] [M.ms ("pin-" <> unPinId pid) M.+> comp]]
@@ -134,22 +134,22 @@ renderSidebar m
       where
         countIcon acc pid = case Map.lookup pid m.pinnedDialogs of
           Nothing -> acc
-          Just (AnyPinnedDialog _ icn _, _) ->
-            let k = fromEnum icn
+          Just (AnyPinnedDialog _ chrome, _) ->
+            let k = fromEnum chrome.icon
              in Map.insertWith (+) k 1 acc
 
     -- Track which occurrence of each icon we're rendering
     renderSidebarEntry pid = case Map.lookup pid m.pinnedDialogs of
       Nothing -> M.text ""
-      Just (AnyPinnedDialog _ icn title, visibility) ->
+      Just (AnyPinnedDialog _ chrome, visibility) ->
         let isActive = visibility == PinVisible
-            k = fromEnum icn
+            k = fromEnum chrome.icon
             totalWithSameIcon = Map.findWithDefault 0 k iconCounts
             badge =
               if totalWithSameIcon > 1
-                then Just (indexOfIcon pid icn)
+                then Just (indexOfIcon pid chrome.icon)
                 else Nothing
-         in pinSidebarIcon icn title isActive badge (TogglePin pid)
+         in pinSidebarIcon chrome.icon chrome.title isActive badge (TogglePin pid)
 
     -- Compute 1-based index of this pin among pins with the same icon
     indexOfIcon pid icn =
@@ -157,7 +157,7 @@ renderSidebar m
             [ p
             | p <- m.pinOrder
             , case Map.lookup p m.pinnedDialogs of
-                Just (AnyPinnedDialog _ i _, _) -> fromEnum i == fromEnum icn
+                Just (AnyPinnedDialog _ ch, _) -> fromEnum ch.icon == fromEnum icn
                 Nothing -> False
             ]
        in case lookup pid (zip sameIconPins [1 ..]) of
@@ -178,22 +178,10 @@ renderPinBackdrop m =
         then MH.div_ [class_ "fixed inset-0 z-20 bg-foreground/30"] []
         else M.text ""
 
--- | Render the modal overlay (backdrop + centered content).
+-- | Render the modal overlay (backdrop + centered dialog box with title bar).
 -- Only shown when a modal is active.
 renderModal :: Model -> M.View Model Action
 renderModal m = case m.activeModal of
   Nothing -> M.text ""
-  Just (AnyModal comp) ->
-    MH.div_
-      [class_ "fixed inset-0 z-50 flex items-center justify-center"]
-      [ -- Backdrop
-        MH.div_
-          [ class_ "absolute inset-0 bg-foreground/50"
-          , onClick BackdropClicked
-          ]
-          []
-      , -- Modal content
-        MH.div_
-          [class_ "relative z-10"]
-          ["modal-content" M.+> comp]
-      ]
+  Just (AnyModal comp cfg) ->
+    modalFrame cfg BackdropClicked ["modal-content" M.+> comp]

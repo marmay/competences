@@ -14,7 +14,7 @@ import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -163,7 +163,7 @@ detailComponent r initialPlan =
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        let cfg = FramedModalConfig (C.translate' C.LblLesson) ModalWide ModalFull
+        let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) ModalWide ModalFull Nothing
         openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
@@ -195,12 +195,12 @@ detailComponent r initialPlan =
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
       let lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
-          cfg = FramedModalConfig (C.translate' C.LblLesson) ModalWide ModalFull
+          cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) ModalWide ModalFull Nothing
       M.io_ $
         openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson lessonNotesIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
-      let cfg = FramedModalConfig (C.translate' C.LblEditMesoPlan) ModalNarrow ModalAuto
+      let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan) ModalNarrow ModalAuto Nothing
        in openFramedModal r.windowManager cfg (mesoPlanEditorModal r (Just $ closeModal r.windowManager) plan)
 
     update (DeleteLesson lessonId) = M.io_ $
@@ -216,7 +216,7 @@ detailComponent r initialPlan =
             <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
        in pinDialog r.windowManager
             (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-            (AnyPinnedDialog (lessonEvaluatorComponent r lesson.id) Icon.IcnMesoPlan pinTitle)
+            (AnyPinnedDialog (lessonEvaluatorComponent r lesson.id) (WindowChrome pinTitle Icon.IcnMesoPlan))
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
       let AssignmentName nameText = assignment.name
@@ -224,7 +224,7 @@ detailComponent r initialPlan =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) Icon.IcnAssignment pinTitle)
+            (AnyPinnedDialog (evaluatorComponent r assignment) (WindowChrome pinTitle Icon.IcnAssignment))
 
     update (StartReorder lid) =
       M.modify $ \m -> m{reorderFrom = Just lid}

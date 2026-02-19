@@ -31,7 +31,6 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Modal qualified as Modal
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.CompetenceGridParser (parseGridImport)
@@ -166,7 +165,7 @@ competenceGridImportModalComponent r mClose =
                         ]
                     ]
                 ]
-        , Modal.modalFooter
+        , Layout.actionFooter
             [ Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
             , case m.parseResult of
                 Right previews

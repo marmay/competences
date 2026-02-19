@@ -29,7 +29,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( ResultView (..)
   , formatCompetenceLevelBadge'
   )
-import Competences.Frontend.Component.FramedModal (FramedModalConfig (..), ModalHeight (..), ModalWidth (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -170,7 +170,7 @@ lessonEvaluatorComponent r lessonId =
     update (OpenStudentDetail userId) = do
       m <- M.get
       let userName = maybe "" (.name) $ find (\u -> u.id == userId) m.students
-          cfg = FramedModalConfig (M.ms userName) ModalWide ModalFull
+          cfg = ModalConfig (WindowChrome (M.ms userName) Icon.IcnEvidence) ModalWide ModalFull Nothing
       M.io_ $
         openFramedModal r.windowManager cfg (studentEvaluatorModal r (Just $ closeModal r.windowManager) lessonId userId)
 

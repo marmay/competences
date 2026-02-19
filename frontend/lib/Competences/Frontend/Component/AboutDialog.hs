@@ -4,10 +4,11 @@ module Competences.Frontend.Component.AboutDialog
 where
 
 import Competences.Frontend.BuildInfo (frontendVersion)
-import Competences.Frontend.Component.FramedModal
-  ( FramedModalConfig (..)
+import Competences.Frontend.SyncContext.WindowManager
+  ( ModalConfig (..)
   , ModalHeight (..)
   , ModalWidth (..)
+  , WindowChrome (..)
   , openFramedModal
   )
 import Competences.Frontend.SyncContext
@@ -49,10 +50,11 @@ aboutButtonComponent ir = M.component model update view
 
     update OpenAboutDialog = M.io_ $ do
       srvInfo <- readServerInfo ir
-      let cfg = FramedModalConfig
-            { title = "Meine Kompetenzen"
+      let cfg = ModalConfig
+            { chrome = WindowChrome "Meine Kompetenzen" Icon.IcnInfo
             , width = ModalNarrow
             , height = ModalAuto
+            , pinnable = Nothing
             }
       openFramedModal ir.windowManager cfg (aboutModalContent srvInfo)
 
