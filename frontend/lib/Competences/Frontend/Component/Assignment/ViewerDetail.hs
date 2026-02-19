@@ -16,6 +16,7 @@ import Competences.Document
   , User (..)
   )
 import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Id (idToText)
 import Competences.Document.Competence (CompetenceIxs, LevelInfo (..))
 import Competences.Document.Evidence (Ability (..))
 import Competences.Document.Task
@@ -41,9 +42,10 @@ import Competences.Frontend.Component.TaskResource
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , subscribeWithProjection
   )
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -53,6 +55,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.User (UserRole (..))
@@ -174,6 +177,7 @@ data ViewerAction
   | TogglePrintDropdown
   | DoPrintWith !PrintContent
   | ExecutePrint
+  | PinThis
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -263,6 +267,13 @@ viewerComponent r user assignment =
       M.modify $ \m -> m & #printPending .~ False
       M.io_ triggerPrint
 
+    update PinThis = M.io_ $
+      let AssignmentName nameText = assignment.name
+          chrome = WindowChrome (M.ms nameText) Icon.IcnAssignment
+       in pinDialog r.windowManager
+            (PinId $ "assignment-" <> idToText assignment.id)
+            (AnyPinnedDialog (viewerComponent r user assignment) chrome)
+
     view' m =
       M.div_
         []
@@ -299,6 +310,7 @@ viewerComponent r user assignment =
                                 [class_ "text-muted-foreground"]
                                 [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
                             , statusIcon proj.status
+                            , pinButton PinThis
                             , viewPrintDropdown m
                             ]
                         ]

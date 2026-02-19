@@ -23,6 +23,7 @@ import Competences.Document
   , hasLevelContent
   , ordered
   )
+import Competences.Document.Id (idToText)
 import Competences.Document.Evidence
   ( Evidence (..)
   , Observation (..)
@@ -44,7 +45,7 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), ModalConfig (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), openFramedModal, pinDialog)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -69,6 +70,7 @@ import Competences.Frontend.View.CellStyle qualified as CellStyle
 import Competences.Frontend.View.MasteryBar qualified as MasteryBar
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Mastery
   ( MasteryStatus (..)
@@ -156,6 +158,7 @@ data ViewerModel = ViewerModel
 data ViewerAction
   = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
   | OpenResourceModal !CompetenceLevelId
+  | PinThis
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -311,6 +314,12 @@ viewerComponent r grid =
       let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) ModalWide ModalFull Nothing
       M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent cfg)
 
+    update PinThis = M.io_ $
+      let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
+       in pinDialog r.windowManager
+            (PinId $ "grid-" <> idToText grid.id)
+            (AnyPinnedDialog (viewerComponent r grid) chrome)
+
     -- Main view: dispatch based on view data type
     view m =
       Layout.vFlow
@@ -331,6 +340,7 @@ viewerComponent r grid =
                   (Layout.hFull <> Layout.crossCenter)
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
+                  , pinButton PinThis
                   , case userData.activeGridGrade of
                       Just gridGrade -> gradeBadgeView gridGrade.grade
                       Nothing -> Layout.empty
@@ -343,7 +353,7 @@ viewerComponent r grid =
                   (Layout.hFull <> Layout.crossCenter)
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
-                  , Layout.empty
+                  , pinButton PinThis
                   ]
               ]
 

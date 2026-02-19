@@ -13,6 +13,7 @@ import Competences.Document
   , ResourceContent (..)
   , ResourceIdentifier (..)
   )
+import Competences.Document.Id (idToText)
 import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText)
@@ -20,14 +21,16 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , subscribeWithProjection
   )
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
@@ -85,6 +88,7 @@ data ViewerModel = ViewerModel
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
+  | PinThis
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -113,16 +117,26 @@ viewerComponent r ln =
     update (ProjectionChanged change) =
       M.modify $ \m -> m & #projection .~ change.projection
 
+    update PinThis = M.io_ $
+      let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+       in pinDialog r.windowManager
+            (PinId $ "lesson-notes-" <> idToText ln.id)
+            (AnyPinnedDialog (viewerComponent r ln) chrome)
+
     view' m =
       let proj = m.projection
           ln' = proj.currentLessonNotes
        in Card.card
             [ MH.div_
                 [class_ "space-y-4"]
-                [ -- Header: title + date
+                [ -- Header: title + pin button + date
                   MH.div_
                     [class_ "space-y-1"]
-                    [ Typography.h2 (M.ms ln'.title)
+                    [ Layout.hFlow (Layout.hFull <> Layout.crossCenter)
+                        [ Typography.h2 (M.ms ln'.title)
+                        , Layout.flowSpring
+                        , pinButton PinThis
+                        ]
                     , MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.formatDay ln'.date]
                     ]
                 , -- Linked lesson
