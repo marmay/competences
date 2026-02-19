@@ -112,13 +112,10 @@ taskResourceListView
   -> M.View model a
 taskResourceListView showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
   if null tasks
-    then
-      MH.div_
-        [class_ "text-muted-foreground text-sm py-4 text-center"]
-        [M.text $ C.translate' C.LblNoTasksAvailable]
+    then Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
     else
-      MH.div_
-        [class_ "space-y-2"]
+      Layout.vFlow
+        Layout.gapM
         (map (viewTask showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
 
 -- | View a single task with its solutions
