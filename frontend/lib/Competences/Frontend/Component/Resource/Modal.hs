@@ -138,7 +138,7 @@ resourceModalComponent modalMgr cfg =
     view m =
       MH.div_
         [class_ "bg-popover text-popover-foreground rounded-xl shadow-lg w-[66vw] min-w-[66vw] max-w-none h-[90vh]"]
-        [ Layout.vFlow'
+        [ Layout.vFlow Layout.hFull
             [ Modal.modalHeaderWith
                 (C.translate' C.LblMaterials)
                 [modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)]
