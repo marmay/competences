@@ -138,7 +138,7 @@ resourceModalComponent cfg =
             ViewTasks
               | Map.null m.config.taskStatuses ->
                   -- No focused user: flat list without grouping
-                  taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState TaskListAction
+                  taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
               | otherwise ->
                   groupedTasksView m
             ViewLearningResources ->
@@ -187,6 +187,7 @@ viewStatusGroup m (group, tasks) =
           m.config.taskStatuses
           tasks
           m.taskListState
+          (const [])
           TaskListAction
    in Disclosure.disclosure (ToggleStatusGroup group) $
         Disclosure.contents (Disclosure.titleText title) isExpanded content []

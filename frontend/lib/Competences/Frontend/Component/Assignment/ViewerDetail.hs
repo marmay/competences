@@ -40,12 +40,14 @@ import Competences.Frontend.Component.TaskResource
   , updateTaskResourceList
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
+import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
+import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -65,6 +67,7 @@ import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuse
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -129,6 +132,8 @@ data ViewerProjection = ViewerProjection
   , connectedUserRole :: !UserRole
     -- | Pre-computed: per-task completion status for the effective user
   , taskStatuses :: !(Map TaskId TaskCompletionStatus)
+    -- | Tasks that have associated competence levels (primary or secondary)
+  , tasksWithCompetences :: !(Set.Set TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -143,6 +148,7 @@ emptyProjection role assignment = ViewerProjection
   , focusedUser = Nothing
   , connectedUserRole = role
   , taskStatuses = Map.empty
+  , tasksWithCompetences = Set.empty
   }
 
 -- ============================================================================
@@ -168,6 +174,7 @@ data ViewerModel = ViewerModel
   , printMode :: !PrintContent
   , printDropdownOpen :: !Bool
   , printPending :: !Bool
+  , expandedTaskResources :: !(Set.Set TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -178,6 +185,7 @@ data ViewerAction
   | DoPrintWith !PrintContent
   | ExecutePrint
   | PinThis
+  | ToggleTaskResourcesExpanded !TaskId
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -193,6 +201,7 @@ viewerComponent r user assignment =
       , printMode = PrintBoth
       , printDropdownOpen = False
       , printPending = False
+      , expandedTaskResources = Set.empty
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -233,6 +242,14 @@ viewerComponent r user assignment =
           -- Pre-compute per-task completion status
           taskStatuses = taskCompletionStatuses doc effectiveUserId relevantTasks
 
+          -- Identify tasks with competence levels (primary or secondary)
+          tasksWithCompetences = Set.fromList
+            [ task.id
+            | task <- relevantTasks
+            , let attrs = getTaskAttributes taskGroups task
+            , not (null attrs.primary) || not (null attrs.secondary)
+            ]
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -242,6 +259,7 @@ viewerComponent r user assignment =
             , focusedUser = mUser
             , connectedUserRole = role
             , taskStatuses
+            , tasksWithCompetences
             }
 
     update (ProjectionChanged change) =
@@ -266,6 +284,14 @@ viewerComponent r user assignment =
     update ExecutePrint = do
       M.modify $ \m -> m & #printPending .~ False
       M.io_ triggerPrint
+
+    update (ToggleTaskResourcesExpanded taskId) =
+      M.modify $ \m ->
+        let newSet =
+              if Set.member taskId m.expandedTaskResources
+                then Set.delete taskId m.expandedTaskResources
+                else Set.insert taskId m.expandedTaskResources
+         in m & #expandedTaskResources .~ newSet
 
     update PinThis = M.io_ $
       let AssignmentName nameText = assignment.name
@@ -371,8 +397,19 @@ viewerComponent r user assignment =
        in M.div_
             [class_ "space-y-4"]
             [ Typography.h3 $ C.translate' C.LblAssignmentTasks
-            , taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState TaskListAction
+            , taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction
             ]
+
+    viewTaskResources :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskResources m syncCtx taskId
+      | not (Set.member taskId m.projection.tasksWithCompetences) = []
+      | otherwise =
+          let isExpanded = Set.member taskId m.expandedTaskResources
+              titleView = Disclosure.titleIconText Icon.IcnResources (C.translate' C.LblMaterials)
+              bodyView = component ("task-resources-" <> ms (show taskId))
+                           (TaskResources.taskResourcesComponent syncCtx taskId)
+           in [Disclosure.innerDisclosure (ToggleTaskResourcesExpanded taskId) $
+                 Disclosure.contents titleView isExpanded bodyView []]
 
     -- ========================================================================
     -- Print Dropdown

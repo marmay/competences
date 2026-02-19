@@ -100,15 +100,17 @@ initialState mode statuses tasks =
 -- (typically hidden for students, shown for teachers)
 -- The taskExtra parameter renders optional per-task content (e.g., completion status)
 -- The taskStatuses map is used to tint disclosure headers by completion status
+-- The extraBody parameter renders optional per-task body content appended after solutions
 taskResourceListView
   :: Bool  -- ^ Show purpose badge (Practice/Assessment)
   -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const empty@ for none
   -> Map TaskId TaskCompletionStatus  -- ^ Task statuses for header tinting
   -> [TaskWithSolutions]
   -> TaskResourceList
+  -> (TaskId -> [M.View model a])  -- ^ Extra body content per task (e.g., related materials)
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView showPurposeBadge taskExtra statuses tasks state liftAction =
+taskResourceListView showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
   if null tasks
     then
       MH.div_
@@ -117,18 +119,19 @@ taskResourceListView showPurposeBadge taskExtra statuses tasks state liftAction 
     else
       MH.div_
         [class_ "space-y-2"]
-        (map (viewTask showPurposeBadge taskExtra statuses state liftAction) tasks)
+        (map (viewTask showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask showPurposeBadge taskExtra statuses state liftAction tws =
+viewTask :: Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask showPurposeBadge taskExtra statuses state extraBody liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
         Nothing -> False
         Just c -> c /= mempty
       hasSolutions = not (null tws.solutions)
-      isExpandable = hasContent || hasSolutions
+      extra = extraBody tws.task.id
+      isExpandable = hasContent || hasSolutions || not (null extra)
       mPalette = taskStatusPalette (Map.lookup tws.task.id statuses)
       headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
       titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms identifier)
@@ -144,19 +147,21 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
       contentView =
         MH.div_
           [class_ "space-y-3"]
-          [ case tws.taskContent of
-              Nothing -> Layout.empty
-              Just content ->
-                if content == mempty
-                  then Layout.empty
-                  else
-                    MH.div_
-                      [class_ "prose prose-stone prose-sm max-w-none"]
-                      [renderRichText content]
-          , if null tws.solutions
-              then Layout.empty
-              else viewSolutions state liftAction tws.solutions
-          ]
+          ( [ case tws.taskContent of
+                Nothing -> Layout.empty
+                Just content ->
+                  if content == mempty
+                    then Layout.empty
+                    else
+                      MH.div_
+                        [class_ "prose prose-stone prose-sm max-w-none"]
+                        [renderRichText content]
+            , if null tws.solutions
+                then Layout.empty
+                else viewSolutions state liftAction tws.solutions
+            ]
+              <> extra
+          )
    in if isExpandable
         then
           Disclosure.maybePaletteDisclosure mPalette (liftAction $ ToggleTask tws.task.id) $
@@ -173,12 +178,8 @@ viewTask showPurposeBadge taskExtra statuses state liftAction tws =
 viewSolutions :: TaskResourceList -> (Action -> a) -> [Solution] -> M.View model a
 viewSolutions state liftAction sols =
   MH.div_
-    [class_ "border-t pt-2 mt-2"]
-    [ Typography.small $ C.translate' C.LblSolutions
-    , MH.div_
-        [class_ "space-y-1 mt-1"]
-        (map (viewSolution state liftAction) sols)
-    ]
+    [class_ "space-y-1"]
+    (map (viewSolution state liftAction) sols)
 
 -- | View a single solution
 viewSolution :: TaskResourceList -> (Action -> a) -> Solution -> M.View model a

@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.LessonNotes.ViewerDetail
   ( viewerDetailView
+  , viewerComponent
   )
 where
 
