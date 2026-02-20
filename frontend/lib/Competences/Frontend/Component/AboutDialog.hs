@@ -6,6 +6,7 @@ where
 import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.SyncContext.WindowManager
   ( ModalConfig (..)
+  , ModalId (..)
   , ModalHeight (..)
   , ModalWidth (..)
   , WindowChrome (..)
@@ -52,6 +53,7 @@ aboutButtonComponent ir = M.component model update view
       srvInfo <- readServerInfo ir
       let cfg = ModalConfig
             { chrome = WindowChrome "Meine Kompetenzen" Icon.IcnInfo
+            , modalId = ModalId "about"
             , width = ModalNarrow
             , height = ModalAuto
             , pinnable = Nothing

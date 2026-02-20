@@ -46,7 +46,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources (..), findGroupedResources)
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), ModalConfig (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), openFramedModal, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), openFramedModal, pinDialog)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -322,7 +322,7 @@ viewerComponent r grid =
           gr = Map.findWithDefault (GroupedResources [] [] []) clId m.projection.groupedResources
           showPurposeBadge = m.projection.connectedUserRole == Teacher
           cfg = ResourceModal.ResourceModalConfig tasks gr showPurposeBadge m.projection.taskStatuses
-      let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) ModalWide ModalFull Nothing
+      let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
       M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent r r.formulaCache cfg)
 
     update PinThis = M.io_ $

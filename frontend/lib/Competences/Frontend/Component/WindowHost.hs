@@ -18,6 +18,8 @@ where
 import Competences.Frontend.SyncContext.WindowManager
   ( AnyModal (..)
   , AnyPinnedDialog (..)
+  , ModalConfig (..)
+  , ModalId (..)
   , Model (..)
   , PinId (..)
   , PinVisibility (..)
@@ -184,4 +186,5 @@ renderModal :: Model -> M.View Model Action
 renderModal m = case m.activeModal of
   Nothing -> M.text ""
   Just (AnyModal comp cfg) ->
-    modalFrame cfg BackdropClicked ["modal-content" M.+> comp]
+    let ModalId mid = cfg.modalId
+     in modalFrame cfg BackdropClicked [("modal-" <> M.ms mid) M.+> comp]

@@ -16,6 +16,7 @@ module Competences.Frontend.SyncContext.WindowManager
   ( -- * Shared chrome types
     WindowChrome (..)
   , ModalConfig (..)
+  , ModalId (..)
   , ModalWidth (..)
   , ModalHeight (..)
 
@@ -87,9 +88,16 @@ data ModalHeight
     ModalAuto
   deriving (Eq, Show)
 
+-- | Unique identifier for a modal, used as the Miso component key.
+-- Different 'ModalId' values force Miso to unmount the old component and
+-- mount a new one, which is essential when replacing one modal with another.
+newtype ModalId = ModalId Text
+  deriving (Eq, Show)
+
 -- | Configuration for a framed modal.
 data ModalConfig = ModalConfig
   { chrome :: !WindowChrome
+  , modalId :: !ModalId
   , width :: !ModalWidth
   , height :: !ModalHeight
   , pinnable :: !(Maybe ())

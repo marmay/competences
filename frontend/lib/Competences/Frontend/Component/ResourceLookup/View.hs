@@ -37,6 +37,7 @@ import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.SyncContext.WindowManager
   ( ModalConfig (..)
+  , ModalId (..)
   , ModalHeight (..)
   , ModalWidth (..)
   , WindowChrome (..)
@@ -129,6 +130,7 @@ groupedResourcesComponent r gr =
           r.windowManager
           ( ModalConfig
               { chrome = WindowChrome (ms ln.title) Icon.IcnLessonNotes
+              , modalId = ModalId ("lesson-notes-" <> idToText ln.id)
               , width = ModalWide
               , height = ModalFull
               , pinnable = Just ()

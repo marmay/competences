@@ -14,6 +14,7 @@ import Competences.Document
   , UserId
   , UserRole (..)
   )
+import Competences.Document.Id (idToText)
 import Competences.Document.Evidence (Ability, Evidence (..), Observation (..))
 import Competences.Document.ParticipationRecord
   ( ParticipationLevel (..)
@@ -29,7 +30,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( ResultView (..)
   , formatCompetenceLevelBadge'
   )
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -170,7 +171,7 @@ lessonEvaluatorComponent r lessonId =
     update (OpenStudentDetail userId) = do
       m <- M.get
       let userName = maybe "" (.name) $ find (\u -> u.id == userId) m.students
-          cfg = ModalConfig (WindowChrome (M.ms userName) Icon.IcnEvidence) ModalWide ModalFull Nothing
+          cfg = ModalConfig (WindowChrome (M.ms userName) Icon.IcnEvidence) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
       M.io_ $
         openFramedModal r.windowManager cfg (studentEvaluatorModal r (Just $ closeModal r.windowManager) lessonId userId)
 
