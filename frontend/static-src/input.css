@@ -9,7 +9,8 @@
 @source inline("dark theme-claude theme-ocean");
 @source inline("!w-[66vw] !min-w-[66vw] !max-w-none !h-[90vh] flex-shrink-0");
 @source inline("bg-{primary,secondary,destructive,background,card,muted,accent}");
-@source inline("bg-{primary,secondary,destructive,background,card,muted,accent}/{10,20,30,50}");
+@source inline("bg-{primary,secondary,destructive,background,card,muted,accent}/{10,20,30,50,80}");
+@source inline("hover:bg-primary/{50,80}");
 @source inline("text-{primary,secondary,destructive,foreground,muted,accent}");
 @source inline("text-{primary,secondary,destructive,foreground,muted,accent}-foreground");
 @source inline("border-{primary,secondary,destructive,border,input,accent}");

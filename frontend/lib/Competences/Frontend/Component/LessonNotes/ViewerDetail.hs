@@ -1,6 +1,9 @@
 module Competences.Frontend.Component.LessonNotes.ViewerDetail
   ( viewerDetailView
   , viewerComponent
+    -- * Shared renderers (reused by ResourceLookup.View)
+  , viewResourceCard
+  , viewLinkCard
   )
 where
 
@@ -18,6 +21,7 @@ import Competences.Document.Id (idToText)
 import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
 import Competences.Frontend.SyncContext
@@ -40,15 +44,6 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (.~))
-
--- ============================================================================
--- Resolved items
--- ============================================================================
-
-data ResolvedItem
-  = ResolvedResource !Resource
-  | ResolvedTask !TaskWithSolutions
-  deriving (Eq, Show)
 
 -- ============================================================================
 -- Projection
@@ -163,7 +158,14 @@ viewResolvedItem :: FormulaCache -> ResolvedItem -> M.View model action
 viewResolvedItem fc (ResolvedResource res) = viewResourceCard fc res
 viewResolvedItem fc (ResolvedTask tws) = taskExpandedCard fc tws
 
--- | Render a resource card (same pattern as ResourceList.resourcesExpandedListView)
+-- ============================================================================
+-- Shared renderers
+-- ============================================================================
+
+-- | Render a resource card always-expanded (no disclosure state).
+--
+-- Used by views that show resources inline without collapse/expand controls
+-- (e.g. lesson notes viewer detail, resource lookup view).
 viewResourceCard :: FormulaCache -> Resource -> M.View model action
 viewResourceCard fc res =
   let ResourceIdentifier ident = res.identifier
@@ -181,11 +183,11 @@ viewResourceCard fc res =
         WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
         VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
 
--- | Render a link card (web or video) with icon, name, and optional title
+-- | Render a link card (web or video) with icon, name, and optional title.
 viewLinkCard :: Icon.Icon -> T.Text -> T.Text -> T.Text -> T.Text -> M.View model action
 viewLinkCard icon ident displayName url title =
   MH.a_
-    [ class_ "flex items-center gap-2 px-4 py-3 border rounded-lg hover:bg-muted/50 transition-colors"
+    [ class_ "flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
     , MP.href_ (M.ms url)
     , MP.target_ "_blank"
     , MP.rel_ "noopener noreferrer"

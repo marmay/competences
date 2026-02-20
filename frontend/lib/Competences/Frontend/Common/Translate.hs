@@ -217,6 +217,7 @@ data Label
   | LblAddResource
   | LblNoResources
   | LblOtherResources
+  | LblRelevant
   | LblManageResources
   | LblFilterResources
   | LblUrl
@@ -505,6 +506,7 @@ labels' =
   , LblAddResource
   , LblNoResources
   , LblOtherResources
+  , LblRelevant
   , LblManageResources
   , LblFilterResources
   , LblUrl
@@ -825,6 +827,7 @@ defaultTranslation LblVideoLink = "Video-Link"
 defaultTranslation LblAddResource = "Ressource hinzufügen"
 defaultTranslation LblNoResources = "Keine Ressourcen"
 defaultTranslation LblOtherResources = "Weitere Materialien"
+defaultTranslation LblRelevant = "Passend"
 defaultTranslation LblManageResources = "Ressourcen"
 defaultTranslation LblFilterResources = "Ressourcen filtern..."
 defaultTranslation LblUrl = "URL"

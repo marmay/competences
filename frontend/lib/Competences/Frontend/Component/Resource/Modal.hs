@@ -13,9 +13,9 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Document (Resource (..), Task (..))
-import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.ResourceLookup (GroupedResources (..))
+import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.TaskResource
   ( DisplayMode (..)
   , FormulaCache
@@ -26,11 +26,13 @@ import Competences.Frontend.Component.TaskResource
   , updateTaskResourceList
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
+import Competences.Document (Task (..))
 import Competences.Document.Task (TaskId)
+import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.ResourceList qualified as ResourceList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Query.TaskStatus (TaskCompletionStatus, TaskStatusGroup (..), groupByTaskStatus)
@@ -47,7 +49,7 @@ import Miso.Html qualified as MH
 -- | Configuration passed when opening the modal
 data ResourceModalConfig = ResourceModalConfig
   { tasks :: ![TaskWithSolutions]
-  , resources :: ![Resource]
+  , groupedResources :: !GroupedResources
   , showPurposeBadge :: !Bool
   , taskStatuses :: !(Map.Map TaskId TaskCompletionStatus)
   }
@@ -68,7 +70,6 @@ data Model = Model
   { config :: !ResourceModalConfig
   , taskListState :: !TaskResourceList
   , viewMode :: !ResourceViewMode
-  , expandedResources :: !(Set.Set ResourceId)
   , collapsedGroups :: !(Set.Set TaskStatusGroup)
   }
   deriving (Eq, Generic)
@@ -80,7 +81,6 @@ data Model = Model
 data Action
   = TaskListAction !TRL.Action
   | SwitchViewMode !ResourceViewMode
-  | ToggleResourceExpanded !ResourceId
   | ToggleStatusGroup !TaskStatusGroup
   deriving (Eq, Show)
 
@@ -88,8 +88,8 @@ data Action
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: FormulaCache -> ResourceModalConfig -> M.Component p Model Action
-resourceModalComponent fc cfg =
+resourceModalComponent :: SyncContext -> FormulaCache -> ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent r fc cfg =
   M.component model update view
   where
     -- Determine default view mode based on available content
@@ -97,12 +97,16 @@ resourceModalComponent fc cfg =
       | not (null cfg.tasks) = ViewTasks
       | otherwise = ViewLearningResources
 
+    hasLearningResources =
+      not (null cfg.groupedResources.lessonNoteGroups)
+        || not (null cfg.groupedResources.ungroupedResources)
+        || not (null cfg.groupedResources.ungroupedTasks)
+
     model =
       Model
         { config = cfg
         , taskListState = initialState TasksCollapsed cfg.taskStatuses cfg.tasks
         , viewMode = defaultMode
-        , expandedResources = Set.empty
         , collapsedGroups = Set.empty
         }
 
@@ -112,14 +116,6 @@ resourceModalComponent fc cfg =
 
     update (SwitchViewMode newMode) =
       M.modify $ \m -> m {viewMode = newMode}
-
-    update (ToggleResourceExpanded resId) =
-      M.modify $ \m ->
-        let newExpanded =
-              if Set.member resId m.expandedResources
-                then Set.delete resId m.expandedResources
-                else Set.insert resId m.expandedResources
-         in m {expandedResources = newExpanded}
 
     update (ToggleStatusGroup group) =
       M.modify $ \m ->
@@ -133,7 +129,7 @@ resourceModalComponent fc cfg =
     view m =
       Layout.scrollContent $ Layout.padL $ Layout.vFlow Layout.gapM
         [ -- Mode switcher
-          modeSwitcher m.viewMode (not $ null m.config.tasks) (not $ null m.config.resources)
+          modeSwitcher m.viewMode (not $ null m.config.tasks) hasLearningResources
         , -- Content
           case m.viewMode of
             ViewTasks
@@ -143,7 +139,9 @@ resourceModalComponent fc cfg =
               | otherwise ->
                   groupedTasksView fc m
             ViewLearningResources ->
-              ResourceList.resourcesListView fc m.config.resources m.expandedResources ToggleResourceExpanded
+              component
+                "resource-modal-learning-resources"
+                (groupedResourcesComponent r m.config.groupedResources)
         ]
 
 -- ============================================================================

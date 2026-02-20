@@ -51,6 +51,8 @@ module Competences.Frontend.View.Disclosure
     -- * Presentation functions
   , disclosure
   , innerDisclosure
+  , popDisclosure
+  , innerPopDisclosure
   , paletteDisclosure
   , innerPaletteDisclosure
   , maybePaletteDisclosure
@@ -179,7 +181,7 @@ titleWithAnnotation left right =
 --   contents "Section" isExpanded sectionContent []
 -- @
 disclosure :: a -> DisclosureContents m a -> M.View m a
-disclosure = disclosureImpl DisclosureDefault Nothing
+disclosure = disclosureImpl DisclosureDefault MutedHeader
 
 -- | Disclosure with nested style (no border, reduced padding).
 --
@@ -190,7 +192,18 @@ disclosure = disclosureImpl DisclosureDefault Nothing
 --   contents "Nested Item" isExpanded nestedContent []
 -- @
 innerDisclosure :: a -> DisclosureContents m a -> M.View m a
-innerDisclosure = disclosureImpl DisclosureNested Nothing
+innerDisclosure = disclosureImpl DisclosureNested MutedHeader
+
+-- | Disclosure with default style and theme-primary accent.
+--
+-- Use to make a disclosure visually prominent (\"pop\") using the
+-- theme's primary color, independent of any domain palette.
+popDisclosure :: a -> DisclosureContents m a -> M.View m a
+popDisclosure = disclosureImpl DisclosureDefault PopHeader
+
+-- | Disclosure with nested style and theme-primary accent.
+innerPopDisclosure :: a -> DisclosureContents m a -> M.View m a
+innerPopDisclosure = disclosureImpl DisclosureNested PopHeader
 
 -- | Disclosure with default style and custom palette.
 --
@@ -199,7 +212,7 @@ innerDisclosure = disclosureImpl DisclosureNested Nothing
 --   contents "Styled Section" isExpanded styledContent []
 -- @
 paletteDisclosure :: PaletteName -> a -> DisclosureContents m a -> M.View m a
-paletteDisclosure p = disclosureImpl DisclosureDefault (Just p)
+paletteDisclosure p = disclosureImpl DisclosureDefault (PaletteHeader p)
 
 -- | Disclosure with nested style and custom palette.
 --
@@ -208,7 +221,7 @@ paletteDisclosure p = disclosureImpl DisclosureDefault (Just p)
 --   contents (titleText "Nested Styled") isExpanded nestedContent []
 -- @
 innerPaletteDisclosure :: PaletteName -> a -> DisclosureContents m a -> M.View m a
-innerPaletteDisclosure p = disclosureImpl DisclosureNested (Just p)
+innerPaletteDisclosure p = disclosureImpl DisclosureNested (PaletteHeader p)
 
 -- | Disclosure with optional palette.
 -- When @Nothing@, uses the default muted background.
@@ -226,14 +239,20 @@ maybePaletteDisclosure (Just p) = paletteDisclosure p
 -- Implementation
 -- ============================================================================
 
+-- | Header color scheme.
+data HeaderColor
+  = MutedHeader
+  | PopHeader
+  | PaletteHeader !PaletteName
+
 -- | Core implementation for all disclosure variants.
 disclosureImpl
   :: DisclosureStyle
-  -> Maybe PaletteName
+  -> HeaderColor
   -> a
   -> DisclosureContents m a
   -> M.View m a
-disclosureImpl style mPalette toggleAction dc =
+disclosureImpl style headerColor toggleAction dc =
   MH.div_
     [class_ containerClasses]
     [ MH.div_
@@ -255,22 +274,33 @@ disclosureImpl style mPalette toggleAction dc =
       DisclosureDefault -> "border rounded-lg overflow-hidden" :: Text
       DisclosureNested -> "rounded overflow-hidden"
 
-    -- Header background class
-    headerBg = case mPalette of
-      Nothing -> "bg-muted/50" :: Text
-      Just p -> bgClass Base p
+    -- Header background + text color classes
+    headerBg = case headerColor of
+      MutedHeader -> "bg-muted/50" :: Text
+      PopHeader -> "bg-primary text-primary-foreground"
+      PaletteHeader p -> bgClass Base p
 
     -- Layout classes added via addClass
     headerLayoutExtra = case style of
       DisclosureDefault -> "gap-3" :: Text
       DisclosureNested -> "gap-2"
 
+    -- Hover background class
+    headerHover = case headerColor of
+      MutedHeader -> case style of
+        DisclosureDefault -> "hover:bg-muted" :: Text
+        DisclosureNested -> "hover:bg-muted/50"
+      PopHeader -> "hover:bg-primary/80"
+      PaletteHeader _ -> case style of
+        DisclosureDefault -> "hover:bg-muted"
+        DisclosureNested -> "hover:bg-muted/50"
+
     -- Non-layout classes that go on wrapper div
     headerWrapperExtra = case style of
       DisclosureDefault ->
-        "px-3 py-2 hover:bg-muted transition-colors " <> headerBg
+        "px-3 py-2 transition-colors " <> headerBg <> " " <> headerHover
       DisclosureNested ->
-        "px-2 py-1.5 hover:bg-muted/50 transition-colors " <> headerBg
+        "px-2 py-1.5 transition-colors " <> headerBg <> " " <> headerHover
 
     -- Header content
     headerContent =
