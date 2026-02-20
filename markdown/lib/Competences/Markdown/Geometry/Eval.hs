@@ -7,6 +7,7 @@
 -- Auto-decorators (axes, grid, labelAll) inspect the render log.
 module Competences.Markdown.Geometry.Eval
   ( evalScene
+  , extractMathLabels
   )
 where
 
@@ -14,6 +15,7 @@ import Competences.Markdown.Geometry.AST
 import Control.Monad.State.Strict (State, gets, modify', runState)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Text (Text)
 import Data.Text qualified as T
 
 -- | Evaluation state
@@ -259,7 +261,7 @@ evalAutoDecorator = \case
     currentEnv <- gets esDrawEnv
     let fgEnv = currentEnv {layer = Foreground}
         labels =
-          [ RenderLabel vec name pos fgEnv
+          [ RenderLabel vec (PlainLabel name) pos fgEnv
           | (name, vec) <- drawnPoints lg
           ]
     pure $ mempty {foreground = labels}
@@ -328,6 +330,21 @@ generateGrid pts
             , let y = fromIntegral i
             ]
        in mempty {background = vLines <> hLines}
+
+-- -----------------------------------------------------------------
+-- Math label extraction
+-- -----------------------------------------------------------------
+
+-- | Extract all LaTeX math labels from a list of commands.
+-- Used by the frontend to pre-render MathJax formulas.
+extractMathLabels :: [Command] -> [Text]
+extractMathLabels = concatMap go
+  where
+    go = \case
+      Label (LabelAtPoint _ (MathLabel latex) _) -> [latex]
+      Label (LabelOnSegment _ (MathLabel latex) _ _) -> [latex]
+      ModifierBlock _ children -> concatMap go children
+      _ -> []
 
 -- -----------------------------------------------------------------
 -- Helpers

@@ -30,6 +30,9 @@ module Competences.Markdown.Geometry.AST
   , LineWidth (..)
   , Layer (..)
 
+    -- * Label content
+  , LabelContent (..)
+
     -- * Geometry primitives
   , Vec2 (..)
   , Name
@@ -81,10 +84,14 @@ data DrawPrimitive
   | DrawSegment !SegmentRef
   deriving (Eq, Show)
 
+-- | Label content: plain text or LaTeX math (delimited by @$...$@)
+data LabelContent = PlainLabel !Text | MathLabel !Text
+  deriving (Eq, Show)
+
 -- | Labelable primitives
 data LabelPrimitive
-  = LabelAtPoint !Name !Text !LabelPosition
-  | LabelOnSegment !SegmentRef !Text !SegmentSide !Double
+  = LabelAtPoint !Name !LabelContent !LabelPosition
+  | LabelOnSegment !SegmentRef !LabelContent !SegmentSide !Double
   deriving (Eq, Show)
 
 -- | Point constructions (for @defPointBy@)
@@ -180,7 +187,7 @@ data LabelPosition
 data RenderPrimitive
   = RenderDot !Vec2 !DrawEnv
   | RenderSegment !Vec2 !Vec2 !DrawEnv
-  | RenderLabel !Vec2 !Text !LabelPosition !DrawEnv
+  | RenderLabel !Vec2 !LabelContent !LabelPosition !DrawEnv
   | RenderAxisLine !Vec2 !Vec2 !DrawEnv
   | RenderTick !Vec2 !Text !DrawEnv
   | RenderGridLine !Vec2 !Vec2 !DrawEnv

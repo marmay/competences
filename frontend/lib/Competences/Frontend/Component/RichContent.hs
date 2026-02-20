@@ -39,7 +39,8 @@ module Competences.Frontend.Component.RichContent
 where
 
 import Competences.Frontend.Component.Geometry (renderGeometryBlock)
-import Competences.Markdown.Geometry.Parser (isGeometryInfo)
+import Competences.Markdown.Geometry.Eval (extractMathLabels)
+import Competences.Markdown.Geometry.Parser (isGeometryInfo, parseGeometry)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
   , FormulaCache
@@ -130,7 +131,13 @@ extractFromBlock :: MD.Block -> [(MathDisplay, Text)]
 extractFromBlock = \case
   MD.Paragraph inlines -> concatMap extractFromInline inlines
   MD.Heading _ inlines -> concatMap extractFromInline inlines
-  MD.FencedCodeBlock _ _ -> []
+  MD.FencedCodeBlock info body ->
+    case info of
+      Just i | isGeometryInfo i ->
+        case parseGeometry body of
+          Right cmds -> [(Inline, latex) | latex <- extractMathLabels cmds]
+          Left _ -> []
+      _ -> []
   MD.OrderedList _ items -> concatMap (concatMap extractFromBlock) items
   MD.BulletList items -> concatMap (concatMap extractFromBlock) items
   MD.LetterList items -> concatMap (concatMap extractFromBlock) items
@@ -168,7 +175,7 @@ renderBlock symbols = \case
      in tag [class_ classes] $ map (renderInline symbols) inlines
   MD.FencedCodeBlock info body ->
     case info of
-      Just i | isGeometryInfo i -> renderGeometryBlock info body
+      Just i | isGeometryInfo i -> renderGeometryBlock symbols info body
       Just "svg" ->
         M.div_ [class_ "flex justify-center my-4"]
           [ M.img_

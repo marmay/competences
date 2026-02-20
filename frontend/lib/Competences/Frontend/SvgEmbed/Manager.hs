@@ -36,8 +36,10 @@ module Competences.Frontend.SvgEmbed.Manager
 where
 
 import Data.Bits (xor, (.&.))
+import Data.ByteString.Base64 qualified as Base64
 import Data.Char (ord)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import Data.Text.Encoding qualified as TE
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -159,19 +161,13 @@ renderFormula display latex = do
                         }
                 _ -> pure Nothing
 
--- | Encode SVG text as a data URL. Pure function, no IO.
+-- | Encode SVG text as a base64 data URL. Pure function, no IO.
 --
--- Uses @charset=utf-8@ encoding (not base64) for minimal overhead.
+-- Uses base64 encoding for maximum browser compatibility — Chrome does not
+-- render @charset=utf-8@ SVG data URLs inside SVG @\<image\>@ elements.
 svgToDataUrl :: Text -> Text
-svgToDataUrl svg = "data:image/svg+xml;charset=utf-8," <> urlEncodeSvg svg
-
--- | Minimal URL encoding for SVG in data URLs.
--- Only @#@ and @%@ must be encoded; browsers accept everything else.
-urlEncodeSvg :: Text -> Text
-urlEncodeSvg = T.concatMap $ \case
-  '#' -> "%23"
-  '%' -> "%25"
-  c -> T.singleton c
+svgToDataUrl svg =
+  "data:image/svg+xml;base64," <> TE.decodeLatin1 (Base64.encode (TE.encodeUtf8 svg))
 
 -- ============================================================================
 -- Formula cache

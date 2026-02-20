@@ -162,6 +162,7 @@ library
         Competences.Frontend.WebSocket.Protocol
     build-depends:
         base ^>=4.21.0.0,
+        base64-bytestring,
         binary,
         bytestring,
         competences-common,

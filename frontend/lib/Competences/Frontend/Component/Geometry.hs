@@ -12,6 +12,7 @@ module Competences.Frontend.Component.Geometry
   )
 where
 
+import Competences.Frontend.SvgEmbed.Manager (EmbeddedSymbol (..), MathDisplay (..), SymbolId, hashLatex)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
@@ -21,6 +22,8 @@ import Competences.Markdown.Geometry.Parser
   , parseGeometry
   , parseGeometryVersion
   )
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
@@ -28,10 +31,11 @@ import Miso.Html qualified as MH
 import Miso.String (ms)
 import Miso.Svg.Element qualified as Svg
 import Miso.Svg.Property qualified as SP
+import Text.Read (readMaybe)
 
 -- | Render a RenderResult to an SVG Miso view
-renderGeometry :: RenderResult -> M.View model action
-renderGeometry result =
+renderGeometry :: Map SymbolId EmbeddedSymbol -> RenderResult -> M.View model action
+renderGeometry symbols result =
   let allPrims = background result <> main result <> foreground result
       (vb, w, h) = computeViewBox allPrims
    in Svg.svg_
@@ -42,31 +46,31 @@ renderGeometry result =
         , M.textProp "font-family" "var(--font-sans)"
         ]
         [ -- Background layer
-          Svg.g_ [class_ "geometry-bg"] (map renderPrimitive (background result))
+          Svg.g_ [class_ "geometry-bg"] (map (renderPrimitive symbols) (background result))
         , -- Main layer
-          Svg.g_ [class_ "geometry-main"] (map renderPrimitive (main result))
+          Svg.g_ [class_ "geometry-main"] (map (renderPrimitive symbols) (main result))
         , -- Foreground layer
-          Svg.g_ [class_ "geometry-fg"] (map renderPrimitive (foreground result))
+          Svg.g_ [class_ "geometry-fg"] (map (renderPrimitive symbols) (foreground result))
         ]
 
 -- | Parse geometry text, evaluate, and render. Shows errors if parse fails.
-renderGeometryText :: Text -> M.View model action
-renderGeometryText txt =
+renderGeometryText :: Map SymbolId EmbeddedSymbol -> Text -> M.View model action
+renderGeometryText symbols txt =
   case parseGeometry txt of
     Left _err ->
       MH.div_
         [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
         [M.text $ ms ("Geometry parse error" :: Text)]
-    Right cmds -> renderGeometry (evalScene cmds)
+    Right cmds -> renderGeometry symbols (evalScene cmds)
 
 -- | Render a geometry fenced code block, checking the version tag first.
 --
 -- Takes the full info string (e.g. @"geometry V1.0"@) and the block body.
 -- If the version is unsupported, shows an error instead of rendering.
-renderGeometryBlock :: Maybe Text -> Text -> M.View model action
-renderGeometryBlock mInfo body =
+renderGeometryBlock :: Map SymbolId EmbeddedSymbol -> Maybe Text -> Text -> M.View model action
+renderGeometryBlock symbols mInfo body =
   case mInfo >>= geometryVersionText of
-    Nothing -> renderGeometryText body
+    Nothing -> renderGeometryText symbols body
     Just vText -> case parseGeometryVersion vText of
       Nothing ->
         versionErrorView $ "Unbekannte Versionsangabe: " <> vText
@@ -79,7 +83,7 @@ renderGeometryBlock mInfo body =
                 <> "."
                 <> T.pack (show (snd currentGeometryVersion))
                 <> " wird unterstützt."
-        | otherwise -> renderGeometryText body
+        | otherwise -> renderGeometryText symbols body
 
 -- | Error view for unsupported geometry versions
 versionErrorView :: Text -> M.View model action
@@ -121,7 +125,7 @@ primVecs :: RenderPrimitive -> [Vec2]
 primVecs = \case
   RenderDot v _ -> [v]
   RenderSegment v1 v2 _ -> [v1, v2]
-  RenderLabel v _ _ _ -> [v]
+  RenderLabel v _lbl _ _ -> [v]
   RenderAxisLine v1 v2 _ -> [v1, v2]
   RenderTick v _ _ -> [v]
   RenderGridLine v1 v2 _ -> [v1, v2]
@@ -131,8 +135,8 @@ primVecs = \case
 -- -----------------------------------------------------------------
 
 -- | Render a single primitive to SVG
-renderPrimitive :: RenderPrimitive -> M.View model action
-renderPrimitive = \case
+renderPrimitive :: Map SymbolId EmbeddedSymbol -> RenderPrimitive -> M.View model action
+renderPrimitive symbols = \case
   RenderDot (Vec2 x y) env ->
     Svg.circle_
       [ SP.cx_ (ms $ show x)
@@ -150,17 +154,35 @@ renderPrimitive = \case
       , SP.strokeWidth_ (ms $ envStrokeWidth env)
       , envDashAttr env
       ]
-  RenderLabel (Vec2 x y) txt pos env ->
-    let (dx, dy, anchor) = labelOffset pos
-     in Svg.text_
-          [ SP.x_ (ms $ show (x + dx))
-          , SP.y_ (ms $ show (-(y - dy)))
-          , SP.textAnchor_ (ms anchor)
-          , SP.fontSize_ "0.45"
-          , SP.fill_ (ms $ envColor env)
-          , SP.dominantBaseline_ "central"
-          ]
-          [M.text (ms txt)]
+  RenderLabel (Vec2 x y) lbl pos env ->
+    case lbl of
+      PlainLabel txt ->
+        let (dx, dy, anchor) = labelOffset pos
+         in Svg.text_
+              [ SP.x_ (ms $ show (x + dx))
+              , SP.y_ (ms $ show (-(y - dy)))
+              , SP.textAnchor_ (ms anchor)
+              , SP.fontSize_ "0.45"
+              , SP.fill_ (ms $ envColor env)
+              , SP.dominantBaseline_ "central"
+              ]
+              [M.text (ms txt)]
+      MathLabel latex ->
+        let sid = hashLatex Inline latex
+         in case Map.lookup sid symbols of
+              Nothing ->
+                let (dx, dy, anchor) = labelOffset pos
+                 in Svg.text_
+                      [ SP.x_ (ms $ show (x + dx))
+                      , SP.y_ (ms $ show (-(y - dy)))
+                      , SP.textAnchor_ (ms anchor)
+                      , SP.fontSize_ "0.40"
+                      , SP.fill_ (ms $ envColor env)
+                      , SP.dominantBaseline_ "central"
+                      , SP.fontStyle_ "italic"
+                      ]
+                      [M.text "[math]"]
+              Just es -> renderMathLabel (Vec2 x y) es pos env
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
       [ SP.x1_ (ms $ show x1)
@@ -223,6 +245,44 @@ renderPrimitive = \case
       , SP.stroke_ (ms $ envColor env)
       , SP.strokeWidth_ "0.01"
       ]
+
+-- | Render a MathJax-rendered formula as an SVG @\<image\>@ element.
+-- Converts MathJax's @ex@ units to geometry coordinate units.
+-- Relies on 'svgToDataUrl' producing base64 data URLs (required by Chrome).
+--
+-- Chrome refuses to render @\<image\>@ elements whose width or height is
+-- below ~0.5 SVG user units (geometry coordinates are small — typically
+-- sub-1.0). We work around this by rendering the image at a 100× nominal
+-- size and wrapping it in a @\<g transform="translate(…) scale(0.01)"\>@.
+renderMathLabel :: Vec2 -> EmbeddedSymbol -> LabelPosition -> DrawEnv -> M.View model action
+renderMathLabel (Vec2 x y) es pos _env =
+  let parseEx t = maybe 1.0 id $ T.stripSuffix "ex" t >>= (readMaybe . T.unpack)
+      exToCoord = 0.22 :: Double -- ~0.5 * geometry fontSize (0.45)
+      imgW = parseEx es.width * exToCoord
+      imgH = parseEx es.height * exToCoord
+      (dx, dy, anchor) = labelOffset pos
+      anchorDx = case anchor of
+        "middle" -> -(imgW / 2)
+        "end" -> -imgW
+        _ -> 0
+      imgX = x + dx + anchorDx
+      imgY = -(y - dy) - imgH / 2
+      -- Scale factor: render at 100× then scale down
+      s = 0.01 :: Double
+      nomW = imgW / s
+      nomH = imgH / s
+   in Svg.g_
+        [ SP.transform_ $ ms $
+            "translate(" <> show imgX <> "," <> show imgY <> ") scale(" <> show s <> ")"
+        ]
+        [ Svg.image_
+            [ SP.x_ "0"
+            , SP.y_ "0"
+            , M.textProp "width" (ms $ show nomW)
+            , M.textProp "height" (ms $ show nomH)
+            , M.textProp "href" (ms es.dataUrl)
+            ]
+        ]
 
 -- -----------------------------------------------------------------
 -- Environment to SVG attributes

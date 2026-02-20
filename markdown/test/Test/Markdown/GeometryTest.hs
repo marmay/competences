@@ -1,13 +1,14 @@
 module Test.Markdown.GeometryTest (geometryTests) where
 
 import Competences.Markdown.Geometry.AST
-import Competences.Markdown.Geometry.Eval (evalScene)
+import Competences.Markdown.Geometry.Eval (evalScene, extractMathLabels)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
   , isGeometryInfo
   , parseGeometry
   , parseGeometryVersion
+  , parseLabelContent
   )
 import Data.Text (Text)
 import Test.Tasty
@@ -18,6 +19,8 @@ geometryTests =
   testGroup
     "Geometry DSL"
     [ parserGroup
+    , labelContentGroup
+    , extractMathLabelsGroup
     , evalGroup
     , versionGroup
     ]
@@ -59,7 +62,7 @@ parserGroup =
         "drawPoint labeled"
         "drawPoint A labeled \"A\" below-left"
         [ Draw (DrawPoint "A")
-        , Label (LabelAtPoint "A" "A" BelowLeft)
+        , Label (LabelAtPoint "A" (PlainLabel "A") BelowLeft)
         ]
     , parsesTo "drawSegment by name" "drawSegment c" [Draw (DrawSegment (SegByName "c"))]
     , parsesTo "drawSegment inline" "drawSegment A -- B" [Draw (DrawSegment (SegInline "A" "B"))]
@@ -67,23 +70,23 @@ parserGroup =
         "drawSegment labeled"
         "drawSegment A -- B labeled \"c\" below 0.4"
         [ Draw (DrawSegment (SegInline "A" "B"))
-        , Label (LabelOnSegment (SegInline "A" "B") "c" SegBelow 0.4)
+        , Label (LabelOnSegment (SegInline "A" "B") (PlainLabel "c") SegBelow 0.4)
         ]
     , parsesTo
         "drawSegment labeled default fraction"
         "drawSegment c labeled \"c\" above"
         [ Draw (DrawSegment (SegByName "c"))
-        , Label (LabelOnSegment (SegByName "c") "c" SegAbove 0.5)
+        , Label (LabelOnSegment (SegByName "c") (PlainLabel "c") SegAbove 0.5)
         ]
-    , parsesTo "labelPoint" "labelPoint A \"A\" above-right" [Label (LabelAtPoint "A" "A" AboveRight)]
+    , parsesTo "labelPoint" "labelPoint A \"A\" above-right" [Label (LabelAtPoint "A" (PlainLabel "A") AboveRight)]
     , parsesTo
         "labelSegment by name"
         "labelSegment c \"c\" below"
-        [Label (LabelOnSegment (SegByName "c") "c" SegBelow 0.5)]
+        [Label (LabelOnSegment (SegByName "c") (PlainLabel "c") SegBelow 0.5)]
     , parsesTo
         "labelSegment inline with fraction"
         "labelSegment A -- B \"ab\" above 0.3"
-        [Label (LabelOnSegment (SegInline "A" "B") "ab" SegAbove 0.3)]
+        [Label (LabelOnSegment (SegInline "A" "B") (PlainLabel "ab") SegAbove 0.3)]
     , parsesTo
         "modifier block dashed"
         "dashed {\n  drawSegment A -- B\n}"
@@ -127,6 +130,57 @@ parserGroup =
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
+    ]
+
+-- -----------------------------------------------------------------
+-- LabelContent tests
+-- -----------------------------------------------------------------
+
+labelContentGroup :: TestTree
+labelContentGroup =
+  testGroup
+    "LabelContent"
+    [ testCase "plain text" $
+        parseLabelContent "hello" @?= PlainLabel "hello"
+    , testCase "math label" $
+        parseLabelContent "$\\alpha$" @?= MathLabel "\\alpha"
+    , testCase "incomplete — no closing $" $
+        parseLabelContent "$incomplete" @?= PlainLabel "$incomplete"
+    , testCase "empty math — $$" $
+        parseLabelContent "$$" @?= PlainLabel "$$"
+    , testCase "math label parses from geometry" $
+        parseGeometry "labelPoint A \"$\\beta$\" above"
+          @?= Right [Label (LabelAtPoint "A" (MathLabel "\\beta") Above)]
+    ]
+
+-- -----------------------------------------------------------------
+-- extractMathLabels tests
+-- -----------------------------------------------------------------
+
+extractMathLabelsGroup :: TestTree
+extractMathLabelsGroup =
+  testGroup
+    "extractMathLabels"
+    [ testCase "no math labels" $
+        extractMathLabels [DefPoint "A" (Vec2 0 0), Draw (DrawPoint "A")] @?= []
+    , testCase "plain labels ignored" $
+        extractMathLabels [Label (LabelAtPoint "A" (PlainLabel "A") Above)] @?= []
+    , testCase "math label at point" $
+        extractMathLabels [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)] @?= ["\\alpha"]
+    , testCase "math label on segment" $
+        extractMathLabels [Label (LabelOnSegment (SegByName "c") (MathLabel "c") SegAbove 0.5)] @?= ["c"]
+    , testCase "nested in modifier block" $
+        extractMathLabels
+          [ ModifierBlock (EnvMod SetDashed)
+              [Label (LabelAtPoint "A" (MathLabel "\\gamma") Below)]
+          ]
+          @?= ["\\gamma"]
+    , testCase "mixed plain and math" $
+        extractMathLabels
+          [ Label (LabelAtPoint "A" (PlainLabel "A") Above)
+          , Label (LabelAtPoint "B" (MathLabel "\\beta") Below)
+          ]
+          @?= ["\\beta"]
     ]
 
 -- -----------------------------------------------------------------
@@ -243,11 +297,11 @@ evalGroup =
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 2)
-                , Label (LabelAtPoint "A" "A" Above)
+                , Label (LabelAtPoint "A" (PlainLabel "A") Above)
                 ]
         case main result of
-          [RenderLabel _ txt pos _] -> do
-            txt @?= "A"
+          [RenderLabel _ lbl pos _] -> do
+            lbl @?= PlainLabel "A"
             pos @?= Above
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "dashed modifier" $ do

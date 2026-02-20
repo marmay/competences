@@ -17,6 +17,7 @@
 -- @
 module Competences.Markdown.Geometry.Parser
   ( parseGeometry
+  , parseLabelContent
 
     -- * Version helpers
   , currentGeometryVersion
@@ -190,7 +191,7 @@ pointLabelTailP :: Name -> Parser LabelPrimitive
 pointLabelTailP name = do
   txt <- lexeme quotedTextP
   pos <- lexeme labelPositionP
-  pure $ LabelAtPoint name txt pos
+  pure $ LabelAtPoint name (parseLabelContent txt) pos
 
 -- | Parse @"text" side [fraction]@ for a segment label
 segmentLabelTailP :: SegmentRef -> Parser LabelPrimitive
@@ -198,7 +199,15 @@ segmentLabelTailP ref = do
   txt <- lexeme quotedTextP
   side <- lexeme segmentSideP
   frac <- option 0.5 (lexeme doubleP)
-  pure $ LabelOnSegment ref txt side frac
+  pure $ LabelOnSegment ref (parseLabelContent txt) side frac
+
+-- | Classify quoted text as plain or math label.
+-- Text wrapped in @$...$@ (non-empty) is treated as LaTeX math.
+parseLabelContent :: Text -> LabelContent
+parseLabelContent txt =
+  case T.stripPrefix "$" txt >>= T.stripSuffix "$" of
+    Just latex | not (T.null latex) -> MathLabel latex
+    _ -> PlainLabel txt
 
 -- -----------------------------------------------------------------
 -- Point constructions
