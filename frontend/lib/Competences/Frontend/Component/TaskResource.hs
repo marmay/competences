@@ -3,6 +3,7 @@ module Competences.Frontend.Component.TaskResource
   , DisplayMode (..)
   , TaskWithSolutions (..)
   , Action (..)
+  , FormulaCache
   , initialState
   , taskResourceListView
   , taskExpandedCard
@@ -14,7 +15,7 @@ import Competences.Document (Solution (..), Task (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
@@ -102,7 +103,8 @@ initialState mode statuses tasks =
 -- The taskStatuses map is used to tint disclosure headers by completion status
 -- The extraBody parameter renders optional per-task body content appended after solutions
 taskResourceListView
-  :: Bool  -- ^ Show purpose badge (Practice/Assessment)
+  :: FormulaCache
+  -> Bool  -- ^ Show purpose badge (Practice/Assessment)
   -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const empty@ for none
   -> Map TaskId TaskCompletionStatus  -- ^ Task statuses for header tinting
   -> [TaskWithSolutions]
@@ -110,17 +112,17 @@ taskResourceListView
   -> (TaskId -> [M.View model a])  -- ^ Extra body content per task (e.g., related materials)
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
+taskResourceListView fc showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
   if null tasks
     then Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
     else
       Layout.vFlow
         Layout.gapM
-        (map (viewTask showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
+        (map (viewTask fc showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask showPurposeBadge taskExtra statuses state extraBody liftAction tws =
+viewTask :: FormulaCache -> Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask fc showPurposeBadge taskExtra statuses state extraBody liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
@@ -152,10 +154,10 @@ viewTask showPurposeBadge taskExtra statuses state extraBody liftAction tws =
                     else
                       MH.div_
                         [class_ "prose prose-stone prose-sm max-w-none"]
-                        [renderRichText content]
+                        [renderRichText fc content]
             , if null tws.solutions
                 then Layout.empty
-                else viewSolutions state liftAction tws.solutions
+                else viewSolutions fc state liftAction tws.solutions
             ]
               <> extra
           )
@@ -172,15 +174,15 @@ viewTask showPurposeBadge taskExtra statuses state extraBody liftAction tws =
             ]
 
 -- | View solutions list within a task
-viewSolutions :: TaskResourceList -> (Action -> a) -> [Solution] -> M.View model a
-viewSolutions state liftAction sols =
+viewSolutions :: FormulaCache -> TaskResourceList -> (Action -> a) -> [Solution] -> M.View model a
+viewSolutions fc state liftAction sols =
   MH.div_
     [class_ "space-y-1"]
-    (map (viewSolution state liftAction) sols)
+    (map (viewSolution fc state liftAction) sols)
 
 -- | View a single solution
-viewSolution :: TaskResourceList -> (Action -> a) -> Solution -> M.View model a
-viewSolution state liftAction sol =
+viewSolution :: FormulaCache -> TaskResourceList -> (Action -> a) -> Solution -> M.View model a
+viewSolution fc state liftAction sol =
   let isExpanded = Set.member sol.id state.expandedSolutions
       titleView = Disclosure.titleIconText Icon.IcnSolution (solutionTypeLabel sol.solutionType)
       bodyView =
@@ -189,7 +191,7 @@ viewSolution state liftAction sol =
           else
             MH.div_
               [class_ "prose prose-stone prose-sm max-w-none"]
-              [renderRichText sol.content]
+              [renderRichText fc sol.content]
    in Disclosure.innerDisclosure (liftAction $ ToggleSolution sol.id) $
         Disclosure.contents titleView isExpanded bodyView []
 
@@ -199,8 +201,8 @@ viewSolution state liftAction sol =
 
 -- | Render a task always expanded (no disclosure, no status palette).
 -- Shows task content and solutions inline.
-taskExpandedCard :: TaskWithSolutions -> M.View model action
-taskExpandedCard tws =
+taskExpandedCard :: FormulaCache -> TaskWithSolutions -> M.View model action
+taskExpandedCard fc tws =
   let TaskIdentifier identifier = tws.task.identifier
       displayName = if identifier == mempty then "(Unbenannt)" else identifier
    in Card.contentCard Icon.IcnTask (M.ms displayName) $
@@ -209,19 +211,19 @@ taskExpandedCard tws =
               | rc /= mempty ->
                   MH.div_
                     [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                    [renderRichText rc]
+                    [renderRichText fc rc]
             _ -> Layout.empty
         , if null tws.solutions
             then Layout.empty
             else
               MH.div_
                 [class_ "px-3 pb-3 space-y-3"]
-                (map solutionInlineView tws.solutions)
+                (map (solutionInlineView fc) tws.solutions)
         ]
 
 -- | Render a solution always visible with type label (no disclosure).
-solutionInlineView :: Solution -> M.View model action
-solutionInlineView sol =
+solutionInlineView :: FormulaCache -> Solution -> M.View model action
+solutionInlineView fc sol =
   Layout.vFlow Layout.gapMicro
     [ Typography.small (solutionTypeLabel sol.solutionType)
     , if sol.content == mempty
@@ -229,7 +231,7 @@ solutionInlineView sol =
         else
           MH.div_
             [class_ "prose prose-stone prose-sm max-w-none"]
-            [renderRichText sol.content]
+            [renderRichText fc sol.content]
     ]
 
 -- ============================================================================

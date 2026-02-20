@@ -27,7 +27,7 @@ import Competences.Frontend.Component.Selector.MultiSelectLessonNotesSelector (m
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
-import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
+import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -306,7 +306,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        componentA "lesson-description" [] (richContentEditorComponent (contentValue mempty m.description) #description)
+        componentA "lesson-description" [] (richContentEditorComponent r.formulaCache (contentValue mempty m.description) #description)
 
     competenceLevelSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
@@ -358,7 +358,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblTeachingNotes) $
-        componentA "lesson-notes" [] (richContentEditorComponent (contentValue mempty m.notes) #notes)
+        componentA "lesson-notes" [] (richContentEditorComponent r.formulaCache (contentValue mempty m.notes) #notes)
 
     phasesSection m =
       MH.div_
@@ -442,7 +442,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
         , -- Phase notes
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
             componentA ("phase-notes-" <> M.ms (show idx)) []
-              (richContentEditorComponent phase.notes (phaseNoteStateLens idx))
+              (richContentEditorComponent r.formulaCache phase.notes (phaseNoteStateLens idx))
         ]
 
 -- ============================================================================

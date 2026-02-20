@@ -17,6 +17,10 @@ module Competences.Frontend.SvgEmbed.Manager
   , EmbeddedSymbol (..)
   , MathDisplay (..)
 
+    -- * Formula cache
+  , FormulaCache (..)
+  , newFormulaCache
+
     -- * Formula rendering (MathJax)
   , renderFormula
   , renderFormulaCached
@@ -52,7 +56,6 @@ import Miso.DSL
   )
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric (showHex)
-import System.IO.Unsafe (unsafePerformIO)
 
 -- | Unique ID for an embedded symbol (hash of source content)
 newtype SymbolId = SymbolId {unSymbolId :: Text}
@@ -171,35 +174,36 @@ urlEncodeSvg = T.concatMap $ \case
   c -> T.singleton c
 
 -- ============================================================================
--- Global formula cache
+-- Formula cache
 -- ============================================================================
 
--- | Global cache of rendered formulas, shared across all RichContent components.
--- Uses the same @unsafePerformIO@ pattern as 'Translate.currentLanguage'.
-formulaCache :: IORef (Map SymbolId EmbeddedSymbol)
-formulaCache = unsafePerformIO $ newIORef Map.empty
-{-# NOINLINE formulaCache #-}
+-- | Explicit formula cache, held in 'SyncContext'.
+newtype FormulaCache = FormulaCache (IORef (Map SymbolId EmbeddedSymbol))
 
--- | Render a formula via MathJax, using the global cache.
+-- | Create a new, empty formula cache.
+newFormulaCache :: IO FormulaCache
+newFormulaCache = FormulaCache <$> newIORef Map.empty
+
+-- | Render a formula via MathJax, using the given cache.
 -- On cache hit, returns immediately without calling MathJax.
-renderFormulaCached :: MathDisplay -> Text -> IO (Maybe EmbeddedSymbol)
-renderFormulaCached display latex = do
+renderFormulaCached :: FormulaCache -> MathDisplay -> Text -> IO (Maybe EmbeddedSymbol)
+renderFormulaCached (FormulaCache ref) display latex = do
   let sid = hashLatex display latex
-  cache <- readIORef formulaCache
+  cache <- readIORef ref
   case Map.lookup sid cache of
     Just es -> pure (Just es)
     Nothing -> do
       result <- renderFormula display latex
       case result of
         Just es -> do
-          atomicModifyIORef' formulaCache $ \c -> (Map.insert sid es c, ())
+          atomicModifyIORef' ref $ \c -> (Map.insert sid es c, ())
           pure (Just es)
         Nothing -> pure Nothing
 
 -- | Bulk cache lookup for a list of symbol IDs.
 -- Returns all currently cached symbols without rendering anything.
-lookupCachedFormulas :: [SymbolId] -> IO (Map SymbolId EmbeddedSymbol)
-lookupCachedFormulas sids = do
-  cache <- readIORef formulaCache
+lookupCachedFormulas :: FormulaCache -> [SymbolId] -> IO (Map SymbolId EmbeddedSymbol)
+lookupCachedFormulas (FormulaCache ref) sids = do
+  cache <- readIORef ref
   pure $ Map.fromList
     [(sid, es) | sid <- sids, Just es <- [Map.lookup sid cache]]

@@ -17,7 +17,7 @@ import Competences.Document
 import Competences.Document.Id (idToText)
 import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
 import Competences.Frontend.SyncContext
@@ -154,18 +154,18 @@ viewerComponent r ln =
                 , -- Items (resources and tasks)
                   if null proj.resolvedItems
                     then M.text ""
-                    else MH.div_ [class_ "space-y-2"] (map viewResolvedItem proj.resolvedItems)
+                    else MH.div_ [class_ "space-y-2"] (map (viewResolvedItem r.formulaCache) proj.resolvedItems)
                 ]
             ]
 
 -- | Render a resolved item in the viewer
-viewResolvedItem :: ResolvedItem -> M.View model action
-viewResolvedItem (ResolvedResource res) = viewResourceCard res
-viewResolvedItem (ResolvedTask tws) = taskExpandedCard tws
+viewResolvedItem :: FormulaCache -> ResolvedItem -> M.View model action
+viewResolvedItem fc (ResolvedResource res) = viewResourceCard fc res
+viewResolvedItem fc (ResolvedTask tws) = taskExpandedCard fc tws
 
 -- | Render a resource card (same pattern as ResourceList.resourcesExpandedListView)
-viewResourceCard :: Resource -> M.View model action
-viewResourceCard res =
+viewResourceCard :: FormulaCache -> Resource -> M.View model action
+viewResourceCard fc res =
   let ResourceIdentifier ident = res.identifier
       displayName = if T.null ident then "(Unbenannt)" else ident
    in case res.content of
@@ -175,7 +175,7 @@ viewResourceCard res =
                 then
                   MH.div_
                     [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                    [renderRichText rc]
+                    [renderRichText fc rc]
                 else Layout.empty
             ]
         WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title

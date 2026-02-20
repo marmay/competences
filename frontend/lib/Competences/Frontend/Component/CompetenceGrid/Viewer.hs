@@ -312,7 +312,7 @@ viewerComponent r grid =
           showPurposeBadge = m.projection.connectedUserRole == Teacher
           cfg = ResourceModal.ResourceModalConfig tasks resources showPurposeBadge m.projection.taskStatuses
       let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) ModalWide ModalFull Nothing
-      M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent cfg)
+      M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent r.formulaCache cfg)
 
     update PinThis = M.io_ $
       let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid

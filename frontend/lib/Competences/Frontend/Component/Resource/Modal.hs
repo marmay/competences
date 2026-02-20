@@ -18,6 +18,7 @@ import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.TaskResource
   ( DisplayMode (..)
+  , FormulaCache
   , TaskResourceList
   , TaskWithSolutions (..)
   , initialState
@@ -87,8 +88,8 @@ data Action
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: ResourceModalConfig -> M.Component p Model Action
-resourceModalComponent cfg =
+resourceModalComponent :: FormulaCache -> ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent fc cfg =
   M.component model update view
   where
     -- Determine default view mode based on available content
@@ -138,11 +139,11 @@ resourceModalComponent cfg =
             ViewTasks
               | Map.null m.config.taskStatuses ->
                   -- No focused user: flat list without grouping
-                  taskResourceListView m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
+                  taskResourceListView fc m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
               | otherwise ->
-                  groupedTasksView m
+                  groupedTasksView fc m
             ViewLearningResources ->
-              ResourceList.resourcesListView m.config.resources m.expandedResources ToggleResourceExpanded
+              ResourceList.resourcesListView fc m.config.resources m.expandedResources ToggleResourceExpanded
         ]
 
 -- ============================================================================
@@ -165,23 +166,24 @@ modeSwitcher currentMode hasTasks hasResources =
 -- ============================================================================
 
 -- | Render tasks grouped by completion status
-groupedTasksView :: Model -> M.View Model Action
-groupedTasksView m =
+groupedTasksView :: FormulaCache -> Model -> M.View Model Action
+groupedTasksView fc m =
   let groups = groupByTaskStatus (.task.id) m.config.taskStatuses m.config.tasks
    in if null groups
         then
           MH.div_
             [class_ "text-muted-foreground text-sm py-4 text-center"]
             [M.text $ C.translate' C.LblNoTasksAvailable]
-        else MH.div_ [class_ "space-y-3"] (map (viewStatusGroup m) groups)
+        else MH.div_ [class_ "space-y-3"] (map (viewStatusGroup fc m) groups)
 
 -- | Render a single status group as a collapsible section
-viewStatusGroup :: Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
-viewStatusGroup m (group, tasks) =
+viewStatusGroup :: FormulaCache -> Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
+viewStatusGroup fc m (group, tasks) =
   let isExpanded = not $ Set.member group m.collapsedGroups
       title = statusGroupLabel group
       content =
         taskResourceListView
+          fc
           m.config.showPurposeBadge
           (viewTaskCompletionStatusFromMap m.config.taskStatuses)
           m.config.taskStatuses

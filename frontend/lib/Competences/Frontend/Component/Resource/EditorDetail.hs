@@ -23,9 +23,9 @@ import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Component (component, componentA)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -74,7 +74,7 @@ editorDetailView r resource =
                            , competenceLevelEditorField r "resource-levels" 1 competenceLevelsLens  -- minResults=1: resources must have at least one level
                            )
         `TE.addNamedField` ( C.translate' C.LblResourceContent
-                           , resourceContentEditorField
+                           , resourceContentEditorField r.formulaCache
                            )
 
 -- | Editor field for identifier (handles ResourceIdentifier newtype)
@@ -110,8 +110,8 @@ competenceLevelsLens =
 
 -- | Editor field for resource content (sum type)
 -- For now, supports InlineContent only - will be enhanced later for WebLink and VideoLink
-resourceContentEditorField :: EditorField Resource ResourcePatch f
-resourceContentEditorField =
+resourceContentEditorField :: FormulaCache -> EditorField Resource ResourcePatch f
+resourceContentEditorField fc =
   EditorField
     { viewer = contentViewer
     , editor = contentEditor
@@ -123,7 +123,7 @@ resourceContentEditorField =
         if rc == mempty
           then Typography.placeholder "Kein Inhalt"
           else MH.div_ [class_ "prose prose-stone prose-sm max-w-none"]
-                 [renderRichText rc]
+                 [renderRichText fc rc]
       WebLink url desc ->
         MH.div_ [class_ "space-y-1"]
           [ Layout.hFlow
@@ -170,7 +170,7 @@ resourceContentEditorField =
                 InlineContent rc ->
                   componentA "rc-resource-editor"
                     (if refocusTarget then [M.id_ "refocus-target"] else [])
-                    (richContentEditorComponent rc (resourceRichContentLens original))
+                    (richContentEditorComponent fc rc (resourceRichContentLens original))
                 WebLink url desc ->
                   MH.div_ [class_ "space-y-2"]
                     [ MH.div_ []

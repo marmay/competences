@@ -28,7 +28,7 @@ module Competences.Frontend.Component.MarkdownEditor
   )
 where
 
-import Competences.Frontend.Component.RichContent (renderMarkdownText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderMarkdownText)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Parser qualified as Markdown
@@ -152,10 +152,11 @@ data RichContentEditorAction
 --   (richContentEditorComponent initialContent #description)
 -- @
 richContentEditorComponent
-  :: RichContent
+  :: FormulaCache
+  -> RichContent
   -> O.Lens' p (ContentState RichContent)
   -> M.Component p RichContentEditorModel RichContentEditorAction
-richContentEditorComponent initialContent parentLens =
+richContentEditorComponent fc initialContent parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #contentState]
     , M.initialAction = Just (RCValidate 0)
@@ -212,7 +213,7 @@ richContentEditorComponent initialContent parentLens =
             ]
         , -- Content area
           if m.previewing
-            then previewView (toRawText m.validContent) "150px"
+            then previewView fc (toRawText m.validContent) "150px"
             else editView m
         ]
 
@@ -236,13 +237,13 @@ editView m =
 -- ============================================================================
 
 -- | Preview view: rendered markdown
-previewView :: Text -> Text -> M.View model action
-previewView rawText minHeight =
+previewView :: FormulaCache -> Text -> Text -> M.View model action
+previewView fc rawText minHeight =
   MH.div_
     [ class_ "p-3 border border-input rounded-md bg-muted/50 overflow-auto"
     , MC.style_ [("min-height", ms minHeight)]
     ]
-    [ renderMarkdownText rawText
+    [ renderMarkdownText fc rawText
     ]
 
 -- | Render a single validation error with its context label

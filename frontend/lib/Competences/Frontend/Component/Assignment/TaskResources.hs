@@ -31,7 +31,7 @@ import Competences.Document.Task
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -164,8 +164,8 @@ taskResourcesComponent r taskId =
           Typography.muted $ C.translate' C.LblNoResources
       | otherwise =
           MH.div_ [class_ "space-y-3"]
-            ( map (viewLessonNoteGroup m) m.lessonNoteGroups
-              <> viewUngrouped m
+            ( map (viewLessonNoteGroup r.formulaCache m) m.lessonNoteGroups
+              <> viewUngrouped r.formulaCache m
             )
 
 -- ============================================================================
@@ -269,10 +269,11 @@ groupByLessonNotes lns resourceIdSet discoveredTaskIdSet resourceMap discoveredT
 
 -- | Render a lesson note group as a collapsible innerDisclosure.
 viewLessonNoteGroup
-  :: TaskResourcesModel
+  :: FormulaCache
+  -> TaskResourcesModel
   -> (LessonNotes, [Resource], [DiscoveredTask])
   -> M.View TaskResourcesModel Action
-viewLessonNoteGroup m (ln, resources, discoveredTasks) =
+viewLessonNoteGroup fc m (ln, resources, discoveredTasks) =
   let isExpanded = not (Set.member ln.id m.collapsedLessonNotes)
       titleView = Disclosure.titleIconText Icon.IcnLessonNotes (ms ln.title)
       bodyView =
@@ -280,55 +281,55 @@ viewLessonNoteGroup m (ln, resources, discoveredTasks) =
           [class_ "space-y-2"]
           [ if null resources
               then Layout.empty
-              else ResourceList.resourcesListView resources m.expandedResources ToggleResourceExpanded
+              else ResourceList.resourcesListView fc resources m.expandedResources ToggleResourceExpanded
           , if null discoveredTasks
               then Layout.empty
-              else MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask m) discoveredTasks)
+              else MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask fc m) discoveredTasks)
           ]
       openAction = Disclosure.Action Icon.IcnOpenModal (OpenLessonNotes ln)
    in Disclosure.innerDisclosure (ToggleLessonNoteGroup ln.id) $
         Disclosure.contents titleView isExpanded bodyView [openAction]
 
 -- | Render ungrouped resources and tasks under a heading.
-viewUngrouped :: TaskResourcesModel -> [M.View TaskResourcesModel Action]
-viewUngrouped m
+viewUngrouped :: FormulaCache -> TaskResourcesModel -> [M.View TaskResourcesModel Action]
+viewUngrouped fc m
   | null m.ungroupedResources && null m.ungroupedTasks = []
   | otherwise =
       [ MH.div_
           [class_ "space-y-2"]
           ( [ Typography.small $ C.translate' C.LblOtherResources
             ]
-              <> [ ResourceList.resourcesListView m.ungroupedResources m.expandedResources ToggleResourceExpanded
+              <> [ ResourceList.resourcesListView fc m.ungroupedResources m.expandedResources ToggleResourceExpanded
                  | not (null m.ungroupedResources)
                  ]
-              <> [ MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask m) m.ungroupedTasks)
+              <> [ MH.div_ [class_ "space-y-1"] (map (viewDiscoveredTask fc m) m.ungroupedTasks)
                  | not (null m.ungroupedTasks)
                  ]
           )
       ]
 
 -- | Render a discovered task as a disclosure with its Complete solutions.
-viewDiscoveredTask :: TaskResourcesModel -> DiscoveredTask -> M.View TaskResourcesModel Action
-viewDiscoveredTask m dt =
+viewDiscoveredTask :: FormulaCache -> TaskResourcesModel -> DiscoveredTask -> M.View TaskResourcesModel Action
+viewDiscoveredTask fc m dt =
   let isExpanded = Set.member dt.taskId m.expandedDiscoveredTasks
       displayName = if T.null dt.identifier then "(Unbenannt)" else dt.identifier
       titleView = Disclosure.titleIconText Icon.IcnTask (ms displayName)
       bodyView = component ("discovered-task-" <> ms (idToText dt.taskId))
-        (discoveredTaskBody dt.solutions)
+        (discoveredTaskBody fc dt.solutions)
    in Disclosure.innerDisclosure (ToggleDiscoveredTaskExpanded dt.taskId) $
         Disclosure.contents titleView isExpanded bodyView []
 
 -- | Simple component that renders solution content (avoids rendering when collapsed).
-discoveredTaskBody :: [Solution] -> M.Component p [Solution] ()
-discoveredTaskBody sols =
+discoveredTaskBody :: FormulaCache -> [Solution] -> M.Component p [Solution] ()
+discoveredTaskBody fc sols =
   M.component sols (\() -> pure ()) $ \ss ->
     MH.div_
       [class_ "space-y-2"]
-      (map viewSolutionContent ss)
+      (map (viewSolutionContent fc) ss)
 
 -- | Render solution content inline.
-viewSolutionContent :: Solution -> M.View model action
-viewSolutionContent sol =
+viewSolutionContent :: FormulaCache -> Solution -> M.View model action
+viewSolutionContent fc sol =
   MH.div_
     [class_ "space-y-1"]
     [ Typography.small $ C.translate' (C.LblSolutionType sol.solutionType)
@@ -337,5 +338,5 @@ viewSolutionContent sol =
         else
           MH.div_
             [class_ "prose prose-stone prose-sm max-w-none"]
-            [renderRichText sol.content]
+            [renderRichText fc sol.content]
     ]

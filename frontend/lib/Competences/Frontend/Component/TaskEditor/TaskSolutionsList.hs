@@ -14,7 +14,7 @@ import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.TaskEditor.SolutionEditorDetail (solutionInlineEditor)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , SyncDocumentEnv (..)
   , modifySyncDocument
   , nextId
@@ -167,7 +167,7 @@ taskSolutionsListComponent r taskId =
                   else
                     MH.div_
                       [class_ "prose prose-stone prose-sm max-w-none"]
-                      [renderRichText sol.content]
+                      [renderRichText r.formulaCache sol.content]
        in Disclosure.disclosure (ToggleSolution sol.id) $
             Disclosure.contents titleView isExpanded bodyView
               [Disclosure.DestructiveAction Icon.IcnDelete (DeleteSolution sol.id) | isOwner]

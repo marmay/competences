@@ -15,7 +15,7 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Tailwind (class_)
 import Miso.Html qualified as MH
@@ -70,7 +70,7 @@ taskDetailView r task =
                            , TE.textEditorField identifierViewLens identifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
-                           , TE.richTextEditorField "content" contentViewLens contentPatchLens
+                           , TE.richTextEditorField r.formulaCache "content" contentViewLens contentPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField

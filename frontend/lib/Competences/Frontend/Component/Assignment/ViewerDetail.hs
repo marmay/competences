@@ -347,14 +347,14 @@ viewerComponent r user assignment =
                     then M.text ""
                     else M.div_
                            [class_ "prose prose-stone prose-sm max-w-none"]
-                           [renderRichText desc]
+                           [renderRichText r.formulaCache desc]
                 , -- Accumulated observations list (one per competence level)
                   viewObservationList proj
                 ]
             , M.div_
               [class_ "space-y-4"]
               ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
-                [ taskResourceListView showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
+                [ taskResourceListView r.formulaCache showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
               )
             ]
 
@@ -475,7 +475,7 @@ viewerComponent r user assignment =
               ( [M.h2_ [class_ "text-lg font-semibold"] [M.text $ ms ident]]
                 <> [ M.div_
                        [class_ "prose prose-stone prose-sm max-w-none"]
-                       [renderRichText content]
+                       [renderRichText r.formulaCache content]
                    | showTask
                    , Just content <- [tws.taskContent]
                    ]
@@ -497,7 +497,7 @@ viewerComponent r user assignment =
             [M.text $ C.translate' (C.LblSolutionType sol.solutionType)]
         , M.div_
             [class_ "prose prose-stone prose-sm max-w-none"]
-            [renderRichText sol.content]
+            [renderRichText r.formulaCache sol.content]
         ]
 
     assignmentNameToText (AssignmentName t) = ms t

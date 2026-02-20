@@ -37,7 +37,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -432,7 +432,7 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
                 else
                   MH.div_
                     []
-                    [ Eval.viewTaskContent m.viewData.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
+                    [ Eval.viewTaskContent r.formulaCache m.viewData.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
                     , Eval.viewTaskCompetences m.viewData.taskViewData m.viewData.competenceLevelInfos m.taskObservations taskId SetTaskObservation
                     ]
             ]

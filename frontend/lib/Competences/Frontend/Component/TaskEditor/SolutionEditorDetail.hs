@@ -19,7 +19,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..), readOnlyField)
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
 import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -65,7 +65,7 @@ editorDetailView r solution =
                                #solutionType
                            )
         `TE.addNamedField` ( C.translate' C.LblSolutionContent
-                           , TE.richTextEditorField "content" #content #content
+                           , TE.richTextEditorField r.formulaCache "content" #content #content
                            )
 
 -- | Read-only field showing the task identifier
@@ -143,5 +143,5 @@ solutionInlineEditor r solution =
                                #solutionType
                            )
         `TE.addNamedField` ( C.translate' C.LblSolutionContent
-                           , TE.richTextEditorField "content" #content #content
+                           , TE.richTextEditorField r.formulaCache "content" #content #content
                            )

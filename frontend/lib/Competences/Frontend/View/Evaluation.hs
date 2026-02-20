@@ -53,7 +53,7 @@ import Competences.Document.Task
   , getTaskContent
   )
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
@@ -207,12 +207,13 @@ viewTaskHeader taskData taskId isExcluded toggleAction extraContent =
 
 -- | Collapsible task content (disclosure chevron + rich text).
 viewTaskContent
-  :: Map.Map TaskId TaskViewData
+  :: FormulaCache
+  -> Map.Map TaskId TaskViewData
   -> Set.Set TaskId
   -> TaskId
   -> (TaskId -> a)
   -> M.View m a
-viewTaskContent taskData expandedSet taskId toggleAction =
+viewTaskContent fc taskData expandedSet taskId toggleAction =
   case Map.lookup taskId taskData of
     Nothing -> M.text ""
     Just tvd ->
@@ -223,7 +224,7 @@ viewTaskContent taskData expandedSet taskId toggleAction =
               | c == mempty -> M.text ""
               | otherwise ->
                   let titleView = Disclosure.titleText (C.translate' C.LblTaskStatement)
-                      bodyView = MH.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText c]
+                      bodyView = MH.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText fc c]
                    in Disclosure.innerDisclosure (toggleAction taskId) $
                         Disclosure.contents titleView isExpanded bodyView []
 

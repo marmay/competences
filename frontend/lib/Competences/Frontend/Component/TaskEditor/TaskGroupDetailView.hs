@@ -30,7 +30,7 @@ import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolution
 import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -139,10 +139,10 @@ taskGroupEditorComponent r group =
                            , TE.textEditorField groupIdentifierViewLens groupIdentifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskGroupContentBefore
-                           , TE.richTextEditorField "contentBefore" contentBeforeViewLens contentBeforePatchLens
+                           , TE.richTextEditorField r.formulaCache "contentBefore" contentBeforeViewLens contentBeforePatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskGroupContentAfter
-                           , TE.richTextEditorField "contentAfter" contentAfterViewLens contentAfterPatchLens
+                           , TE.richTextEditorField r.formulaCache "contentAfter" contentAfterViewLens contentAfterPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField
@@ -211,7 +211,7 @@ taskGroupEditorComponent r group =
                            , TE.textEditorField subTaskIdentifierViewLens subTaskIdentifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
-                           , TE.richTextEditorField "content" subTaskContentViewLens subTaskContentPatchLens
+                           , TE.richTextEditorField r.formulaCache "content" subTaskContentViewLens subTaskContentPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField

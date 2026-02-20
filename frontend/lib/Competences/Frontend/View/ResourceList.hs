@@ -16,7 +16,7 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Miso qualified as M
@@ -28,11 +28,12 @@ import Miso.Html.Property qualified as MP
 -- Inline content resources are shown as expandable cards (using Disclosure).
 -- Web and video links are shown as clickable link cards.
 resourcesListView
-  :: [Resource]
+  :: FormulaCache
+  -> [Resource]
   -> Set.Set ResourceId
   -> (ResourceId -> action)
   -> M.View model action
-resourcesListView resources expandedSet toggleExpanded =
+resourcesListView fc resources expandedSet toggleExpanded =
   if null resources
     then Typography.muted $ C.translate' C.LblNoResources
     else MH.div_ [class_ "space-y-2"] (map resourceCard resources)
@@ -55,7 +56,7 @@ resourcesListView resources expandedSet toggleExpanded =
                   bodyView =
                     MH.div_
                       [class_ "prose prose-stone prose-sm max-w-none"]
-                      [renderRichText rc]
+                      [renderRichText fc rc]
                in if hasContent
                     then
                       Disclosure.disclosure (toggleExpanded res.id) $
@@ -100,8 +101,8 @@ resourcesListView resources expandedSet toggleExpanded =
 --
 -- Like 'resourcesListView' but without disclosure wrappers for inline content.
 -- Web and video links are rendered identically.
-resourcesExpandedListView :: [Resource] -> M.View model action
-resourcesExpandedListView resources =
+resourcesExpandedListView :: FormulaCache -> [Resource] -> M.View model action
+resourcesExpandedListView fc resources =
   if null resources
     then Typography.muted $ C.translate' C.LblNoResources
     else MH.div_ [class_ "space-y-2"] (map expandedCard resources)
@@ -126,7 +127,7 @@ resourcesExpandedListView resources =
                     then
                       MH.div_
                         [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                        [renderRichText rc]
+                        [renderRichText fc rc]
                     else Layout.empty
                 ]
             WebLink url title ->

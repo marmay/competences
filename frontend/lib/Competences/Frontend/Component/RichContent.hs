@@ -33,6 +33,7 @@ module Competences.Frontend.Component.RichContent
   , renderMarkdownText
 
     -- * Types (re-exported)
+  , FormulaCache
   , MD.Document (..)
   )
 where
@@ -41,6 +42,7 @@ import Competences.Frontend.Component.Geometry (renderGeometryBlock)
 import Competences.Markdown.Geometry.Parser (isGeometryInfo)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
+  , FormulaCache
   , MathDisplay (..)
   , SymbolId (..)
   , hashLatex
@@ -85,15 +87,15 @@ data RichContentAction
 -- | Create a RichContent view from a new Document AST
 --
 -- @key@ should be unique per content instance (e.g., task ID).
-richContentView :: Text -> MD.Document -> M.View p a
-richContentView key doc =
+richContentView :: FormulaCache -> Text -> MD.Document -> M.View p a
+richContentView fc key doc =
   component
     ("rich-" <> M.ms key)
-    (richContentComponent key doc)
+    (richContentComponent fc key doc)
 
 -- | The RichContent component
-richContentComponent :: Text -> MD.Document -> M.Component p RichContentModel RichContentAction
-richContentComponent _key doc =
+richContentComponent :: FormulaCache -> Text -> MD.Document -> M.Component p RichContentModel RichContentAction
+richContentComponent fc _key doc =
   (M.component model update view)
     { M.initialAction = Just RenderMath
     , M.eventPropagation = True
@@ -110,7 +112,7 @@ richContentComponent _key doc =
       let formulas = extractFormulas m.content
       M.withSink $ \sink -> do
         _ <- forkIO $ do
-          rendered <- mapM (uncurry renderFormulaCached) formulas
+          rendered <- mapM (uncurry (renderFormulaCached fc)) formulas
           let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
           sink (SymbolsReady successful)
         pure ()
@@ -293,26 +295,26 @@ mathImgRef symbols sid display =
 -- ============================================================================
 
 -- | Render a Document AST to Miso view
-documentView :: MD.Document -> M.View p a
-documentView doc =
+documentView :: FormulaCache -> MD.Document -> M.View p a
+documentView fc doc =
   let key = hashDocument doc
-   in richContentView key doc
+   in richContentView fc key doc
 
 -- | Convenience function to parse and render rich content in one step
 --
 -- On parse failure, shows the raw text in a code block with error styling.
-renderRichText :: RichContent -> M.View p a
-renderRichText rc = renderMarkdownText (toRawText rc)
+renderRichText :: FormulaCache -> RichContent -> M.View p a
+renderRichText fc rc = renderMarkdownText fc (toRawText rc)
 
 -- | Parse and render raw 'Text' as markdown.
 --
 -- Useful for rendering 'Text' fields (e.g. phase notes) that aren't
 -- wrapped in 'RichContent'. On parse failure, shows the raw text
 -- in a code block with error styling.
-renderMarkdownText :: Text -> M.View p a
-renderMarkdownText raw =
+renderMarkdownText :: FormulaCache -> Text -> M.View p a
+renderMarkdownText fc raw =
   case Markdown.parseMarkdown raw of
-    Right doc -> documentView doc
+    Right doc -> documentView fc doc
     Left _err ->
       M.pre_
         [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]

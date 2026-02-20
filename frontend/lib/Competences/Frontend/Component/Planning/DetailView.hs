@@ -310,7 +310,7 @@ detailComponent r initialPlan =
         , -- Description
           if lesson.description == mempty
             then M.text ""
-            else MH.div_ [class_ "text-sm"] [renderRichText lesson.description]
+            else MH.div_ [class_ "text-sm"] [renderRichText r.formulaCache lesson.description]
         , -- Assignments collapsible
           if null lessonAssignmentIds
             then M.text ""
@@ -329,7 +329,7 @@ detailComponent r initialPlan =
             else
               let notesExpanded = Set.member lesson.id m.expandedNotes
                   notesTitleView = Disclosure.titleText $ C.translate' C.LblTeachingNotes
-                  notesBody = MH.div_ [class_ "text-sm"] [renderRichText lesson.notes]
+                  notesBody = MH.div_ [class_ "text-sm"] [renderRichText r.formulaCache lesson.notes]
                in Disclosure.innerDisclosure (ToggleNotesExpanded lesson.id) $
                     Disclosure.contents notesTitleView notesExpanded notesBody []
         , -- Phases collapsible
@@ -368,7 +368,7 @@ detailComponent r initialPlan =
             , if phase.notes == mempty
                 then M.text ""
                 else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted text-sm"]
-                  [renderRichText phase.notes]
+                  [renderRichText r.formulaCache phase.notes]
             ]
 
     viewAssignmentSummary doc aId =

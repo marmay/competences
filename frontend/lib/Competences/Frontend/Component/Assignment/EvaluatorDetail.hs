@@ -17,7 +17,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -480,7 +480,7 @@ evaluatorComponent r assignment =
             , if isExcluded
                 then M.text ""
                 else M.div_ []
-                       [ Eval.viewTaskContent m.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
+                       [ Eval.viewTaskContent r.formulaCache m.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
                        , viewTaskSolutions m taskId
                        , viewStudentEvaluations m taskId
                        ]
@@ -501,7 +501,7 @@ evaluatorComponent r assignment =
             Results -> not $ Set.member solution.id m.collapsedResults
             _ -> Set.member solution.id m.collapsedResults  -- Non-results: collapsed by default, tracked as "expanded" in set
           titleView = Disclosure.titleIconText Icon.IcnSolution (C.translate' (C.LblSolutionType solution.solutionType))
-          bodyView = M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText solution.content]
+          bodyView = M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText r.formulaCache solution.content]
        in Disclosure.innerDisclosure (ToggleSolutionExpanded solution.id) $
             Disclosure.contents titleView isExpanded bodyView []
 

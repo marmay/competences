@@ -21,7 +21,7 @@ import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -149,28 +149,29 @@ mkContentStateLens fieldName viewLens patchLens original = lens getter setter
 --   Editor: self-contained component with edit/preview toggle
 richTextEditorField
   :: (Ord a, Default patch)
-  => Text
+  => FormulaCache
+  -> Text
   -> Lens' a RichContent
   -> Lens' patch (Change RichContent)
   -> EditorField a patch f
-richTextEditorField fieldName viewLens patchLens =
+richTextEditorField fc fieldName viewLens patchLens =
   EditorField
-    { viewer = richTextViewer viewLens
+    { viewer = richTextViewer fc viewLens
     , editor = \refocusTarget original patch ->
         componentA
           "rc-editor"
           (refocusTargetAttr refocusTarget)
-          (richContentEditorComponent
+          (richContentEditorComponent fc
             (currentValue original patch viewLens patchLens)
             (mkContentStateLens fieldName viewLens patchLens original))
     }
 
-richTextViewer :: Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)
-richTextViewer viewLens a =
+richTextViewer :: FormulaCache -> Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)
+richTextViewer fc viewLens a =
   let content = a ^. viewLens
    in if content == mempty
         then Typography.placeholder "No content"
-        else renderRichText content
+        else renderRichText fc content
 
 boolEditorField :: Lens' a Bool -> Lens' patch (Change Bool) -> EditorField a patch f
 boolEditorField viewLens patchLens =
