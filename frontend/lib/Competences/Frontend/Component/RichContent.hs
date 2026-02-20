@@ -44,7 +44,7 @@ import Competences.Frontend.SvgEmbed.Manager
   , MathDisplay (..)
   , SymbolId (..)
   , hashLatex
-  , renderFormula
+  , renderFormulaCached
   , svgToDataUrl
   )
 import Competences.Frontend.View.Component (component)
@@ -52,6 +52,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.AST qualified as MD
 import Competences.Markdown.Parser qualified as Markdown
 import Competences.TaskContent.RichContent (RichContent, toRawText)
+import Control.Concurrent (forkIO)
 import Data.Bits (xor, (.&.))
 import Data.Char (ord)
 import Data.Map.Strict (Map)
@@ -63,24 +64,13 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (ms)
 import Numeric (showHex)
-import Optics.Core ((.~))
 
--- | Render state
-data RenderState
-  = -- | Math not yet rendered, content not visible
-    Pending
-  | -- | All math rendered, safe to display
-    Ready
-  deriving (Eq, Show, Generic)
-
--- | Model tracks the content and render state
+-- | Model tracks the content and rendered symbols
 data RichContentModel = RichContentModel
   { content :: !MD.Document
   -- ^ Parsed AST
   , embeddedSymbols :: !(Map SymbolId EmbeddedSymbol)
   -- ^ MathJax-rendered formulas with their data URLs and dimensions
-  , renderState :: !RenderState
-  -- ^ Current render state
   }
   deriving (Eq, Show, Generic)
 
@@ -88,10 +78,8 @@ data RichContentModel = RichContentModel
 data RichContentAction
   = -- | Initial action: render all MathJax formulas
     RenderMath
-  | -- | All formulas rendered successfully
+  | -- | A batch of formulas rendered successfully (merged into existing)
     SymbolsReady !(Map SymbolId EmbeddedSymbol)
-  | -- | Rendering failed
-    MathFailed !Text
   deriving (Eq, Show)
 
 -- | Create a RichContent view from a new Document AST
@@ -115,31 +103,22 @@ richContentComponent _key doc =
       RichContentModel
         { content = doc
         , embeddedSymbols = Map.empty
-        , renderState = Pending
         }
 
     update RenderMath = do
       m <- M.get
-      M.io $ do
-        let formulas = extractFormulas m.content
-        rendered <- mapM (\(d, l) -> renderFormula d l) formulas
-        let successful = Map.fromList
-              [(es.symbolId, es) | Just es <- rendered]
-        pure $ SymbolsReady successful
+      let formulas = extractFormulas m.content
+      M.withSink $ \sink -> do
+        _ <- forkIO $ do
+          rendered <- mapM (uncurry renderFormulaCached) formulas
+          let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
+          sink (SymbolsReady successful)
+        pure ()
 
     update (SymbolsReady symbolMap) =
-      M.modify $ \m ->
-        m
-          { embeddedSymbols = symbolMap
-          , renderState = Ready
-          }
+      M.modify $ \m -> m {embeddedSymbols = symbolMap}
 
-    update (MathFailed _err) =
-      M.modify $ #renderState .~ Ready
-
-    view m = case m.renderState of
-      Pending -> M.text ""
-      Ready -> renderContent m.embeddedSymbols m.content
+    view m = renderContent m.embeddedSymbols m.content
 
 -- | Extract all math formulas from a Document AST
 extractFormulas :: MD.Document -> [(MathDisplay, Text)]

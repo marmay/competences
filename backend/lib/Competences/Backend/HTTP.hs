@@ -300,7 +300,7 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
       ("window.MathJax = {\
         \startup: { typeset: false },\
         \tex: { packages: ['base', 'ams'] },\
-        \svg: { fontCache: 'none' },\
+        \svg: { fontCache: 'local' },\
         \options: { enableMenu: false, enableSpeech: false, enableBraille: false }\
       \};" :: Text)
     -- Load MathJax 4 for LaTeX rendering (async to not block page load)
