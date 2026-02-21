@@ -26,7 +26,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeDocument
   )
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((&), (.~))
@@ -72,7 +72,7 @@ taskResourcesComponent r taskId =
 
     view' :: TaskResourcesModel -> M.View TaskResourcesModel Action
     view' m =
-      component
+      inlineComponent
         ("task-resources-" <> M.ms (show taskId))
         (groupedResourcesComponent r m.groupedResources)
 

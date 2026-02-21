@@ -29,9 +29,8 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -96,12 +95,12 @@ viewerDetailView
   -> LessonNotes
   -> M.View (SD.Model LessonNotes mode) (SD.Action mode)
 viewerDetailView r ln =
-  component
+  inlineComponentWith
     ("lesson-notes-viewer-" <> M.ms (show ln.id))
     (viewerComponent r ln)
 
-viewerComponent :: SyncContext -> LessonNotes -> M.Component p ViewerModel ViewerAction
-viewerComponent r ln =
+viewerComponent :: SyncContext -> LessonNotes -> WindowMode -> M.Component p ViewerModel ViewerAction
+viewerComponent r ln wm =
   (M.component model update view')
     { M.subs = [subscribeWithProjection r (viewerProjection ln) ProjectionChanged]
     }
@@ -115,9 +114,10 @@ viewerComponent r ln =
 
     update PinThis = M.io_ $
       let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
-       in pinDialog r.windowManager
+       in pinDialogWith r.windowManager
             (PinId $ "lesson-notes-" <> idToText ln.id)
-            (AnyPinnedDialog (viewerComponent r ln) chrome)
+            chrome
+            (viewerComponent r ln)
 
     view' m =
       let proj = m.projection
@@ -128,11 +128,11 @@ viewerComponent r ln =
                 [ -- Header: title + pin button + date
                   MH.div_
                     [class_ "space-y-1"]
-                    [ Layout.hFlow (Layout.hFull <> Layout.crossCenter)
+                    [ Layout.hFlow (Layout.hFull <> Layout.crossCenter) $
                         [ Typography.h2 (M.ms ln'.title)
                         , Layout.flowSpring
-                        , pinButton PinThis
                         ]
+                        <> [ pinButton PinThis | not (isPinned wm) ]
                     , MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.formatDay ln'.date]
                     ]
                 , -- Linked lesson

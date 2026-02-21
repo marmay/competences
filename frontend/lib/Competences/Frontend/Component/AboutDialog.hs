@@ -10,6 +10,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , ModalHeight (..)
   , ModalWidth (..)
   , WindowChrome (..)
+  , inlineComponent
   , openFramedModal
   )
 import Competences.Frontend.SyncContext
@@ -17,7 +18,6 @@ import Competences.Frontend.SyncContext
   , readServerInfo
   )
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -36,7 +36,7 @@ import Miso.Html.Property qualified as MP
 
 -- | Info button view for the nav bar, matching the connection status style.
 aboutButtonView :: SyncContext -> M.View p a
-aboutButtonView ir = component "about-button" (aboutButtonComponent ir)
+aboutButtonView ir = inlineComponent "about-button" (aboutButtonComponent ir)
 
 data ButtonModel = ButtonModel
   deriving (Eq, Generic, Show)

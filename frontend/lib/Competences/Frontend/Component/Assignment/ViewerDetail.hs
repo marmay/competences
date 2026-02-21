@@ -46,10 +46,9 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
@@ -163,7 +162,7 @@ viewerDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 viewerDetailView r user assignment =
-  component
+  inlineComponentWith
     ("assignment-viewer-" <> M.ms (show assignment.id))
     (viewerComponent r user assignment)
 
@@ -189,8 +188,8 @@ data ViewerAction
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
-viewerComponent :: SyncContext -> User -> Assignment -> M.Component p ViewerModel ViewerAction
-viewerComponent r user assignment =
+viewerComponent :: SyncContext -> User -> Assignment -> WindowMode -> M.Component p ViewerModel ViewerAction
+viewerComponent r user assignment wm =
   (M.component model update view')
     { M.subs = [subscribeWithProjection r (viewerProjection assignment user.id user.role) ProjectionChanged]
     }
@@ -296,9 +295,10 @@ viewerComponent r user assignment =
     update PinThis = M.io_ $
       let AssignmentName nameText = assignment.name
           chrome = WindowChrome (M.ms nameText) Icon.IcnAssignment
-       in pinDialog r.windowManager
+       in pinDialogWith r.windowManager
             (PinId $ "assignment-" <> idToText assignment.id)
-            (AnyPinnedDialog (viewerComponent r user assignment) chrome)
+            chrome
+            (viewerComponent r user assignment)
 
     view' m =
       M.div_
@@ -332,14 +332,14 @@ viewerComponent r user assignment =
                     , Layout.flowSpring
                     , M.div_
                         [class_ "text-sm"]
-                        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) $
                             [ M.span_
                                 [class_ "text-muted-foreground"]
                                 [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
                             , statusIcon proj.status
-                            , pinButton PinThis
-                            , viewPrintDropdown m
                             ]
+                            <> [ pinButton PinThis | not (isPinned wm) ]
+                            <> [ viewPrintDropdown m ]
                         ]
                     ]
                 , -- Description (if present, supports math syntax)
@@ -402,7 +402,7 @@ viewerComponent r user assignment =
       | otherwise =
           let isExpanded = Set.member taskId m.expandedTaskResources
               titleView = Disclosure.titleIconText Icon.IcnResources (C.translate' C.LblMaterials)
-              bodyView = component ("task-resources-" <> ms (show taskId))
+              bodyView = inlineComponent ("task-resources-" <> ms (show taskId))
                            (TaskResources.taskResourcesComponent syncCtx taskId)
            in [Disclosure.innerDisclosure (ToggleTaskResourcesExpanded taskId) $
                  Disclosure.contents titleView isExpanded bodyView []]

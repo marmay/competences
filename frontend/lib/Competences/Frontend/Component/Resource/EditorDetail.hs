@@ -27,7 +27,7 @@ import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component, componentA)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Tailwind (class_)
@@ -46,7 +46,7 @@ editorDetailView
   -> Resource
   -> M.View p a
 editorDetailView r resource =
-  component
+  inlineComponent
     ("resource-editor-" <> M.ms (show resource.id))
     (TE.editorComponent resourceEditor r)
   where
@@ -168,7 +168,7 @@ resourceContentEditorField fc =
             , -- Content-specific fields
               case currentContent of
                 InlineContent rc ->
-                  componentA "rc-resource-editor"
+                  inlineComponentAttrs "rc-resource-editor"
                     (if refocusTarget then [M.id_ "refocus-target"] else [])
                     (richContentEditorComponent fc rc (resourceRichContentLens original))
                 WebLink url desc ->

@@ -31,6 +31,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
@@ -86,8 +87,8 @@ data Action
 -- Component
 -- ============================================================================
 
-assignmentImportModalComponent :: SyncContext -> Maybe (IO ()) -> M.Component p Model Action
-assignmentImportModalComponent r mClose =
+assignmentImportModalComponent :: SyncContext -> WindowMode -> M.Component p Model Action
+assignmentImportModalComponent r wm =
   (M.component model update view)
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
@@ -137,9 +138,7 @@ assignmentImportModalComponent r mClose =
       case m.parseResult of
         Right previews -> M.io_ $ do
           applyPreviews r m.document previews
-          case mClose of
-            Just close -> close
-            Nothing -> pure ()
+          closeWindow wm
         Left _ -> pure ()
 
     view :: Model -> M.View Model Action

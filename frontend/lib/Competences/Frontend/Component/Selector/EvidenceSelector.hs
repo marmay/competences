@@ -27,7 +27,7 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.SyncContext.UIState (readFocusedUser)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Icon qualified as Icon
@@ -164,7 +164,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
                         ]
                     else
                       SL.selectorHeader (C.translate' C.LblSelectEvidences) Nothing
-                , component
+                , inlineComponent
                     "evidence-selector-date-range"
                     ( ES.enumSelectorComponent'
                         AllTime

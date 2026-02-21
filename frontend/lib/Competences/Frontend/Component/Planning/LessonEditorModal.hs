@@ -28,8 +28,8 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
+import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow, inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
@@ -102,9 +102,9 @@ data Action
 -- ============================================================================
 
 -- | Create the lesson editor content component.
--- Pass @Just closeAction@ when used in a context that supports programmatic close.
-lessonEditorModal :: SyncContext -> Maybe (IO ()) -> Lesson -> [LessonNotesId] -> M.Component p Model Action
-lessonEditorModal r mClose lesson' lessonNotesIds =
+-- The 'WindowMode' provides context-aware close behaviour.
+lessonEditorModal :: SyncContext -> Lesson -> [LessonNotesId] -> WindowMode -> M.Component p Model Action
+lessonEditorModal r lesson' lessonNotesIds wm =
   M.component model update (view r)
   where
     model =
@@ -256,9 +256,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
         -- Unlink removed lesson notes from this lesson
         mapM_ (\lnId -> linkLessonNote lnId (Just m.lesson.id) Nothing) lessonNotesRemoved
 
-        case mClose of
-          Just close -> close
-          Nothing -> pure ()
+        closeWindow wm
 
     -- ========================================================================
     -- View
@@ -306,13 +304,12 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     descriptionSection m =
       Input.fieldWrapper (C.translate' C.LblLessonDescription) $
-        componentA "lesson-description" [] (richContentEditorComponent r.formulaCache (contentValue mempty m.description) #description)
+        inlineComponent "lesson-description" (richContentEditorComponent r.formulaCache (contentValue mempty m.description) #description)
 
     competenceLevelSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonCompetences) $
-        componentA
+        inlineComponent
           "lesson-editor-competence-selector"
-          []
           ( competenceLevelSelectorComponent
               syncCtx
               (\_ -> m.competenceLevels)
@@ -332,9 +329,8 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     assignmentsSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonAssignments) $
-        componentA
+        inlineComponent
           "lesson-editor-assignment-selector"
-          []
           ( multiSelectAssignmentSelectorComponent
               syncCtx
               ( \a ->
@@ -346,9 +342,8 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     lessonNotesSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonNotesEntries) $
-        componentA
+        inlineComponent
           "lesson-editor-lesson-notes-selector"
-          []
           ( multiSelectLessonNotesSelectorComponent
               syncCtx
               (\ln -> ln.lessonId == Nothing || ln.lessonId == Just m.lesson.id)
@@ -358,7 +353,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
 
     notesSection m =
       Input.fieldWrapper (C.translate' C.LblTeachingNotes) $
-        componentA "lesson-notes" [] (richContentEditorComponent r.formulaCache (contentValue mempty m.notes) #notes)
+        inlineComponent "lesson-notes" (richContentEditorComponent r.formulaCache (contentValue mempty m.notes) #notes)
 
     phasesSection m =
       MH.div_
@@ -441,7 +436,7 @@ lessonEditorModal r mClose lesson' lessonNotesIds =
             ]
         , -- Phase notes
           Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
-            componentA ("phase-notes-" <> M.ms (show idx)) []
+            inlineComponent ("phase-notes-" <> M.ms (show idx))
               (richContentEditorComponent r.formulaCache phase.notes (phaseNoteStateLens idx))
         ]
 

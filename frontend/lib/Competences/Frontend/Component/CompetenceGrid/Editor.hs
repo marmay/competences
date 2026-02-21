@@ -32,7 +32,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
@@ -73,7 +73,7 @@ editorDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 editorDetailView r grid =
-  component
+  inlineComponent
     ("competence-grid-editor-" <> M.ms (show grid.id))
     (editorComponent r grid)
 
@@ -122,15 +122,15 @@ editorComponent r grid =
     view _m =
       Layout.vFlow
         (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
-        [ component
+        [ inlineComponent
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
             (TE.editorComponent competenceGridEditor r)
-        , component
+        , inlineComponent
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
             (TE.editorComponent competencesEditor r)
         , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
-            , component
+            , inlineComponent
                 ("export-btn-" <> M.ms (show grid.id))
                 (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))
             ]

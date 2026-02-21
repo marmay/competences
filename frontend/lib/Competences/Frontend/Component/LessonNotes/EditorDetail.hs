@@ -22,7 +22,7 @@ import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField
 import Competences.Frontend.Component.Selector.MultiSelectItemSelector (multiSelectItemSelectorComponent, multiSelectItemViewerComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Component (componentA)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
@@ -33,9 +33,8 @@ editorDetailView
   -> LessonNotes
   -> M.View (SD.Model LessonNotes mode) (SD.Action mode)
 editorDetailView r ln =
-  componentA
+  inlineComponent
     ("lesson-notes-editor-" <> M.ms (show ln.id))
-    []
     (TE.editorComponent lnEditor r)
   where
     lnEditable =

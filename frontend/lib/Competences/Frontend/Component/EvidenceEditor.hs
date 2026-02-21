@@ -92,7 +92,7 @@ mainView
   -> M.View EvidenceEditorModel EvidenceEditorAction
 mainView r style canEdit defaultMode m =
   V.sideMenu
-    ( V.componentA
+    ( V.inlineComponentAttrs
         "evidence-selector"
         [class_ "h-full"]
         (evidenceSelectorComponent r style #selectedEvidence #bulkEditorActive)
@@ -108,7 +108,7 @@ detailPanel
   -> M.View EvidenceEditorModel EvidenceEditorAction
 detailPanel r canEdit _defaultMode m
   | m.bulkEditorActive =
-      V.component "bulk-evidence-editor" (bulkEvidenceEditorComponent r)
+      V.inlineComponent "bulk-evidence-editor" (bulkEvidenceEditorComponent r)
   | otherwise = case m.selectedEvidence of
       Nothing -> V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
       Just evidence ->
@@ -161,7 +161,7 @@ evidenceViewerDetailView
   -> Evidence
   -> M.View EvidenceEditorModel EvidenceEditorAction
 evidenceViewerDetailView r evidence =
-  V.component
+  V.inlineComponent
     ("evidence-viewer-" <> M.ms (show evidence.id))
     (viewerComponent r evidence)
 
@@ -239,7 +239,7 @@ evidenceEditorDetailView
   -> Evidence
   -> M.View EvidenceEditorModel EvidenceEditorAction
 evidenceEditorDetailView r evidence =
-  V.component
+  V.inlineComponent
     ("evidence-editor-" <> M.ms (show evidence.id))
     (TE.editorComponent evidenceEditor r)
   where

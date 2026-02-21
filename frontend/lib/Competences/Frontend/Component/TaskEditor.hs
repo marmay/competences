@@ -11,7 +11,7 @@ import Competences.Frontend.Component.Selector.TaskOrGroupSelector
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
 import Competences.Frontend.Component.TaskEditor.TaskGroupDetailView (taskGroupDetailView)
 import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.View.Component (componentA)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
@@ -40,7 +40,7 @@ taskEditorComponent r =
 
     view' m =
       Layout.sideMenu
-        (componentA "task-or-group-selector" [class_ "h-full"] $ taskOrGroupSelectorComponent r #selected)
+        (inlineComponentAttrs "task-or-group-selector" [class_ "h-full"] $ taskOrGroupSelectorComponent r #selected)
         (detailView m.selected)
 
     detailView Nothing =

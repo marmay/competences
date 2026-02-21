@@ -16,7 +16,7 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
 import Competences.Frontend.SyncContext (SyncContext (..))
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tailwind (class_)
 import Miso.Html qualified as MH
 import Data.Map qualified as Map
@@ -35,10 +35,10 @@ taskDetailView
 taskDetailView r task =
   MH.div_
     [class_ "space-y-6"]
-    [ component
+    [ inlineComponent
         ("task-editor-" <> M.ms (show task.id))
         (TE.editorComponent taskEditor r)
-    , component
+    , inlineComponent
         ("task-solutions-" <> M.ms (show task.id))
         (taskSolutionsListComponent r task.id)
     ]

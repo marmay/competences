@@ -34,11 +34,9 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Modal API (blocking dialogs)
   , openModal
-  , openFramedModal
   , closeModal
 
     -- * Pin API (persistent dialogs)
-  , pinDialog
   , unpinDialog
   , minimizeDialog
   , restoreDialog
@@ -46,16 +44,37 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Subscription
   , subscribeWindows
+
+    -- * Window mode (opaque)
+  , WindowMode -- no (..)
+  , isModal
+  , isPinned
+  , isPinnedOrModal
+  , isInline
+  , closeWindow
+  , closeWhenModal
+  , closeWhenPinned
+  , closeWhenPinnedOrModal
+
+    -- * Component mounting
+  , inlineComponent
+  , inlineComponentAttrs
+  , inlineComponentWith
+  , openFramedModal
+  , openFramedModalWith
+  , pinDialog
+  , pinDialogWith
   )
 where
 
 import Competences.Frontend.View.Icon qualified as Icon
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Typeable (Typeable, cast)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as M
 import Miso.String (MisoString)
 import Miso.Subscription.Util (createSub)
 import UnliftIO (MVar, modifyMVar, modifyMVar_, newMVar)
@@ -103,6 +122,65 @@ data ModalConfig = ModalConfig
   , pinnable :: !(Maybe ())
   -- ^ @Just ()@ = show pin button (pinning logic handled by WindowHost)
   }
+
+-- ---------------------------------------------------------------------------
+-- Window mode (opaque)
+-- ---------------------------------------------------------------------------
+
+-- | Rendering context for a component. Constructor not exported — only
+-- the mounting helpers ('inlineComponentWith', 'openFramedModalWith',
+-- 'pinDialogWith') can create values, so the context is always correct.
+data WindowMode = WindowMode
+  { _contextTag :: !ContextTag
+  , _closeAction :: !(IO ())
+  }
+
+-- | Internal tag — NOT exported.
+data ContextTag = CInline | CModal | CPinned
+  deriving (Eq)
+
+-- Smart constructors (internal)
+mkModalMode :: IO () -> WindowMode
+mkModalMode = WindowMode CModal
+
+mkPinnedMode :: IO () -> WindowMode
+mkPinnedMode = WindowMode CPinned
+
+-- | Inline rendering context (no close action).
+inlineMode :: WindowMode
+inlineMode = WindowMode CInline (pure ())
+
+-- | Is this a modal context?
+isModal :: WindowMode -> Bool
+isModal wm = wm._contextTag == CModal
+
+-- | Is this a pinned context?
+isPinned :: WindowMode -> Bool
+isPinned wm = wm._contextTag == CPinned
+
+-- | Is this either a modal or pinned context?
+isPinnedOrModal :: WindowMode -> Bool
+isPinnedOrModal wm = wm._contextTag /= CInline
+
+-- | Is this an inline context?
+isInline :: WindowMode -> Bool
+isInline wm = wm._contextTag == CInline
+
+-- | Execute the close action for this window (no-op for inline).
+closeWindow :: WindowMode -> IO ()
+closeWindow = (._closeAction)
+
+-- | Close only if the mode is modal.
+closeWhenModal :: WindowMode -> IO ()
+closeWhenModal wm = when (isModal wm) wm._closeAction
+
+-- | Close only if the mode is pinned.
+closeWhenPinned :: WindowMode -> IO ()
+closeWhenPinned wm = when (isPinned wm) wm._closeAction
+
+-- | Close if the mode is either modal or pinned.
+closeWhenPinnedOrModal :: WindowMode -> IO ()
+closeWhenPinnedOrModal wm = when (isPinnedOrModal wm) wm._closeAction
 
 -- ---------------------------------------------------------------------------
 -- Public types
@@ -213,16 +291,16 @@ openModal (WindowManagerRef ref) modal = do
     notifyHandlers s'
     pure s'
 
--- | Open a modal with standard chrome (title bar, close button, sizing)
--- rendered by WindowHost. Convenience wrapper around 'openModal' + 'AnyModal'.
+-- | Open a framed modal for a component that ignores 'WindowMode'.
+-- Convenience wrapper: @openFramedModal ref cfg c = openFramedModalWith ref cfg (const c)@
 openFramedModal
   :: (Eq m, Typeable m)
   => WindowManagerRef
   -> ModalConfig
   -> M.Component Model m a
   -> IO ()
-openFramedModal wmRef cfg comp =
-  openModal wmRef (AnyModal comp cfg)
+openFramedModal ref cfg comp =
+  openFramedModalWith ref cfg (const comp)
 
 -- | Close the active modal.
 closeModal :: WindowManagerRef -> IO ()
@@ -236,11 +314,11 @@ closeModal (WindowManagerRef ref) = do
 -- Pin API
 -- ---------------------------------------------------------------------------
 
--- | Pin a dialog. If the 'PinId' already exists, the existing dialog is made
--- visible (restored). If it is new, it is added and made visible. In both cases,
--- any previously visible pin is minimized.
-pinDialog :: WindowManagerRef -> PinId -> AnyPinnedDialog -> IO ()
-pinDialog (WindowManagerRef ref) pid dialog = do
+-- | Pin a dialog (internal). If the 'PinId' already exists, the existing
+-- dialog is made visible (restored). Otherwise it is added and made visible.
+-- In both cases, any previously visible pin is minimized.
+pinDialogRaw :: WindowManagerRef -> PinId -> AnyPinnedDialog -> IO ()
+pinDialogRaw (WindowManagerRef ref) pid dialog = do
   modifyMVar_ ref $ \s -> do
     let s' = if Map.member pid s.pins
           then -- Existing pin: just restore it
@@ -363,3 +441,60 @@ unregisterHandler :: WindowManagerRef -> Int -> IO ()
 unregisterHandler (WindowManagerRef ref) handlerId =
   modifyMVar_ ref $ \s ->
     pure s {handlers = Map.delete handlerId s.handlers}
+
+-- ---------------------------------------------------------------------------
+-- Mounting helpers
+-- ---------------------------------------------------------------------------
+
+-- | Mount a component inline with HTML attributes on the wrapper div.
+inlineComponentAttrs :: (Eq m) => M.MisoString -> [M.Attribute a'] -> M.Component p m a -> M.View p a'
+inlineComponentAttrs name attrs c =
+  M.div_ attrs [name M.+> c]
+
+-- | Mount a component inline.
+inlineComponent :: (Eq m) => M.MisoString -> M.Component p m a -> M.View p a'
+inlineComponent name c = inlineComponentAttrs name [] c
+
+-- | Mount a 'WindowMode'-aware component inline.
+inlineComponentWith
+  :: (Eq m)
+  => M.MisoString
+  -> (WindowMode -> M.Component p m a)
+  -> M.View p a'
+inlineComponentWith key mkComp =
+  inlineComponent key (mkComp inlineMode)
+
+-- | Open a framed modal, injecting modal 'WindowMode' into the component.
+openFramedModalWith
+  :: (Eq m, Typeable m)
+  => WindowManagerRef
+  -> ModalConfig
+  -> (WindowMode -> M.Component Model m a)
+  -> IO ()
+openFramedModalWith ref cfg mkComp =
+  let mode = mkModalMode (closeModal ref)
+   in openModal ref (AnyModal (mkComp mode) cfg)
+
+-- | Pin a dialog, injecting pinned 'WindowMode' into the component.
+pinDialogWith
+  :: (Eq m, Typeable m)
+  => WindowManagerRef
+  -> PinId
+  -> WindowChrome
+  -> (WindowMode -> M.Component Model m a)
+  -> IO ()
+pinDialogWith ref pid chrome mkComp =
+  let mode = mkPinnedMode (unpinDialog ref pid)
+   in pinDialogRaw ref pid (AnyPinnedDialog (mkComp mode) chrome)
+
+-- | Pin a dialog for a component that ignores 'WindowMode'.
+-- Convenience wrapper: @pinDialog ref pid ch c = pinDialogWith ref pid ch (const c)@
+pinDialog
+  :: (Eq m, Typeable m)
+  => WindowManagerRef
+  -> PinId
+  -> WindowChrome
+  -> M.Component Model m a
+  -> IO ()
+pinDialog ref pid chrome comp =
+  pinDialogWith ref pid chrome (const comp)

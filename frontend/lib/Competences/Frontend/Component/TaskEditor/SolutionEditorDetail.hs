@@ -20,7 +20,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField (..), read
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map.Strict qualified as Map
@@ -34,7 +34,7 @@ editorDetailView
   -> Solution
   -> M.View (SD.Model Solution mode) (SD.Action mode)
 editorDetailView r solution =
-  component
+  inlineComponent
     ("solution-editor-" <> M.ms (show solution.id))
     (TE.editorComponent solutionEditor r)
   where
@@ -74,7 +74,7 @@ editorDetailView r solution =
 taskReadOnlyField :: SyncContext -> EditorField Solution SolutionPatch f
 taskReadOnlyField r =
   readOnlyField $ \solution ->
-    component
+    inlineComponent
       ("task-display-" <> M.ms (show solution.taskId))
       (taskDisplayComponent r solution.taskId)
 
@@ -118,7 +118,7 @@ solutionInlineEditor
   -> Solution
   -> M.View p a
 solutionInlineEditor r solution =
-  component
+  inlineComponent
     ("solution-inline-editor-" <> M.ms (show solution.id))
     (TE.editorComponent inlineEditor r)
   where

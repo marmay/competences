@@ -37,7 +37,7 @@ data ExportAction
 -- Usage:
 --
 -- @
--- V.component "export-btn"
+-- V.inlineComponent "export-btn"
 --   (exportButtonComponent (\\m -> exportCompetenceGrid m.document grid))
 -- @
 exportButtonComponent

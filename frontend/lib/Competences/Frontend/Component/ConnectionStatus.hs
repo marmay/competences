@@ -5,7 +5,7 @@ where
 
 import Competences.Frontend.Common.Translate (Label (..), translate')
 import Competences.Frontend.SyncContext (SyncContext, getCommandSender)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.WebSocket.CommandSender
@@ -19,7 +19,7 @@ import Optics.Core ((&), (.~))
 
 -- | Connection status indicator for nav bar
 connectionStatusView :: SyncContext -> M.View p a
-connectionStatusView ir = component "connection-status" (connectionStatusComponent ir)
+connectionStatusView ir = inlineComponent "connection-status" (connectionStatusComponent ir)
 
 data Model = Model
   { connectionState :: !ConnectionState

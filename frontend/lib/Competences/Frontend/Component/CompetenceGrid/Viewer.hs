@@ -46,7 +46,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources (..), findGroupedResources)
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), openFramedModal, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModal, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -58,7 +58,6 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
@@ -174,12 +173,12 @@ viewerDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 viewerDetailView r grid =
-  component
+  inlineComponentWith
     ("competence-grid-viewer-" <> M.ms (show grid.id))
     (viewerComponent r grid)
 
-viewerComponent :: SyncContext -> CompetenceGrid -> M.Component p ViewerModel ViewerAction
-viewerComponent r grid =
+viewerComponent :: SyncContext -> CompetenceGrid -> WindowMode -> M.Component p ViewerModel ViewerAction
+viewerComponent r grid wm =
   (M.component model update view)
     { M.subs = [subscribeWithProjection r (viewerProjection connectedRole) ViewerProjectionChanged]
     }
@@ -327,9 +326,10 @@ viewerComponent r grid =
 
     update PinThis = M.io_ $
       let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
-       in pinDialog r.windowManager
+       in pinDialogWith r.windowManager
             (PinId $ "grid-" <> idToText grid.id)
-            (AnyPinnedDialog (viewerComponent r grid) chrome)
+            chrome
+            (viewerComponent r grid)
 
     -- Main view: dispatch based on view data type
     view m =
@@ -348,24 +348,25 @@ viewerComponent r grid =
             MH.div_
               [class_ "w-full"]
               [ Layout.hFlow
-                  (Layout.hFull <> Layout.crossCenter)
+                  (Layout.hFull <> Layout.crossCenter) $
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
-                  , pinButton PinThis
-                  , case userData.activeGridGrade of
-                      Just gridGrade -> gradeBadgeView gridGrade.grade
-                      Nothing -> Layout.empty
                   ]
+                  <> [ pinButton PinThis | not (isPinned wm) ]
+                  <> [ case userData.activeGridGrade of
+                         Just gridGrade -> gradeBadgeView gridGrade.grade
+                         Nothing -> Layout.empty
+                     ]
               ]
           AnalyticsViewData _ ->
             MH.div_
               [class_ "w-full"]
               [ Layout.hFlow
-                  (Layout.hFull <> Layout.crossCenter)
+                  (Layout.hFull <> Layout.crossCenter) $
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
-                  , pinButton PinThis
                   ]
+                  <> [ pinButton PinThis | not (isPinned wm) ]
               ]
 
         description = Typography.paragraph (M.ms grid.description)

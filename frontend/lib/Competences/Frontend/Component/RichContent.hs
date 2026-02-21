@@ -50,7 +50,7 @@ import Competences.Frontend.SvgEmbed.Manager
   , renderFormulaCached
   , svgToDataUrl
   )
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.AST qualified as MD
 import Competences.Markdown.Parser qualified as Markdown
@@ -90,7 +90,7 @@ data RichContentAction
 -- @key@ should be unique per content instance (e.g., task ID).
 richContentView :: FormulaCache -> Text -> MD.Document -> M.View p a
 richContentView fc key doc =
-  component
+  inlineComponent
     ("rich-" <> M.ms key)
     (richContentComponent fc key doc)
 

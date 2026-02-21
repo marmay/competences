@@ -132,7 +132,6 @@ library
         Competences.Frontend.View.Color.Status,
         Competences.Frontend.View.Combobox,
         Competences.Frontend.View.Disclosure,
-        Competences.Frontend.View.Component,
         Competences.Frontend.View.DateDisplay,
         Competences.Frontend.View.DesignTokens,
         Competences.Frontend.View.Evaluation,

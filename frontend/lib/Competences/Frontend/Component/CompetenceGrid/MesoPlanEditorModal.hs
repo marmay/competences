@@ -12,6 +12,7 @@ import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanPatch (
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
+import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -36,16 +37,8 @@ data Model = Model
   , titleValue :: !Text
   , dateFromValue :: !(Maybe Day)
   , dateToValue :: !(Maybe Day)
-  , onClose :: !(Maybe (IO ()))
   }
-  deriving (Generic)
-
-instance Eq Model where
-  a == b =
-    a.mesoPlan == b.mesoPlan
-      && a.titleValue == b.titleValue
-      && a.dateFromValue == b.dateFromValue
-      && a.dateToValue == b.dateToValue
+  deriving (Eq, Generic)
 
 -- ============================================================================
 -- Actions
@@ -63,9 +56,9 @@ data Action
 -- ============================================================================
 
 -- | Create the meso plan editor content component.
--- Pass @Just closeAction@ when used in a context that supports programmatic close.
-mesoPlanEditorModal :: SyncContext -> Maybe (IO ()) -> MesoPlan -> M.Component p Model Action
-mesoPlanEditorModal r mClose plan =
+-- The 'WindowMode' provides context-aware close behaviour.
+mesoPlanEditorModal :: SyncContext -> MesoPlan -> WindowMode -> M.Component p Model Action
+mesoPlanEditorModal r plan wm =
   M.component model update view
   where
     model =
@@ -74,7 +67,6 @@ mesoPlanEditorModal r mClose plan =
         , titleValue = plan.title
         , dateFromValue = plan.dateFrom
         , dateToValue = plan.dateTo
-        , onClose = mClose
         }
 
     update (SetTitle t) =
@@ -107,9 +99,7 @@ mesoPlanEditorModal r mClose plan =
             modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id Lock)
             modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (Release patch))
           else pure ()
-        case m.onClose of
-          Just close -> close
-          Nothing -> pure ()
+        closeWindow wm
 
     view :: Model -> M.View Model Action
     view m =

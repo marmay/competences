@@ -14,7 +14,7 @@ import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), inlineComponent, openFramedModalWith, pinDialog)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -24,14 +24,11 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), pinDialog)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component)
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -110,7 +107,7 @@ detailView
   -> MesoPlan
   -> M.View (SD.Model MesoPlan mode) (SD.Action mode)
 detailView r plan =
-  component
+  inlineComponent
     ("planning-detail-" <> M.ms (show plan.id))
     (detailComponent r plan)
 
@@ -164,7 +161,7 @@ detailComponent r initialPlan =
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
         let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
-        openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson [])
+        openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson [])
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
@@ -197,11 +194,11 @@ detailComponent r initialPlan =
       let lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
           cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
       M.io_ $
-        openFramedModal r.windowManager cfg (lessonEditorModal r (Just $ closeModal r.windowManager) lesson lessonNotesIds)
+        openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson lessonNotesIds)
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan) (ModalId ("meso-plan-editor-" <> idToText plan.id)) ModalNarrow ModalAuto Nothing
-       in openFramedModal r.windowManager cfg (mesoPlanEditorModal r (Just $ closeModal r.windowManager) plan)
+       in openFramedModalWith r.windowManager cfg (mesoPlanEditorModal r plan)
 
     update (DeleteLesson lessonId) = M.io_ $
       modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
@@ -216,7 +213,8 @@ detailComponent r initialPlan =
             <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
        in pinDialog r.windowManager
             (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-            (AnyPinnedDialog (lessonEvaluatorComponent r lesson.id) (WindowChrome pinTitle Icon.IcnMesoPlan))
+            (WindowChrome pinTitle Icon.IcnMesoPlan)
+            (lessonEvaluatorComponent r lesson.id)
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
       let AssignmentName nameText = assignment.name
@@ -224,7 +222,8 @@ detailComponent r initialPlan =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) (WindowChrome pinTitle Icon.IcnAssignment))
+            (WindowChrome pinTitle Icon.IcnAssignment)
+            (evaluatorComponent r assignment)
 
     update (StartReorder lid) =
       M.modify $ \m -> m{reorderFrom = Just lid}

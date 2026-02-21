@@ -15,7 +15,7 @@ import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId
 import Competences.Frontend.View.Layout (centeredContent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
@@ -78,7 +78,7 @@ userListEditorComponent r =
               `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField #name #name)
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
-          users = component "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
+          users = inlineComponent "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
           addButton = Button.primary (Button.button (Icon.IcnAdd, C.LblAddUser) NewUser)
           header =
             M.div_

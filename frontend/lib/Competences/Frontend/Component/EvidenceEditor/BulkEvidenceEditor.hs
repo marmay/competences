@@ -233,7 +233,7 @@ bulkEvidenceEditorComponent r =
             [ Layout.vFlow Layout.gapM
                 [ -- Student selector
                   Input.fieldWrapper (C.translate' C.LblStudents) $
-                    V.componentA
+                    V.inlineComponentAttrs
                       "bulk-student-selector"
                       [class_ "w-full"]
                       ( searchableMultiUserSelectorComponent
@@ -243,7 +243,7 @@ bulkEvidenceEditorComponent r =
                       )
                 , -- Observation selector
                   Input.fieldWrapper (C.translate' C.LblActivityObservations) $
-                    V.componentA
+                    V.inlineComponentAttrs
                       "bulk-observation-selector"
                       [class_ "w-full"]
                       ( multiStageSelectorComponent

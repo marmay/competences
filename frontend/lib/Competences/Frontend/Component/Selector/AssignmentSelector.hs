@@ -13,19 +13,18 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModalWith)
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
-  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
   , syncDocumentEnv
   )
-import Competences.Frontend.View.Component (componentIf)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
@@ -151,13 +150,13 @@ assignmentSelectorComponent r initialSelection parentLens =
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
       let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportAssignments) Icon.IcnImport) (ModalId "import-assignments") ModalWide ModalFull Nothing
-      M.io_ $ openFramedModal r.windowManager cfg (ImportModal.assignmentImportModalComponent r (Just $ closeModal r.windowManager))
+      M.io_ $ openFramedModalWith r.windowManager cfg (ImportModal.assignmentImportModalComponent r)
 
     view' m =
       M.div_
         [class_ "h-full"]
         [ Layout.vFlow
-            (Layout.gapS <> Layout.hFull)
+            (Layout.gapS <> Layout.hFull) $
             [ SelectorList.selectorHeaderWithDropdown
                 (C.translate' C.LblAssignments)
                 m.isDropdownOpen
@@ -166,21 +165,21 @@ assignmentSelectorComponent r initialSelection parentLens =
                 , SelectorList.dropdownItem Icon.IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
                 ]
             , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
-            , viewStatusFilters m
-            , SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
             ]
+            <> [ inlineComponent
+                   "assignment-status-filter"
+                   ( ES.enumSelectorComponent'
+                       NotGradedOnly
+                       [AllAssignments, NotGradedOnly]
+                       ES.ButtonsCompact
+                       translateAssignmentFilter
+                       #assignmentFilter
+                   )
+               | isJust m.projection.focusedUser
+               ]
+            <> [ SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
+               ]
         ]
-
-    viewStatusFilters m =
-      componentIf (isJust m.projection.focusedUser)
-        "assignment-status-filter"
-        ( ES.enumSelectorComponent'
-            NotGradedOnly
-            [AllAssignments, NotGradedOnly]
-            ES.ButtonsCompact
-            translateAssignmentFilter
-            #assignmentFilter
-        )
 
     translateAssignmentFilter AllAssignments = C.translate' C.LblFilterAllAssignments
     translateAssignmentFilter NotGradedOnly = C.translate' C.LblFilterNotGraded

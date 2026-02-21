@@ -42,6 +42,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow, inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Combobox
   ( ComboboxOption (..)
@@ -53,7 +54,6 @@ import Competences.Frontend.View.Combobox
   , withSearchQuery
   , withSelected
   )
-import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Layout qualified as Layout
@@ -161,11 +161,11 @@ computeViewData lessonId userId fallbackDate fallbackName doc =
 
 studentEvaluatorModal
   :: SyncContext
-  -> Maybe (IO ())
   -> LessonId
   -> UserId
+  -> WindowMode
   -> M.Component p (Initializing StudentEvalModel) StudentEvalAction
-studentEvaluatorModal r mClose initialLessonId initialUserId =
+studentEvaluatorModal r initialLessonId initialUserId wm =
   (deferredComponent
     (\case DocumentUpdated dc -> Just dc; _ -> Nothing)
     (initFromDocument initialLessonId initialUserId)
@@ -217,9 +217,7 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
       m { viewData = computeViewData initialLessonId initialUserId
             m.viewData.lessonDate m.viewData.userName dc.document }
 
-    update CloseModal = M.io_ $ case mClose of
-      Just close -> close
-      Nothing -> pure ()
+    update CloseModal = M.io_ $ closeWindow wm
 
     -- Task observations
     update (SetTaskObservation taskId compId ability) = M.modify $ \m ->
@@ -354,7 +352,7 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
                     , lessonId = Just initialLessonId
                     }
             modifySyncDocument r (Evidences $ OnEvidences $ Create evidence)
-        case mClose of { Just close -> close; Nothing -> pure () }
+        closeWindow wm
 
     -- Delete existing evidence
     update DeleteEvidence = do
@@ -364,7 +362,7 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
           Just existingEv ->
             modifySyncDocument r (Evidences $ OnEvidences $ Delete existingEv.id)
           Nothing -> pure ()
-        case mClose of { Just close -> close; Nothing -> pure () }
+        closeWindow wm
 
     mkObservation :: SocialForm -> (CompetenceLevelId, Ability) -> IO Observation
     mkObservation sf (compId, ability) = do
@@ -491,9 +489,8 @@ studentEvaluatorModal r mClose initialLessonId initialUserId =
       MH.div_
         [class_ "space-y-3"]
         [ -- Competence level selector (3-stage: Grid → Competence → Level)
-          componentA
+          inlineComponent
             "manual-comp-level-selector"
-            []
             ( competenceLevelSelectorComponent
                 r
                 (\_ -> m.manualCompetenceLevels)

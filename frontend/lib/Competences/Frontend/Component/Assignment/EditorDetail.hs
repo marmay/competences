@@ -29,8 +29,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (AnyPinnedDialog (..), PinId (..), WindowChrome (..), pinDialog)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), inlineComponent, pinDialog)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -65,7 +64,7 @@ editorDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 editorDetailView r assignment =
-  component
+  inlineComponent
     ("assignment-editor-wrapper-" <> M.ms (show assignment.id))
     (editorWrapperComponent r assignment)
 
@@ -105,17 +104,18 @@ editorWrapperComponent r assignment =
             <> ": " <> M.ms nameText
        in pinDialog r.windowManager
             (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (AnyPinnedDialog (evaluatorComponent r assignment) (WindowChrome pinTitle Icon.IcnAssignment))
+            (WindowChrome pinTitle Icon.IcnAssignment)
+            (evaluatorComponent r assignment)
 
     view _m =
       Layout.vFlow Layout.gapM
-        [ component
+        [ inlineComponent
             ("assignment-editor-" <> M.ms (show assignment.id))
             (TE.editorComponent assignmentEditor r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
             [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
-            , component
+            , inlineComponent
                 ("export-btn-" <> M.ms (show assignment.id))
                 (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
             ]

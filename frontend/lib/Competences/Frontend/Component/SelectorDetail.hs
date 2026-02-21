@@ -31,7 +31,7 @@ data SelectorDetailConfig a mode sm sa = SelectorDetailConfig
   , selectorComponent :: !(Lens' (Model a mode) (Maybe a) -> M.Component (Model a mode) sm sa)
   -- ^ Selector component factory. Receives a lens to the selection field.
   , detailView :: !(mode -> a -> M.View (Model a mode) (Action mode))
-  -- ^ View factory for each mode. The caller should use V.component/V.componentA
+  -- ^ View factory for each mode. The caller should use V.inlineComponent/V.inlineComponentAttrs
   -- to embed the appropriate component for each mode.
   , modeLabel :: !(mode -> MisoString)
   -- ^ Translation function for mode labels (e.g., translate' . LblMode)
@@ -80,7 +80,7 @@ newtype Action mode
 --       { selectorId = "competence-grid"
 --       , selectorComponent = gridSelectorComponent r
 --       , detailView = \\mode grid ->
---           V.component ("grid-" <> M.ms (show mode))
+--           V.inlineComponent ("grid-" <> M.ms (show mode))
 --             (case mode of
 --               GridView -> gridViewerComponent r grid
 --               GridEdit -> gridEditorComponent r grid)
@@ -112,7 +112,7 @@ selectorDetailComponent config =
     view :: Model a mode -> M.View (Model a mode) (Action mode)
     view m =
       V.sideMenu
-        ( V.componentA
+        ( V.inlineComponentAttrs
             config.selectorId
             [class_ "h-full"]
             (config.selectorComponent #selected)

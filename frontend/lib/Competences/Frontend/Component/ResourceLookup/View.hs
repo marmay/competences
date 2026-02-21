@@ -41,7 +41,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , ModalHeight (..)
   , ModalWidth (..)
   , WindowChrome (..)
-  , openFramedModal
+  , openFramedModalWith
   )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -126,7 +126,7 @@ groupedResourcesComponent r gr =
 
     update (OpenLessonNotes ln) =
       M.io_ $
-        openFramedModal
+        openFramedModalWith
           r.windowManager
           ( ModalConfig
               { chrome = WindowChrome (ms ln.title) Icon.IcnLessonNotes

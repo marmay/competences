@@ -23,7 +23,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
@@ -65,7 +65,7 @@ evaluatorDetailView
   -> Assignment
   -> M.View (SD.Model Assignment mode) (SD.Action mode)
 evaluatorDetailView r assignment =
-  component
+  inlineComponent
     ("assignment-evaluator-" <> M.ms (show assignment.id))
     (evaluatorComponent r assignment)
 

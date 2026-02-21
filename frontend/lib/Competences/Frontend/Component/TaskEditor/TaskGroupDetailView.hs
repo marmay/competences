@@ -27,7 +27,6 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competen
 import Competences.Frontend.Component.Selector.Common (entityPatchLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
-import Competences.Frontend.View.Component (componentA)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -35,7 +34,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
@@ -59,7 +58,7 @@ taskGroupDetailView
   -> TaskGroup
   -> M.View p a
 taskGroupDetailView r group =
-  component
+  inlineComponent
     ("group-editor-" <> M.ms (show group.id))
     (taskGroupEditorComponent r group)
 
@@ -112,7 +111,7 @@ taskGroupEditorComponent r group =
         ]
 
     viewGroupEditor =
-      component
+      inlineComponent
         ("task-group-form-" <> ms (show group.id))
         (TE.editorComponent taskGroupEditor r)
 
@@ -188,10 +187,10 @@ taskGroupEditorComponent r group =
     viewSubTaskEditor task =
       M.div_
         [class_ "space-y-4"]
-        [ component
+        [ inlineComponent
             ("subtask-editor-" <> ms (show task.id))
             (TE.editorComponent (subTaskEditor group.id task.id) r)
-        , component
+        , inlineComponent
             ("subtask-solutions-" <> ms (show task.id))
             (taskSolutionsListComponent r task.id)
         ]
@@ -530,9 +529,8 @@ competenceOverrideEditor r key viewLens patchLens refocusTarget original patch =
     , -- Show selector when overriding
       if isOverriding
         then
-          componentA
+          inlineComponent
             (key <> "-selector")
-            []
             ( competenceLevelSelectorComponent
                 r
                 (\_ -> currentCompetences)

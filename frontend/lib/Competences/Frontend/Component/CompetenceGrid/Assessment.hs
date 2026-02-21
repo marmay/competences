@@ -40,7 +40,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
@@ -108,7 +108,7 @@ assessmentDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 assessmentDetailView r grid =
-  component
+  inlineComponent
     ("competence-grid-assessment-" <> M.ms (show grid.id))
     (assessmentComponent r grid)
 

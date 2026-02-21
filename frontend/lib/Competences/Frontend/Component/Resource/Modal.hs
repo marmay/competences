@@ -31,7 +31,7 @@ import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
@@ -139,7 +139,7 @@ resourceModalComponent r fc cfg =
               | otherwise ->
                   groupedTasksView fc m
             ViewLearningResources ->
-              component
+              inlineComponent
                 "resource-modal-learning-resources"
                 (groupedResourcesComponent r m.config.groupedResources)
         ]

@@ -30,11 +30,10 @@ import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( ResultView (..)
   , formatCompetenceLevelBadge'
   )
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModal)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModalWith)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , closeModal
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -173,7 +172,7 @@ lessonEvaluatorComponent r lessonId =
       let userName = maybe "" (.name) $ find (\u -> u.id == userId) m.students
           cfg = ModalConfig (WindowChrome (M.ms userName) Icon.IcnEvidence) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
       M.io_ $
-        openFramedModal r.windowManager cfg (studentEvaluatorModal r (Just $ closeModal r.windowManager) lessonId userId)
+        openFramedModalWith r.windowManager cfg (studentEvaluatorModal r lessonId userId)
 
     -- ------------------------------------------------------------------
     -- VIEW

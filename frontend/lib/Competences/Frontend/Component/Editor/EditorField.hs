@@ -30,7 +30,7 @@ import Competences.Frontend.Component.Selector.Common
   , SelectorTransformedLens
   , selectorTransformedLens
   )
-import Competences.Frontend.View.Component (component, componentA)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Text (text_)
 import Data.Default (Default (..))
 import Data.Map qualified as Map
@@ -158,7 +158,7 @@ richTextEditorField fc fieldName viewLens patchLens =
   EditorField
     { viewer = richTextViewer fc viewLens
     , editor = \refocusTarget original patch ->
-        componentA
+        inlineComponentAttrs
           "rc-editor"
           (refocusTargetAttr refocusTarget)
           (richContentEditorComponent fc
@@ -217,9 +217,9 @@ selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> component (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
+        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
         , editor = \refocusTarget a _ ->
-            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+            inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a editorStyle (l' a))
         }
 
@@ -239,9 +239,9 @@ selectorEditorFieldNoStyle k eptl mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> component (k <> "-viewer") (mkEditorComponent a (l' a))
+        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a (l' a))
         , editor = \refocusTarget a _ ->
-            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+            inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a (l' a))
         }
 
@@ -268,9 +268,9 @@ selectorEditorFieldWithViewer k eptl mkViewerComponent mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> component (k <> "-viewer") (mkViewerComponent a (l' a))
+        { viewer = \a -> inlineComponent (k <> "-viewer") (mkViewerComponent a (l' a))
         , editor = \refocusTarget a _ ->
-            componentA (k <> "-editor") (refocusTargetAttr refocusTarget) (
+            inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
               mkEditorComponent a (l' a))
         }
 

@@ -148,7 +148,7 @@ data RichContentEditorAction
 -- Stale timers are discarded via a generation counter.
 --
 -- @
--- componentA "rc-editor" []
+-- inlineComponent "rc-editor"
 --   (richContentEditorComponent initialContent #description)
 -- @
 richContentEditorComponent

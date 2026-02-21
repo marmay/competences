@@ -34,7 +34,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Component (component)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Input qualified as Input
@@ -96,7 +96,7 @@ gradingDetailView
   -> CompetenceGrid
   -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
 gradingDetailView r grid =
-  component
+  inlineComponent
     ("competence-grid-grading-" <> M.ms (show grid.id))
     (gradingComponent r grid)
 

@@ -33,7 +33,7 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Component (componentA)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.NavBar qualified as NavBar
@@ -114,7 +114,7 @@ mkApp ir initialUri =
                           (page (m ^. #uri))
                        ]
                 )
-            , M.div_ [class_ "print:hidden"] [V.component "window-host" (windowHostComponent ir.windowManager)]
+            , M.div_ [class_ "print:hidden"] [V.inlineComponent "window-host" (windowHostComponent ir.windowManager)]
             ]
 
     page uri = case M.route uri of
@@ -152,7 +152,7 @@ mkApp ir initialUri =
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
 
-    mounted key = componentA (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
+    mounted key = inlineComponentAttrs (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
 
 -- ============================================================================
 -- FOCUSED USER VIEW (Nav bar component)
@@ -162,7 +162,7 @@ mkApp ir initialUri =
 -- For students: displays their name as static text
 -- For teachers: shows a searchable selector for choosing any student
 focusedUserView :: SyncContext -> M.View p a
-focusedUserView ir = V.component "focused-user" (focusedUserComponent ir)
+focusedUserView ir = V.inlineComponent "focused-user" (focusedUserComponent ir)
 
 -- | Model for the focused user component
 data FocusedUserModel = FocusedUserModel
@@ -351,7 +351,7 @@ filteredStudents m
 -- | Banner shown when the teacher is impersonating a student
 impersonationBanner :: SyncDocumentEnv -> Model -> M.View Model Action
 impersonationBanner _env m =
-  V.component "impersonation-banner" (impersonationBannerComponent m.connectedUser)
+  V.inlineComponent "impersonation-banner" (impersonationBannerComponent m.connectedUser)
 
 data ImpersonationBannerAction = ReturnToTeacher
   deriving (Eq, Show)
