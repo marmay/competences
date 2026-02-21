@@ -45,7 +45,7 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.ResourceLookup (GroupedResources (..), findGroupedResources)
+import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModal, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -106,8 +106,6 @@ data ViewerProjection = ViewerProjection
   -- ^ Tasks with displayInResources=true, grouped by primary competence level
   , learningResources :: !(Map CompetenceLevelId [Resource])
   -- ^ Learning resources grouped by competence level
-  , groupedResources :: !(Map CompetenceLevelId GroupedResources)
-  -- ^ Pre-computed grouped resources per competence level (for modal)
   , connectedUserRole :: !UserRole
   -- ^ Role of the connected user (for conditional display)
   , taskStatuses :: !(Map TaskId TaskCompletionStatus)
@@ -233,11 +231,6 @@ viewerComponent r grid wm =
           -- Pre-compute resource tasks (needed for both display and status computation)
           resTasks = computeResourceTasks doc gridCompetences
           lResources = computeLearningResources doc gridCompetences
-          -- Pre-compute grouped resources per competence level
-          grResources = Map.fromList
-            [ (clId, findGroupedResources doc [clId])
-            | clId <- competenceLevels
-            ]
           -- Compute task statuses for focused user (if any)
           allResTasks = concatMap (map (.task)) (Map.elems resTasks)
           tStatuses = case mUser of
@@ -247,7 +240,6 @@ viewerComponent r grid wm =
             { competences = gridCompetences
             , resourceTasks = resTasks
             , learningResources = lResources
-            , groupedResources = grResources
             , connectedUserRole = role
             , taskStatuses = tStatuses
             , viewData = vData
@@ -304,7 +296,6 @@ viewerComponent r grid wm =
       { competences = Ix.empty
       , resourceTasks = Map.empty
       , learningResources = Map.empty
-      , groupedResources = Map.empty
       , connectedUserRole = connectedRole
       , taskStatuses = Map.empty
       , viewData = AnalyticsViewData $ AnalyticsData 0 Map.empty Map.empty
@@ -318,9 +309,8 @@ viewerComponent r grid wm =
     update (OpenResourceModal clId) = do
       m <- M.get
       let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
-          gr = Map.findWithDefault (GroupedResources [] [] []) clId m.projection.groupedResources
           showPurposeBadge = m.projection.connectedUserRole == Teacher
-          cfg = ResourceModal.ResourceModalConfig tasks gr showPurposeBadge m.projection.taskStatuses
+          cfg = ResourceModal.ResourceModalConfig tasks (\doc -> findGroupedResources doc [clId]) showPurposeBadge m.projection.taskStatuses
       let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
       M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent r r.formulaCache cfg)
 

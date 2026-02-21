@@ -20,68 +20,24 @@ import Competences.Document.Task
   , getTaskAttributes
   )
 import Competences.Frontend.Component.ResourceLookup (GroupedResources (..), findGroupedResources)
-import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
-import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , SyncContext (..)
-  , subscribeDocument
+import Competences.Frontend.Component.ResourceLookup.View
+  ( GroupedResourcesAction
+  , GroupedResourcesModel
+  , groupedResourcesComponent
   )
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import GHC.Generics (Generic)
+import Competences.Frontend.SyncContext (SyncContext (..))
 import Miso qualified as M
-import Optics.Core ((&), (.~))
-
--- ============================================================================
--- Types
--- ============================================================================
-
--- | Model for the task resources component.
--- Stores the computed grouped resources and delegates rendering to the shared component.
-data TaskResourcesModel = TaskResourcesModel
-  { groupedResources :: !GroupedResources
-  }
-  deriving (Eq, Generic, Show)
-
--- | Actions for the task resources component.
-data Action
-  = UpdateResources !DocumentChange
-  deriving (Eq, Show)
-
--- ============================================================================
--- Component
--- ============================================================================
 
 -- | Create a task resources component that discovers and displays
 -- related materials for a given task.
-taskResourcesComponent :: SyncContext -> TaskId -> M.Component p TaskResourcesModel Action
+--
+-- Thin wrapper around 'groupedResourcesComponent' with a projection
+-- that extracts the relevant competence levels for the given task.
+taskResourcesComponent :: SyncContext -> TaskId -> M.Component p GroupedResourcesModel GroupedResourcesAction
 taskResourcesComponent r taskId =
-  (M.component initModel update view')
-    { M.subs = [subscribeDocument r UpdateResources]
-    }
-  where
-    initModel :: TaskResourcesModel
-    initModel =
-      TaskResourcesModel
-        { groupedResources = GroupedResources [] [] []
-        }
+  groupedResourcesComponent r (computeGroupedResources taskId)
 
-    update (UpdateResources docChange) =
-      M.modify $ \m ->
-        let gr = computeGroupedResources taskId docChange.document
-         in m & #groupedResources .~ gr
-
-    view' :: TaskResourcesModel -> M.View TaskResourcesModel Action
-    view' m =
-      inlineComponent
-        ("task-resources-" <> M.ms (show taskId))
-        (groupedResourcesComponent r m.groupedResources)
-
--- ============================================================================
--- Computation
--- ============================================================================
-
--- | Compute grouped resources for a specific task by extracting its
--- competence levels and delegating to the shared lookup.
+-- | Projection function: given a 'TaskId', extract grouped resources from a 'Document'.
 computeGroupedResources :: TaskId -> Document -> GroupedResources
 computeGroupedResources taskId doc =
   case Ix.getOne (doc.tasks Ix.@= taskId) of

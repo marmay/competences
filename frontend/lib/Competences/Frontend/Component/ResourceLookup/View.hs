@@ -13,7 +13,8 @@ module Competences.Frontend.Component.ResourceLookup.View
 where
 
 import Competences.Document
-  ( LessonNotes (..)
+  ( Document
+  , LessonNotes (..)
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
@@ -34,7 +35,7 @@ import Competences.Frontend.Component.ResourceLookup
   , ResolvedItem (..)
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
 import Competences.Frontend.SyncContext.WindowManager
   ( ModalConfig (..)
   , ModalId (..)
@@ -64,7 +65,9 @@ import Optics.Core ((&), (.~))
 
 -- | UI state for the grouped resources component.
 data GroupedResourcesModel = GroupedResourcesModel
-  { expandedItems :: !(Set T.Text)
+  { groupedResources :: !GroupedResources
+  -- ^ Computed grouped resources (updated via document subscription)
+  , expandedItems :: !(Set T.Text)
   -- ^ Expanded resource/task IDs (using text keys for uniformity)
   , collapsedLessonNotes :: !(Set LessonNotesId)
   -- ^ Lesson note groups that have been collapsed (default: expanded)
@@ -75,7 +78,8 @@ data GroupedResourcesModel = GroupedResourcesModel
 
 -- | Actions for the grouped resources component.
 data GroupedResourcesAction
-  = ToggleItemExpanded !T.Text
+  = DocChanged !DocumentChange
+  | ToggleItemExpanded !T.Text
   | ToggleLessonNoteGroup !LessonNotesId
   | ToggleOtherSection
   | OpenLessonNotes !LessonNotes
@@ -87,23 +91,31 @@ data GroupedResourcesAction
 
 -- | Create a grouped resources component.
 --
+-- Takes a projection function @(Document -> GroupedResources)@ so the
+-- component can recompute its data whenever the document changes.
 -- Renders lesson-note groups with collapsible disclosures.
 -- Non-relevant items are dimmed with reduced opacity.
 -- "Other resources" is wrapped in its own disclosure.
 groupedResourcesComponent
   :: SyncContext
-  -> GroupedResources
+  -> (Document -> GroupedResources)
   -> M.Component p GroupedResourcesModel GroupedResourcesAction
-groupedResourcesComponent r gr =
-  M.component initModel update view'
+groupedResourcesComponent r project =
+  (M.component initModel update view')
+    { M.subs = [subscribeDocument r DocChanged]
+    }
   where
     initModel :: GroupedResourcesModel
     initModel =
       GroupedResourcesModel
-        { expandedItems = Set.empty
+        { groupedResources = GroupedResources [] [] []
+        , expandedItems = Set.empty
         , collapsedLessonNotes = Set.empty
         , otherCollapsed = True
         }
+
+    update (DocChanged change) =
+      M.modify $ \m -> m & #groupedResources .~ project change.document
 
     update (ToggleItemExpanded key) =
       M.modify $ \m ->
@@ -148,6 +160,8 @@ groupedResourcesComponent r gr =
             ( map (viewLessonNoteGroup r.formulaCache m) gr.lessonNoteGroups
                 <> viewOtherSection r.formulaCache m gr
             )
+      where
+        gr = m.groupedResources
 
 -- ============================================================================
 -- Lesson Note Group

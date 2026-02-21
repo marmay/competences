@@ -13,8 +13,9 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
+import Competences.Document (Document, Task (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.ResourceLookup (GroupedResources (..))
+import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.TaskResource
   ( DisplayMode (..)
@@ -26,7 +27,6 @@ import Competences.Frontend.Component.TaskResource
   , updateTaskResourceList
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
-import Competences.Document (Task (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Layout qualified as Layout
@@ -46,14 +46,24 @@ import Miso.Html qualified as MH
 -- Configuration
 -- ============================================================================
 
--- | Configuration passed when opening the modal
+-- | Configuration passed when opening the modal.
+--
+-- @resourceProjection@ is a function from 'Document' to 'GroupedResources',
+-- allowing the inner component to recompute resources on document changes.
 data ResourceModalConfig = ResourceModalConfig
   { tasks :: ![TaskWithSolutions]
-  , groupedResources :: !GroupedResources
+  , resourceProjection :: !(Document -> GroupedResources)
   , showPurposeBadge :: !Bool
   , taskStatuses :: !(Map.Map TaskId TaskCompletionStatus)
   }
-  deriving (Eq)
+
+-- | Compares all fields except @resourceProjection@ (a function).
+-- The projection is set once at modal creation and never changes.
+instance Eq ResourceModalConfig where
+  a == b =
+    a.tasks == b.tasks
+      && a.showPurposeBadge == b.showPurposeBadge
+      && a.taskStatuses == b.taskStatuses
 
 -- ============================================================================
 -- Model
@@ -97,11 +107,6 @@ resourceModalComponent r fc cfg =
       | not (null cfg.tasks) = ViewTasks
       | otherwise = ViewLearningResources
 
-    hasLearningResources =
-      not (null cfg.groupedResources.lessonNoteGroups)
-        || not (null cfg.groupedResources.ungroupedResources)
-        || not (null cfg.groupedResources.ungroupedTasks)
-
     model =
       Model
         { config = cfg
@@ -128,8 +133,8 @@ resourceModalComponent r fc cfg =
     view :: Model -> M.View Model Action
     view m =
       Layout.scrollContent $ Layout.padL $ Layout.vFlow Layout.gapM
-        [ -- Mode switcher
-          modeSwitcher m.viewMode (not $ null m.config.tasks) hasLearningResources
+        [ -- Mode switcher (always show both tabs)
+          modeSwitcher m.viewMode (not $ null m.config.tasks) True
         , -- Content
           case m.viewMode of
             ViewTasks
@@ -141,7 +146,7 @@ resourceModalComponent r fc cfg =
             ViewLearningResources ->
               inlineComponent
                 "resource-modal-learning-resources"
-                (groupedResourcesComponent r m.config.groupedResources)
+                (groupedResourcesComponent r cfg.resourceProjection)
         ]
 
 -- ============================================================================
