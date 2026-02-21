@@ -269,14 +269,39 @@ labelAllBlockP = do
   pos <- lexeme labelPositionP
   modifierBlockP (AutoDec (LabelAll pos))
 
--- | Parse @{ commands }@ with a given modifier
+-- | Parse a modifier keyword (+ any arguments) and return a 'Modifier' value.
+-- Used for additional modifiers after commas in comma-separated lists.
+modifierValueP :: Parser Modifier
+modifierValueP = do
+  kw <- lexeme keywordP
+  case kw of
+    "color" -> EnvMod . SetColor . NamedColor <$> lexeme nameP
+    "dashed" -> pure $ EnvMod SetDashed
+    "thick" -> pure $ EnvMod SetThick
+    "thin" -> pure $ EnvMod SetThin
+    "axes" -> pure $ AutoDec Axes
+    "grid" -> pure $ AutoDec Grid
+    "labelAll" -> AutoDec . LabelAll <$> lexeme labelPositionP
+    "background" -> pure $ LayerMod Background
+    "foreground" -> pure $ LayerMod Foreground
+    _ -> fail $ "Unknown modifier: " <> T.unpack kw
+
+-- | Parse @{ commands }@ with a given modifier, optionally preceded by
+-- comma-separated additional modifiers: @axes, grid { ... }@
 modifierBlockP :: Modifier -> Parser Command
 modifierBlockP modifier = do
+  extras <- many (lexeme (char ',') *> modifierValueP)
   _ <- lexeme (char '{')
   cmds <- commandsP
   ws
   _ <- char '}'
-  pure $ ModifierBlock modifier cmds
+  pure $ nestModifiers (modifier : extras) cmds
+
+-- | Nest a list of modifiers around a command body, right-associatively.
+nestModifiers :: [Modifier] -> [Command] -> Command
+nestModifiers [] _ = error "nestModifiers: impossible empty list"
+nestModifiers [m] cmds = ModifierBlock m cmds
+nestModifiers (m : ms) cmds = ModifierBlock m [nestModifiers ms cmds]
 
 -- -----------------------------------------------------------------
 -- Primitives

@@ -127,6 +127,39 @@ parserGroup =
         "layer modifiers"
         "background {\n  drawSegment A -- B\n}"
         [ModifierBlock (LayerMod Background) [Draw (DrawSegment (SegInline "A" "B"))]]
+    , parsesTo
+        "comma-separated modifiers"
+        "axes, grid {\n  drawPoint A\n}"
+        [ ModifierBlock
+            (AutoDec Axes)
+            [ ModifierBlock
+                (AutoDec Grid)
+                [Draw (DrawPoint "A")]
+            ]
+        ]
+    , parsesTo
+        "comma-separated three modifiers"
+        "axes, grid, dashed {\n  drawSegment A -- B\n}"
+        [ ModifierBlock
+            (AutoDec Axes)
+            [ ModifierBlock
+                (AutoDec Grid)
+                [ ModifierBlock
+                    (EnvMod SetDashed)
+                    [Draw (DrawSegment (SegInline "A" "B"))]
+                ]
+            ]
+        ]
+    , parsesTo
+        "comma-separated with color"
+        "color red, thick {\n  drawPoint A\n}"
+        [ ModifierBlock
+            (EnvMod (SetColor (NamedColor "red")))
+            [ ModifierBlock
+                (EnvMod SetThick)
+                [Draw (DrawPoint "A")]
+            ]
+        ]
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
