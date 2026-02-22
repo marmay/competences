@@ -71,6 +71,16 @@ headingTests =
         "heading+emph"
         (Document [Heading 1 [Plain "Hello ", Emph [Plain "world"]]])
         "# Hello *world*"
+  , testCase "heading does not absorb next line" $
+      assertParse
+        "heading+para"
+        (Document [Heading 3 [Plain "Angabe"], Paragraph [Plain "Something"]])
+        "### Angabe\nSomething"
+  , testCase "heading followed by paragraph without blank line" $
+      assertParse
+        "heading+para no blank"
+        (Document [Heading 4 [Plain "Angabe"], Paragraph [Plain "Solve the equation."]])
+        "#### Angabe\nSolve the equation."
   ]
 
 emphTests :: [TestTree]

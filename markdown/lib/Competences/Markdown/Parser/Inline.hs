@@ -7,6 +7,7 @@
 module Competences.Markdown.Parser.Inline
   ( inlinesP
   , inlineP
+  , lineInlinesP
   )
 where
 
@@ -38,6 +39,22 @@ inlineP =
     , linkP
     , plainP
     ]
+
+-- | Parse a sequence of inline elements restricted to a single line.
+-- Like 'inlinesP' but without line-break parsers, so parsing stops at newline.
+lineInlinesP :: Parser [Inline]
+lineInlinesP = some lineInlineP
+  where
+    lineInlineP =
+      choice
+        [ strongP
+        , emphP
+        , codeSpanP
+        , mathInlineParenP
+        , mathInlineP
+        , linkP
+        , plainP
+        ]
 
 -- | Hard line break: backslash + newline, or two+ spaces + newline
 hardLineBreakP :: Parser Inline

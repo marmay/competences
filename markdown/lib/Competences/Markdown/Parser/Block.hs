@@ -11,7 +11,7 @@ module Competences.Markdown.Parser.Block
 where
 
 import Competences.Markdown.AST
-import Competences.Markdown.Parser.Inline (inlinesP)
+import Competences.Markdown.Parser.Inline (inlinesP, lineInlinesP)
 import Control.Monad (guard, void)
 import Data.Char (isLower)
 import Data.Maybe (fromMaybe)
@@ -65,7 +65,7 @@ headingP = try $ do
   hashes <- takeWhile1P (Just "heading marker") (== '#')
   let level = min 6 (T.length hashes)
   _ <- hspace1
-  content <- inlinesP
+  content <- lineInlinesP
   pure $ Heading level content
 
 -- | Fenced code block: ``` or ~~~
