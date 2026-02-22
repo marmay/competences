@@ -26,8 +26,8 @@ printStyleView settings =
 
 printCSS :: PrintSettings -> Text
 printCSS settings =
-  let size = pageSizeCSS settings.pageSize
-      margin = T.pack $ show (pageMarginMm settings.pageSize) <> "mm"
+  let size = pageSizeCSS settings.paperSize settings.orientation
+      margin = T.pack $ show (pageMarginMm settings.paperSize) <> "mm"
    in T.unlines
         [ "@page { size: " <> size <> "; margin: " <> margin <> "; }"
         , "@media print {"

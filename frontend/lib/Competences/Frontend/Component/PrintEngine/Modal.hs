@@ -10,7 +10,8 @@ where
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Types
-  ( PageSize (..)
+  ( Orientation (..)
+  , PaperSize (..)
   , PrintSettings (..)
   , defaultPrintSettings
   , pageSizeMm
@@ -38,7 +39,8 @@ data PrintModalModel = PrintModalModel
 
 -- | Modal actions
 data PrintModalAction
-  = SetPageSize !PageSize
+  = SetPaperSize !PaperSize
+  | SetOrientation !Orientation
   | PreviewNext
   | PreviewPrev
   | ConfirmPrint
@@ -53,8 +55,10 @@ defaultPrintModalModel = PrintModalModel
 
 -- | Pure update for the modal model
 updatePrintModal :: PrintModalAction -> Int -> PrintModalModel -> PrintModalModel
-updatePrintModal (SetPageSize ps) _total m =
-  m {settings = PrintSettings {pageSize = ps}}
+updatePrintModal (SetPaperSize ps) _total m =
+  m {settings = m.settings {paperSize = ps}}
+updatePrintModal (SetOrientation o) _total m =
+  m {settings = m.settings {orientation = o}}
 updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
@@ -103,7 +107,7 @@ modalHeader wrap =
       ]
       & Layout.addClass "px-6 py-4 border-b border-border"
 
--- | Modal body: sidebar with page-size selector + preview pane
+-- | Modal body: sidebar with selectors + preview pane
 modalBody
   :: (Int -> M.View model action)
   -> Int
@@ -113,12 +117,14 @@ modalBody
 modalBody renderTask totalTasks model wrap =
   Layout.hFlow
     Layout.hFull
-    [ -- Left sidebar: page size toggle group
+    [ -- Left sidebar: paper size + orientation selectors
       Layout.shrink0 $
         Layout.vFlow
           Layout.gapM
           [ Typography.fieldLabel (C.translate' C.LblPageSize)
-          , pageSizeSelector model.settings.pageSize wrap
+          , paperSizeSelector model.settings.paperSize wrap
+          , Typography.fieldLabel (C.translate' C.LblOrientation)
+          , orientationSelector model.settings.orientation wrap
           ]
           & Layout.addClass "w-40 border-r border-border p-4"
     , -- Right: preview pane with task navigation
@@ -141,17 +147,30 @@ modalFooter wrap =
       , Button.primary (btn (Icon.IcnPrint, C.LblPrint) (Just (wrap ConfirmPrint)))
       ]
 
--- | Page size selector using button group (same pattern as EnumSelector ButtonsCompact)
-pageSizeSelector :: PageSize -> (PrintModalAction -> action) -> M.View model action
-pageSizeSelector current wrap =
+-- | Paper size selector (A4 / A5 / A6)
+paperSizeSelector :: PaperSize -> (PrintModalAction -> action) -> M.View model action
+paperSizeSelector current wrap =
   Button.buttonGroup
-    [ Button.toggleSm (current == size) (btn (pageSizeLabel size) (Just (wrap (SetPageSize size))))
-    | size <- [A5Portrait, A4Portrait]
+    [ Button.toggleSm (current == size) (btn (paperSizeLabel size) (Just (wrap (SetPaperSize size))))
+    | size <- [minBound .. maxBound]
     ]
 
-pageSizeLabel :: PageSize -> MisoString
-pageSizeLabel A5Portrait = "A5"
-pageSizeLabel A4Portrait = "A4"
+paperSizeLabel :: PaperSize -> MisoString
+paperSizeLabel A4 = "A4"
+paperSizeLabel A5 = "A5"
+paperSizeLabel A6 = "A6"
+
+-- | Orientation selector (Portrait / Landscape)
+orientationSelector :: Orientation -> (PrintModalAction -> action) -> M.View model action
+orientationSelector current wrap =
+  Button.buttonGroup
+    [ Button.toggleSm (current == o) (btn (orientationLabel o) (Just (wrap (SetOrientation o))))
+    | o <- [minBound .. maxBound]
+    ]
+
+orientationLabel :: Orientation -> MisoString
+orientationLabel Portrait = C.translate' C.LblPortrait
+orientationLabel Landscape = C.translate' C.LblLandscape
 
 -- | Preview navigation: previous / "1 / N" / next
 previewNavigation :: Int -> PrintModalModel -> (PrintModalAction -> action) -> M.View model action
@@ -174,8 +193,8 @@ previewNavigation totalTasks model wrap =
 -- | Preview pane: renders one task inside a scaled page representation
 previewPane :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
 previewPane renderTask model =
-  let (wMm, hMm) = pageSizeMm model.settings.pageSize
-      margin = pageMarginMm model.settings.pageSize
+  let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
+      margin = pageMarginMm model.settings.paperSize
       -- Convert mm to px at 96 DPI (1 inch = 25.4mm)
       mmToPx mm = mm * 96.0 / 25.4
       pageWPx = mmToPx wMm

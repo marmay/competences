@@ -321,6 +321,9 @@ data Label
   | LblPrintAll
   | LblPrintPreview
   | LblPageSize
+  | LblOrientation
+  | LblPortrait
+  | LblLandscape
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -626,6 +629,9 @@ labels' =
   , LblPrintAll
   , LblPrintPreview
   , LblPageSize
+  , LblOrientation
+  , LblPortrait
+  , LblLandscape
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -951,6 +957,9 @@ defaultTranslation LblPrintSolutions = "Lösungen"
 defaultTranslation LblPrintAll = "Alles"
 defaultTranslation LblPrintPreview = "Druckvorschau"
 defaultTranslation LblPageSize = "Seitengröße"
+defaultTranslation LblOrientation = "Ausrichtung"
+defaultTranslation LblPortrait = "Hochformat"
+defaultTranslation LblLandscape = "Querformat"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
