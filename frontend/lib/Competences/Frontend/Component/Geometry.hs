@@ -120,15 +120,35 @@ computeViewBox prims
   where
     vecs = concatMap primVecs prims
 
--- | Extract all Vec2 positions from a render primitive
+-- | Extract all Vec2 positions from a render primitive.
+-- For labels, estimates text bounding box so the viewBox includes them.
 primVecs :: RenderPrimitive -> [Vec2]
 primVecs = \case
   RenderDot v _ -> [v]
   RenderSegment v1 v2 _ -> [v1, v2]
-  RenderLabel v _lbl _ _ -> [v]
+  RenderLabel v lbl pos _ -> labelBounds v lbl pos
   RenderAxisLine v1 v2 _ -> [v1, v2]
   RenderTick v _ _ -> [v]
   RenderGridLine v1 v2 _ -> [v1, v2]
+
+-- | Estimate bounding-box corners of a label for viewBox calculation.
+labelBounds :: Vec2 -> LabelContent -> LabelPosition -> [Vec2]
+labelBounds (Vec2 x y) lbl pos =
+  let (dx, dy, anchor) = labelOffset pos
+      cx = x + dx
+      cy = y - dy -- in math coords (positive up)
+      fontSize = 0.45 :: Double
+      halfH = fontSize / 2
+      charW = 0.27 :: Double -- approximate average character width at fontSize
+      textLen = case lbl of
+        PlainLabel t -> fromIntegral (T.length t)
+        MathLabel t -> fromIntegral (T.length t)
+      textW = max 0.3 (textLen * charW) :: Double -- floor at 0.3 for single-char labels
+      (leftX, rightX) = case anchor of
+        "middle" -> (cx - textW / 2, cx + textW / 2)
+        "end" -> (cx - textW, cx)
+        _ -> (cx, cx + textW) -- "start"
+   in [Vec2 leftX (cy - halfH), Vec2 rightX (cy + halfH)]
 
 -- -----------------------------------------------------------------
 -- Primitive rendering
@@ -307,11 +327,11 @@ envDashAttr env = case lineStyle env of
 -- | Offset and anchor for label positions
 labelOffset :: LabelPosition -> (Double, Double, Text)
 labelOffset = \case
-  Above -> (0, -0.30, "middle")
-  Below -> (0, 0.30, "middle")
-  LeftOf -> (-0.30, 0, "end")
-  RightOf -> (0.30, 0, "start")
-  AboveLeft -> (-0.25, -0.25, "end")
-  AboveRight -> (0.25, -0.25, "start")
-  BelowLeft -> (-0.25, 0.25, "end")
-  BelowRight -> (0.25, 0.25, "start")
+  Above -> (0, -0.20, "middle")
+  Below -> (0, 0.20, "middle")
+  LeftOf -> (-0.12, 0, "end")
+  RightOf -> (0.12, 0, "start")
+  AboveLeft -> (-0.12, -0.15, "end")
+  AboveRight -> (0.12, -0.15, "start")
+  BelowLeft -> (-0.12, 0.15, "end")
+  BelowRight -> (0.12, 0.15, "start")

@@ -170,7 +170,7 @@ evalLabel = \case
             dx = bx - ax
             dy = by - ay
             len = sqrt (dx * dx + dy * dy)
-            offset = 0.15
+            offset = 0.05
             (nx, ny)
               | len == 0 = (0, offset)
               | otherwise =
