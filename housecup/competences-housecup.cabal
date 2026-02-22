@@ -50,6 +50,7 @@ executable competences-housecup
         aeson,
         bytestring,
         competences-housecup,
+        containers,
         optparse-applicative,
         postgresql-simple,
         text,

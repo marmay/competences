@@ -1,10 +1,11 @@
 module Main (main) where
 
-import Competences.HouseCup.Config (resolveHouseConfig)
+import Competences.HouseCup.Config (ResolvedExtraPoints (..), resolveExtraPoints, resolveHouseConfig)
 import Competences.HouseCup.Database (loadDocumentAt)
 import Competences.HouseCup.Scoring (ScoreTable, computePoints)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Char8 qualified as BS
+import Data.Map.Strict qualified as Map
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Data.Text qualified as T
@@ -18,6 +19,7 @@ data Options = Options
   , startDate :: !Day
   , endDate :: !Day
   , configFile :: !FilePath
+  , extraPointsFile :: !(Maybe FilePath)
   }
 
 optionsParser :: Parser Options
@@ -47,6 +49,14 @@ optionsParser =
           <> metavar "FILE"
           <> help "Path to house config JSON file"
       )
+    <*> optional
+      ( strOption
+          ( long "extra-points"
+              <> short 'x'
+              <> metavar "FILE"
+              <> help "Path to extra points JSON file"
+          )
+      )
 
 main :: IO ()
 main = do
@@ -71,8 +81,18 @@ main = do
   -- Resolve house config against end-date document
   resolvedConfig <- resolveHouseConfig docAfter houseConfig
 
+  -- Load and resolve extra points (if provided)
+  extraPoints <- case opts.extraPointsFile of
+    Nothing -> pure $ ResolvedExtraPoints Map.empty
+    Just fp -> do
+      epBytes <- BS.readFile fp
+      entries <- case Aeson.eitherDecodeStrict' epBytes of
+        Left err -> fail $ "Failed to parse extra points: " <> err
+        Right es -> pure es
+      resolveExtraPoints docAfter entries
+
   -- Compute scores
-  let scores = computePoints resolvedConfig docBefore docAfter
+  let scores = computePoints resolvedConfig extraPoints docBefore docAfter
 
   -- Print results
   TIO.putStrLn ""

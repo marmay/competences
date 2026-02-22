@@ -10,9 +10,10 @@ import Competences.Document (Document (..))
 import Competences.Document.Competence (competenceLevelIdsOf)
 import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationRecord (..), ParticipationType (..))
 import Competences.Document.User (UserId)
-import Competences.HouseCup.Config (ResolvedConfig (..))
+import Competences.HouseCup.Config (ResolvedConfig (..), ResolvedExtraPoints (..))
 import Competences.Query.Mastery (MasteryStatus (..), getUserMastery)
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatus)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 
 type ScoreTable = [(Text, Integer)]
@@ -22,19 +23,21 @@ data StudentScore = StudentScore
   { participation :: !Integer
   , mastery :: !Integer
   , tasks :: !Integer
+  , extra :: !Integer
   }
   deriving (Eq, Show)
 
 totalScore :: StudentScore -> Integer
-totalScore s = s.participation + s.mastery + s.tasks
+totalScore s = s.participation + s.mastery + s.tasks + s.extra
 
--- | Compute points for one student across all three rules.
-studentPoints :: Document -> Document -> UserId -> StudentScore
-studentPoints docBefore docAfter userId =
+-- | Compute points for one student across all three rules plus extra points.
+studentPoints :: ResolvedExtraPoints -> Document -> Document -> UserId -> StudentScore
+studentPoints (ResolvedExtraPoints extraMap) docBefore docAfter userId =
   StudentScore
     { participation = participationPoints docBefore docAfter userId
     , mastery = masteryPoints docBefore docAfter userId
     , tasks = taskPoints docBefore docAfter userId
+    , extra = Map.findWithDefault 0 userId extraMap
     }
 
 -- | Rule 1: Score new participation records.
@@ -91,14 +94,14 @@ taskPoints docBefore docAfter userId =
     isDone _ = False
 
 -- | Compute house points by diffing two document states.
-computePoints :: ResolvedConfig -> Document -> Document -> ScoreTable
-computePoints (ResolvedConfig houses) docBefore docAfter =
+computePoints :: ResolvedConfig -> ResolvedExtraPoints -> Document -> Document -> ScoreTable
+computePoints (ResolvedConfig houses) extraPoints docBefore docAfter =
   let maxSize = maximum $ map (length . snd) houses
    in map (aggregateHouse maxSize) houses
   where
     aggregateHouse :: Int -> (Text, [UserId]) -> (Text, Integer)
     aggregateHouse maxSize (name, userIds) =
-      let rawTotal = sum [totalScore (studentPoints docBefore docAfter uid) | uid <- userIds]
+      let rawTotal = sum [totalScore (studentPoints extraPoints docBefore docAfter uid) | uid <- userIds]
           houseSize = length userIds
           scaled = rawTotal * fromIntegral maxSize `div` fromIntegral houseSize
        in (name, scaled)
