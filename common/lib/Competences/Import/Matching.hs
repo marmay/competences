@@ -18,6 +18,12 @@ module Competences.Import.Matching
     -- * Assignment Matching
   , matchAssignmentImport
 
+    -- * Resource Matching
+  , matchResourceImport
+
+    -- * Lesson Matching
+  , matchLessonImport
+
     -- * Utilities
   , normalizeText
   )
@@ -33,7 +39,10 @@ import Competences.Document.Competence
   )
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Id (Id (..))
-import Competences.Document.Order (Order, orderMin)
+import Competences.Document.Lesson (Lesson (..), LessonPhase (..))
+import Competences.Document.MesoPlan (MesoPlanId)
+import Competences.Document.Order (Order, orderMax, orderMin)
+import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Solution (Solution (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Import.Types
@@ -391,6 +400,178 @@ assignmentEquals a b =
     && a.description == b.description
     && a.assignmentDate == b.assignmentDate
     && a.activityType == b.activityType
+
+-- ============================================================================
+-- Resource Matching
+-- ============================================================================
+
+-- | Match parsed resources against document and produce import previews
+matchResourceImport :: Document -> [ParsedResource] -> [ResourceImportPreview]
+matchResourceImport doc = map (matchSingleResource doc)
+
+-- | Match a single parsed resource
+matchSingleResource :: Document -> ParsedResource -> ResourceImportPreview
+matchSingleResource doc parsed =
+  let existingResource = findResourceByIdentifier doc parsed.identifier parsed.replacesIdentifier
+
+      resourceAction = case existingResource of
+        Nothing -> Create (makeNewResource parsed)
+        Just existing ->
+          let updated = updateResource existing parsed
+           in if resourceEquals existing updated
+                then NoChange existing
+                else Update existing updated
+
+      competenceMatches = matchCompetenceRefs doc parsed.competenceRefs
+   in ResourceImportPreview
+        { resourceAction = resourceAction
+        , competenceMatches = competenceMatches
+        }
+
+-- | Find resource by identifier, checking both current and replacement identifiers
+findResourceByIdentifier :: Document -> Text -> Maybe Text -> Maybe Resource
+findResourceByIdentifier doc ident mReplaces =
+  let byReplaces = case mReplaces of
+        Just origIdent ->
+          find (\r -> let ResourceIdentifier ri = r.identifier in normalizeText ri == normalizeText origIdent) $
+            Ix.toList doc.resources
+        Nothing -> Nothing
+      byIdent =
+        find (\r -> let ResourceIdentifier ri = r.identifier in normalizeText ri == normalizeText ident) $
+          Ix.toList doc.resources
+   in byReplaces <|> byIdent
+  where
+    (<|>) :: Maybe a -> Maybe a -> Maybe a
+    (<|>) Nothing x = x
+    (<|>) x _ = x
+
+-- | Create new resource from parsed data
+makeNewResource :: ParsedResource -> Resource
+makeNewResource parsed =
+  Resource
+    { id = Id UUID.nil
+    , identifier = ResourceIdentifier parsed.identifier
+    , competenceLevels = [] -- Will be filled from matched competences
+    , content = InlineContent (fromTrustedInput parsed.content)
+    }
+
+-- | Update existing resource with parsed data
+updateResource :: Resource -> ParsedResource -> Resource
+updateResource existing parsed =
+  Resource
+    { id = existing.id
+    , identifier = ResourceIdentifier parsed.identifier
+    , competenceLevels = existing.competenceLevels -- Preserved, will be updated from matches
+    , content = if T.null parsed.content then existing.content else InlineContent (fromTrustedInput parsed.content)
+    }
+
+-- | Check if two resources are equal (for detecting changes)
+resourceEquals :: Resource -> Resource -> Bool
+resourceEquals a b =
+  a.identifier == b.identifier
+    && a.content == b.content
+
+-- ============================================================================
+-- Lesson Matching
+-- ============================================================================
+
+-- | Match parsed lessons against document and produce import previews.
+-- Lessons are matched within a specific MesoPlan.
+matchLessonImport :: Document -> MesoPlanId -> [ParsedLesson] -> [LessonImportPreview]
+matchLessonImport doc mesoPlanId = map (matchSingleLesson doc mesoPlanId)
+
+-- | Match a single parsed lesson
+matchSingleLesson :: Document -> MesoPlanId -> ParsedLesson -> LessonImportPreview
+matchSingleLesson doc mesoPlanId parsed =
+  let -- Find existing lesson by title within the same meso plan
+      existingLesson = findLessonByTitle doc mesoPlanId parsed.title parsed.replacesTitle
+
+      lessonAction = case existingLesson of
+        Nothing -> Create (makeNewLesson mesoPlanId parsed)
+        Just existing ->
+          let updated = updateLesson existing parsed
+           in if lessonEquals existing updated
+                then NoChange existing
+                else Update existing updated
+
+      competenceMatches = matchCompetenceRefs doc parsed.competenceRefs
+   in LessonImportPreview
+        { lessonAction = lessonAction
+        , competenceMatches = competenceMatches
+        , parsedPhases = parsed.phases
+        }
+
+-- | Find lesson by title within a meso plan, checking both current and replacement titles
+findLessonByTitle :: Document -> MesoPlanId -> Text -> Maybe Text -> Maybe Lesson
+findLessonByTitle doc mesoPlanId title mReplaces =
+  let lessonsInPlan = Ix.toList $ doc.lessons Ix.@= mesoPlanId
+      byReplaces = case mReplaces of
+        Just origTitle ->
+          find (\l -> normalizeText l.title == normalizeText origTitle) lessonsInPlan
+        Nothing -> Nothing
+      byTitle =
+        find (\l -> normalizeText l.title == normalizeText title) lessonsInPlan
+   in byReplaces <|> byTitle
+  where
+    (<|>) :: Maybe a -> Maybe a -> Maybe a
+    (<|>) Nothing x = x
+    (<|>) x _ = x
+
+-- | Create new lesson from parsed data
+makeNewLesson :: MesoPlanId -> ParsedLesson -> Lesson
+makeNewLesson mesoPlanId parsed =
+  Lesson
+    { id = Id UUID.nil
+    , mesoPlanId = mesoPlanId
+    , order = orderMax
+    , title = parsed.title
+    , description = fromTrustedInput parsed.description
+    , competenceLevels = [] -- Will be filled from matched competences
+    , date = parsed.date
+    , assignments = []
+    , resources = []
+    , phases = map toDomainPhase parsed.phases
+    , notes = fromTrustedInput parsed.notes
+    }
+
+-- | Update existing lesson with parsed data
+updateLesson :: Lesson -> ParsedLesson -> Lesson
+updateLesson existing parsed =
+  Lesson
+    { id = existing.id
+    , mesoPlanId = existing.mesoPlanId
+    , order = existing.order
+    , title = parsed.title
+    , description = if T.null parsed.description then existing.description else fromTrustedInput parsed.description
+    , competenceLevels = existing.competenceLevels -- Will be updated from matches
+    , date = case parsed.date of
+        Just d -> Just d
+        Nothing -> existing.date
+    , assignments = existing.assignments -- Preserved, will be matched separately
+    , resources = existing.resources -- Preserved, will be matched separately
+    , phases = if null parsed.phases then existing.phases else map toDomainPhase parsed.phases
+    , notes = if T.null parsed.notes then existing.notes else fromTrustedInput parsed.notes
+    }
+
+-- | Convert parsed phase to domain phase
+toDomainPhase :: ParsedLessonPhase -> LessonPhase
+toDomainPhase p =
+  LessonPhase
+    { title = p.title
+    , socialForm = p.socialForm
+    , duration = p.duration
+    , actionForm = p.actionForm
+    , notes = fromTrustedInput p.notes
+    }
+
+-- | Check if two lessons are equal (for detecting changes)
+lessonEquals :: Lesson -> Lesson -> Bool
+lessonEquals a b =
+  a.title == b.title
+    && a.description == b.description
+    && a.date == b.date
+    && a.phases == b.phases
+    && a.notes == b.notes
 
 -- ============================================================================
 -- Utilities

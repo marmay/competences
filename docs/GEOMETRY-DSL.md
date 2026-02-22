@@ -12,7 +12,7 @@ defPointBy M (midpoint A B)
 
 defSegment c A -- B
 
-axes {
+axes, grid {
   labelAll above-right {
     drawPoint A
     drawPoint B
@@ -20,7 +20,7 @@ axes {
     drawPoint M
   }
 
-  drawSegment c labeled "c" below
+  drawSegment c labeled "$c$" below
   drawSegment A -- C
   drawSegment B -- C
 
@@ -28,7 +28,7 @@ axes {
     drawSegment M -- C
   }
 
-  labelSegment B -- C "a" above
+  labelSegment B -- C "$a$" above
 }
 ```
 
@@ -91,7 +91,7 @@ Place text at a point. Positions: `above`, `below`, `left`, `right`, `above-left
 labelSegment <name> "<text>" <side> [<fraction>]
 labelSegment <pointA> -- <pointB> "<text>" <side> [<fraction>]
 ```
-Label a segment. `<side>` is `above` or `below` (relative to direction A to B). `<fraction>` (default 0.5) positions along the segment: 0.0 = at A, 1.0 = at B.
+Label a segment. `<side>` is `above`/`left` or `below`/`right` (relative to direction A→B). `left`/`right` are synonyms that read more naturally for vertical segments. `<fraction>` (default 0.5) positions along the segment: 0.0 = at A, 1.0 = at B.
 
 ### `labeled` Suffix
 
@@ -104,6 +104,20 @@ Draw commands support `labeled` to combine drawing and labeling:
 | `drawSegment A -- B labeled "c" below 0.4` | `drawSegment A -- B` + `labelSegment A -- B "c" below 0.4` |
 
 The parser desugars `labeled` into separate `Draw` + `Label` commands. The AST and evaluator never see it.
+
+### Math Labels
+
+Wrap label text in `$...$` to render it as LaTeX math via MathJax:
+
+```
+labelPoint A "$\alpha$" above
+drawSegment c labeled "$c$" below
+labelSegment B -- C "$a$" above
+```
+
+Math labels work with all labeling forms: `labelPoint`, `labelSegment`, and the `labeled` suffix on draw commands.
+
+If the closing `$` is missing or the content is empty (`$$`), the text is treated as a plain label.
 
 ## Point Constructions
 
@@ -128,6 +142,15 @@ defPointBy S (translate (3, -1) P)   -- translate P by vector (3, -1)
 ## Modifier Blocks
 
 Modifiers wrap commands in `{ }` and affect rendering within the block.
+
+Multiple modifiers can be combined with commas before a single block:
+
+```
+axes, grid { ... }
+color red, dashed { ... }
+```
+
+This is purely syntactic sugar — `axes, grid { ... }` desugars to `axes { grid { ... } }` in the parser.
 
 ### Environment Modifiers (change draw style)
 

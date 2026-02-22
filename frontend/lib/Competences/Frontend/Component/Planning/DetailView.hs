@@ -16,6 +16,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), inlineComponent, openFramedModalWith, pinDialog)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
+import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
@@ -72,6 +73,7 @@ data DetailAction
   | DeleteMesoPlan
   | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
+  | OpenLessonImportModal
   | StartReorder !LessonId
   | CancelReorder
   | ReorderTo !(Reorder Lesson)
@@ -225,6 +227,11 @@ detailComponent r initialPlan =
             (WindowChrome pinTitle Icon.IcnAssignment)
             (evaluatorComponent r assignment)
 
+    update OpenLessonImportModal = do
+      m <- M.get
+      let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport) (ModalId "import-lessons") ModalWide ModalFull Nothing
+      M.io_ $ openFramedModalWith r.windowManager cfg (ImportModal.lessonImportModalComponent r m.mesoPlan.id)
+
     update (StartReorder lid) =
       M.modify $ \m -> m{reorderFrom = Just lid}
 
@@ -269,6 +276,7 @@ detailComponent r initialPlan =
             ]
         , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddLesson) CreateNewLesson)
+            , Button.ghost (Button.button (Icon.IcnImport, C.LblImportLessons) OpenLessonImportModal)
             ]
         ]
 

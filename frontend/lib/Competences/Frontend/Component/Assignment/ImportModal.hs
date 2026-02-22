@@ -9,34 +9,29 @@
 -- a markdown-like format. Shows a preview of changes before applying.
 module Competences.Frontend.Component.Assignment.ImportModal
   ( assignmentImportModalComponent
-  , Action (..)
+  , Action
   )
 where
 
-import Competences.Command qualified as Cmd
 import Competences.Command (AssignmentPatch (..), ModifyCommand (..), SolutionPatch (..), TaskPatch (..))
-import Competences.Common.IxSet qualified as Ix
+import Competences.Command qualified as Cmd
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
+import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
-import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Document.User (User (..))
-import Competences.Query.User qualified as QUser
+import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , SyncContext (..)
+  ( SyncContext (..)
   , modifySyncDocument
   , nextId
-  , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.AssignmentParser (parseAssignmentImport)
 import Competences.Import.Matching (matchAssignmentImport)
 import Competences.Import.Types
@@ -47,6 +42,7 @@ import Competences.Import.Types
   , activityTypeToGerman
   , levelToGerman
   )
+import Competences.Query.User qualified as QUser
 import Data.List (sortBy)
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Ord (comparing)
@@ -54,133 +50,34 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, defaultTimeLocale, formatTime)
-import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MP
-import Optics.Core ((.~))
 
 -- ============================================================================
--- Model
+-- Types (re-exports from generic module)
 -- ============================================================================
 
-data Model = Model
-  { inputText :: !Text
-  , parseResult :: !(Either String [AssignmentImportPreview])
-  , document :: !Document
-  }
-  deriving (Eq, Generic, Show)
-
--- ============================================================================
--- Actions
--- ============================================================================
-
-data Action
-  = DocumentUpdated !DocumentChange
-  | SetInputText !Text
-  | ParseInput
-  | ApplyImport
-  deriving (Eq, Show)
+type Action = IM.Action
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
-assignmentImportModalComponent :: SyncContext -> WindowMode -> M.Component p Model Action
-assignmentImportModalComponent r wm =
-  (M.component model update view)
-    { M.subs = [subscribeDocument r DocumentUpdated]
+assignmentImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model AssignmentImportPreview) Action
+assignmentImportModalComponent = IM.importModalComponent assignmentImportConfig
+
+assignmentImportConfig :: IM.ImportModalConfig AssignmentImportPreview
+assignmentImportConfig =
+  IM.ImportModalConfig
+    { parse = \doc input -> case parseAssignmentImport input of
+        Left err -> Left err
+        Right parsed -> Right $ matchAssignmentImport doc parsed
+    , renderItem = previewAssignmentView
+    , hasChanges = assignmentHasChanges
+    , apply = applyAssignmentImport
+    , placeholder = placeholderText
     }
-  where
-    model =
-      Model
-        { inputText = ""
-        , parseResult = Right []
-        , document = emptyDocument
-        }
-
-    emptyDocument =
-      Document
-        { competenceGrids = Ix.empty
-        , competences = Ix.empty
-        , users = Ix.empty
-        , evidences = Ix.empty
-        , locks = mempty
-        , tasks = Ix.empty
-        , taskGroups = Ix.empty
-        , solutions = Ix.empty
-        , resources = Ix.empty
-        , assignments = Ix.empty
-        , competenceAssessments = Ix.empty
-        , competenceGridGrades = Ix.empty
-        , mesoPlans = Ix.empty
-        , lessons = Ix.empty
-        , lessonNotes = Ix.empty
-        , participationRecords = Ix.empty
-        }
-
-    update (DocumentUpdated dc) =
-      M.modify $ #document .~ dc.document
-
-    update (SetInputText t) =
-      M.modify $ #inputText .~ t
-
-    update ParseInput = do
-      m <- M.get
-      let result = case parseAssignmentImport m.inputText of
-            Left err -> Left err
-            Right parsed -> Right $ matchAssignmentImport m.document parsed
-      M.modify $ #parseResult .~ result
-
-    update ApplyImport = do
-      m <- M.get
-      case m.parseResult of
-        Right previews -> M.io_ $ do
-          applyPreviews r m.document previews
-          closeWindow wm
-        Left _ -> pure ()
-
-    view :: Model -> M.View Model Action
-    view m =
-      Layout.vFlow Layout.hFull
-        [ -- Content
-          Layout.scrollContent $ Layout.padM $
-            Layout.hFlow (Layout.gapM <> Layout.hFull)
-                [ -- Left: Input area
-                  MH.div_
-                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                        [ Typography.h3 "Eingabe"
-                        , M.textarea_
-                            [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                            , MP.placeholder_ placeholderText
-                            , MP.value_ (M.ms m.inputText)
-                            , M.onInput (SetInputText . M.fromMisoString)
-                            ]
-                            []
-                        ]
-                    ]
-                , -- Right: Preview area
-                  MH.div_
-                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                        [ Typography.h3 "Vorschau"
-                        , M.div_
-                            [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                            [previewView m]
-                        ]
-                    ]
-                ]
-        , Layout.actionFooter
-            [ Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
-            , case m.parseResult of
-                Right previews
-                  | not (null previews) && any hasChanges previews ->
-                      Button.applyButton ApplyImport
-                _ -> M.text ""
-            ]
-        ]
 
 placeholderText :: M.MisoString
 placeholderText =
@@ -202,21 +99,7 @@ placeholderText =
 -- Preview View
 -- ============================================================================
 
-previewView :: Model -> M.View Model Action
-previewView m = case m.parseResult of
-  Left err ->
-    M.div_
-      [class_ "text-destructive"]
-      [M.text $ M.ms $ "Fehler: " <> err]
-  Right [] ->
-    M.div_
-      [class_ "text-muted-foreground italic"]
-      [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
-  Right previews ->
-    Layout.vFlow Layout.gapM
-      (map previewAssignmentView previews)
-
-previewAssignmentView :: AssignmentImportPreview -> M.View Model Action
+previewAssignmentView :: AssignmentImportPreview -> M.View (IM.Model AssignmentImportPreview) IM.Action
 previewAssignmentView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
@@ -225,7 +108,7 @@ previewAssignmentView preview =
         [class_ "mb-2"]
         [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
             [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ assignmentName preview.assignmentAction]
-            , actionBadge preview.assignmentAction
+            , IM.actionBadge preview.assignmentAction
             ]
         ]
     , -- Assignment metadata
@@ -242,7 +125,6 @@ previewAssignmentView preview =
             (map previewTaskView $ sortBy (comparing taskIdentifier) preview.taskPreviews)
     ]
 
--- | Extract task identifier from TaskImportPreview for sorting
 taskIdentifier :: TaskImportPreview -> TaskIdentifier
 taskIdentifier tp = case tp.taskAction of
   Create t -> t.identifier
@@ -265,13 +147,13 @@ formatMetadata action =
 formatDay :: Day -> Text
 formatDay = T.pack . formatTime defaultTimeLocale "%Y-%m-%d"
 
-previewTaskView :: TaskImportPreview -> M.View Model Action
+previewTaskView :: TaskImportPreview -> M.View (IM.Model AssignmentImportPreview) IM.Action
 previewTaskView preview =
   M.div_
     [class_ "py-1"]
     [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ M.span_ [class_ "font-medium text-sm"] [M.text $ M.ms $ taskTitle preview.taskAction]
-        , actionBadge preview.taskAction
+        , IM.actionBadge preview.taskAction
         ]
     , -- Solutions count
       if null preview.solutionActions
@@ -294,7 +176,7 @@ taskTitle (Create t) = let TaskIdentifier ident = t.identifier in ident
 taskTitle (Update _ t) = let TaskIdentifier ident = t.identifier in ident
 taskTitle (NoChange t) = let TaskIdentifier ident = t.identifier in ident
 
-competenceMatchView :: CompetenceMatch -> M.View Model Action
+competenceMatchView :: CompetenceMatch -> M.View (IM.Model AssignmentImportPreview) IM.Action
 competenceMatchView cm =
   M.div_
     [class_ "flex items-center gap-1 text-xs"]
@@ -307,39 +189,38 @@ competenceMatchView cm =
         Nothing -> Badge.destructive (Badge.badgeText "?")
     ]
 
-actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = Badge.primary (Badge.badgeText "Neu")
-actionBadge (Update _ _) = Badge.secondary (Badge.badgeText "Aktualisiert")
-actionBadge (NoChange _) = Badge.outline (Badge.badgeText "Unverändert")
+-- ============================================================================
+-- Change Detection
+-- ============================================================================
+
+assignmentHasChanges :: AssignmentImportPreview -> Bool
+assignmentHasChanges preview =
+  isChange preview.assignmentAction
+    || any taskHasChanges preview.taskPreviews
+
+isChange :: ImportAction a -> Bool
+isChange (Create _) = True
+isChange (Update _ _) = True
+isChange (NoChange _) = False
+
+taskHasChanges :: TaskImportPreview -> Bool
+taskHasChanges tp =
+  isChange tp.taskAction
+    || any isChange tp.solutionActions
 
 -- ============================================================================
 -- Apply Import
 -- ============================================================================
 
-hasChanges :: AssignmentImportPreview -> Bool
-hasChanges preview =
-  isChange preview.assignmentAction
-    || any taskHasChanges preview.taskPreviews
-  where
-    isChange (Create _) = True
-    isChange (Update _ _) = True
-    isChange (NoChange _) = False
+applyAssignmentImport :: SyncContext -> WindowMode -> Document -> [AssignmentImportPreview] -> IO ()
+applyAssignmentImport r wm doc previews = do
+  mapM_ (applyAssignmentPreview r doc) previews
+  closeWindow wm
 
-    taskHasChanges tp =
-      isChange tp.taskAction
-        || any isChange tp.solutionActions
-
--- | Apply all assignment import previews
-applyPreviews :: SyncContext -> Document -> [AssignmentImportPreview] -> IO ()
-applyPreviews r doc previews = mapM_ (applyAssignmentPreview r doc) previews
-
--- | Apply a single assignment import preview
 applyAssignmentPreview :: SyncContext -> Document -> AssignmentImportPreview -> IO ()
 applyAssignmentPreview r doc preview = do
-  -- First, apply all tasks and collect their IDs
   taskIds <- mapM (applyTaskAndGetId r doc) preview.taskPreviews
 
-  -- Then create/update the assignment with the task IDs
   case preview.assignmentAction of
     Create a -> do
       newId <- nextId r
@@ -350,7 +231,7 @@ applyAssignmentPreview r doc preview = do
               , description = a.description
               , assignmentDate = a.assignmentDate
               , activityType = a.activityType
-              , studentIds = Set.empty -- Start with no students
+              , studentIds = Set.empty
               , tasks = taskIds
               }
       modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
@@ -360,20 +241,15 @@ applyAssignmentPreview r doc preview = do
       modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()
 
--- | Apply a task preview and return its ID
 applyTaskAndGetId :: SyncContext -> Document -> TaskImportPreview -> IO (Id Task)
 applyTaskAndGetId r doc preview = do
-  -- Find a teacher to use as solution author
   let teachers = QUser.teachers doc
       mTeacherId = (.id) <$> listToMaybe teachers
-
-  -- Extract matched competence IDs from competence matches
-  let matchedCompetences = mapMaybe (\cm -> cm.matched) preview.competenceMatches
+      matchedCompetences = mapMaybe (.matched) preview.competenceMatches
 
   taskId <- case preview.taskAction of
     Create t -> do
       newId <- nextId r
-      -- Set matched competences as primary competences
       let taskAttrs =
             TaskAttributes
               { primary = matchedCompetences
@@ -397,12 +273,9 @@ applyTaskAndGetId r doc preview = do
       pure old.id
     NoChange t -> pure t.id
 
-  -- Apply solutions
   mapM_ (applySolutionAction r taskId mTeacherId) preview.solutionActions
-
   pure taskId
 
--- | Apply a single solution import action
 applySolutionAction :: SyncContext -> Id Task -> Maybe (Id User) -> ImportAction Solution -> IO ()
 applySolutionAction r taskId mTeacherId action = case action of
   Create s -> case mTeacherId of
@@ -428,7 +301,6 @@ applySolutionAction r taskId mTeacherId action = case action of
 -- Patch Builders
 -- ============================================================================
 
--- | Build assignment patch from old and new values
 buildAssignmentPatch :: Assignment -> Assignment -> [Id Task] -> AssignmentPatch
 buildAssignmentPatch old new taskIds =
   AssignmentPatch
@@ -436,11 +308,10 @@ buildAssignmentPatch old new taskIds =
     , description = if old.description == new.description then Nothing else Just (old.description, new.description)
     , assignmentDate = if old.assignmentDate == new.assignmentDate then Nothing else Just (old.assignmentDate, new.assignmentDate)
     , activityType = if old.activityType == new.activityType then Nothing else Just (old.activityType, new.activityType)
-    , studentIds = Nothing -- Don't change student assignments during import
+    , studentIds = Nothing
     , tasks = if old.tasks == taskIds then Nothing else Just (old.tasks, taskIds)
     }
 
--- | Build task patch from old and new values, with matched competences
 buildTaskPatch :: Task -> Task -> [CompetenceLevelId] -> TaskPatch
 buildTaskPatch old new matchedCompetences =
   let oldPrimary = getTaskPrimary old
@@ -448,18 +319,16 @@ buildTaskPatch old new matchedCompetences =
         { identifier = if old.identifier == new.identifier then Nothing else Just (old.identifier, new.identifier)
         , content = if old.content == new.content then Nothing else Just (old.content, new.content)
         , primary = if oldPrimary == matchedCompetences then Nothing else Just (oldPrimary, matchedCompetences)
-        , secondary = Nothing -- Keep secondary unchanged
-        , purpose = Nothing -- Preserve existing purpose
+        , secondary = Nothing
+        , purpose = Nothing
         , displayInResources = Nothing
         }
 
--- | Extract primary competences from a task
 getTaskPrimary :: Task -> [CompetenceLevelId]
 getTaskPrimary task = case task.taskType of
   SelfContained attrs -> attrs.primary
-  SubTask _ _ -> [] -- SubTasks handled differently, not expected in import
+  SubTask _ _ -> []
 
--- | Build solution patch from old and new values
 buildSolutionPatch :: Solution -> Solution -> SolutionPatch
 buildSolutionPatch old new =
   SolutionPatch

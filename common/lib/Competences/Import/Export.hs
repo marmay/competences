@@ -13,11 +13,18 @@ module Competences.Import.Export
 
     -- * Assignment Export
   , exportAssignment
+
+    -- * Resource Export
+  , exportResource
+
+    -- * Lesson Export
+  , exportLesson
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
+import Competences.Document.Id (Id)
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence
   ( Competence (..)
@@ -27,7 +34,9 @@ import Competences.Document.Competence
   , allLevels
   )
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
+import Competences.Document.Lesson (Lesson (..), LessonPhase (..))
 import Competences.Document.Order (Order)
+import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Solution (Solution (..), SolutionType (..))
 import Competences.Document.Task
   ( Task (..)
@@ -37,7 +46,7 @@ import Competences.Document.Task
   , TaskIdentifier (..)
   , TaskType (..)
   )
-import Competences.Import.Types (activityTypeToGerman, levelToGerman)
+import Competences.Import.Types (actionFormToGerman, activityTypeToGerman, levelToGerman, socialFormToGerman)
 import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -194,3 +203,103 @@ exportSolution sol =
    in if T.null (T.strip raw)
         then ""
         else "\n#### " <> sectionName <> "\n" <> T.strip raw <> "\n"
+
+-- ============================================================================
+-- Resource Export
+-- ============================================================================
+
+-- | Export a resource to markdown format
+--
+-- Format:
+-- @
+-- # Resource Identifier
+--
+-- ## Inhalt
+-- Rich text content...
+--
+-- ## Kompetenzen
+-- - GridName / CompetenceDesc / Wesentlich
+-- @
+exportResource :: Document -> Resource -> Text
+exportResource doc resource =
+  let ResourceIdentifier ident = resource.identifier
+      header = "# " <> ident <> "\n"
+      contentSection = case resource.content of
+        InlineContent rc ->
+          let raw = toRawText rc
+           in if T.null (T.strip raw) then "" else "\n## Inhalt\n" <> T.strip raw <> "\n"
+        WebLink url desc -> "\n## Inhalt\nLink: " <> url <> " (" <> desc <> ")\n"
+        VideoLink url desc -> "\n## Inhalt\nVideo: " <> url <> " (" <> desc <> ")\n"
+      competenceSection =
+        let refs = mapMaybe (formatCompetenceRef doc) resource.competenceLevels
+         in if null refs
+              then ""
+              else "\n## Kompetenzen\n" <> T.intercalate "\n" refs <> "\n"
+   in header <> contentSection <> competenceSection
+
+-- ============================================================================
+-- Lesson Export
+-- ============================================================================
+
+-- | Export a lesson to markdown format
+exportLesson :: Document -> Lesson -> Text
+exportLesson doc lesson =
+  let header = "# " <> lesson.title <> "\n"
+      dateSection = case lesson.date of
+        Just d -> "\n## Angaben\nDate: " <> formatDay d <> "\n"
+        Nothing -> ""
+      descSection =
+        let raw = toRawText lesson.description
+         in if T.null (T.strip raw) then "" else "\n## Beschreibung\n" <> T.strip raw <> "\n"
+      competenceSection =
+        let refs = mapMaybe (formatCompetenceRef doc) lesson.competenceLevels
+         in if null refs
+              then ""
+              else "\n## Kompetenzen\n" <> T.intercalate "\n" refs <> "\n"
+      resourceSection =
+        let resItems = mapMaybe (lookupResourceIdentifier doc) lesson.resources
+         in if null resItems
+              then ""
+              else "\n## Materialien\n" <> T.intercalate "\n" (map ("- " <>) resItems) <> "\n"
+      assignmentSection =
+        let asgItems = mapMaybe (lookupAssignmentName doc) lesson.assignments
+         in if null asgItems
+              then ""
+              else "\n## Aufgaben\n" <> T.intercalate "\n" (map ("- " <>) asgItems) <> "\n"
+      phaseSection =
+        if null lesson.phases
+          then ""
+          else "\n## Phasen\n" <> T.intercalate "\n" (map exportPhase lesson.phases) <> "\n"
+      notesSection =
+        let raw = toRawText lesson.notes
+         in if T.null (T.strip raw) then "" else "\n## Notizen\n" <> T.strip raw <> "\n"
+   in header <> dateSection <> descSection <> competenceSection
+        <> resourceSection <> assignmentSection <> phaseSection <> notesSection
+
+-- | Export a single lesson phase
+exportPhase :: LessonPhase -> Text
+exportPhase phase =
+  let escapedTitle = T.replace "/" "\\/" phase.title
+      phaseHeader =
+        "- " <> escapedTitle
+          <> " / " <> socialFormToGerman phase.socialForm
+          <> " / " <> actionFormToGerman phase.actionForm
+          <> " / " <> T.pack (show phase.duration) <> " min"
+      notesRaw = toRawText phase.notes
+   in if T.null (T.strip notesRaw)
+        then phaseHeader
+        else phaseHeader <> "\n  " <> T.replace "\n" "\n  " (T.strip notesRaw)
+
+-- | Look up resource identifier by ID
+lookupResourceIdentifier :: Document -> Id Resource -> Maybe Text
+lookupResourceIdentifier doc rid = do
+  res <- Ix.getOne $ doc.resources Ix.@= rid
+  let ResourceIdentifier ident = res.identifier
+  pure ident
+
+-- | Look up assignment name by ID
+lookupAssignmentName :: Document -> Id Assignment -> Maybe Text
+lookupAssignmentName doc aid = do
+  asg <- Ix.getOne $ doc.assignments Ix.@= aid
+  let AssignmentName name = asg.name
+  pure name

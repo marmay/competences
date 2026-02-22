@@ -227,6 +227,8 @@ data Label
   | LblImportCompetenceGrids
   | LblImportTasks
   | LblImportAssignments
+  | LblImportResources
+  | LblImportLessons
   | LblExport
     -- Analytics
   | LblMasteryStreakTwoAssessed
@@ -516,6 +518,8 @@ labels' =
   , LblImportCompetenceGrids
   , LblImportTasks
   , LblImportAssignments
+  , LblImportResources
+  , LblImportLessons
   , LblExport
     -- Analytics
   , LblMasteryStreakTwoAssessed
@@ -837,6 +841,8 @@ defaultTranslation LblCreate = "Erstellen"
 defaultTranslation LblImportCompetenceGrids = "Kompetenzraster importieren"
 defaultTranslation LblImportTasks = "Aufgaben importieren"
 defaultTranslation LblImportAssignments = "Aufgaben importieren"
+defaultTranslation LblImportResources = "Materialien importieren"
+defaultTranslation LblImportLessons = "Stunden importieren"
 defaultTranslation LblExport = "Exportieren"
 -- Analytics
 defaultTranslation LblMasteryStreakTwoAssessed = "Überprüfungsbereit (++2)"

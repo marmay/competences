@@ -21,6 +21,13 @@ module Competences.Import.Types
     -- * Parsed Assignment Types
   , ParsedAssignment (..)
 
+    -- * Parsed Resource Types
+  , ParsedResource (..)
+
+    -- * Parsed Lesson Types
+  , ParsedLesson (..)
+  , ParsedLessonPhase (..)
+
     -- * Import Actions (Diff/Preview)
   , ImportAction (..)
   , GridImportPreview (..)
@@ -28,12 +35,18 @@ module Competences.Import.Types
   , TaskImportPreview (..)
   , CompetenceMatch (..)
   , AssignmentImportPreview (..)
+  , ResourceImportPreview (..)
+  , LessonImportPreview (..)
 
     -- * Utilities
   , levelFromGerman
   , levelToGerman
   , activityTypeFromGerman
   , activityTypeToGerman
+  , socialFormFromGerman
+  , socialFormToGerman
+  , actionFormFromGerman
+  , actionFormToGerman
   )
 where
 
@@ -45,6 +58,8 @@ import Competences.Document.Competence
   , Level (..)
   )
 import Competences.Document.CompetenceGrid (CompetenceGrid)
+import Competences.Document.Lesson (ActionForm (..), Lesson, TeachingSocialForm (..))
+import Competences.Document.Resource (Resource)
 import Competences.Document.Solution (Solution, SolutionType (..))
 import Competences.Document.Task (Task, TaskIdentifier (..))
 import Data.Map.Strict (Map)
@@ -193,6 +208,81 @@ data AssignmentImportPreview = AssignmentImportPreview
   }
   deriving (Eq, Show, Generic)
 
+-- | Preview of resource import changes
+data ResourceImportPreview = ResourceImportPreview
+  { resourceAction :: !(ImportAction Resource)
+  -- ^ Action for the resource itself
+  , competenceMatches :: ![CompetenceMatch]
+  -- ^ Competence matching results
+  }
+  deriving (Eq, Show, Generic)
+
+-- | Preview of lesson import changes
+data LessonImportPreview = LessonImportPreview
+  { lessonAction :: !(ImportAction Lesson)
+  -- ^ Action for the lesson itself
+  , competenceMatches :: ![CompetenceMatch]
+  -- ^ Competence matching results
+  , parsedPhases :: ![ParsedLessonPhase]
+  -- ^ Parsed phases for preview display
+  }
+  deriving (Eq, Show, Generic)
+
+-- ============================================================================
+-- Parsed Resource Types
+-- ============================================================================
+
+-- | A parsed resource from import format
+data ParsedResource = ParsedResource
+  { identifier :: !Text
+  -- ^ Resource identifier (from # heading)
+  , replacesIdentifier :: !(Maybe Text)
+  -- ^ Original identifier if renaming (from "Ersetzt:" clause)
+  , content :: !Text
+  -- ^ Inline content (from ## Inhalt section)
+  , competenceRefs :: ![(Text, Text, Level)]
+  -- ^ Competence references (gridName, description, level)
+  }
+  deriving (Eq, Show, Generic)
+
+-- ============================================================================
+-- Parsed Lesson Types
+-- ============================================================================
+
+-- | A parsed lesson from import format
+data ParsedLesson = ParsedLesson
+  { title :: !Text
+  -- ^ Lesson title (from # heading)
+  , replacesTitle :: !(Maybe Text)
+  -- ^ Original title if renaming (from "Ersetzt:" clause)
+  , description :: !Text
+  -- ^ Description (from ## Beschreibung section)
+  , date :: !(Maybe Day)
+  -- ^ Date (from ## Angaben section)
+  , competenceRefs :: ![(Text, Text, Level)]
+  -- ^ Competence references (from ## Kompetenzen section)
+  , resourceIdentifiers :: ![Text]
+  -- ^ Resource identifiers (from ## Materialien section)
+  , assignmentNames :: ![Text]
+  -- ^ Assignment names (from ## Aufgaben section)
+  , phases :: ![ParsedLessonPhase]
+  -- ^ Lesson phases (from ## Phasen section)
+  , notes :: !Text
+  -- ^ Notes (from ## Notizen section)
+  }
+  deriving (Eq, Show, Generic)
+
+-- | A parsed lesson phase
+data ParsedLessonPhase = ParsedLessonPhase
+  { title :: !Text
+  , socialForm :: !TeachingSocialForm
+  , actionForm :: !ActionForm
+  , duration :: !Int
+  -- ^ Duration in minutes
+  , notes :: !Text
+  }
+  deriving (Eq, Show, Generic)
+
 -- ============================================================================
 -- Level Utilities
 -- ============================================================================
@@ -233,3 +323,39 @@ activityTypeToGerman Conversation = "Gespräch"
 activityTypeToGerman Exam = "Prüfung"
 activityTypeToGerman SchoolExercise = "Schulübung"
 activityTypeToGerman HomeExercise = "Hausübung"
+
+-- ============================================================================
+-- Social Form Utilities
+-- ============================================================================
+
+-- | Parse German social form name
+socialFormFromGerman :: Text -> Maybe TeachingSocialForm
+socialFormFromGerman "Plenum" = Just WholeClass
+socialFormFromGerman "Gruppenarbeit" = Just SmallGroups
+socialFormFromGerman "Partnerarbeit" = Just PairWork
+socialFormFromGerman "Einzelarbeit" = Just IndividualWork
+socialFormFromGerman _ = Nothing
+
+-- | Convert TeachingSocialForm to German name
+socialFormToGerman :: TeachingSocialForm -> Text
+socialFormToGerman WholeClass = "Plenum"
+socialFormToGerman SmallGroups = "Gruppenarbeit"
+socialFormToGerman PairWork = "Partnerarbeit"
+socialFormToGerman IndividualWork = "Einzelarbeit"
+
+-- ============================================================================
+-- Action Form Utilities
+-- ============================================================================
+
+-- | Parse German action form name
+actionFormFromGerman :: Text -> Maybe ActionForm
+actionFormFromGerman "Darbietend" = Just Presenting
+actionFormFromGerman "Zusammenwirkend" = Just Collaborating
+actionFormFromGerman "Aufgebend" = Just Assigning
+actionFormFromGerman _ = Nothing
+
+-- | Convert ActionForm to German name
+actionFormToGerman :: ActionForm -> Text
+actionFormToGerman Presenting = "Darbietend"
+actionFormToGerman Collaborating = "Zusammenwirkend"
+actionFormToGerman Assigning = "Aufgebend"

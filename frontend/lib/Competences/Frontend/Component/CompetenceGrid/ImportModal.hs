@@ -9,31 +9,27 @@
 -- format. Shows a preview of changes before applying.
 module Competences.Frontend.Component.CompetenceGrid.ImportModal
   ( competenceGridImportModalComponent
-  , Action (..)
+  , Action
   )
 where
 
 import Competences.Command (CompetencePatch (..), LevelInfoPatch (..), ModifyCommand (..))
 import Competences.Command qualified as Cmd
-import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Competence (Competence (..), Level (..), LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Order (orderMax)
+import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
-  ( DocumentChange (..)
-  , SyncContext (..)
+  ( SyncContext (..)
   , modifySyncDocument
   , nextId
-  , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Import.CompetenceGridParser (parseGridImport)
 import Competences.Import.Matching (matchGridImport)
 import Competences.Import.Types
@@ -46,153 +42,39 @@ import Competences.Import.Types
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
-import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MP
-import Optics.Core ((.~))
 
 -- ============================================================================
--- Model
+-- Types (re-exports from generic module)
 -- ============================================================================
 
-data Model = Model
-  { inputText :: !Text
-  , parseResult :: !(Either String [GridImportPreview])
-  , document :: !Document
-  }
-  deriving (Eq, Generic, Show)
-
--- ============================================================================
--- Actions
--- ============================================================================
-
-data Action
-  = DocumentUpdated !DocumentChange
-  | SetInputText !Text
-  | ParseInput
-  | ApplyImport
-  deriving (Eq, Show)
+type Action = IM.Action
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
-competenceGridImportModalComponent :: SyncContext -> WindowMode -> M.Component p Model Action
-competenceGridImportModalComponent r wm =
-  (M.component model update view)
-    { M.subs = [subscribeDocument r DocumentUpdated]
+competenceGridImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model GridImportPreview) Action
+competenceGridImportModalComponent = IM.importModalComponent gridImportConfig
+
+gridImportConfig :: IM.ImportModalConfig GridImportPreview
+gridImportConfig =
+  IM.ImportModalConfig
+    { parse = \doc input -> case parseGridImport input of
+        Left err -> Left err
+        Right parsed -> Right $ matchGridImport doc parsed
+    , renderItem = previewGridView
+    , hasChanges = gridHasChanges
+    , apply = applyGridImport
+    , placeholder = "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
     }
-  where
-    model =
-      Model
-        { inputText = ""
-        , parseResult = Right []
-        , document = emptyDocument
-        }
-
-    emptyDocument =
-      Document
-        { competenceGrids = Ix.empty
-        , competences = Ix.empty
-        , users = Ix.empty
-        , evidences = Ix.empty
-        , locks = mempty
-        , tasks = Ix.empty
-        , taskGroups = Ix.empty
-        , solutions = Ix.empty
-        , resources = Ix.empty
-        , assignments = Ix.empty
-        , competenceAssessments = Ix.empty
-        , competenceGridGrades = Ix.empty
-        , mesoPlans = Ix.empty
-        , lessons = Ix.empty
-        , lessonNotes = Ix.empty
-        , participationRecords = Ix.empty
-        }
-
-    update (DocumentUpdated dc) =
-      M.modify $ #document .~ dc.document
-
-    update (SetInputText t) =
-      M.modify $ #inputText .~ t
-
-    update ParseInput = do
-      m <- M.get
-      let result = case parseGridImport m.inputText of
-            Left err -> Left err
-            Right parsed -> Right $ matchGridImport m.document parsed
-      M.modify $ #parseResult .~ result
-
-    update ApplyImport = do
-      m <- M.get
-      case m.parseResult of
-        Right previews -> do
-          M.io_ $ do
-            applyPreviews r m.document previews
-            closeWindow wm
-        Left _ -> pure ()
-
-    view :: Model -> M.View Model Action
-    view m =
-      Layout.vFlow Layout.hFull
-        [ -- Content
-          Layout.scrollContent $ Layout.padM $ Layout.hFlow (Layout.gapM <> Layout.hFull)
-                [ -- Left: Input area
-                  MH.div_
-                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                        [ Typography.h3 "Eingabe"
-                        , M.textarea_
-                            [ class_ "flex-1 min-h-0 w-full p-3 font-mono text-sm border border-input rounded-md bg-background resize-none"
-                            , MP.placeholder_ "# Rastername\n\n## Kompetenzbeschreibung\n- Wesentlich: ...\n- Mittelstufe: ...\n- Fortgeschritten: ..."
-                            , MP.value_ (M.ms m.inputText)
-                            , M.onInput (SetInputText . M.fromMisoString)
-                            ]
-                            []
-                        ]
-                    ]
-                , -- Right: Preview area
-                  MH.div_
-                    [class_ "min-h-0 flex-1 w-1/2 h-full"]
-                    [ Layout.vFlow (Layout.gapS <> Layout.hFull)
-                        [ Typography.h3 "Vorschau"
-                        , M.div_
-                            [class_ "flex-1 min-h-0 overflow-y-auto border border-border rounded-md p-3 bg-muted/30"]
-                            [previewView m]
-                        ]
-                    ]
-                ]
-        , Layout.actionFooter
-            [ Button.primary (Button.button ("Vorschau" :: M.MisoString) ParseInput)
-            , case m.parseResult of
-                Right previews
-                  | not (null previews) && any hasChanges previews ->
-                      Button.applyButton ApplyImport
-                _ -> M.text ""
-            ]
-        ]
 
 -- ============================================================================
 -- Preview View
 -- ============================================================================
 
-previewView :: Model -> M.View Model Action
-previewView m = case m.parseResult of
-  Left err ->
-    M.div_
-      [class_ "text-destructive"]
-      [M.text $ M.ms $ "Fehler: " <> err]
-  Right [] ->
-    M.div_
-      [class_ "text-muted-foreground italic"]
-      [M.text "Keine Eingabe. Geben Sie Text ein und klicken Sie auf 'Vorschau'."]
-  Right previews ->
-    Layout.vFlow Layout.gapM
-      (map previewGridView previews)
-
-previewGridView :: GridImportPreview -> M.View Model Action
+previewGridView :: GridImportPreview -> M.View (IM.Model GridImportPreview) IM.Action
 previewGridView preview =
   M.div_
     [class_ "border border-border rounded-md p-3"]
@@ -201,7 +83,7 @@ previewGridView preview =
         [ Layout.hFlow
             (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
             [ M.span_ [class_ "font-semibold"] [M.text $ M.ms $ gridTitle preview.gridAction]
-            , actionBadge preview.gridAction
+            , IM.actionBadge preview.gridAction
             ]
         ]
     , Layout.vFlow Layout.gapS
@@ -210,8 +92,7 @@ previewGridView preview =
         )
     ]
 
--- | Preview for a competence that will be deleted
-previewDeletedCompetence :: Competence -> M.View Model Action
+previewDeletedCompetence :: Competence -> M.View (IM.Model GridImportPreview) IM.Action
 previewDeletedCompetence c =
   M.div_
     [class_ "pl-4 border-l-2 border-destructive/50"]
@@ -229,7 +110,7 @@ gridTitle (Create g) = g.title
 gridTitle (Update _ g) = g.title
 gridTitle (NoChange g) = g.title
 
-previewCompetenceView :: CompetenceImportAction -> M.View Model Action
+previewCompetenceView :: CompetenceImportAction -> M.View (IM.Model GridImportPreview) IM.Action
 previewCompetenceView ca =
   M.div_
     [class_ "pl-4 border-l-2 border-border"]
@@ -238,14 +119,14 @@ previewCompetenceView ca =
         [ M.span_
             [class_ "font-medium text-sm"]
             [M.text $ M.ms ca.parsedCompetence.description]
-        , actionBadge ca.action
+        , IM.actionBadge ca.action
         ]
     , M.div_
         [class_ "text-xs text-muted-foreground mt-1"]
         (levelPreview ca.parsedCompetence.levels)
     ]
 
-levelPreview :: Map.Map Level Text -> [M.View Model Action]
+levelPreview :: Map.Map Level Text -> [M.View (IM.Model GridImportPreview) IM.Action]
 levelPreview levels =
   map levelItem [BasicLevel, IntermediateLevel, AdvancedLevel]
   where
@@ -260,33 +141,32 @@ levelPreview levels =
           , M.text $ M.ms $ T.take 40 desc <> if T.length desc > 40 then "..." else ""
           ]
 
-actionBadge :: ImportAction a -> M.View Model Action
-actionBadge (Create _) = Badge.primary (Badge.badgeText "Neu")
-actionBadge (Update _ _) = Badge.secondary (Badge.badgeText "Aktualisiert")
-actionBadge (NoChange _) = Badge.outline (Badge.badgeText "Unverändert")
+-- ============================================================================
+-- Change Detection
+-- ============================================================================
+
+gridHasChanges :: GridImportPreview -> Bool
+gridHasChanges preview =
+  isChange preview.gridAction
+    || any (\ca -> isChange ca.action) preview.competenceActions
+    || not (null preview.competencesToDelete)
+
+isChange :: ImportAction a -> Bool
+isChange (Create _) = True
+isChange (Update _ _) = True
+isChange (NoChange _) = False
 
 -- ============================================================================
 -- Apply Import
 -- ============================================================================
 
-hasChanges :: GridImportPreview -> Bool
-hasChanges preview =
-  isChange preview.gridAction
-    || any (\ca -> isChange ca.action) preview.competenceActions
-    || not (null preview.competencesToDelete)
-  where
-    isChange (Create _) = True
-    isChange (Update _ _) = True
-    isChange (NoChange _) = False
+applyGridImport :: SyncContext -> WindowMode -> Document -> [GridImportPreview] -> IO ()
+applyGridImport r wm doc previews = do
+  mapM_ (applyGridPreview r doc) previews
+  closeWindow wm
 
--- | Apply all grid import previews
-applyPreviews :: SyncContext -> Document -> [GridImportPreview] -> IO ()
-applyPreviews r doc previews = mapM_ (applyGridPreview r doc) previews
-
--- | Apply a single grid import preview
 applyGridPreview :: SyncContext -> Document -> GridImportPreview -> IO ()
 applyGridPreview r _doc preview = do
-  -- Handle grid action
   gridId <- case preview.gridAction of
     Create g -> do
       newId <- nextId r
@@ -299,21 +179,16 @@ applyGridPreview r _doc preview = do
               }
       modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create newGrid)
       pure newId
-    Update _old new -> pure new.id -- Grid updates not yet implemented
+    Update _old new -> pure new.id
     NoChange g -> pure g.id
 
-  -- Handle competence actions (create/update)
   mapM_ (applyCompetenceAction r gridId) preview.competenceActions
-
-  -- Delete competences not in the import
   mapM_ (deleteCompetence r) preview.competencesToDelete
 
--- | Delete a competence
 deleteCompetence :: SyncContext -> Competence -> IO ()
 deleteCompetence r c =
   modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Delete c.id)
 
--- | Apply a single competence import action
 applyCompetenceAction :: SyncContext -> Id CompetenceGrid -> CompetenceImportAction -> IO ()
 applyCompetenceAction r gridId ca = case ca.action of
   Create c -> do
@@ -333,7 +208,6 @@ applyCompetenceAction r gridId ca = case ca.action of
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()
 
--- | Build a CompetencePatch from old and new Competence values
 buildCompetencePatch :: Competence -> Competence -> CompetencePatch
 buildCompetencePatch old new =
   CompetencePatch
@@ -344,7 +218,6 @@ buildCompetencePatch old new =
     , levels = buildLevelPatches old.levels new.levels
     }
 
--- | Build level patches for all levels that have changes
 buildLevelPatches :: Map.Map Level LevelInfo -> Map.Map Level LevelInfo -> Map.Map Level LevelInfoPatch
 buildLevelPatches oldLevels newLevels =
   Map.mapMaybe id $
@@ -352,7 +225,6 @@ buildLevelPatches oldLevels newLevels =
       (Map.mapWithKey (buildLevelPatch oldLevels) newLevels)
       (Map.mapWithKey (buildDeletedLevelPatch newLevels) oldLevels)
   where
-    -- Build patch for level present in new (may need update)
     buildLevelPatch :: Map.Map Level LevelInfo -> Level -> LevelInfo -> Maybe LevelInfoPatch
     buildLevelPatch olds lvl newInfo =
       let oldInfo = Map.findWithDefault emptyLevelInfo lvl olds
@@ -368,11 +240,10 @@ buildLevelPatches oldLevels newLevels =
             then Nothing
             else Just LevelInfoPatch {description = descChange, locked = lockChange}
 
-    -- Handle levels that exist in old but not in new (clear them)
     buildDeletedLevelPatch :: Map.Map Level LevelInfo -> Level -> LevelInfo -> Maybe LevelInfoPatch
     buildDeletedLevelPatch news lvl oldInfo =
       if Map.member lvl news
-        then Nothing -- Will be handled by buildLevelPatch
+        then Nothing
         else
           Just
             LevelInfoPatch
@@ -380,7 +251,6 @@ buildLevelPatches oldLevels newLevels =
               , locked = Just (oldInfo.locked, False)
               }
 
-    -- Merge patches (prefer non-Nothing)
     mergeLevelPatch :: Maybe LevelInfoPatch -> Maybe LevelInfoPatch -> Maybe LevelInfoPatch
     mergeLevelPatch (Just p) _ = Just p
     mergeLevelPatch _ p = p

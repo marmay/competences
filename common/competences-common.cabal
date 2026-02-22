@@ -70,8 +70,10 @@ library
         Competences.Import.AssignmentParser
         Competences.Import.CompetenceGridParser
         Competences.Import.Export
+        Competences.Import.LessonParser
         Competences.Import.Matching
         Competences.Import.ParserUtils
+        Competences.Import.ResourceParser
         Competences.Import.TaskParser
         Competences.Import.Types
         Competences.Protocol

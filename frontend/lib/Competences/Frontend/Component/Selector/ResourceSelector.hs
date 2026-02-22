@@ -8,13 +8,15 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Resource (..), ResourceContent (..), ResourceIxs)
 import Competences.Document.Resource (ResourceIdentifier (..), mkResource)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Resource.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModalWith)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -46,6 +48,7 @@ data Action
   | CloseDropdown
   | SetSearchQuery !Text
   | UpdateDocument !DocumentChange
+  | OpenImportModal
   deriving (Eq, Show)
 
 resourceSelectorComponent
@@ -93,6 +96,11 @@ resourceSelectorComponent r parentLens =
             , newItem = validatedNew
             }
 
+    update OpenImportModal = do
+      M.modify $ #dropdownOpen .~ False
+      let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportResources) Icon.IcnImport) (ModalId "import-resources") ModalWide ModalFull Nothing
+      M.io_ $ openFramedModalWith r.windowManager cfg (ImportModal.resourceImportModalComponent r)
+
     createResource content = M.withSink $ \s -> do
       resourceId <- nextId r
       let newResource = (mkResource resourceId) {content = content}
@@ -112,6 +120,7 @@ resourceSelectorComponent r parentLens =
                 [ SL.dropdownItem Icon.IcnResources (C.translate' C.LblInlineContent) CreateInlineResource
                 , SL.dropdownItem Icon.IcnLink (C.translate' C.LblWebLink) CreateWebLinkResource
                 , SL.dropdownItem Icon.IcnVideo (C.translate' C.LblVideoLink) CreateVideoLinkResource
+                , SL.dropdownItem Icon.IcnImport (C.translate' C.LblImportResources) OpenImportModal
                 ]
             , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterResources) (SetSearchQuery . M.fromMisoString)
             , viewItems m
