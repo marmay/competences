@@ -29,6 +29,15 @@ import Competences.Document.Task
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
+import Competences.Frontend.Component.PrintEngine.Modal
+  ( PrintModalAction (..)
+  , PrintModalModel (..)
+  , defaultPrintModalModel
+  , printModalView
+  , updatePrintModal
+  )
+import Competences.Frontend.Component.PrintEngine.Types (PrintSettings (..), defaultPrintSettings)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.TaskResource
@@ -55,6 +64,7 @@ import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -68,6 +78,7 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Proxy (Proxy (..))
+import Control.Concurrent (threadDelay)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.DSL (jsg, (#))
@@ -174,6 +185,8 @@ data ViewerModel = ViewerModel
   , printDropdownOpen :: !Bool
   , printPending :: !Bool
   , expandedTaskResources :: !(Set.Set TaskId)
+  , pagePrintModal :: !(Maybe PrintModalModel)
+  , pagePrintPending :: !(Maybe PrintSettings)
   }
   deriving (Eq, Generic, Show)
 
@@ -185,6 +198,9 @@ data ViewerAction
   | ExecutePrint
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
+  | OpenPagePrintModal
+  | PagePrintMsg !PrintModalAction
+  | ClearPagePrint
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -201,6 +217,8 @@ viewerComponent r user assignment wm =
       , printDropdownOpen = False
       , printPending = False
       , expandedTaskResources = Set.empty
+      , pagePrintModal = Nothing
+      , pagePrintPending = Nothing
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -292,6 +310,32 @@ viewerComponent r user assignment wm =
                 else Set.insert taskId m.expandedTaskResources
          in m & #expandedTaskResources .~ newSet
 
+    update OpenPagePrintModal =
+      M.modify $ \m -> m & #pagePrintModal .~ Just defaultPrintModalModel
+
+    update (PagePrintMsg CancelPrint) =
+      M.modify $ \m -> m & #pagePrintModal .~ Nothing
+
+    update (PagePrintMsg ConfirmPrint) = do
+      M.modify $ \m ->
+        let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
+         in m & #pagePrintModal .~ Nothing
+              & #pagePrintPending .~ Just settings
+      -- Delay to let MathJax finish rendering formulas in the hidden div,
+      -- then trigger the browser print dialog and clean up afterwards.
+      M.io $ do
+        threadDelay 800000 -- 800ms for MathJax
+        triggerPrint
+        pure ClearPagePrint
+
+    update (PagePrintMsg action) =
+      M.modify $ \m ->
+        let total = length m.projection.tasksWithSolutions
+         in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
+
+    update ClearPagePrint =
+      M.modify $ \m -> m & #pagePrintPending .~ Nothing
+
     update PinThis = M.io_ $
       let AssignmentName nameText = assignment.name
           chrome = WindowChrome (M.ms nameText) Icon.IcnAssignment
@@ -301,17 +345,36 @@ viewerComponent r user assignment wm =
             (viewerComponent r user assignment)
 
     view' m =
-      M.div_
-        []
-        [ M.div_
-            [class_ "space-y-6 print:hidden"]
-            [ viewAssignment m
+      let pagePrintActive = pagePrintIsActive m
+       in M.div_
+            []
+            [ M.div_
+                [class_ "space-y-6 print:hidden"]
+                [ viewAssignment m
+                ]
+            , -- Existing print content (from dropdown) — hidden when page-print is active
+              if pagePrintActive
+                then M.text ""
+                else M.div_
+                       [class_ "hidden print:block"]
+                       [viewPrintContent m]
+            , printSentinel m
+            , -- Page-print modal (when open)
+              case m.pagePrintModal of
+                Nothing -> M.text ""
+                Just modalModel ->
+                  printModalView
+                    (renderTaskForPrint m.projection)
+                    (length m.projection.tasksWithSolutions)
+                    modalModel
+                    PagePrintMsg
+            , -- Page-print tasks: pre-rendered while modal is open (so MathJax
+              -- has time to render), kept when printing. The @page style is only
+              -- injected at print time so it doesn't affect the old print path.
+              if pagePrintActive
+                then viewPagePrintContent m.pagePrintPending m.projection
+                else M.text ""
             ]
-        , M.div_
-            [class_ "hidden print:block"]
-            [viewPrintContent m]
-        , printSentinel m
-        ]
 
     printSentinel :: ViewerModel -> M.View ViewerModel ViewerAction
     printSentinel m
@@ -339,6 +402,7 @@ viewerComponent r user assignment wm =
                             , statusIcon proj.status
                             ]
                             <> [ pinButton PinThis | not (isPinned wm) ]
+                            <> [ viewPagePrintButton ]
                             <> [ viewPrintDropdown m ]
                         ]
                     ]
@@ -499,5 +563,63 @@ viewerComponent r user assignment wm =
             [class_ "prose prose-stone prose-sm max-w-none"]
             [renderRichText r.formulaCache sol.content]
         ]
+
+    -- ========================================================================
+    -- Page Print (one task per page)
+    -- ========================================================================
+
+    -- | Page-print is active when the modal is open or print is pending
+    pagePrintIsActive :: ViewerModel -> Bool
+    pagePrintIsActive m = case m.pagePrintModal of
+      Just _ -> True
+      Nothing -> case m.pagePrintPending of
+        Just _ -> True
+        Nothing -> False
+
+    viewPagePrintButton :: M.View ViewerModel ViewerAction
+    viewPagePrintButton =
+      Button.ghostSm (Button.button (Icon.IcnPrint, C.LblPrintPreview) OpenPagePrintModal)
+
+    -- | Render a single task for print preview / print output
+    renderTaskForPrint :: ViewerProjection -> Int -> M.View ViewerModel ViewerAction
+    renderTaskForPrint proj idx =
+      case drop idx proj.tasksWithSolutions of
+        [] -> M.text ""
+        (tws : _) ->
+          let TaskIdentifier ident = tws.task.identifier
+           in M.div_
+                []
+                ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
+                  <> [ M.div_
+                         [class_ "prose prose-stone prose-sm max-w-none"]
+                         [renderRichText r.formulaCache content]
+                     | Just content <- [tws.taskContent]
+                     ]
+                )
+
+    -- | Hidden div with all tasks for page-print (one per page).
+    -- When mSettings is Just, the @page style is injected (actual print).
+    -- When Nothing, an empty placeholder keeps child positions stable
+    -- so Miso doesn't recreate richContent components (preserving MathJax state).
+    viewPagePrintContent :: Maybe PrintSettings -> ViewerProjection -> M.View ViewerModel ViewerAction
+    viewPagePrintContent mSettings proj =
+      M.div_
+        [class_ "hidden page-print-content"]
+        ( [maybe (M.text "") printStyleView mSettings]
+          <> zipWith (viewPagePrintTask proj) [0 ..] proj.tasksWithSolutions
+        )
+
+    viewPagePrintTask :: ViewerProjection -> Int -> TaskWithSolutions -> M.View ViewerModel ViewerAction
+    viewPagePrintTask _proj _idx tws =
+      let TaskIdentifier ident = tws.task.identifier
+       in M.div_
+            [class_ "print-task"]
+            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
+              <> [ M.div_
+                     [class_ "prose prose-stone prose-sm max-w-none"]
+                     [renderRichText r.formulaCache content]
+                 | Just content <- [tws.taskContent]
+                 ]
+            )
 
     assignmentNameToText (AssignmentName t) = ms t

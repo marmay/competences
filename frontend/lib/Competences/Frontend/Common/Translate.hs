@@ -319,6 +319,8 @@ data Label
   | LblPrintTasks
   | LblPrintSolutions
   | LblPrintAll
+  | LblPrintPreview
+  | LblPageSize
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -622,6 +624,8 @@ labels' =
   , LblPrintTasks
   , LblPrintSolutions
   , LblPrintAll
+  , LblPrintPreview
+  , LblPageSize
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -945,6 +949,8 @@ defaultTranslation LblPrint = "Drucken"
 defaultTranslation LblPrintTasks = "Aufgaben"
 defaultTranslation LblPrintSolutions = "Lösungen"
 defaultTranslation LblPrintAll = "Alles"
+defaultTranslation LblPrintPreview = "Druckvorschau"
+defaultTranslation LblPageSize = "Seitengröße"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
