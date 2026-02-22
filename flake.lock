@@ -86,11 +86,11 @@
     "competences-blobs": {
       "flake": false,
       "locked": {
-        "lastModified": 1771770396,
-        "narHash": "sha256-B+FBR6yoP/m7bMbqAg2EkcwmCBWfNUTsDbYzPa13eTo=",
+        "lastModified": 1771795642,
+        "narHash": "sha256-EOABzAlaY5WKdGQwbdJJHsDYjzybmaUYAruGbq9xSZc=",
         "owner": "marmay",
         "repo": "competences-blobs",
-        "rev": "2c214b47df2c63cd772d5cc866b4576ff60355d5",
+        "rev": "8eb7082561287b12db2ee8bc59972fc3fce5783c",
         "type": "github"
       },
       "original": {
