@@ -76,6 +76,13 @@ blockToText = \case
     let titlePart = maybe "" (\inlines -> " " <> inlinesToMarkdown inlines) mTitle
         bodyLines = T.lines (blocksToText bodyBlocks)
      in T.intercalate "\n" $ ("> [!remark]" <> titlePart) : map ("> " <>) bodyLines
+  NotesGrid c1 c2 c3 c4 ->
+    "```btc:notes-grid\n"
+      <> blocksToText c1 <> "\n---\n"
+      <> blocksToText c2 <> "\n---\n"
+      <> blocksToText c3 <> "\n---\n"
+      <> blocksToText c4
+      <> "\n```"
 
 -- | Serialize inlines back to markdown (preserves formatting).
 inlinesToMarkdown :: [Inline] -> Text

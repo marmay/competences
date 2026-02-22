@@ -55,6 +55,9 @@ data Block
     --   > [!theorem] Title text
     --   > Body paragraph...
     Admonition !AdmonitionType !(Maybe [Inline]) ![Block]
+  | -- | BTC notes grid (2×2): four cells of block-level content.
+    --   Cells: top-left, top-right, bottom-left, bottom-right.
+    NotesGrid ![Block] ![Block] ![Block] ![Block]
   deriving (Eq, Show)
 
 -- | Admonition types for math content callouts

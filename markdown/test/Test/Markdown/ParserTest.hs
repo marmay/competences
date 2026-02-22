@@ -25,6 +25,7 @@ parserTests =
     , testGroup "Thematic breaks" thematicBreakTests
     , testGroup "Line breaks" lineBreakTests
     , testGroup "Admonitions" admonitionTests
+    , testGroup "Notes grid" notesGridTests
     , testGroup "Backward compatibility" backwardCompatTests
     ]
 
@@ -274,6 +275,73 @@ admonitionTests =
   , testCase "admonition after paragraph" $
       assertBlockCount "para then admonition" 2
         "Some text.\n\n> [!theorem]\n> Body"
+  ]
+
+notesGridTests :: [TestTree]
+notesGridTests =
+  [ testCase "basic 4-cell grid" $
+      assertParse
+        "4-cell"
+        ( Document
+            [ NotesGrid
+                [Paragraph [Plain "Cell 1"]]
+                [Paragraph [Plain "Cell 2"]]
+                [Paragraph [Plain "Cell 3"]]
+                [Paragraph [Plain "Cell 4"]]
+            ]
+        )
+        "```btc:notes-grid\nCell 1\n---\nCell 2\n---\nCell 3\n---\nCell 4\n```"
+  , testCase "grid with inline formatting and math" $
+      assertParse
+        "formatting+math"
+        ( Document
+            [ NotesGrid
+                [Paragraph [Strong [Plain "Bold"], Plain " and ", MathInline "x^2"]]
+                [Paragraph [Emph [Plain "italic"]]]
+                [Paragraph [Plain "plain"]]
+                [Paragraph [Code "code"]]
+            ]
+        )
+        "```btc:notes-grid\n**Bold** and $x^2$\n---\n*italic*\n---\nplain\n---\n`code`\n```"
+  , testCase "grid with fewer than 4 cells pads with empty" $
+      assertParse
+        "2-cell pad"
+        ( Document
+            [ NotesGrid
+                [Paragraph [Plain "A"]]
+                [Paragraph [Plain "B"]]
+                []
+                []
+            ]
+        )
+        "```btc:notes-grid\nA\n---\nB\n```"
+  , testCase "grid with block-level content in cells" $
+      assertParse
+        "block content"
+        ( Document
+            [ NotesGrid
+                [BulletList [[Paragraph [Plain "item 1"]], [Paragraph [Plain "item 2"]]]]
+                [Paragraph [Plain "text"]]
+                [Heading 2 [Plain "Title"]]
+                []
+            ]
+        )
+        "```btc:notes-grid\n- item 1\n- item 2\n---\ntext\n---\n## Title\n```"
+  , testCase "grid followed by paragraph" $
+      assertBlockCount "grid+para" 2
+        "```btc:notes-grid\nA\n---\nB\n---\nC\n---\nD\n```\n\nFollowing paragraph"
+  , testCase "grid with nested fenced code block" $
+      assertParse
+        "nested fence"
+        ( Document
+            [ NotesGrid
+                [FencedCodeBlock (Just "geometry") "defPoint A 0 0"]
+                [Paragraph [Plain "Cell 2"]]
+                []
+                []
+            ]
+        )
+        "```btc:notes-grid\n```geometry\ndefPoint A 0 0\n```\n---\nCell 2\n```"
   ]
 
 -- | Tests for backward compatibility with existing TaskContent markup

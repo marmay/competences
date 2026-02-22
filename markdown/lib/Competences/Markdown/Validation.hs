@@ -65,6 +65,10 @@ validateBlocks !n = \case
   MD.LetterList items : rest ->
     let (errors, nextN) = validateItems n items
      in errors ++ validateBlocks nextN rest
+  MD.NotesGrid c1 c2 c3 c4 : rest ->
+    let innerErrors = concatMap (validateBlocks n) [c1, c2, c3, c4]
+        nextN = n + sum (map countGeometryBlocks [c1, c2, c3, c4])
+     in innerErrors ++ validateBlocks nextN rest
   _ : rest -> validateBlocks n rest
 
 -- | Validate list items (each item is [Block]).
@@ -90,6 +94,8 @@ countGeometryBlocks = \case
     sum (map countGeometryBlocks items) + countGeometryBlocks rest
   MD.LetterList items : rest ->
     sum (map countGeometryBlocks items) + countGeometryBlocks rest
+  MD.NotesGrid c1 c2 c3 c4 : rest ->
+    sum (map countGeometryBlocks [c1, c2, c3, c4]) + countGeometryBlocks rest
   _ : rest -> countGeometryBlocks rest
 
 -- | Validate a single geometry block: check version, then parse body.

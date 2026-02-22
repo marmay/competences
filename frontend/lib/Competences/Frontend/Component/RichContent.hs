@@ -146,6 +146,8 @@ extractFromBlock = \case
   MD.Admonition _ mTitle blocks ->
     maybe [] (concatMap extractFromInline) mTitle
       ++ concatMap extractFromBlock blocks
+  MD.NotesGrid c1 c2 c3 c4 ->
+    concatMap extractFromBlock (c1 ++ c2 ++ c3 ++ c4)
 
 extractFromInline :: MD.Inline -> [(MathDisplay, Text)]
 extractFromInline = \case
@@ -205,6 +207,8 @@ renderBlock symbols = \case
     M.hr_ [class_ "border-t border-stone-300 my-4"]
   MD.Admonition adType mTitle bodyBlocks ->
     renderAdmonition symbols adType mTitle bodyBlocks
+  MD.NotesGrid c1 c2 c3 c4 ->
+    renderNotesGrid symbols c1 c2 c3 c4
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
@@ -239,6 +243,26 @@ renderAdmonition symbols adType mTitle bodyBlocks =
    in M.div_
         [class_ "border-l-4 border-stone-300 pl-4 my-4"]
         (titleView : map (renderBlock symbols) bodyBlocks)
+
+-- | Render a 2×2 BTC notes grid
+renderNotesGrid
+  :: Map SymbolId EmbeddedSymbol
+  -> [MD.Block]
+  -> [MD.Block]
+  -> [MD.Block]
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderNotesGrid symbols c1 c2 c3 c4 =
+  M.div_
+    [class_ "grid grid-cols-2 border border-stone-300 rounded-lg my-4 overflow-hidden"]
+    [ cell "p-3 border-b border-r border-stone-200 bg-stone-50" c1
+    , cell "p-3 border-b border-stone-200 bg-stone-50" c2
+    , cell "p-3 border-r border-stone-200" c3
+    , cell "p-3" c4
+    ]
+  where
+    cell cls blocks =
+      M.div_ [class_ cls] $ map (renderBlock symbols) blocks
 
 -- | German display label for each admonition type
 admonitionLabel :: MD.AdmonitionType -> Text

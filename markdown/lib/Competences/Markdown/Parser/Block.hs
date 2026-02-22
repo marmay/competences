@@ -20,6 +20,7 @@ import Data.Text qualified as T
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import Data.List (unfoldr)
 
 type Parser = Parsec Void Text
 
@@ -37,6 +38,7 @@ blockP =
   choice
     [ thematicBreakP
     , headingP
+    , notesGridP
     , fencedCodeBlockP
     , mathBlockP
     , letterListP
@@ -68,6 +70,107 @@ headingP = try $ do
   content <- lineInlinesP
   pure $ Heading level content
 
+-- | Match a closing fence line for a fenced block.
+closingFence :: Char -> Int -> Parser ()
+closingFence fenceChar minLen = do
+  _ <- newline <|> pure ' ' -- may not have trailing newline at eof
+  fence' <- takeWhile1P Nothing (== fenceChar)
+  guard (T.length fence' >= minLen)
+  hspace
+  void (lookAhead newline) <|> eof
+
+-- | Parse backtick fence opener (at least 3 backticks)
+backtickFence :: Parser (Char, Int)
+backtickFence = do
+  ticks <- takeWhile1P (Just "backtick fence") (== '`')
+  guard (T.length ticks >= 3)
+  pure ('`', T.length ticks)
+
+-- | Parse tilde fence opener (at least 3 tildes)
+tildeFence :: Parser (Char, Int)
+tildeFence = do
+  tildes <- takeWhile1P (Just "tilde fence") (== '~')
+  guard (T.length tildes >= 3)
+  pure ('~', T.length tildes)
+
+-- | Collect body lines of a fenced block, tracking nested fences of the
+-- same character so that inner fenced code blocks don't terminate the outer.
+-- Returns lines between the opening fence (already consumed) and closing fence.
+nestedFencedBodyP :: Char -> Int -> Parser [Text]
+nestedFencedBodyP fenceChar minLen = go 0 []
+  where
+    go :: Int -> [Text] -> Parser [Text]
+    go !depth acc = do
+      line <- takeWhileP Nothing (/= '\n')
+      if depth == 0 && isClosingLine line
+        then do
+          void (lookAhead newline) <|> eof
+          pure (reverse acc)
+        else do
+          let !depth' = adjustDepth depth line
+          (newline >> go depth' (line : acc)) <|> pure (reverse (line : acc))
+
+    isClosingLine line =
+      let stripped = T.stripStart line
+          fencePart = T.takeWhile (== fenceChar) stripped
+          rest = T.strip (T.drop (T.length fencePart) stripped)
+       in T.length fencePart >= minLen && T.null rest
+
+    isOpeningLine line =
+      let stripped = T.stripStart line
+          fencePart = T.takeWhile (== fenceChar) stripped
+          rest = T.strip (T.drop (T.length fencePart) stripped)
+       in T.length fencePart >= 3 && not (T.null rest)
+
+    adjustDepth d line
+      | isOpeningLine line = d + 1
+      | isClosingLine line && d > 0 = d - 1
+      | otherwise = d
+
+-- | BTC notes grid: ```btc:notes-grid ... ```
+notesGridP :: Parser Block
+notesGridP = try $ do
+  fence <- backtickFence
+  let (fenceChar, fenceLen) = fence
+  _ <- hspace
+  _ <- string "btc:notes-grid"
+  _ <- takeWhileP Nothing (\c -> c /= '\n' && c /= '`')
+  _ <- newline
+  bodyLines <- nestedFencedBodyP fenceChar fenceLen
+  let bodyText = T.intercalate "\n" bodyLines
+      cells = splitCells bodyText
+      parsed = map parseCell (take 4 cells)
+      padded = parsed ++ replicate (4 - length parsed) []
+  case padded of
+    [c1, c2, c3, c4] -> pure $ NotesGrid c1 c2 c3 c4
+    _ -> pure $ NotesGrid [] [] [] [] -- unreachable
+  where
+    splitCells :: Text -> [Text]
+    splitCells txt =
+      let ls = T.lines txt
+       in map (T.intercalate "\n") $ splitOn isSeparator ls
+
+    isSeparator :: Text -> Bool
+    isSeparator line =
+      let stripped = T.strip line
+       in T.length stripped >= 3 && T.all (== '-') stripped
+
+    splitOn :: (a -> Bool) -> [a] -> [[a]]
+    splitOn p = unfoldr $ \xs ->
+      case xs of
+        [] -> Nothing
+        _ -> let (seg, rest) = break p xs
+              in Just (seg, drop 1 rest)
+
+    parseCell :: Text -> [Block]
+    parseCell t =
+      let trimmed = T.strip t
+       in if T.null trimmed
+            then []
+            else case parseMaybe documentP trimmed of
+              Just (Document blocks) -> blocks
+              Nothing -> [Paragraph [Plain trimmed]]
+
 -- | Fenced code block: ``` or ~~~
 fencedCodeBlockP :: Parser Block
 fencedCodeBlockP = try $ do
@@ -77,23 +180,6 @@ fencedCodeBlockP = try $ do
   _ <- newline
   body <- manyTill anySingle (try $ closingFence fenceChar fenceLen)
   pure $ FencedCodeBlock (T.strip <$> info) (T.pack body)
-  where
-    backtickFence = do
-      ticks <- takeWhile1P (Just "backtick fence") (== '`')
-      guard (T.length ticks >= 3)
-      pure ('`', T.length ticks)
-
-    tildeFence = do
-      tildes <- takeWhile1P (Just "tilde fence") (== '~')
-      guard (T.length tildes >= 3)
-      pure ('~', T.length tildes)
-
-    closingFence fenceChar minLen = do
-      _ <- newline <|> pure ' ' -- may not have trailing newline at eof
-      fence' <- takeWhile1P Nothing (== fenceChar)
-      guard (T.length fence' >= minLen)
-      hspace
-      void (lookAhead newline) <|> eof
 
 -- | Display math block: $$...$$ or \[...\]
 mathBlockP :: Parser Block
