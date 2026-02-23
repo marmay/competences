@@ -325,6 +325,13 @@ data Label
   | LblPortrait
   | LblLandscape
   | LblFontSize
+  | LblLayout
+  | LblContinuous
+  | LblGrid
+  | LblRows
+  | LblColumns
+  | LblGroupedCopies
+  | LblTotalCopies
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -634,6 +641,13 @@ labels' =
   , LblPortrait
   , LblLandscape
   , LblFontSize
+  , LblLayout
+  , LblContinuous
+  , LblGrid
+  , LblRows
+  , LblColumns
+  , LblGroupedCopies
+  , LblTotalCopies
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -963,6 +977,13 @@ defaultTranslation LblOrientation = "Ausrichtung"
 defaultTranslation LblPortrait = "Hochformat"
 defaultTranslation LblLandscape = "Querformat"
 defaultTranslation LblFontSize = "Schriftgröße"
+defaultTranslation LblLayout = "Layout"
+defaultTranslation LblContinuous = "Fortlaufend"
+defaultTranslation LblGrid = "Raster"
+defaultTranslation LblRows = "Zeilen"
+defaultTranslation LblColumns = "Spalten"
+defaultTranslation LblGroupedCopies = "Kopien pro Aufgabe"
+defaultTranslation LblTotalCopies = "Gesamtkopien"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."

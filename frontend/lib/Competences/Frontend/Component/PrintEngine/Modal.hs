@@ -10,9 +10,13 @@ where
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Types
-  ( Orientation (..)
+  ( GridConfig (..)
+  , Orientation (..)
   , PaperSize (..)
   , PrintSettings (..)
+  , TaskLayout (..)
+  , cellMarginMm
+  , cellsPerPage
   , defaultPrintSettings
   , pageSizeMm
   , pageMarginMm
@@ -44,6 +48,11 @@ data PrintModalAction
   = SetPaperSize !PaperSize
   | SetOrientation !Orientation
   | SetFontSize !Double
+  | SetTaskLayout !TaskLayout
+  | SetGridRows !Int
+  | SetGridCols !Int
+  | SetGroupedCopies !Int
+  | SetTotalCopies !Int
   | PreviewNext
   | PreviewPrev
   | ConfirmPrint
@@ -56,7 +65,8 @@ defaultPrintModalModel = PrintModalModel
   , previewTaskIndex = 0
   }
 
--- | Pure update for the modal model
+-- | Pure update for the modal model.
+-- 'total' is the number of navigable items (expanded tasks for continuous, pages for grid).
 updatePrintModal :: PrintModalAction -> Int -> PrintModalModel -> PrintModalModel
 updatePrintModal (SetPaperSize ps) _total m =
   m {settings = m.settings {paperSize = ps}}
@@ -64,12 +74,38 @@ updatePrintModal (SetOrientation o) _total m =
   m {settings = m.settings {orientation = o}}
 updatePrintModal (SetFontSize fs) _total m =
   m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}}
+updatePrintModal (SetTaskLayout tl) _total m =
+  m {settings = m.settings {taskLayout = tl}, previewTaskIndex = 0}
+updatePrintModal (SetGridRows r) _total m =
+  let gc = currentGridConfig m.settings
+      gc' = gc {rows = clampGrid r}
+   in m {settings = m.settings {taskLayout = Grid gc'}, previewTaskIndex = 0}
+updatePrintModal (SetGridCols c) _total m =
+  let gc = currentGridConfig m.settings
+      gc' = gc {cols = clampGrid c}
+   in m {settings = m.settings {taskLayout = Grid gc'}, previewTaskIndex = 0}
+updatePrintModal (SetGroupedCopies n) _total m =
+  m {settings = m.settings {groupedCopies = clampCopies n}, previewTaskIndex = 0}
+updatePrintModal (SetTotalCopies n) _total m =
+  m {settings = m.settings {totalCopies = clampCopies n}, previewTaskIndex = 0}
 updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
   m {previewTaskIndex = max 0 (m.previewTaskIndex - 1)}
 updatePrintModal ConfirmPrint _total m = m
 updatePrintModal CancelPrint _total m = m
+
+-- | Extract grid config from settings, defaulting to 1x1
+currentGridConfig :: PrintSettings -> GridConfig
+currentGridConfig s = case s.taskLayout of
+  Grid gc -> gc
+  Continuous -> GridConfig {rows = 1, cols = 1}
+
+clampGrid :: Int -> Int
+clampGrid = max 1 . min 4
+
+clampCopies :: Int -> Int
+clampCopies = max 1 . min 10
 
 -- | Construct a ButtonConfig without going through ToAction
 -- (avoids overlapping instances when action is polymorphic)
@@ -122,19 +158,28 @@ modalBody
 modalBody renderTask totalTasks model wrap =
   Layout.hFlow
     Layout.hFull
-    [ -- Left sidebar: paper size + orientation selectors
+    [ -- Left sidebar
       Layout.shrink0 $
         Layout.vFlow
           Layout.gapM
-          [ Typography.fieldLabel (C.translate' C.LblPageSize)
-          , paperSizeSelector model.settings.paperSize wrap
-          , Typography.fieldLabel (C.translate' C.LblOrientation)
-          , orientationSelector model.settings.orientation wrap
-          , Typography.fieldLabel (C.translate' C.LblFontSize)
-          , fontSizeInput model.settings.baseFontSize wrap
-          ]
-          & Layout.addClass "border-r border-border p-4"
-    , -- Right: preview pane with task navigation
+          ( [ Typography.fieldLabel (C.translate' C.LblPageSize)
+            , paperSizeSelector model.settings.paperSize wrap
+            , Typography.fieldLabel (C.translate' C.LblOrientation)
+            , orientationSelector model.settings.orientation wrap
+            , Typography.fieldLabel (C.translate' C.LblLayout)
+            , layoutSelector model.settings.taskLayout wrap
+            ]
+            <> gridSizeControls model.settings wrap
+            <> [ Typography.fieldLabel (C.translate' C.LblFontSize)
+               , fontSizeInput model.settings.baseFontSize wrap
+               , Typography.fieldLabel (C.translate' C.LblGroupedCopies)
+               , copiesInput model.settings.groupedCopies (\n -> wrap (SetGroupedCopies n))
+               , Typography.fieldLabel (C.translate' C.LblTotalCopies)
+               , copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n))
+               ]
+          )
+          & Layout.addClass "border-r border-border p-4 overflow-y-auto"
+    , -- Right: preview pane with navigation
       Layout.grow $
         Layout.vFlow
           (Layout.gapM <> Layout.crossCenter <> Layout.mainCenter)
@@ -154,7 +199,7 @@ modalFooter wrap =
       , Button.primary (btn (Icon.IcnPrint, C.LblPrint) (Just (wrap ConfirmPrint)))
       ]
 
--- | Paper size selector (A4 / A5 / A6)
+-- | Paper size selector (A4 / A5)
 paperSizeSelector :: PaperSize -> (PrintModalAction -> action) -> M.View model action
 paperSizeSelector current wrap =
   Button.buttonGroup
@@ -165,7 +210,6 @@ paperSizeSelector current wrap =
 paperSizeLabel :: PaperSize -> MisoString
 paperSizeLabel A4 = "A4"
 paperSizeLabel A5 = "A5"
-paperSizeLabel A6 = "A6"
 
 -- | Orientation selector (Portrait / Landscape)
 orientationSelector :: Orientation -> (PrintModalAction -> action) -> M.View model action
@@ -179,23 +223,96 @@ orientationLabel :: Orientation -> MisoString
 orientationLabel Portrait = C.translate' C.LblPortrait
 orientationLabel Landscape = C.translate' C.LblLandscape
 
--- | Preview navigation: previous / "1 / N" / next
+-- | Layout selector (Continuous / Grid)
+layoutSelector :: TaskLayout -> (PrintModalAction -> action) -> M.View model action
+layoutSelector current wrap =
+  let isContinuous = case current of { Continuous -> True; Grid _ -> False }
+   in Button.buttonGroup
+        [ Button.toggleSm isContinuous (btn (C.translate' C.LblContinuous) (Just (wrap (SetTaskLayout Continuous))))
+        , Button.toggleSm (not isContinuous) (btn (C.translate' C.LblGrid) (Just (wrap (SetTaskLayout (Grid (GridConfig {rows = 1, cols = 1}))))))
+        ]
+
+-- | Grid size controls (rows and cols) — only shown when Grid is selected
+gridSizeControls :: PrintSettings -> (PrintModalAction -> action) -> [M.View model action]
+gridSizeControls settings wrap = case settings.taskLayout of
+  Continuous -> []
+  Grid gc ->
+    [ Typography.fieldLabel (C.translate' C.LblRows)
+    , gridNumberInput gc.rows (\n -> wrap (SetGridRows n))
+    , Typography.fieldLabel (C.translate' C.LblColumns)
+    , gridNumberInput gc.cols (\n -> wrap (SetGridCols n))
+    ]
+
+-- | Number input for grid dimensions (1–4)
+gridNumberInput :: Int -> (Int -> action) -> M.View model action
+gridNumberInput current toAction =
+  Input.renderInput
+    $ Input.withOnInput (\v -> toAction (parseIntOr current v))
+    $ Input.withValue (ms (show current))
+    $ Input.defaultInput
+      { Input.inputType = "number"
+      , Input.attrs =
+          [ M.textProp "min" "1"
+          , M.textProp "max" "4"
+          , M.textProp "step" "1"
+          ]
+      }
+
+-- | Number input for copies (1–10)
+copiesInput :: Int -> (Int -> action) -> M.View model action
+copiesInput current toAction =
+  Input.renderInput
+    $ Input.withOnInput (\v -> toAction (parseIntOr current v))
+    $ Input.withValue (ms (show current))
+    $ Input.defaultInput
+      { Input.inputType = "number"
+      , Input.attrs =
+          [ M.textProp "min" "1"
+          , M.textProp "max" "10"
+          , M.textProp "step" "1"
+          ]
+      }
+
+-- | Parse integer from input, defaulting to given value
+parseIntOr :: Int -> MisoString -> Int
+parseIntOr def v = case readMaybe (fromMisoString v) of
+  Just n -> n
+  Nothing -> def
+
+-- | Preview navigation: previous / "Task 1 / N" or "Page 1 / N" / next
 previewNavigation :: Int -> PrintModalModel -> (PrintModalAction -> action) -> M.View model action
 previewNavigation totalTasks model wrap =
   Layout.hFlow
     (Layout.gapS <> Layout.crossCenter)
     [ Button.ghostSm (btn ("\x2039" :: MisoString) prevAction)
     , Typography.muted $
-        ms (show (model.previewTaskIndex + 1)) <> " / " <> ms (show totalTasks)
+        navigationLabel model.settings model.previewTaskIndex navTotal
     , Button.ghostSm (btn ("\x203A" :: MisoString) nextAction)
     ]
   where
+    navTotal = navigationTotal model.settings totalTasks
     prevAction
       | model.previewTaskIndex <= 0 = Nothing
       | otherwise = Just (wrap PreviewPrev)
     nextAction
-      | model.previewTaskIndex >= totalTasks - 1 = Nothing
+      | model.previewTaskIndex >= navTotal - 1 = Nothing
       | otherwise = Just (wrap PreviewNext)
+
+-- | Total number of navigable items (tasks for continuous, pages for grid)
+navigationTotal :: PrintSettings -> Int -> Int
+navigationTotal settings expandedCount = case settings.taskLayout of
+  Continuous -> expandedCount
+  Grid gc ->
+    let cpp = cellsPerPage gc
+     in if expandedCount <= 0 then 1 else (expandedCount + cpp - 1) `div` cpp
+
+-- | Navigation label ("Task 1 / N" or "Seite 1 / N")
+navigationLabel :: PrintSettings -> Int -> Int -> MisoString
+navigationLabel settings idx total = case settings.taskLayout of
+  Continuous ->
+    ms (show (idx + 1)) <> " / " <> ms (show total)
+  Grid _ ->
+    ms (show (idx + 1)) <> " / " <> ms (show total)
 
 -- | Font size number input
 fontSizeInput :: Double -> (PrintModalAction -> action) -> M.View model action
@@ -218,9 +335,15 @@ parseFontSize v = case readMaybe (fromMisoString v) of
   Just fs -> fs
   Nothing -> 11.0
 
--- | Preview pane: renders one task inside a scaled page representation
+-- | Preview pane: renders based on layout mode
 previewPane :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
-previewPane renderTask model =
+previewPane renderTask model = case model.settings.taskLayout of
+  Continuous -> continuousPreview renderTask model
+  Grid gc -> gridPreview renderTask model gc
+
+-- | Continuous preview: one task in a scaled page (existing behavior)
+continuousPreview :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
+continuousPreview renderTask model =
   let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
       margin = pageMarginMm model.settings.paperSize
       -- Convert mm to px at 96 DPI (1 inch = 25.4mm)
@@ -256,6 +379,57 @@ previewPane renderTask model =
                 , MC.style_ [("font-size", ms (show model.settings.baseFontSize <> "pt"))]
                 ]
                 [renderTask model.previewTaskIndex]
+            ]
+        ]
+
+-- | Grid preview: one page with CSS grid cells
+gridPreview :: (Int -> M.View model action) -> PrintModalModel -> GridConfig -> M.View model action
+gridPreview renderTask model gc =
+  let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
+      cellPadMm = cellMarginMm model.settings.paperSize
+      mmToPx mm = mm * 96.0 / 25.4
+      pageWPx = mmToPx wMm
+      pageHPx = mmToPx hMm
+      cellPadPx = mmToPx cellPadMm
+      previewMaxW = 440.0 :: Double
+      scaleFactor = previewMaxW / pageWPx
+      scaledW = pageWPx * scaleFactor
+      scaledH = pageHPx * scaleFactor
+      cpp = cellsPerPage gc
+      -- Tasks for this page
+      pageStart = model.previewTaskIndex * cpp
+      taskIndices = [pageStart .. pageStart + cpp - 1]
+   in M.div_
+        [ MC.style_
+            [ ("width", ms (showPx scaledW))
+            , ("height", ms (showPx scaledH))
+            , ("overflow", "hidden")
+            ]
+        , class_ "rounded shadow-md"
+        ]
+        [ M.div_
+            [ MC.style_
+                [ ("width", ms (showPx pageWPx))
+                , ("height", ms (showPx pageHPx))
+                , ("display", "grid")
+                , ("grid-template-columns", ms $ "repeat(" <> T.pack (show gc.cols) <> ", 1fr)")
+                , ("grid-template-rows", ms $ "repeat(" <> T.pack (show gc.rows) <> ", 1fr)")
+                , ("transform", ms $ "scale(" <> T.pack (show scaleFactor) <> ")")
+                , ("transform-origin", "top left")
+                ]
+            , class_ "bg-white text-black"
+            ]
+            [ M.div_
+                [ MC.style_ [("padding", ms (showPx cellPadPx))]
+                , class_ "overflow-hidden"
+                ]
+                [ M.div_
+                    [ class_ "prose prose-stone prose-sm max-w-none h-full"
+                    , MC.style_ [("font-size", ms (show model.settings.baseFontSize <> "pt"))]
+                    ]
+                    [renderTask idx]
+                ]
+            | idx <- taskIndices
             ]
         ]
 

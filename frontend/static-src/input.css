@@ -49,7 +49,7 @@
 @source inline("border-{gray,green,blue,yellow,orange}-{50,100,200,300,400,500,600,700,800,900}");
 
 /* Print engine classes (page-print modal) */
-@source inline("print-task page-print-content");
+@source inline("print-task print-page print-cell page-print-content");
 
 /* NavBar tooltip + hover dropdown classes */
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
@@ -436,13 +436,7 @@
     max-width: none !important;
   }
 
-  /* Page-print engine: one task per page with page breaks */
-  .page-print-content .print-task {
-    break-after: page;
-  }
-  .page-print-content .print-task:last-child {
-    break-after: auto;
-  }
+  /* Page-print engine: geometry scenes fit within cells/pages */
   .page-print-content .geometry-scene {
     max-width: 100% !important;
     height: auto !important;

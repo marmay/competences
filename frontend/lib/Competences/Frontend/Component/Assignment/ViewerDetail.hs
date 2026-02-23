@@ -37,7 +37,15 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , printModalView
   , updatePrintModal
   )
-import Competences.Frontend.Component.PrintEngine.Types (PrintSettings (..), defaultPrintSettings)
+import Competences.Frontend.Component.PrintEngine.Types
+  ( GridConfig (..)
+  , PrintSettings (..)
+  , TaskLayout (..)
+  , cellsPerPage
+  , chunksOf
+  , defaultPrintSettings
+  , expandTaskSequence
+  )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.TaskResource
@@ -330,7 +338,10 @@ viewerComponent r user assignment wm =
 
     update (PagePrintMsg action) =
       M.modify $ \m ->
-        let total = length m.projection.tasksWithSolutions
+        let expanded = case m.pagePrintModal of
+              Nothing -> m.projection.tasksWithSolutions
+              Just mm -> expandedTasks mm.settings m.projection
+            total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
 
     update ClearPagePrint =
@@ -363,11 +374,13 @@ viewerComponent r user assignment wm =
               case m.pagePrintModal of
                 Nothing -> M.text ""
                 Just modalModel ->
-                  printModalView
-                    (renderTaskForPrint m.projection)
-                    (length m.projection.tasksWithSolutions)
-                    modalModel
-                    PagePrintMsg
+                  let expanded = expandedTasks modalModel.settings m.projection
+                      expandedCount = length expanded
+                   in printModalView
+                        (renderExpandedTaskForPrint expanded)
+                        expandedCount
+                        modalModel
+                        PagePrintMsg
             , -- Page-print tasks: pre-rendered while modal is open (so MathJax
               -- has time to render), kept when printing. The @page style is only
               -- injected at print time so it doesn't affect the old print path.
@@ -580,37 +593,59 @@ viewerComponent r user assignment wm =
     viewPagePrintButton =
       Button.ghostSm (Button.button (Icon.IcnPrint, C.LblPrintPreview) OpenPagePrintModal)
 
-    -- | Render a single task for print preview / print output
-    renderTaskForPrint :: ViewerProjection -> Int -> M.View ViewerModel ViewerAction
-    renderTaskForPrint proj idx =
-      case drop idx proj.tasksWithSolutions of
-        [] -> M.text ""
-        (tws : _) ->
-          let TaskIdentifier ident = tws.task.identifier
-           in M.div_
-                []
-                ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
-                  <> [ M.div_
-                         [class_ "prose prose-stone prose-sm max-w-none"]
-                         [renderRichText r.formulaCache content]
-                     | Just content <- [tws.taskContent]
-                     ]
-                )
+    -- | Build the expanded task list from settings
+    expandedTasks :: PrintSettings -> ViewerProjection -> [TaskWithSolutions]
+    expandedTasks settings proj =
+      expandTaskSequence settings.groupedCopies settings.totalCopies proj.tasksWithSolutions
 
-    -- | Hidden div with all tasks for page-print (one per page).
+    -- | Render a single task from the expanded list by index
+    renderExpandedTaskForPrint :: [TaskWithSolutions] -> Int -> M.View ViewerModel ViewerAction
+    renderExpandedTaskForPrint expanded idx =
+      case drop idx expanded of
+        [] -> M.text ""
+        (tws : _) -> renderSingleTaskForPrint tws
+
+    -- | Render a single TaskWithSolutions for print
+    renderSingleTaskForPrint :: TaskWithSolutions -> M.View ViewerModel ViewerAction
+    renderSingleTaskForPrint tws =
+      let TaskIdentifier ident = tws.task.identifier
+       in M.div_
+            []
+            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
+              <> [ M.div_
+                     [class_ "prose prose-stone prose-sm max-w-none"]
+                     [renderRichText r.formulaCache content]
+                 | Just content <- [tws.taskContent]
+                 ]
+            )
+
+    -- | Hidden div with all tasks for page-print.
     -- When mSettings is Just, the @page style is injected (actual print).
     -- When Nothing, an empty placeholder keeps child positions stable
     -- so Miso doesn't recreate richContent components (preserving MathJax state).
     viewPagePrintContent :: Maybe PrintSettings -> ViewerProjection -> M.View ViewerModel ViewerAction
     viewPagePrintContent mSettings proj =
-      M.div_
-        [class_ "hidden page-print-content"]
-        ( [maybe (M.text "") printStyleView mSettings]
-          <> zipWith (viewPagePrintTask proj) [0 ..] proj.tasksWithSolutions
-        )
+      let settings = maybe defaultPrintSettings id mSettings
+          expanded = expandedTasks settings proj
+       in M.div_
+            [class_ "hidden page-print-content"]
+            ( [maybe (M.text "") printStyleView mSettings]
+              <> renderExpandedForPrint settings expanded
+            )
 
-    viewPagePrintTask :: ViewerProjection -> Int -> TaskWithSolutions -> M.View ViewerModel ViewerAction
-    viewPagePrintTask _proj _idx tws =
+    -- | Render expanded tasks for print, choosing continuous or grid layout
+    renderExpandedForPrint :: PrintSettings -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
+    renderExpandedForPrint settings expanded = case settings.taskLayout of
+      Continuous ->
+        -- Each task in a .print-task div, no forced page breaks
+        map renderContinuousTask expanded
+      Grid gc ->
+        -- Group into pages, each page in a .print-page grid div
+        let pages = chunksOf (cellsPerPage gc) expanded
+         in map (renderGridPage gc) pages
+
+    renderContinuousTask :: TaskWithSolutions -> M.View ViewerModel ViewerAction
+    renderContinuousTask tws =
       let TaskIdentifier ident = tws.task.identifier
        in M.div_
             [class_ "print-task"]
@@ -621,5 +656,29 @@ viewerComponent r user assignment wm =
                  | Just content <- [tws.taskContent]
                  ]
             )
+
+    renderGridPage :: GridConfig -> [TaskWithSolutions] -> M.View ViewerModel ViewerAction
+    renderGridPage gc tasks =
+      let cpp = cellsPerPage gc
+          -- Pad with empty cells if the page isn't full
+          cells = map renderGridCell tasks
+                  <> replicate (cpp - length tasks) emptyGridCell
+       in M.div_ [class_ "print-page"] cells
+
+    renderGridCell :: TaskWithSolutions -> M.View ViewerModel ViewerAction
+    renderGridCell tws =
+      let TaskIdentifier ident = tws.task.identifier
+       in M.div_
+            [class_ "print-cell"]
+            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
+              <> [ M.div_
+                     [class_ "prose prose-stone prose-sm max-w-none"]
+                     [renderRichText r.formulaCache content]
+                 | Just content <- [tws.taskContent]
+                 ]
+            )
+
+    emptyGridCell :: M.View ViewerModel ViewerAction
+    emptyGridCell = M.div_ [class_ "print-cell"] []
 
     assignmentNameToText (AssignmentName t) = ms t
