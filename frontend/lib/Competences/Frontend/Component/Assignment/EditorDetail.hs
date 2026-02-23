@@ -94,6 +94,7 @@ editorWrapperComponent r assignment =
         , lessons = Ix.empty
         , lessonNotes = Ix.empty
         , participationRecords = Ix.empty
+        , absences = Ix.empty
         }
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document

@@ -19,9 +19,11 @@ module Competences.Command
   , module Competences.Command.Lessons
   , module Competences.Command.LessonNotes
   , module Competences.Command.ParticipationRecords
+  , module Competences.Command.Absences
   )
 where
 
+import Competences.Command.Absences (AbsencePatch (..), AbsencesCommand (..), handleAbsencesCommand)
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..), handleAssignmentsCommand)
 import Competences.Command.Resources (ResourcePatch (..), ResourcesCommand (..), handleResourcesCommand)
 import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
@@ -82,6 +84,7 @@ data Command
   | Lessons !LessonsCommand
   | LessonNotes !LessonNotesCommand
   | ParticipationRecords !ParticipationRecordsCommand
+  | Absences !AbsencesCommand
   | Migration !MigrationCommand
   deriving (Eq, Generic, Show)
 
@@ -115,6 +118,7 @@ handleCommand userId cmd d = case cmd of
   Lessons c -> handleLessonsCommand userId c d
   LessonNotes c -> handleLessonNotesCommand userId c d
   ParticipationRecords c -> handleParticipationRecordsCommand userId c d
+  Absences c -> handleAbsencesCommand userId c d
   Migration c -> handleMigrationCommand c d
 
 -- | Handle migration commands (system-level, userId not used)

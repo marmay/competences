@@ -5,6 +5,7 @@ module Competences.Document.Lock
   )
 where
 
+import Competences.Document.Absence (AbsenceId)
 import Competences.Document.Assessment (CompetenceAssessmentId)
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceId)
@@ -44,6 +45,7 @@ data Lock
   | LessonLock !LessonId
   | ParticipationRecordLock !ParticipationRecordId
   | LessonNotesLock !LessonNotesId
+  | AbsenceLock !AbsenceId
   deriving (Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON

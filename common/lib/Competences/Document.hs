@@ -22,10 +22,12 @@ module Competences.Document
   , module Competences.Document.Lesson
   , module Competences.Document.LessonNotes
   , module Competences.Document.ParticipationRecord
+  , module Competences.Document.Absence
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
+import Competences.Document.Absence (Absence (..), AbsenceId, AbsenceIxs)
 import Competences.Document.Assessment
   ( CompetenceAssessment (..)
   , CompetenceAssessmentId
@@ -121,6 +123,7 @@ data Document = Document
   , lessons :: !(Ix.IxSet LessonIxs Lesson)
   , lessonNotes :: !(Ix.IxSet LessonNotesIxs LessonNotes)
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
+  , absences :: !(Ix.IxSet AbsenceIxs Absence)
   }
   deriving (Eq, Generic, Show)
 
@@ -146,6 +149,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "lessons" .!= [])
       <*> fmap Ix.fromList (v .:? "lessonNotes" .!= [])
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
+      <*> fmap Ix.fromList (v .:? "absences" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -166,6 +170,7 @@ instance ToJSON Document where
       , "lessons" .= Ix.toList d.lessons
       , "lessonNotes" .= Ix.toList d.lessonNotes
       , "participationRecords" .= Ix.toList d.participationRecords
+      , "absences" .= Ix.toList d.absences
       ]
 #endif
 
@@ -188,6 +193,7 @@ emptyDocument =
     , lessons = Ix.empty
     , lessonNotes = Ix.empty
     , participationRecords = Ix.empty
+    , absences = Ix.empty
     }
 
 
@@ -208,6 +214,7 @@ projectDocument user doc
         & #mesoPlans .~ Ix.empty -- Planning is teacher-only
         & #lessons .~ Ix.empty
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
+        & #absences .~ (doc.absences Ix.@= user.id) -- Own absences only
         -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
@@ -238,5 +245,9 @@ projectDocument user doc
       ParticipationRecordLock prid ->
         case Ix.getOne (doc.participationRecords Ix.@= prid) of
           Just pr -> user.id == pr.userId
+          Nothing -> False
+      AbsenceLock aid ->
+        case Ix.getOne (doc.absences Ix.@= aid) of
+          Just a -> user.id == a.userId
           Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)

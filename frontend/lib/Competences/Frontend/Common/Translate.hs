@@ -301,6 +301,7 @@ data Label
   | LblEvidencesBasedOn
   | LblWillBeEdited
     -- Lesson evaluator
+  | LblAbsent
   | LblParticipationType !ParticipationType
   | LblParticipationLevel !ParticipationType !ParticipationLevel
   | LblNoEvidence
@@ -610,6 +611,7 @@ labels' =
   , LblEvidencesBasedOn
   , LblWillBeEdited
     -- Lesson evaluator
+  , LblAbsent
   , LblParticipationType Participation
   , LblParticipationType Collaboration
   , LblParticipationType PoorWorkEthic
@@ -946,6 +948,7 @@ defaultTranslation LblEvidencesWillBeEdited = "Die Nachweise der folgenden Schü
 defaultTranslation LblEvidencesBasedOn = "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
 defaultTranslation LblWillBeEdited = "\" bearbeitet: "
 -- Lesson evaluator
+defaultTranslation LblAbsent = "Abwesend"
 defaultTranslation (LblParticipationType Participation) = "Mitarbeit"
 defaultTranslation (LblParticipationType Collaboration) = "Kollaboration"
 defaultTranslation (LblParticipationType PoorWorkEthic) = "Arbeitshaltung"

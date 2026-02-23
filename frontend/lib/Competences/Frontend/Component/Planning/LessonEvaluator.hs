@@ -3,10 +3,12 @@ module Competences.Frontend.Component.Planning.LessonEvaluator
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ParticipationRecordsCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), AbsencesCommand (..), ParticipationRecordsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
-  ( Competence (..)
+  ( Absence (..)
+  , AbsenceIxs
+  , Competence (..)
   , Document (..)
   , EvidenceIxs
   , LessonId
@@ -63,6 +65,7 @@ import Miso qualified as M
 data LessonEvalModel = LessonEvalModel
   { students :: ![User]
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
+  , absences :: !(Ix.IxSet AbsenceIxs Absence)
   , studentBadges :: !(Map.Map UserId [ObservationData])
   }
   deriving (Eq, Generic, Show)
@@ -80,6 +83,7 @@ data ObservationData = ObservationData
 data LessonEvalAction
   = DocumentUpdated !DocumentChange
   | ToggleParticipation !UserId !ParticipationType !ParticipationLevel
+  | ToggleAbsence !UserId
   | OpenStudentDetail !UserId
   deriving (Eq, Show)
 
@@ -89,6 +93,7 @@ data LessonEvalAction
 
 data Col
   = NameCol
+  | AbsenceCol
   | ParticipationCol !ParticipationType
   | TasksCol
   deriving (Eq, Ord, Show)
@@ -104,6 +109,7 @@ lessonEvaluatorComponent r lessonId =
       LessonEvalModel
         { students = []
         , participationRecords = Ix.empty
+        , absences = Ix.empty
         , studentBadges = Map.empty
         }
 
@@ -139,6 +145,7 @@ lessonEvaluatorComponent r lessonId =
        in m
             { students = students
             , participationRecords = doc.participationRecords Ix.@= lessonId
+            , absences = doc.absences Ix.@= lessonId
             , studentBadges = badges
             }
     update (ToggleParticipation userId pType pLevel) = do
@@ -166,6 +173,23 @@ lessonEvaluatorComponent r lessonId =
                   }
           modifySyncDocument r (ParticipationRecords $ OnParticipationRecords $ Create newPr)
 
+    update (ToggleAbsence userId) = do
+      m <- M.get
+      M.io_ $ do
+        let existing = m.absences Ix.@= userId
+        case Ix.getOne existing of
+          Just a ->
+            modifySyncDocument r (Absences $ OnAbsences $ Delete a.id)
+          Nothing -> do
+            aId <- nextId r
+            let newAbsence =
+                  Absence
+                    { id = aId
+                    , lessonId = lessonId
+                    , userId = userId
+                    }
+            modifySyncDocument r (Absences $ OnAbsences $ Create newAbsence)
+
     -- Open student detail as a modal
     update (OpenStudentDetail userId) = do
       m <- M.get
@@ -182,14 +206,16 @@ lessonEvaluatorComponent r lessonId =
     viewOverview m =
       Table.viewTable
         Table.Table
-          { columns = [NameCol] <> map ParticipationCol allParticipationTypes <> [TasksCol]
+          { columns = [NameCol, AbsenceCol] <> map ParticipationCol allParticipationTypes <> [TasksCol]
           , rows = m.students
           , columnSpec = \case
               NameCol -> Table.autoSizedLabelCol C.LblStudent
+              AbsenceCol -> Table.autoSizedLabelCol C.LblAbsent
               ParticipationCol pType -> Table.autoSizedLabelCol (C.LblParticipationType pType)
               TasksCol -> Table.autoSizedLabelCol C.LblTasks
           , rowContents = Table.cellContents $ \student -> \case
               NameCol -> M.text $ M.ms student.name
+              AbsenceCol -> viewAbsenceCell student.id (m.absences Ix.@= student.id)
               ParticipationCol pType -> viewParticipationCell student.id (m.participationRecords Ix.@= student.id) pType
               TasksCol ->
                 Layout.hFlow'
@@ -198,6 +224,12 @@ lessonEvaluatorComponent r lessonId =
                   , Button.editButton (OpenStudentDetail student.id)
                   ]
           }
+
+    viewAbsenceCell studentId studentAbsences =
+      let isAbsent = not $ Ix.null studentAbsences
+       in Button.toggleSm
+            isAbsent
+            (Button.button Icon.IcnMinus (ToggleAbsence studentId))
 
     viewParticipationCell studentId participationRecords pType =
       Layout.hFlow' $
