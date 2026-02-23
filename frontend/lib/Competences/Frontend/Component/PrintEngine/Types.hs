@@ -63,13 +63,13 @@ data PrintSettings = PrintSettings
   }
   deriving (Eq, Show, Generic)
 
--- | Default: A5 portrait, continuous layout, 1 copy each
+-- | Default: A4 portrait, continuous layout, 1 copy each
 defaultPrintSettings :: PrintSettings
 defaultPrintSettings =
   PrintSettings
-    { paperSize = A5
+    { paperSize = A4
     , orientation = Portrait
-    , baseFontSize = 11.0
+    , baseFontSize = 10.0
     , taskLayout = Continuous
     , groupedCopies = 1
     , totalCopies = 1
@@ -77,7 +77,7 @@ defaultPrintSettings =
     , showHeader = True
     , showFooter = True
     , showNameField = True
-    , taskHeaderStyle = HeaderTitle
+    , taskHeaderStyle = HeaderBoth
     }
 
 -- | CSS @page size value (e.g. "A5", "A4 landscape")

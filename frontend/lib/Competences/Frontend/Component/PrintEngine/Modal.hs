@@ -225,7 +225,7 @@ modalBody renderTask totalTasks title date model wrap =
                ]
             <> continuousOptions model.settings wrap
           )
-          & Layout.addClass "border-r border-border p-4 overflow-y-auto"
+          & Layout.addClass "border-r border-border p-4 overflow-y-auto overflow-x-hidden"
     , -- Right: preview pane with navigation
       Layout.grow $
         Layout.vFlow
