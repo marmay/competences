@@ -55,6 +55,7 @@ data PrintSettings = PrintSettings
   , taskLayout :: !TaskLayout
   , groupedCopies :: !Int
   , totalCopies :: !Int
+  , showTitle :: !Bool
   , showHeader :: !Bool
   , showFooter :: !Bool
   , showNameField :: !Bool
@@ -72,6 +73,7 @@ defaultPrintSettings =
     , taskLayout = Continuous
     , groupedCopies = 1
     , totalCopies = 1
+    , showTitle = True
     , showHeader = True
     , showFooter = True
     , showNameField = True

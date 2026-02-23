@@ -62,6 +62,7 @@ data PrintModalAction
   | SetGridCols !Int
   | SetGroupedCopies !Int
   | SetTotalCopies !Int
+  | SetShowTitle !Bool
   | SetShowHeader !Bool
   | SetShowFooter !Bool
   | SetShowNameField !Bool
@@ -103,6 +104,8 @@ updatePrintModal (SetGroupedCopies n) _total m =
   m {settings = m.settings {groupedCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetTotalCopies n) _total m =
   m {settings = m.settings {totalCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
+updatePrintModal (SetShowTitle b) _total m =
+  m {settings = m.settings {showTitle = b}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetShowHeader b) _total m =
   m {settings = m.settings {showHeader = b}}
 updatePrintModal (SetShowFooter b) _total m =
@@ -128,6 +131,7 @@ needsRemeasure (SetFontSize _) = True
 needsRemeasure (SetGroupedCopies _) = True
 needsRemeasure (SetTotalCopies _) = True
 needsRemeasure (SetTaskLayout _) = True
+needsRemeasure (SetShowTitle _) = True
 needsRemeasure (SetShowNameField _) = True
 needsRemeasure _ = False
 
@@ -303,7 +307,8 @@ gridSizeControls settings wrap = case settings.taskLayout of
 continuousOptions :: PrintSettings -> (PrintModalAction -> action) -> [M.View model action]
 continuousOptions settings wrap = case settings.taskLayout of
   Continuous ->
-    [ checkboxToggle (C.translate' C.LblShowHeader) settings.showHeader (\b -> wrap (SetShowHeader b))
+    [ checkboxToggle (C.translate' C.LblShowTitle) settings.showTitle (\b -> wrap (SetShowTitle b))
+    , checkboxToggle (C.translate' C.LblShowHeader) settings.showHeader (\b -> wrap (SetShowHeader b))
     , checkboxToggle (C.translate' C.LblShowFooter) settings.showFooter (\b -> wrap (SetShowFooter b))
     , checkboxToggle (C.translate' C.LblShowNameField) settings.showNameField (\b -> wrap (SetShowNameField b))
     ]
@@ -462,11 +467,11 @@ continuousPreview renderTask title date model =
         [] -> 1
         pgs -> length pgs
       marginTopContent
+        | isFirstPage && settings.showTitle = []
         | not settings.showHeader = []
-        | isFirstPage = []
         | otherwise = [renderCompactHeader title date]
       firstPageTitleView
-        | settings.showHeader && isFirstPage = [renderFirstPageHeader title date]
+        | settings.showTitle && isFirstPage = [renderFirstPageHeader title date]
         | otherwise = []
       nameView
         | settings.showNameField && isFirstPage = [renderNameField]

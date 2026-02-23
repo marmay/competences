@@ -668,7 +668,7 @@ viewerComponent r user assignment wm =
     decorationAdjustedHeights :: PrintSettings -> (Double, Double)
     decorationAdjustedHeights s =
       let baseAvail = contentHeightPx s.paperSize s.orientation
-          headerH = if s.showHeader then firstPageHeaderPx s.baseFontSize else 0
+          headerH = if s.showTitle then firstPageHeaderPx s.baseFontSize else 0
           nameH = if s.showNameField then nameFieldPx s.baseFontSize else 0
           firstAvail = baseAvail - headerH - nameH
        in (firstAvail, baseAvail)
@@ -749,11 +749,11 @@ viewerComponent r user assignment wm =
             , ("padding-right", showMm margin)
             ]
           marginTopContent
+            | isFirst && settings.showTitle = []
             | not settings.showHeader = []
-            | isFirst = []
             | otherwise = [renderCompactHeader title date]
           firstPageTitleView
-            | settings.showHeader && isFirst = [renderFirstPageHeader title date]
+            | settings.showTitle && isFirst = [renderFirstPageHeader title date]
             | otherwise = []
           nameView
             | settings.showNameField && isFirst = [renderNameField]

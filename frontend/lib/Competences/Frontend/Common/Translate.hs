@@ -333,6 +333,7 @@ data Label
   | LblColumns
   | LblGroupedCopies
   | LblTotalCopies
+  | LblShowTitle
   | LblShowHeader
   | LblShowFooter
   | LblShowNameField
@@ -659,6 +660,7 @@ labels' =
   , LblColumns
   , LblGroupedCopies
   , LblTotalCopies
+  , LblShowTitle
   , LblShowHeader
   , LblShowFooter
   , LblShowNameField
@@ -1005,6 +1007,7 @@ defaultTranslation LblRows = "Zeilen"
 defaultTranslation LblColumns = "Spalten"
 defaultTranslation LblGroupedCopies = "Kopien pro Aufgabe"
 defaultTranslation LblTotalCopies = "Gesamtkopien"
+defaultTranslation LblShowTitle = "Titel"
 defaultTranslation LblShowHeader = "Kopfzeile"
 defaultTranslation LblShowFooter = "Seitenzahlen"
 defaultTranslation LblShowNameField = "Namensfeld"
