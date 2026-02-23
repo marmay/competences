@@ -4,6 +4,8 @@ module Competences.Frontend.Component.Planning.DetailView
 where
 
 import Competences.Command (Command (..), EntityCommand (..), LessonsCommand (..), MesoPlansCommand (..))
+import Competences.Frontend.Clipboard (copyToClipboard)
+import Competences.Import.Export (exportLesson)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
@@ -74,6 +76,7 @@ data DetailAction
   | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
   | OpenLessonImportModal
+  | ExportLesson !Lesson
   | StartReorder !LessonId
   | CancelReorder
   | ReorderTo !(Reorder Lesson)
@@ -228,6 +231,10 @@ detailComponent r initialPlan =
             (WindowChrome pinTitle Icon.IcnAssignment)
             (evaluatorComponent r assignment)
 
+    update (ExportLesson lesson) = do
+      m <- M.get
+      M.io_ $ copyToClipboard (exportLesson m.document lesson)
+
     update OpenLessonImportModal = do
       m <- M.get
       let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport) (ModalId "import-lessons") ModalWide ModalFull Nothing
@@ -286,8 +293,9 @@ detailComponent r initialPlan =
           titleView = Disclosure.titleText $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
           actions = case m.reorderFrom of
             Nothing ->
-              -- Normal mode: Pin, Edit, Reorder, Delete
-              [ Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
+              -- Normal mode: Export, Pin, Edit, Reorder, Delete
+              [ Disclosure.Action Icon.IcnExport (ExportLesson lesson)
+              , Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
               , Disclosure.Action Icon.IcnEdit (OpenLessonEditorModal lesson)
               , Disclosure.Action Icon.IcnReorder (StartReorder lesson.id)
               , Disclosure.DestructiveAction Icon.IcnDelete (DeleteLesson lesson.id)
