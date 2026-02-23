@@ -14,9 +14,27 @@ module Competences.Frontend.Component.PrintEngine.Types
   , expandTaskSequence
   , chunksOf
   , taskNumFromIdx
+    -- * Content settings
+  , PrintTab (..)
+  , TaskContentSetting (..)
+  , ContentSettings (..)
+  , ContentPreset (..)
+  , TaskInfo (..)
+  , defaultGridHeightMm
+  , mkTaskInfos
+  , applyPreset
+  , isTaskVisible
+  , taskContentSetting
   )
 where
 
+import Competences.Document.Id (Id)
+import Competences.Document.Solution (Solution (..), SolutionId, SolutionType (..))
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -140,3 +158,111 @@ taskNumFromIdx groupedCopies originalCount idx =
   let gc = max 1 groupedCopies
    in (idx `mod` (originalCount * gc)) `div` gc + 1
 
+-- ============================================================================
+-- Content Settings (what to include per task in print output)
+-- ============================================================================
+
+-- | Tab selection for the print modal sidebar
+data PrintTab = FormatTab | ContentsTab
+  deriving (Eq, Show, Generic)
+
+-- | Per-task content settings for print output
+data TaskContentSetting = TaskContentSetting
+  { showDescription :: !Bool
+  , visibleSolutions :: !(Set SolutionId)
+  , gridHeightMm :: !(Maybe Double)
+  }
+  deriving (Eq, Show, Generic)
+
+-- | Content settings: per-task map of what to include
+newtype ContentSettings = ContentSettings
+  { perTask :: Map TaskId TaskContentSetting
+  }
+  deriving (Eq, Show, Generic)
+
+-- | Preset configurations for quick setup
+data ContentPreset
+  = Aufgabenblatt
+  | Arbeitsblatt
+  | Loesungsblatt
+  | Musteraufgaben
+  deriving (Eq, Show, Generic, Enum, Bounded)
+
+-- | Summary info about a task for modal UI rendering
+data TaskInfo = TaskInfo
+  { taskId :: !TaskId
+  , identifier :: !TaskIdentifier
+  , solutionInfos :: ![(SolutionId, SolutionType)]
+  }
+  deriving (Eq, Show, Generic)
+
+-- | Default grid height in mm
+defaultGridHeightMm :: Double
+defaultGridHeightMm = 40.0
+
+-- | Build TaskInfo list from tasks with solutions
+mkTaskInfos :: [(Task, [Solution])] -> [TaskInfo]
+mkTaskInfos = map $ \(task, sols) ->
+  TaskInfo
+    { taskId = task.id
+    , identifier = task.identifier
+    , solutionInfos = map (\s -> (s.id, s.solutionType)) sols
+    }
+
+-- | Apply a preset to produce content settings for the given tasks
+applyPreset :: ContentPreset -> [TaskInfo] -> ContentSettings
+applyPreset preset infos = ContentSettings
+  { perTask = Map.fromList $ map (\ti -> (ti.taskId, presetForTask preset ti)) infos
+  }
+
+presetForTask :: ContentPreset -> TaskInfo -> TaskContentSetting
+presetForTask Aufgabenblatt ti = TaskContentSetting
+  { showDescription = True
+  , visibleSolutions = solutionsOfType Hint ti
+  , gridHeightMm = Nothing
+  }
+presetForTask Arbeitsblatt ti = TaskContentSetting
+  { showDescription = True
+  , visibleSolutions = solutionsOfType Hint ti
+  , gridHeightMm = Just defaultGridHeightMm
+  }
+presetForTask Loesungsblatt ti = TaskContentSetting
+  { showDescription = False
+  , visibleSolutions = solutionsOfType Results ti
+  , gridHeightMm = Nothing
+  }
+presetForTask Musteraufgaben ti =
+  let completeIds = solutionsOfType Complete ti
+      resultIds = solutionsOfType Results ti
+      hintIds = solutionsOfType Hint ti
+      visible = if Set.null completeIds then resultIds else completeIds
+   in TaskContentSetting
+        { showDescription = True
+        , visibleSolutions = Set.union hintIds visible
+        , gridHeightMm = Nothing
+        }
+
+solutionsOfType :: SolutionType -> TaskInfo -> Set (Id Solution)
+solutionsOfType stype ti =
+  Set.fromList [sid | (sid, st) <- ti.solutionInfos, st == stype]
+
+-- | Whether a task should be visible at all (has any content to show)
+isTaskVisible :: ContentSettings -> TaskId -> Bool
+isTaskVisible cs tid = case Map.lookup tid cs.perTask of
+  Nothing -> False
+  Just tcs ->
+    tcs.showDescription
+      || not (Set.null tcs.visibleSolutions)
+      || case tcs.gridHeightMm of
+        Just _ -> True
+        Nothing -> False
+
+-- | Look up content setting for a task, defaulting to everything off
+taskContentSetting :: ContentSettings -> TaskId -> TaskContentSetting
+taskContentSetting cs tid = case Map.lookup tid cs.perTask of
+  Nothing -> TaskContentSetting
+    { showDescription = False
+    , visibleSolutions = Set.empty
+    , gridHeightMm = Nothing
+    }
+  Just tcs -> tcs

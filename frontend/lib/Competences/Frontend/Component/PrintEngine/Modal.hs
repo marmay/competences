@@ -1,7 +1,7 @@
 module Competences.Frontend.Component.PrintEngine.Modal
   ( PrintModalModel (..)
   , PrintModalAction (..)
-  , defaultPrintModalModel
+  , initPrintModalModel
   , updatePrintModal
   , printModalView
   , measurementContainer
@@ -13,28 +13,42 @@ module Competences.Frontend.Component.PrintEngine.Modal
   )
 where
 
+import Competences.Document.Solution (SolutionId, SolutionType (..))
+import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping)
 import Competences.Frontend.Component.PrintEngine.Types
-  ( GridConfig (..)
+  ( ContentPreset (..)
+  , ContentSettings (..)
+  , GridConfig (..)
   , Orientation (..)
   , PaperSize (..)
   , PrintSettings (..)
+  , PrintTab (..)
+  , TaskContentSetting (..)
   , TaskHeaderStyle (..)
+  , TaskInfo (..)
   , TaskLayout (..)
+  , applyPreset
   , cellsPerPage
+  , defaultGridHeightMm
   , defaultPrintSettings
   , pageSizeMm
   , pageMarginMm
+  , taskContentSetting
   )
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalHeight (..), ModalId (..), ModalWidth (..), WindowChrome (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Frontend.View.WindowFrame (modalFrame)
 import Data.Function ((&))
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -47,6 +61,9 @@ import Text.Read (readMaybe)
 -- | Modal state
 data PrintModalModel = PrintModalModel
   { settings :: !PrintSettings
+  , contentSettings :: !ContentSettings
+  , taskInfos :: ![TaskInfo]
+  , activeTab :: !PrintTab
   , previewTaskIndex :: !Int
   , pageGrouping :: !PageGrouping
   }
@@ -72,11 +89,21 @@ data PrintModalAction
   | PreviewPrev
   | ConfirmPrint
   | CancelPrint
+  | SwitchTab !PrintTab
+  | ApplyPreset !ContentPreset
+  | ToggleDescription !TaskId
+  | ToggleSolution !TaskId !SolutionId
+  | ToggleGrid !TaskId
+  | SetGridHeight !TaskId !Double
   deriving (Eq, Show)
 
-defaultPrintModalModel :: PrintModalModel
-defaultPrintModalModel = PrintModalModel
+-- | Initialize modal with task infos, applying Aufgabenblatt preset
+initPrintModalModel :: [TaskInfo] -> PrintModalModel
+initPrintModalModel infos = PrintModalModel
   { settings = defaultPrintSettings
+  , contentSettings = applyPreset Aufgabenblatt infos
+  , taskInfos = infos
+  , activeTab = FormatTab
   , previewTaskIndex = 0
   , pageGrouping = []
   }
@@ -122,6 +149,50 @@ updatePrintModal PreviewPrev _total m =
   m {previewTaskIndex = max 0 (m.previewTaskIndex - 1)}
 updatePrintModal ConfirmPrint _total m = m
 updatePrintModal CancelPrint _total m = m
+updatePrintModal (SwitchTab tab) _total m =
+  m {activeTab = tab}
+updatePrintModal (ApplyPreset preset) _total m =
+  m {contentSettings = applyPreset preset m.taskInfos, pageGrouping = [], previewTaskIndex = 0}
+updatePrintModal (ToggleDescription tid) _total m =
+  m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {showDescription = not tcs.showDescription}) m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+updatePrintModal (ToggleSolution tid sid) _total m =
+  m { contentSettings = modifyTaskSetting tid (toggleSolution sid) m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+updatePrintModal (ToggleGrid tid) _total m =
+  m { contentSettings = modifyTaskSetting tid toggleGrid m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+updatePrintModal (SetGridHeight tid h) _total m =
+  m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {gridHeightMm = Just (max 5.0 (min 200.0 h))}) m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+
+-- | Modify a task's content setting in the map
+modifyTaskSetting :: TaskId -> (TaskContentSetting -> TaskContentSetting) -> ContentSettings -> ContentSettings
+modifyTaskSetting tid f cs =
+  let current = taskContentSetting cs tid
+   in cs {perTask = Map.insert tid (f current) cs.perTask}
+
+-- | Toggle a solution in/out of the visible set
+toggleSolution :: SolutionId -> TaskContentSetting -> TaskContentSetting
+toggleSolution sid tcs =
+  let vs = tcs.visibleSolutions
+   in if Set.member sid vs
+        then tcs {visibleSolutions = Set.delete sid vs}
+        else tcs {visibleSolutions = Set.insert sid vs}
+
+-- | Toggle grid on/off
+toggleGrid :: TaskContentSetting -> TaskContentSetting
+toggleGrid tcs = case tcs.gridHeightMm of
+  Nothing -> tcs {gridHeightMm = Just defaultGridHeightMm}
+  Just _ -> tcs {gridHeightMm = Nothing}
 
 -- | Whether a modal action requires re-measurement of task heights
 needsRemeasure :: PrintModalAction -> Bool
@@ -133,6 +204,11 @@ needsRemeasure (SetTotalCopies _) = True
 needsRemeasure (SetTaskLayout _) = True
 needsRemeasure (SetShowTitle _) = True
 needsRemeasure (SetShowNameField _) = True
+needsRemeasure (ApplyPreset _) = True
+needsRemeasure (ToggleDescription _) = True
+needsRemeasure (ToggleSolution _ _) = True
+needsRemeasure (ToggleGrid _) = True
+needsRemeasure (SetGridHeight _ _) = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -165,30 +241,21 @@ printModalView
   -> (PrintModalAction -> action)
   -> M.View model action
 printModalView renderTask totalTasks title date model wrap =
-  -- Backdrop
-  M.div_
-    [class_ "fixed inset-0 z-50 flex items-center justify-center bg-black/50"]
-    [ -- Modal container
-      Layout.vFlow
-        Layout.wFull
-        [ modalHeader wrap
-        , modalBody renderTask totalTasks title date model wrap
+  modalFrame modalConfig (wrap CancelPrint)
+    [ Layout.vFlow Layout.hFull
+        [ modalBody renderTask totalTasks title date model wrap
         , modalFooter wrap
-        , printStyleView model.settings
         ]
-        & Layout.addClass "bg-card text-card-foreground rounded-lg shadow-xl border border-border max-h-[90vh] w-[700px]"
+    , printStyleView model.settings
     ]
-
--- | Modal header with title and close button
-modalHeader :: (PrintModalAction -> action) -> M.View model action
-modalHeader wrap =
-  Layout.shrink0 $
-    Layout.hFlow
-      (Layout.crossCenter <> Layout.mainBetween)
-      [ Typography.h4 (C.translate' C.LblPrintPreview)
-      , Button.ghostSm (btn Icon.IcnCancel (Just (wrap CancelPrint)))
-      ]
-      & Layout.addClass "px-6 py-4 border-b border-border"
+  where
+    modalConfig = ModalConfig
+      { chrome = WindowChrome (C.translate' C.LblPrintPreview) Icon.IcnPrint
+      , modalId = ModalId "print-preview"
+      , width = ModalWide
+      , height = ModalFull
+      , pinnable = Nothing
+      }
 
 -- | Modal body: sidebar with selectors + preview pane
 modalBody
@@ -203,39 +270,146 @@ modalBody renderTask totalTasks title date model wrap =
   Layout.hFlow
     Layout.hFull
     [ -- Left sidebar
-      Layout.shrink0 $
-        Layout.vFlow
-          Layout.gapM
-          ( [ Typography.fieldLabel (C.translate' C.LblPageSize)
-            , paperSizeSelector model.settings.paperSize wrap
-            , Typography.fieldLabel (C.translate' C.LblOrientation)
-            , orientationSelector model.settings.orientation wrap
-            , Typography.fieldLabel (C.translate' C.LblLayout)
-            , layoutSelector model.settings.taskLayout wrap
-            , Typography.fieldLabel (C.translate' C.LblTaskHeaderStyle)
-            , taskHeaderStyleSelector model.settings.taskHeaderStyle wrap
-            ]
-            <> gridSizeControls model.settings wrap
-            <> [ Typography.fieldLabel (C.translate' C.LblFontSize)
-               , fontSizeInput model.settings.baseFontSize wrap
-               , Typography.fieldLabel (C.translate' C.LblGroupedCopies)
-               , copiesInput model.settings.groupedCopies (\n -> wrap (SetGroupedCopies n))
-               , Typography.fieldLabel (C.translate' C.LblTotalCopies)
-               , copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n))
-               ]
-            <> continuousOptions model.settings wrap
-          )
-          & Layout.addClass "border-r border-border p-4 overflow-y-auto overflow-x-hidden"
+      M.div_
+        [class_ "w-1/3 border-r border-border p-4 overflow-y-auto overflow-x-hidden"]
+        [ Layout.vFlow
+            Layout.gapM
+            ( tabSwitcher model.activeTab wrap
+              : case model.activeTab of
+                  FormatTab -> formatTabContent model wrap
+                  ContentsTab -> contentsTabContent model wrap
+            )
+        ]
     , -- Right: preview pane with navigation
-      Layout.grow $
-        Layout.vFlow
-          (Layout.gapM <> Layout.crossCenter <> Layout.mainCenter)
-          [ previewPane renderTask title date model
-          , previewNavigation totalTasks model wrap
-          ]
-          & Layout.addClass "p-6 bg-muted/30 overflow-hidden"
+      M.div_
+        [class_ "w-2/3 p-6 bg-muted/30 overflow-hidden"]
+        [ Layout.vFlow
+            (Layout.gapM <> Layout.crossCenter <> Layout.mainCenter)
+            [ previewPane renderTask title date model
+            , previewNavigation totalTasks model wrap
+            ]
+        ]
     ]
     & Layout.addClass "flex-1 min-h-0 overflow-hidden"
+
+-- | Tab switcher at top of sidebar
+tabSwitcher :: PrintTab -> (PrintModalAction -> action) -> M.View model action
+tabSwitcher current wrap =
+  Button.buttonGroup
+    [ Button.toggleSm (current == FormatTab) (btn (C.translate' C.LblFormat) (Just (wrap (SwitchTab FormatTab))))
+    , Button.toggleSm (current == ContentsTab) (btn (C.translate' C.LblContents) (Just (wrap (SwitchTab ContentsTab))))
+    ]
+
+-- | Format tab content (current sidebar, unchanged)
+formatTabContent :: PrintModalModel -> (PrintModalAction -> action) -> [M.View model action]
+formatTabContent model wrap =
+  [ Typography.fieldLabel (C.translate' C.LblPageSize)
+  , paperSizeSelector model.settings.paperSize wrap
+  , Typography.fieldLabel (C.translate' C.LblOrientation)
+  , orientationSelector model.settings.orientation wrap
+  , Typography.fieldLabel (C.translate' C.LblLayout)
+  , layoutSelector model.settings.taskLayout wrap
+  , Typography.fieldLabel (C.translate' C.LblTaskHeaderStyle)
+  , taskHeaderStyleSelector model.settings.taskHeaderStyle wrap
+  ]
+  <> gridSizeControls model.settings wrap
+  <> [ Typography.fieldLabel (C.translate' C.LblFontSize)
+     , fontSizeInput model.settings.baseFontSize wrap
+     , Typography.fieldLabel (C.translate' C.LblGroupedCopies)
+     , copiesInput model.settings.groupedCopies (\n -> wrap (SetGroupedCopies n))
+     , Typography.fieldLabel (C.translate' C.LblTotalCopies)
+     , copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n))
+     ]
+  <> continuousOptions model.settings wrap
+
+-- | Contents tab content: presets + per-task toggles
+contentsTabContent :: PrintModalModel -> (PrintModalAction -> action) -> [M.View model action]
+contentsTabContent model wrap =
+  [ presetButtons model wrap
+  ]
+  <> concatMap (taskSection model.contentSettings wrap) model.taskInfos
+
+-- | Preset buttons in a 2x2 grid
+presetButtons :: PrintModalModel -> (PrintModalAction -> action) -> M.View model action
+presetButtons _model wrap =
+  M.div_
+    [class_ "grid grid-cols-2 gap-1"]
+    [ presetButton C.LblPresetAufgabenblatt Aufgabenblatt wrap
+    , presetButton C.LblPresetArbeitsblatt Arbeitsblatt wrap
+    , presetButton C.LblPresetLoesungsblatt Loesungsblatt wrap
+    , presetButton C.LblPresetMusteraufgaben Musteraufgaben wrap
+    ]
+
+presetButton :: C.Label -> ContentPreset -> (PrintModalAction -> action) -> M.View model action
+presetButton lbl preset wrap =
+  M.button_
+    [ class_ "px-2 py-1 text-xs rounded border border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+    , M.onClick (wrap (ApplyPreset preset))
+    ]
+    [M.text (C.translate' lbl)]
+
+-- | Per-task section with toggles
+taskSection :: ContentSettings -> (PrintModalAction -> action) -> TaskInfo -> [M.View model action]
+taskSection cs wrap ti =
+  let tcs = taskContentSetting cs ti.taskId
+      TaskIdentifier ident = ti.identifier
+   in [ -- Section header with task identifier
+        M.div_
+          [class_ "mt-3 pt-2 border-t border-border"]
+          [ Typography.muted (ms ident)
+          ]
+      , -- Description toggle
+        checkboxToggle (C.translate' C.LblDescriptionToggle) tcs.showDescription (\b -> wrap (if b then ToggleDescription ti.taskId else ToggleDescription ti.taskId))
+      ]
+      -- Per-solution toggles
+      <> [ solutionToggle cs wrap ti.taskId sid stype
+         | (sid, stype) <- ti.solutionInfos
+         ]
+      -- Grid toggle with height input
+      <> [ gridToggleRow tcs wrap ti.taskId ]
+
+-- | Toggle for a specific solution
+solutionToggle :: ContentSettings -> (PrintModalAction -> action) -> TaskId -> SolutionId -> SolutionType -> M.View model action
+solutionToggle cs wrap tid sid stype =
+  let tcs = taskContentSetting cs tid
+      isOn = Set.member sid tcs.visibleSolutions
+      lbl = C.translate' (C.LblSolutionType stype)
+   in checkboxToggle lbl isOn (\_ -> wrap (ToggleSolution tid sid))
+
+-- | Grid toggle row with optional height input
+gridToggleRow :: TaskContentSetting -> (PrintModalAction -> action) -> TaskId -> M.View model action
+gridToggleRow tcs wrap tid =
+  let isOn = case tcs.gridHeightMm of { Just _ -> True; Nothing -> False }
+   in M.div_
+        [class_ "field"]
+        [ M.label_
+            [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
+            [ M.input_
+                [ MP.type_ "checkbox"
+                , M.textProp "role" "switch"
+                , MP.checked_ isOn
+                , M.onClick (wrap (ToggleGrid tid))
+                , class_ "input"
+                ]
+            , M.text (C.translate' C.LblAnswerGrid)
+            , case tcs.gridHeightMm of
+                Nothing -> M.text ""
+                Just h ->
+                  M.span_
+                    [class_ "flex items-center gap-1"]
+                    [ M.input_
+                        [ MP.type_ "number"
+                        , MP.value_ (ms (show (round h :: Int)))
+                        , M.onInput (\v -> wrap (SetGridHeight tid (parseDoubleOr h v)))
+                        , M.textProp "min" "5"
+                        , M.textProp "max" "200"
+                        , M.textProp "step" "5"
+                        , class_ "input w-16 h-6 text-xs px-1"
+                        ]
+                    , M.span_ [class_ "text-xs text-muted-foreground"] [M.text "mm"]
+                    ]
+            ]
+        ]
 
 -- | Modal footer with cancel and print buttons
 modalFooter :: (PrintModalAction -> action) -> M.View model action
@@ -366,6 +540,12 @@ copiesInput current toAction =
 parseIntOr :: Int -> MisoString -> Int
 parseIntOr def v = case readMaybe (fromMisoString v) of
   Just n -> n
+  Nothing -> def
+
+-- | Parse double from input, defaulting to given value
+parseDoubleOr :: Double -> MisoString -> Double
+parseDoubleOr def v = case readMaybe (fromMisoString v) of
+  Just d -> d
   Nothing -> def
 
 -- | Preview navigation: previous / "Task 1 / N" or "Page 1 / N" / next

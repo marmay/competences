@@ -321,6 +321,14 @@ data Label
   | LblPrintSolutions
   | LblPrintAll
   | LblPrintPreview
+  | LblFormat
+  | LblContents
+  | LblDescriptionToggle
+  | LblAnswerGrid
+  | LblPresetAufgabenblatt
+  | LblPresetArbeitsblatt
+  | LblPresetLoesungsblatt
+  | LblPresetMusteraufgaben
   | LblPageSize
   | LblOrientation
   | LblPortrait
@@ -648,6 +656,14 @@ labels' =
   , LblPrintSolutions
   , LblPrintAll
   , LblPrintPreview
+  , LblFormat
+  , LblContents
+  , LblDescriptionToggle
+  , LblAnswerGrid
+  , LblPresetAufgabenblatt
+  , LblPresetArbeitsblatt
+  , LblPresetLoesungsblatt
+  , LblPresetMusteraufgaben
   , LblPageSize
   , LblOrientation
   , LblPortrait
@@ -995,6 +1011,14 @@ defaultTranslation LblPrintTasks = "Aufgaben"
 defaultTranslation LblPrintSolutions = "Lösungen"
 defaultTranslation LblPrintAll = "Alles"
 defaultTranslation LblPrintPreview = "Druckvorschau"
+defaultTranslation LblFormat = "Format"
+defaultTranslation LblContents = "Inhalt"
+defaultTranslation LblDescriptionToggle = "Angabe"
+defaultTranslation LblAnswerGrid = "Kästchen"
+defaultTranslation LblPresetAufgabenblatt = "Aufgabenblatt"
+defaultTranslation LblPresetArbeitsblatt = "Arbeitsblatt"
+defaultTranslation LblPresetLoesungsblatt = "Lösungsblatt"
+defaultTranslation LblPresetMusteraufgaben = "Musteraufgaben"
 defaultTranslation LblPageSize = "Seitengröße"
 defaultTranslation LblOrientation = "Ausrichtung"
 defaultTranslation LblPortrait = "Hochformat"
