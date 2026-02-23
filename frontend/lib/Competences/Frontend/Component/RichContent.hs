@@ -308,7 +308,8 @@ mathImgRef symbols sid display =
               <> ";vertical-align:" <> es.verticalAlign
           img =
             M.img_
-              [ M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+              [ class_ "math-formula"
+              , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
               , M.textProp (ms ("style" :: Text)) (ms styleVal)
               ]
        in case display of
@@ -316,7 +317,7 @@ mathImgRef symbols sid display =
               M.div_ [class_ "flex justify-center my-2"] [img]
             Inline ->
               M.img_
-                [ class_ "inline-block"
+                [ class_ "math-formula inline-block"
                 , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
                 , M.textProp (ms ("style" :: Text)) (ms styleVal)
                 ]

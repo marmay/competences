@@ -419,6 +419,11 @@
   mjx-assistive-mml {
     display: none !important;
   }
+
+  /* Scale MathJax formula images to match body text x-height */
+  img.math-formula {
+    font-size: 0.9em;
+  }
 }
 
 /* Print layout: flatten containers so print-only content flows naturally */
