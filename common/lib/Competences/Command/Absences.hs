@@ -25,7 +25,7 @@ import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
-import Optics.Core ((&), (^.))
+import Optics.Core ((&), (%~), (^.))
 
 -- | Patch for modifying an Absence (no editable fields)
 data AbsencePatch = AbsencePatch
@@ -64,7 +64,10 @@ handleAbsencesCommand userId (OnAbsences c) d = case c of
     unless (Ix.null existing) $
       Left "An Absence already exists for this Lesson and User"
     d' <- ctx.create a d
-    pure (d', ctx.affectedUsers a d)
+    -- Clear participation records for this (lesson, user)
+    let prsToDelete = d'.participationRecords Ix.@= a.lessonId Ix.@= a.userId
+        d'' = d' & #participationRecords %~ \prs -> foldr Ix.delete prs (Ix.toList prsToDelete)
+    pure (d'', ctx.affectedUsers a d)
   _ -> interpretEntityCommand ctx userId c d
   where
     ctx =

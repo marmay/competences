@@ -42,6 +42,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Button (ButtonDisabled (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability qualified as Color
 import Competences.Frontend.View.Icon qualified as Icon
@@ -216,7 +217,9 @@ lessonEvaluatorComponent r lessonId =
           , rowContents = Table.cellContents $ \student -> \case
               NameCol -> M.text $ M.ms student.name
               AbsenceCol -> viewAbsenceCell student.id (m.absences Ix.@= student.id)
-              ParticipationCol pType -> viewParticipationCell student.id (m.participationRecords Ix.@= student.id) pType
+              ParticipationCol pType ->
+                let isAbsent = not $ Ix.null (m.absences Ix.@= student.id)
+                 in viewParticipationCell isAbsent student.id (m.participationRecords Ix.@= student.id) pType
               TasksCol ->
                 Layout.hFlow'
                   [ viewEvidenceBadges m student.id
@@ -229,25 +232,26 @@ lessonEvaluatorComponent r lessonId =
       let isAbsent = not $ Ix.null studentAbsences
        in Button.toggleSm
             isAbsent
-            (Button.button Icon.IcnMinus (ToggleAbsence studentId))
+            (Button.button Icon.IcnSick (ToggleAbsence studentId))
 
-    viewParticipationCell studentId participationRecords pType =
+    viewParticipationCell isAbsent studentId participationRecords pType =
       Layout.hFlow' $
         map
-          (viewParticipationButton studentId participationRecords pType)
+          (viewParticipationButton isAbsent studentId participationRecords pType)
           allParticipationLevels
 
-    viewParticipationButton userId prs pType pLevel =
+    viewParticipationButton isAbsent userId prs pType pLevel =
       let mRecord = Ix.getOne (prs Ix.@= pType)
           isActive = case mRecord of
             Just pr -> pr.level == pLevel
             Nothing -> False
           icn = participationIcon pType pLevel
           tooltipText = C.translate' (C.LblParticipationLevel pType pLevel)
+          action = if isAbsent then Button.button icn Disabled else Button.button icn (ToggleParticipation userId pType pLevel)
        in Tooltip.withTooltip (Tooltip.PlainTooltip tooltipText) $
             Button.toggleSm
               isActive
-              (Button.button icn (ToggleParticipation userId pType pLevel))
+              action
 
     viewEvidenceBadges m userId =
       case m.studentBadges Map.!? userId of

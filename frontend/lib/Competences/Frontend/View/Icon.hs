@@ -83,6 +83,7 @@ data Icon
   | IcnCloudCheck -- ^ Connected, all synced (cloud + checkmark)
   | IcnCloudSync -- ^ Connected, sending/receiving (cloud + arrows)
   | IcnCloudOff -- ^ Disconnected (cloud + slash)
+  | IcnSick -- ^ Thermometer (absence/sick)
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -234,6 +235,7 @@ iconId = \case
   IcnCloudCheck -> "icon-cloud-check"
   IcnCloudSync -> "icon-cloud-sync"
   IcnCloudOff -> "icon-cloud-off"
+  IcnSick -> "icon-sick"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -623,6 +625,11 @@ iconDefOf' = \case
     mkPathesDR
       [ cloudBase
       , "M2 2l20 20" -- slash
+      ]
+  -- Thermometer icon (sick/absent)
+  IcnSick ->
+    mkPathesDR
+      [ "M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"
       ]
   where
     -- Consistent cloud outline shared by all cloud status icons (Lucide cloud)
