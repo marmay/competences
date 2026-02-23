@@ -284,23 +284,28 @@ gridSizeControls settings wrap = case settings.taskLayout of
 continuousOptions :: PrintSettings -> (PrintModalAction -> action) -> [M.View model action]
 continuousOptions settings wrap = case settings.taskLayout of
   Continuous ->
-    [ Typography.fieldLabel (C.translate' C.LblShowHeader)
-    , checkboxToggle settings.showHeader (\b -> wrap (SetShowHeader b))
-    , Typography.fieldLabel (C.translate' C.LblShowFooter)
-    , checkboxToggle settings.showFooter (\b -> wrap (SetShowFooter b))
-    , Typography.fieldLabel (C.translate' C.LblShowNameField)
-    , checkboxToggle settings.showNameField (\b -> wrap (SetShowNameField b))
+    [ checkboxToggle (C.translate' C.LblShowHeader) settings.showHeader (\b -> wrap (SetShowHeader b))
+    , checkboxToggle (C.translate' C.LblShowFooter) settings.showFooter (\b -> wrap (SetShowFooter b))
+    , checkboxToggle (C.translate' C.LblShowNameField) settings.showNameField (\b -> wrap (SetShowNameField b))
     ]
   Grid _ -> []
 
--- | Simple checkbox toggle
-checkboxToggle :: Bool -> (Bool -> action) -> M.View model action
-checkboxToggle current toAction =
-  M.input_
-    [ MP.type_ "checkbox"
-    , MP.checked_ current
-    , M.onClick (toAction (not current))
-    , class_ "h-4 w-4"
+-- | Basecoat-styled switch toggle with integrated label
+checkboxToggle :: MisoString -> Bool -> (Bool -> action) -> M.View model action
+checkboxToggle labelText current toAction =
+  M.div_
+    [class_ "field"]
+    [ M.label_
+        [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
+        [ M.input_
+            [ MP.type_ "checkbox"
+            , M.textProp "role" "switch"
+            , MP.checked_ current
+            , M.onClick (toAction (not current))
+            , class_ "input"
+            ]
+        , M.text labelText
+        ]
     ]
 
 -- | Number input for grid dimensions (1–4)
