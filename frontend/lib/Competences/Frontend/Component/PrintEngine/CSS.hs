@@ -28,13 +28,14 @@ printCSS :: PrintSettings -> Text
 printCSS settings =
   let size = pageSizeCSS settings.paperSize settings.orientation
       margin = T.pack $ show (pageMarginMm settings.paperSize) <> "mm"
+      fontSize = T.pack (show settings.baseFontSize) <> "pt"
    in T.unlines
         [ "@page { size: " <> size <> "; margin: " <> margin <> "; }"
         , "@media print {"
         , "  .page-print-content { display: block !important; }"
         , "  .page-print-content .print-task { break-after: page; }"
         , "  .page-print-content .print-task:last-child { break-after: auto; }"
-        , "  .page-print-content { font-size: 11pt; line-height: 1.5; }"
+        , "  .page-print-content { font-size: " <> fontSize <> "; line-height: 1.5; }"
         , "  .page-print-content .geometry-scene { max-width: 100% !important; height: auto !important; }"
         , "}"
         ]

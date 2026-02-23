@@ -19,6 +19,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -28,7 +29,8 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html qualified as M
-import Miso.String (MisoString, ms)
+import Miso.String (MisoString, fromMisoString, ms)
+import Text.Read (readMaybe)
 
 -- | Modal state
 data PrintModalModel = PrintModalModel
@@ -41,6 +43,7 @@ data PrintModalModel = PrintModalModel
 data PrintModalAction
   = SetPaperSize !PaperSize
   | SetOrientation !Orientation
+  | SetFontSize !Double
   | PreviewNext
   | PreviewPrev
   | ConfirmPrint
@@ -59,6 +62,8 @@ updatePrintModal (SetPaperSize ps) _total m =
   m {settings = m.settings {paperSize = ps}}
 updatePrintModal (SetOrientation o) _total m =
   m {settings = m.settings {orientation = o}}
+updatePrintModal (SetFontSize fs) _total m =
+  m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}}
 updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
@@ -125,6 +130,8 @@ modalBody renderTask totalTasks model wrap =
           , paperSizeSelector model.settings.paperSize wrap
           , Typography.fieldLabel (C.translate' C.LblOrientation)
           , orientationSelector model.settings.orientation wrap
+          , Typography.fieldLabel (C.translate' C.LblFontSize)
+          , fontSizeInput model.settings.baseFontSize wrap
           ]
           & Layout.addClass "border-r border-border p-4"
     , -- Right: preview pane with task navigation
@@ -190,6 +197,27 @@ previewNavigation totalTasks model wrap =
       | model.previewTaskIndex >= totalTasks - 1 = Nothing
       | otherwise = Just (wrap PreviewNext)
 
+-- | Font size number input
+fontSizeInput :: Double -> (PrintModalAction -> action) -> M.View model action
+fontSizeInput current wrap =
+  Input.renderInput
+    $ Input.withOnInput (\v -> wrap (SetFontSize (parseFontSize v)))
+    $ Input.withValue (ms (show current))
+    $ Input.defaultInput
+      { Input.inputType = "number"
+      , Input.attrs =
+          [ M.textProp "min" "6"
+          , M.textProp "max" "20"
+          , M.textProp "step" "0.5"
+          ]
+      }
+
+-- | Parse font size from input, defaulting to 11.0
+parseFontSize :: MisoString -> Double
+parseFontSize v = case readMaybe (fromMisoString v) of
+  Just fs -> fs
+  Nothing -> 11.0
+
 -- | Preview pane: renders one task inside a scaled page representation
 previewPane :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
 previewPane renderTask model =
@@ -224,7 +252,9 @@ previewPane renderTask model =
             , class_ "bg-white text-black"
             ]
             [ M.div_
-                [class_ "prose prose-stone prose-sm max-w-none"]
+                [ class_ "prose prose-stone prose-sm max-w-none"
+                , MC.style_ [("font-size", ms (show model.settings.baseFontSize <> "pt"))]
+                ]
                 [renderTask model.previewTaskIndex]
             ]
         ]

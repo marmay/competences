@@ -324,6 +324,7 @@ data Label
   | LblOrientation
   | LblPortrait
   | LblLandscape
+  | LblFontSize
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -632,6 +633,7 @@ labels' =
   , LblOrientation
   , LblPortrait
   , LblLandscape
+  , LblFontSize
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -960,6 +962,7 @@ defaultTranslation LblPageSize = "Seitengröße"
 defaultTranslation LblOrientation = "Ausrichtung"
 defaultTranslation LblPortrait = "Hochformat"
 defaultTranslation LblLandscape = "Querformat"
+defaultTranslation LblFontSize = "Schriftgröße"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."

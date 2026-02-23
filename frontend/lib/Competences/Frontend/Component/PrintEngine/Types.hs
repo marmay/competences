@@ -24,12 +24,13 @@ data Orientation = Portrait | Landscape
 data PrintSettings = PrintSettings
   { paperSize :: !PaperSize
   , orientation :: !Orientation
+  , baseFontSize :: !Double
   }
   deriving (Eq, Show, Generic)
 
 -- | Default: A5 portrait (fits well for single-task worksheets)
 defaultPrintSettings :: PrintSettings
-defaultPrintSettings = PrintSettings {paperSize = A5, orientation = Portrait}
+defaultPrintSettings = PrintSettings {paperSize = A5, orientation = Portrait, baseFontSize = 11.0}
 
 -- | CSS @page size value (e.g. "A5", "A6 landscape")
 pageSizeCSS :: PaperSize -> Orientation -> Text
