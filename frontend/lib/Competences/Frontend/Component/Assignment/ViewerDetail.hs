@@ -30,10 +30,19 @@ import Competences.Document.Task
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
+import Competences.Frontend.Component.PrintEngine.Measure
+  ( PageGroup (..)
+  , PageGrouping
+  , contentHeightPx
+  , groupIntoPages
+  , measureTaskHeights
+  )
 import Competences.Frontend.Component.PrintEngine.Modal
   ( PrintModalAction (..)
   , PrintModalModel (..)
   , defaultPrintModalModel
+  , measurementContainer
+  , needsRemeasure
   , printModalView
   , updatePrintModal
   )
@@ -89,6 +98,7 @@ import Data.Proxy (Proxy (..))
 import Control.Concurrent (threadDelay)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.CSS qualified as MC
 import Miso.DSL (jsg, (#))
 import Miso.Event (onCreated)
 import Miso.Html qualified as M
@@ -195,6 +205,7 @@ data ViewerModel = ViewerModel
   , expandedTaskResources :: !(Set.Set TaskId)
   , pagePrintModal :: !(Maybe PrintModalModel)
   , pagePrintPending :: !(Maybe PrintSettings)
+  , pagePrintPageGrouping :: !PageGrouping
   }
   deriving (Eq, Generic, Show)
 
@@ -227,6 +238,7 @@ viewerComponent r user assignment wm =
       , expandedTaskResources = Set.empty
       , pagePrintModal = Nothing
       , pagePrintPending = Nothing
+      , pagePrintPageGrouping = []
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -318,8 +330,14 @@ viewerComponent r user assignment wm =
                 else Set.insert taskId m.expandedTaskResources
          in m & #expandedTaskResources .~ newSet
 
-    update OpenPagePrintModal =
+    update OpenPagePrintModal = do
       M.modify $ \m -> m & #pagePrintModal .~ Just defaultPrintModalModel
+      M.io $ do
+        threadDelay 100000 -- 100ms for DOM to render measurement container
+        heights <- measureTaskHeights
+        let avail = contentHeightPx defaultPrintSettings.paperSize defaultPrintSettings.orientation
+            gap = minGapPx defaultPrintSettings.baseFontSize
+        pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages avail gap heights)))
 
     update (PagePrintMsg CancelPrint) =
       M.modify $ \m -> m & #pagePrintModal .~ Nothing
@@ -327,8 +345,10 @@ viewerComponent r user assignment wm =
     update (PagePrintMsg ConfirmPrint) = do
       M.modify $ \m ->
         let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
+            pg = maybe [] (.pageGrouping) m.pagePrintModal
          in m & #pagePrintModal .~ Nothing
               & #pagePrintPending .~ Just settings
+              & #pagePrintPageGrouping .~ pg
       -- Delay to let MathJax finish rendering formulas in the hidden div,
       -- then trigger the browser print dialog and clean up afterwards.
       M.io $ do
@@ -336,16 +356,29 @@ viewerComponent r user assignment wm =
         triggerPrint
         pure ClearPagePrint
 
-    update (PagePrintMsg action) =
+    update (PagePrintMsg action) = do
       M.modify $ \m ->
         let expanded = case m.pagePrintModal of
               Nothing -> m.projection.tasksWithSolutions
               Just mm -> expandedTasks mm.settings m.projection
             total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
+      if needsRemeasure action
+        then do
+          -- Read updated settings from model before spawning IO
+          m <- M.get
+          let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
+              avail = contentHeightPx settings.paperSize settings.orientation
+              gap = minGapPx settings.baseFontSize
+          M.io $ do
+            threadDelay 100000 -- 100ms for DOM to re-render
+            heights <- measureTaskHeights
+            pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages avail gap heights)))
+        else pure ()
 
     update ClearPagePrint =
       M.modify $ \m -> m & #pagePrintPending .~ Nothing
+                          & #pagePrintPageGrouping .~ []
 
     update PinThis = M.io_ $
       let AssignmentName nameText = assignment.name
@@ -376,16 +409,27 @@ viewerComponent r user assignment wm =
                 Just modalModel ->
                   let expanded = expandedTasks modalModel.settings m.projection
                       expandedCount = length expanded
-                   in printModalView
-                        (renderExpandedTaskForPrint expanded)
-                        expandedCount
-                        modalModel
-                        PagePrintMsg
+                   in M.div_
+                        []
+                        [ printModalView
+                            (renderExpandedTaskForPrint expanded)
+                            expandedCount
+                            modalModel
+                            PagePrintMsg
+                        , -- Off-screen measurement container for continuous layout
+                          case modalModel.settings.taskLayout of
+                            Continuous ->
+                              measurementContainer
+                                (renderExpandedTaskForPrint expanded)
+                                expandedCount
+                                modalModel
+                            _ -> M.text ""
+                        ]
             , -- Page-print tasks: pre-rendered while modal is open (so MathJax
               -- has time to render), kept when printing. The @page style is only
               -- injected at print time so it doesn't affect the old print path.
               if pagePrintActive
-                then viewPagePrintContent m.pagePrintPending m.projection
+                then viewPagePrintContent m.pagePrintPending m.pagePrintPageGrouping m.projection
                 else M.text ""
             ]
 
@@ -598,6 +642,11 @@ viewerComponent r user assignment wm =
     expandedTasks settings proj =
       expandTaskSequence settings.groupedCopies settings.totalCopies proj.tasksWithSolutions
 
+    -- | Minimum gap between tasks in CSS px, corresponding to 1.5em at the given font size.
+    -- 1pt = 96/72 CSS px, so 1.5em at Xpt = 1.5 * X * 96/72.
+    minGapPx :: Double -> Double
+    minGapPx fontSizePt = 1.5 * fontSizePt * 96.0 / 72.0
+
     -- | Render a single task from the expanded list by index
     renderExpandedTaskForPrint :: [TaskWithSolutions] -> Int -> M.View ViewerModel ViewerAction
     renderExpandedTaskForPrint expanded idx =
@@ -607,55 +656,59 @@ viewerComponent r user assignment wm =
 
     -- | Render a single TaskWithSolutions for print
     renderSingleTaskForPrint :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderSingleTaskForPrint tws =
-      let TaskIdentifier ident = tws.task.identifier
-       in M.div_
-            []
-            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
-              <> [ M.div_
-                     [class_ "prose prose-stone prose-sm max-w-none"]
-                     [renderRichText r.formulaCache content]
-                 | Just content <- [tws.taskContent]
-                 ]
-            )
+    renderSingleTaskForPrint = printTaskView []
 
     -- | Hidden div with all tasks for page-print.
     -- When mSettings is Just, the @page style is injected (actual print).
     -- When Nothing, an empty placeholder keeps child positions stable
     -- so Miso doesn't recreate richContent components (preserving MathJax state).
-    viewPagePrintContent :: Maybe PrintSettings -> ViewerProjection -> M.View ViewerModel ViewerAction
-    viewPagePrintContent mSettings proj =
+    viewPagePrintContent :: Maybe PrintSettings -> PageGrouping -> ViewerProjection -> M.View ViewerModel ViewerAction
+    viewPagePrintContent mSettings pageGrp proj =
       let settings = maybe defaultPrintSettings id mSettings
           expanded = expandedTasks settings proj
        in M.div_
             [class_ "hidden page-print-content"]
             ( [maybe (M.text "") printStyleView mSettings]
-              <> renderExpandedForPrint settings expanded
+              <> renderExpandedForPrint settings pageGrp expanded
             )
 
     -- | Render expanded tasks for print, choosing continuous or grid layout
-    renderExpandedForPrint :: PrintSettings -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
-    renderExpandedForPrint settings expanded = case settings.taskLayout of
-      Continuous ->
-        -- Each task in a .print-task div, no forced page breaks
-        map renderContinuousTask expanded
+    renderExpandedForPrint :: PrintSettings -> PageGrouping -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
+    renderExpandedForPrint settings pageGrp expanded = case settings.taskLayout of
+      Continuous
+        | not (null pageGrp) ->
+            -- Group tasks into .print-page containers using measured page grouping
+            map (renderContinuousPage expanded) pageGrp
+        | otherwise ->
+            -- Fallback: each task in a .print-task div, no forced page breaks
+            map renderContinuousTask expanded
       Grid gc ->
         -- Group into pages, each page in a .print-page grid div
         let pages = chunksOf (cellsPerPage gc) expanded
          in map (renderGridPage gc) pages
 
+    -- | Render a page of continuous tasks grouped by measurement,
+    -- with the computed gap between tasks for even spacing.
+    renderContinuousPage :: [TaskWithSolutions] -> PageGroup -> M.View ViewerModel ViewerAction
+    renderContinuousPage expanded pg =
+      M.div_
+        [ class_ "print-page flex flex-col"
+        , MC.style_ [("gap", ms (showPx pg.gapPx))]
+        ]
+        [ printTaskView [class_ "print-task"] tws
+        | idx <- pg.indices
+        , Just tws <- [safeIndex expanded idx]
+        ]
+
+    safeIndex :: [a] -> Int -> Maybe a
+    safeIndex xs i
+      | i < 0 = Nothing
+      | otherwise = case drop i xs of
+          [] -> Nothing
+          (x : _) -> Just x
+
     renderContinuousTask :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderContinuousTask tws =
-      let TaskIdentifier ident = tws.task.identifier
-       in M.div_
-            [class_ "print-task"]
-            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
-              <> [ M.div_
-                     [class_ "prose prose-stone prose-sm max-w-none"]
-                     [renderRichText r.formulaCache content]
-                 | Just content <- [tws.taskContent]
-                 ]
-            )
+    renderContinuousTask = printTaskView [class_ "print-task", MC.style_ [("margin-bottom", "1.5em")]]
 
     renderGridPage :: GridConfig -> [TaskWithSolutions] -> M.View ViewerModel ViewerAction
     renderGridPage gc tasks =
@@ -666,11 +719,21 @@ viewerComponent r user assignment wm =
        in M.div_ [class_ "print-page"] cells
 
     renderGridCell :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderGridCell tws =
+    renderGridCell = printTaskView [class_ "print-cell"]
+
+    emptyGridCell :: M.View ViewerModel ViewerAction
+    emptyGridCell = M.div_ [class_ "print-cell"] []
+
+    -- | Render a task for print: title h2 + optional rich text body,
+    -- wrapped in a div with the given attributes. Visual styling
+    -- (font-size, h2 sizing, margins) comes from the shared
+    -- .page-print-content CSS rule.
+    printTaskView :: [M.Attribute ViewerAction] -> TaskWithSolutions -> M.View ViewerModel ViewerAction
+    printTaskView attrs tws =
       let TaskIdentifier ident = tws.task.identifier
        in M.div_
-            [class_ "print-cell"]
-            ( [M.h2_ [class_ "text-lg font-semibold mb-2"] [M.text $ ms ident]]
+            attrs
+            ( [M.h2_ [] [M.text $ ms ident]]
               <> [ M.div_
                      [class_ "prose prose-stone prose-sm max-w-none"]
                      [renderRichText r.formulaCache content]
@@ -678,7 +741,7 @@ viewerComponent r user assignment wm =
                  ]
             )
 
-    emptyGridCell :: M.View ViewerModel ViewerAction
-    emptyGridCell = M.div_ [class_ "print-cell"] []
+    showPx :: Double -> MisoString
+    showPx d = ms (show (round d :: Int)) <> "px"
 
     assignmentNameToText (AssignmentName t) = ms t

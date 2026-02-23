@@ -4,18 +4,20 @@ module Competences.Frontend.Component.PrintEngine.Modal
   , defaultPrintModalModel
   , updatePrintModal
   , printModalView
+  , measurementContainer
+  , needsRemeasure
   )
 where
 
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
+import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping)
 import Competences.Frontend.Component.PrintEngine.Types
   ( GridConfig (..)
   , Orientation (..)
   , PaperSize (..)
   , PrintSettings (..)
   , TaskLayout (..)
-  , cellMarginMm
   , cellsPerPage
   , defaultPrintSettings
   , pageSizeMm
@@ -40,6 +42,7 @@ import Text.Read (readMaybe)
 data PrintModalModel = PrintModalModel
   { settings :: !PrintSettings
   , previewTaskIndex :: !Int
+  , pageGrouping :: !PageGrouping
   }
   deriving (Eq, Show, Generic)
 
@@ -53,6 +56,7 @@ data PrintModalAction
   | SetGridCols !Int
   | SetGroupedCopies !Int
   | SetTotalCopies !Int
+  | MeasuredPageGrouping !PageGrouping
   | PreviewNext
   | PreviewPrev
   | ConfirmPrint
@@ -63,19 +67,20 @@ defaultPrintModalModel :: PrintModalModel
 defaultPrintModalModel = PrintModalModel
   { settings = defaultPrintSettings
   , previewTaskIndex = 0
+  , pageGrouping = []
   }
 
 -- | Pure update for the modal model.
 -- 'total' is the number of navigable items (expanded tasks for continuous, pages for grid).
 updatePrintModal :: PrintModalAction -> Int -> PrintModalModel -> PrintModalModel
 updatePrintModal (SetPaperSize ps) _total m =
-  m {settings = m.settings {paperSize = ps}}
+  m {settings = m.settings {paperSize = ps}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetOrientation o) _total m =
-  m {settings = m.settings {orientation = o}}
+  m {settings = m.settings {orientation = o}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetFontSize fs) _total m =
-  m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}}
+  m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetTaskLayout tl) _total m =
-  m {settings = m.settings {taskLayout = tl}, previewTaskIndex = 0}
+  m {settings = m.settings {taskLayout = tl}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetGridRows r) _total m =
   let gc = currentGridConfig m.settings
       gc' = gc {rows = clampGrid r}
@@ -85,15 +90,27 @@ updatePrintModal (SetGridCols c) _total m =
       gc' = gc {cols = clampGrid c}
    in m {settings = m.settings {taskLayout = Grid gc'}, previewTaskIndex = 0}
 updatePrintModal (SetGroupedCopies n) _total m =
-  m {settings = m.settings {groupedCopies = clampCopies n}, previewTaskIndex = 0}
+  m {settings = m.settings {groupedCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetTotalCopies n) _total m =
-  m {settings = m.settings {totalCopies = clampCopies n}, previewTaskIndex = 0}
+  m {settings = m.settings {totalCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
+updatePrintModal (MeasuredPageGrouping pg) _total m =
+  m {pageGrouping = pg, previewTaskIndex = 0}
 updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
   m {previewTaskIndex = max 0 (m.previewTaskIndex - 1)}
 updatePrintModal ConfirmPrint _total m = m
 updatePrintModal CancelPrint _total m = m
+
+-- | Whether a modal action requires re-measurement of task heights
+needsRemeasure :: PrintModalAction -> Bool
+needsRemeasure (SetPaperSize _) = True
+needsRemeasure (SetOrientation _) = True
+needsRemeasure (SetFontSize _) = True
+needsRemeasure (SetGroupedCopies _) = True
+needsRemeasure (SetTotalCopies _) = True
+needsRemeasure (SetTaskLayout _) = True
+needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
 currentGridConfig :: PrintSettings -> GridConfig
@@ -290,7 +307,7 @@ previewNavigation totalTasks model wrap =
     , Button.ghostSm (btn ("\x203A" :: MisoString) nextAction)
     ]
   where
-    navTotal = navigationTotal model.settings totalTasks
+    navTotal = navigationTotal model.settings model.pageGrouping totalTasks
     prevAction
       | model.previewTaskIndex <= 0 = Nothing
       | otherwise = Just (wrap PreviewPrev)
@@ -298,10 +315,12 @@ previewNavigation totalTasks model wrap =
       | model.previewTaskIndex >= navTotal - 1 = Nothing
       | otherwise = Just (wrap PreviewNext)
 
--- | Total number of navigable items (tasks for continuous, pages for grid)
-navigationTotal :: PrintSettings -> Int -> Int
-navigationTotal settings expandedCount = case settings.taskLayout of
-  Continuous -> expandedCount
+-- | Total number of navigable items (pages for continuous with grouping, pages for grid)
+navigationTotal :: PrintSettings -> PageGrouping -> Int -> Int
+navigationTotal settings pageGrp expandedCount = case settings.taskLayout of
+  Continuous
+    | not (null pageGrp) -> length pageGrp
+    | otherwise -> max 1 expandedCount
   Grid gc ->
     let cpp = cellsPerPage gc
      in if expandedCount <= 0 then 1 else (expandedCount + cpp - 1) `div` cpp
@@ -341,7 +360,7 @@ previewPane renderTask model = case model.settings.taskLayout of
   Continuous -> continuousPreview renderTask model
   Grid gc -> gridPreview renderTask model gc
 
--- | Continuous preview: one task in a scaled page (existing behavior)
+-- | Continuous preview: renders all tasks for the current page (based on page grouping)
 continuousPreview :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
 continuousPreview renderTask model =
   let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
@@ -356,6 +375,18 @@ continuousPreview renderTask model =
       scaleFactor = previewMaxW / pageWPx
       scaledW = pageWPx * scaleFactor
       scaledH = pageHPx * scaleFactor
+      -- Get current page from page grouping
+      currentPage = case model.pageGrouping of
+        [] -> Nothing
+        pgs -> case drop model.previewTaskIndex pgs of
+          [] -> Nothing
+          (pg : _) -> Just pg
+      pageIndices = case currentPage of
+        Nothing -> [model.previewTaskIndex] -- Not yet measured: show single task
+        Just pg -> pg.indices
+      gapStyle = case currentPage of
+        Nothing -> []
+        Just pg -> [("gap", ms (showPx pg.gapPx))]
    in M.div_
         [ MC.style_
             [ ("width", ms (showPx scaledW))
@@ -371,14 +402,20 @@ continuousPreview renderTask model =
                 , ("padding", ms (showPx marginPx))
                 , ("transform", ms $ "scale(" <> T.pack (show scaleFactor) <> ")")
                 , ("transform-origin", "top left")
+                , ("display", "flex")
+                , ("flex-direction", "column")
                 ]
-            , class_ "bg-white text-black"
+            , class_ "bg-white text-black page-print-content"
             ]
             [ M.div_
-                [ class_ "prose prose-stone prose-sm max-w-none"
-                , MC.style_ [("font-size", ms (show model.settings.baseFontSize <> "pt"))]
+                [ MC.style_ gapStyle
+                , class_ "flex flex-col"
                 ]
-                [renderTask model.previewTaskIndex]
+                [ M.div_
+                    [class_ "print-task"]
+                    [renderTask idx]
+                | idx <- pageIndices
+                ]
             ]
         ]
 
@@ -386,11 +423,9 @@ continuousPreview renderTask model =
 gridPreview :: (Int -> M.View model action) -> PrintModalModel -> GridConfig -> M.View model action
 gridPreview renderTask model gc =
   let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
-      cellPadMm = cellMarginMm model.settings.paperSize
       mmToPx mm = mm * 96.0 / 25.4
       pageWPx = mmToPx wMm
       pageHPx = mmToPx hMm
-      cellPadPx = mmToPx cellPadMm
       previewMaxW = 440.0 :: Double
       scaleFactor = previewMaxW / pageWPx
       scaledW = pageWPx * scaleFactor
@@ -417,20 +452,42 @@ gridPreview renderTask model gc =
                 , ("transform", ms $ "scale(" <> T.pack (show scaleFactor) <> ")")
                 , ("transform-origin", "top left")
                 ]
-            , class_ "bg-white text-black"
+            , class_ "bg-white text-black page-print-content"
             ]
             [ M.div_
-                [ MC.style_ [("padding", ms (showPx cellPadPx))]
-                , class_ "overflow-hidden"
-                ]
-                [ M.div_
-                    [ class_ "prose prose-stone prose-sm max-w-none h-full"
-                    , MC.style_ [("font-size", ms (show model.settings.baseFontSize <> "pt"))]
-                    ]
-                    [renderTask idx]
-                ]
+                [class_ "print-cell"]
+                [renderTask idx]
             | idx <- taskIndices
             ]
+        ]
+
+-- | Off-screen measurement container for DOM-based page grouping.
+-- Renders each task as a bare child div (no spacing classes) so that
+-- getBoundingClientRect returns pure content height.  The grouping
+-- algorithm adds gaps separately.
+measurementContainer
+  :: (Int -> M.View model action)
+  -> Int
+  -> PrintModalModel
+  -> M.View model action
+measurementContainer renderTask taskCount model =
+  let (wMm, _hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
+      margin = pageMarginMm model.settings.paperSize
+      mmToPx mm = mm * 96.0 / 25.4
+      contentWPx = mmToPx (wMm - 2.0 * margin)
+   in M.div_
+        [ MC.style_
+            [ ("position", "absolute")
+            , ("left", "-9999px")
+            , ("top", "0")
+            , ("visibility", "hidden")
+            , ("width", ms (showPx contentWPx))
+            ]
+        , M.textProp "id" "print-measure-container"
+        , class_ "page-print-content"
+        ]
+        [ M.div_ [] [renderTask idx]
+        | idx <- [0 .. taskCount - 1]
         ]
 
 showPx :: Double -> T.Text
