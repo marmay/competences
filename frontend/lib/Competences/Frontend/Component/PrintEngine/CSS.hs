@@ -39,17 +39,17 @@ sharedCSS settings =
   let fontSize = T.pack (show settings.baseFontSize) <> "pt"
    in T.unlines
         [ ".page-print-content { font-size: " <> fontSize <> "; line-height: 1.5; }"
-        , ".page-print-content h2 { font-size: 1.3em; font-weight: 600; margin-bottom: 0.3em; }"
+        , ".page-print-content h2 { font-size: 1em; font-weight: 600; margin-bottom: 0.2em; }"
         , ".page-print-content .print-page { display: flex; flex-direction: column; box-sizing: border-box; }"
         , ".page-print-content .print-margin-top { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-end; }"
         , ".page-print-content .print-margin-bottom { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; }"
         , ".page-print-content .print-content-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }"
-        , ".page-print-content .print-page-header { border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }"
+        , ".page-print-content .print-page-header { margin-bottom: 0.5em; }"
         , ".page-print-content .print-page-header-title { font-size: 1.3em; font-weight: 600; }"
         , ".page-print-content .print-page-header-date { font-size: 0.85em; color: #666; }"
         , ".page-print-content .print-page-header-compact { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }"
         , ".page-print-content .print-page-footer { text-align: center; font-size: 0.75em; color: #999; }"
-        , ".page-print-content .print-name-field { font-size: 0.85em; margin-bottom: 0.5em; }"
+        , ".page-print-content .print-name-field { font-size: 0.85em; text-align: center; margin: 1.5em 0; }"
         , ".page-print-content .print-name-field-line { display: inline-block; border-bottom: 1px solid #333; width: 60%; vertical-align: bottom; }"
         ]
 

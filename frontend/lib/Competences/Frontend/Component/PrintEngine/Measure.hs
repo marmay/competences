@@ -5,6 +5,7 @@ module Competences.Frontend.Component.PrintEngine.Measure
   , measureTaskHeights
   , contentHeightPx
   , nameFieldPx
+  , firstPageHeaderPx
   )
 where
 
@@ -110,6 +111,11 @@ childHeight children idx = do
   pure (maybe 0.0 id mh)
 
 -- | Estimated height of the name field in CSS px.
--- Label + underline + spacing = ~2.5 lines.
+-- Label + underline + 1em top/bottom margin = ~4 lines.
 nameFieldPx :: Double -> Double
-nameFieldPx fontSizePt = 2.5 * fontSizePt * 96.0 / 72.0
+nameFieldPx fontSizePt = 4.0 * fontSizePt * 96.0 / 72.0
+
+-- | Estimated height of the first-page title in CSS px.
+-- Title (1.3em) + date (0.85em) + margin-bottom (0.5em) ≈ 4 lines.
+firstPageHeaderPx :: Double -> Double
+firstPageHeaderPx fontSizePt = 4.0 * fontSizePt * 96.0 / 72.0

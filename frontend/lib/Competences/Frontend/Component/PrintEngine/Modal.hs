@@ -439,8 +439,11 @@ continuousPreview renderTask title date model =
         pgs -> length pgs
       marginTopContent
         | not settings.showHeader = []
-        | isFirstPage = [renderFirstPageHeader title date]
+        | isFirstPage = []
         | otherwise = [renderCompactHeader title date]
+      firstPageTitleView
+        | settings.showHeader && isFirstPage = [renderFirstPageHeader title date]
+        | otherwise = []
       nameView
         | settings.showNameField && isFirstPage = [renderNameField]
         | otherwise = []
@@ -472,10 +475,11 @@ continuousPreview renderTask title date model =
                 , MC.style_ [("height", ms (showPx marginPx))]
                 ]
                 marginTopContent
-            , -- Content area: name field + tasks
+            , -- Content area: title (first page), name field, tasks
               M.div_
                 [class_ "print-content-area"]
-                ( nameView
+                ( firstPageTitleView
+                    <> nameView
                     <> [ M.div_
                            [ MC.style_ gapStyle
                            , class_ "flex flex-col"
