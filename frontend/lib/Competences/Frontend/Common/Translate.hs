@@ -317,9 +317,6 @@ data Label
   | LblBack
     -- Print
   | LblPrint
-  | LblPrintTasks
-  | LblPrintSolutions
-  | LblPrintAll
   | LblPrintPreview
   | LblFormat
   | LblContents
@@ -652,9 +649,6 @@ labels' =
   , LblBack
     -- Print
   , LblPrint
-  , LblPrintTasks
-  , LblPrintSolutions
-  , LblPrintAll
   , LblPrintPreview
   , LblFormat
   , LblContents
@@ -1007,9 +1001,6 @@ defaultTranslation LblAdd = "Hinzufügen"
 defaultTranslation LblBack = "Zurück"
 -- Print
 defaultTranslation LblPrint = "Drucken"
-defaultTranslation LblPrintTasks = "Aufgaben"
-defaultTranslation LblPrintSolutions = "Lösungen"
-defaultTranslation LblPrintAll = "Alles"
 defaultTranslation LblPrintPreview = "Druckvorschau"
 defaultTranslation LblFormat = "Format"
 defaultTranslation LblContents = "Inhalt"

@@ -113,20 +113,10 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.DSL (jsg, (#))
-import Miso.Event (onCreated)
 import Miso.Html qualified as M
-import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
-
--- ============================================================================
--- Print Content Selection
--- ============================================================================
-
--- | What to include in printed output
-data PrintContent = PrintTasks | PrintSolutions | PrintBoth
-  deriving (Eq, Show)
 
 -- | Trigger browser print dialog.
 -- Safe to call after DOM has been patched (e.g., from onCreated sentinel).
@@ -212,9 +202,6 @@ viewerDetailView r user assignment =
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
   , taskListState :: !TaskResourceList
-  , printMode :: !PrintContent
-  , printDropdownOpen :: !Bool
-  , printPending :: !Bool
   , expandedTaskResources :: !(Set.Set TaskId)
   , pagePrintModal :: !(Maybe PrintModalModel)
   , pagePrintPending :: !(Maybe PrintSettings)
@@ -226,9 +213,6 @@ data ViewerModel = ViewerModel
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
   | TaskListAction !TRL.Action
-  | TogglePrintDropdown
-  | DoPrintWith !PrintContent
-  | ExecutePrint
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
   | OpenPagePrintModal
@@ -246,9 +230,6 @@ viewerComponent r user assignment wm =
     model = ViewerModel
       { projection = emptyProjection user.role assignment
       , taskListState = initialState TasksExpanded Map.empty []
-      , printMode = PrintBoth
-      , printDropdownOpen = False
-      , printPending = False
       , expandedTaskResources = Set.empty
       , pagePrintModal = Nothing
       , pagePrintPending = Nothing
@@ -324,18 +305,6 @@ viewerComponent r user assignment wm =
 
     update (TaskListAction action) =
       M.modify $ \m -> m & #taskListState .~ updateTaskResourceList action m.taskListState
-
-    update TogglePrintDropdown =
-      M.modify $ \m -> m & #printDropdownOpen .~ not m.printDropdownOpen
-
-    update (DoPrintWith mode) =
-      M.modify $ \m -> m & #printMode .~ mode
-                          & #printDropdownOpen .~ False
-                          & #printPending .~ True
-
-    update ExecutePrint = do
-      M.modify $ \m -> m & #printPending .~ False
-      M.io_ triggerPrint
 
     update (ToggleTaskResourcesExpanded taskId) =
       M.modify $ \m ->
@@ -413,58 +382,41 @@ viewerComponent r user assignment wm =
             (viewerComponent r user assignment)
 
     view' m =
-      let pagePrintActive = pagePrintIsActive m
-       in M.div_
-            []
-            [ M.div_
-                [class_ "space-y-6 print:hidden"]
-                [ viewAssignment m
-                ]
-            , -- Existing print content (from dropdown) — hidden when page-print is active
-              if pagePrintActive
-                then M.text ""
-                else M.div_
-                       [class_ "hidden print:block"]
-                       [viewPrintContent m]
-            , printSentinel m
-            , -- Page-print modal (when open)
-              case m.pagePrintModal of
-                Nothing -> M.text ""
-                Just modalModel ->
-                  let expanded = expandedTasks modalModel.settings modalModel.contentSettings m.projection
-                      expandedCount = length expanded
-                      taskNumMap = originalTaskNumbers m.projection.tasksWithSolutions
-                      renderFn = renderExpandedTaskForPrint modalModel.settings modalModel.contentSettings taskNumMap expanded
-                   in M.div_
-                        []
-                        [ printModalView
+      M.div_
+        []
+        [ M.div_
+            [class_ "space-y-6 print:hidden"]
+            [ viewAssignment m
+            ]
+        , -- Page-print modal (when open)
+          case m.pagePrintModal of
+            Nothing -> M.text ""
+            Just modalModel ->
+              let expanded = expandedTasks modalModel.settings modalModel.contentSettings m.projection
+                  expandedCount = length expanded
+                  taskNumMap = originalTaskNumbers m.projection.tasksWithSolutions
+                  renderFn = renderExpandedTaskForPrint modalModel.settings modalModel.contentSettings taskNumMap expanded
+               in M.div_
+                    []
+                    [ printModalView
+                        renderFn
+                        expandedCount
+                        (assignmentNameToText m.projection.currentAssignment.name)
+                        (C.formatDay m.projection.currentAssignment.assignmentDate)
+                        modalModel
+                        PagePrintMsg
+                    , -- Off-screen measurement container for continuous layout
+                      case modalModel.settings.taskLayout of
+                        Continuous ->
+                          measurementContainer
                             renderFn
                             expandedCount
-                            (assignmentNameToText m.projection.currentAssignment.name)
-                            (C.formatDay m.projection.currentAssignment.assignmentDate)
                             modalModel
-                            PagePrintMsg
-                        , -- Off-screen measurement container for continuous layout
-                          case modalModel.settings.taskLayout of
-                            Continuous ->
-                              measurementContainer
-                                renderFn
-                                expandedCount
-                                modalModel
-                            _ -> M.text ""
-                        ]
-            , -- Page-print tasks: pre-rendered while modal is open (so MathJax
-              -- has time to render), kept when printing. The @page style is only
-              -- injected at print time so it doesn't affect the old print path.
-              if pagePrintActive
-                then viewPagePrintContent m.pagePrintPending m.pagePrintPendingContent m.pagePrintPageGrouping m.projection
-                else M.text ""
-            ]
-
-    printSentinel :: ViewerModel -> M.View ViewerModel ViewerAction
-    printSentinel m
-      | m.printPending = M.div_ [onCreated ExecutePrint, class_ "hidden"] []
-      | otherwise = M.text ""
+                        _ -> M.text ""
+                    ]
+        , viewPagePrintContent m.pagePrintPending m.pagePrintPendingContent
+            m.pagePrintPageGrouping m.projection
+        ]
 
     viewAssignment m =
       let proj = m.projection
@@ -488,7 +440,6 @@ viewerComponent r user assignment wm =
                             ]
                             <> [ pinButton PinThis | not (isPinned wm) ]
                             <> [ viewPagePrintButton ]
-                            <> [ viewPrintDropdown m ]
                         ]
                     ]
                 , -- Description (if present, supports math syntax)
@@ -557,113 +508,12 @@ viewerComponent r user assignment wm =
                  Disclosure.contents titleView isExpanded bodyView []]
 
     -- ========================================================================
-    -- Print Dropdown
+    -- Page Print
     -- ========================================================================
-
-    viewPrintDropdown :: ViewerModel -> M.View ViewerModel ViewerAction
-    viewPrintDropdown m =
-      M.div_
-        [class_ "relative"]
-        [ M.button_
-            [ class_ "inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            , M.onClick TogglePrintDropdown
-            , MP.title_ (C.translate' C.LblPrint)
-            ]
-            [Icon.iconS Icon.Small Icon.IcnPrint]
-        , if m.printDropdownOpen
-            then viewPrintDropdownMenu
-            else M.text ""
-        ]
-
-    viewPrintDropdownMenu :: M.View ViewerModel ViewerAction
-    viewPrintDropdownMenu =
-      M.div_
-        [class_ "absolute right-0 top-full mt-1 z-50 min-w-36 bg-popover text-popover-foreground border border-border rounded-md shadow-lg py-1"]
-        [ M.div_
-            [class_ "fixed inset-0 z-[-1]", M.onClick TogglePrintDropdown]
-            []
-        , printDropdownItem PrintTasks C.LblPrintTasks
-        , printDropdownItem PrintSolutions C.LblPrintSolutions
-        , printDropdownItem PrintBoth C.LblPrintAll
-        ]
-
-    printDropdownItem :: PrintContent -> C.Label -> M.View ViewerModel ViewerAction
-    printDropdownItem mode lbl =
-      M.button_
-        [ class_ "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-        , M.onClick (DoPrintWith mode)
-        ]
-        [ Icon.iconS Icon.Small Icon.IcnPrint
-        , M.text (C.translate' lbl)
-        ]
-
-    -- ========================================================================
-    -- Print Content (hidden on screen, visible in print)
-    -- ========================================================================
-
-    viewPrintContent :: ViewerModel -> M.View ViewerModel ViewerAction
-    viewPrintContent m =
-      let proj = m.projection
-          asmtName = assignmentNameToText proj.currentAssignment.name
-          asmtDate = C.formatDay proj.currentAssignment.assignmentDate
-       in M.div_
-            [class_ "space-y-6"]
-            ( [ M.h1_ [class_ "text-2xl font-bold"] [M.text asmtName]
-              , M.p_ [class_ "text-sm text-muted-foreground"] [M.text asmtDate]
-              ]
-              <> concatMap (viewPrintTask m.printMode) proj.tasksWithSolutions
-            )
-
-    viewPrintTask :: PrintContent -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
-    viewPrintTask mode tws =
-      let TaskIdentifier ident = tws.task.identifier
-          showTask = mode == PrintTasks || mode == PrintBoth
-          showSolutions = mode == PrintSolutions || mode == PrintBoth
-       in [ M.div_
-              [class_ "space-y-2 mt-4"]
-              ( [M.h2_ [class_ "text-lg font-semibold"] [M.text $ ms ident]]
-                <> [ M.div_
-                       [class_ "prose prose-stone prose-sm max-w-none"]
-                       [renderRichText r.formulaCache content]
-                   | showTask
-                   , Just content <- [tws.taskContent]
-                   ]
-                <> [ M.div_
-                       [class_ "mt-2 space-y-1"]
-                       (map viewPrintSolution tws.solutions)
-                   | showSolutions
-                   , not (null tws.solutions)
-                   ]
-              )
-          ]
-
-    viewPrintSolution :: Solution -> M.View ViewerModel ViewerAction
-    viewPrintSolution sol =
-      M.div_
-        [class_ "pl-4 border-l-2 border-muted space-y-1"]
-        [ M.p_
-            [class_ "text-xs font-medium text-muted-foreground"]
-            [M.text $ C.translate' (C.LblSolutionType sol.solutionType)]
-        , M.div_
-            [class_ "prose prose-stone prose-sm max-w-none"]
-            [renderRichText r.formulaCache sol.content]
-        ]
-
-    -- ========================================================================
-    -- Page Print (one task per page)
-    -- ========================================================================
-
-    -- | Page-print is active when the modal is open or print is pending
-    pagePrintIsActive :: ViewerModel -> Bool
-    pagePrintIsActive m = case m.pagePrintModal of
-      Just _ -> True
-      Nothing -> case m.pagePrintPending of
-        Just _ -> True
-        Nothing -> False
 
     viewPagePrintButton :: M.View ViewerModel ViewerAction
     viewPagePrintButton =
-      Button.ghostSm (Button.button (Icon.IcnPrint, C.LblPrintPreview) OpenPagePrintModal)
+      Button.ghostSm (Button.button Icon.IcnPrint OpenPagePrintModal)
 
     -- | Build the expanded task list from settings, filtering by content visibility
     expandedTasks :: PrintSettings -> ContentSettings -> ViewerProjection -> [TaskWithSolutions]
