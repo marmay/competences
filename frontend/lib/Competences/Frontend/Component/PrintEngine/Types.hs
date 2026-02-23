@@ -2,6 +2,7 @@ module Competences.Frontend.Component.PrintEngine.Types
   ( PaperSize (..)
   , Orientation (..)
   , TaskLayout (..)
+  , TaskHeaderStyle (..)
   , GridConfig (..)
   , PrintSettings (..)
   , defaultPrintSettings
@@ -12,6 +13,7 @@ module Competences.Frontend.Component.PrintEngine.Types
   , cellSizeMm
   , expandTaskSequence
   , chunksOf
+  , taskNumFromIdx
   )
 where
 
@@ -24,6 +26,10 @@ data PaperSize = A4 | A5
 
 -- | Page orientation
 data Orientation = Portrait | Landscape
+  deriving (Eq, Show, Generic, Enum, Bounded)
+
+-- | How the task header (h2) is rendered
+data TaskHeaderStyle = HeaderNumber | HeaderTitle | HeaderBoth
   deriving (Eq, Show, Generic, Enum, Bounded)
 
 -- | How tasks are laid out on the page
@@ -52,6 +58,7 @@ data PrintSettings = PrintSettings
   , showHeader :: !Bool
   , showFooter :: !Bool
   , showNameField :: !Bool
+  , taskHeaderStyle :: !TaskHeaderStyle
   }
   deriving (Eq, Show, Generic)
 
@@ -68,6 +75,7 @@ defaultPrintSettings =
     , showHeader = True
     , showFooter = True
     , showNameField = True
+    , taskHeaderStyle = HeaderTitle
     }
 
 -- | CSS @page size value (e.g. "A5", "A4 landscape")
@@ -121,4 +129,12 @@ chunksOf n xs =
   let n' = max 1 n
       (chunk, rest) = splitAt n' xs
    in chunk : chunksOf n' rest
+
+-- | Compute the 1-based original task number from an expanded index.
+-- With groupedCopies=2 and tasks [A,B,C], expanded is [A,A,B,B,C,C,...].
+-- Both copies of task A get number 1, both copies of B get number 2, etc.
+taskNumFromIdx :: Int -> Int -> Int -> Int
+taskNumFromIdx groupedCopies originalCount idx =
+  let gc = max 1 groupedCopies
+   in (idx `mod` (originalCount * gc)) `div` gc + 1
 

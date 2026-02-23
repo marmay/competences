@@ -337,6 +337,11 @@ data Label
   | LblShowFooter
   | LblShowNameField
   | LblStudentName
+  | LblTaskHeaderStyle
+  | LblHeaderNumber
+  | LblHeaderTitle
+  | LblHeaderBoth
+  | LblTaskWord
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -658,6 +663,11 @@ labels' =
   , LblShowFooter
   , LblShowNameField
   , LblStudentName
+  , LblTaskHeaderStyle
+  , LblHeaderNumber
+  , LblHeaderTitle
+  , LblHeaderBoth
+  , LblTaskWord
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -999,6 +1009,11 @@ defaultTranslation LblShowHeader = "Kopfzeile"
 defaultTranslation LblShowFooter = "Seitenzahlen"
 defaultTranslation LblShowNameField = "Namensfeld"
 defaultTranslation LblStudentName = "Name"
+defaultTranslation LblTaskHeaderStyle = "Aufgabenüberschrift"
+defaultTranslation LblHeaderNumber = "Nummer"
+defaultTranslation LblHeaderTitle = "Titel"
+defaultTranslation LblHeaderBoth = "Beides"
+defaultTranslation LblTaskWord = "Aufgabe "
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."

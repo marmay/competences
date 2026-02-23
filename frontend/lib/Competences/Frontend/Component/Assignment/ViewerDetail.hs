@@ -53,8 +53,8 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , renderNameField
   )
 import Competences.Frontend.Component.PrintEngine.Types
-  ( GridConfig (..)
-  , PrintSettings (..)
+  ( PrintSettings (..)
+  , TaskHeaderStyle (..)
   , TaskLayout (..)
   , cellsPerPage
   , chunksOf
@@ -62,6 +62,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , expandTaskSequence
   , pageMarginMm
   , pageSizeMm
+  , taskNumFromIdx
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
@@ -418,10 +419,12 @@ viewerComponent r user assignment wm =
                 Just modalModel ->
                   let expanded = expandedTasks modalModel.settings m.projection
                       expandedCount = length expanded
+                      originalCount = length m.projection.tasksWithSolutions
+                      renderFn = renderExpandedTaskForPrint modalModel.settings originalCount expanded
                    in M.div_
                         []
                         [ printModalView
-                            (renderExpandedTaskForPrint expanded)
+                            renderFn
                             expandedCount
                             (assignmentNameToText m.projection.currentAssignment.name)
                             (C.formatDay m.projection.currentAssignment.assignmentDate)
@@ -431,7 +434,7 @@ viewerComponent r user assignment wm =
                           case modalModel.settings.taskLayout of
                             Continuous ->
                               measurementContainer
-                                (renderExpandedTaskForPrint expanded)
+                                renderFn
                                 expandedCount
                                 modalModel
                             _ -> M.text ""
@@ -671,15 +674,12 @@ viewerComponent r user assignment wm =
        in (firstAvail, baseAvail)
 
     -- | Render a single task from the expanded list by index
-    renderExpandedTaskForPrint :: [TaskWithSolutions] -> Int -> M.View ViewerModel ViewerAction
-    renderExpandedTaskForPrint expanded idx =
-      case drop idx expanded of
-        [] -> M.text ""
-        (tws : _) -> renderSingleTaskForPrint tws
-
-    -- | Render a single TaskWithSolutions for print
-    renderSingleTaskForPrint :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderSingleTaskForPrint = printTaskView []
+    renderExpandedTaskForPrint :: PrintSettings -> Int -> [TaskWithSolutions] -> Int -> M.View ViewerModel ViewerAction
+    renderExpandedTaskForPrint settings originalCount expanded idx =
+      let num = taskNumFromIdx settings.groupedCopies originalCount idx
+       in case drop idx expanded of
+            [] -> M.text ""
+            (tws : _) -> printTaskView settings.taskHeaderStyle num [] tws
 
     -- | Hidden div with all tasks for page-print.
     -- When mSettings is Just, the @page style is injected (actual print).
@@ -689,39 +689,56 @@ viewerComponent r user assignment wm =
     viewPagePrintContent mSettings pageGrp proj =
       let settings = maybe defaultPrintSettings id mSettings
           expanded = expandedTasks settings proj
+          originalCount = length proj.tasksWithSolutions
        in M.div_
             []
             [ maybe (M.text "") printStyleView mSettings
             , M.div_
                 [class_ "hidden page-print-content"]
-                (renderExpandedForPrint settings pageGrp expanded)
+                (renderExpandedForPrint settings originalCount pageGrp expanded)
             ]
 
     -- | Render expanded tasks for print, choosing continuous or grid layout
-    renderExpandedForPrint :: PrintSettings -> PageGrouping -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
-    renderExpandedForPrint settings pageGrp expanded = case settings.taskLayout of
-      Continuous
-        | not (null pageGrp) ->
-            -- Group tasks into .print-page containers using measured page grouping
-            let totalPages = length pageGrp
-                title = assignmentNameToText assignment.name
-                date = C.formatDay assignment.assignmentDate
-             in zipWith (renderContinuousPage settings title date totalPages expanded) [0 ..] pageGrp
-        | otherwise ->
-            -- Fallback: each task in a .print-task div, no forced page breaks
-            map renderContinuousTask expanded
-      Grid gc ->
-        -- Group into pages, each page in a .print-page grid div
-        let pages = chunksOf (cellsPerPage gc) expanded
-         in map (renderGridPage gc) pages
+    renderExpandedForPrint :: PrintSettings -> Int -> PageGrouping -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
+    renderExpandedForPrint settings originalCount pageGrp expanded =
+      let style = settings.taskHeaderStyle
+          taskNum idx = taskNumFromIdx settings.groupedCopies originalCount idx
+       in case settings.taskLayout of
+            Continuous
+              | not (null pageGrp) ->
+                  -- Group tasks into .print-page containers using measured page grouping
+                  let totalPages = length pageGrp
+                      title = assignmentNameToText assignment.name
+                      date = C.formatDay assignment.assignmentDate
+                   in zipWith (renderContinuousPage settings originalCount title date totalPages expanded) [0 ..] pageGrp
+              | otherwise ->
+                  -- Fallback: each task in a .print-task div, no forced page breaks
+                  [ printTaskView style (taskNum i) [class_ "print-task", MC.style_ [("margin-bottom", "1.5em")]] tws
+                  | (i, tws) <- zip [0 ..] expanded
+                  ]
+            Grid gc ->
+              -- Group into pages, each page in a .print-page grid div
+              let cpp = cellsPerPage gc
+                  indexed = zip [0 ..] expanded
+                  pages = chunksOf cpp indexed
+                  renderPage indexedTasks =
+                    let cells =
+                          [ printTaskView style (taskNum i) [class_ "print-cell"] tws
+                          | (i, tws) <- indexedTasks
+                          ]
+                          <> replicate (cpp - length indexedTasks) emptyGridCell
+                     in M.div_ [class_ "print-page"] cells
+               in map renderPage pages
 
     -- | Render a page of continuous tasks grouped by measurement,
     -- with the computed gap between tasks for even spacing.
     -- Uses 3-section layout: margin-top (header), content-area (name + tasks),
     -- margin-bottom (footer). Header/footer sit in the page margin area.
-    renderContinuousPage :: PrintSettings -> MisoString -> MisoString -> Int -> [TaskWithSolutions] -> Int -> PageGroup -> M.View ViewerModel ViewerAction
-    renderContinuousPage settings title date totalPages expanded pageIdx pg =
-      let isFirst = pageIdx == 0
+    renderContinuousPage :: PrintSettings -> Int -> MisoString -> MisoString -> Int -> [TaskWithSolutions] -> Int -> PageGroup -> M.View ViewerModel ViewerAction
+    renderContinuousPage settings originalCount title date totalPages expanded pageIdx pg =
+      let style = settings.taskHeaderStyle
+          taskNum idx = taskNumFromIdx settings.groupedCopies originalCount idx
+          isFirst = pageIdx == 0
           (_pw, ph) = pageSizeMm settings.paperSize settings.orientation
           margin = pageMarginMm settings.paperSize
           showMm d = ms (show d <> "mm")
@@ -757,7 +774,7 @@ viewerComponent r user assignment wm =
                            [ class_ "flex flex-col"
                            , MC.style_ [("gap", ms (showPx pg.gapPx))]
                            ]
-                           [ printTaskView [class_ "print-task"] tws
+                           [ printTaskView style (taskNum idx) [class_ "print-task"] tws
                            | idx <- pg.indices
                            , Just tws <- [safeIndex expanded idx]
                            ]
@@ -774,20 +791,6 @@ viewerComponent r user assignment wm =
           [] -> Nothing
           (x : _) -> Just x
 
-    renderContinuousTask :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderContinuousTask = printTaskView [class_ "print-task", MC.style_ [("margin-bottom", "1.5em")]]
-
-    renderGridPage :: GridConfig -> [TaskWithSolutions] -> M.View ViewerModel ViewerAction
-    renderGridPage gc tasks =
-      let cpp = cellsPerPage gc
-          -- Pad with empty cells if the page isn't full
-          cells = map renderGridCell tasks
-                  <> replicate (cpp - length tasks) emptyGridCell
-       in M.div_ [class_ "print-page"] cells
-
-    renderGridCell :: TaskWithSolutions -> M.View ViewerModel ViewerAction
-    renderGridCell = printTaskView [class_ "print-cell"]
-
     emptyGridCell :: M.View ViewerModel ViewerAction
     emptyGridCell = M.div_ [class_ "print-cell"] []
 
@@ -795,12 +798,24 @@ viewerComponent r user assignment wm =
     -- wrapped in a div with the given attributes. Visual styling
     -- (font-size, h2 sizing, margins) comes from the shared
     -- .page-print-content CSS rule.
-    printTaskView :: [M.Attribute ViewerAction] -> TaskWithSolutions -> M.View ViewerModel ViewerAction
-    printTaskView attrs tws =
+    printTaskView :: TaskHeaderStyle -> Int -> [M.Attribute ViewerAction] -> TaskWithSolutions -> M.View ViewerModel ViewerAction
+    printTaskView style taskNum attrs tws =
       let TaskIdentifier ident = tws.task.identifier
+          prefix = C.translate' C.LblTaskWord
+          numText = ms (show taskNum) <> "."
+          header = case style of
+            HeaderNumber ->
+              [M.h2_ [] [M.text (prefix <> numText)]]
+            HeaderTitle ->
+              [M.h2_ [] [M.text $ ms ident]]
+            HeaderBoth ->
+              [M.h2_ []
+                [ M.strong_ [] [M.text (prefix <> numText)]
+                , M.text (" " <> ms ident)
+                ]]
        in M.div_
             attrs
-            ( [M.h2_ [] [M.text $ ms ident]]
+            ( header
               <> [ M.div_
                      [class_ "prose prose-stone prose-sm max-w-none"]
                      [renderRichText r.formulaCache content]

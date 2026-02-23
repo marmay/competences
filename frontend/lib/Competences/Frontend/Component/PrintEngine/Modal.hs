@@ -21,6 +21,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , Orientation (..)
   , PaperSize (..)
   , PrintSettings (..)
+  , TaskHeaderStyle (..)
   , TaskLayout (..)
   , cellsPerPage
   , defaultPrintSettings
@@ -64,6 +65,7 @@ data PrintModalAction
   | SetShowHeader !Bool
   | SetShowFooter !Bool
   | SetShowNameField !Bool
+  | SetTaskHeaderStyle !TaskHeaderStyle
   | MeasuredPageGrouping !PageGrouping
   | PreviewNext
   | PreviewPrev
@@ -107,6 +109,8 @@ updatePrintModal (SetShowFooter b) _total m =
   m {settings = m.settings {showFooter = b}}
 updatePrintModal (SetShowNameField b) _total m =
   m {settings = m.settings {showNameField = b}, pageGrouping = [], previewTaskIndex = 0}
+updatePrintModal (SetTaskHeaderStyle s) _total m =
+  m {settings = m.settings {taskHeaderStyle = s}}
 updatePrintModal (MeasuredPageGrouping pg) _total m =
   m {pageGrouping = pg, previewTaskIndex = 0}
 updatePrintModal PreviewNext total m =
@@ -204,6 +208,8 @@ modalBody renderTask totalTasks title date model wrap =
             , orientationSelector model.settings.orientation wrap
             , Typography.fieldLabel (C.translate' C.LblLayout)
             , layoutSelector model.settings.taskLayout wrap
+            , Typography.fieldLabel (C.translate' C.LblTaskHeaderStyle)
+            , taskHeaderStyleSelector model.settings.taskHeaderStyle wrap
             ]
             <> gridSizeControls model.settings wrap
             <> [ Typography.fieldLabel (C.translate' C.LblFontSize)
@@ -268,6 +274,19 @@ layoutSelector current wrap =
         [ Button.toggleSm isContinuous (btn (C.translate' C.LblContinuous) (Just (wrap (SetTaskLayout Continuous))))
         , Button.toggleSm (not isContinuous) (btn (C.translate' C.LblGrid) (Just (wrap (SetTaskLayout (Grid (GridConfig {rows = 1, cols = 1}))))))
         ]
+
+-- | Task header style selector (Number / Title / Both)
+taskHeaderStyleSelector :: TaskHeaderStyle -> (PrintModalAction -> action) -> M.View model action
+taskHeaderStyleSelector current wrap =
+  Button.buttonGroup
+    [ Button.toggleSm (current == s) (btn (headerStyleLabel s) (Just (wrap (SetTaskHeaderStyle s))))
+    | s <- [minBound .. maxBound]
+    ]
+
+headerStyleLabel :: TaskHeaderStyle -> MisoString
+headerStyleLabel HeaderNumber = C.translate' C.LblHeaderNumber
+headerStyleLabel HeaderTitle = C.translate' C.LblHeaderTitle
+headerStyleLabel HeaderBoth = C.translate' C.LblHeaderBoth
 
 -- | Grid size controls (rows and cols) — only shown when Grid is selected
 gridSizeControls :: PrintSettings -> (PrintModalAction -> action) -> [M.View model action]
