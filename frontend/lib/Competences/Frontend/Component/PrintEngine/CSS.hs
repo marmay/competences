@@ -40,21 +40,46 @@ sharedCSS settings =
    in T.unlines
         [ ".page-print-content { font-size: " <> fontSize <> "; line-height: 1.5; }"
         , ".page-print-content h2 { font-size: 1.3em; font-weight: 600; margin-bottom: 0.3em; }"
-        , ".page-print-content .print-page { display: flex; flex-direction: column; }"
+        , ".page-print-content .print-page { display: flex; flex-direction: column; box-sizing: border-box; }"
+        , ".page-print-content .print-margin-top { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-end; }"
+        , ".page-print-content .print-margin-bottom { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; }"
+        , ".page-print-content .print-content-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }"
+        , ".page-print-content .print-page-header { border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }"
+        , ".page-print-content .print-page-header-title { font-size: 1.3em; font-weight: 600; }"
+        , ".page-print-content .print-page-header-date { font-size: 0.85em; color: #666; }"
+        , ".page-print-content .print-page-header-compact { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }"
+        , ".page-print-content .print-page-footer { text-align: center; font-size: 0.75em; color: #999; }"
+        , ".page-print-content .print-name-field { font-size: 0.85em; margin-bottom: 0.5em; }"
+        , ".page-print-content .print-name-field-line { display: inline-block; border-bottom: 1px solid #333; width: 60%; vertical-align: bottom; }"
         ]
 
--- | Continuous mode: normal @page with margins, tasks flow naturally
+-- | Continuous mode: zero-margin @page, explicit page dimensions and structural margins.
+-- Each .print-page is full paper size; margin areas hold header/footer;
+-- the content area fills the middle.
 continuousCSS :: PrintSettings -> Text
 continuousCSS settings =
   let size = pageSizeCSS settings.paperSize settings.orientation
-      margin = showMm (pageMarginMm settings.paperSize)
+      (pw, ph) = pageSizeMm settings.paperSize settings.orientation
+      margin = pageMarginMm settings.paperSize
    in T.unlines
         [ sharedCSS settings
-        , "@page { size: " <> size <> "; margin: " <> margin <> "; }"
+        , "@page { size: " <> size <> "; margin: 0; }"
         , "@media print {"
-        , "  .page-print-content { display: block !important; }"
-        , "  .page-print-content .print-page { break-after: page; }"
-        , "  .page-print-content .print-page:last-child { break-after: auto; }"
+        , "  .page-print-content { display: block !important; overflow: hidden; }"
+        , "  .page-print-content .print-page {"
+        , "    width: " <> showMm pw <> ";"
+        , "    height: " <> showMm ph <> ";"
+        , "    padding-left: " <> showMm margin <> ";"
+        , "    padding-right: " <> showMm margin <> ";"
+        , "    break-after: page;"
+        , "  }"
+        , "  .page-print-content .print-page:last-child { break-after: avoid; }"
+        , "  .page-print-content .print-margin-top {"
+        , "    height: " <> showMm margin <> ";"
+        , "  }"
+        , "  .page-print-content .print-margin-bottom {"
+        , "    height: " <> showMm margin <> ";"
+        , "  }"
         , "  .page-print-content .geometry-scene { max-width: 100% !important; height: auto !important; }"
         , "}"
         ]
@@ -75,17 +100,17 @@ gridCSS settings gc =
         , "}"
         , "@page { size: " <> size <> "; margin: 0; }"
         , "@media print {"
-        , "  .page-print-content { display: block !important; }"
+        , "  .page-print-content { display: block !important; overflow: hidden; }"
         , "  .page-print-content .print-page {"
         , "    width: " <> showMm pw <> ";"
         , "    height: " <> showMm ph <> ";"
         , "    display: grid;"
         , "    grid-template-columns: repeat(" <> cols <> ", 1fr);"
         , "    grid-template-rows: repeat(" <> rows <> ", 1fr);"
-        , "    break-after: page;"
         , "    overflow: hidden;"
         , "  }"
-        , "  .page-print-content .print-page:last-child { break-after: auto; }"
+        , "  .page-print-content .print-page:not(:first-child) { break-before: page; }"
+        , "  .page-print-content .print-page:last-child { break-after: avoid; }"
         , "  .page-print-content .geometry-scene { max-width: 100% !important; height: auto !important; }"
         , "}"
         ]

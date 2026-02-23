@@ -36,6 +36,7 @@ import Competences.Frontend.Component.PrintEngine.Measure
   , contentHeightPx
   , groupIntoPages
   , measureTaskHeights
+  , nameFieldPx
   )
 import Competences.Frontend.Component.PrintEngine.Modal
   ( PrintModalAction (..)
@@ -45,6 +46,10 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , needsRemeasure
   , printModalView
   , updatePrintModal
+  , renderFirstPageHeader
+  , renderCompactHeader
+  , renderPageFooter
+  , renderNameField
   )
 import Competences.Frontend.Component.PrintEngine.Types
   ( GridConfig (..)
@@ -54,6 +59,8 @@ import Competences.Frontend.Component.PrintEngine.Types
   , chunksOf
   , defaultPrintSettings
   , expandTaskSequence
+  , pageMarginMm
+  , pageSizeMm
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText)
@@ -335,9 +342,10 @@ viewerComponent r user assignment wm =
       M.io $ do
         threadDelay 100000 -- 100ms for DOM to render measurement container
         heights <- measureTaskHeights
-        let avail = contentHeightPx defaultPrintSettings.paperSize defaultPrintSettings.orientation
-            gap = minGapPx defaultPrintSettings.baseFontSize
-        pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages avail gap heights)))
+        let s = defaultPrintSettings
+            (firstAvail, restAvail) = decorationAdjustedHeights s
+            gap = minGapPx s.baseFontSize
+        pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
 
     update (PagePrintMsg CancelPrint) =
       M.modify $ \m -> m & #pagePrintModal .~ Nothing
@@ -368,12 +376,12 @@ viewerComponent r user assignment wm =
           -- Read updated settings from model before spawning IO
           m <- M.get
           let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
-              avail = contentHeightPx settings.paperSize settings.orientation
+              (firstAvail, restAvail) = decorationAdjustedHeights settings
               gap = minGapPx settings.baseFontSize
           M.io $ do
             threadDelay 100000 -- 100ms for DOM to re-render
             heights <- measureTaskHeights
-            pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages avail gap heights)))
+            pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
         else pure ()
 
     update ClearPagePrint =
@@ -414,6 +422,8 @@ viewerComponent r user assignment wm =
                         [ printModalView
                             (renderExpandedTaskForPrint expanded)
                             expandedCount
+                            (assignmentNameToText m.projection.currentAssignment.name)
+                            (C.formatDay m.projection.currentAssignment.assignmentDate)
                             modalModel
                             PagePrintMsg
                         , -- Off-screen measurement container for continuous layout
@@ -647,6 +657,16 @@ viewerComponent r user assignment wm =
     minGapPx :: Double -> Double
     minGapPx fontSizePt = 1.5 * fontSizePt * 96.0 / 72.0
 
+    -- | Compute first-page and rest-page available heights.
+    -- Header and footer live in the page margin area, so only the name
+    -- field (which is inside the content area) reduces available height.
+    decorationAdjustedHeights :: PrintSettings -> (Double, Double)
+    decorationAdjustedHeights s =
+      let baseAvail = contentHeightPx s.paperSize s.orientation
+          nameH = if s.showNameField then nameFieldPx s.baseFontSize else 0
+          firstAvail = baseAvail - nameH
+       in (firstAvail, baseAvail)
+
     -- | Render a single task from the expanded list by index
     renderExpandedTaskForPrint :: [TaskWithSolutions] -> Int -> M.View ViewerModel ViewerAction
     renderExpandedTaskForPrint expanded idx =
@@ -667,10 +687,12 @@ viewerComponent r user assignment wm =
       let settings = maybe defaultPrintSettings id mSettings
           expanded = expandedTasks settings proj
        in M.div_
-            [class_ "hidden page-print-content"]
-            ( [maybe (M.text "") printStyleView mSettings]
-              <> renderExpandedForPrint settings pageGrp expanded
-            )
+            []
+            [ maybe (M.text "") printStyleView mSettings
+            , M.div_
+                [class_ "hidden page-print-content"]
+                (renderExpandedForPrint settings pageGrp expanded)
+            ]
 
     -- | Render expanded tasks for print, choosing continuous or grid layout
     renderExpandedForPrint :: PrintSettings -> PageGrouping -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
@@ -678,7 +700,10 @@ viewerComponent r user assignment wm =
       Continuous
         | not (null pageGrp) ->
             -- Group tasks into .print-page containers using measured page grouping
-            map (renderContinuousPage expanded) pageGrp
+            let totalPages = length pageGrp
+                title = assignmentNameToText assignment.name
+                date = C.formatDay assignment.assignmentDate
+             in zipWith (renderContinuousPage settings title date totalPages expanded) [0 ..] pageGrp
         | otherwise ->
             -- Fallback: each task in a .print-task div, no forced page breaks
             map renderContinuousTask expanded
@@ -689,16 +714,51 @@ viewerComponent r user assignment wm =
 
     -- | Render a page of continuous tasks grouped by measurement,
     -- with the computed gap between tasks for even spacing.
-    renderContinuousPage :: [TaskWithSolutions] -> PageGroup -> M.View ViewerModel ViewerAction
-    renderContinuousPage expanded pg =
-      M.div_
-        [ class_ "print-page flex flex-col"
-        , MC.style_ [("gap", ms (showPx pg.gapPx))]
-        ]
-        [ printTaskView [class_ "print-task"] tws
-        | idx <- pg.indices
-        , Just tws <- [safeIndex expanded idx]
-        ]
+    -- Uses 3-section layout: margin-top (header), content-area (name + tasks),
+    -- margin-bottom (footer). Header/footer sit in the page margin area.
+    renderContinuousPage :: PrintSettings -> MisoString -> MisoString -> Int -> [TaskWithSolutions] -> Int -> PageGroup -> M.View ViewerModel ViewerAction
+    renderContinuousPage settings title date totalPages expanded pageIdx pg =
+      let isFirst = pageIdx == 0
+          (_pw, ph) = pageSizeMm settings.paperSize settings.orientation
+          margin = pageMarginMm settings.paperSize
+          showMm d = ms (show d <> "mm")
+          marginStyle = MC.style_ [("height", showMm margin)]
+          pageStyle = MC.style_
+            [ ("height", showMm ph)
+            , ("padding-left", showMm margin)
+            , ("padding-right", showMm margin)
+            ]
+          marginTopContent
+            | not settings.showHeader = []
+            | isFirst = [renderFirstPageHeader title date]
+            | otherwise = [renderCompactHeader title date]
+          nameView
+            | settings.showNameField && isFirst = [renderNameField]
+            | otherwise = []
+          marginBottomContent
+            | settings.showFooter = [renderPageFooter (pageIdx + 1) totalPages]
+            | otherwise = []
+       in M.div_
+            [class_ "print-page", pageStyle]
+            [ -- Top margin area: header at bottom edge
+              M.div_ [class_ "print-margin-top", marginStyle] marginTopContent
+            , -- Content area: name field + tasks
+              M.div_
+                [class_ "print-content-area"]
+                ( nameView
+                    <> [ M.div_
+                           [ class_ "flex flex-col"
+                           , MC.style_ [("gap", ms (showPx pg.gapPx))]
+                           ]
+                           [ printTaskView [class_ "print-task"] tws
+                           | idx <- pg.indices
+                           , Just tws <- [safeIndex expanded idx]
+                           ]
+                       ]
+                )
+            , -- Bottom margin area: footer at top edge
+              M.div_ [class_ "print-margin-bottom", marginStyle] marginBottomContent
+            ]
 
     safeIndex :: [a] -> Int -> Maybe a
     safeIndex xs i
