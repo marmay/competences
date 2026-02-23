@@ -109,19 +109,18 @@ Commands and snapshots are stored with versioned JSON envelopes to support schem
 2. Load configuration file (secrets)
 3. Initialize database connection pool
 4. **Check schema version** (fails if mismatch)
-5. **If `--init-document` provided AND database empty:**
-   - Load document from JSON
-   - Create `SetDocument` command (with system user ID = nil UUID)
-   - Save initial snapshot at generation 1
-6. **Load document from database:**
-   - Load latest snapshot
-   - Load commands since that snapshot
-   - Replay commands to rebuild current state
-   - **Fail if no document found** (prevents accidental empty state)
-7. **Create recovery snapshot if needed:**
+5. **Load document from database:**
+   - Load latest snapshot (or start with empty document if none exists)
+   - Apply schema migration commands from envelope deserialization
+   - Load and replay commands since snapshot
+6. **Create recovery snapshot if needed:**
    - If any commands were replayed (non-graceful shutdown)
    - Create snapshot at current generation
    - Avoids replaying same commands on next startup
+7. **Apply startup migration commands** (allowed to fail silently):
+   - `InitIfEmpty` — succeeds only on empty document, persisted as initialization marker
+   - `EnsureTeacherO365` (if `--ensure-teacher-o365` provided) — creates/promotes teacher user
+   - Only persisted to command log if they succeed
 8. Initialize AppState with loaded document
 9. Log startup to startup_log table
 10. Start periodic snapshot timer (15 minute interval)
@@ -131,10 +130,9 @@ Commands and snapshots are stored with versioned JSON envelopes to support schem
 
 **For existing deployments:**
 1. Initialize PostgreSQL database: `psql < backend/schema.sql`
-2. Use `--init-document <existing-data.json>` on first startup
-3. Backend detects empty database and initializes from JSON
+2. Start backend — empty database is auto-initialized with empty document
+3. Use `--ensure-teacher-o365 teacher@school.at` to create a teacher user
 4. All subsequent changes go to database
-5. Old JSON file can be kept as backup but is no longer used
 
 **Backward compatibility:**
 - `loadAppState` and `saveAppState` functions still exist in `State.hs` for potential migration scripts
@@ -160,10 +158,12 @@ Before deploying to production, verify the following:
 - [ ] Connection pool initialization succeeds
 
 **First-Time Initialization:**
-- [ ] `--init-document` works with empty database
+- [ ] Empty database auto-initializes with empty document
 - [ ] SetDocument command created with system user ID (nil UUID)
 - [ ] Initial snapshot created at generation 1
 - [ ] Subsequent startups skip initialization (database not empty)
+- [ ] `--ensure-teacher-o365` creates teacher user when not present
+- [ ] `--ensure-teacher-o365` is a no-op when teacher already exists
 
 **Command Persistence:**
 - [ ] Commands saved to database after each state change

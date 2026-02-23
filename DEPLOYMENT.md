@@ -101,7 +101,7 @@ In your `configuration.nix`:
         subdomain = "9a";
         database = "competences_class_9a";
         secretsFile = config.age.secrets.competences-9a.path;
-        initDocument = ./data/class_9a.json;
+        ensureTeacherO365 = "teacher@school.at";
       };
 
       class-9b = {
@@ -109,7 +109,7 @@ In your `configuration.nix`:
         subdomain = "9b";
         database = "competences_class_9b";
         secretsFile = config.age.secrets.competences-9b.path;
-        initDocument = ./data/class_9b.json;
+        ensureTeacherO365 = "teacher@school.at";
       };
 
       class-9c = {
@@ -117,7 +117,7 @@ In your `configuration.nix`:
         subdomain = "9c";
         database = "competences_class_9c";
         secretsFile = config.age.secrets.competences-9c.path;
-        initDocument = ./data/class_9c.json;
+        ensureTeacherO365 = "teacher@school.at";
       };
 
       class-9d = {
@@ -125,7 +125,7 @@ In your `configuration.nix`:
         subdomain = "9d";
         database = "competences_class_9d";
         secretsFile = config.age.secrets.competences-9d.path;
-        initDocument = ./data/class_9d.json;
+        ensureTeacherO365 = "teacher@school.at";
       };
     };
 
@@ -188,7 +188,7 @@ This command:
 - `subdomain` (string, required): Subdomain like "9a" for `9a.competences.example.com`
 - `database` (string, required): PostgreSQL database name
 - `secretsFile` (path, required): Path to config JSON with OAuth2 + JWT secrets
-- `initDocument` (path, optional): Path to initial document JSON (used only if DB empty)
+- `ensureTeacherO365` (string, optional): O365 email of user to ensure as Teacher on startup
 - `user` (string): System user for this instance (default: `competences-<name>`)
 - `group` (string): System group (default: `competences`)
 
@@ -500,7 +500,7 @@ journalctl -u competences-class-9a.service -n 50 --no-pager
 | Error | Solution |
 |-------|----------|
 | "Failed to read config file" | Check `secretsFile` path and permissions |
-| "No document found in database" | Initialize with `--init-document` or restore from backup |
+| "No document found in database" | Database auto-initializes on first startup; restore from backup if needed |
 | "Failed to connect to database" | Ensure PostgreSQL is running and database exists |
 | "Address already in use" | Port conflict - check `ss -tlnp \| grep <port>` |
 | "Schema version mismatch" | Run schema migration or reinitialize database |

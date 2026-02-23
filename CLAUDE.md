@@ -103,7 +103,7 @@ cabal run competences-backend -- \
   --database "host=localhost dbname=competences_class_9a" \
   --config backend/config.json \
   --static ./static \
-  --init-document data/class_9a.json  # Only for first-time initialization
+  --ensure-teacher-o365 teacher@school.at  # Optional: ensure a teacher user exists
 ```
 
 ### Frontend Development

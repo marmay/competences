@@ -6,8 +6,8 @@ import Competences.Backend.HashedFile (withHashedFiles)
 import Competences.Backend.HTTP (FrontendHashes (..), appAPI, server)
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
-import Competences.Command (Command (..), handleCommand)
-import Competences.Document (Document)
+import Competences.Command (Command (..), MigrationCommand (..), handleCommand)
+import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User qualified
 import Control.Concurrent (forkIO, threadDelay)
@@ -15,7 +15,6 @@ import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
 import Control.Concurrent.STM (atomically, readTVar, writeTVar)
 import Control.Exception (finally)
 import Control.Monad (foldM, unless, when)
-import Data.Aeson (eitherDecodeFileStrict)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BS
 import Data.Int (Int64)
@@ -39,7 +38,7 @@ data Options = Options
   , dbConnString :: !ByteString
   , configPath :: !FilePath
   , staticDir :: !FilePath
-  , initDocPath :: !(Maybe FilePath)
+  , ensureTeacherO365 :: !(Maybe String)
   }
 
 -- | Parse command-line options
@@ -75,9 +74,9 @@ optionsParser =
       )
     <*> Opt.optional
       ( Opt.strOption
-          ( Opt.long "init-document"
-              <> Opt.metavar "FILE"
-              <> Opt.help "Initial document JSON (used only if database is empty)"
+          ( Opt.long "ensure-teacher-o365"
+              <> Opt.metavar "EMAIL"
+              <> Opt.help "Ensure a Teacher user exists for this O365 email"
           )
       )
 
@@ -119,35 +118,17 @@ main = do
   -- Generate instance ID for startup logging
   instanceId <- UUID.nextRandom
 
-  -- Initialize document from file if provided and database is empty
-  case opts.initDocPath of
-    Just path -> do
-      putStrLn $ "Checking if database needs initialization from: " <> path
-      isEmpty <- DB.isDatabaseEmpty pool
-      if isEmpty
-        then do
-          putStrLn $ "Database is empty, initializing from " <> path
-          docResult <- eitherDecodeFileStrict path
-          case docResult of
-            Left err -> die $ "Failed to parse init document: " <> err
-            Right initDoc -> do
-              -- Use system user ID (nil UUID) for SetDocument command
-              let systemUserId = Competences.Document.Id.Id UUID.nil
-              _ <- DB.saveCommand pool systemUserId (SetDocument initDoc)
-              DB.saveSnapshot pool initDoc 1
-              putStrLn "Database initialized with document"
-        else putStrLn "Database not empty, skipping initialization"
-    Nothing -> putStrLn "No init document provided"
-
-  -- Load document from database
+  -- Load document from database (or start with empty document)
   putStrLn "Loading document from database..."
   mSnapshot <- DB.loadLatestSnapshot pool
   (doc, initialGen, replayedCommands, migrationCmds) <- case mSnapshot of
-    Nothing -> die "No document found in database. Provide --init-document to initialize."
+    Nothing -> do
+      putStrLn "No snapshot found, starting with empty document"
+      pure (emptyDocument, 0, 0, [])
     Just (rawSnapshot, gen, migCmds) -> do
       putStrLn $ "Loaded snapshot at generation " <> show gen
       -- Apply migration commands first (v1→v2 schema upgrade)
-      let systemUserId = Competences.Document.Id.Id UUID.nil
+      let systemUserId = Id UUID.nil
       snapshot <- applyMigrationCmds systemUserId rawSnapshot migCmds
       -- Then replay user commands since snapshot
       commands <- DB.loadCommandsSince pool gen
@@ -157,27 +138,30 @@ main = do
 
   putStrLn $ "Document loaded (generation " <> show initialGen <> ")"
 
-  -- Persist migration commands + new snapshot if schema migration produced any
+  -- Persist schema migration commands + new snapshot if any
   unless (null migrationCmds) $ do
     putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
-    let systemUserId = Competences.Document.Id.Id UUID.nil
+    let systemUserId = Id UUID.nil
     latestGen <- foldM (\_ cmd -> DB.saveCommand pool systemUserId cmd) initialGen migrationCmds
     DB.saveSnapshot pool doc latestGen
     putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
 
   -- Create recovery snapshot if we replayed any commands (non-graceful shutdown recovery)
-  -- This avoids replaying the same commands again on next startup
   when (replayedCommands > 0 && null migrationCmds) $ do
-    putStrLn $ "Non-graceful shutdown detected: creating recovery snapshot..."
+    putStrLn "Non-graceful shutdown detected: creating recovery snapshot..."
     DB.saveSnapshot pool doc initialGen
     putStrLn $ "Recovery snapshot created at generation " <> show initialGen
 
+  -- Build and apply startup migration commands
+  startupCmds <- buildStartupMigrations opts
+  (doc', latestGen) <- applyStartupMigrations pool doc initialGen startupCmds
+
   -- Initialize application state
   state <- initAppState pool
-  atomically $ writeTVar state.document doc
+  atomically $ writeTVar state.document doc'
 
   -- Log startup
-  DB.logStartup pool instanceId initialGen (opts.initDocPath /= Nothing) Nothing
+  DB.logStartup pool instanceId latestGen (opts.ensureTeacherO365 /= Nothing) Nothing
   putStrLn $ "Startup logged (instance: " <> UUID.toString instanceId <> ")"
 
   -- Set up graceful shutdown
@@ -213,6 +197,34 @@ main = do
           defaultConnectionOptions
           (wsHandler state jwtSecret)
           httpApp
+
+-- | Build startup migration commands from CLI options
+buildStartupMigrations :: Options -> IO [Command]
+buildStartupMigrations opts = do
+  let initCmd = [Migration InitIfEmpty]
+  teacherCmds <- case opts.ensureTeacherO365 of
+    Nothing -> pure []
+    Just email -> do
+      newId <- Id <$> UUID.nextRandom
+      pure [Migration (EnsureTeacherO365 newId (T.pack email))]
+  pure $ initCmd <> teacherCmds
+
+-- | Apply startup migration commands, persisting only those that succeed.
+-- Commands that fail are silently skipped (they indicate no action needed).
+applyStartupMigrations :: Pool Connection -> Document -> Int64 -> [Command] -> IO (Document, Int64)
+applyStartupMigrations pool = go
+  where
+    systemUserId = Id UUID.nil
+    go doc gen [] = pure (doc, gen)
+    go doc gen (cmd : rest) =
+      case handleCommand systemUserId cmd doc of
+        Left reason -> do
+          putStrLn $ "Startup migration skipped: " <> T.unpack reason
+          go doc gen rest
+        Right (doc', _) -> do
+          gen' <- DB.saveCommand pool systemUserId cmd
+          putStrLn $ "Startup migration applied at generation " <> show gen'
+          go doc' gen' rest
 
 -- | Replay commands on top of a document
 -- Returns error if any command fails to apply

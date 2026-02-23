@@ -88,12 +88,10 @@ executable competences-backend
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
-        aeson,
         bytestring,
         competences-backend,
         competences-common,
         containers,
-        http-types,
         optparse-applicative,
         postgresql-simple,
         resource-pool,

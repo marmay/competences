@@ -40,7 +40,9 @@ import Competences.Document (Document (..), Lesson (..), User (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
-import Competences.Document.User (UserId)
+import Competences.Document.User (Office365Id (..), UserId, UserRole (..))
+import Data.Text (Text)
+import Data.Text qualified as T
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -49,9 +51,11 @@ import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (%~), (^.))
 
--- | Migration commands for schema evolution
+-- | Migration commands for schema evolution and startup initialization
 data MigrationCommand
   = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
+  | InitIfEmpty
+  | EnsureTeacherO365 !(Id User) !Text
   deriving (Eq, Generic, Show)
 
 instance Binary MigrationCommand
@@ -123,5 +127,29 @@ handleMigrationCommand (UpdateLessonAssignments updates) d =
             let lesson' = lesson & #assignments .~ aids
              in doc & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
       doc' = foldl' applyUpdate d updates
-      allUserIds = map (.id) $ Ix.toList $ doc' ^. #users
-   in Right (doc', AffectedUsers allUserIds)
+   in Right (doc', allUsers doc')
+handleMigrationCommand InitIfEmpty d
+  | Ix.null (d ^. #users) = Right (d, allUsers d)
+  | otherwise = Left "Document is not empty"
+handleMigrationCommand (EnsureTeacherO365 newId email) d =
+  let o365Id = Office365Id email
+   in case Ix.getOne (d.users Ix.@= o365Id) of
+        Just user
+          | user.role == Teacher -> Left "Teacher already exists"
+          | otherwise ->
+              let user' = user & #role .~ Teacher
+                  d' = d & #users %~ Ix.insert user' . Ix.deleteIx user.id
+               in Right (d', allUsers d')
+        Nothing ->
+          let user =
+                User
+                  { id = newId
+                  , name = T.takeWhile (/= '@') email
+                  , role = Teacher
+                  , office365Id = o365Id
+                  }
+              d' = d & #users %~ Ix.insert user
+           in Right (d', allUsers d')
+
+allUsers :: Document -> AffectedUsers
+allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users

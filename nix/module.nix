@@ -47,13 +47,10 @@ let
         '';
       };
 
-      initDocument = mkOption {
-        type = types.nullOr types.path;
+      ensureTeacherO365 = mkOption {
+        type = types.nullOr types.str;
         default = null;
-        description = ''
-          Path to initial document JSON file.
-          Only used if database is empty on first startup.
-        '';
+        description = "O365 email of user to ensure as Teacher on startup";
       };
 
       user = mkOption {
@@ -124,7 +121,7 @@ in {
             subdomain = "9a";
             database = "competences_class_9a";
             secretsFile = config.age.secrets.competences-9a.path;
-            initDocument = ./data/class_9a.json;
+            ensureTeacherO365 = "teacher@school.at";
           };
         }
       '';
@@ -262,7 +259,7 @@ in {
             "--database \"host=/run/postgresql dbname=${instance.database} user=${instance.database}\""
             "--config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
-          ] ++ optional (instance.initDocument != null) "--init-document ${instance.initDocument}");
+          ] ++ optional (instance.ensureTeacherO365 != null) "--ensure-teacher-o365 ${instance.ensureTeacherO365}");
 
           # Security hardening
           NoNewPrivileges = true;
