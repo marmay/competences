@@ -44,7 +44,7 @@ sharedCSS settings =
         , ".page-print-content .print-margin-top { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-end; }"
         , ".page-print-content .print-margin-bottom { flex-shrink: 0; display: flex; flex-direction: column; justify-content: flex-start; }"
         , ".page-print-content .print-content-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }"
-        , ".page-print-content .print-page-header { margin-bottom: 0.5em; }"
+        , ".page-print-content .print-page-header { margin-bottom: 0.5em; text-align: center; }"
         , ".page-print-content .print-page-header-title { font-size: 1.3em; font-weight: 600; }"
         , ".page-print-content .print-page-header-date { font-size: 0.85em; color: #666; }"
         , ".page-print-content .print-page-header-compact { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85em; color: #666; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; }"
