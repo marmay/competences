@@ -126,7 +126,7 @@ modalBody renderTask totalTasks model wrap =
           , Typography.fieldLabel (C.translate' C.LblOrientation)
           , orientationSelector model.settings.orientation wrap
           ]
-          & Layout.addClass "w-40 border-r border-border p-4"
+          & Layout.addClass "border-r border-border p-4"
     , -- Right: preview pane with task navigation
       Layout.grow $
         Layout.vFlow
