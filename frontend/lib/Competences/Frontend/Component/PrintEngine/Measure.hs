@@ -4,6 +4,7 @@ module Competences.Frontend.Component.PrintEngine.Measure
   , groupIntoPages
   , measureTaskHeights
   , contentHeightPx
+  , nameFieldPx
   )
 where
 
@@ -33,20 +34,30 @@ type PageGrouping = [PageGroup]
 -- complete, the actual gap is stretched to distribute remaining space
 -- evenly between tasks.
 --
+-- @firstPageAvail@ is the available height for the first page (may differ
+-- from subsequent pages due to headers/name fields). @restAvail@ is used
+-- for all subsequent pages.
+--
 -- Invariant: at least one task per page (handles tasks taller than a page).
-groupIntoPages :: Double -> Double -> [Double] -> PageGrouping
-groupIntoPages _ _ [] = []
-groupIntoPages avail minGap heights = go 0.0 [] (zip [0 ..] heights)
+groupIntoPages :: Double -> Double -> Double -> [Double] -> PageGrouping
+groupIntoPages _ _ _ [] = []
+groupIntoPages firstPageAvail restAvail minGap heights = go True 0.0 [] (zip [0 ..] heights)
   where
-    go :: Double -> [(Int, Double)] -> [(Int, Double)] -> PageGrouping
-    go _ acc [] = [finishPage avail acc]
-    go used acc ((idx, h) : rest)
+    go :: Bool -> Double -> [(Int, Double)] -> [(Int, Double)] -> PageGrouping
+    go _ _ acc [] = [finishPage (currentAvail (null acc)) acc]
+      where
+        -- If acc is empty we're on the first page still
+        currentAvail True = firstPageAvail
+        currentAvail False = if length acc == length heights then firstPageAvail else restAvail
+    go isFirst used acc ((idx, h) : rest)
       -- First task on the page: always place it
-      | null acc = go h [(idx, h)] rest
+      | null acc = go isFirst h [(idx, h)] rest
       -- Fits with minimum gap
-      | used + minGap + h <= avail = go (used + minGap + h) ((idx, h) : acc) rest
+      | used + minGap + h <= avail = go isFirst (used + minGap + h) ((idx, h) : acc) rest
       -- Doesn't fit: close this page, start a new one
-      | otherwise = finishPage avail acc : go h [(idx, h)] rest
+      | otherwise = finishPage avail acc : go False h [(idx, h)] rest
+      where
+        avail = if isFirst then firstPageAvail else restAvail
 
     -- Build a PageGroup, computing the actual gap that fills the page.
     finishPage :: Double -> [(Int, Double)] -> PageGroup
@@ -97,3 +108,8 @@ childHeight children idx = do
   rect <- child # ("getBoundingClientRect" :: MisoString) $ ([] :: [MisoString])
   mh <- rect ! ("height" :: MisoString) >>= fromJSVal @Double
   pure (maybe 0.0 id mh)
+
+-- | Estimated height of the name field in CSS px.
+-- Label + underline + spacing = ~2.5 lines.
+nameFieldPx :: Double -> Double
+nameFieldPx fontSizePt = 2.5 * fontSizePt * 96.0 / 72.0

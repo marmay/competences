@@ -333,6 +333,10 @@ data Label
   | LblColumns
   | LblGroupedCopies
   | LblTotalCopies
+  | LblShowHeader
+  | LblShowFooter
+  | LblShowNameField
+  | LblStudentName
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -650,6 +654,10 @@ labels' =
   , LblColumns
   , LblGroupedCopies
   , LblTotalCopies
+  , LblShowHeader
+  , LblShowFooter
+  , LblShowNameField
+  , LblStudentName
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -987,6 +995,10 @@ defaultTranslation LblRows = "Zeilen"
 defaultTranslation LblColumns = "Spalten"
 defaultTranslation LblGroupedCopies = "Kopien pro Aufgabe"
 defaultTranslation LblTotalCopies = "Gesamtkopien"
+defaultTranslation LblShowHeader = "Kopfzeile"
+defaultTranslation LblShowFooter = "Seitenzahlen"
+defaultTranslation LblShowNameField = "Namensfeld"
+defaultTranslation LblStudentName = "Name"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."

@@ -49,6 +49,9 @@ data PrintSettings = PrintSettings
   , taskLayout :: !TaskLayout
   , groupedCopies :: !Int
   , totalCopies :: !Int
+  , showHeader :: !Bool
+  , showFooter :: !Bool
+  , showNameField :: !Bool
   }
   deriving (Eq, Show, Generic)
 
@@ -62,6 +65,9 @@ defaultPrintSettings =
     , taskLayout = Continuous
     , groupedCopies = 1
     , totalCopies = 1
+    , showHeader = True
+    , showFooter = True
+    , showNameField = True
     }
 
 -- | CSS @page size value (e.g. "A5", "A4 landscape")

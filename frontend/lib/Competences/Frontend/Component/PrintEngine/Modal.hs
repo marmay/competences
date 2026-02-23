@@ -6,6 +6,10 @@ module Competences.Frontend.Component.PrintEngine.Modal
   , printModalView
   , measurementContainer
   , needsRemeasure
+  , renderFirstPageHeader
+  , renderCompactHeader
+  , renderPageFooter
+  , renderNameField
   )
 where
 
@@ -35,6 +39,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, fromMisoString, ms)
 import Text.Read (readMaybe)
 
@@ -56,6 +61,9 @@ data PrintModalAction
   | SetGridCols !Int
   | SetGroupedCopies !Int
   | SetTotalCopies !Int
+  | SetShowHeader !Bool
+  | SetShowFooter !Bool
+  | SetShowNameField !Bool
   | MeasuredPageGrouping !PageGrouping
   | PreviewNext
   | PreviewPrev
@@ -93,6 +101,12 @@ updatePrintModal (SetGroupedCopies n) _total m =
   m {settings = m.settings {groupedCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetTotalCopies n) _total m =
   m {settings = m.settings {totalCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
+updatePrintModal (SetShowHeader b) _total m =
+  m {settings = m.settings {showHeader = b}}
+updatePrintModal (SetShowFooter b) _total m =
+  m {settings = m.settings {showFooter = b}}
+updatePrintModal (SetShowNameField b) _total m =
+  m {settings = m.settings {showNameField = b}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (MeasuredPageGrouping pg) _total m =
   m {pageGrouping = pg, previewTaskIndex = 0}
 updatePrintModal PreviewNext total m =
@@ -110,6 +124,7 @@ needsRemeasure (SetFontSize _) = True
 needsRemeasure (SetGroupedCopies _) = True
 needsRemeasure (SetTotalCopies _) = True
 needsRemeasure (SetTaskLayout _) = True
+needsRemeasure (SetShowNameField _) = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -136,10 +151,12 @@ btn c a = Button.ButtonConfig
 printModalView
   :: (Int -> M.View model action)
   -> Int
+  -> MisoString
+  -> MisoString
   -> PrintModalModel
   -> (PrintModalAction -> action)
   -> M.View model action
-printModalView renderTask totalTasks model wrap =
+printModalView renderTask totalTasks title date model wrap =
   -- Backdrop
   M.div_
     [class_ "fixed inset-0 z-50 flex items-center justify-center bg-black/50"]
@@ -147,7 +164,7 @@ printModalView renderTask totalTasks model wrap =
       Layout.vFlow
         Layout.wFull
         [ modalHeader wrap
-        , modalBody renderTask totalTasks model wrap
+        , modalBody renderTask totalTasks title date model wrap
         , modalFooter wrap
         , printStyleView model.settings
         ]
@@ -169,10 +186,12 @@ modalHeader wrap =
 modalBody
   :: (Int -> M.View model action)
   -> Int
+  -> MisoString
+  -> MisoString
   -> PrintModalModel
   -> (PrintModalAction -> action)
   -> M.View model action
-modalBody renderTask totalTasks model wrap =
+modalBody renderTask totalTasks title date model wrap =
   Layout.hFlow
     Layout.hFull
     [ -- Left sidebar
@@ -194,13 +213,14 @@ modalBody renderTask totalTasks model wrap =
                , Typography.fieldLabel (C.translate' C.LblTotalCopies)
                , copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n))
                ]
+            <> continuousOptions model.settings wrap
           )
           & Layout.addClass "border-r border-border p-4 overflow-y-auto"
     , -- Right: preview pane with navigation
       Layout.grow $
         Layout.vFlow
           (Layout.gapM <> Layout.crossCenter <> Layout.mainCenter)
-          [ previewPane renderTask model
+          [ previewPane renderTask title date model
           , previewNavigation totalTasks model wrap
           ]
           & Layout.addClass "p-6 bg-muted/30 overflow-hidden"
@@ -258,6 +278,29 @@ gridSizeControls settings wrap = case settings.taskLayout of
     , gridNumberInput gc.rows (\n -> wrap (SetGridRows n))
     , Typography.fieldLabel (C.translate' C.LblColumns)
     , gridNumberInput gc.cols (\n -> wrap (SetGridCols n))
+    ]
+
+-- | Continuous-only options: header, footer, name field toggles
+continuousOptions :: PrintSettings -> (PrintModalAction -> action) -> [M.View model action]
+continuousOptions settings wrap = case settings.taskLayout of
+  Continuous ->
+    [ Typography.fieldLabel (C.translate' C.LblShowHeader)
+    , checkboxToggle settings.showHeader (\b -> wrap (SetShowHeader b))
+    , Typography.fieldLabel (C.translate' C.LblShowFooter)
+    , checkboxToggle settings.showFooter (\b -> wrap (SetShowFooter b))
+    , Typography.fieldLabel (C.translate' C.LblShowNameField)
+    , checkboxToggle settings.showNameField (\b -> wrap (SetShowNameField b))
+    ]
+  Grid _ -> []
+
+-- | Simple checkbox toggle
+checkboxToggle :: Bool -> (Bool -> action) -> M.View model action
+checkboxToggle current toAction =
+  M.input_
+    [ MP.type_ "checkbox"
+    , MP.checked_ current
+    , M.onClick (toAction (not current))
+    , class_ "h-4 w-4"
     ]
 
 -- | Number input for grid dimensions (1–4)
@@ -355,16 +398,19 @@ parseFontSize v = case readMaybe (fromMisoString v) of
   Nothing -> 11.0
 
 -- | Preview pane: renders based on layout mode
-previewPane :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
-previewPane renderTask model = case model.settings.taskLayout of
-  Continuous -> continuousPreview renderTask model
+previewPane :: (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
+previewPane renderTask title date model = case model.settings.taskLayout of
+  Continuous -> continuousPreview renderTask title date model
   Grid gc -> gridPreview renderTask model gc
 
 -- | Continuous preview: renders all tasks for the current page (based on page grouping)
-continuousPreview :: (Int -> M.View model action) -> PrintModalModel -> M.View model action
-continuousPreview renderTask model =
-  let (wMm, hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
-      margin = pageMarginMm model.settings.paperSize
+-- Uses the same 3-section layout as real print: margin-top (header),
+-- content-area (name field + tasks), margin-bottom (footer).
+continuousPreview :: (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
+continuousPreview renderTask title date model =
+  let settings = model.settings
+      (wMm, hMm) = pageSizeMm settings.paperSize settings.orientation
+      margin = pageMarginMm settings.paperSize
       -- Convert mm to px at 96 DPI (1 inch = 25.4mm)
       mmToPx mm = mm * 96.0 / 25.4
       pageWPx = mmToPx wMm
@@ -376,6 +422,7 @@ continuousPreview renderTask model =
       scaledW = pageWPx * scaleFactor
       scaledH = pageHPx * scaleFactor
       -- Get current page from page grouping
+      isFirstPage = model.previewTaskIndex == 0
       currentPage = case model.pageGrouping of
         [] -> Nothing
         pgs -> case drop model.previewTaskIndex pgs of
@@ -387,6 +434,19 @@ continuousPreview renderTask model =
       gapStyle = case currentPage of
         Nothing -> []
         Just pg -> [("gap", ms (showPx pg.gapPx))]
+      totalPages = case model.pageGrouping of
+        [] -> 1
+        pgs -> length pgs
+      marginTopContent
+        | not settings.showHeader = []
+        | isFirstPage = [renderFirstPageHeader title date]
+        | otherwise = [renderCompactHeader title date]
+      nameView
+        | settings.showNameField && isFirstPage = [renderNameField]
+        | otherwise = []
+      marginBottomContent
+        | settings.showFooter = [renderPageFooter (model.previewTaskIndex + 1) totalPages]
+        | otherwise = []
    in M.div_
         [ MC.style_
             [ ("width", ms (showPx scaledW))
@@ -399,23 +459,40 @@ continuousPreview renderTask model =
             [ MC.style_
                 [ ("width", ms (showPx pageWPx))
                 , ("height", ms (showPx pageHPx))
-                , ("padding", ms (showPx marginPx))
+                , ("padding-left", ms (showPx marginPx))
+                , ("padding-right", ms (showPx marginPx))
                 , ("transform", ms $ "scale(" <> T.pack (show scaleFactor) <> ")")
                 , ("transform-origin", "top left")
-                , ("display", "flex")
-                , ("flex-direction", "column")
                 ]
-            , class_ "bg-white text-black page-print-content"
+            , class_ "bg-white text-black page-print-content print-page"
             ]
-            [ M.div_
-                [ MC.style_ gapStyle
-                , class_ "flex flex-col"
+            [ -- Top margin area: header sits at bottom edge
+              M.div_
+                [ class_ "print-margin-top"
+                , MC.style_ [("height", ms (showPx marginPx))]
                 ]
-                [ M.div_
-                    [class_ "print-task"]
-                    [renderTask idx]
-                | idx <- pageIndices
+                marginTopContent
+            , -- Content area: name field + tasks
+              M.div_
+                [class_ "print-content-area"]
+                ( nameView
+                    <> [ M.div_
+                           [ MC.style_ gapStyle
+                           , class_ "flex flex-col"
+                           ]
+                           [ M.div_
+                               [class_ "print-task"]
+                               [renderTask idx]
+                           | idx <- pageIndices
+                           ]
+                       ]
+                )
+            , -- Bottom margin area: footer sits at top edge
+              M.div_
+                [ class_ "print-margin-bottom"
+                , MC.style_ [("height", ms (showPx marginPx))]
                 ]
+                marginBottomContent
             ]
         ]
 
@@ -489,6 +566,40 @@ measurementContainer renderTask taskCount model =
         [ M.div_ [] [renderTask idx]
         | idx <- [0 .. taskCount - 1]
         ]
+
+-- | First-page header: large title + date below
+renderFirstPageHeader :: MisoString -> MisoString -> M.View model action
+renderFirstPageHeader title date =
+  M.div_
+    [class_ "print-page-header"]
+    [ M.div_ [class_ "print-page-header-title"] [M.text title]
+    , M.div_ [class_ "print-page-header-date"] [M.text date]
+    ]
+
+-- | Compact header: title + date on same line
+renderCompactHeader :: MisoString -> MisoString -> M.View model action
+renderCompactHeader title date =
+  M.div_
+    [class_ "print-page-header-compact"]
+    [ M.span_ [] [M.text title]
+    , M.span_ [] [M.text date]
+    ]
+
+-- | Page footer: centered page number "X / Y"
+renderPageFooter :: Int -> Int -> M.View model action
+renderPageFooter pageNum totalPages =
+  M.div_
+    [class_ "print-page-footer"]
+    [M.text $ ms (show pageNum) <> " / " <> ms (show totalPages)]
+
+-- | Name field: "Name: ________________"
+renderNameField :: M.View model action
+renderNameField =
+  M.div_
+    [class_ "print-name-field"]
+    [ M.text $ C.translate' C.LblStudentName <> ": "
+    , M.span_ [class_ "print-name-field-line"] [M.text "\xA0"]
+    ]
 
 showPx :: Double -> T.Text
 showPx d = T.pack (show (round d :: Int)) <> "px"
