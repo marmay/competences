@@ -453,7 +453,7 @@ continuousPreview renderTask title date model =
             , ("height", ms (showPx scaledH))
             , ("overflow", "hidden")
             ]
-        , class_ "rounded shadow-md"
+        , class_ "rounded shadow-md page-print-content"
         ]
         [ M.div_
             [ MC.style_
@@ -464,7 +464,7 @@ continuousPreview renderTask title date model =
                 , ("transform", ms $ "scale(" <> T.pack (show scaleFactor) <> ")")
                 , ("transform-origin", "top left")
                 ]
-            , class_ "bg-white text-black page-print-content print-page"
+            , class_ "bg-white text-black print-page"
             ]
             [ -- Top margin area: header sits at bottom edge
               M.div_
