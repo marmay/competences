@@ -10,7 +10,6 @@ module Competences.Frontend.Component.PrintEngine.Types
   , pageMarginMm
   , cellsPerPage
   , cellSizeMm
-  , cellMarginMm
   , expandTaskSequence
   , chunksOf
   )
@@ -98,12 +97,6 @@ cellSizeMm :: PaperSize -> Orientation -> GridConfig -> (Double, Double)
 cellSizeMm ps orient gc =
   let (pw, ph) = pageSizeMm ps orient
    in (pw / fromIntegral gc.cols, ph / fromIntegral gc.rows)
-
--- | Sub-page margin (cell internal padding) in mm.
--- Smaller than outer page margin so cut cells have uniform margins.
-cellMarginMm :: PaperSize -> Double
-cellMarginMm A4 = 8.0
-cellMarginMm A5 = 6.0
 
 -- | Expand a task sequence according to grouped and total copies.
 -- Given tasks [A,B,C], groupedCopies=2, totalCopies=2:

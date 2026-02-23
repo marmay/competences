@@ -7,7 +7,6 @@ import Competences.Frontend.Component.PrintEngine.Types
   ( GridConfig (..)
   , PrintSettings (..)
   , TaskLayout (..)
-  , cellMarginMm
   , pageSizeCSS
   , pageSizeMm
   , pageMarginMm
@@ -65,7 +64,7 @@ gridCSS :: PrintSettings -> GridConfig -> Text
 gridCSS settings gc =
   let size = pageSizeCSS settings.paperSize settings.orientation
       (pw, ph) = pageSizeMm settings.paperSize settings.orientation
-      cellPad = showMm (cellMarginMm settings.paperSize)
+      cellPad = showMm (pageMarginMm settings.paperSize)
       cols = T.pack (show gc.cols)
       rows = T.pack (show gc.rows)
    in T.unlines
