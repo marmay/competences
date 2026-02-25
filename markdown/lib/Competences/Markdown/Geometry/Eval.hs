@@ -142,6 +142,24 @@ evalDraw = \case
       Just (v1, v2) -> do
         let prim = RenderSegment v1 v2 env
         pure (emitToLayer env prim, mempty)
+  DrawAngle ref -> do
+    mPts <- resolveAngleRef ref
+    env <- gets esDrawEnv
+    case mPts of
+      Nothing -> pure (mempty, mempty)
+      Just (_va, vb, _vc) -> do
+        let (start, sweep) = computeAngleArc _va vb _vc
+            prim = RenderAngleArc vb start sweep 0.4 env
+        pure (emitToLayer env prim, mempty)
+  DrawRightAngle ref -> do
+    mPts <- resolveAngleRef ref
+    env <- gets esDrawEnv
+    case mPts of
+      Nothing -> pure (mempty, mempty)
+      Just (_va, vb, _vc) -> do
+        let (start, sweep) = computeAngleArc _va vb _vc
+            prim = RenderRightAngle vb start sweep 0.3 env
+        pure (emitToLayer env prim, mempty)
 
 -- -----------------------------------------------------------------
 -- Label evaluation
@@ -184,6 +202,21 @@ evalLabel = \case
             labelPos = segmentSideToPosition side dx dy
             prim = RenderLabel labelVec txt labelPos env
         pure (emitToLayer env prim, mempty)
+  LabelAngle ref txt -> do
+    mPts <- resolveAngleRef ref
+    env <- gets esDrawEnv
+    case mPts of
+      Nothing -> pure (mempty, mempty)
+      Just (va, vb, vc) -> do
+        let (start, sweep) = computeAngleArc va vb vc
+            bisector = start + sweep / 2
+            radius = 0.4
+            labelDist = radius + 0.25
+            Vec2 bx by = vb
+            lx = bx + labelDist * cos bisector
+            ly = by + labelDist * sin bisector
+            prim = RenderLabel (Vec2 lx ly) txt Above env
+        pure (emitToLayer env prim, mempty)
 
 -- | Convert segment side to a label position based on segment direction.
 --
@@ -220,6 +253,35 @@ resolveSegmentRef = \case
       v1 <- Map.lookup a pts
       v2 <- Map.lookup b pts
       Just (v1, v2)
+
+-- -----------------------------------------------------------------
+-- Angle ref resolution
+-- -----------------------------------------------------------------
+
+resolveAngleRef :: AngleRef -> Eval (Maybe (Vec2, Vec2, Vec2))
+resolveAngleRef (AngleRef a b c) = do
+  pts <- gets esPoints
+  pure $ do
+    va <- Map.lookup a pts
+    vb <- Map.lookup b pts
+    vc <- Map.lookup c pts
+    Just (va, vb, vc)
+
+-- | Compute angle arc parameters from three points (A = arm1, B = vertex, C = arm2).
+-- Returns @(startAngle, sweepAngle)@ in radians. The sweep goes from ray BA to ray BC
+-- counterclockwise. If the resulting sweep exceeds pi, we flip to always show the
+-- shorter arc.
+computeAngleArc :: Vec2 -> Vec2 -> Vec2 -> (Double, Double)
+computeAngleArc (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
+  let startAngle = atan2 (ay - by) (ax - bx)
+      endAngle = atan2 (cy - by) (cx - bx)
+      rawSweep = endAngle - startAngle
+      -- Normalize to (-pi, pi]
+      normalized
+        | rawSweep > pi = rawSweep - 2 * pi
+        | rawSweep <= (-pi) = rawSweep + 2 * pi
+        | otherwise = rawSweep
+   in (startAngle, normalized)
 
 -- -----------------------------------------------------------------
 -- Modifier blocks
@@ -343,6 +405,7 @@ extractMathLabels = concatMap go
     go = \case
       Label (LabelAtPoint _ (MathLabel latex) _) -> [latex]
       Label (LabelOnSegment _ (MathLabel latex) _ _) -> [latex]
+      Label (LabelAngle _ (MathLabel latex)) -> [latex]
       ModifierBlock _ children -> concatMap go children
       _ -> []
 

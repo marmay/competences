@@ -160,6 +160,24 @@ parserGroup =
                 [Draw (DrawPoint "A")]
             ]
         ]
+    , parsesTo
+        "drawAngle"
+        "drawAngle A B C"
+        [Draw (DrawAngle (AngleRef "A" "B" "C"))]
+    , parsesTo
+        "drawAngle labeled"
+        "drawAngle A B C labeled \"$\\alpha$\""
+        [ Draw (DrawAngle (AngleRef "A" "B" "C"))
+        , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha"))
+        ]
+    , parsesTo
+        "drawRightAngle"
+        "drawRightAngle A B C"
+        [Draw (DrawRightAngle (AngleRef "A" "B" "C"))]
+    , parsesTo
+        "labelAngle"
+        "labelAngle A B C \"$\\beta$\""
+        [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\beta"))]
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
@@ -208,6 +226,8 @@ extractMathLabelsGroup =
               [Label (LabelAtPoint "A" (MathLabel "\\gamma") Below)]
           ]
           @?= ["\\gamma"]
+    , testCase "math label on angle" $
+        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha"))] @?= ["\\alpha"]
     , testCase "mixed plain and math" $
         extractMathLabels
           [ Label (LabelAtPoint "A" (PlainLabel "A") Above)
@@ -439,6 +459,72 @@ evalGroup =
                 , ModifierBlock (AutoDec Grid) [Draw (DrawPoint "A")]
                 ]
         assertBool "background should have grid lines" (not $ null $ background result)
+    , testCase "angle arc on right triangle" $ do
+        -- Triangle with right angle at B: A=(1,0), B=(0,0), C=(0,1)
+        -- Angle ABC: ray BA along +x, ray BC along +y
+        -- startAngle = atan2(0-0, 1-0) = 0, endAngle = atan2(1-0, 0-0) = pi/2
+        -- sweep = pi/2
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , Draw (DrawAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderAngleArc (Vec2 vx vy) startA sweepA radius _env] -> do
+            assertApprox "vx" 0 vx
+            assertApprox "vy" 0 vy
+            assertApprox "startAngle" 0 startA
+            assertApprox "sweepAngle" (pi / 2) sweepA
+            radius @?= 0.4
+          other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
+    , testCase "right angle arc" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , Draw (DrawRightAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderRightAngle (Vec2 vx vy) startA sweepA radius _env] -> do
+            assertApprox "vx" 0 vx
+            assertApprox "vy" 0 vy
+            assertApprox "startAngle" 0 startA
+            assertApprox "sweepAngle" (pi / 2) sweepA
+            radius @?= 0.3
+          other -> assertFailure $ "Expected [RenderRightAngle], got: " <> show other
+    , testCase "angle arc flips when sweep > pi" $ do
+        -- A=(0,1), B=(0,0), C=(1,0): CCW from +y to +x is 3pi/2, should flip to -pi/2
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 1)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 1 0)
+                , Draw (DrawAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderAngleArc _ startA sweepA _ _] -> do
+            assertApprox "startAngle" (pi / 2) startA
+            assertApprox "sweepAngle" (-(pi / 2)) sweepA
+          other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
+    , testCase "angle label placement" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a"))
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl _pos _env] -> do
+            lbl @?= PlainLabel "a"
+            -- Label at bisector (pi/4) at distance 0.65 from origin
+            let dist = 0.65
+            assertApprox "lx" (dist * cos (pi / 4)) lx
+            assertApprox "ly" (dist * sin (pi / 4)) ly
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "full example parse + eval" $ do
         let input =
               "defPoint A (0, 0)\n\

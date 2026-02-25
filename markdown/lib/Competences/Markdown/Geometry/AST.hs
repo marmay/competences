@@ -12,6 +12,7 @@ module Competences.Markdown.Geometry.AST
   , DrawPrimitive (..)
   , LabelPrimitive (..)
   , SegmentRef (..)
+  , AngleRef (..)
 
     -- * Point constructions
   , PointConstruction (..)
@@ -78,10 +79,16 @@ data SegmentRef
   | SegInline !Name !Name
   deriving (Eq, Show)
 
+-- | Reference to an angle: three points A B C where B is the vertex
+data AngleRef = AngleRef !Name !Name !Name
+  deriving (Eq, Show)
+
 -- | Drawable primitives
 data DrawPrimitive
   = DrawPoint !Name
   | DrawSegment !SegmentRef
+  | DrawAngle !AngleRef
+  | DrawRightAngle !AngleRef
   deriving (Eq, Show)
 
 -- | Label content: plain text or LaTeX math (delimited by @$...$@)
@@ -92,6 +99,7 @@ data LabelContent = PlainLabel !Text | MathLabel !Text
 data LabelPrimitive
   = LabelAtPoint !Name !LabelContent !LabelPosition
   | LabelOnSegment !SegmentRef !LabelContent !SegmentSide !Double
+  | LabelAngle !AngleRef !LabelContent
   deriving (Eq, Show)
 
 -- | Point constructions (for @defPointBy@)
@@ -191,6 +199,10 @@ data RenderPrimitive
   | RenderAxisLine !Vec2 !Vec2 !DrawEnv
   | RenderTick !Vec2 !Text !DrawEnv
   | RenderGridLine !Vec2 !Vec2 !DrawEnv
+  | -- | Angle arc: vertex, startAngle (rad), sweepAngle (rad), radius
+    RenderAngleArc !Vec2 !Double !Double !Double !DrawEnv
+  | -- | Right-angle arc (German style: arc + dot): same fields as 'RenderAngleArc'
+    RenderRightAngle !Vec2 !Double !Double !Double !DrawEnv
   deriving (Eq, Show)
 
 -- | Three-layer render result

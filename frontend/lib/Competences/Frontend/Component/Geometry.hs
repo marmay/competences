@@ -130,6 +130,8 @@ primVecs = \case
   RenderAxisLine v1 v2 _ -> [v1, v2]
   RenderTick v _ _ -> [v]
   RenderGridLine v1 v2 _ -> [v1, v2]
+  RenderAngleArc v startA sweepA r _ -> angleArcVecs v startA sweepA r
+  RenderRightAngle v startA sweepA r _ -> angleArcVecs v startA sweepA r
 
 -- | Estimate bounding-box corners of a label for viewBox calculation.
 labelBounds :: Vec2 -> LabelContent -> LabelPosition -> [Vec2]
@@ -265,6 +267,47 @@ renderPrimitive symbols = \case
       , SP.stroke_ (ms $ envColor env)
       , SP.strokeWidth_ "0.01"
       ]
+  RenderAngleArc (Vec2 vx vy) startAngle sweepAngle radius env ->
+    let (sx, sy, ex, ey, largeArc, sweepFlag) =
+          arcParams vx vy startAngle sweepAngle radius
+     in Svg.path_
+          [ SP.d_ $ ms $
+              "M " <> show sx <> " " <> show sy
+                <> " A " <> show radius <> " " <> show radius
+                <> " 0 " <> show largeArc <> " " <> show sweepFlag
+                <> " " <> show ex <> " " <> show ey
+          , SP.stroke_ (ms $ envColor env)
+          , SP.strokeWidth_ (ms $ envStrokeWidth env)
+          , SP.fill_ "none"
+          , envDashAttr env
+          ]
+  RenderRightAngle (Vec2 vx vy) startAngle sweepAngle radius env ->
+    let (sx, sy, ex, ey, largeArc, sweepFlag) =
+          arcParams vx vy startAngle sweepAngle radius
+        -- Dot at bisector, halfway along radius
+        bisector = startAngle + sweepAngle / 2
+        dotX = vx + radius * 0.5 * cos bisector
+        dotY = -(vy + radius * 0.5 * sin bisector)
+     in Svg.g_
+          []
+          [ Svg.path_
+              [ SP.d_ $ ms $
+                  "M " <> show sx <> " " <> show sy
+                    <> " A " <> show radius <> " " <> show radius
+                    <> " 0 " <> show largeArc <> " " <> show sweepFlag
+                    <> " " <> show ex <> " " <> show ey
+              , SP.stroke_ (ms $ envColor env)
+              , SP.strokeWidth_ (ms $ envStrokeWidth env)
+              , SP.fill_ "none"
+              , envDashAttr env
+              ]
+          , Svg.circle_
+              [ SP.cx_ (ms $ show dotX)
+              , SP.cy_ (ms $ show dotY)
+              , SP.r_ "0.04"
+              , SP.fill_ (ms $ envColor env)
+              ]
+          ]
 
 -- | Render a MathJax-rendered formula as an SVG @\<image\>@ element.
 -- Converts MathJax's @ex@ units to geometry coordinate units.
@@ -303,6 +346,32 @@ renderMathLabel (Vec2 x y) es pos _env =
             , M.textProp "href" (ms es.dataUrl)
             ]
         ]
+
+-- | Vec2s contributed by an angle arc to the viewBox calculation:
+-- the vertex and the two arc endpoints.
+angleArcVecs :: Vec2 -> Double -> Double -> Double -> [Vec2]
+angleArcVecs (Vec2 vx vy) startA sweepA r =
+  let endA = startA + sweepA
+   in [ Vec2 vx vy
+      , Vec2 (vx + r * cos startA) (vy + r * sin startA)
+      , Vec2 (vx + r * cos endA) (vy + r * sin endA)
+      ]
+
+-- | Compute SVG arc path parameters from angle arc fields.
+-- Returns @(startX, startY, endX, endY, largeArcFlag, sweepFlag)@ in SVG
+-- coordinates (Y negated).
+arcParams :: Double -> Double -> Double -> Double -> Double -> (Double, Double, Double, Double, Int, Int)
+arcParams vx vy startAngle sweepAngle radius =
+  let sx = vx + radius * cos startAngle
+      sy = -(vy + radius * sin startAngle)
+      endAngle = startAngle + sweepAngle
+      ex = vx + radius * cos endAngle
+      ey = -(vy + radius * sin endAngle)
+      -- In SVG, positive sweep is clockwise. Math positive sweep (CCW) with
+      -- Y-flip becomes CW in SVG, so sweepFlag matches sign of sweep.
+      sweepFlag = if sweepAngle > 0 then 1 else 0
+      largeArc = if abs sweepAngle > pi then 1 else 0
+   in (sx, sy, ex, ey, largeArc, sweepFlag)
 
 -- -----------------------------------------------------------------
 -- Environment to SVG attributes

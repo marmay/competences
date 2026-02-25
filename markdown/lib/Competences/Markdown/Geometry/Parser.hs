@@ -97,8 +97,11 @@ commandP = do
     "defSegment" -> one <$> defSegmentP
     "drawPoint" -> drawPointP
     "drawSegment" -> drawSegmentP
+    "drawAngle" -> drawAngleP
+    "drawRightAngle" -> one . Draw . DrawRightAngle <$> angleRefP
     "labelPoint" -> one <$> labelPointP
     "labelSegment" -> one <$> labelSegmentP
+    "labelAngle" -> one <$> labelAngleP
     -- Modifier blocks
     "color" -> one <$> colorBlockP
     "dashed" -> one <$> modifierBlockP (EnvMod SetDashed)
@@ -160,6 +163,38 @@ drawSegmentP = do
       <|> pure (SegByName name1)
   mLabel <- optional (lexeme (string "labeled") *> segmentLabelTailP segRef)
   pure $ [Draw (DrawSegment segRef)] <> maybe [] (\lbl -> [Label lbl]) mLabel
+
+-- -----------------------------------------------------------------
+-- Angle commands
+-- -----------------------------------------------------------------
+
+-- | Parse three point names as an 'AngleRef'
+angleRefP :: Parser AngleRef
+angleRefP = do
+  a <- lexeme nameP
+  b <- lexeme nameP
+  c <- lexeme nameP
+  pure $ AngleRef a b c
+
+-- | @drawAngle A B C@ or @drawAngle A B C labeled "$\alpha$"@
+drawAngleP :: Parser [Command]
+drawAngleP = do
+  ref <- angleRefP
+  mLabel <- optional (lexeme (string "labeled") *> angleLabelTailP ref)
+  pure $ [Draw (DrawAngle ref)] <> maybe [] (\lbl -> [Label lbl]) mLabel
+
+-- | Parse @"text"@ for an angle label (no position needed — auto-placed at bisector)
+angleLabelTailP :: AngleRef -> Parser LabelPrimitive
+angleLabelTailP ref = do
+  txt <- lexeme quotedTextP
+  pure $ LabelAngle ref (parseLabelContent txt)
+
+-- | @labelAngle A B C "$\alpha$"@
+labelAngleP :: Parser Command
+labelAngleP = do
+  ref <- angleRefP
+  lbl <- angleLabelTailP ref
+  pure $ Label lbl
 
 -- -----------------------------------------------------------------
 -- Label commands
