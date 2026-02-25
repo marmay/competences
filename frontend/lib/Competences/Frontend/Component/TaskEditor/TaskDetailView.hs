@@ -6,25 +6,68 @@ where
 import Competences.Command (Command (..), EntityCommand (..), TaskPatch (..), TasksCommand (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), Task (..), TaskType (..))
+import Competences.Document (Document (..), Lock (..), Task (..), TaskType (..), User)
+import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Task (TaskAttributes (..), TaskIdentifier (..), TaskPurpose (..))
+import Competences.Document.Task (TaskAttributes (..), TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tailwind (class_)
-import Miso.Html qualified as MH
 import Data.Map qualified as Map
-import Competences.TaskContent.RichContent (RichContent)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
+import Miso.String (ms)
+import Competences.TaskContent.RichContent (RichContent)
 import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
+
+-- | Lightweight projection: assignment names referencing a given task
+data TaskAssignmentRefs = TaskAssignmentRefs
+  { assignmentNames :: ![AssignmentName]
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Projection function: filter doc.assignments for those containing this taskId
+taskAssignmentRefsProjection :: TaskId -> Document -> Maybe User -> TaskAssignmentRefs
+taskAssignmentRefsProjection taskId doc _mUser =
+  let names =
+        [ a.name
+        | a <- Ix.toList doc.assignments
+        , taskId `elem` a.tasks
+        ]
+   in TaskAssignmentRefs names
+
+-- | Component: subscribes to projection, renders banner showing which assignments reference a task
+assignmentRefsBanner :: SyncContext -> TaskId -> M.Component p TaskAssignmentRefs (ProjectedChange TaskAssignmentRefs)
+assignmentRefsBanner r taskId =
+  (M.component (TaskAssignmentRefs []) update' view')
+    { M.subs = [subscribeWithProjection r (taskAssignmentRefsProjection taskId) id]
+    }
+  where
+    update' change = M.modify $ \_ -> change.projection
+    view' m
+      | null m.assignmentNames = M.text ""
+      | [AssignmentName single] <- m.assignmentNames =
+          banner [M.text (C.translate' C.LblUsedInAssignment <> " " <> ms single)]
+      | otherwise =
+          banner
+            [ M.text (C.translate' C.LblUsedInAssignments)
+            , MH.ul_
+                [class_ "list-disc list-inside mt-1"]
+                [MH.li_ [] [M.text (ms n)] | AssignmentName n <- m.assignmentNames]
+            ]
+    banner content =
+      MH.div_
+        [class_ "rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800"]
+        content
 
 -- | Detail view for editing a SelfContained task
 -- Includes the task editor form and a solutions list below it
@@ -36,6 +79,9 @@ taskDetailView r task =
   MH.div_
     [class_ "space-y-6"]
     [ inlineComponent
+        ("task-assignment-refs-" <> M.ms (show task.id))
+        (assignmentRefsBanner r task.id)
+    , inlineComponent
         ("task-editor-" <> M.ms (show task.id))
         (TE.editorComponent taskEditor r)
     , inlineComponent

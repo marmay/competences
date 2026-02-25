@@ -17,7 +17,7 @@ module Competences.Frontend.Common.Translate
 where
 
 import Competences.Document (Level (..))
-import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), abilities, socialForms)
+import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), TaskRemark (..), abilities, socialForms, taskRemarks)
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationType (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
@@ -357,6 +357,12 @@ data Label
   | LblLessonNotesResources
   | LblLessonNotesItems
   | LblSelectTasks
+    -- Task remarks
+  | LblTaskRemarks
+  | LblTaskRemark !TaskRemark
+    -- Assignment references
+  | LblUsedInAssignment
+  | LblUsedInAssignments
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
@@ -689,6 +695,11 @@ labels' =
   , LblLessonNotesResources
   , LblLessonNotesItems
   , LblSelectTasks
+    -- Task remarks
+  , LblTaskRemarks
+    -- Assignment references
+  , LblUsedInAssignment
+  , LblUsedInAssignments
   , LblViewAsStudent
   , LblReturnToTeacher
   ]
@@ -697,6 +708,7 @@ labels' =
     <> map LblTaskPurpose taskPurposes
     <> map LblTaskStatusGroup taskStatusGroups
     <> map LblSolutionType solutionTypes
+    <> map LblTaskRemark taskRemarks
 
 defaultLanguage :: Language
 defaultLanguage = De
@@ -1041,6 +1053,14 @@ defaultTranslation LblLessonNotesTitle = "Titel"
 defaultTranslation LblLessonNotesResources = "Ressourcen"
 defaultTranslation LblLessonNotesItems = "Materialien"
 defaultTranslation LblSelectTasks = "Aufgaben auswählen..."
+-- Task remarks
+defaultTranslation LblTaskRemarks = "Anmerkungen"
+defaultTranslation (LblTaskRemark Exceptional) = "Herausragend"
+defaultTranslation (LblTaskRemark Sloppy) = "Schlampig"
+defaultTranslation (LblTaskRemark Lacking) = "Lückenhaft"
+-- Assignment references
+defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"
+defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"
