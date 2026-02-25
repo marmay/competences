@@ -472,6 +472,7 @@ saveStudentEvidence r m (uid, observations) = do
           , tasks = Map.fromList [(tid, Map.empty) | tid <- maybeToList m.selectedTask]
           , oldTasks = ""
           , observations = Ix.fromList freshObservations
+          , taskRemarks = Map.empty
           , assignmentId = Nothing
           , lessonId = Nothing
           }

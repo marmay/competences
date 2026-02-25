@@ -9,7 +9,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, socialForms)
+import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -46,6 +46,7 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
+import Optics.Core ((&), (.~))
 import qualified Competences.Frontend.View.Button as Button
 
 -- | Find evidences for a specific date, keyed by student.
@@ -103,6 +104,8 @@ data EvaluatorModel = EvaluatorModel
   , aggregationStale :: !Bool
   -- Per-student task completion statuses (pre-computed from document)
   , taskStatuses :: !(Map.Map UserId (Map.Map TaskId TaskCompletionStatus))
+  -- Per-task qualitative remarks (e.g. sloppy, exceptional)
+  , taskRemarks :: !(Map.Map TaskId (Set.Set TaskRemark))
   }
   deriving (Eq, Generic, Show)
 
@@ -120,6 +123,7 @@ data EvaluatorAction
   | ToggleSolutionExpanded !SolutionId -- Toggle expand/collapse for a solution
   | LoadStudentEvidence !UserId -- Load existing evidence data into evaluator
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
+  | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -148,6 +152,7 @@ evaluatorComponent r assignment =
         , editingEvidence = Nothing
         , aggregationStale = False
         , taskStatuses = Map.empty
+        , taskRemarks = Map.empty
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -193,6 +198,7 @@ evaluatorComponent r assignment =
            , taskObservations = Map.empty
            , aggregatedResults = Map.empty
            , aggregationStale = False
+           , taskRemarks = Map.empty
            }
 
     update (SetSocialForm sf) = M.modify $ \m ->
@@ -223,6 +229,7 @@ evaluatorComponent r assignment =
         , selectedStudents = Set.empty
         , editingEvidence = Nothing
         , aggregationStale = False
+        , taskRemarks = Map.empty
         }
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
@@ -277,6 +284,7 @@ evaluatorComponent r assignment =
                    [] -> m.selectedSocialForm
                , evaluationDate = ev.date
                , aggregationStale = False
+               , taskRemarks = ev.taskRemarks
                }
 
     update ResetLoadedEvidence = M.modify $ \m ->
@@ -284,7 +292,18 @@ evaluatorComponent r assignment =
        , taskObservations = Map.empty
        , aggregatedResults = Map.empty
        , aggregationStale = False
+       , taskRemarks = Map.empty
        }
+
+    update (ToggleTaskRemark taskId remark) = M.modify $ \m ->
+      let current = Map.findWithDefault Set.empty taskId m.taskRemarks
+          updated = if Set.member remark current
+                      then Set.delete remark current
+                      else Set.insert remark current
+          newRemarks = if Set.null updated
+                         then Map.delete taskId m.taskRemarks
+                         else Map.insert taskId updated m.taskRemarks
+       in m & #taskRemarks .~ newRemarks
 
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
@@ -317,6 +336,7 @@ evaluatorComponent r assignment =
                 , tasks = Just (existingEv.tasks, tasksMap)
                 , oldTasks = Nothing
                 , observations = Just (existingEv.observations, Ix.fromList observations)
+                , taskRemarks = Just (existingEv.taskRemarks, m.taskRemarks)
                 , assignmentId = Nothing
                 , lessonId = Nothing
                 }
@@ -333,6 +353,7 @@ evaluatorComponent r assignment =
                 , tasks = tasksMap
                 , oldTasks = ""
                 , observations = Ix.fromList observations
+                , taskRemarks = m.taskRemarks
                 , assignmentId = Just asmt.id
                 , lessonId = Nothing
                 }
@@ -482,6 +503,7 @@ evaluatorComponent r assignment =
                 else M.div_ []
                        [ Eval.viewTaskContent r.formulaCache m.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
                        , viewTaskSolutions m taskId
+                       , viewTaskRemarkButtons m taskId
                        , viewStudentEvaluations m taskId
                        ]
             ]
@@ -504,6 +526,23 @@ evaluatorComponent r assignment =
           bodyView = M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText r.formulaCache solution.content]
        in Disclosure.innerDisclosure (ToggleSolutionExpanded solution.id) $
             Disclosure.contents titleView isExpanded bodyView []
+
+    viewTaskRemarkButtons m taskId =
+      if null m.selectedStudents
+        then M.text ""
+        else
+          let currentRemarks = Map.findWithDefault Set.empty taskId m.taskRemarks
+           in M.div_ [class_ "mt-2 mb-2"]
+                [ Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+                    ( M.span_ [class_ "text-xs text-muted-foreground font-medium"]
+                        [M.text $ C.translate' C.LblTaskRemarks <> ":"]
+                    : map (viewRemarkButton currentRemarks taskId) taskRemarks
+                    )
+                ]
+
+    viewRemarkButton currentRemarks taskId remark =
+      Button.toggleSm (Set.member remark currentRemarks)
+        (Button.button (C.LblTaskRemark remark) (ToggleTaskRemark taskId remark))
 
     viewStudentEvaluations m taskId =
       if null m.selectedStudents

@@ -20,10 +20,12 @@ import Competences.Document.Evidence
   , Observation
   , ObservationIxs
   , TaskEvaluations
+  , TaskRemark
   )
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 import Data.Map.Strict (Map)
+import Data.Set (Set)
 #ifdef WITH_AESON
 import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON (..), Object, ToJSON, withObject, (.:), (.:?), (.!=))
@@ -53,6 +55,8 @@ data EvidencePatch = EvidencePatch
     -- ^ Change oldTasks from old to new value
   , observations :: !(Change (Ix.IxSet ObservationIxs Observation))
     -- ^ Change observations from old to new value
+  , taskRemarks :: !(Change (Map TaskId (Set TaskRemark)))
+    -- ^ Change taskRemarks from old to new value
   , assignmentId :: !(Change (Maybe AssignmentId))
     -- ^ Change assignmentId from old to new value
   , lessonId :: !(Change (Maybe LessonId))
@@ -77,6 +81,7 @@ instance FromJSON EvidencePatch where
       <*> pure tasksChange
       <*> v .:? "oldTasks" .!= Nothing
       <*> v .: "observations"
+      <*> v .:? "taskRemarks" .!= Nothing
       <*> v .:? "assignmentId" .!= Nothing
       <*> v .:? "lessonId" .!= Nothing
 
@@ -114,6 +119,7 @@ instance Default EvidencePatch where
       , tasks = Nothing
       , oldTasks = Nothing
       , observations = Nothing
+      , taskRemarks = Nothing
       , assignmentId = Nothing
       , lessonId = Nothing
       }
@@ -128,6 +134,7 @@ applyEvidencePatch evidence patch =
       >=> patchField' @"tasks" patch
       >=> patchField' @"oldTasks" patch
       >=> patchField' @"observations" patch
+      >=> patchField' @"taskRemarks" patch
       >=> patchField' @"assignmentId" patch
       >=> patchField' @"lessonId" patch
 

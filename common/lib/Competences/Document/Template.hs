@@ -99,9 +99,12 @@ mkEvidenceFromTemplateEvaluation g t =
         , userId = t.userId
         , activityType = t.template.activityType
         , date = t.template.date
-        , tasks = []
+        , tasks = Map.empty
         , oldTasks = oldTasksText
         , observations = Ix.fromList observations
+        , taskRemarks = Map.empty
+        , assignmentId = Nothing
+        , lessonId = Nothing
         }
 
 mkTemplate :: TemplateId -> TemplateName -> Day -> ActivityType -> SocialForm -> Template

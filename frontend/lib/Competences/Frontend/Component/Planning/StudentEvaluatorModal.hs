@@ -330,6 +330,7 @@ studentEvaluatorModal r initialLessonId initialUserId wm =
                     , tasks = Just (existingEv.tasks, tasksMap)
                     , oldTasks = Nothing
                     , observations = Just (existingEv.observations, Ix.fromList observations)
+                    , taskRemarks = Nothing
                     , assignmentId = Nothing
                     , lessonId = Nothing
                     }
@@ -348,6 +349,7 @@ studentEvaluatorModal r initialLessonId initialUserId wm =
                     , tasks = tasksMap
                     , oldTasks = ""
                     , observations = Ix.fromList observations
+                    , taskRemarks = Map.empty
                     , assignmentId = Nothing
                     , lessonId = Just initialLessonId
                     }

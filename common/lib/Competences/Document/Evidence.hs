@@ -13,10 +13,12 @@ module Competences.Document.Evidence
   , ObservationId
   , ObservationIxs
   , ObservationRemark (..)
+  , TaskRemark (..)
   , mkEvidence
   , socialForms
   , abilities
   , activityTypes
+  , taskRemarks
   )
 where
 
@@ -39,6 +41,7 @@ import Data.List (singleton)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (maybeToList)
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian)
 import GHC.Generics (Generic)
@@ -71,6 +74,19 @@ data Ability
     -- idea or they made a significant mistake.
     NotYet
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
+
+-- | Qualitative remark on a student's work for a specific task.
+data TaskRemark
+  = -- | Outstanding work
+    Exceptional
+  | -- | Careless work
+    Sloppy
+  | -- | Mastery not clearly demonstrated, lacks explanation/structure
+    Lacking
+  deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
+
+taskRemarks :: [TaskRemark]
+taskRemarks = [minBound .. maxBound]
 
 newtype ActivityTasks = ActivityTasks Text
   deriving (Eq, Generic, Ord, Show)
@@ -113,6 +129,8 @@ data Evidence = Evidence
   , oldTasks :: !Text
     -- ^ Legacy text-based tasks (for gradual migration from activityTasks)
   , observations :: !(Ix.IxSet ObservationIxs Observation)
+  , taskRemarks :: !(Map TaskId (Set TaskRemark))
+    -- ^ Per-task qualitative remarks (e.g. sloppy, exceptional)
   , assignmentId :: !(Maybe AssignmentId)
     -- ^ Optional link to assignment this evidence was created from
   , lessonId :: !(Maybe LessonId)
@@ -136,6 +154,7 @@ nilEvidence = Evidence
   , tasks = Map.empty
   , oldTasks = ""
   , observations = Ix.empty
+  , taskRemarks = Map.empty
   , assignmentId = Nothing
   , lessonId = Nothing
   }
@@ -188,6 +207,14 @@ instance ToJSON Ability
 instance Binary Ability
 
 #ifdef WITH_AESON
+instance FromJSON TaskRemark
+
+instance ToJSON TaskRemark
+#endif
+
+instance Binary TaskRemark
+
+#ifdef WITH_AESON
 instance FromJSON Evidence where
   parseJSON = withObject "Evidence" $ \v -> do
     -- Parse tasks: try new map format, fall back to old list format
@@ -205,6 +232,7 @@ instance FromJSON Evidence where
       <*> pure tasksMap
       <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
+      <*> v .:? "taskRemarks" .!= Map.empty
       <*> v .:? "assignmentId" .!= Nothing
       <*> v .:? "lessonId" .!= Nothing
 
@@ -235,6 +263,7 @@ instance ToJSON Evidence where
       , "tasks" .= Map.map evalsToJSON e.tasks
       , "oldTasks" .= e.oldTasks
       , "observations" .= Ix.toList e.observations
+      , "taskRemarks" .= e.taskRemarks
       , "assignmentId" .= e.assignmentId
       , "lessonId" .= e.lessonId
       ]

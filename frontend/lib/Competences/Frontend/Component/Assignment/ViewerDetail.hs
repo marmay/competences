@@ -18,7 +18,7 @@ import Competences.Document
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Competence (CompetenceIxs, LevelInfo (..))
-import Competences.Document.Evidence (Ability (..))
+import Competences.Document.Evidence (Ability (..), Evidence (..), TaskRemark (..))
 import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
@@ -87,9 +87,10 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Color (textClass')
+import Competences.Frontend.View.Color (PaletteName (..), textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
@@ -165,6 +166,8 @@ data ViewerProjection = ViewerProjection
   , taskStatuses :: !(Map TaskId TaskCompletionStatus)
     -- | Tasks that have associated competence levels (primary or secondary)
   , tasksWithCompetences :: !(Set.Set TaskId)
+    -- | Per-task qualitative remarks (union across all evidences for this assignment/user)
+  , taskRemarkMap :: !(Map TaskId (Set.Set TaskRemark))
   }
   deriving (Eq, Generic, Show)
 
@@ -180,6 +183,7 @@ emptyProjection role assignment = ViewerProjection
   , connectedUserRole = role
   , taskStatuses = Map.empty
   , tasksWithCompetences = Set.empty
+  , taskRemarkMap = Map.empty
   }
 
 -- ============================================================================
@@ -283,6 +287,11 @@ viewerComponent r user assignment wm =
             , not (null attrs.primary) || not (null attrs.secondary)
             ]
 
+          -- Collect task remarks from all evidences for this assignment/user
+          userEvidences = Ix.toList $ doc.evidences Ix.@= effectiveUserId Ix.@= updatedAssignment.id
+          taskRemarkMap = Map.unionsWith Set.union
+            [ ev.taskRemarks | ev <- userEvidences ]
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -293,6 +302,7 @@ viewerComponent r user assignment wm =
             , connectedUserRole = role
             , taskStatuses
             , tasksWithCompetences
+            , taskRemarkMap
             }
 
     update (ProjectionChanged change) =
@@ -422,7 +432,11 @@ viewerComponent r user assignment wm =
       let proj = m.projection
           desc = proj.currentAssignment.description
           showPurposeBadge = proj.connectedUserRole == Teacher
-          taskStatusRenderer = viewTaskCompletionStatusFromMap proj.taskStatuses
+          taskStatusRenderer taskId =
+            M.div_ [class_ "flex items-center gap-1"]
+              ( viewTaskRemarkBadges proj.taskRemarkMap taskId
+                  <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
+              )
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
@@ -506,6 +520,17 @@ viewerComponent r user assignment wm =
                            (TaskResources.taskResourcesComponent syncCtx taskId)
            in [Disclosure.innerDisclosure (ToggleTaskResourcesExpanded taskId) $
                  Disclosure.contents titleView isExpanded bodyView []]
+
+    viewTaskRemarkBadges :: Map TaskId (Set.Set TaskRemark) -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskRemarkBadges remarkMap taskId =
+      case Map.lookup taskId remarkMap of
+        Nothing -> []
+        Just remarks -> map viewRemarkBadge (Set.toList remarks)
+
+    viewRemarkBadge :: TaskRemark -> M.View ViewerModel ViewerAction
+    viewRemarkBadge Exceptional = Badge.badge (PaletteName "ability-success") (Badge.badgeLabel (C.LblTaskRemark Exceptional))
+    viewRemarkBadge Sloppy = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Sloppy))
+    viewRemarkBadge Lacking = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Lacking))
 
     -- ========================================================================
     -- Page Print
