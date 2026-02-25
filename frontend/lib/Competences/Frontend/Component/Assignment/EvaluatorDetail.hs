@@ -43,7 +43,6 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Optics.Core ((&), (.~))
@@ -580,21 +579,12 @@ evaluatorComponent r assignment =
 
     viewCreateEvidencesButton m =
       let selectedCount = Set.size m.selectedStudents
-          hasAggregatedResults = not $ Map.null m.aggregatedResults
-          isDisabled = selectedCount == 0 || not hasAggregatedResults || m.aggregationStale
+          isDisabled = selectedCount == 0 || m.aggregationStale
           dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
           hasExisting = any (`Map.member` dateEvMap) (Set.toList m.selectedStudents)
           actionLabel = C.translate' $ if hasExisting then C.LblSaveEvidences else C.LblCreateEvidencesAction
           buttonText = actionLabel <> " (" <> C.translate' (C.LblStudentsSelected selectedCount) <> ")"
-          attrs =
-            [ M.onClick CreateEvidences
-            , class_ $
-                if isDisabled
-                  then "bg-muted text-muted-foreground px-4 py-2 rounded cursor-not-allowed"
-                  else "bg-ability-success text-primary-foreground px-4 py-2 rounded hover:bg-ability-success/90"
-            ]
-              <> [M.disabled_ | isDisabled]
        in MH.div_ [class_ "mt-6"]
             [ Layout.hFlow (Layout.wFull <> Layout.mainEnd)
-                [M.button_ attrs [M.text buttonText]]
+                [Button.primary $ Button.button buttonText (not isDisabled, CreateEvidences)]
             ]
