@@ -52,6 +52,9 @@ unwrapSnapshot env = case env.version of
   1 -> case fromJSON env.payload of
     Success doc -> Right doc
     Error err -> Left $ "Failed to parse snapshot v1: " <> T.pack err
+  2 -> case fromJSON env.payload of
+    Success doc -> Right doc
+    Error err -> Left $ "Failed to parse snapshot v2: " <> T.pack err
   v -> Left $ "Unknown snapshot version: " <> T.pack (show v)
 
 unwrapCommand :: CommandEnvelope -> Either Text Command
