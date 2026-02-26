@@ -40,7 +40,7 @@ where
 
 import Competences.Frontend.Component.Geometry (renderGeometryBlock)
 import Competences.Markdown.Geometry.Eval (extractMathLabels)
-import Competences.Markdown.Geometry.Palette (colorWrapLatex)
+import Competences.Markdown.Geometry.Palette (resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser (isGeometryInfo, parseGeometry)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
@@ -48,6 +48,7 @@ import Competences.Frontend.SvgEmbed.Manager
   , MathDisplay (..)
   , SymbolId (..)
   , hashLatex
+  , hashLatexColored
   , lookupCachedFormulas
   , renderFormulaCached
   , svgToDataUrl
@@ -117,7 +118,7 @@ richContentComponent fc _key doc =
     update RenderMath = do
       m <- M.get
       let formulas = extractFormulas m.content
-          sids = [hashLatex d l | (d, l) <- formulas]
+          sids = [hashLatexColored d l mc | (d, l, mc) <- formulas]
       -- Phase 1: instant cache lookup (sub-microsecond IORef read)
       M.io $ do
         cached <- lookupCachedFormulas fc sids
@@ -125,7 +126,7 @@ richContentComponent fc _key doc =
       -- Phase 2: async MathJax render for uncached formulas
       M.withSink $ \sink -> do
         _ <- forkIO $ do
-          rendered <- mapM (uncurry (renderFormulaCached fc)) formulas
+          rendered <- mapM (\(d, l, mc) -> renderFormulaCached fc d l mc) formulas
           let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
               failCount = length formulas - Map.size successful
           sink (SymbolsReady successful)
@@ -143,11 +144,13 @@ richContentComponent fc _key doc =
 
     view m = renderContent m.embeddedSymbols m.content
 
--- | Extract all math formulas from a Document AST
-extractFormulas :: MD.Document -> [(MathDisplay, Text)]
+-- | Extract all math formulas from a Document AST.
+-- Returns (display, latex, maybeColor) triples where the color is a resolved
+-- hex string for geometry labels, or Nothing for regular math.
+extractFormulas :: MD.Document -> [(MathDisplay, Text, Maybe Text)]
 extractFormulas (MD.Document blocks) = concatMap extractFromBlock blocks
 
-extractFromBlock :: MD.Block -> [(MathDisplay, Text)]
+extractFromBlock :: MD.Block -> [(MathDisplay, Text, Maybe Text)]
 extractFromBlock = \case
   MD.Paragraph inlines -> concatMap extractFromInline inlines
   MD.Heading _ inlines -> concatMap extractFromInline inlines
@@ -155,27 +158,34 @@ extractFromBlock = \case
     case info of
       Just i | isGeometryInfo i ->
         case parseGeometry body of
-          Right cmds -> [(Inline, colorWrapLatex c latex) | (c, latex) <- extractMathLabels cmds]
+          Right cmds ->
+            [ (Inline, latex, resolveColor c)
+            | (c, latex) <- extractMathLabels cmds
+            ]
           Left _ -> []
       _ -> []
   MD.OrderedList _ items -> concatMap (concatMap extractFromBlock) items
   MD.BulletList items -> concatMap (concatMap extractFromBlock) items
   MD.LetterList items -> concatMap (concatMap extractFromBlock) items
-  MD.MathBlock latex -> [(Block, latex)]
+  MD.MathBlock latex -> [(Block, latex, Nothing)]
   MD.ThematicBreak -> []
   MD.Admonition _ mTitle blocks ->
     maybe [] (concatMap extractFromInline) mTitle
       ++ concatMap extractFromBlock blocks
   MD.NotesGrid c1 c2 c3 c4 ->
     concatMap extractFromBlock (c1 ++ c2 ++ c3 ++ c4)
+  where
+    resolveColor c =
+      let hex = resolveStrokeColor c
+       in if hex == "currentColor" then Nothing else Just hex
 
-extractFromInline :: MD.Inline -> [(MathDisplay, Text)]
+extractFromInline :: MD.Inline -> [(MathDisplay, Text, Maybe Text)]
 extractFromInline = \case
   MD.Plain _ -> []
   MD.Emph inlines -> concatMap extractFromInline inlines
   MD.Strong inlines -> concatMap extractFromInline inlines
   MD.Code _ -> []
-  MD.MathInline latex -> [(Inline, latex)]
+  MD.MathInline latex -> [(Inline, latex, Nothing)]
   MD.Link _ inlines _ -> concatMap extractFromInline inlines
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []

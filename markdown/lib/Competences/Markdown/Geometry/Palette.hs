@@ -11,7 +11,6 @@ module Competences.Markdown.Geometry.Palette
   , paletteNames
   , resolveStrokeColor
   , resolveFillColor
-  , colorWrapLatex
   )
 where
 
@@ -57,11 +56,3 @@ resolveFillColor (NamedColor name) =
   case Map.lookup name paletteMap of
     Just (_, fill) -> fill
     Nothing -> name
-
--- | Wrap LaTeX source in @\\color{#hex}{…}@ so MathJax renders it in the
--- specified color. 'CurrentColor' passes the LaTeX through unchanged
--- (browser default, typically black).
-colorWrapLatex :: Color -> Text -> Text
-colorWrapLatex color latex = case resolveStrokeColor color of
-  "currentColor" -> latex
-  hex -> "\\color{" <> hex <> "}{" <> latex <> "}"

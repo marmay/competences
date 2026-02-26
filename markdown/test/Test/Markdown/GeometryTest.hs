@@ -2,7 +2,7 @@ module Test.Markdown.GeometryTest (geometryTests) where
 
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene, extractMathLabels)
-import Competences.Markdown.Geometry.Palette (colorWrapLatex, resolveFillColor, resolveStrokeColor)
+import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -1474,13 +1474,6 @@ paletteGroup =
             lineColor env @?= CurrentColor
             textColor env @?= NamedColor "blue"
           other -> assertFailure $ "Expected dot, got: " <> show other
-    , -- colorWrapLatex
-      testCase "colorWrapLatex — CurrentColor passes through" $
-        colorWrapLatex CurrentColor "\\alpha" @?= "\\alpha"
-    , testCase "colorWrapLatex — palette color wraps in \\color" $
-        colorWrapLatex (NamedColor "red") "\\alpha" @?= "\\color{#dc2626}{\\alpha}"
-    , testCase "colorWrapLatex — non-palette passthrough wraps raw" $
-        colorWrapLatex (NamedColor "gray") "x" @?= "\\color{gray}{x}"
     ]
 
 -- -----------------------------------------------------------------

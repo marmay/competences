@@ -12,11 +12,11 @@ module Competences.Frontend.Component.Geometry
   )
 where
 
-import Competences.Frontend.SvgEmbed.Manager (EmbeddedSymbol (..), MathDisplay (..), SymbolId, hashLatex)
+import Competences.Frontend.SvgEmbed.Manager (EmbeddedSymbol (..), MathDisplay (..), SymbolId, hashLatexColored)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
-import Competences.Markdown.Geometry.Palette (colorWrapLatex, resolveFillColor, resolveStrokeColor)
+import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -194,8 +194,10 @@ renderPrimitive symbols = \case
                   ]
                   [M.text (ms txt)]
           MathLabel latex ->
-            let wrappedLatex = colorWrapLatex (textColor env) latex
-                sid = hashLatex Inline wrappedLatex
+            let mColor =
+                  let hex = resolveStrokeColor (textColor env)
+                   in if hex == "currentColor" then Nothing else Just hex
+                sid = hashLatexColored Inline latex mColor
              in case Map.lookup sid symbols of
                   Nothing ->
                     let (dx, dy, anchor) = labelOffset pos
@@ -208,7 +210,7 @@ renderPrimitive symbols = \case
                           , SP.dominantBaseline_ "central"
                           , SP.fontStyle_ "italic"
                           ]
-                          [M.text (ms wrappedLatex)]
+                          [M.text (ms latex)]
                   Just es -> renderMathLabel (Vec2 x y) es pos env latex
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_

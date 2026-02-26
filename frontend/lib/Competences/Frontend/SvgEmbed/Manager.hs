@@ -26,6 +26,7 @@ module Competences.Frontend.SvgEmbed.Manager
   , renderFormulaCached
   , lookupCachedFormulas
   , hashLatex
+  , hashLatexColored
 
     -- * Pure SVG encoding
   , svgToDataUrl
@@ -98,6 +99,13 @@ hashLatex display latex =
       hashVal = djb2Hash latex
    in SymbolId $ "formula-" <> displayPrefix <> "-" <> T.pack (showHex hashVal "")
 
+-- | Hash LaTeX source with optional color to create a symbol ID.
+-- When a color is present, appends @"\\0" \<\> hex@ to the LaTeX before hashing
+-- so that the same formula in different colors gets distinct cache entries.
+hashLatexColored :: MathDisplay -> Text -> Maybe Text -> SymbolId
+hashLatexColored display latex Nothing = hashLatex display latex
+hashLatexColored display latex (Just hex) = hashLatex display (latex <> "\0" <> hex)
+
 -- | Check if MathJax is loaded and ready
 isMathJaxReady :: IO Bool
 isMathJaxReady = do
@@ -110,17 +118,38 @@ isMathJaxReady = do
         Nothing -> False
         Just _ -> True
 
+-- | Inject @color:#hex@ into the root @\<svg\>@ element's style attribute.
+-- MathJax SVG uses @fill="currentColor"@ for glyph paths, which inherits
+-- from the CSS @color@ property. This lets us colorize formulas without
+-- touching the LaTeX source (avoiding TeX macro-parameter @#@ issues).
+--
+-- MathJax always emits a @style="…"@ on the root @\<svg\>@ (e.g. for
+-- @vertical-align@), so we prepend @color:#hex;@ to the existing value.
+-- Falls back to adding a new @style@ attribute if none is found.
+injectSvgColor :: Maybe Text -> Text -> Text
+injectSvgColor Nothing svg = svg
+injectSvgColor (Just hex) svg =
+  let needle = "style=\""
+   in case T.breakOn needle svg of
+        (_, after) | T.null after ->
+          -- No existing style attribute; add one to the <svg> tag
+          T.replace "<svg " ("<svg style=\"color:" <> hex <> "\" ") svg
+        (before, after) ->
+          -- Prepend color into existing style value
+          before <> "style=\"color:" <> hex <> ";" <> T.drop (T.length needle) after
+
 -- | Render a LaTeX formula to SVG via MathJax and return as a data URL.
+-- An optional hex color is injected into the SVG root element.
 --
 -- The MathJax result is a detached DOM element that gets garbage collected —
 -- nothing is inserted into the live DOM.
-renderFormula :: MathDisplay -> Text -> IO (Maybe EmbeddedSymbol)
-renderFormula display latex = do
+renderFormula :: MathDisplay -> Text -> Maybe Text -> IO (Maybe EmbeddedSymbol)
+renderFormula display latex mColor = do
   ready <- isMathJaxReady
   if not ready
     then pure Nothing
     else do
-      let sid = hashLatex display latex
+      let sid = hashLatexColored display latex mColor
       -- Render with MathJax (returns a detached container element)
       mathJax <- jsg ("MathJax" :: MisoString)
       options <- create
@@ -151,7 +180,7 @@ renderFormula display latex = do
               mOuterHtml <- fromJSVal @MisoString outerHtmlVal
               case (mWidth, mHeight, mOuterHtml) of
                 (Just w, Just h, Just svgHtml) ->
-                  let svgText = fromMisoString svgHtml
+                  let svgText = injectSvgColor mColor (fromMisoString svgHtml)
                    in pure $ Just EmbeddedSymbol
                         { symbolId = sid
                         , dataUrl = svgToDataUrl svgText
@@ -182,14 +211,14 @@ newFormulaCache = FormulaCache <$> newIORef Map.empty
 
 -- | Render a formula via MathJax, using the given cache.
 -- On cache hit, returns immediately without calling MathJax.
-renderFormulaCached :: FormulaCache -> MathDisplay -> Text -> IO (Maybe EmbeddedSymbol)
-renderFormulaCached (FormulaCache ref) display latex = do
-  let sid = hashLatex display latex
+renderFormulaCached :: FormulaCache -> MathDisplay -> Text -> Maybe Text -> IO (Maybe EmbeddedSymbol)
+renderFormulaCached (FormulaCache ref) display latex mColor = do
+  let sid = hashLatexColored display latex mColor
   cache <- readIORef ref
   case Map.lookup sid cache of
     Just es -> pure (Just es)
     Nothing -> do
-      result <- renderFormula display latex
+      result <- renderFormula display latex mColor
       case result of
         Just es -> do
           atomicModifyIORef' ref $ \c -> (Map.insert sid es c, ())
