@@ -188,7 +188,8 @@ evalLabel = \case
     case Map.lookup name pts of
       Nothing -> pure (mempty, mempty)
       Just (Vec2 px py) -> do
-        let (odx, ody) = labelPositionOffset pos
+        let scale = labelDist env / 0.75
+            (odx, ody) = labelPositionOffset scale pos
             labelVec = Vec2 (px + odx) (py + ody)
             prim = RenderLabel labelVec txt pos env
         pure (emitToLayer env prim, mempty)
@@ -205,7 +206,7 @@ evalLabel = \case
             dx = bx - ax
             dy = by - ay
             len = sqrt (dx * dx + dy * dy)
-            offset = 0.20
+            offset = 0.20 * (labelDist env / 0.75)
             (nx, ny)
               | len == 0 = (0, offset)
               | otherwise =
@@ -519,17 +520,17 @@ vecDist (Vec2 x1 y1) (Vec2 x2 y2) =
 -- | Positional offset for 'LabelAtPoint' in math coordinates (y up).
 -- The renderer only handles text-anchor alignment; all positional nudging
 -- is done here in the evaluator.
-labelPositionOffset :: LabelPosition -> (Double, Double)
-labelPositionOffset = \case
+labelPositionOffset :: Double -> LabelPosition -> (Double, Double)
+labelPositionOffset scale = \case
   Center -> (0, 0)
-  Above -> (0, 0.20)
-  Below -> (0, -0.20)
-  LeftOf -> (-0.12, 0)
-  RightOf -> (0.12, 0)
-  AboveLeft -> (-0.12, 0.15)
-  AboveRight -> (0.12, 0.15)
-  BelowLeft -> (-0.12, -0.15)
-  BelowRight -> (0.12, -0.15)
+  Above -> (0, 0.20 * scale)
+  Below -> (0, -0.20 * scale)
+  LeftOf -> (-0.12 * scale, 0)
+  RightOf -> (0.12 * scale, 0)
+  AboveLeft -> (-0.12 * scale, 0.15 * scale)
+  AboveRight -> (0.12 * scale, 0.15 * scale)
+  BelowLeft -> (-0.12 * scale, -0.15 * scale)
+  BelowRight -> (0.12 * scale, -0.15 * scale)
 
 -- | Route a render primitive to the appropriate layer
 emitToLayer :: DrawEnv -> RenderPrimitive -> RenderResult

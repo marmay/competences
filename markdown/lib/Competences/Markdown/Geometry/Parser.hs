@@ -527,12 +527,13 @@ desugarPoly offset vertices edgeDecs _hasClose closeEdgeDec = do
 
       -- Segments
       segmentCmds = concat
-        [ Draw (DrawSegment (SegInline from to))
-            : case allEdgeDecs !! i of
-              Just (Decorated mods (PESegment lbl mSide)) ->
-                wrapModifiers mods
-                  [Label (LabelOnSegment (SegInline from to) lbl (maybe SegBelow id mSide) 0.5)]
-              _ -> []
+        [ case allEdgeDecs !! i of
+            Just (Decorated mods (PESegment lbl mSide)) ->
+              wrapModifiers mods
+                [ Draw (DrawSegment (SegInline from to))
+                , Label (LabelOnSegment (SegInline from to) lbl (maybe SegBelow id mSide) 0.5)
+                ]
+            _ -> [Draw (DrawSegment (SegInline from to))]
         | (i, (from, to)) <- zip [0 ..] edgePairs
         ]
 
