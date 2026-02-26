@@ -69,7 +69,7 @@ pinAssignmentEvaluator r assignment =
         { key = "assignment-evaluation-" <> idToText assignment.id
         , category = PinCatAssignment
         , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-        , context = Just (M.ms nameText)
+        , context = Just (C.formatDayShort assignment.assignmentDate)
         }
    in pinDialog r.windowManager
         meta
