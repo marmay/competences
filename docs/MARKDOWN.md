@@ -238,6 +238,58 @@ Fenced code blocks with the `svg` language tag render the SVG source directly as
 ```
 ````
 
+### Notes Grid
+
+Fenced code blocks with the `btc:notes-grid` info string render a 2×2 grid of content cells. Cells are separated by `---` (three or more dashes on a line by themselves).
+
+````
+```btc:notes-grid
+Cell 1
+---
+Cell 2
+---
+Cell 3
+---
+Cell 4
+```
+````
+
+The four cells are laid out as: top-left, top-right, bottom-left, bottom-right. The top row has a light background (`bg-stone-50`), and cells are separated by subtle borders.
+
+Each cell supports full block-level markdown — paragraphs, lists, headings, math, code blocks, and admonitions all work inside cells:
+
+````
+```btc:notes-grid
+**Gegeben**
+
+$a = 3$, $b = 4$
+---
+**Gesucht**
+
+Hypotenuse $c$
+---
+**Lösung**
+
+$$c = \sqrt{a^2 + b^2} = 5$$
+---
+**Antwort**
+
+Die Hypotenuse ist $c = 5$ Einheiten lang.
+```
+````
+
+If fewer than four cells are provided, the remaining cells are left empty:
+
+````
+```btc:notes-grid
+Left column
+---
+Right column
+```
+````
+
+This produces a grid with the bottom two cells empty.
+
 ## Unsupported Features
 
 The following standard markdown features are **not** available:
