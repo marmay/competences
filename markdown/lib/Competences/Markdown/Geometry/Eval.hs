@@ -13,7 +13,9 @@ where
 
 import Competences.Markdown.Geometry.AST
 import Control.Monad.State.Strict (State, gets, modify', runState)
+import Data.List (foldl1')
 import Data.Map.Strict (Map)
+import Data.Maybe (fromMaybe)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -188,10 +190,10 @@ evalLabel = \case
     case Map.lookup name pts of
       Nothing -> pure (mempty, mempty)
       Just (Vec2 px py) -> do
-        let scale = labelDist env / 0.75
-            (odx, ody) = labelPositionOffset scale pos
-            labelVec = Vec2 (px + odx) (py + ody)
-            prim = RenderLabel labelVec txt pos env
+        let (odx, ody) = labelPositionOffset (labelDist env) pos
+            base = Vec2 px py
+            offset = Vec2 odx ody
+            prim = RenderLabel base offset txt pos env
         pure (emitToLayer env prim, mempty)
   LabelOnSegment segRef txt side frac -> do
     mEndpoints <- resolveSegmentRef segRef
@@ -206,19 +208,20 @@ evalLabel = \case
             dx = bx - ax
             dy = by - ay
             len = sqrt (dx * dx + dy * dy)
-            offset = 0.20 * (labelDist env / 0.75)
+            nudge = 0.20 * labelDist env
             (nx, ny)
-              | len == 0 = (0, offset)
+              | len == 0 = (0, nudge)
               | otherwise =
                   let perpX = -dy / len
                       perpY = dx / len
                    in case side of
-                        SegAbove -> (perpX * offset, perpY * offset)
-                        SegBelow -> (-perpX * offset, -perpY * offset)
-            labelVec = Vec2 (mx + nx) (my + ny)
+                        SegAbove -> (perpX * nudge, perpY * nudge)
+                        SegBelow -> (-perpX * nudge, -perpY * nudge)
+            base = Vec2 mx my
+            offset = Vec2 nx ny
             -- Choose label position based on perpendicular direction
             labelPos = segmentSideToPosition side dx dy
-            prim = RenderLabel labelVec txt labelPos env
+            prim = RenderLabel base offset txt labelPos env
         pure (emitToLayer env prim, mempty)
   LabelAngle ref txt mOffset -> do
     mPts <- resolveAngleRef ref
@@ -228,20 +231,22 @@ evalLabel = \case
       Just (va, vb, vc) -> do
         let -- Angle bisector: average of normalized arm directions → into the angle
             (bix, biy) = angleBisector va vb vc
-            dist = labelDist env
+            dist = 0.75 * labelDist env
             Vec2 bx by = vb
-            internalPos = Vec2 (bx + bix * dist) (by + biy * dist)
         case mOffset of
           Nothing -> do
-            let prim = RenderLabel internalPos txt Center env
+            let base = Vec2 bx by
+                offset = Vec2 (bix * dist) (biy * dist)
+                prim = RenderLabel base offset txt Center env
             pure (emitToLayer env prim, mempty)
           Just (Vec2 dx dy) -> do
-            let externalPos = Vec2 (bx + dx) (by + dy)
+            let internalPos = Vec2 (bx + bix * dist) (by + biy * dist)
+                externalPos = Vec2 (bx + dx) (by + dy)
                 -- Anchor based on direction from internal to external
                 (edx, edy) = (dx - bix * dist, dy - biy * dist)
                 externalAnchor = directionToLabelPos edx edy
                 line = RenderSegment internalPos externalPos env
-                label = RenderLabel externalPos txt externalAnchor env
+                label = RenderLabel externalPos (Vec2 0 0) txt externalAnchor env
             pure (emitToLayer env line <> emitToLayer env label, mempty)
   LabelAutoPoint ref txt -> do
     mPts <- resolveAngleRef ref
@@ -252,9 +257,10 @@ evalLabel = \case
         let -- Point label goes opposite to angle bisector (outside the angle)
             (bix, biy) = angleBisector va vb vc
             (nx, ny) = (-bix, -biy)
-            Vec2 bx by = vb
-            labelVec = Vec2 (bx + nx * labelDist env) (by + ny * labelDist env)
-            prim = RenderLabel labelVec txt Center env
+            pointDist = 0.50 * labelDist env
+            base = vb
+            offset = Vec2 (nx * pointDist) (ny * pointDist)
+            prim = RenderLabel base offset txt Center env
         pure (emitToLayer env prim, mempty)
 
 -- | Angle bisector at vertex B for angle ABC.
@@ -378,17 +384,21 @@ evalModifierBlock modifier children = do
   -- Apply environment modifier
   case modifier of
     EnvMod envMod -> applyEnvMod envMod
-    LayerMod layer -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {layer = layer}}
+    LayerMod l -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {layer = l}}
     AutoDec _ -> pure ()
+    TransformMod _ -> pure () -- no env change; transform applied post-hoc
   -- Evaluate children
   (childResult, childLog) <- evalCommands children
   -- Restore environment
   modify' $ \s -> s {esDrawEnv = savedEnv}
-  -- Apply auto-decorations
+  -- Apply auto-decorations or transforms
   case modifier of
     AutoDec dec -> do
       decorations <- evalAutoDecorator dec childLog savedEnv
       pure (childResult <> decorations, childLog)
+    TransformMod transform -> do
+      transformed <- applyTransform transform childResult
+      pure (transformed, childLog)
     _ -> pure (childResult, childLog)
 
 applyEnvMod :: EnvModifier -> Eval ()
@@ -412,7 +422,7 @@ evalAutoDecorator = \case
     currentEnv <- gets esDrawEnv
     let fgEnv = currentEnv {layer = Foreground}
         labels =
-          [ RenderLabel vec (PlainLabel name) pos fgEnv
+          [ RenderLabel vec (Vec2 0 0) (PlainLabel name) pos fgEnv
           | (name, vec) <- drawnPoints lg
           ]
     pure $ mempty {foreground = labels}
@@ -538,4 +548,89 @@ emitToLayer env prim = case layer env of
   Background -> mempty {background = [prim]}
   Main -> mempty {main = [prim]}
   Foreground -> mempty {foreground = [prim]}
+
+-- -----------------------------------------------------------------
+-- Coordinate transforms
+-- -----------------------------------------------------------------
+
+-- | Operations for a coordinate transform, allowing different transforms
+-- to handle vectors, radii, and angles differently.
+data TransformOps = TransformOps
+  { transformVec :: Vec2 -> Vec2
+  }
+
+-- | Build transform ops for uniform scaling around a center point.
+scaleOps :: Double -> Vec2 -> TransformOps
+scaleOps factor center =
+  TransformOps
+    { transformVec = scaleVec factor center
+    }
+
+-- | Scale a point around a center by the given factor.
+scaleVec :: Double -> Vec2 -> Vec2 -> Vec2
+scaleVec factor (Vec2 cx cy) (Vec2 x y) =
+  Vec2 (cx + factor * (x - cx)) (cy + factor * (y - cy))
+
+-- | Apply a coordinate transform to a 'RenderResult'.
+applyTransform :: Transform -> RenderResult -> Eval RenderResult
+applyTransform (Scale factor mCenter) result = do
+  center <- case mCenter of
+    Just name -> do
+      pts <- gets esPoints
+      pure $ fromMaybe (Vec2 0 0) (Map.lookup name pts)
+    Nothing ->
+      pure $ computeCentroid (collectVecs result)
+  let ops = scaleOps factor center
+  pure $ mapRenderResult ops result
+
+-- | Compute the centroid (average) of a list of points.
+computeCentroid :: [Vec2] -> Vec2
+computeCentroid [] = Vec2 0 0
+computeCentroid vecs =
+  let n = fromIntegral (length vecs)
+      Vec2 sx sy = foldl1' (\(Vec2 ax ay) (Vec2 bx by) -> Vec2 (ax + bx) (ay + by)) vecs
+   in Vec2 (sx / n) (sy / n)
+
+-- | Collect all 'Vec2' coordinates from a 'RenderResult' (for centroid computation).
+collectVecs :: RenderResult -> [Vec2]
+collectVecs (RenderResult bg mn fg) =
+  concatMap collectPrimVecs bg
+    <> concatMap collectPrimVecs mn
+    <> concatMap collectPrimVecs fg
+
+-- | Collect all 'Vec2' from a single 'RenderPrimitive'.
+collectPrimVecs :: RenderPrimitive -> [Vec2]
+collectPrimVecs = \case
+  RenderDot v _ -> [v]
+  RenderSegment v1 v2 _ -> [v1, v2]
+  RenderLabel v _ _ _ _ -> [v]
+  RenderAxisLine v1 v2 _ -> [v1, v2]
+  RenderTick v _ _ -> [v]
+  RenderGridLine v1 v2 _ -> [v1, v2]
+  RenderAngleArc v _ _ _ _ -> [v]
+  RenderRightAngle v _ _ _ _ -> [v]
+  RenderFilledPolygon vs _ -> vs
+
+-- | Apply 'TransformOps' to every coordinate in a 'RenderResult'.
+mapRenderResult :: TransformOps -> RenderResult -> RenderResult
+mapRenderResult ops (RenderResult bg mn fg) =
+  RenderResult
+    (map (mapPrimitive ops) bg)
+    (map (mapPrimitive ops) mn)
+    (map (mapPrimitive ops) fg)
+
+-- | Apply 'TransformOps' to a single 'RenderPrimitive'.
+mapPrimitive :: TransformOps -> RenderPrimitive -> RenderPrimitive
+mapPrimitive (TransformOps f) = \case
+  RenderDot v env -> RenderDot (f v) env
+  RenderSegment v1 v2 env -> RenderSegment (f v1) (f v2) env
+  RenderLabel v offset content pos env -> RenderLabel (f v) offset content pos env
+  RenderAxisLine v1 v2 env -> RenderAxisLine (f v1) (f v2) env
+  RenderTick v txt env -> RenderTick (f v) txt env
+  RenderGridLine v1 v2 env -> RenderGridLine (f v1) (f v2) env
+  RenderAngleArc v start sweep radius env ->
+    RenderAngleArc (f v) start sweep radius env
+  RenderRightAngle v start sweep radius env ->
+    RenderRightAngle (f v) start sweep radius env
+  RenderFilledPolygon vs env -> RenderFilledPolygon (map f vs) env
 

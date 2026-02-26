@@ -126,7 +126,8 @@ primVecs :: RenderPrimitive -> [Vec2]
 primVecs = \case
   RenderDot v _ -> [v]
   RenderSegment v1 v2 _ -> [v1, v2]
-  RenderLabel v lbl pos env -> labelBounds v lbl pos (fontSize env)
+  RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos env ->
+    labelBounds (Vec2 (bx + ox) (by + oy)) lbl pos (fontSize env)
   RenderAxisLine v1 v2 _ -> [v1, v2]
   RenderTick v _ _ -> [v]
   RenderGridLine v1 v2 _ -> [v1, v2]
@@ -176,35 +177,37 @@ renderPrimitive symbols = \case
       , SP.strokeWidth_ (ms $ envStrokeWidth env)
       , envDashAttr env
       ]
-  RenderLabel (Vec2 x y) lbl pos env ->
-    case lbl of
-      PlainLabel txt ->
-        let (dx, dy, anchor) = labelOffset pos
-         in Svg.text_
-              [ SP.x_ (ms $ show (x + dx))
-              , SP.y_ (ms $ show (-(y - dy)))
-              , SP.textAnchor_ (ms anchor)
-              , SP.fontSize_ (ms $ show (fontSize env))
-              , SP.fill_ (ms $ envColor env)
-              , SP.dominantBaseline_ "central"
-              ]
-              [M.text (ms txt)]
-      MathLabel latex ->
-        let sid = hashLatex Inline latex
-         in case Map.lookup sid symbols of
-              Nothing ->
-                let (dx, dy, anchor) = labelOffset pos
-                 in Svg.text_
-                      [ SP.x_ (ms $ show (x + dx))
-                      , SP.y_ (ms $ show (-(y - dy)))
-                      , SP.textAnchor_ (ms anchor)
-                      , SP.fontSize_ (ms $ show (fontSize env - 0.05))
-                      , SP.fill_ (ms $ envColor env)
-                      , SP.dominantBaseline_ "central"
-                      , SP.fontStyle_ "italic"
-                      ]
-                      [M.text (ms latex)]
-              Just es -> renderMathLabel (Vec2 x y) es pos env
+  RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos env ->
+    let x = bx + ox
+        y = by + oy
+     in case lbl of
+          PlainLabel txt ->
+            let (dx, dy, anchor) = labelOffset pos
+             in Svg.text_
+                  [ SP.x_ (ms $ show (x + dx))
+                  , SP.y_ (ms $ show (-(y - dy)))
+                  , SP.textAnchor_ (ms anchor)
+                  , SP.fontSize_ (ms $ show (fontSize env))
+                  , SP.fill_ (ms $ envColor env)
+                  , SP.dominantBaseline_ "central"
+                  ]
+                  [M.text (ms txt)]
+          MathLabel latex ->
+            let sid = hashLatex Inline latex
+             in case Map.lookup sid symbols of
+                  Nothing ->
+                    let (dx, dy, anchor) = labelOffset pos
+                     in Svg.text_
+                          [ SP.x_ (ms $ show (x + dx))
+                          , SP.y_ (ms $ show (-(y - dy)))
+                          , SP.textAnchor_ (ms anchor)
+                          , SP.fontSize_ (ms $ show (fontSize env - 0.05))
+                          , SP.fill_ (ms $ envColor env)
+                          , SP.dominantBaseline_ "central"
+                          , SP.fontStyle_ "italic"
+                          ]
+                          [M.text (ms latex)]
+                  Just es -> renderMathLabel (Vec2 x y) es pos env
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
       [ SP.x1_ (ms $ show x1)

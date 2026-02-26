@@ -333,6 +333,10 @@ modifierValueP = do
     "labelDist" -> EnvMod . SetLabelDist <$> lexeme doubleP
     "fontSize" -> EnvMod . SetFontSize <$> lexeme doubleP
     "dotRadius" -> EnvMod . SetDotRadius <$> lexeme doubleP
+    "scale" -> do
+      factor <- lexeme doubleP
+      mCenter <- optional (lexeme nameP)
+      pure $ TransformMod (Scale factor mCenter)
     _ -> fail $ "Unknown modifier: " <> T.unpack kw
 
 -- | Parse @{ commands }@ with a given modifier, optionally preceded by

@@ -22,6 +22,7 @@ module Competences.Markdown.Geometry.AST
   , Modifier (..)
   , EnvModifier (..)
   , AutoDecorator (..)
+  , Transform (..)
 
     -- * Drawing environment
   , DrawEnv (..)
@@ -118,11 +119,19 @@ data PointConstruction
 data LineRef = LineThrough !Name !Name
   deriving (Eq, Show)
 
+-- | Coordinate transforms (applied post-hoc to 'RenderResult')
+data Transform
+  = Scale !Double !(Maybe Name)
+  -- ^ @\@scale factor [center]@: uniform scale around centroid or named point.
+  -- Future: Translate !Vec2 | Rotate !Double !(Maybe Name)
+  deriving (Eq, Show)
+
 -- | Modifiers (block-scoped)
 data Modifier
   = EnvMod !EnvModifier
   | AutoDec !AutoDecorator
   | LayerMod !Layer
+  | TransformMod !Transform
   deriving (Eq, Show)
 
 data EnvModifier
@@ -167,7 +176,7 @@ defaultDrawEnv =
     , lineWidth = NormalWidth
     , layer = Main
     , fillColor = Nothing
-    , labelDist = 0.75
+    , labelDist = 1.0
     , fontSize = 0.45
     , dotRadius = 0.10
     }
@@ -211,7 +220,8 @@ data LabelPosition
 data RenderPrimitive
   = RenderDot !Vec2 !DrawEnv
   | RenderSegment !Vec2 !Vec2 !DrawEnv
-  | RenderLabel !Vec2 !LabelContent !LabelPosition !DrawEnv
+  | RenderLabel !Vec2 !Vec2 !LabelContent !LabelPosition !DrawEnv
+  --            base   offset (font-size-dependent, not transformed by @scale)
   | RenderAxisLine !Vec2 !Vec2 !DrawEnv
   | RenderTick !Vec2 !Text !DrawEnv
   | RenderGridLine !Vec2 !Vec2 !DrawEnv

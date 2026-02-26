@@ -24,6 +24,7 @@ geometryTests =
     , evalGroup
     , drawPolyParserGroup
     , drawPolyEvalGroup
+    , scaleTransformGroup
     , versionGroup
     ]
 
@@ -389,7 +390,7 @@ evalGroup =
                 , Label (LabelAtPoint "A" (PlainLabel "A") Above)
                 ]
         case main result of
-          [RenderLabel _ lbl pos _] -> do
+          [RenderLabel _ _ lbl pos _] -> do
             lbl @?= PlainLabel "A"
             pos @?= Above
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
@@ -550,7 +551,7 @@ evalGroup =
     , testCase "angle label placement" $ do
         -- A=(1,0), B=(0,0), C=(0,1)
         -- bisector at B = normalize((1,0)+(0,1)) = (1,1)/sqrt(2) -> into the angle
-        -- labelDist = 0.75 (default)
+        -- labelDist = 1.0 (default), angle natural distance = 0.75
         -- label at (0.75/sqrt(2), 0.75/sqrt(2))
         let result =
               evalScene
@@ -560,12 +561,16 @@ evalGroup =
                 , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _env] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _env] -> do
             lbl @?= PlainLabel "a"
             let dist = 0.75 :: Double
                 invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" (invSqrt2 * dist) lx
-            assertApprox "ly" (invSqrt2 * dist) ly
+            -- base is the vertex
+            assertApprox "bx" 0 bx
+            assertApprox "by" 0 by
+            -- offset is bisector * dist
+            assertApprox "ox" (invSqrt2 * dist) ox
+            assertApprox "oy" (invSqrt2 * dist) oy
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "angle arc radius clamped for short edges" $ do
@@ -621,12 +626,15 @@ evalGroup =
                 , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1.5 1.5)))
                 ]
         case main result of
-          [RenderSegment _ (Vec2 ex ey) _, RenderLabel (Vec2 lx ly) lbl _ _] -> do
+          [RenderSegment _ (Vec2 ex ey) _, RenderLabel (Vec2 lx ly) (Vec2 lox loy) lbl _ _] -> do
             lbl @?= MathLabel "\\alpha"
             assertApprox "external x" 1.5 ex
             assertApprox "external y" 1.5 ey
             assertApprox "label x" 1.5 lx
             assertApprox "label y" 1.5 ly
+            -- External labels have zero offset
+            assertApprox "label offset x" 0 lox
+            assertApprox "label offset y" 0 loy
           other -> assertFailure $ "Expected [RenderSegment, RenderLabel], got: " <> show other
     , testCase "internal angle label (no offset) unchanged" $ do
         -- Same triangle as above but no offset
@@ -638,7 +646,7 @@ evalGroup =
                 , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)
                 ]
         case main result of
-          [RenderLabel _ lbl _ _] ->
+          [RenderLabel _ _ lbl _ _] ->
             lbl @?= PlainLabel "a"
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "fontSize scoping" $ do
@@ -827,7 +835,7 @@ drawPolyEvalGroup =
         -- Edge C->A: dir=(0,-3), right perp = (-3,0)/3 = (-1,0)
         -- Edge A->B: dir=(4,0), right perp = (0,-4)/4 = (0,-1)
         -- Average outward: (-1,-1), normalized: (-1/sqrt(2), -1/sqrt(2))
-        -- Label offset: 0.75 along outward -> (-0.75/sqrt(2), -0.75/sqrt(2))
+        -- Label offset: 0.50 along outward (0.50 * labelDist 1.0)
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -836,11 +844,15 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "A"
             let invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" ((-invSqrt2) * 0.75) lx
-            assertApprox "ly" ((-invSqrt2) * 0.75) ly
+            -- base is the vertex
+            assertApprox "bx" 0 bx
+            assertApprox "by" 0 by
+            -- offset is outward * labelDist
+            assertApprox "ox" ((-invSqrt2) * 0.50) ox
+            assertApprox "oy" ((-invSqrt2) * 0.50) oy
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "LabelAutoPoint at top vertex — centered" $ do
@@ -857,10 +869,10 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "B" "C" "A") (PlainLabel "C"))
                 ]
         case main result of
-          [RenderLabel (Vec2 _lx ly) _ pos _] -> do
+          [RenderLabel (Vec2 _bx by) (Vec2 _ox oy) _ pos _] -> do
             pos @?= Center
-            -- Label should be offset upward from vertex
-            assertBool "ly > 3" (ly > 3)
+            -- Combined y should be offset upward from vertex
+            assertBool "by + oy > 3" (by + oy > 3)
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "DrawFilledPolygon with fill active — renders to background" $ do
         let result =
@@ -921,11 +933,13 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "A"
             let invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" ((-invSqrt2) * 0.75) lx
-            assertApprox "ly" ((-invSqrt2) * 0.75) ly
+            assertApprox "bx" 0 bx
+            assertApprox "by" 0 by
+            assertApprox "ox" ((-invSqrt2) * 0.50) ox
+            assertApprox "oy" ((-invSqrt2) * 0.50) oy
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "LabelAutoPoint isosceles right — vertex B=(4,0) 45deg" $ do
@@ -939,13 +953,15 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "A" "B" "C") (PlainLabel "B"))
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "B"
             pos @?= Center
             let cospi8 = cos (pi / 8)
                 sinpi8 = sin (pi / 8)
-            assertApprox "lx" (4 + cospi8 * 0.75) lx
-            assertApprox "ly" ((-sinpi8) * 0.75) ly
+            assertApprox "bx" 4 bx
+            assertApprox "by" 0 by
+            assertApprox "ox" (cospi8 * 0.50) ox
+            assertApprox "oy" ((-sinpi8) * 0.50) oy
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "LabelAutoPoint isosceles right — vertex C=(0,4) 45deg" $ do
         -- AngleRef "B" "C" "A": vertex C, arms toward B and A
@@ -958,50 +974,62 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "B" "C" "A") (PlainLabel "C"))
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "C"
             pos @?= Center
             let cospi8 = cos (pi / 8)
                 sinpi8 = sin (pi / 8)
-            assertApprox "lx" ((-sinpi8) * 0.75) lx
-            assertApprox "ly" (4 + cospi8 * 0.75) ly
+            assertApprox "bx" 0 bx
+            assertApprox "by" 4 by
+            assertApprox "ox" ((-sinpi8) * 0.50) ox
+            assertApprox "oy" (cospi8 * 0.50) oy
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "labelDist affects LabelAutoPoint" $ do
-        -- Same triangle as isosceles right test but with custom labelDist 0.6
+        -- Same triangle as isosceles right test but with custom labelDist 1.5
+        -- auto-point distance = 0.50 * 1.5 = 0.75
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
                 , DefPoint "B" (Vec2 4 0)
                 , DefPoint "C" (Vec2 0 4)
                 , ModifierBlock
-                    (EnvMod (SetLabelDist 0.6))
+                    (EnvMod (SetLabelDist 1.5))
                     [Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))]
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "A"
             let invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" ((-invSqrt2) * 0.6) lx
-            assertApprox "ly" ((-invSqrt2) * 0.6) ly
+                dist = 0.50 * 1.5
+            assertApprox "bx" 0 bx
+            assertApprox "by" 0 by
+            assertApprox "ox" ((-invSqrt2) * dist) ox
+            assertApprox "oy" ((-invSqrt2) * dist) oy
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "labelDist affects LabelAngle" $ do
-        -- A=(1,0), B=(0,0), C=(0,1) with custom labelDist 0.8
+        -- A=(1,0), B=(0,0), C=(0,1) with custom labelDist 1.5
+        -- angle distance = 0.75 * 1.5 = 1.125
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
                 , DefPoint "B" (Vec2 0 0)
                 , DefPoint "C" (Vec2 0 1)
                 , ModifierBlock
-                    (EnvMod (SetLabelDist 0.8))
+                    (EnvMod (SetLabelDist 1.5))
                     [Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)]
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+          [RenderLabel (Vec2 bx by) (Vec2 ox oy) lbl pos _] -> do
             lbl @?= PlainLabel "a"
             let invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" (invSqrt2 * 0.8) lx
-            assertApprox "ly" (invSqrt2 * 0.8) ly
+                dist = 0.75 * 1.5
+            -- base is the vertex (0,0)
+            assertApprox "bx" 0 bx
+            assertApprox "by" 0 by
+            -- offset is bisector * dist
+            assertApprox "ox" (invSqrt2 * dist) ox
+            assertApprox "oy" (invSqrt2 * dist) oy
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "extractMathLabels — LabelAutoPoint with MathLabel" $
@@ -1010,6 +1038,258 @@ drawPolyEvalGroup =
     , testCase "extractMathLabels — LabelAutoPoint with PlainLabel" $
         extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (PlainLabel "B"))]
           @?= []
+    ]
+
+-- -----------------------------------------------------------------
+-- Scale transform tests
+-- -----------------------------------------------------------------
+
+scaleTransformGroup :: TestTree
+scaleTransformGroup =
+  testGroup
+    "Scale Transform"
+    [ -- Parser tests
+      parsesTo
+        "@scale parser — auto-centroid"
+        "@scale 0.95 {\n  drawPoint A\n}"
+        [ModifierBlock (TransformMod (Scale 0.95 Nothing)) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@scale parser — explicit center"
+        "@scale 2.0 M {\n  drawPoint A\n}"
+        [ModifierBlock (TransformMod (Scale 2.0 (Just "M"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@scale comma-separated with fill"
+        "@fill blue, @scale 0.95 {\n  drawPoly A -- B -- C\n}"
+        [ ModifierBlock
+            (EnvMod (SetFill (NamedColor "blue")))
+            [ ModifierBlock
+                (TransformMod (Scale 0.95 Nothing))
+                -- drawPoly desugars into fill + segments
+                [Draw (DrawFilledPolygon ["A", "B", "C"])
+                , Draw (DrawSegment (SegInline "A" "B"))
+                , Draw (DrawSegment (SegInline "B" "C"))
+                , Draw (DrawSegment (SegInline "C" "A"))
+                ]
+            ]
+        ]
+    , -- Eval tests: identity scale
+      testCase "scale 1.0 is identity" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 2)
+                , DefPoint "B" (Vec2 3 4)
+                , ModifierBlock
+                    (TransformMod (Scale 1.0 Nothing))
+                    [ Draw (DrawPoint "A")
+                    , Draw (DrawPoint "B")
+                    ]
+                ]
+        case main result of
+          [RenderDot (Vec2 ax ay) _, RenderDot (Vec2 bx by) _] -> do
+            assertApprox "ax" 1 ax
+            assertApprox "ay" 2 ay
+            assertApprox "bx" 3 bx
+            assertApprox "by" 4 by
+          other -> assertFailure $ "Expected two dots, got: " <> show other
+    , testCase "scale 0.5 auto-centroid — two points" $ do
+        -- Points at (0,0) and (4,0), centroid = (2,0)
+        -- After scale 0.5: (0,0) -> (2 + 0.5*(0-2), 0) = (1,0)
+        --                  (4,0) -> (2 + 0.5*(4-2), 0) = (3,0)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , ModifierBlock
+                    (TransformMod (Scale 0.5 Nothing))
+                    [ Draw (DrawPoint "A")
+                    , Draw (DrawPoint "B")
+                    ]
+                ]
+        case main result of
+          [RenderDot (Vec2 ax ay) _, RenderDot (Vec2 bx by) _] -> do
+            assertApprox "ax" 1 ax
+            assertApprox "ay" 0 ay
+            assertApprox "bx" 3 bx
+            assertApprox "by" 0 by
+          other -> assertFailure $ "Expected two dots, got: " <> show other
+    , testCase "scale 2.0 with explicit center" $ do
+        -- Center at M=(1,1), point A=(2,2)
+        -- After scale 2.0: (1 + 2*(2-1), 1 + 2*(2-1)) = (3,3)
+        let result =
+              evalScene
+                [ DefPoint "M" (Vec2 1 1)
+                , DefPoint "A" (Vec2 2 2)
+                , ModifierBlock
+                    (TransformMod (Scale 2.0 (Just "M")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot (Vec2 ax ay) _] -> do
+            assertApprox "ax" 3 ax
+            assertApprox "ay" 3 ay
+          other -> assertFailure $ "Expected one dot, got: " <> show other
+    , testCase "scale applies to segments" $ do
+        -- Points at (0,0) and (4,0), centroid = (1,0) for segment
+        -- After scale 0.5 around centroid (1,0):
+        --   (0,0) -> (1 + 0.5*(-1), 0) = (0.5, 0)
+        --   (4,0) -> (1 + 0.5*(3), 0) = (2.5, 0)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , ModifierBlock
+                    (TransformMod (Scale 0.5 Nothing))
+                    [Draw (DrawSegment (SegInline "A" "B"))]
+                ]
+        case main result of
+          [RenderSegment (Vec2 ax ay) (Vec2 bx by) _] -> do
+            assertApprox "ax" 1 ax
+            assertApprox "ay" 0 ay
+            assertApprox "bx" 3 bx
+            assertApprox "by" 0 by
+          other -> assertFailure $ "Expected one segment, got: " <> show other
+    , testCase "scale applies to filled polygon" $ do
+        -- Triangle (0,0), (6,0), (0,6), centroid = (2,2)
+        -- Scale 0.5 around centroid:
+        --   (0,0) -> (2+0.5*(-2), 2+0.5*(-2)) = (1,1)
+        --   (6,0) -> (2+0.5*(4), 2+0.5*(-2)) = (4,1)
+        --   (0,6) -> (2+0.5*(-2), 2+0.5*(4)) = (1,4)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 6 0)
+                , DefPoint "C" (Vec2 0 6)
+                , ModifierBlock
+                    (EnvMod (SetFill (NamedColor "blue")))
+                    [ ModifierBlock
+                        (TransformMod (Scale 0.5 Nothing))
+                        [Draw (DrawFilledPolygon ["A", "B", "C"])]
+                    ]
+                ]
+        case background result of
+          [RenderFilledPolygon [Vec2 ax ay, Vec2 bx by, Vec2 cx cy] _] -> do
+            assertApprox "ax" 1 ax
+            assertApprox "ay" 1 ay
+            assertApprox "bx" 4 bx
+            assertApprox "by" 1 by
+            assertApprox "cx" 1 cx
+            assertApprox "cy" 4 cy
+          other -> assertFailure $ "Expected filled polygon, got: " <> show other
+    , testCase "scale nesting composes" $ do
+        -- Point at (4,0). Outer scale 0.5 auto, inner scale 0.5 auto.
+        -- Inner: centroid = (4,0), scale 0.5 -> (4,0) (single point stays)
+        -- Outer: centroid of result = (4,0), scale 0.5 -> (4,0)
+        -- With two points:
+        -- Points at (0,0) and (4,0)
+        -- Inner scale 0.5: centroid = (2,0), (0,0)->(1,0), (4,0)->(3,0)
+        -- Outer scale 0.5: centroid = (2,0), (1,0)->(1.5,0), (3,0)->(2.5,0)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , ModifierBlock
+                    (TransformMod (Scale 0.5 Nothing))
+                    [ ModifierBlock
+                        (TransformMod (Scale 0.5 Nothing))
+                        [ Draw (DrawPoint "A")
+                        , Draw (DrawPoint "B")
+                        ]
+                    ]
+                ]
+        case main result of
+          [RenderDot (Vec2 ax ay) _, RenderDot (Vec2 bx by) _] -> do
+            assertApprox "ax" 1.5 ax
+            assertApprox "ay" 0 ay
+            assertApprox "bx" 2.5 bx
+            assertApprox "by" 0 by
+          other -> assertFailure $ "Expected two dots, got: " <> show other
+    , testCase "scale does not affect angle arc radius" $ do
+        -- Right triangle with edges of length 1: A=(1,0), B=(0,0), C=(0,1)
+        -- Angle arc radius: min(1.0, 0.5*1) = 0.5
+        -- Scale 2.0 around origin (B): radius should stay 0.5 (presentation param)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , ModifierBlock
+                    (TransformMod (Scale 2.0 (Just "B")))
+                    [Draw (DrawAngle (AngleRef "A" "B" "C"))]
+                ]
+        case main result of
+          [RenderAngleArc (Vec2 vx vy) _ _ radius _] -> do
+            assertApprox "vx" 0 vx
+            assertApprox "vy" 0 vy
+            assertApprox "radius" 0.5 radius
+          other -> assertFailure $ "Expected angle arc, got: " <> show other
+    , testCase "scale does not affect points outside block" $ do
+        -- Point A defined, drawn inside scale block and outside
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 2 0)
+                , DefPoint "B" (Vec2 4 0)
+                , ModifierBlock
+                    (TransformMod (Scale 0.5 Nothing))
+                    [Draw (DrawPoint "A")]
+                , Draw (DrawPoint "A")
+                ]
+        case main result of
+          [RenderDot (Vec2 scaledX _) _, RenderDot (Vec2 normalX _) _] -> do
+            -- Inside block: centroid of single point (2,0), scale doesn't move it
+            assertApprox "scaledX" 2 scaledX
+            -- Outside block: unaffected
+            assertApprox "normalX" 2 normalX
+          other -> assertFailure $ "Expected two dots, got: " <> show other
+    , testCase "scale preserves label offset (does not scale presentation params)" $ do
+        -- Point at (1,0), labeled above. Scale 2.0 around origin.
+        -- Base should scale: (1,0) -> (2,0)
+        -- Offset should NOT scale (font-size-dependent).
+        -- Compare with unscaled version to verify offset is identical.
+        let unscaled =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , Label (LabelAtPoint "A" (PlainLabel "A") Above)
+                ]
+            scaled =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "O" (Vec2 0 0)
+                , ModifierBlock
+                    (TransformMod (Scale 2.0 (Just "O")))
+                    [Label (LabelAtPoint "A" (PlainLabel "A") Above)]
+                ]
+        case (main unscaled, main scaled) of
+          ( [RenderLabel (Vec2 ubx uby) (Vec2 uox uoy) _ _ _]
+            , [RenderLabel (Vec2 sbx sby) (Vec2 sox soy) _ _ _]
+            ) -> do
+              -- Base scales: (1,0) * 2 around origin = (2,0)
+              assertApprox "unscaled base x" 1 ubx
+              assertApprox "unscaled base y" 0 uby
+              assertApprox "scaled base x" 2 sbx
+              assertApprox "scaled base y" 0 sby
+              -- Offset stays the same
+              assertApprox "offset x unchanged" uox sox
+              assertApprox "offset y unchanged" uoy soy
+          other -> assertFailure $ "Expected labels, got: " <> show other
+    , testCase "scale does not affect right angle radius" $ do
+        -- Right triangle: A=(1,0), B=(0,0), C=(0,1)
+        -- Right angle radius: min(0.7, 0.5*1) = 0.5
+        -- Scale 2.0 around origin: radius should stay 0.5
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , ModifierBlock
+                    (TransformMod (Scale 2.0 (Just "B")))
+                    [Draw (DrawRightAngle (AngleRef "A" "B" "C"))]
+                ]
+        case main result of
+          [RenderRightAngle (Vec2 vx vy) _ _ radius _] -> do
+            assertApprox "vx" 0 vx
+            assertApprox "vy" 0 vy
+            assertApprox "radius" 0.5 radius
+          other -> assertFailure $ "Expected right angle, got: " <> show other
     ]
 
 -- -----------------------------------------------------------------
