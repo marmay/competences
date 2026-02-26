@@ -36,14 +36,6 @@ import Competences.Frontend.Component.ResourceLookup
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
-import Competences.Frontend.SyncContext.WindowManager
-  ( ModalConfig (..)
-  , ModalId (..)
-  , ModalHeight (..)
-  , ModalWidth (..)
-  , WindowChrome (..)
-  , openFramedModalWith
-  )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -137,18 +129,7 @@ groupedResourcesComponent r project =
       M.modify $ \m -> m & #otherCollapsed .~ not m.otherCollapsed
 
     update (OpenLessonNotes ln) =
-      M.io_ $
-        openFramedModalWith
-          r.windowManager
-          ( ModalConfig
-              { chrome = WindowChrome (ms ln.title) Icon.IcnLessonNotes
-              , modalId = ModalId ("lesson-notes-" <> idToText ln.id)
-              , width = ModalWide
-              , height = ModalFull
-              , pinnable = Just ()
-              }
-          )
-          (LNViewer.viewerComponent r ln)
+      M.io_ $ LNViewer.openLessonNotesModal r ln
 
     view' :: GroupedResourcesModel -> M.View GroupedResourcesModel GroupedResourcesAction
     view' m

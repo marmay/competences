@@ -9,6 +9,7 @@
 -- format. Shows a preview of changes before applying.
 module Competences.Frontend.Component.Resource.ImportModal
   ( resourceImportModalComponent
+  , openResourceImportModal
   , Action
   )
 where
@@ -18,13 +19,15 @@ import Competences.Command (ModifyCommand (..), ResourcePatch (..))
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , modifySyncDocument
   , nextId
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -51,6 +54,12 @@ type Action = IM.Action
 -- ============================================================================
 -- Component
 -- ============================================================================
+
+-- | Open the resource import modal as a framed modal.
+openResourceImportModal :: SyncContext -> IO ()
+openResourceImportModal r =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportResources) Icon.IcnImport) (ModalId "import-resources") ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (resourceImportModalComponent r)
 
 resourceImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model ResourceImportPreview) Action
 resourceImportModalComponent = IM.importModalComponent resourceImportConfig

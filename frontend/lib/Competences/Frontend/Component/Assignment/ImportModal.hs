@@ -9,6 +9,7 @@
 -- a markdown-like format. Shows a preview of changes before applying.
 module Competences.Frontend.Component.Assignment.ImportModal
   ( assignmentImportModalComponent
+  , openAssignmentImportModal
   , Action
   )
 where
@@ -22,13 +23,15 @@ import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
 import Competences.Document.User (User (..))
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , modifySyncDocument
   , nextId
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -59,6 +62,12 @@ import Miso.Html qualified as MH
 -- ============================================================================
 
 type Action = IM.Action
+
+-- | Open the assignment import modal as a framed modal.
+openAssignmentImportModal :: SyncContext -> IO ()
+openAssignmentImportModal r =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportAssignments) Icon.IcnImport) (ModalId "import-assignments") ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (assignmentImportModalComponent r)
 
 -- ============================================================================
 -- Component

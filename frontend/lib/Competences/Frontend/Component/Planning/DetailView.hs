@@ -9,20 +9,18 @@ import Competences.Import.Export (exportLesson)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Id (idToText)
 import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
 import Competences.Document.LessonNotes (LessonNotes (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, openFramedModalWith, pinDialog)
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
-import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (openMesoPlanEditor)
 import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
-import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
-import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
-import Competences.Frontend.Component.Planning.LessonEvaluator (lessonEvaluatorComponent)
+import Competences.Frontend.Component.Planning.LessonEditorModal (openLessonEditor)
+import Competences.Frontend.Component.Assignment.EditorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.Component.Planning.LessonEvaluator (pinLessonEvaluator)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -167,8 +165,7 @@ detailComponent r initialPlan =
                 , notes = mempty
                 }
         modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
-        let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
-        openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson [])
+        openLessonEditor r lesson []
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->
       if m.expandedLessonId == Just lessonId
@@ -199,13 +196,10 @@ detailComponent r initialPlan =
     update (OpenLessonEditorModal lesson) = do
       m <- M.get
       let lessonNotesIds = map (.id) $ Ix.toList $ m.document.lessonNotes Ix.@= lesson.id
-          cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
-      M.io_ $
-        openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson lessonNotesIds)
+      M.io_ $ openLessonEditor r lesson lessonNotesIds
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
-      let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan) (ModalId ("meso-plan-editor-" <> idToText plan.id)) ModalNarrow ModalAuto Nothing
-       in openFramedModalWith r.windowManager cfg (mesoPlanEditorModal r plan)
+      openMesoPlanEditor r plan
 
     update (DeleteLesson lessonId) = M.io_ $
       modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
@@ -216,35 +210,10 @@ detailComponent r initialPlan =
 
     update (PinLessonEvaluation lesson) = do
       m <- M.get
-      M.io_ $
-        let pinTitle = C.translate' C.LblLessonEvaluation
-              <> ": " <> M.ms lesson.title
-              <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
-            meta = PinMeta
-              { key = "lesson-evaluation-" <> idToText lesson.id
-              , category = PinCatLessonEvaluation
-              , sortKey = SortKey [SortAtom m.mesoPlan.dateFrom, SortAtom lesson.order, SortAtom lesson.date, SortAtom lesson.id]
-              , context = Just (M.ms lesson.title)
-              }
-         in pinDialog r.windowManager
-              meta
-              (WindowChrome pinTitle Icon.IcnMesoPlan)
-              (lessonEvaluatorComponent r lesson.id)
+      M.io_ $ pinLessonEvaluator r m.mesoPlan.dateFrom lesson
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
-      let AssignmentName nameText = assignment.name
-          pinTitle = C.translate' C.LblEvaluateAssignment
-            <> ": " <> M.ms nameText
-          meta = PinMeta
-            { key = "assignment-evaluation-" <> idToText assignment.id
-            , category = PinCatAssignment
-            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-            , context = Just (M.ms nameText)
-            }
-       in pinDialog r.windowManager
-            meta
-            (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
-            (evaluatorComponent r assignment)
+      pinAssignmentEvaluator r assignment
 
     update (ExportLesson lesson) = do
       m <- M.get
@@ -252,8 +221,7 @@ detailComponent r initialPlan =
 
     update OpenLessonImportModal = do
       m <- M.get
-      let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport) (ModalId "import-lessons") ModalWide ModalFull Nothing
-      M.io_ $ openFramedModalWith r.windowManager cfg (ImportModal.lessonImportModalComponent r m.mesoPlan.id)
+      M.io_ $ ImportModal.openLessonImportModal r m.mesoPlan.id
 
     update (StartReorder lid) =
       M.modify $ \m -> m{reorderFrom = Just lid}

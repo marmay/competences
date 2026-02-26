@@ -5,14 +5,17 @@
 -- Chrome-free content component. Wrapped by FramedModal when opened as a modal.
 module Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal
   ( mesoPlanEditorModal
+  , openMesoPlanEditor
   )
 where
 
 import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanPatch (..), EntityCommand (..), ModifyCommand (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument)
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
+import Competences.Document.Id (idToText)
+import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -26,6 +29,12 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (?~))
+
+-- | Open the meso plan editor as a framed modal.
+openMesoPlanEditor :: SyncContext -> MesoPlan -> IO ()
+openMesoPlanEditor r plan =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan) (ModalId ("meso-plan-editor-" <> idToText plan.id)) ModalNarrow ModalAuto Nothing
+   in openFramedModalWith r.windowManager cfg (mesoPlanEditorModal r plan)
 
 -- ============================================================================
 -- Model

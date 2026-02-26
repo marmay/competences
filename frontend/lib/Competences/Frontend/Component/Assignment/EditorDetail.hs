@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Assignment.EditorDetail
   ( editorDetailView
+  , pinAssignmentEvaluator
   )
 where
 
@@ -58,6 +59,23 @@ data EditorAction
   | PinEvaluation
   deriving (Eq, Show)
 
+-- | Pin the assignment evaluator as a persistent dialog.
+pinAssignmentEvaluator :: SyncContext -> Assignment -> IO ()
+pinAssignmentEvaluator r assignment =
+  let AssignmentName nameText = assignment.name
+      pinTitle = C.translate' C.LblEvaluateAssignment
+        <> ": " <> M.ms nameText
+      meta = PinMeta
+        { key = "assignment-evaluation-" <> idToText assignment.id
+        , category = PinCatAssignment
+        , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+        , context = Just (M.ms nameText)
+        }
+   in pinDialog r.windowManager
+        meta
+        (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
+        (evaluatorComponent r assignment)
+
 -- | Detail view for editing an assignment
 -- The mode type parameter allows this to work with any mode type
 editorDetailView
@@ -100,20 +118,7 @@ editorWrapperComponent r assignment =
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
 
-    update PinEvaluation = M.io_ $
-      let AssignmentName nameText = assignment.name
-          pinTitle = C.translate' C.LblEvaluateAssignment
-            <> ": " <> M.ms nameText
-          meta = PinMeta
-            { key = "assignment-evaluation-" <> idToText assignment.id
-            , category = PinCatAssignment
-            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-            , context = Just (M.ms nameText)
-            }
-       in pinDialog r.windowManager
-            meta
-            (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
-            (evaluatorComponent r assignment)
+    update PinEvaluation = M.io_ $ pinAssignmentEvaluator r assignment
 
     view _m =
       Layout.vFlow Layout.gapM

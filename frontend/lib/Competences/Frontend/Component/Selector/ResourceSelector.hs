@@ -16,7 +16,6 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModalWith)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -98,8 +97,7 @@ resourceSelectorComponent r parentLens =
 
     update OpenImportModal = do
       M.modify $ #dropdownOpen .~ False
-      let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportResources) Icon.IcnImport) (ModalId "import-resources") ModalWide ModalFull Nothing
-      M.io_ $ openFramedModalWith r.windowManager cfg (ImportModal.resourceImportModalComponent r)
+      M.io_ $ ImportModal.openResourceImportModal r
 
     createResource content = M.withSink $ \s -> do
       resourceId <- nextId r

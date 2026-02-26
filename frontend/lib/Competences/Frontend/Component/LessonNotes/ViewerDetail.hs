@@ -1,6 +1,8 @@
 module Competences.Frontend.Component.LessonNotes.ViewerDetail
   ( viewerDetailView
   , viewerComponent
+  , pinLessonNotesViewer
+  , openLessonNotesModal
     -- * Shared renderers (reused by ResourceLookup.View)
   , viewResourceCard
   , viewLinkCard
@@ -29,7 +31,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModalWith, pinDialogWith)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -90,6 +92,36 @@ data ViewerAction
 -- Component
 -- ============================================================================
 
+-- | Open the lesson notes viewer as a pinnable framed modal.
+openLessonNotesModal :: SyncContext -> LessonNotes -> IO ()
+openLessonNotesModal r ln =
+  openFramedModalWith
+    r.windowManager
+    ( ModalConfig
+        { chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+        , modalId = ModalId ("lesson-notes-" <> idToText ln.id)
+        , width = ModalWide
+        , height = ModalFull
+        , pinnable = Just ()
+        }
+    )
+    (viewerComponent r ln)
+
+-- | Pin the lesson notes viewer as a persistent dialog.
+pinLessonNotesViewer :: SyncContext -> LessonNotes -> IO ()
+pinLessonNotesViewer r ln =
+  let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+      meta = PinMeta
+        { key = "lesson-notes-" <> idToText ln.id
+        , category = PinCatLessonNotes
+        , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
+        , context = Just (M.ms ln.title)
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (viewerComponent r ln)
+
 viewerDetailView
   :: SyncContext
   -> LessonNotes
@@ -112,18 +144,7 @@ viewerComponent r ln wm =
     update (ProjectionChanged change) =
       M.modify $ \m -> m & #projection .~ change.projection
 
-    update PinThis = M.io_ $
-      let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
-          meta = PinMeta
-            { key = "lesson-notes-" <> idToText ln.id
-            , category = PinCatLessonNotes
-            , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
-            , context = Just (M.ms ln.title)
-            }
-       in pinDialogWith r.windowManager
-            meta
-            chrome
-            (viewerComponent r ln)
+    update PinThis = M.io_ $ pinLessonNotesViewer r ln
 
     view' m =
       let proj = m.projection

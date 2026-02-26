@@ -10,6 +10,7 @@
 module Competences.Frontend.Component.Resource.Modal
   ( resourceModalComponent
   , ResourceModalConfig (..)
+  , openResourceModal
   )
 where
 
@@ -29,9 +30,10 @@ import Competences.Frontend.Component.TaskResource
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), inlineComponent, openFramedModal)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
@@ -41,6 +43,12 @@ import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+
+-- | Open the resource modal as a framed modal.
+openResourceModal :: SyncContext -> ResourceModalConfig -> IO ()
+openResourceModal r cfg =
+  let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
+   in openFramedModal r.windowManager frameCfg (resourceModalComponent r r.formulaCache cfg)
 
 -- ============================================================================
 -- Configuration

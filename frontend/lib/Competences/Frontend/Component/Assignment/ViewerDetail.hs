@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Assignment.ViewerDetail
   ( viewerDetailView
+  , pinAssignmentViewer
   -- Re-export from Query module for backward compatibility
   , AssignmentStatus (..)
   , assignmentStatus
@@ -190,6 +191,22 @@ emptyProjection role assignment = ViewerProjection
 -- ============================================================================
 -- Viewer Detail Component
 -- ============================================================================
+
+-- | Pin the assignment viewer as a persistent dialog.
+pinAssignmentViewer :: SyncContext -> User -> Assignment -> IO ()
+pinAssignmentViewer r user assignment =
+  let AssignmentName nameText = assignment.name
+      chrome = WindowChrome (M.ms nameText) (EvidenceIcon.activityTypeIcon assignment.activityType)
+      meta = PinMeta
+        { key = "assignment-" <> idToText assignment.id
+        , category = PinCatAssignment
+        , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+        , context = Just (ms nameText)
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (viewerComponent r user assignment)
 
 -- | Detail view for viewing an assignment (read-only)
 -- Shows assignment details and renders task content with MathJax
@@ -384,19 +401,7 @@ viewerComponent r user assignment wm =
                           & #pagePrintPendingContent .~ Nothing
                           & #pagePrintPageGrouping .~ []
 
-    update PinThis = M.io_ $
-      let AssignmentName nameText = assignment.name
-          chrome = WindowChrome (M.ms nameText) (EvidenceIcon.activityTypeIcon assignment.activityType)
-          meta = PinMeta
-            { key = "assignment-" <> idToText assignment.id
-            , category = PinCatAssignment
-            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-            , context = Just (ms nameText)
-            }
-       in pinDialogWith r.windowManager
-            meta
-            chrome
-            (viewerComponent r user assignment)
+    update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
     view' m =
       M.div_

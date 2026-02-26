@@ -9,6 +9,7 @@
 -- format into a specific MesoPlan. Shows a preview of changes before applying.
 module Competences.Frontend.Component.Planning.ImportModal
   ( lessonImportModalComponent
+  , openLessonImportModal
   , Action
   )
 where
@@ -26,7 +27,8 @@ import Competences.Frontend.SyncContext
   , modifySyncDocument
   , nextId
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -55,6 +57,12 @@ import Optics.Core ((&), (.~))
 -- ============================================================================
 
 type Action = IM.Action
+
+-- | Open the lesson import modal as a framed modal.
+openLessonImportModal :: SyncContext -> MesoPlanId -> IO ()
+openLessonImportModal r mesoPlanId =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport) (ModalId "import-lessons") ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (lessonImportModalComponent r mesoPlanId)
 
 -- ============================================================================
 -- Component

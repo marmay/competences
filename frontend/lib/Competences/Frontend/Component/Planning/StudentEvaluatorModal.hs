@@ -7,6 +7,7 @@
 -- one student.
 module Competences.Frontend.Component.Planning.StudentEvaluatorModal
   ( studentEvaluatorModal
+  , openStudentEvaluator
   )
 where
 
@@ -42,8 +43,10 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow, inlineComponent)
+import Competences.Document.Id (idToText)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, inlineComponent, openFramedModalWith)
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Combobox
   ( ComboboxOption (..)
   , renderCombobox
@@ -69,8 +72,14 @@ import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.String (fromMisoString)
+import Miso.String (MisoString, fromMisoString)
 import Optics.Core ((%))
+
+-- | Open the student evaluator as a framed modal.
+openStudentEvaluator :: SyncContext -> LessonId -> MisoString -> UserId -> IO ()
+openStudentEvaluator r lessonId studentName userId =
+  let cfg = ModalConfig (WindowChrome studentName Icon.IcnEvidence) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (studentEvaluatorModal r lessonId userId)
 
 -- ============================================================================
 -- MODEL

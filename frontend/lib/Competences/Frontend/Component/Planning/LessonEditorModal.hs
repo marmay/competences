@@ -7,6 +7,7 @@
 -- date, assignments, resources, phases, notes) and a single Save button.
 module Competences.Frontend.Component.Planning.LessonEditorModal
   ( lessonEditorModal
+  , openLessonEditor
   )
 where
 
@@ -28,7 +29,8 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow, inlineComponent)
+import Competences.Document.Id (idToText)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, inlineComponent, openFramedModalWith)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -48,6 +50,12 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core (Lens', lens, (&), (.~), (?~))
 import Text.Read (readMaybe)
+
+-- | Open the lesson editor as a framed modal.
+openLessonEditor :: SyncContext -> Lesson -> [LessonNotesId] -> IO ()
+openLessonEditor r lesson lessonNotesIds =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson lessonNotesIds)
 
 -- ============================================================================
 -- Model

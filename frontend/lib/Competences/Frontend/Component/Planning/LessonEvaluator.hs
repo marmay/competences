@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Planning.LessonEvaluator
   ( lessonEvaluatorComponent
+  , pinLessonEvaluator
   )
 where
 
@@ -11,6 +12,7 @@ import Competences.Document
   , Competence (..)
   , Document (..)
   , EvidenceIxs
+  , Lesson (..)
   , LessonId
   , User (..)
   , UserId
@@ -27,12 +29,12 @@ import Competences.Document.ParticipationRecord
   , allParticipationTypes
   )
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Planning.StudentEvaluatorModal (studentEvaluatorModal)
+import Competences.Frontend.Component.Planning.StudentEvaluatorModal (openStudentEvaluator)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector
   ( ResultView (..)
   , formatCompetenceLevelBadge'
   )
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), openFramedModalWith)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), pinDialog)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -52,6 +54,7 @@ import Competences.Frontend.View.Tooltip qualified as Tooltip
 import Competences.Frontend.View.Typography qualified as Typography
 import Control.Monad (when)
 import Data.List (find)
+import Data.Time (Day)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
@@ -98,6 +101,23 @@ data Col
   | ParticipationCol !ParticipationType
   | TasksCol
   deriving (Eq, Ord, Show)
+
+-- | Pin the lesson evaluator as a persistent dialog.
+pinLessonEvaluator :: SyncContext -> Maybe Day -> Lesson -> IO ()
+pinLessonEvaluator r mDateFrom lesson =
+  let pinTitle = C.translate' C.LblLessonEvaluation
+        <> ": " <> M.ms lesson.title
+        <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
+      meta = PinMeta
+        { key = "lesson-evaluation-" <> idToText lesson.id
+        , category = PinCatLessonEvaluation
+        , sortKey = SortKey [SortAtom mDateFrom, SortAtom lesson.order, SortAtom lesson.date, SortAtom lesson.id]
+        , context = Just (M.ms lesson.title)
+        }
+   in pinDialog r.windowManager
+        meta
+        (WindowChrome pinTitle Icon.IcnMesoPlan)
+        (lessonEvaluatorComponent r lesson.id)
 
 lessonEvaluatorComponent
   :: SyncContext -> LessonId -> M.Component WM.Model LessonEvalModel LessonEvalAction
@@ -195,9 +215,7 @@ lessonEvaluatorComponent r lessonId =
     update (OpenStudentDetail userId) = do
       m <- M.get
       let userName = maybe "" (.name) $ find (\u -> u.id == userId) m.students
-          cfg = ModalConfig (WindowChrome (M.ms userName) Icon.IcnEvidence) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
-      M.io_ $
-        openFramedModalWith r.windowManager cfg (studentEvaluatorModal r lessonId userId)
+      M.io_ $ openStudentEvaluator r lessonId (M.ms userName) userId
 
     -- ------------------------------------------------------------------
     -- VIEW

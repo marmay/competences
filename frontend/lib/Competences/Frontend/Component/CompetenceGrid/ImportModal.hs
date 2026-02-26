@@ -9,6 +9,7 @@
 -- format. Shows a preview of changes before applying.
 module Competences.Frontend.Component.CompetenceGrid.ImportModal
   ( competenceGridImportModalComponent
+  , openCompetenceGridImportModal
   , Action
   )
 where
@@ -20,13 +21,15 @@ import Competences.Document.Competence (Competence (..), Level (..), LevelInfo (
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Order (orderMax)
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , modifySyncDocument
   , nextId
   )
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, closeWindow)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -54,6 +57,12 @@ type Action = IM.Action
 -- ============================================================================
 -- Component
 -- ============================================================================
+
+-- | Open the competence grid import modal as a framed modal.
+openCompetenceGridImportModal :: SyncContext -> IO ()
+openCompetenceGridImportModal r =
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportCompetenceGrids) Icon.IcnImport) (ModalId "import-competence-grids") ModalWide ModalFull Nothing
+   in openFramedModalWith r.windowManager cfg (competenceGridImportModalComponent r)
 
 competenceGridImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model GridImportPreview) Action
 competenceGridImportModalComponent = IM.importModalComponent gridImportConfig

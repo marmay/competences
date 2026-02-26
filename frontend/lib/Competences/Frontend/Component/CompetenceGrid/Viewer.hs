@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.CompetenceGrid.Viewer
   ( viewerDetailView
+  , pinCompetenceGridViewer
   )
 where
 
@@ -46,7 +47,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModal, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -164,6 +165,21 @@ data ViewerAction
 -- ============================================================================
 -- COMPONENT
 -- ============================================================================
+
+-- | Pin the competence grid viewer as a persistent dialog.
+pinCompetenceGridViewer :: SyncContext -> CompetenceGrid -> IO ()
+pinCompetenceGridViewer r grid =
+  let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
+      meta = PinMeta
+        { key = "grid-" <> idToText grid.id
+        , category = PinCatCompetenceGrid
+        , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
+        , context = Nothing
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (viewerComponent r grid)
 
 -- | View for the viewer detail - shows competence grid with student evidence
 viewerDetailView
@@ -311,21 +327,9 @@ viewerComponent r grid wm =
       let tasks = Map.findWithDefault [] clId m.projection.resourceTasks
           showPurposeBadge = m.projection.connectedUserRole == Teacher
           cfg = ResourceModal.ResourceModalConfig tasks (\doc -> findGroupedResources doc [clId]) showPurposeBadge m.projection.taskStatuses
-      let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
-      M.io_ $ openFramedModal r.windowManager frameCfg (ResourceModal.resourceModalComponent r r.formulaCache cfg)
+      M.io_ $ ResourceModal.openResourceModal r cfg
 
-    update PinThis = M.io_ $
-      let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
-          meta = PinMeta
-            { key = "grid-" <> idToText grid.id
-            , category = PinCatCompetenceGrid
-            , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
-            , context = Nothing
-            }
-       in pinDialogWith r.windowManager
-            meta
-            chrome
-            (viewerComponent r grid)
+    update PinThis = M.io_ $ pinCompetenceGridViewer r grid
 
     -- Main view: dispatch based on view data type
     view m =
