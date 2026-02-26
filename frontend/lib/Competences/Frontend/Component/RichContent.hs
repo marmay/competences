@@ -47,15 +47,18 @@ import Competences.Frontend.SvgEmbed.Manager
   , MathDisplay (..)
   , SymbolId (..)
   , hashLatex
+  , lookupCachedFormulas
   , renderFormulaCached
   , svgToDataUrl
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Markdown.AST qualified as MD
 import Competences.Markdown.Parser qualified as Markdown
 import Competences.TaskContent.RichContent (RichContent, toRawText)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (when)
 import Data.Bits (xor, (.&.))
 import Data.Char (ord)
 import Data.Map.Strict (Map)
@@ -83,6 +86,8 @@ data RichContentAction
     RenderMath
   | -- | A batch of formulas rendered successfully (merged into existing)
     SymbolsReady !(Map SymbolId EmbeddedSymbol)
+  | -- | Retry rendering after exponential backoff (attempt number)
+    RetryRender !Int
   deriving (Eq, Show)
 
 -- | Create a RichContent view from a new Document AST
@@ -111,15 +116,29 @@ richContentComponent fc _key doc =
     update RenderMath = do
       m <- M.get
       let formulas = extractFormulas m.content
+          sids = [hashLatex d l | (d, l) <- formulas]
+      -- Phase 1: instant cache lookup (sub-microsecond IORef read)
+      M.io $ do
+        cached <- lookupCachedFormulas fc sids
+        pure (SymbolsReady cached)
+      -- Phase 2: async MathJax render for uncached formulas
       M.withSink $ \sink -> do
         _ <- forkIO $ do
           rendered <- mapM (uncurry (renderFormulaCached fc)) formulas
           let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
+              failCount = length formulas - Map.size successful
           sink (SymbolsReady successful)
+          when (failCount > 0) $ sink (RetryRender 0)
         pure ()
 
-    update (SymbolsReady symbolMap) =
-      M.modify $ \m -> m {embeddedSymbols = symbolMap}
+    update (SymbolsReady newSymbols) =
+      M.modify $ \m -> m {embeddedSymbols = m.embeddedSymbols <> newSymbols}
+
+    update (RetryRender n)
+      | n >= 5 = pure () -- give up after 5 retries
+      | otherwise = M.io $ do
+          threadDelay (200_000 * (2 ^ n)) -- 200ms, 400ms, 800ms, 1.6s, 3.2s
+          pure RenderMath
 
     view m = renderContent m.embeddedSymbols m.content
 
@@ -202,7 +221,7 @@ renderBlock symbols = \case
       [class_ "list-[lower-alpha] ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
       $ map (renderListItem symbols) items
   MD.MathBlock latex ->
-    mathImgRef symbols (hashLatex Block latex) Block
+    mathImgRef symbols (hashLatex Block latex) latex Block
   MD.ThematicBreak ->
     M.hr_ [class_ "border-t border-stone-300 my-4"]
   MD.Admonition adType mTitle bodyBlocks ->
@@ -285,7 +304,7 @@ renderInline symbols = \case
   MD.Code text ->
     M.code_ [class_ "bg-stone-100 px-1.5 py-0.5 rounded text-sm font-mono"] [M.text (ms text)]
   MD.MathInline latex ->
-    mathImgRef symbols (hashLatex Inline latex) Inline
+    mathImgRef symbols (hashLatex Inline latex) latex Inline
   MD.Link url inlines _title ->
     M.a_
       [ M.textProp (ms ("href" :: Text)) (ms url)
@@ -295,12 +314,13 @@ renderInline symbols = \case
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
 
--- | Create <img> element with data URL for a MathJax-rendered formula
-mathImgRef :: Map SymbolId EmbeddedSymbol -> SymbolId -> MathDisplay -> M.View RichContentModel RichContentAction
-mathImgRef symbols sid display =
+-- | Create <img> element with data URL for a MathJax-rendered formula.
+-- Shows the LaTeX source as a muted placeholder while rendering is pending.
+mathImgRef :: Map SymbolId EmbeddedSymbol -> SymbolId -> Text -> MathDisplay -> M.View RichContentModel RichContentAction
+mathImgRef symbols sid latex display =
   case Map.lookup sid symbols of
     Nothing ->
-      M.span_ [class_ "text-red-500"] [M.text "[math]"]
+      Typography.placeholder (ms latex)
     Just es ->
       let styleVal =
             "width:" <> es.width

@@ -203,7 +203,7 @@ renderPrimitive symbols = \case
                       , SP.dominantBaseline_ "central"
                       , SP.fontStyle_ "italic"
                       ]
-                      [M.text "[math]"]
+                      [M.text (ms latex)]
               Just es -> renderMathLabel (Vec2 x y) es pos env
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
