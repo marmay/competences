@@ -139,7 +139,7 @@ assignmentSelectorComponent r initialSelection parentLens =
 
     update (ProjectionChanged change) =
       M.modify $ \m ->
-        let m' = m & #projection .~ change.projection
+        let m' = updateFromProjection change.projection m
          in case (change.changeInfo, m'.selectedAssignment, initialSelection) of
               (InitialSnapshot, Nothing, Just f) ->
                 m' & #selectedAssignment .~ f change.projection.assignments
@@ -150,6 +150,20 @@ assignmentSelectorComponent r initialSelection parentLens =
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
       M.io_ $ ImportModal.openAssignmentImportModal r
+
+    updateFromProjection :: SelectorProjection -> Model -> Model
+    updateFromProjection proj m =
+      let assignments = proj.assignments
+          validateAssignment a = do
+            a' <- a
+            Ix.getOne $ assignments Ix.@= a'.id
+          (selected', new') = case (validateAssignment m.selectedAssignment, validateAssignment m.newAssignment) of
+            (_, Just e) -> (Just e, Nothing)
+            (s, n) -> (s, n)
+       in m
+            & #projection .~ proj
+            & #selectedAssignment .~ selected'
+            & #newAssignment .~ new'
 
     view' m =
       M.div_
