@@ -170,7 +170,7 @@ parserGroup =
         "drawAngle labeled"
         "drawAngle A B C labeled \"$\\alpha$\""
         [ Draw (DrawAngle (AngleRef "A" "B" "C"))
-        , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha"))
+        , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") Nothing)
         ]
     , parsesTo
         "drawRightAngle"
@@ -179,7 +179,17 @@ parserGroup =
     , parsesTo
         "labelAngle"
         "labelAngle A B C \"$\\beta$\""
-        [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\beta"))]
+        [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\beta") Nothing)]
+    , parsesTo
+        "labelAngle with external offset"
+        "labelAngle A B C \"$\\alpha$\" +(1.5, 1.5)"
+        [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1.5 1.5)))]
+    , parsesTo
+        "drawAngle labeled with external offset"
+        "drawAngle A B C labeled \"$\\alpha$\" +(1, -1)"
+        [ Draw (DrawAngle (AngleRef "A" "B" "C"))
+        , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1 (-1))))
+        ]
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
@@ -229,7 +239,9 @@ extractMathLabelsGroup =
           ]
           @?= ["\\gamma"]
     , testCase "math label on angle" $
-        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha"))] @?= ["\\alpha"]
+        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") Nothing)] @?= ["\\alpha"]
+    , testCase "math label on angle with offset" $
+        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1 1)))] @?= ["\\alpha"]
     , testCase "mixed plain and math" $
         extractMathLabels
           [ Label (LabelAtPoint "A" (PlainLabel "A") Above)
@@ -466,7 +478,7 @@ evalGroup =
         -- Angle ABC: ray BA along +x, ray BC along +y
         -- startAngle = atan2(0-0, 1-0) = 0, endAngle = atan2(1-0, 0-0) = pi/2
         -- sweep = pi/2
-        -- radius: min(0.7, 0.5 * min(1, 1)) = 0.5
+        -- radius: min(1.0, 0.5 * min(1, 1)) = 0.5
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -483,7 +495,7 @@ evalGroup =
             assertApprox "radius" 0.5 radius
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "right angle arc" $ do
-        -- radius: min(0.5, 0.5 * min(1, 1)) = 0.5
+        -- radius: min(0.7, 0.5 * min(1, 1)) = 0.5
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -515,27 +527,27 @@ evalGroup =
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "angle label placement" $ do
         -- A=(1,0), B=(0,0), C=(0,1)
-        -- outward at B = (1,1)/sqrt(2), inward = (-1,-1)/sqrt(2)
-        -- radius = min(0.7, 0.5*1) = 0.5, labelDist = 0.5*0.65 = 0.325
-        -- label at (-0.325/sqrt(2), -0.325/sqrt(2))
+        -- bisector at B = normalize((1,0)+(0,1)) = (1,1)/sqrt(2) → into the angle
+        -- labelDist = 0.5 (fixed)
+        -- label at (0.5/sqrt(2), 0.5/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
                 , DefPoint "B" (Vec2 0 0)
                 , DefPoint "C" (Vec2 0 1)
-                , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a"))
+                , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)
                 ]
         case main result of
           [RenderLabel (Vec2 lx ly) lbl pos _env] -> do
             lbl @?= PlainLabel "a"
-            let labelDist = 0.5 * 0.65
+            let labelDist = 0.5 :: Double
                 invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" ((-invSqrt2) * labelDist) lx
-            assertApprox "ly" ((-invSqrt2) * labelDist) ly
-            pos @?= BelowLeft
+            assertApprox "lx" (invSqrt2 * labelDist) lx
+            assertApprox "ly" (invSqrt2 * labelDist) ly
+            pos @?= AboveRight
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "angle arc radius clamped for short edges" $ do
-        -- Edges of length 1.0: min(0.7, 0.5*1.0) = 0.5
+        -- Edges of length 1.0: min(1.0, 0.5*1.0) = 0.5
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -548,7 +560,7 @@ evalGroup =
             assertApprox "clamped radius" 0.5 radius
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "angle arc radius unclamped for long edges" $ do
-        -- Edges of length 4.0 and 3.0: min(0.7, 0.5*3.0) = 0.7
+        -- Edges of length 4.0 and 3.0: min(1.0, 0.5*3.0) = 1.0
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 4 0)
@@ -558,10 +570,10 @@ evalGroup =
                 ]
         case main result of
           [RenderAngleArc _ _ _ radius _] ->
-            assertApprox "unclamped radius" 0.7 radius
+            assertApprox "unclamped radius" 1.0 radius
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "right angle radius clamped for short edges" $ do
-        -- Edges of length 0.6: min(0.5, 0.5*0.6) = 0.3
+        -- Edges of length 0.6: min(0.7, 0.5*0.6) = 0.3
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0.6 0)
@@ -573,6 +585,40 @@ evalGroup =
           [RenderRightAngle _ _ _ radius _] ->
             assertApprox "clamped right angle radius" 0.3 radius
           other -> assertFailure $ "Expected [RenderRightAngle], got: " <> show other
+    , testCase "external angle label with offset" $ do
+        -- A=(4,0), B=(0,0), C=(0,3), offset +(1.5, 1.5)
+        -- outward at B = (1,1)/sqrt(2), inward = (-1,-1)/sqrt(2)
+        -- internalPos = (0 + (-1/sqrt2)*0.5, 0 + (-1/sqrt2)*0.5)
+        -- externalPos = (0 + 1.5, 0 + 1.5)
+        -- Should produce a leader line (segment) + label
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 4 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 3)
+                , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1.5 1.5)))
+                ]
+        case main result of
+          [RenderSegment _ (Vec2 ex ey) _, RenderLabel (Vec2 lx ly) lbl _ _] -> do
+            lbl @?= MathLabel "\\alpha"
+            assertApprox "external x" 1.5 ex
+            assertApprox "external y" 1.5 ey
+            assertApprox "label x" 1.5 lx
+            assertApprox "label y" 1.5 ly
+          other -> assertFailure $ "Expected [RenderSegment, RenderLabel], got: " <> show other
+    , testCase "internal angle label (no offset) unchanged" $ do
+        -- Same triangle as above but no offset
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 4 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 3)
+                , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)
+                ]
+        case main result of
+          [RenderLabel _ lbl _ _] ->
+            lbl @?= PlainLabel "a"
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "full example parse + eval" $ do
         let input =
               "defPoint A (0, 0)\n\
@@ -640,7 +686,7 @@ drawPolyParserGroup =
           Left err -> assertFailure $ "Parse failed: " <> show err
           Right cmds -> do
             let angles = [ref | Draw (DrawAngle ref) <- cmds]
-                angleLbls = [lbl | Label (LabelAngle _ lbl) <- cmds]
+                angleLbls = [lbl | Label (LabelAngle _ lbl _) <- cmds]
             length angles @?= 1
             length angleLbls @?= 1
     , testCase "with rightAngle decoration" $ do

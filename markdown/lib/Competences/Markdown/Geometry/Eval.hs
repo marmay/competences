@@ -149,7 +149,7 @@ evalDraw = \case
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
         let (start, sweep) = computeAngleArc va vb vc
-            radius = clampRadius 0.7 vb va vc
+            radius = clampRadius 1.0 vb va vc
             prim = RenderAngleArc vb start sweep radius env
         pure (emitToLayer env prim, mempty)
   DrawRightAngle ref -> do
@@ -159,7 +159,7 @@ evalDraw = \case
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
         let (start, sweep) = computeAngleArc va vb vc
-            radius = clampRadius 0.5 vb va vc
+            radius = clampRadius 0.7 vb va vc
             prim = RenderRightAngle vb start sweep radius env
         pure (emitToLayer env prim, mempty)
   DrawFilledPolygon names -> do
@@ -217,57 +217,70 @@ evalLabel = \case
             labelPos = segmentSideToPosition side dx dy
             prim = RenderLabel labelVec txt labelPos env
         pure (emitToLayer env prim, mempty)
-  LabelAngle ref txt -> do
+  LabelAngle ref txt mOffset -> do
     mPts <- resolveAngleRef ref
     env <- gets esDrawEnv
     case mPts of
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
-        let (ox, oy) = outwardDirection va vb vc
-            len = sqrt (ox * ox + oy * oy)
-            -- Inward direction (toward polygon interior / angle interior)
-            (ix, iy) = if len == 0 then (0, -1) else (-ox / len, -oy / len)
-            radius = clampRadius 0.7 vb va vc
-            labelDist = radius * 0.65
+        let -- Angle bisector: average of normalized arm directions → into the angle
+            (bix, biy) = angleBisector va vb vc
+            labelDist = 0.5
             Vec2 bx by = vb
-            labelVec = Vec2 (bx + ix * labelDist) (by + iy * labelDist)
-            anchor = directionToLabelPos ix iy
-            prim = RenderLabel labelVec txt anchor env
-        pure (emitToLayer env prim, mempty)
+            internalPos = Vec2 (bx + bix * labelDist) (by + biy * labelDist)
+            internalAnchor = directionToLabelPos bix biy
+        case mOffset of
+          Nothing -> do
+            let prim = RenderLabel internalPos txt internalAnchor env
+            pure (emitToLayer env prim, mempty)
+          Just (Vec2 dx dy) -> do
+            let externalPos = Vec2 (bx + dx) (by + dy)
+                -- Anchor based on direction from internal to external
+                (edx, edy) = (dx - bix * labelDist, dy - biy * labelDist)
+                externalAnchor = directionToLabelPos edx edy
+                line = RenderSegment internalPos externalPos env
+                label = RenderLabel externalPos txt externalAnchor env
+            pure (emitToLayer env line <> emitToLayer env label, mempty)
   LabelAutoPoint ref txt -> do
     mPts <- resolveAngleRef ref
     env <- gets esDrawEnv
     case mPts of
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
-        let (ox, oy) = outwardDirection va vb vc
-            len = sqrt (ox * ox + oy * oy)
-            (nx, ny) = if len == 0 then (0, 1) else (ox / len, oy / len)
+        let -- Point label goes opposite to angle bisector (outside the angle)
+            (bix, biy) = angleBisector va vb vc
+            (nx, ny) = (-bix, -biy)
             Vec2 bx by = vb
             labelVec = Vec2 (bx + nx * 0.15) (by + ny * 0.15)
             anchor = directionToLabelPos nx ny
             prim = RenderLabel labelVec txt anchor env
         pure (emitToLayer env prim, mempty)
 
--- | Outward direction at vertex B for edges A→B and B→C (CCW convention).
--- Returns unnormalized direction vector (sum of two unit outward normals).
-outwardDirection :: Vec2 -> Vec2 -> Vec2 -> (Double, Double)
-outwardDirection (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
-  let -- Edge A→B: direction and outward normal (right perpendicular for CCW)
-      d1x = bx - ax
-      d1y = by - ay
-      len1 = sqrt (d1x * d1x + d1y * d1y)
-      (n1x, n1y)
-        | len1 == 0 = (0, 1)
-        | otherwise = (d1y / len1, -(d1x / len1))
-      -- Edge B→C: direction and outward normal
-      d2x = cx - bx
-      d2y = cy - by
-      len2 = sqrt (d2x * d2x + d2y * d2y)
-      (n2x, n2y)
-        | len2 == 0 = (0, 1)
-        | otherwise = (d2y / len2, -(d2x / len2))
-   in (n1x + n2x, n1y + n2y)
+-- | Angle bisector at vertex B for angle ABC.
+-- Returns a normalized direction pointing toward the angle interior
+-- (the side where the arc is drawn).  Computed as the average of
+-- the two normalized arm directions from B toward A and from B toward C.
+angleBisector :: Vec2 -> Vec2 -> Vec2 -> (Double, Double)
+angleBisector (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
+  let -- Normalized direction from B toward A
+      dax = ax - bx
+      day = ay - by
+      lenA = sqrt (dax * dax + day * day)
+      (nax, nay)
+        | lenA == 0 = (0, 1)
+        | otherwise = (dax / lenA, day / lenA)
+      -- Normalized direction from B toward C
+      dcx = cx - bx
+      dcy = cy - by
+      lenC = sqrt (dcx * dcx + dcy * dcy)
+      (ncx, ncy)
+        | lenC == 0 = (0, 1)
+        | otherwise = (dcx / lenC, dcy / lenC)
+      -- Sum → bisector direction (into the angle)
+      sx = nax + ncx
+      sy = nay + ncy
+      sLen = sqrt (sx * sx + sy * sy)
+   in if sLen == 0 then (nay, -nax) else (sx / sLen, sy / sLen)
 
 -- | Map a 2D direction vector to the nearest of 8 label positions.
 -- Uses angle sectors of 45 degrees each.
@@ -477,7 +490,7 @@ extractMathLabels = concatMap go
     go = \case
       Label (LabelAtPoint _ (MathLabel latex) _) -> [latex]
       Label (LabelOnSegment _ (MathLabel latex) _ _) -> [latex]
-      Label (LabelAngle _ (MathLabel latex)) -> [latex]
+      Label (LabelAngle _ (MathLabel latex) _) -> [latex]
       Label (LabelAutoPoint _ (MathLabel latex)) -> [latex]
       ModifierBlock _ children -> concatMap go children
       _ -> []

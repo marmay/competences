@@ -100,7 +100,8 @@ data LabelContent = PlainLabel !Text | MathLabel !Text
 data LabelPrimitive
   = LabelAtPoint !Name !LabelContent !LabelPosition
   | LabelOnSegment !SegmentRef !LabelContent !SegmentSide !Double
-  | LabelAngle !AngleRef !LabelContent
+  | LabelAngle !AngleRef !LabelContent !(Maybe Vec2)
+  -- ^ Nothing = internal label, Just offset = external label with leader line
   | LabelAutoPoint !AngleRef !LabelContent
   deriving (Eq, Show)
 

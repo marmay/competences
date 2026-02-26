@@ -185,11 +185,24 @@ drawAngleP = do
   mLabel <- optional (lexeme (string "labeled") *> angleLabelTailP ref)
   pure $ [Draw (DrawAngle ref)] <> maybe [] (\lbl -> [Label lbl]) mLabel
 
--- | Parse @"text"@ for an angle label (no position needed — auto-placed at bisector)
+-- | Parse @"text"@ for an angle label (no position needed — auto-placed at bisector).
+-- Optionally followed by @+(dx, dy)@ for external label placement with leader line.
 angleLabelTailP :: AngleRef -> Parser LabelPrimitive
 angleLabelTailP ref = do
   txt <- lexeme quotedTextP
-  pure $ LabelAngle ref (parseLabelContent txt)
+  mOffset <- optional offsetP
+  pure $ LabelAngle ref (parseLabelContent txt) mOffset
+
+-- | Parse @+(dx, dy)@ offset for external label placement
+offsetP :: Parser Vec2
+offsetP = do
+  _ <- lexeme (char '+')
+  _ <- lexeme (char '(')
+  x <- lexeme doubleP
+  _ <- lexeme (char ',')
+  y <- lexeme doubleP
+  _ <- lexeme (char ')')
+  pure $ Vec2 x y
 
 -- | @labelAngle A B C "$\alpha$"@
 labelAngleP :: Parser Command
@@ -518,7 +531,7 @@ desugarVertexDecs name prev succ_ decs = concatMap go decs
               Nothing -> [Label (LabelAutoPoint angleRef lbl)]
       PVAngle mLbl ->
         [Draw (DrawAngle angleRef)]
-          <> maybe [] (\lbl -> [Label (LabelAngle angleRef lbl)]) mLbl
+          <> maybe [] (\lbl -> [Label (LabelAngle angleRef lbl Nothing)]) mLbl
       PVRightAngle ->
         [Draw (DrawRightAngle angleRef)]
 
