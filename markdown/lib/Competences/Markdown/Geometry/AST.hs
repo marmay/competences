@@ -132,6 +132,8 @@ data EnvModifier
   | SetThin
   | SetFill !Color
   | SetLabelDist !Double
+  | SetFontSize !Double
+  | SetDotRadius !Double
   deriving (Eq, Show)
 
 data AutoDecorator
@@ -152,6 +154,8 @@ data DrawEnv = DrawEnv
   , layer :: !Layer
   , fillColor :: !(Maybe Color)
   , labelDist :: !Double
+  , fontSize :: !Double
+  , dotRadius :: !Double
   }
   deriving (Eq, Show)
 
@@ -164,6 +168,8 @@ defaultDrawEnv =
     , layer = Main
     , fillColor = Nothing
     , labelDist = 0.75
+    , fontSize = 0.45
+    , dotRadius = 0.10
     }
 
 -- | 2D vector / point

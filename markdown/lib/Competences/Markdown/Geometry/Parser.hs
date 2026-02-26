@@ -5,14 +5,16 @@
 -- Keyword-dispatch parser. The @labeled@ suffix is desugared here into
 -- separate 'Draw' + 'Label' commands — the AST and evaluator never see it.
 --
+-- Modifiers use the @\@@ prefix for unambiguous parsing:
+--
 -- @
 -- defPoint A (0, 0)
 -- defPointBy M (midpoint A B)
 -- defSegment c A -- B
 -- drawPoint A labeled "A" below-left
 -- drawSegment A -- B labeled "c" below 0.4
--- axes {
---   dashed { drawSegment M -- C }
+-- \@axes {
+--   \@dashed { drawSegment M -- C }
 -- }
 -- @
 module Competences.Markdown.Geometry.Parser
@@ -88,8 +90,24 @@ commandsP :: Parser [Command]
 commandsP = concat <$> many (try (ws *> commandP))
 
 -- | Parse a single command. Returns a list because @labeled@ desugars to two.
+-- Commands starting with @\@@ are modifier blocks; everything else is a plain command.
 commandP :: Parser [Command]
-commandP = do
+commandP =
+  (one <$> modifierCommandP)
+    <|> plainCommandP
+  where
+    one x = [x]
+
+-- | Parse @\@modifier { body }@
+modifierCommandP :: Parser Command
+modifierCommandP = do
+  _ <- lexeme (char '@')
+  modifier <- modifierValueP
+  modifierBlockP modifier
+
+-- | Parse a plain (non-modifier) command by keyword dispatch.
+plainCommandP :: Parser [Command]
+plainCommandP = do
   kw <- lexeme keywordP
   case kw of
     "defPoint" -> one <$> defPointP
@@ -103,18 +121,6 @@ commandP = do
     "labelSegment" -> one <$> labelSegmentP
     "labelAngle" -> one <$> labelAngleP
     "drawPoly" -> drawPolyP
-    -- Modifier blocks
-    "color" -> one <$> colorBlockP
-    "fill" -> one <$> fillBlockP
-    "dashed" -> one <$> modifierBlockP (EnvMod SetDashed)
-    "thick" -> one <$> modifierBlockP (EnvMod SetThick)
-    "thin" -> one <$> modifierBlockP (EnvMod SetThin)
-    "axes" -> one <$> modifierBlockP (AutoDec Axes)
-    "grid" -> one <$> modifierBlockP (AutoDec Grid)
-    "labelAll" -> one <$> labelAllBlockP
-    "background" -> one <$> modifierBlockP (LayerMod Background)
-    "foreground" -> one <$> modifierBlockP (LayerMod Foreground)
-    "labelDist" -> one <$> labelDistBlockP
     _ -> fail $ "Unknown command: " <> T.unpack kw
   where
     one x = [x]
@@ -308,26 +314,8 @@ lineRefP = between (lexeme (char '(')) (lexeme (char ')')) $ do
 -- Modifier blocks
 -- -----------------------------------------------------------------
 
--- | @labelDist <double> { ... }@
-labelDistBlockP :: Parser Command
-labelDistBlockP = do
-  d <- lexeme doubleP
-  modifierBlockP (EnvMod (SetLabelDist d))
-
--- | @color <name> { ... }@
-colorBlockP :: Parser Command
-colorBlockP = do
-  name <- lexeme nameP
-  modifierBlockP (EnvMod (SetColor (NamedColor name)))
-
--- | @labelAll <position> { ... }@
-labelAllBlockP :: Parser Command
-labelAllBlockP = do
-  pos <- lexeme labelPositionP
-  modifierBlockP (AutoDec (LabelAll pos))
-
 -- | Parse a modifier keyword (+ any arguments) and return a 'Modifier' value.
--- Used for additional modifiers after commas in comma-separated lists.
+-- Called after the @\@@ prefix has been consumed.
 modifierValueP :: Parser Modifier
 modifierValueP = do
   kw <- lexeme keywordP
@@ -343,13 +331,15 @@ modifierValueP = do
     "background" -> pure $ LayerMod Background
     "foreground" -> pure $ LayerMod Foreground
     "labelDist" -> EnvMod . SetLabelDist <$> lexeme doubleP
+    "fontSize" -> EnvMod . SetFontSize <$> lexeme doubleP
+    "dotRadius" -> EnvMod . SetDotRadius <$> lexeme doubleP
     _ -> fail $ "Unknown modifier: " <> T.unpack kw
 
 -- | Parse @{ commands }@ with a given modifier, optionally preceded by
--- comma-separated additional modifiers: @axes, grid { ... }@
+-- comma-separated additional @\@@-prefixed modifiers: @\@axes, \@grid { ... }@
 modifierBlockP :: Modifier -> Parser Command
 modifierBlockP modifier = do
-  extras <- many (lexeme (char ',') *> modifierValueP)
+  extras <- many (lexeme (char ',') *> lexeme (char '@') *> modifierValueP)
   _ <- lexeme (char '{')
   cmds <- commandsP
   ws
@@ -361,16 +351,6 @@ nestModifiers :: [Modifier] -> [Command] -> Command
 nestModifiers [] _ = error "nestModifiers: impossible empty list"
 nestModifiers [m] cmds = ModifierBlock m cmds
 nestModifiers (m : ms) cmds = ModifierBlock m [nestModifiers ms cmds]
-
--- -----------------------------------------------------------------
--- Fill modifier block
--- -----------------------------------------------------------------
-
--- | @fill <color> { ... }@
-fillBlockP :: Parser Command
-fillBlockP = do
-  name <- lexeme nameP
-  modifierBlockP (EnvMod (SetFill (NamedColor name)))
 
 -- -----------------------------------------------------------------
 -- drawPoly command
@@ -387,6 +367,9 @@ data PolyVertexDec
 
 -- | Edge decoration
 data PolyEdgeDec = PESegment !LabelContent !(Maybe SegmentSide)
+
+-- | Decoration wrapped with optional modifiers
+data Decorated a = Decorated ![Modifier] !a
 
 -- | @drawPoly vertex (edge vertex)* [edge "close"]@
 drawPolyP :: Parser [Command]
@@ -405,7 +388,7 @@ drawPolyP = do
 
 -- | Parse remaining edges and vertices after the first vertex.
 -- Returns: ([(edgeDec, (vertex, vertexDecs))], hasClose, maybeClosingEdgeDec)
-polyEdgesP :: Parser ([(Maybe PolyEdgeDec, (PolyVertex, [PolyVertexDec]))], Bool, Maybe PolyEdgeDec)
+polyEdgesP :: Parser ([(Maybe (Decorated PolyEdgeDec), (PolyVertex, [Decorated PolyVertexDec]))], Bool, Maybe (Decorated PolyEdgeDec))
 polyEdgesP = go []
   where
     go acc = do
@@ -432,13 +415,26 @@ polyVertexP =
         then fail "unexpected close"
         else PolyNamed <$> lexeme nameP
 
--- | Parse vertex decorations: @[point "A", angle "$\alpha$", rightAngle]@
-polyVertexDecsP :: Parser [PolyVertexDec]
+-- | Parse vertex decorations: @[point "A", \@color red { point "A" }, angle "$\alpha$"]@
+polyVertexDecsP :: Parser [Decorated PolyVertexDec]
 polyVertexDecsP = between (lexeme (char '[')) (lexeme (char ']')) $
-  polyVertexDecP `sepBy1` lexeme (char ',')
+  polyVertexDecItemP `sepBy1` lexeme (char ',')
 
-polyVertexDecP :: Parser PolyVertexDec
-polyVertexDecP = do
+-- | Parse a single vertex decoration item, optionally wrapped with @\@@-modifiers.
+polyVertexDecItemP :: Parser (Decorated PolyVertexDec)
+polyVertexDecItemP =
+  ( do
+      mods <- modifierListP
+      _ <- lexeme (char '{')
+      dec <- polyVertexDecPlainP
+      _ <- lexeme (char '}')
+      pure $ Decorated mods dec
+  )
+    <|> (Decorated [] <$> polyVertexDecPlainP)
+
+-- | Parse a plain vertex decoration keyword and its arguments.
+polyVertexDecPlainP :: Parser PolyVertexDec
+polyVertexDecPlainP = do
   kw <- lexeme keywordP
   case kw of
     "point" -> do
@@ -451,32 +447,52 @@ polyVertexDecP = do
     "rightAngle" -> pure PVRightAngle
     _ -> fail $ "Unknown vertex decoration: " <> T.unpack kw
 
--- | Parse an edge: @--@ (bare) or @-[segment "label" side]-@
-polyEdgeP :: Parser (Maybe PolyEdgeDec)
+-- | Parse one or more @\@@-prefixed modifiers: @\@color red@ or @\@color red, \@thick@
+modifierListP :: Parser [Modifier]
+modifierListP = do
+  _ <- lexeme (char '@')
+  mod1 <- modifierValueP
+  extras <- many (lexeme (char ',') *> lexeme (char '@') *> modifierValueP)
+  pure (mod1 : extras)
+
+-- | Parse an edge: @--@ (bare) or @-[segment "label" side]-@ or @-[\@mods { segment "label" }]-@
+polyEdgeP :: Parser (Maybe (Decorated PolyEdgeDec))
 polyEdgeP =
   (Nothing <$ try (lexeme (string "--") <* notFollowedBy (char '[')))
     <|> (Just <$> decoratedEdgeP)
 
-decoratedEdgeP :: Parser PolyEdgeDec
+decoratedEdgeP :: Parser (Decorated PolyEdgeDec)
 decoratedEdgeP = do
   _ <- lexeme (string "-[")
+  mMods <- optional (try modifierListP)
+  dec <- case mMods of
+    Just mods -> do
+      _ <- lexeme (char '{')
+      d <- edgeDecPlainP
+      _ <- lexeme (char '}')
+      pure $ Decorated mods d
+    Nothing -> Decorated [] <$> edgeDecPlainP
+  _ <- lexeme (string "]-")
+  pure dec
+
+-- | Parse a plain edge decoration keyword and its arguments.
+edgeDecPlainP :: Parser PolyEdgeDec
+edgeDecPlainP = do
   kw <- lexeme keywordP
-  dec <- case kw of
+  case kw of
     "segment" -> do
       txt <- lexeme quotedTextP
       mSide <- optional (lexeme segmentSideP)
       pure $ PESegment (parseLabelContent txt) mSide
     _ -> fail $ "Unknown edge decoration: " <> T.unpack kw
-  _ <- lexeme (string "]-")
-  pure dec
 
 -- | Desugar a parsed polygon into a list of commands
 desugarPoly
   :: Int
-  -> [(PolyVertex, [PolyVertexDec])]
-  -> [Maybe PolyEdgeDec]
+  -> [(PolyVertex, [Decorated PolyVertexDec])]
+  -> [Maybe (Decorated PolyEdgeDec)]
   -> Bool
-  -> Maybe PolyEdgeDec
+  -> Maybe (Decorated PolyEdgeDec)
   -> Parser [Command]
 desugarPoly offset vertices edgeDecs _hasClose closeEdgeDec = do
   let prefix = "_p" <> T.pack (show offset)
@@ -508,8 +524,9 @@ desugarPoly offset vertices edgeDecs _hasClose closeEdgeDec = do
       segmentCmds = concat
         [ Draw (DrawSegment (SegInline from to))
             : case allEdgeDecs !! i of
-              Just (PESegment lbl mSide) ->
-                [Label (LabelOnSegment (SegInline from to) lbl (maybe SegBelow id mSide) 0.5)]
+              Just (Decorated mods (PESegment lbl mSide)) ->
+                wrapModifiers mods
+                  [Label (LabelOnSegment (SegInline from to) lbl (maybe SegBelow id mSide) 0.5)]
               _ -> []
         | (i, (from, to)) <- zip [0 ..] edgePairs
         ]
@@ -522,14 +539,20 @@ desugarPoly offset vertices edgeDecs _hasClose closeEdgeDec = do
 
   pure $ defPoints <> fillCmd <> segmentCmds <> vertexCmds
 
+-- | Wrap commands in nested modifier blocks, or return them bare if no modifiers.
+wrapModifiers :: [Modifier] -> [Command] -> [Command]
+wrapModifiers [] cmds = cmds
+wrapModifiers mods cmds = [nestModifiers mods cmds]
+
 -- | Desugar vertex decorations into commands.
 -- @prev@ is the predecessor vertex, @succ@ is the successor vertex.
-desugarVertexDecs :: Name -> Name -> Name -> [PolyVertexDec] -> [Command]
+desugarVertexDecs :: Name -> Name -> Name -> [Decorated PolyVertexDec] -> [Command]
 desugarVertexDecs _name _prev _succ [] = []
 desugarVertexDecs name prev succ_ decs = concatMap go decs
   where
     angleRef = AngleRef prev name succ_
-    go = \case
+    go (Decorated mods dec) = wrapModifiers mods (goPlain dec)
+    goPlain = \case
       PVPoint mLbl mPos ->
         [Draw (DrawPoint name)]
           <> case mLbl of

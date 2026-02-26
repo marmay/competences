@@ -126,7 +126,7 @@ primVecs :: RenderPrimitive -> [Vec2]
 primVecs = \case
   RenderDot v _ -> [v]
   RenderSegment v1 v2 _ -> [v1, v2]
-  RenderLabel v lbl pos _ -> labelBounds v lbl pos
+  RenderLabel v lbl pos env -> labelBounds v lbl pos (fontSize env)
   RenderAxisLine v1 v2 _ -> [v1, v2]
   RenderTick v _ _ -> [v]
   RenderGridLine v1 v2 _ -> [v1, v2]
@@ -135,14 +135,13 @@ primVecs = \case
   RenderFilledPolygon vs _ -> vs
 
 -- | Estimate bounding-box corners of a label for viewBox calculation.
-labelBounds :: Vec2 -> LabelContent -> LabelPosition -> [Vec2]
-labelBounds (Vec2 x y) lbl pos =
+labelBounds :: Vec2 -> LabelContent -> LabelPosition -> Double -> [Vec2]
+labelBounds (Vec2 x y) lbl pos fSize =
   let (dx, dy, anchor) = labelOffset pos
       cx = x + dx
       cy = y - dy -- in math coords (positive up)
-      fontSize = 0.45 :: Double
-      halfH = fontSize / 2
-      charW = 0.27 :: Double -- approximate average character width at fontSize
+      halfH = fSize / 2
+      charW = 0.27 * (fSize / 0.45) :: Double -- scale with font size
       textLen = case lbl of
         PlainLabel t -> fromIntegral (T.length t)
         MathLabel t -> fromIntegral (T.length t)
@@ -164,7 +163,7 @@ renderPrimitive symbols = \case
     Svg.circle_
       [ SP.cx_ (ms $ show x)
       , SP.cy_ (ms $ show (-y))
-      , SP.r_ "0.1"
+      , SP.r_ (ms $ show (dotRadius env))
       , SP.fill_ (ms $ envColor env)
       ]
   RenderSegment (Vec2 x1 y1) (Vec2 x2 y2) env ->
@@ -185,7 +184,7 @@ renderPrimitive symbols = \case
               [ SP.x_ (ms $ show (x + dx))
               , SP.y_ (ms $ show (-(y - dy)))
               , SP.textAnchor_ (ms anchor)
-              , SP.fontSize_ "0.45"
+              , SP.fontSize_ (ms $ show (fontSize env))
               , SP.fill_ (ms $ envColor env)
               , SP.dominantBaseline_ "central"
               ]
@@ -199,7 +198,7 @@ renderPrimitive symbols = \case
                       [ SP.x_ (ms $ show (x + dx))
                       , SP.y_ (ms $ show (-(y - dy)))
                       , SP.textAnchor_ (ms anchor)
-                      , SP.fontSize_ "0.40"
+                      , SP.fontSize_ (ms $ show (fontSize env - 0.05))
                       , SP.fill_ (ms $ envColor env)
                       , SP.dominantBaseline_ "central"
                       , SP.fontStyle_ "italic"
@@ -329,9 +328,9 @@ renderPrimitive symbols = \case
 -- sub-1.0). We work around this by rendering the image at a 100× nominal
 -- size and wrapping it in a @\<g transform="translate(…) scale(0.01)"\>@.
 renderMathLabel :: Vec2 -> EmbeddedSymbol -> LabelPosition -> DrawEnv -> M.View model action
-renderMathLabel (Vec2 x y) es pos _env =
+renderMathLabel (Vec2 x y) es pos env =
   let parseEx t = maybe 1.0 id $ T.stripSuffix "ex" t >>= (readMaybe . T.unpack)
-      exToCoord = 0.22 :: Double -- ~0.5 * geometry fontSize (0.45)
+      exToCoord = 0.22 * (fontSize env / 0.45) :: Double
       imgW = parseEx es.width * exToCoord
       imgH = parseEx es.height * exToCoord
       (dx, dy, anchor) = labelOffset pos

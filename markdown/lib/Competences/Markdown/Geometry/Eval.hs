@@ -398,6 +398,8 @@ applyEnvMod = \case
   SetThick -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThickWidth}}
   SetThin -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThinWidth}}
   SetLabelDist d -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {labelDist = d}}
+  SetFontSize sz -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {fontSize = sz}}
+  SetDotRadius r -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {dotRadius = r}}
 
 -- -----------------------------------------------------------------
 -- Auto-decorators

@@ -91,26 +91,26 @@ parserGroup =
         [Label (LabelOnSegment (SegInline "A" "B") (PlainLabel "ab") SegAbove 0.3)]
     , parsesTo
         "modifier block dashed"
-        "dashed {\n  drawSegment A -- B\n}"
+        "@dashed {\n  drawSegment A -- B\n}"
         [ModifierBlock (EnvMod SetDashed) [Draw (DrawSegment (SegInline "A" "B"))]]
     , parsesTo
         "modifier block color"
-        "color red {\n  drawPoint A\n}"
+        "@color red {\n  drawPoint A\n}"
         [ModifierBlock (EnvMod (SetColor (NamedColor "red"))) [Draw (DrawPoint "A")]]
     , parsesTo
         "modifier block axes"
-        "axes {\n  drawPoint A\n}"
+        "@axes {\n  drawPoint A\n}"
         [ModifierBlock (AutoDec Axes) [Draw (DrawPoint "A")]]
     , parsesTo
         "modifier block labelAll"
-        "labelAll above {\n  drawPoint A\n  drawPoint B\n}"
+        "@labelAll above {\n  drawPoint A\n  drawPoint B\n}"
         [ ModifierBlock
             (AutoDec (LabelAll Above))
             [Draw (DrawPoint "A"), Draw (DrawPoint "B")]
         ]
     , parsesTo
         "nested modifiers"
-        "axes {\n  dashed {\n    drawSegment A -- B\n  }\n}"
+        "@axes {\n  @dashed {\n    drawSegment A -- B\n  }\n}"
         [ ModifierBlock
             (AutoDec Axes)
             [ ModifierBlock
@@ -127,11 +127,11 @@ parserGroup =
         ]
     , parsesTo
         "layer modifiers"
-        "background {\n  drawSegment A -- B\n}"
+        "@background {\n  drawSegment A -- B\n}"
         [ModifierBlock (LayerMod Background) [Draw (DrawSegment (SegInline "A" "B"))]]
     , parsesTo
         "comma-separated modifiers"
-        "axes, grid {\n  drawPoint A\n}"
+        "@axes, @grid {\n  drawPoint A\n}"
         [ ModifierBlock
             (AutoDec Axes)
             [ ModifierBlock
@@ -141,7 +141,7 @@ parserGroup =
         ]
     , parsesTo
         "comma-separated three modifiers"
-        "axes, grid, dashed {\n  drawSegment A -- B\n}"
+        "@axes, @grid, @dashed {\n  drawSegment A -- B\n}"
         [ ModifierBlock
             (AutoDec Axes)
             [ ModifierBlock
@@ -154,7 +154,7 @@ parserGroup =
         ]
     , parsesTo
         "comma-separated with color"
-        "color red, thick {\n  drawPoint A\n}"
+        "@color red, @thick {\n  drawPoint A\n}"
         [ ModifierBlock
             (EnvMod (SetColor (NamedColor "red")))
             [ ModifierBlock
@@ -192,11 +192,11 @@ parserGroup =
         ]
     , parsesTo
         "labelDist modifier block"
-        "labelDist 0.5 {\n  drawPoint A\n}"
+        "@labelDist 0.5 {\n  drawPoint A\n}"
         [ModifierBlock (EnvMod (SetLabelDist 0.5)) [Draw (DrawPoint "A")]]
     , parsesTo
         "labelDist comma-separated"
-        "labelDist 0.6, color red {\n  drawPoint A\n}"
+        "@labelDist 0.6, @color red {\n  drawPoint A\n}"
         [ ModifierBlock
             (EnvMod (SetLabelDist 0.6))
             [ ModifierBlock
@@ -204,6 +204,14 @@ parserGroup =
                 [Draw (DrawPoint "A")]
             ]
         ]
+    , parsesTo
+        "fontSize modifier block"
+        "@fontSize 0.6 {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetFontSize 0.6)) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "dotRadius modifier block"
+        "@dotRadius 0.15 {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetDotRadius 0.15)) [Draw (DrawPoint "A")]]
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
@@ -541,7 +549,7 @@ evalGroup =
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "angle label placement" $ do
         -- A=(1,0), B=(0,0), C=(0,1)
-        -- bisector at B = normalize((1,0)+(0,1)) = (1,1)/sqrt(2) → into the angle
+        -- bisector at B = normalize((1,0)+(0,1)) = (1,1)/sqrt(2) -> into the angle
         -- labelDist = 0.75 (default)
         -- label at (0.75/sqrt(2), 0.75/sqrt(2))
         let result =
@@ -633,6 +641,36 @@ evalGroup =
           [RenderLabel _ lbl _ _] ->
             lbl @?= PlainLabel "a"
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "fontSize scoping" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 1 1)
+                , ModifierBlock
+                    (EnvMod (SetFontSize 0.6))
+                    [Draw (DrawPoint "A")]
+                , Draw (DrawPoint "B")
+                ]
+        case main result of
+          [RenderDot _ env1, RenderDot _ env2] -> do
+            fontSize env1 @?= 0.6
+            fontSize env2 @?= 0.45
+          other -> assertFailure $ "Expected two dots, got: " <> show other
+    , testCase "dotRadius scoping" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 1 1)
+                , ModifierBlock
+                    (EnvMod (SetDotRadius 0.2))
+                    [Draw (DrawPoint "A")]
+                , Draw (DrawPoint "B")
+                ]
+        case main result of
+          [RenderDot _ env1, RenderDot _ env2] -> do
+            dotRadius env1 @?= 0.2
+            dotRadius env2 @?= 0.1
+          other -> assertFailure $ "Expected two dots, got: " <> show other
     , testCase "full example parse + eval" $ do
         let input =
               "defPoint A (0, 0)\n\
@@ -724,6 +762,29 @@ drawPolyParserGroup =
     , testCase "fewer than 3 vertices fails" $ do
         let result = parseGeometry "drawPoly A -- B"
         assertBool "should fail" (isLeft result)
+    , testCase "vertex decoration with @modifier" $ do
+        case parseGeometry "drawPoly A [@color red { point \"A\" }] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            -- The point decoration should be wrapped in a ModifierBlock
+            let colorBlocks = [c | ModifierBlock (EnvMod (SetColor (NamedColor c))) _ <- cmds]
+            colorBlocks @?= ["red"]
+    , testCase "edge decoration with @modifier" $ do
+        case parseGeometry "drawPoly A -[@dashed { segment \"c\" }]- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            -- The segment label should be wrapped in a ModifierBlock with dashed
+            let dashedBlocks = [() | ModifierBlock (EnvMod SetDashed) _ <- cmds]
+            length dashedBlocks @?= 1
+    , testCase "mixed modified and plain vertex decorations" $ do
+        case parseGeometry "drawPoly A [@color red { point \"A\" }, angle \"$\\\\alpha$\"] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            -- Should have a color-wrapped point + an angle
+            let colorBlocks = [c | ModifierBlock (EnvMod (SetColor (NamedColor c))) _ <- cmds]
+                angles = [ref | Draw (DrawAngle ref) <- cmds]
+            colorBlocks @?= ["red"]
+            length angles @?= 1
     ]
 
 -- -----------------------------------------------------------------
@@ -740,7 +801,7 @@ drawPolyEvalGroup =
         -- Edge C->A: dir=(0,-3), right perp = (-3,0)/3 = (-1,0)
         -- Edge A->B: dir=(4,0), right perp = (0,-4)/4 = (0,-1)
         -- Average outward: (-1,-1), normalized: (-1/sqrt(2), -1/sqrt(2))
-        -- Label offset: 0.75 along outward → (-0.75/sqrt(2), -0.75/sqrt(2))
+        -- Label offset: 0.75 along outward -> (-0.75/sqrt(2), -0.75/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -759,9 +820,9 @@ drawPolyEvalGroup =
     , testCase "LabelAutoPoint at top vertex — centered" $ do
         -- Equilateral-ish: A=(0,0), B=(4,0), C=(2,3)
         -- At vertex C, prev=B=(4,0), succ=A=(0,0)
-        -- Edge B→C: dir=(-2,3), outward normal = (3,2)/sqrt(13)
-        -- Edge C→A: dir=(-2,-3), outward normal = (-3,2)/sqrt(13)
-        -- Average: (0,4)/sqrt(13) → Above
+        -- Edge B->C: dir=(-2,3), outward normal = (3,2)/sqrt(13)
+        -- Edge C->A: dir=(-2,-3), outward normal = (-3,2)/sqrt(13)
+        -- Average: (0,4)/sqrt(13) -> Above
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -815,17 +876,17 @@ drawPolyEvalGroup =
         -- First fill goes to background, second is a no-op
         length (background result) @?= 1
     , testCase "fill block parser" $ do
-        case parseGeometry "fill red {\n  drawPoly A -- B -- C\n}" of
+        case parseGeometry "@fill red {\n  drawPoly A -- B -- C\n}" of
           Left err -> assertFailure $ "Parse failed: " <> show err
           Right cmds -> do
             -- Should be wrapped in ModifierBlock with SetFill
             case cmds of
               [ModifierBlock (EnvMod (SetFill (NamedColor "red"))) _children] -> pure ()
               other -> assertFailure $ "Expected fill modifier block, got: " <> show other
-    , testCase "LabelAutoPoint isosceles right — vertex A=(0,0) 90°" $ do
+    , testCase "LabelAutoPoint isosceles right — vertex A=(0,0) 90deg" $ do
         -- Triangle A=(0,0), B=(4,0), C=(0,4), right angle at A
         -- AngleRef "C" "A" "B": vertex A, arms toward C and B
-        -- Bisector = (1/√2, 1/√2) → outward = (-1/√2, -1/√2)
+        -- Bisector = (1/sqrt(2), 1/sqrt(2)) -> outward = (-1/sqrt(2), -1/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -841,9 +902,9 @@ drawPolyEvalGroup =
             assertApprox "ly" ((-invSqrt2) * 0.75) ly
             pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
-    , testCase "LabelAutoPoint isosceles right — vertex B=(4,0) 45°" $ do
+    , testCase "LabelAutoPoint isosceles right — vertex B=(4,0) 45deg" $ do
         -- AngleRef "A" "B" "C": vertex B, arms toward A and C
-        -- Bisector = (-cos(π/8), sin(π/8)) → outward = (cos(π/8), -sin(π/8))
+        -- Bisector = (-cos(pi/8), sin(pi/8)) -> outward = (cos(pi/8), -sin(pi/8))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -860,9 +921,9 @@ drawPolyEvalGroup =
             assertApprox "lx" (4 + cospi8 * 0.75) lx
             assertApprox "ly" ((-sinpi8) * 0.75) ly
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
-    , testCase "LabelAutoPoint isosceles right — vertex C=(0,4) 45°" $ do
+    , testCase "LabelAutoPoint isosceles right — vertex C=(0,4) 45deg" $ do
         -- AngleRef "B" "C" "A": vertex C, arms toward B and A
-        -- Bisector = (sin(π/8), -cos(π/8)) → outward = (-sin(π/8), cos(π/8))
+        -- Bisector = (sin(pi/8), -cos(pi/8)) -> outward = (-sin(pi/8), cos(pi/8))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
