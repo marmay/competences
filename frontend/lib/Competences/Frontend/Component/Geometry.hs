@@ -378,9 +378,9 @@ arcParams vx vy startAngle sweepAngle radius =
       endAngle = startAngle + sweepAngle
       ex = vx + radius * cos endAngle
       ey = -(vy + radius * sin endAngle)
-      -- In SVG, positive sweep is clockwise. Math positive sweep (CCW) with
-      -- Y-flip becomes CW in SVG, so sweepFlag matches sign of sweep.
-      sweepFlag = if sweepAngle > 0 then 1 else 0
+      -- Y-negation of endpoints preserves the rotation direction in SVG
+      -- coordinates, so math-CCW (positive sweep) maps to SVG-CCW (sweepFlag=0).
+      sweepFlag = if sweepAngle > 0 then 0 else 1
       largeArc = if abs sweepAngle > pi then 1 else 0
    in (sx, sy, ex, ey, largeArc, sweepFlag)
 

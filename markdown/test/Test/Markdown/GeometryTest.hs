@@ -466,6 +466,7 @@ evalGroup =
         -- Angle ABC: ray BA along +x, ray BC along +y
         -- startAngle = atan2(0-0, 1-0) = 0, endAngle = atan2(1-0, 0-0) = pi/2
         -- sweep = pi/2
+        -- radius: min(0.7, 0.5 * min(1, 1)) = 0.5
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -479,9 +480,10 @@ evalGroup =
             assertApprox "vy" 0 vy
             assertApprox "startAngle" 0 startA
             assertApprox "sweepAngle" (pi / 2) sweepA
-            radius @?= 0.4
+            assertApprox "radius" 0.5 radius
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "right angle arc" $ do
+        -- radius: min(0.5, 0.5 * min(1, 1)) = 0.5
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -495,7 +497,7 @@ evalGroup =
             assertApprox "vy" 0 vy
             assertApprox "startAngle" 0 startA
             assertApprox "sweepAngle" (pi / 2) sweepA
-            radius @?= 0.3
+            assertApprox "radius" 0.5 radius
           other -> assertFailure $ "Expected [RenderRightAngle], got: " <> show other
     , testCase "angle arc flips when sweep > pi" $ do
         -- A=(0,1), B=(0,0), C=(1,0): CCW from +y to +x is 3pi/2, should flip to -pi/2
@@ -512,6 +514,10 @@ evalGroup =
             assertApprox "sweepAngle" (-(pi / 2)) sweepA
           other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
     , testCase "angle label placement" $ do
+        -- A=(1,0), B=(0,0), C=(0,1)
+        -- outward at B = (1,1)/sqrt(2), inward = (-1,-1)/sqrt(2)
+        -- radius = min(0.7, 0.5*1) = 0.5, labelDist = 0.5*0.65 = 0.325
+        -- label at (-0.325/sqrt(2), -0.325/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -520,13 +526,53 @@ evalGroup =
                 , Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a"))
                 ]
         case main result of
-          [RenderLabel (Vec2 lx ly) lbl _pos _env] -> do
+          [RenderLabel (Vec2 lx ly) lbl pos _env] -> do
             lbl @?= PlainLabel "a"
-            -- Label at bisector (pi/4) at distance 0.65 from origin
-            let dist = 0.65
-            assertApprox "lx" (dist * cos (pi / 4)) lx
-            assertApprox "ly" (dist * sin (pi / 4)) ly
+            let labelDist = 0.5 * 0.65
+                invSqrt2 = 1 / sqrt 2
+            assertApprox "lx" ((-invSqrt2) * labelDist) lx
+            assertApprox "ly" ((-invSqrt2) * labelDist) ly
+            pos @?= BelowLeft
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "angle arc radius clamped for short edges" $ do
+        -- Edges of length 1.0: min(0.7, 0.5*1.0) = 0.5
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , Draw (DrawAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderAngleArc _ _ _ radius _] ->
+            assertApprox "clamped radius" 0.5 radius
+          other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
+    , testCase "angle arc radius unclamped for long edges" $ do
+        -- Edges of length 4.0 and 3.0: min(0.7, 0.5*3.0) = 0.7
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 4 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 3)
+                , Draw (DrawAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderAngleArc _ _ _ radius _] ->
+            assertApprox "unclamped radius" 0.7 radius
+          other -> assertFailure $ "Expected [RenderAngleArc], got: " <> show other
+    , testCase "right angle radius clamped for short edges" $ do
+        -- Edges of length 0.6: min(0.5, 0.5*0.6) = 0.3
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0.6 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 0.6)
+                , Draw (DrawRightAngle (AngleRef "A" "B" "C"))
+                ]
+        case main result of
+          [RenderRightAngle _ _ _ radius _] ->
+            assertApprox "clamped right angle radius" 0.3 radius
+          other -> assertFailure $ "Expected [RenderRightAngle], got: " <> show other
     , testCase "full example parse + eval" $ do
         let input =
               "defPoint A (0, 0)\n\
@@ -633,7 +679,8 @@ drawPolyEvalGroup =
         -- At vertex A=(0,0), prev=C=(0,3), succ=B=(4,0)
         -- Edge C->A: dir=(0,-3), right perp = (-3,0)/3 = (-1,0)
         -- Edge A->B: dir=(4,0), right perp = (0,-4)/4 = (0,-1)
-        -- Average outward: (-1,-1) -> BelowLeft
+        -- Average outward: (-1,-1), normalized: (-1/sqrt(2), -1/sqrt(2))
+        -- Label offset: 0.15 along outward → (-0.15/sqrt(2), -0.15/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -644,8 +691,9 @@ drawPolyEvalGroup =
         case main result of
           [RenderLabel (Vec2 lx ly) lbl pos _] -> do
             lbl @?= PlainLabel "A"
-            lx @?= 0
-            ly @?= 0
+            let invSqrt2 = 1 / sqrt 2
+            assertApprox "lx" ((-invSqrt2) * 0.15) lx
+            assertApprox "ly" ((-invSqrt2) * 0.15) ly
             pos @?= BelowLeft
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "LabelAutoPoint at top vertex — Above" $ do
@@ -662,7 +710,10 @@ drawPolyEvalGroup =
                 , Label (LabelAutoPoint (AngleRef "B" "C" "A") (PlainLabel "C"))
                 ]
         case main result of
-          [RenderLabel _ _ pos _] -> pos @?= Above
+          [RenderLabel (Vec2 _lx ly) _ pos _] -> do
+            pos @?= Above
+            -- Label should be offset upward from vertex
+            assertBool "ly > 3" (ly > 3)
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "DrawFilledPolygon with fill active — renders to background" $ do
         let result =

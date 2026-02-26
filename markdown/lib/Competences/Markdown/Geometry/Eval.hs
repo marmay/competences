@@ -147,18 +147,20 @@ evalDraw = \case
     env <- gets esDrawEnv
     case mPts of
       Nothing -> pure (mempty, mempty)
-      Just (_va, vb, _vc) -> do
-        let (start, sweep) = computeAngleArc _va vb _vc
-            prim = RenderAngleArc vb start sweep 0.4 env
+      Just (va, vb, vc) -> do
+        let (start, sweep) = computeAngleArc va vb vc
+            radius = clampRadius 0.7 vb va vc
+            prim = RenderAngleArc vb start sweep radius env
         pure (emitToLayer env prim, mempty)
   DrawRightAngle ref -> do
     mPts <- resolveAngleRef ref
     env <- gets esDrawEnv
     case mPts of
       Nothing -> pure (mempty, mempty)
-      Just (_va, vb, _vc) -> do
-        let (start, sweep) = computeAngleArc _va vb _vc
-            prim = RenderRightAngle vb start sweep 0.3 env
+      Just (va, vb, vc) -> do
+        let (start, sweep) = computeAngleArc va vb vc
+            radius = clampRadius 0.5 vb va vc
+            prim = RenderRightAngle vb start sweep radius env
         pure (emitToLayer env prim, mempty)
   DrawFilledPolygon names -> do
     pts <- gets esPoints
@@ -221,14 +223,16 @@ evalLabel = \case
     case mPts of
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
-        let (start, sweep) = computeAngleArc va vb vc
-            bisector = start + sweep / 2
-            radius = 0.4
-            labelDist = radius + 0.25
+        let (ox, oy) = outwardDirection va vb vc
+            len = sqrt (ox * ox + oy * oy)
+            -- Inward direction (toward polygon interior / angle interior)
+            (ix, iy) = if len == 0 then (0, -1) else (-ox / len, -oy / len)
+            radius = clampRadius 0.7 vb va vc
+            labelDist = radius * 0.65
             Vec2 bx by = vb
-            lx = bx + labelDist * cos bisector
-            ly = by + labelDist * sin bisector
-            prim = RenderLabel (Vec2 lx ly) txt Above env
+            labelVec = Vec2 (bx + ix * labelDist) (by + iy * labelDist)
+            anchor = directionToLabelPos ix iy
+            prim = RenderLabel labelVec txt anchor env
         pure (emitToLayer env prim, mempty)
   LabelAutoPoint ref txt -> do
     mPts <- resolveAngleRef ref
@@ -236,15 +240,19 @@ evalLabel = \case
     case mPts of
       Nothing -> pure (mempty, mempty)
       Just (va, vb, vc) -> do
-        let pos = autoLabelPosition va vb vc
-            prim = RenderLabel vb txt pos env
+        let (ox, oy) = outwardDirection va vb vc
+            len = sqrt (ox * ox + oy * oy)
+            (nx, ny) = if len == 0 then (0, 1) else (ox / len, oy / len)
+            Vec2 bx by = vb
+            labelVec = Vec2 (bx + nx * 0.15) (by + ny * 0.15)
+            anchor = directionToLabelPos nx ny
+            prim = RenderLabel labelVec txt anchor env
         pure (emitToLayer env prim, mempty)
 
--- | Compute the auto label position for a vertex B given predecessor A and successor C.
--- The label is placed in the outward direction (average of the two outward normals
--- of edges A→B and B→C, where outward = right side for CCW winding).
-autoLabelPosition :: Vec2 -> Vec2 -> Vec2 -> LabelPosition
-autoLabelPosition (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
+-- | Outward direction at vertex B for edges A→B and B→C (CCW convention).
+-- Returns unnormalized direction vector (sum of two unit outward normals).
+outwardDirection :: Vec2 -> Vec2 -> Vec2 -> (Double, Double)
+outwardDirection (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
   let -- Edge A→B: direction and outward normal (right perpendicular for CCW)
       d1x = bx - ax
       d1y = by - ay
@@ -259,10 +267,7 @@ autoLabelPosition (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
       (n2x, n2y)
         | len2 == 0 = (0, 1)
         | otherwise = (d2y / len2, -(d2x / len2))
-      -- Average outward direction
-      ox = n1x + n2x
-      oy = n1y + n2y
-   in directionToLabelPos ox oy
+   in (n1x + n2x, n1y + n2y)
 
 -- | Map a 2D direction vector to the nearest of 8 label positions.
 -- Uses angle sectors of 45 degrees each.
@@ -480,6 +485,20 @@ extractMathLabels = concatMap go
 -- -----------------------------------------------------------------
 -- Helpers
 -- -----------------------------------------------------------------
+
+-- | Desired radius clamped to half the distance to either arm point.
+clampRadius :: Double -> Vec2 -> Vec2 -> Vec2 -> Double
+clampRadius desired vb va vc =
+  let distA = vecDist vb va
+      distC = vecDist vb vc
+   in min desired (0.5 * min distA distC)
+
+-- | Euclidean distance between two points.
+vecDist :: Vec2 -> Vec2 -> Double
+vecDist (Vec2 x1 y1) (Vec2 x2 y2) =
+  let dx = x2 - x1
+      dy = y2 - y1
+   in sqrt (dx * dx + dy * dy)
 
 -- | Route a render primitive to the appropriate layer
 emitToLayer :: DrawEnv -> RenderPrimitive -> RenderResult
