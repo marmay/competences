@@ -135,11 +135,15 @@ data Modifier
   deriving (Eq, Show)
 
 data EnvModifier
-  = SetColor !Color
+  = SetLineColor !Color
+  | SetTextColor !Color
+  | SetFillColor !Color
+  | SetColor !Color
+  | SetFigure !Color
+  | SetPalette !Color
   | SetDashed
   | SetThick
   | SetThin
-  | SetFill !Color
   | SetLabelDist !Double
   | SetFontSize !Double
   | SetDotRadius !Double
@@ -157,7 +161,8 @@ data SegmentSide = SegAbove | SegBelow
 
 -- | Drawing environment (scoped by modifier blocks)
 data DrawEnv = DrawEnv
-  { color :: !Color
+  { lineColor :: !Color
+  , textColor :: !Color
   , lineStyle :: !LineStyle
   , lineWidth :: !LineWidth
   , layer :: !Layer
@@ -171,7 +176,8 @@ data DrawEnv = DrawEnv
 defaultDrawEnv :: DrawEnv
 defaultDrawEnv =
   DrawEnv
-    { color = CurrentColor
+    { lineColor = CurrentColor
+    , textColor = CurrentColor
     , lineStyle = Solid
     , lineWidth = NormalWidth
     , layer = Main

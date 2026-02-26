@@ -403,14 +403,20 @@ evalModifierBlock modifier children = do
 
 applyEnvMod :: EnvModifier -> Eval ()
 applyEnvMod = \case
-  SetColor c -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {color = c}}
-  SetFill c -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {fillColor = Just c}}
-  SetDashed -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineStyle = Dashed}}
-  SetThick -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThickWidth}}
-  SetThin -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThinWidth}}
-  SetLabelDist d -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {labelDist = d}}
-  SetFontSize sz -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {fontSize = sz}}
-  SetDotRadius r -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {dotRadius = r}}
+  SetLineColor c -> modifyEnv $ \e -> e {lineColor = c}
+  SetTextColor c -> modifyEnv $ \e -> e {textColor = c}
+  SetFillColor c -> modifyEnv $ \e -> e {fillColor = Just c}
+  SetColor c -> modifyEnv $ \e -> e {lineColor = c, textColor = c}
+  SetFigure c -> modifyEnv $ \e -> e {lineColor = c, fillColor = Just c}
+  SetPalette c -> modifyEnv $ \e -> e {lineColor = c, textColor = c, fillColor = Just c}
+  SetDashed -> modifyEnv $ \e -> e {lineStyle = Dashed}
+  SetThick -> modifyEnv $ \e -> e {lineWidth = ThickWidth}
+  SetThin -> modifyEnv $ \e -> e {lineWidth = ThinWidth}
+  SetLabelDist d -> modifyEnv $ \e -> e {labelDist = d}
+  SetFontSize sz -> modifyEnv $ \e -> e {fontSize = sz}
+  SetDotRadius r -> modifyEnv $ \e -> e {dotRadius = r}
+  where
+    modifyEnv f = modify' $ \s -> s {esDrawEnv = f (esDrawEnv s)}
 
 -- -----------------------------------------------------------------
 -- Auto-decorators
@@ -445,7 +451,7 @@ generateAxes pts
           maxX = max 0 (maximum xs) + 1
           minY = min 0 (minimum ys) - 1
           maxY = max 0 (maximum ys) + 1
-          axisEnv = defaultDrawEnv {layer = Background, color = NamedColor "gray"}
+          axisEnv = defaultDrawEnv {layer = Background, lineColor = NamedColor "gray", textColor = NamedColor "gray"}
           tickEnv = axisEnv
           -- X axis
           xAxis = RenderAxisLine (Vec2 minX 0) (Vec2 maxX 0) axisEnv
@@ -477,7 +483,7 @@ generateGrid pts
           maxX = fromIntegral (ceiling (maximum xs) + 1 :: Int)
           minY = fromIntegral (floor (minimum ys) - 1 :: Int)
           maxY = fromIntegral (ceiling (maximum ys) + 1 :: Int)
-          gridEnv = defaultDrawEnv {layer = Background, color = NamedColor "lightgray"}
+          gridEnv = defaultDrawEnv {layer = Background, lineColor = NamedColor "lightgray"}
           -- Vertical grid lines
           vLines =
             [ RenderGridLine (Vec2 x minY) (Vec2 x maxY) gridEnv

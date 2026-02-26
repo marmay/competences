@@ -30,6 +30,8 @@ module Competences.Markdown.Geometry.Parser
 where
 
 import Competences.Markdown.Geometry.AST
+import Competences.Markdown.Geometry.Palette (paletteNames)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void (Void)
@@ -320,8 +322,12 @@ modifierValueP :: Parser Modifier
 modifierValueP = do
   kw <- lexeme keywordP
   case kw of
-    "color" -> EnvMod . SetColor . NamedColor <$> lexeme nameP
-    "fill" -> EnvMod . SetFill . NamedColor <$> lexeme nameP
+    "lineColor" -> EnvMod . SetLineColor . NamedColor <$> lexeme paletteColorP
+    "textColor" -> EnvMod . SetTextColor . NamedColor <$> lexeme paletteColorP
+    "fillColor" -> EnvMod . SetFillColor . NamedColor <$> lexeme paletteColorP
+    "color" -> EnvMod . SetColor . NamedColor <$> lexeme paletteColorP
+    "figure" -> EnvMod . SetFigure . NamedColor <$> lexeme paletteColorP
+    "palette" -> EnvMod . SetPalette . NamedColor <$> lexeme paletteColorP
     "dashed" -> pure $ EnvMod SetDashed
     "thick" -> pure $ EnvMod SetThick
     "thin" -> pure $ EnvMod SetThin
@@ -338,6 +344,19 @@ modifierValueP = do
       mCenter <- optional (lexeme nameP)
       pure $ TransformMod (Scale factor mCenter)
     _ -> fail $ "Unknown modifier: " <> T.unpack kw
+
+-- | Parse a palette color name, failing with a helpful message for unknown names.
+paletteColorP :: Parser Text
+paletteColorP = do
+  name <- nameP
+  if Set.member name paletteNames
+    then pure name
+    else
+      fail $
+        "Unknown palette color: "
+          <> T.unpack name
+          <> ". Available: "
+          <> T.unpack (T.intercalate ", " (Set.toAscList paletteNames))
 
 -- | Parse @{ commands }@ with a given modifier, optionally preceded by
 -- comma-separated additional @\@@-prefixed modifiers: @\@axes, \@grid { ... }@

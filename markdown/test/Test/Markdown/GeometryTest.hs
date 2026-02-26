@@ -2,6 +2,7 @@ module Test.Markdown.GeometryTest (geometryTests) where
 
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene, extractMathLabels)
+import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -25,6 +26,7 @@ geometryTests =
     , drawPolyParserGroup
     , drawPolyEvalGroup
     , scaleTransformGroup
+    , paletteGroup
     , versionGroup
     ]
 
@@ -416,8 +418,9 @@ evalGroup =
                     [Draw (DrawPoint "A")]
                 ]
         case main result of
-          [RenderDot _ env] ->
-            color env @?= NamedColor "red"
+          [RenderDot _ env] -> do
+            lineColor env @?= NamedColor "red"
+            textColor env @?= NamedColor "red"
           other -> assertFailure $ "Expected colored dot, got: " <> show other
     , testCase "environment scoping" $ do
         let result =
@@ -881,7 +884,7 @@ drawPolyEvalGroup =
                 , DefPoint "B" (Vec2 4 0)
                 , DefPoint "C" (Vec2 0 3)
                 , ModifierBlock
-                    (EnvMod (SetFill (NamedColor "red")))
+                    (EnvMod (SetFillColor (NamedColor "red")))
                     [Draw (DrawFilledPolygon ["A", "B", "C"])]
                 ]
         case background result of
@@ -907,20 +910,20 @@ drawPolyEvalGroup =
                 , DefPoint "B" (Vec2 4 0)
                 , DefPoint "C" (Vec2 0 3)
                 , ModifierBlock
-                    (EnvMod (SetFill (NamedColor "blue")))
+                    (EnvMod (SetFillColor (NamedColor "blue")))
                     [Draw (DrawFilledPolygon ["A", "B", "C"])]
                 , Draw (DrawFilledPolygon ["A", "B", "C"])
                 ]
         -- First fill goes to background, second is a no-op
         length (background result) @?= 1
-    , testCase "fill block parser" $ do
-        case parseGeometry "@fill red {\n  drawPoly A -- B -- C\n}" of
+    , testCase "fillColor block parser" $ do
+        case parseGeometry "@fillColor red {\n  drawPoly A -- B -- C\n}" of
           Left err -> assertFailure $ "Parse failed: " <> show err
           Right cmds -> do
-            -- Should be wrapped in ModifierBlock with SetFill
+            -- Should be wrapped in ModifierBlock with SetFillColor
             case cmds of
-              [ModifierBlock (EnvMod (SetFill (NamedColor "red"))) _children] -> pure ()
-              other -> assertFailure $ "Expected fill modifier block, got: " <> show other
+              [ModifierBlock (EnvMod (SetFillColor (NamedColor "red"))) _children] -> pure ()
+              other -> assertFailure $ "Expected fillColor modifier block, got: " <> show other
     , testCase "LabelAutoPoint isosceles right — vertex A=(0,0) 90deg" $ do
         -- Triangle A=(0,0), B=(4,0), C=(0,4), right angle at A
         -- AngleRef "C" "A" "B": vertex A, arms toward C and B
@@ -1058,10 +1061,10 @@ scaleTransformGroup =
         "@scale 2.0 M {\n  drawPoint A\n}"
         [ModifierBlock (TransformMod (Scale 2.0 (Just "M"))) [Draw (DrawPoint "A")]]
     , parsesTo
-        "@scale comma-separated with fill"
-        "@fill blue, @scale 0.95 {\n  drawPoly A -- B -- C\n}"
+        "@scale comma-separated with fillColor"
+        "@fillColor blue, @scale 0.95 {\n  drawPoly A -- B -- C\n}"
         [ ModifierBlock
-            (EnvMod (SetFill (NamedColor "blue")))
+            (EnvMod (SetFillColor (NamedColor "blue")))
             [ ModifierBlock
                 (TransformMod (Scale 0.95 Nothing))
                 -- drawPoly desugars into fill + segments
@@ -1160,7 +1163,7 @@ scaleTransformGroup =
                 , DefPoint "B" (Vec2 6 0)
                 , DefPoint "C" (Vec2 0 6)
                 , ModifierBlock
-                    (EnvMod (SetFill (NamedColor "blue")))
+                    (EnvMod (SetFillColor (NamedColor "blue")))
                     [ ModifierBlock
                         (TransformMod (Scale 0.5 Nothing))
                         [Draw (DrawFilledPolygon ["A", "B", "C"])]
@@ -1290,6 +1293,157 @@ scaleTransformGroup =
             assertApprox "vy" 0 vy
             assertApprox "radius" 0.5 radius
           other -> assertFailure $ "Expected right angle, got: " <> show other
+    ]
+
+-- -----------------------------------------------------------------
+-- Palette tests
+-- -----------------------------------------------------------------
+
+paletteGroup :: TestTree
+paletteGroup =
+  testGroup
+    "Palette"
+    [ -- Resolve functions
+      testCase "resolveStrokeColor — palette entry" $
+        resolveStrokeColor (NamedColor "red") @?= "var(--color-red-600)"
+    , testCase "resolveFillColor — palette entry" $
+        resolveFillColor (NamedColor "red") @?= "var(--color-red-100)"
+    , testCase "resolveStrokeColor — all palette entries" $ do
+        resolveStrokeColor (NamedColor "blue") @?= "var(--color-blue-600)"
+        resolveStrokeColor (NamedColor "green") @?= "var(--color-green-600)"
+        resolveStrokeColor (NamedColor "orange") @?= "var(--color-orange-600)"
+        resolveStrokeColor (NamedColor "purple") @?= "var(--color-purple-600)"
+    , testCase "resolveFillColor — all palette entries" $ do
+        resolveFillColor (NamedColor "blue") @?= "var(--color-blue-100)"
+        resolveFillColor (NamedColor "green") @?= "var(--color-green-100)"
+        resolveFillColor (NamedColor "orange") @?= "var(--color-orange-100)"
+        resolveFillColor (NamedColor "purple") @?= "var(--color-purple-100)"
+    , testCase "resolveStrokeColor — non-palette passthrough" $
+        resolveStrokeColor (NamedColor "gray") @?= "gray"
+    , testCase "resolveFillColor — non-palette passthrough" $
+        resolveFillColor (NamedColor "lightgray") @?= "lightgray"
+    , testCase "resolveStrokeColor — CurrentColor" $
+        resolveStrokeColor CurrentColor @?= "currentColor"
+    , testCase "resolveFillColor — CurrentColor" $
+        resolveFillColor CurrentColor @?= "currentColor"
+    , -- Parser: all 5 palette names accepted
+      parsesTo
+        "@color red"
+        "@color red {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetColor (NamedColor "red"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@color blue"
+        "@color blue {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetColor (NamedColor "blue"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@color green"
+        "@color green {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetColor (NamedColor "green"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@color orange"
+        "@color orange {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetColor (NamedColor "orange"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@color purple"
+        "@color purple {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetColor (NamedColor "purple"))) [Draw (DrawPoint "A")]]
+    , -- Parser: unknown name rejected
+      testCase "unknown palette color rejected" $ do
+        let result = parseGeometry "@color magenta {\n  drawPoint A\n}"
+        assertBool "should fail" (isLeft result)
+    , -- Parser: new keywords
+      parsesTo
+        "@lineColor red"
+        "@lineColor red {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetLineColor (NamedColor "red"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@textColor blue"
+        "@textColor blue {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetTextColor (NamedColor "blue"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@fillColor green"
+        "@fillColor green {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetFillColor (NamedColor "green"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@figure orange"
+        "@figure orange {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetFigure (NamedColor "orange"))) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "@palette purple"
+        "@palette purple {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetPalette (NamedColor "purple"))) [Draw (DrawPoint "A")]]
+    , -- Eval: SetColor sets both lineColor and textColor
+      testCase "SetColor sets lineColor + textColor" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , ModifierBlock
+                    (EnvMod (SetColor (NamedColor "red")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot _ env] -> do
+            lineColor env @?= NamedColor "red"
+            textColor env @?= NamedColor "red"
+          other -> assertFailure $ "Expected dot, got: " <> show other
+    , -- Eval: SetPalette sets all three
+      testCase "SetPalette sets lineColor + textColor + fillColor" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , ModifierBlock
+                    (EnvMod (SetPalette (NamedColor "blue")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot _ env] -> do
+            lineColor env @?= NamedColor "blue"
+            textColor env @?= NamedColor "blue"
+            fillColor env @?= Just (NamedColor "blue")
+          other -> assertFailure $ "Expected dot, got: " <> show other
+    , -- Eval: SetFigure sets lineColor + fillColor
+      testCase "SetFigure sets lineColor + fillColor" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , ModifierBlock
+                    (EnvMod (SetFigure (NamedColor "green")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot _ env] -> do
+            lineColor env @?= NamedColor "green"
+            textColor env @?= CurrentColor
+            fillColor env @?= Just (NamedColor "green")
+          other -> assertFailure $ "Expected dot, got: " <> show other
+    , -- Eval: SetLineColor only changes lineColor
+      testCase "SetLineColor only changes lineColor" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , ModifierBlock
+                    (EnvMod (SetLineColor (NamedColor "red")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot _ env] -> do
+            lineColor env @?= NamedColor "red"
+            textColor env @?= CurrentColor
+          other -> assertFailure $ "Expected dot, got: " <> show other
+    , -- Eval: SetTextColor only changes textColor
+      testCase "SetTextColor only changes textColor" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , ModifierBlock
+                    (EnvMod (SetTextColor (NamedColor "blue")))
+                    [Draw (DrawPoint "A")]
+                ]
+        case main result of
+          [RenderDot _ env] -> do
+            lineColor env @?= CurrentColor
+            textColor env @?= NamedColor "blue"
+          other -> assertFailure $ "Expected dot, got: " <> show other
     ]
 
 -- -----------------------------------------------------------------

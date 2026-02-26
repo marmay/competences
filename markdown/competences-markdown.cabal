@@ -22,6 +22,7 @@ library
         Competences.Markdown.Parser.Inline
         Competences.Markdown.Geometry.AST
         Competences.Markdown.Geometry.Eval
+        Competences.Markdown.Geometry.Palette
         Competences.Markdown.Geometry.Parser
         Competences.Markdown.Validation
     build-depends:

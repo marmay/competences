@@ -16,6 +16,7 @@ import Competences.Frontend.SvgEmbed.Manager (EmbeddedSymbol (..), MathDisplay (
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
+import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -165,7 +166,7 @@ renderPrimitive symbols = \case
       [ SP.cx_ (ms $ show x)
       , SP.cy_ (ms $ show (-y))
       , SP.r_ (ms $ show (dotRadius env))
-      , SP.fill_ (ms $ envColor env)
+      , SP.fill_ (ms $ envLineColor env)
       ]
   RenderSegment (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
@@ -173,7 +174,7 @@ renderPrimitive symbols = \case
       , SP.y1_ (ms $ show (-y1))
       , SP.x2_ (ms $ show x2)
       , SP.y2_ (ms $ show (-y2))
-      , SP.stroke_ (ms $ envColor env)
+      , SP.stroke_ (ms $ envLineColor env)
       , SP.strokeWidth_ (ms $ envStrokeWidth env)
       , envDashAttr env
       ]
@@ -188,7 +189,7 @@ renderPrimitive symbols = \case
                   , SP.y_ (ms $ show (-(y - dy)))
                   , SP.textAnchor_ (ms anchor)
                   , SP.fontSize_ (ms $ show (fontSize env))
-                  , SP.fill_ (ms $ envColor env)
+                  , SP.fill_ (ms $ envTextColor env)
                   , SP.dominantBaseline_ "central"
                   ]
                   [M.text (ms txt)]
@@ -202,7 +203,7 @@ renderPrimitive symbols = \case
                           , SP.y_ (ms $ show (-(y - dy)))
                           , SP.textAnchor_ (ms anchor)
                           , SP.fontSize_ (ms $ show (fontSize env - 0.05))
-                          , SP.fill_ (ms $ envColor env)
+                          , SP.fill_ (ms $ envTextColor env)
                           , SP.dominantBaseline_ "central"
                           , SP.fontStyle_ "italic"
                           ]
@@ -214,7 +215,7 @@ renderPrimitive symbols = \case
       , SP.y1_ (ms $ show (-y1))
       , SP.x2_ (ms $ show x2)
       , SP.y2_ (ms $ show (-y2))
-      , SP.stroke_ (ms $ envColor env)
+      , SP.stroke_ (ms $ envLineColor env)
       , SP.strokeWidth_ "0.03"
       ]
   RenderTick (Vec2 x y) txt env ->
@@ -237,7 +238,7 @@ renderPrimitive symbols = \case
                       , SP.y2_ (ms $ show (-y + 0.1))
                       ]
                 )
-                  <> [ SP.stroke_ (ms $ envColor env)
+                  <> [ SP.stroke_ (ms $ envLineColor env)
                      , SP.strokeWidth_ "0.02"
                      ]
               )
@@ -256,7 +257,7 @@ renderPrimitive symbols = \case
                       ]
                 )
                   <> [ SP.fontSize_ "0.35"
-                     , SP.fill_ (ms $ envColor env)
+                     , SP.fill_ (ms $ envTextColor env)
                      ]
               )
               [M.text (ms txt)]
@@ -267,7 +268,7 @@ renderPrimitive symbols = \case
       , SP.y1_ (ms $ show (-y1))
       , SP.x2_ (ms $ show x2)
       , SP.y2_ (ms $ show (-y2))
-      , SP.stroke_ (ms $ envColor env)
+      , SP.stroke_ (ms $ envLineColor env)
       , SP.strokeWidth_ "0.01"
       ]
   RenderAngleArc (Vec2 vx vy) startAngle sweepAngle radius env ->
@@ -279,7 +280,7 @@ renderPrimitive symbols = \case
                 <> " A " <> show radius <> " " <> show radius
                 <> " 0 " <> show largeArc <> " " <> show sweepFlag
                 <> " " <> show ex <> " " <> show ey
-          , SP.stroke_ (ms $ envColor env)
+          , SP.stroke_ (ms $ envLineColor env)
           , SP.strokeWidth_ (ms $ envStrokeWidth env)
           , SP.fill_ "none"
           , envDashAttr env
@@ -299,7 +300,7 @@ renderPrimitive symbols = \case
                     <> " A " <> show radius <> " " <> show radius
                     <> " 0 " <> show largeArc <> " " <> show sweepFlag
                     <> " " <> show ex <> " " <> show ey
-              , SP.stroke_ (ms $ envColor env)
+              , SP.stroke_ (ms $ envLineColor env)
               , SP.strokeWidth_ (ms $ envStrokeWidth env)
               , SP.fill_ "none"
               , envDashAttr env
@@ -308,7 +309,7 @@ renderPrimitive symbols = \case
               [ SP.cx_ (ms $ show dotX)
               , SP.cy_ (ms $ show dotY)
               , SP.r_ "0.04"
-              , SP.fill_ (ms $ envColor env)
+              , SP.fill_ (ms $ envLineColor env)
               ]
           ]
   RenderFilledPolygon vecs env ->
@@ -317,8 +318,7 @@ renderPrimitive symbols = \case
       Just fc ->
         Svg.polygon_
           [ SP.points_ $ ms $ pointsString vecs
-          , SP.fill_ (ms $ envColor' fc)
-          , M.textProp "fill-opacity" "0.15"
+          , SP.fill_ (ms $ envFillColor fc)
           , SP.stroke_ "none"
           ]
 
@@ -394,15 +394,17 @@ arcParams vx vy startAngle sweepAngle radius =
 pointsString :: [Vec2] -> Text
 pointsString = T.intercalate " " . map (\(Vec2 x y) -> T.pack (show x <> "," <> show (-y)))
 
--- | Color value from a 'Color' (without DrawEnv lookup)
-envColor' :: Color -> Text
-envColor' CurrentColor = "currentColor"
-envColor' (NamedColor c) = c
+-- | Line/stroke color from DrawEnv (resolved through palette)
+envLineColor :: DrawEnv -> Text
+envLineColor env = resolveStrokeColor (lineColor env)
 
-envColor :: DrawEnv -> Text
-envColor env = case color env of
-  CurrentColor -> "currentColor"
-  NamedColor c -> c
+-- | Text color from DrawEnv (resolved through palette)
+envTextColor :: DrawEnv -> Text
+envTextColor env = resolveStrokeColor (textColor env)
+
+-- | Fill color resolved through palette (uses fill shade)
+envFillColor :: Color -> Text
+envFillColor = resolveFillColor
 
 envStrokeWidth :: DrawEnv -> Text
 envStrokeWidth env = case lineWidth env of
