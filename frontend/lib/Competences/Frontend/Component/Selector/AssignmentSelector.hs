@@ -25,6 +25,7 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
@@ -212,7 +213,7 @@ assignmentSelectorComponent r initialSelection parentLens =
             [ -- Line 1: Icon + Name
               M.div_
                 [class_ "flex items-center gap-2"]
-                [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] Icon.IcnAssignment
+                [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] (EvidenceIcon.activityTypeIcon a.activityType)
                 , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unAssignmentName a.name]
                 ]
             , -- Line 2: Date + Status

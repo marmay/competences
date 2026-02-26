@@ -85,7 +85,8 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
@@ -385,9 +386,15 @@ viewerComponent r user assignment wm =
 
     update PinThis = M.io_ $
       let AssignmentName nameText = assignment.name
-          chrome = WindowChrome (M.ms nameText) Icon.IcnAssignment
+          chrome = WindowChrome (M.ms nameText) (EvidenceIcon.activityTypeIcon assignment.activityType)
+          meta = PinMeta
+            { key = "assignment-" <> idToText assignment.id
+            , category = PinCatAssignment
+            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+            , context = Just (ms nameText)
+            }
        in pinDialogWith r.windowManager
-            (PinId $ "assignment-" <> idToText assignment.id)
+            meta
             chrome
             (viewerComponent r user assignment)
 

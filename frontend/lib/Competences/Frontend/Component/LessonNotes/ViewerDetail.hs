@@ -29,7 +29,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -114,8 +114,14 @@ viewerComponent r ln wm =
 
     update PinThis = M.io_ $
       let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+          meta = PinMeta
+            { key = "lesson-notes-" <> idToText ln.id
+            , category = PinCatLessonNotes
+            , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
+            , context = Just (M.ms ln.title)
+            }
        in pinDialogWith r.windowManager
-            (PinId $ "lesson-notes-" <> idToText ln.id)
+            meta
             chrome
             (viewerComponent r ln)
 

@@ -142,7 +142,7 @@ pinFrame chrome toggleAction closeAction content =
 
 -- | Sidebar icon button for a pinned dialog.
 --
--- Renders a ~48x48 icon button with optional numeric badge overlay.
+-- Renders a ~48x48 icon button with optional context badge overlay.
 -- Active (currently visible) dialogs are highlighted.
 pinSidebarIcon
   :: Icon.Icon
@@ -151,22 +151,22 @@ pinSidebarIcon
   -- ^ Hover text (tooltip)
   -> Bool
   -- ^ Whether this pin is currently visible (active)
-  -> Maybe Int
-  -- ^ Optional numeric badge (for disambiguating duplicate icons)
+  -> Maybe M.MisoString
+  -- ^ Optional context badge (e.g. assignment name)
   -> a
   -- ^ Click action
   -> M.View m a
-pinSidebarIcon icn title isActive badgeNumber clickAction =
+pinSidebarIcon icn title isActive badgeText clickAction =
   M.div_
     [class_ "relative"]
     [ withTooltip (PlainTooltip title) $
         Button.toggleLg isActive (Button.button icn (Just clickAction))
     , -- Badge overlay
-      case badgeNumber of
+      case badgeText of
         Nothing -> M.text ""
-        Just n ->
+        Just t ->
           M.span_
-            [ class_ "absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center"
+            [ class_ "absolute -bottom-1 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-bold rounded-full max-w-12 truncate px-1 flex items-center justify-center"
             ]
-            [M.text $ M.ms (show n)]
+            [M.text t]
     ]

@@ -21,7 +21,8 @@ import Competences.Frontend.SyncContext.WindowManager
   , ModalConfig (..)
   , ModalId (..)
   , Model (..)
-  , PinId (..)
+  , PinId
+  , PinMeta (..)
   , PinVisibility (..)
   , WindowChange (..)
   , WindowChrome (..)
@@ -33,6 +34,7 @@ import Competences.Frontend.SyncContext.WindowManager
   )
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (modalFrame, pinFrame, pinSidebarIcon)
+import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -87,39 +89,35 @@ windowHostComponent ref =
 
 -- | Render all pinned dialogs. Visible ones get the overlay frame styling.
 -- Minimized ones are kept in the DOM with @class "hidden"@ to preserve state.
+-- Sorted by (category, sortKey) for deterministic ordering.
 renderPinnedDialogs :: Model -> M.View Model Action
 renderPinnedDialogs m =
   MH.div_
     []
-    (map renderOnePin m.pinOrder)
+    (map renderOnePin (sortedPins m))
   where
-    renderOnePin pid = case Map.lookup pid m.pinnedDialogs of
-      Nothing -> M.text ""
-      Just (AnyPinnedDialog comp chrome, visibility) ->
-        case visibility of
-          PinVisible ->
-            MH.div_
-              [ class_
-                  "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
-              ]
-              [ pinFrame
-                  chrome
-                  (TogglePin pid)
-                  (ClosePin pid)
-                  [MH.div_ [class_ "flex-1 min-h-0"] [M.ms ("pin-" <> unPinId pid) M.+> comp]]
-              ]
-          PinMinimized ->
-            -- Keep in DOM but hidden to preserve component state
-            MH.div_
-              [class_ "hidden"]
-              [M.ms ("pin-" <> unPinId pid) M.+> comp]
-
--- | Extract the raw text from a PinId.
-unPinId :: PinId -> M.MisoString
-unPinId (PinId t) = M.ms t
+    renderOnePin (pid, AnyPinnedDialog comp chrome meta, visibility) =
+      case visibility of
+        PinVisible ->
+          MH.div_
+            [ class_
+                "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
+            ]
+            [ pinFrame
+                chrome
+                (TogglePin pid)
+                (ClosePin pid)
+                [MH.div_ [class_ "flex-1 min-h-0"] [M.ms ("pin-" <> M.ms meta.key) M.+> comp]]
+            ]
+        PinMinimized ->
+          -- Keep in DOM but hidden to preserve component state
+          MH.div_
+            [class_ "hidden"]
+            [M.ms ("pin-" <> M.ms meta.key) M.+> comp]
 
 -- | Render the sidebar icon strip on the right edge.
 -- Only shown when there are pinned dialogs.
+-- Sorted by (category, sortKey) for deterministic ordering.
 renderSidebar :: Model -> M.View Model Action
 renderSidebar m
   | null m.pinOrder = M.text ""
@@ -128,43 +126,20 @@ renderSidebar m
         [ class_
             "relative z-40 w-16 h-screen flex-shrink-0 flex flex-col items-center gap-2 py-16 bg-muted/80 border-l border-border"
         ]
-        (map renderSidebarEntry m.pinOrder)
+        (map renderSidebarEntry (sortedPins m))
   where
-    -- Count how many pins share each icon to assign badge numbers
-    iconCounts :: Map.Map Int Int
-    iconCounts = foldl countIcon Map.empty m.pinOrder
-      where
-        countIcon acc pid = case Map.lookup pid m.pinnedDialogs of
-          Nothing -> acc
-          Just (AnyPinnedDialog _ chrome, _) ->
-            let k = fromEnum chrome.icon
-             in Map.insertWith (+) k 1 acc
+    renderSidebarEntry (pid, AnyPinnedDialog _ chrome meta, visibility) =
+      let isActive = visibility == PinVisible
+       in pinSidebarIcon chrome.icon chrome.title isActive meta.context (TogglePin pid)
 
-    -- Track which occurrence of each icon we're rendering
-    renderSidebarEntry pid = case Map.lookup pid m.pinnedDialogs of
-      Nothing -> M.text ""
-      Just (AnyPinnedDialog _ chrome, visibility) ->
-        let isActive = visibility == PinVisible
-            k = fromEnum chrome.icon
-            totalWithSameIcon = Map.findWithDefault 0 k iconCounts
-            badge =
-              if totalWithSameIcon > 1
-                then Just (indexOfIcon pid chrome.icon)
-                else Nothing
-         in pinSidebarIcon chrome.icon chrome.title isActive badge (TogglePin pid)
-
-    -- Compute 1-based index of this pin among pins with the same icon
-    indexOfIcon pid icn =
-      let sameIconPins =
-            [ p
-            | p <- m.pinOrder
-            , case Map.lookup p m.pinnedDialogs of
-                Just (AnyPinnedDialog _ ch, _) -> fromEnum ch.icon == fromEnum icn
-                Nothing -> False
-            ]
-       in case lookup pid (zip sameIconPins [1 ..]) of
-            Just n -> n
-            Nothing -> 0
+-- | Extract and sort pinned dialogs by (category, sortKey).
+sortedPins :: Model -> [(PinId, AnyPinnedDialog, PinVisibility)]
+sortedPins m =
+  sortOn (\(_pid, AnyPinnedDialog _ _ meta, _vis) -> (meta.category, meta.sortKey)) $
+    [ (pid, dialog, visibility)
+    | pid <- m.pinOrder
+    , Just (dialog, visibility) <- [Map.lookup pid m.pinnedDialogs]
+    ]
 
 -- | Render a semi-transparent backdrop when any pinned dialog is visible.
 renderPinBackdrop :: Model -> M.View Model Action

@@ -46,7 +46,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModal, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModal, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -316,8 +316,14 @@ viewerComponent r grid wm =
 
     update PinThis = M.io_ $
       let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
+          meta = PinMeta
+            { key = "grid-" <> idToText grid.id
+            , category = PinCatCompetenceGrid
+            , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
+            , context = Nothing
+            }
        in pinDialogWith r.windowManager
-            (PinId $ "grid-" <> idToText grid.id)
+            meta
             chrome
             (viewerComponent r grid)
 
@@ -619,4 +625,5 @@ masteryBadgeLabel OneSuccess = C.translate' C.LblMasteryBadgeFirstSuccess
 masteryBadgeLabel OnlySillyMistakes = C.translate' C.LblMasteryBadgeSillyMistakes
 masteryBadgeLabel MasteryNotYet = C.translate' C.LblMasteryBadgeNotYet
 masteryBadgeLabel NotTried = ""
+
 

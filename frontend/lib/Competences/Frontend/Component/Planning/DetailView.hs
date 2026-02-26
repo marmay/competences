@@ -16,7 +16,8 @@ import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinId (..), WindowChrome (..), inlineComponent, openFramedModalWith, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, openFramedModalWith, pinDialog)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (mesoPlanEditorModal)
 import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
 import Competences.Frontend.Component.Planning.LessonEditorModal (lessonEditorModal)
@@ -213,22 +214,36 @@ detailComponent r initialPlan =
       m <- M.get
       M.io_ $ modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete m.mesoPlan.id)
 
-    update (PinLessonEvaluation lesson) = M.io_ $
-      let pinTitle = C.translate' C.LblLessonEvaluation
-            <> ": " <> M.ms lesson.title
-            <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
-       in pinDialog r.windowManager
-            (PinId $ "lesson-evaluation-" <> idToText lesson.id)
-            (WindowChrome pinTitle Icon.IcnMesoPlan)
-            (lessonEvaluatorComponent r lesson.id)
+    update (PinLessonEvaluation lesson) = do
+      m <- M.get
+      M.io_ $
+        let pinTitle = C.translate' C.LblLessonEvaluation
+              <> ": " <> M.ms lesson.title
+              <> maybe "" (\d -> ", " <> C.formatDay d) lesson.date
+            meta = PinMeta
+              { key = "lesson-evaluation-" <> idToText lesson.id
+              , category = PinCatLessonEvaluation
+              , sortKey = SortKey [SortAtom m.mesoPlan.dateFrom, SortAtom lesson.order, SortAtom lesson.date, SortAtom lesson.id]
+              , context = Just (M.ms lesson.title)
+              }
+         in pinDialog r.windowManager
+              meta
+              (WindowChrome pinTitle Icon.IcnMesoPlan)
+              (lessonEvaluatorComponent r lesson.id)
 
     update (PinAssignmentEvaluation assignment) = M.io_ $
       let AssignmentName nameText = assignment.name
           pinTitle = C.translate' C.LblEvaluateAssignment
             <> ": " <> M.ms nameText
+          meta = PinMeta
+            { key = "assignment-evaluation-" <> idToText assignment.id
+            , category = PinCatAssignment
+            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+            , context = Just (M.ms nameText)
+            }
        in pinDialog r.windowManager
-            (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (WindowChrome pinTitle Icon.IcnAssignment)
+            meta
+            (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
             (evaluatorComponent r assignment)
 
     update (ExportLesson lesson) = do
@@ -400,4 +415,5 @@ detailComponent r initialPlan =
                     , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
                     ]
                 ]
+
 

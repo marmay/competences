@@ -29,7 +29,8 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (PinId (..), WindowChrome (..), inlineComponent, pinDialog)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
+import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -103,9 +104,15 @@ editorWrapperComponent r assignment =
       let AssignmentName nameText = assignment.name
           pinTitle = C.translate' C.LblEvaluateAssignment
             <> ": " <> M.ms nameText
+          meta = PinMeta
+            { key = "assignment-evaluation-" <> idToText assignment.id
+            , category = PinCatAssignment
+            , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+            , context = Just (M.ms nameText)
+            }
        in pinDialog r.windowManager
-            (PinId $ "assignment-evaluation-" <> idToText assignment.id)
-            (WindowChrome pinTitle Icon.IcnAssignment)
+            meta
+            (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
             (evaluatorComponent r assignment)
 
     view _m =

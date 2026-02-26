@@ -24,7 +24,11 @@ module Competences.Frontend.SyncContext.WindowManager
   , WindowManagerRef (..)
   , AnyModal (..)
   , AnyPinnedDialog (..)
-  , PinId (..)
+  , PinId -- no (..)
+  , PinCategory (..)
+  , PinMeta (..)
+  , SortAtom (..)
+  , SortKey (..)
   , PinVisibility (..)
   , Model (..)
   , WindowChange (..)
@@ -124,6 +128,54 @@ data ModalConfig = ModalConfig
   }
 
 -- ---------------------------------------------------------------------------
+-- Pin metadata
+-- ---------------------------------------------------------------------------
+
+-- | Category of a pinned dialog, used for ordering in the sidebar.
+data PinCategory
+  = PinCatAssignment
+  | PinCatLessonEvaluation
+  | PinCatLessonNotes
+  | PinCatCompetenceGrid
+  deriving (Eq, Ord, Enum, Bounded, Show)
+
+-- | A single sort component. Two atoms of the same runtime type compare
+-- via their Ord instance; two atoms of different types compare as EQ.
+data SortAtom where
+  SortAtom :: (Ord a, Typeable a) => !a -> SortAtom
+
+instance Eq SortAtom where
+  SortAtom a == SortAtom b = case cast b of
+    Just b' -> a == b'
+    Nothing -> True
+
+instance Ord SortAtom where
+  compare (SortAtom a) (SortAtom b) = case cast b of
+    Just b' -> compare a b'
+    Nothing -> EQ
+
+instance Show SortAtom where
+  show _ = "SortAtom"
+
+-- | Lexicographic sort key built from heterogeneous atoms.
+newtype SortKey = SortKey [SortAtom]
+  deriving (Eq, Ord, Show)
+
+-- | Metadata for a pinned dialog. Callers construct this; internally
+-- the 'key' is used to derive the deduplication 'PinId'.
+data PinMeta = PinMeta
+  { key :: !Text
+  , category :: !PinCategory
+  , sortKey :: !SortKey
+  , context :: !(Maybe MisoString)
+  }
+  deriving (Eq, Show)
+
+-- | Extract a 'PinId' from 'PinMeta'.
+toPinId :: PinMeta -> PinId
+toPinId meta = PinId meta.key
+
+-- ---------------------------------------------------------------------------
 -- Window mode (opaque)
 -- ---------------------------------------------------------------------------
 
@@ -210,18 +262,19 @@ instance Eq AnyModal where
       Just m2 -> c1.model == m2
       Nothing -> False
 
--- | Existential wrapper for a pinned dialog component with its chrome.
+-- | Existential wrapper for a pinned dialog component with its chrome and metadata.
 data AnyPinnedDialog where
   AnyPinnedDialog
     :: (Eq m, Typeable m)
     => !(M.Component Model m a)
     -> !WindowChrome
+    -> !PinMeta
     -> AnyPinnedDialog
 
 instance Eq AnyPinnedDialog where
-  AnyPinnedDialog c1 ch1 == AnyPinnedDialog c2 ch2 =
-    ch1 == ch2 && case cast c2.model of
-      Just m2 -> c1.model == m2
+  AnyPinnedDialog c1 ch1 m1 == AnyPinnedDialog c2 ch2 m2 =
+    ch1 == ch2 && m1 == m2 && case cast c2.model of
+      Just m2' -> c1.model == m2'
       Nothing -> False
 
 -- | Host model used as the parent type for all managed components.
@@ -317,8 +370,9 @@ closeModal (WindowManagerRef ref) = do
 -- | Pin a dialog (internal). If the 'PinId' already exists, the existing
 -- dialog is made visible (restored). Otherwise it is added and made visible.
 -- In both cases, any previously visible pin is minimized.
-pinDialogRaw :: WindowManagerRef -> PinId -> AnyPinnedDialog -> IO ()
-pinDialogRaw (WindowManagerRef ref) pid dialog = do
+pinDialogRaw :: WindowManagerRef -> PinMeta -> AnyPinnedDialog -> IO ()
+pinDialogRaw (WindowManagerRef ref) meta dialog = do
+  let pid = toPinId meta
   modifyMVar_ ref $ \s -> do
     let s' = if Map.member pid s.pins
           then -- Existing pin: just restore it
@@ -479,22 +533,23 @@ openFramedModalWith ref cfg mkComp =
 pinDialogWith
   :: (Eq m, Typeable m)
   => WindowManagerRef
-  -> PinId
+  -> PinMeta
   -> WindowChrome
   -> (WindowMode -> M.Component Model m a)
   -> IO ()
-pinDialogWith ref pid chrome mkComp =
-  let mode = mkPinnedMode (unpinDialog ref pid)
-   in pinDialogRaw ref pid (AnyPinnedDialog (mkComp mode) chrome)
+pinDialogWith ref meta chrome mkComp =
+  let pid = toPinId meta
+      mode = mkPinnedMode (unpinDialog ref pid)
+   in pinDialogRaw ref meta (AnyPinnedDialog (mkComp mode) chrome meta)
 
 -- | Pin a dialog for a component that ignores 'WindowMode'.
--- Convenience wrapper: @pinDialog ref pid ch c = pinDialogWith ref pid ch (const c)@
+-- Convenience wrapper: @pinDialog ref meta ch c = pinDialogWith ref meta ch (const c)@
 pinDialog
   :: (Eq m, Typeable m)
   => WindowManagerRef
-  -> PinId
+  -> PinMeta
   -> WindowChrome
   -> M.Component Model m a
   -> IO ()
-pinDialog ref pid chrome comp =
-  pinDialogWith ref pid chrome (const comp)
+pinDialog ref meta chrome comp =
+  pinDialogWith ref meta chrome (const comp)
