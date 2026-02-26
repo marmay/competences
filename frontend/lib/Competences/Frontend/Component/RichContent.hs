@@ -40,6 +40,7 @@ where
 
 import Competences.Frontend.Component.Geometry (renderGeometryBlock)
 import Competences.Markdown.Geometry.Eval (extractMathLabels)
+import Competences.Markdown.Geometry.Palette (colorWrapLatex)
 import Competences.Markdown.Geometry.Parser (isGeometryInfo, parseGeometry)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
@@ -154,7 +155,7 @@ extractFromBlock = \case
     case info of
       Just i | isGeometryInfo i ->
         case parseGeometry body of
-          Right cmds -> [(Inline, latex) | latex <- extractMathLabels cmds]
+          Right cmds -> [(Inline, colorWrapLatex c latex) | (c, latex) <- extractMathLabels cmds]
           Left _ -> []
       _ -> []
   MD.OrderedList _ items -> concatMap (concatMap extractFromBlock) items

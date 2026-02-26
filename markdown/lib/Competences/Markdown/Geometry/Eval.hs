@@ -502,18 +502,25 @@ generateGrid pts
 -- Math label extraction
 -- -----------------------------------------------------------------
 
--- | Extract all LaTeX math labels from a list of commands.
--- Used by the frontend to pre-render MathJax formulas.
-extractMathLabels :: [Command] -> [Text]
-extractMathLabels = concatMap go
+-- | Extract all LaTeX math labels from a list of commands, together with
+-- the effective text color at each label site. Used by the frontend to
+-- pre-render MathJax formulas (wrapping in @\\color{#hex}{…}@ when needed).
+extractMathLabels :: [Command] -> [(Color, Text)]
+extractMathLabels = go CurrentColor
   where
-    go = \case
-      Label (LabelAtPoint _ (MathLabel latex) _) -> [latex]
-      Label (LabelOnSegment _ (MathLabel latex) _ _) -> [latex]
-      Label (LabelAngle _ (MathLabel latex) _) -> [latex]
-      Label (LabelAutoPoint _ (MathLabel latex)) -> [latex]
-      ModifierBlock _ children -> concatMap go children
+    go color = concatMap $ \case
+      Label (LabelAtPoint _ (MathLabel latex) _) -> [(color, latex)]
+      Label (LabelOnSegment _ (MathLabel latex) _ _) -> [(color, latex)]
+      Label (LabelAngle _ (MathLabel latex) _) -> [(color, latex)]
+      Label (LabelAutoPoint _ (MathLabel latex)) -> [(color, latex)]
+      ModifierBlock modifier children ->
+        go (updatedColor modifier color) children
       _ -> []
+
+    updatedColor (EnvMod (SetTextColor c)) _ = c
+    updatedColor (EnvMod (SetColor c)) _ = c
+    updatedColor (EnvMod (SetPalette c)) _ = c
+    updatedColor _ c = c
 
 -- -----------------------------------------------------------------
 -- Helpers

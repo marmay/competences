@@ -11,6 +11,7 @@ module Competences.Markdown.Geometry.Palette
   , paletteNames
   , resolveStrokeColor
   , resolveFillColor
+  , colorWrapLatex
   )
 where
 
@@ -20,15 +21,19 @@ import Data.Map.Strict qualified as Map
 import Data.Set (Set)
 import Data.Text (Text)
 
--- | Palette entries: name -> (strokeCSS, fillCSS)
+-- | Palette entries: name -> (strokeHex, fillHex)
+--
+-- Stroke/text colors use the -600 shade; fill colors use the -100 shade.
+-- Hex values work in both SVG attributes and LaTeX @\\color{}@, so we use
+-- a single color map for both purposes.
 paletteMap :: Map Text (Text, Text)
 paletteMap =
   Map.fromList
-    [ ("red", ("var(--color-red-600)", "var(--color-red-100)"))
-    , ("blue", ("var(--color-blue-600)", "var(--color-blue-100)"))
-    , ("green", ("var(--color-green-600)", "var(--color-green-100)"))
-    , ("orange", ("var(--color-orange-600)", "var(--color-orange-100)"))
-    , ("purple", ("var(--color-purple-600)", "var(--color-purple-100)"))
+    [ ("red", ("#dc2626", "#fee2e2")) -- red-600 / red-100
+    , ("blue", ("#2563eb", "#dbeafe")) -- blue-600 / blue-100
+    , ("green", ("#16a34a", "#dcfce7")) -- green-600 / green-100
+    , ("orange", ("#ea580c", "#ffedd5")) -- orange-600 / orange-100
+    , ("purple", ("#9333ea", "#f3e8ff")) -- purple-600 / purple-100
     ]
 
 -- | Set of valid palette color names (for parser validation).
@@ -52,3 +57,11 @@ resolveFillColor (NamedColor name) =
   case Map.lookup name paletteMap of
     Just (_, fill) -> fill
     Nothing -> name
+
+-- | Wrap LaTeX source in @\\color{#hex}{…}@ so MathJax renders it in the
+-- specified color. 'CurrentColor' passes the LaTeX through unchanged
+-- (browser default, typically black).
+colorWrapLatex :: Color -> Text -> Text
+colorWrapLatex color latex = case resolveStrokeColor color of
+  "currentColor" -> latex
+  hex -> "\\color{" <> hex <> "}{" <> latex <> "}"

@@ -2,7 +2,7 @@ module Test.Markdown.GeometryTest (geometryTests) where
 
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene, extractMathLabels)
-import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
+import Competences.Markdown.Geometry.Palette (colorWrapLatex, resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -254,25 +254,55 @@ extractMathLabelsGroup =
     , testCase "plain labels ignored" $
         extractMathLabels [Label (LabelAtPoint "A" (PlainLabel "A") Above)] @?= []
     , testCase "math label at point" $
-        extractMathLabels [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)] @?= ["\\alpha"]
+        extractMathLabels [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)]
+          @?= [(CurrentColor, "\\alpha")]
     , testCase "math label on segment" $
-        extractMathLabels [Label (LabelOnSegment (SegByName "c") (MathLabel "c") SegAbove 0.5)] @?= ["c"]
-    , testCase "nested in modifier block" $
+        extractMathLabels [Label (LabelOnSegment (SegByName "c") (MathLabel "c") SegAbove 0.5)]
+          @?= [(CurrentColor, "c")]
+    , testCase "nested in modifier block — non-color modifier preserves color" $
         extractMathLabels
           [ ModifierBlock (EnvMod SetDashed)
               [Label (LabelAtPoint "A" (MathLabel "\\gamma") Below)]
           ]
-          @?= ["\\gamma"]
+          @?= [(CurrentColor, "\\gamma")]
     , testCase "math label on angle" $
-        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") Nothing)] @?= ["\\alpha"]
+        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") Nothing)]
+          @?= [(CurrentColor, "\\alpha")]
     , testCase "math label on angle with offset" $
-        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1 1)))] @?= ["\\alpha"]
+        extractMathLabels [Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1 1)))]
+          @?= [(CurrentColor, "\\alpha")]
     , testCase "mixed plain and math" $
         extractMathLabels
           [ Label (LabelAtPoint "A" (PlainLabel "A") Above)
           , Label (LabelAtPoint "B" (MathLabel "\\beta") Below)
           ]
-          @?= ["\\beta"]
+          @?= [(CurrentColor, "\\beta")]
+    , testCase "tracks textColor through SetTextColor modifier" $
+        extractMathLabels
+          [ ModifierBlock (EnvMod (SetTextColor (NamedColor "red")))
+              [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)]
+          ]
+          @?= [(NamedColor "red", "\\alpha")]
+    , testCase "tracks textColor through SetColor modifier" $
+        extractMathLabels
+          [ ModifierBlock (EnvMod (SetColor (NamedColor "blue")))
+              [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)]
+          ]
+          @?= [(NamedColor "blue", "\\alpha")]
+    , testCase "tracks textColor through SetPalette modifier" $
+        extractMathLabels
+          [ ModifierBlock (EnvMod (SetPalette (NamedColor "green")))
+              [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)]
+          ]
+          @?= [(NamedColor "green", "\\alpha")]
+    , testCase "inner textColor overrides outer color" $
+        extractMathLabels
+          [ ModifierBlock (EnvMod (SetColor (NamedColor "blue")))
+              [ ModifierBlock (EnvMod (SetTextColor (NamedColor "red")))
+                  [Label (LabelAtPoint "A" (MathLabel "\\alpha") Above)]
+              ]
+          ]
+          @?= [(NamedColor "red", "\\alpha")]
     ]
 
 -- -----------------------------------------------------------------
@@ -1037,7 +1067,7 @@ drawPolyEvalGroup =
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "extractMathLabels — LabelAutoPoint with MathLabel" $
         extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (MathLabel "\\beta"))]
-          @?= ["\\beta"]
+          @?= [(CurrentColor, "\\beta")]
     , testCase "extractMathLabels — LabelAutoPoint with PlainLabel" $
         extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (PlainLabel "B"))]
           @?= []
@@ -1305,19 +1335,19 @@ paletteGroup =
     "Palette"
     [ -- Resolve functions
       testCase "resolveStrokeColor — palette entry" $
-        resolveStrokeColor (NamedColor "red") @?= "var(--color-red-600)"
+        resolveStrokeColor (NamedColor "red") @?= "#dc2626"
     , testCase "resolveFillColor — palette entry" $
-        resolveFillColor (NamedColor "red") @?= "var(--color-red-100)"
+        resolveFillColor (NamedColor "red") @?= "#fee2e2"
     , testCase "resolveStrokeColor — all palette entries" $ do
-        resolveStrokeColor (NamedColor "blue") @?= "var(--color-blue-600)"
-        resolveStrokeColor (NamedColor "green") @?= "var(--color-green-600)"
-        resolveStrokeColor (NamedColor "orange") @?= "var(--color-orange-600)"
-        resolveStrokeColor (NamedColor "purple") @?= "var(--color-purple-600)"
+        resolveStrokeColor (NamedColor "blue") @?= "#2563eb"
+        resolveStrokeColor (NamedColor "green") @?= "#16a34a"
+        resolveStrokeColor (NamedColor "orange") @?= "#ea580c"
+        resolveStrokeColor (NamedColor "purple") @?= "#9333ea"
     , testCase "resolveFillColor — all palette entries" $ do
-        resolveFillColor (NamedColor "blue") @?= "var(--color-blue-100)"
-        resolveFillColor (NamedColor "green") @?= "var(--color-green-100)"
-        resolveFillColor (NamedColor "orange") @?= "var(--color-orange-100)"
-        resolveFillColor (NamedColor "purple") @?= "var(--color-purple-100)"
+        resolveFillColor (NamedColor "blue") @?= "#dbeafe"
+        resolveFillColor (NamedColor "green") @?= "#dcfce7"
+        resolveFillColor (NamedColor "orange") @?= "#ffedd5"
+        resolveFillColor (NamedColor "purple") @?= "#f3e8ff"
     , testCase "resolveStrokeColor — non-palette passthrough" $
         resolveStrokeColor (NamedColor "gray") @?= "gray"
     , testCase "resolveFillColor — non-palette passthrough" $
@@ -1444,6 +1474,13 @@ paletteGroup =
             lineColor env @?= CurrentColor
             textColor env @?= NamedColor "blue"
           other -> assertFailure $ "Expected dot, got: " <> show other
+    , -- colorWrapLatex
+      testCase "colorWrapLatex — CurrentColor passes through" $
+        colorWrapLatex CurrentColor "\\alpha" @?= "\\alpha"
+    , testCase "colorWrapLatex — palette color wraps in \\color" $
+        colorWrapLatex (NamedColor "red") "\\alpha" @?= "\\color{#dc2626}{\\alpha}"
+    , testCase "colorWrapLatex — non-palette passthrough wraps raw" $
+        colorWrapLatex (NamedColor "gray") "x" @?= "\\color{gray}{x}"
     ]
 
 -- -----------------------------------------------------------------

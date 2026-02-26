@@ -16,7 +16,7 @@ import Competences.Frontend.SvgEmbed.Manager (EmbeddedSymbol (..), MathDisplay (
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Markdown.Geometry.AST
 import Competences.Markdown.Geometry.Eval (evalScene)
-import Competences.Markdown.Geometry.Palette (resolveFillColor, resolveStrokeColor)
+import Competences.Markdown.Geometry.Palette (colorWrapLatex, resolveFillColor, resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser
   ( currentGeometryVersion
   , geometryVersionText
@@ -194,7 +194,8 @@ renderPrimitive symbols = \case
                   ]
                   [M.text (ms txt)]
           MathLabel latex ->
-            let sid = hashLatex Inline latex
+            let wrappedLatex = colorWrapLatex (textColor env) latex
+                sid = hashLatex Inline wrappedLatex
              in case Map.lookup sid symbols of
                   Nothing ->
                     let (dx, dy, anchor) = labelOffset pos
@@ -207,7 +208,7 @@ renderPrimitive symbols = \case
                           , SP.dominantBaseline_ "central"
                           , SP.fontStyle_ "italic"
                           ]
-                          [M.text (ms latex)]
+                          [M.text (ms wrappedLatex)]
                   Just es -> renderMathLabel (Vec2 x y) es pos env
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
