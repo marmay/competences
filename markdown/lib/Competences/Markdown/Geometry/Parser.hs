@@ -114,6 +114,7 @@ commandP = do
     "labelAll" -> one <$> labelAllBlockP
     "background" -> one <$> modifierBlockP (LayerMod Background)
     "foreground" -> one <$> modifierBlockP (LayerMod Foreground)
+    "labelDist" -> one <$> labelDistBlockP
     _ -> fail $ "Unknown command: " <> T.unpack kw
   where
     one x = [x]
@@ -307,6 +308,12 @@ lineRefP = between (lexeme (char '(')) (lexeme (char ')')) $ do
 -- Modifier blocks
 -- -----------------------------------------------------------------
 
+-- | @labelDist <double> { ... }@
+labelDistBlockP :: Parser Command
+labelDistBlockP = do
+  d <- lexeme doubleP
+  modifierBlockP (EnvMod (SetLabelDist d))
+
 -- | @color <name> { ... }@
 colorBlockP :: Parser Command
 colorBlockP = do
@@ -335,6 +342,7 @@ modifierValueP = do
     "labelAll" -> AutoDec . LabelAll <$> lexeme labelPositionP
     "background" -> pure $ LayerMod Background
     "foreground" -> pure $ LayerMod Foreground
+    "labelDist" -> EnvMod . SetLabelDist <$> lexeme doubleP
     _ -> fail $ "Unknown modifier: " <> T.unpack kw
 
 -- | Parse @{ commands }@ with a given modifier, optionally preceded by

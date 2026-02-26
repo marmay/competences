@@ -413,14 +413,17 @@ envDashAttr env = case lineStyle env of
   Solid -> SP.strokeDasharray_ "none"
   Dashed -> SP.strokeDasharray_ "0.12,0.08"
 
--- | Offset and anchor for label positions
+-- | Text-anchor for label positions.
+-- Positional offsets are applied in the evaluator (see 'labelPositionOffset');
+-- the renderer only handles horizontal text alignment.
 labelOffset :: LabelPosition -> (Double, Double, Text)
 labelOffset = \case
-  Above -> (0, -0.20, "middle")
-  Below -> (0, 0.20, "middle")
-  LeftOf -> (-0.12, 0, "end")
-  RightOf -> (0.12, 0, "start")
-  AboveLeft -> (-0.12, -0.15, "end")
-  AboveRight -> (0.12, -0.15, "start")
-  BelowLeft -> (-0.12, 0.15, "end")
-  BelowRight -> (0.12, 0.15, "start")
+  Center -> (0, 0, "middle")
+  Above -> (0, 0, "middle")
+  Below -> (0, 0, "middle")
+  LeftOf -> (0, 0, "end")
+  RightOf -> (0, 0, "start")
+  AboveLeft -> (0, 0, "end")
+  AboveRight -> (0, 0, "start")
+  BelowLeft -> (0, 0, "end")
+  BelowRight -> (0, 0, "start")

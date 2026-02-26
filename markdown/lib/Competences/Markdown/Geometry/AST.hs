@@ -131,6 +131,7 @@ data EnvModifier
   | SetThick
   | SetThin
   | SetFill !Color
+  | SetLabelDist !Double
   deriving (Eq, Show)
 
 data AutoDecorator
@@ -150,6 +151,7 @@ data DrawEnv = DrawEnv
   , lineWidth :: !LineWidth
   , layer :: !Layer
   , fillColor :: !(Maybe Color)
+  , labelDist :: !Double
   }
   deriving (Eq, Show)
 
@@ -161,6 +163,7 @@ defaultDrawEnv =
     , lineWidth = NormalWidth
     , layer = Main
     , fillColor = Nothing
+    , labelDist = 0.75
     }
 
 -- | 2D vector / point
@@ -187,7 +190,8 @@ data Layer = Background | Main | Foreground
 
 -- | Position for labels relative to a point
 data LabelPosition
-  = Above
+  = Center
+  | Above
   | Below
   | LeftOf
   | RightOf

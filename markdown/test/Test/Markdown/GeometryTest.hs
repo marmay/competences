@@ -190,6 +190,20 @@ parserGroup =
         [ Draw (DrawAngle (AngleRef "A" "B" "C"))
         , Label (LabelAngle (AngleRef "A" "B" "C") (MathLabel "\\alpha") (Just (Vec2 1 (-1))))
         ]
+    , parsesTo
+        "labelDist modifier block"
+        "labelDist 0.5 {\n  drawPoint A\n}"
+        [ModifierBlock (EnvMod (SetLabelDist 0.5)) [Draw (DrawPoint "A")]]
+    , parsesTo
+        "labelDist comma-separated"
+        "labelDist 0.6, color red {\n  drawPoint A\n}"
+        [ ModifierBlock
+            (EnvMod (SetLabelDist 0.6))
+            [ ModifierBlock
+                (EnvMod (SetColor (NamedColor "red")))
+                [Draw (DrawPoint "A")]
+            ]
+        ]
     , testCase "parse error" $ do
         let result = parseGeometry "unknownCommand A B"
         assertBool "should fail" (isLeft result)
@@ -528,8 +542,8 @@ evalGroup =
     , testCase "angle label placement" $ do
         -- A=(1,0), B=(0,0), C=(0,1)
         -- bisector at B = normalize((1,0)+(0,1)) = (1,1)/sqrt(2) → into the angle
-        -- labelDist = 0.5 (fixed)
-        -- label at (0.5/sqrt(2), 0.5/sqrt(2))
+        -- labelDist = 0.75 (default)
+        -- label at (0.75/sqrt(2), 0.75/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 1 0)
@@ -540,11 +554,11 @@ evalGroup =
         case main result of
           [RenderLabel (Vec2 lx ly) lbl pos _env] -> do
             lbl @?= PlainLabel "a"
-            let labelDist = 0.5 :: Double
+            let dist = 0.75 :: Double
                 invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" (invSqrt2 * labelDist) lx
-            assertApprox "ly" (invSqrt2 * labelDist) ly
-            pos @?= AboveRight
+            assertApprox "lx" (invSqrt2 * dist) lx
+            assertApprox "ly" (invSqrt2 * dist) ly
+            pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "angle arc radius clamped for short edges" $ do
         -- Edges of length 1.0: min(1.0, 0.5*1.0) = 0.5
@@ -726,7 +740,7 @@ drawPolyEvalGroup =
         -- Edge C->A: dir=(0,-3), right perp = (-3,0)/3 = (-1,0)
         -- Edge A->B: dir=(4,0), right perp = (0,-4)/4 = (0,-1)
         -- Average outward: (-1,-1), normalized: (-1/sqrt(2), -1/sqrt(2))
-        -- Label offset: 0.15 along outward → (-0.15/sqrt(2), -0.15/sqrt(2))
+        -- Label offset: 0.75 along outward → (-0.75/sqrt(2), -0.75/sqrt(2))
         let result =
               evalScene
                 [ DefPoint "A" (Vec2 0 0)
@@ -738,11 +752,11 @@ drawPolyEvalGroup =
           [RenderLabel (Vec2 lx ly) lbl pos _] -> do
             lbl @?= PlainLabel "A"
             let invSqrt2 = 1 / sqrt 2
-            assertApprox "lx" ((-invSqrt2) * 0.15) lx
-            assertApprox "ly" ((-invSqrt2) * 0.15) ly
-            pos @?= BelowLeft
+            assertApprox "lx" ((-invSqrt2) * 0.75) lx
+            assertApprox "ly" ((-invSqrt2) * 0.75) ly
+            pos @?= Center
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
-    , testCase "LabelAutoPoint at top vertex — Above" $ do
+    , testCase "LabelAutoPoint at top vertex — centered" $ do
         -- Equilateral-ish: A=(0,0), B=(4,0), C=(2,3)
         -- At vertex C, prev=B=(4,0), succ=A=(0,0)
         -- Edge B→C: dir=(-2,3), outward normal = (3,2)/sqrt(13)
@@ -757,7 +771,7 @@ drawPolyEvalGroup =
                 ]
         case main result of
           [RenderLabel (Vec2 _lx ly) _ pos _] -> do
-            pos @?= Above
+            pos @?= Center
             -- Label should be offset upward from vertex
             assertBool "ly > 3" (ly > 3)
           other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
@@ -808,6 +822,101 @@ drawPolyEvalGroup =
             case cmds of
               [ModifierBlock (EnvMod (SetFill (NamedColor "red"))) _children] -> pure ()
               other -> assertFailure $ "Expected fill modifier block, got: " <> show other
+    , testCase "LabelAutoPoint isosceles right — vertex A=(0,0) 90°" $ do
+        -- Triangle A=(0,0), B=(4,0), C=(0,4), right angle at A
+        -- AngleRef "C" "A" "B": vertex A, arms toward C and B
+        -- Bisector = (1/√2, 1/√2) → outward = (-1/√2, -1/√2)
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 4)
+                , Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "A"
+            let invSqrt2 = 1 / sqrt 2
+            assertApprox "lx" ((-invSqrt2) * 0.75) lx
+            assertApprox "ly" ((-invSqrt2) * 0.75) ly
+            pos @?= Center
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "LabelAutoPoint isosceles right — vertex B=(4,0) 45°" $ do
+        -- AngleRef "A" "B" "C": vertex B, arms toward A and C
+        -- Bisector = (-cos(π/8), sin(π/8)) → outward = (cos(π/8), -sin(π/8))
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 4)
+                , Label (LabelAutoPoint (AngleRef "A" "B" "C") (PlainLabel "B"))
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "B"
+            pos @?= Center
+            let cospi8 = cos (pi / 8)
+                sinpi8 = sin (pi / 8)
+            assertApprox "lx" (4 + cospi8 * 0.75) lx
+            assertApprox "ly" ((-sinpi8) * 0.75) ly
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "LabelAutoPoint isosceles right — vertex C=(0,4) 45°" $ do
+        -- AngleRef "B" "C" "A": vertex C, arms toward B and A
+        -- Bisector = (sin(π/8), -cos(π/8)) → outward = (-sin(π/8), cos(π/8))
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 4)
+                , Label (LabelAutoPoint (AngleRef "B" "C" "A") (PlainLabel "C"))
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "C"
+            pos @?= Center
+            let cospi8 = cos (pi / 8)
+                sinpi8 = sin (pi / 8)
+            assertApprox "lx" ((-sinpi8) * 0.75) lx
+            assertApprox "ly" (4 + cospi8 * 0.75) ly
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "labelDist affects LabelAutoPoint" $ do
+        -- Same triangle as isosceles right test but with custom labelDist 0.6
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 4)
+                , ModifierBlock
+                    (EnvMod (SetLabelDist 0.6))
+                    [Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))]
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "A"
+            let invSqrt2 = 1 / sqrt 2
+            assertApprox "lx" ((-invSqrt2) * 0.6) lx
+            assertApprox "ly" ((-invSqrt2) * 0.6) ly
+            pos @?= Center
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "labelDist affects LabelAngle" $ do
+        -- A=(1,0), B=(0,0), C=(0,1) with custom labelDist 0.8
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 1 0)
+                , DefPoint "B" (Vec2 0 0)
+                , DefPoint "C" (Vec2 0 1)
+                , ModifierBlock
+                    (EnvMod (SetLabelDist 0.8))
+                    [Label (LabelAngle (AngleRef "A" "B" "C") (PlainLabel "a") Nothing)]
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "a"
+            let invSqrt2 = 1 / sqrt 2
+            assertApprox "lx" (invSqrt2 * 0.8) lx
+            assertApprox "ly" (invSqrt2 * 0.8) ly
+            pos @?= Center
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
     , testCase "extractMathLabels — LabelAutoPoint with MathLabel" $
         extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (MathLabel "\\beta"))]
           @?= ["\\beta"]

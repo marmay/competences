@@ -187,8 +187,10 @@ evalLabel = \case
     env <- gets esDrawEnv
     case Map.lookup name pts of
       Nothing -> pure (mempty, mempty)
-      Just vec -> do
-        let prim = RenderLabel vec txt pos env
+      Just (Vec2 px py) -> do
+        let (odx, ody) = labelPositionOffset pos
+            labelVec = Vec2 (px + odx) (py + ody)
+            prim = RenderLabel labelVec txt pos env
         pure (emitToLayer env prim, mempty)
   LabelOnSegment segRef txt side frac -> do
     mEndpoints <- resolveSegmentRef segRef
@@ -203,7 +205,7 @@ evalLabel = \case
             dx = bx - ax
             dy = by - ay
             len = sqrt (dx * dx + dy * dy)
-            offset = 0.05
+            offset = 0.20
             (nx, ny)
               | len == 0 = (0, offset)
               | otherwise =
@@ -225,18 +227,17 @@ evalLabel = \case
       Just (va, vb, vc) -> do
         let -- Angle bisector: average of normalized arm directions → into the angle
             (bix, biy) = angleBisector va vb vc
-            labelDist = 0.5
+            dist = labelDist env
             Vec2 bx by = vb
-            internalPos = Vec2 (bx + bix * labelDist) (by + biy * labelDist)
-            internalAnchor = directionToLabelPos bix biy
+            internalPos = Vec2 (bx + bix * dist) (by + biy * dist)
         case mOffset of
           Nothing -> do
-            let prim = RenderLabel internalPos txt internalAnchor env
+            let prim = RenderLabel internalPos txt Center env
             pure (emitToLayer env prim, mempty)
           Just (Vec2 dx dy) -> do
             let externalPos = Vec2 (bx + dx) (by + dy)
                 -- Anchor based on direction from internal to external
-                (edx, edy) = (dx - bix * labelDist, dy - biy * labelDist)
+                (edx, edy) = (dx - bix * dist, dy - biy * dist)
                 externalAnchor = directionToLabelPos edx edy
                 line = RenderSegment internalPos externalPos env
                 label = RenderLabel externalPos txt externalAnchor env
@@ -251,9 +252,8 @@ evalLabel = \case
             (bix, biy) = angleBisector va vb vc
             (nx, ny) = (-bix, -biy)
             Vec2 bx by = vb
-            labelVec = Vec2 (bx + nx * 0.15) (by + ny * 0.15)
-            anchor = directionToLabelPos nx ny
-            prim = RenderLabel labelVec txt anchor env
+            labelVec = Vec2 (bx + nx * labelDist env) (by + ny * labelDist env)
+            prim = RenderLabel labelVec txt Center env
         pure (emitToLayer env prim, mempty)
 
 -- | Angle bisector at vertex B for angle ABC.
@@ -397,6 +397,7 @@ applyEnvMod = \case
   SetDashed -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineStyle = Dashed}}
   SetThick -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThickWidth}}
   SetThin -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThinWidth}}
+  SetLabelDist d -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {labelDist = d}}
 
 -- -----------------------------------------------------------------
 -- Auto-decorators
@@ -512,6 +513,21 @@ vecDist (Vec2 x1 y1) (Vec2 x2 y2) =
   let dx = x2 - x1
       dy = y2 - y1
    in sqrt (dx * dx + dy * dy)
+
+-- | Positional offset for 'LabelAtPoint' in math coordinates (y up).
+-- The renderer only handles text-anchor alignment; all positional nudging
+-- is done here in the evaluator.
+labelPositionOffset :: LabelPosition -> (Double, Double)
+labelPositionOffset = \case
+  Center -> (0, 0)
+  Above -> (0, 0.20)
+  Below -> (0, -0.20)
+  LeftOf -> (-0.12, 0)
+  RightOf -> (0.12, 0)
+  AboveLeft -> (-0.12, 0.15)
+  AboveRight -> (0.12, 0.15)
+  BelowLeft -> (-0.12, -0.15)
+  BelowRight -> (0.12, -0.15)
 
 -- | Route a render primitive to the appropriate layer
 emitToLayer :: DrawEnv -> RenderPrimitive -> RenderResult
