@@ -160,6 +160,19 @@ evalDraw = \case
         let (start, sweep) = computeAngleArc _va vb _vc
             prim = RenderRightAngle vb start sweep 0.3 env
         pure (emitToLayer env prim, mempty)
+  DrawFilledPolygon names -> do
+    pts <- gets esPoints
+    env <- gets esDrawEnv
+    case fillColor env of
+      Nothing -> pure (mempty, mempty)
+      Just _ -> do
+        let mVecs = mapM (`Map.lookup` pts) names
+        case mVecs of
+          Nothing -> pure (mempty, mempty)
+          Just vecs -> do
+            let bgEnv = env {layer = Background}
+                prim = RenderFilledPolygon vecs bgEnv
+            pure (mempty {background = [prim]}, mempty)
 
 -- -----------------------------------------------------------------
 -- Label evaluation
@@ -217,6 +230,59 @@ evalLabel = \case
             ly = by + labelDist * sin bisector
             prim = RenderLabel (Vec2 lx ly) txt Above env
         pure (emitToLayer env prim, mempty)
+  LabelAutoPoint ref txt -> do
+    mPts <- resolveAngleRef ref
+    env <- gets esDrawEnv
+    case mPts of
+      Nothing -> pure (mempty, mempty)
+      Just (va, vb, vc) -> do
+        let pos = autoLabelPosition va vb vc
+            prim = RenderLabel vb txt pos env
+        pure (emitToLayer env prim, mempty)
+
+-- | Compute the auto label position for a vertex B given predecessor A and successor C.
+-- The label is placed in the outward direction (average of the two outward normals
+-- of edges A→B and B→C, where outward = right side for CCW winding).
+autoLabelPosition :: Vec2 -> Vec2 -> Vec2 -> LabelPosition
+autoLabelPosition (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) =
+  let -- Edge A→B: direction and outward normal (right perpendicular for CCW)
+      d1x = bx - ax
+      d1y = by - ay
+      len1 = sqrt (d1x * d1x + d1y * d1y)
+      (n1x, n1y)
+        | len1 == 0 = (0, 1)
+        | otherwise = (d1y / len1, -(d1x / len1))
+      -- Edge B→C: direction and outward normal
+      d2x = cx - bx
+      d2y = cy - by
+      len2 = sqrt (d2x * d2x + d2y * d2y)
+      (n2x, n2y)
+        | len2 == 0 = (0, 1)
+        | otherwise = (d2y / len2, -(d2x / len2))
+      -- Average outward direction
+      ox = n1x + n2x
+      oy = n1y + n2y
+   in directionToLabelPos ox oy
+
+-- | Map a 2D direction vector to the nearest of 8 label positions.
+-- Uses angle sectors of 45 degrees each.
+directionToLabelPos :: Double -> Double -> LabelPosition
+directionToLabelPos ox oy =
+  let angle = atan2 oy ox
+      -- Normalize to [0, 2*pi)
+      a = if angle < 0 then angle + 2 * pi else angle
+      -- Divide into 8 sectors of pi/4 each, starting at -pi/8 from east
+      sector = floor ((a + pi / 8) / (pi / 4)) :: Int
+   in case sector `mod` 8 of
+        0 -> RightOf -- ~0 rad (east)
+        1 -> AboveRight -- ~pi/4 (northeast)
+        2 -> Above -- ~pi/2 (north)
+        3 -> AboveLeft -- ~3pi/4 (northwest)
+        4 -> LeftOf -- ~pi (west)
+        5 -> BelowLeft -- ~5pi/4 (southwest)
+        6 -> Below -- ~6pi/4 (south)
+        7 -> BelowRight -- ~7pi/4 (southeast)
+        _ -> Above -- impossible, but safe
 
 -- | Convert segment side to a label position based on segment direction.
 --
@@ -309,6 +375,7 @@ evalModifierBlock modifier children = do
 applyEnvMod :: EnvModifier -> Eval ()
 applyEnvMod = \case
   SetColor c -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {color = c}}
+  SetFill c -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {fillColor = Just c}}
   SetDashed -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineStyle = Dashed}}
   SetThick -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThickWidth}}
   SetThin -> modify' $ \s -> s {esDrawEnv = (esDrawEnv s) {lineWidth = ThinWidth}}
@@ -406,6 +473,7 @@ extractMathLabels = concatMap go
       Label (LabelAtPoint _ (MathLabel latex) _) -> [latex]
       Label (LabelOnSegment _ (MathLabel latex) _ _) -> [latex]
       Label (LabelAngle _ (MathLabel latex)) -> [latex]
+      Label (LabelAutoPoint _ (MathLabel latex)) -> [latex]
       ModifierBlock _ children -> concatMap go children
       _ -> []
 

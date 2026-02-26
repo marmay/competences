@@ -89,6 +89,7 @@ data DrawPrimitive
   | DrawSegment !SegmentRef
   | DrawAngle !AngleRef
   | DrawRightAngle !AngleRef
+  | DrawFilledPolygon ![Name]
   deriving (Eq, Show)
 
 -- | Label content: plain text or LaTeX math (delimited by @$...$@)
@@ -100,6 +101,7 @@ data LabelPrimitive
   = LabelAtPoint !Name !LabelContent !LabelPosition
   | LabelOnSegment !SegmentRef !LabelContent !SegmentSide !Double
   | LabelAngle !AngleRef !LabelContent
+  | LabelAutoPoint !AngleRef !LabelContent
   deriving (Eq, Show)
 
 -- | Point constructions (for @defPointBy@)
@@ -127,6 +129,7 @@ data EnvModifier
   | SetDashed
   | SetThick
   | SetThin
+  | SetFill !Color
   deriving (Eq, Show)
 
 data AutoDecorator
@@ -145,6 +148,7 @@ data DrawEnv = DrawEnv
   , lineStyle :: !LineStyle
   , lineWidth :: !LineWidth
   , layer :: !Layer
+  , fillColor :: !(Maybe Color)
   }
   deriving (Eq, Show)
 
@@ -155,6 +159,7 @@ defaultDrawEnv =
     , lineStyle = Solid
     , lineWidth = NormalWidth
     , layer = Main
+    , fillColor = Nothing
     }
 
 -- | 2D vector / point
@@ -203,6 +208,8 @@ data RenderPrimitive
     RenderAngleArc !Vec2 !Double !Double !Double !DrawEnv
   | -- | Right-angle arc (German style: arc + dot): same fields as 'RenderAngleArc'
     RenderRightAngle !Vec2 !Double !Double !Double !DrawEnv
+  | -- | Filled polygon: list of vertices + draw environment (fillColor used)
+    RenderFilledPolygon ![Vec2] !DrawEnv
   deriving (Eq, Show)
 
 -- | Three-layer render result

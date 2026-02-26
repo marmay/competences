@@ -22,6 +22,8 @@ geometryTests =
     , labelContentGroup
     , extractMathLabelsGroup
     , evalGroup
+    , drawPolyParserGroup
+    , drawPolyEvalGroup
     , versionGroup
     ]
 
@@ -542,6 +544,179 @@ evalGroup =
             let result = evalScene cmds
             -- 3 segments + 1 point
             length (main result) @?= 4
+    ]
+
+-- -----------------------------------------------------------------
+-- drawPoly parser tests
+-- -----------------------------------------------------------------
+
+drawPolyParserGroup :: TestTree
+drawPolyParserGroup =
+  testGroup
+    "drawPoly Parser"
+    [ testCase "minimal triangle — 3 segments + fill" $ do
+        case parseGeometry "drawPoly A -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            -- Should have: DrawFilledPolygon + 3 DrawSegment (no point/label cmds)
+            let fills = [ns | Draw (DrawFilledPolygon ns) <- cmds]
+                segs = [s | Draw (DrawSegment s) <- cmds]
+            fills @?= [["A", "B", "C"]]
+            length segs @?= 3
+    , testCase "with point decoration — adds DrawPoint + LabelAutoPoint" $ do
+        case parseGeometry "drawPoly A [point \"A\"] -- B [point \"B\"] -- C [point \"C\"]" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let dots = [n | Draw (DrawPoint n) <- cmds]
+                autoLabels = [lbl | Label (LabelAutoPoint _ lbl) <- cmds]
+            length dots @?= 3
+            length autoLabels @?= 3
+    , testCase "with explicit label position — uses LabelAtPoint" $ do
+        case parseGeometry "drawPoly A [point \"A\" below] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let atLabels = [pos | Label (LabelAtPoint _ _ pos) <- cmds]
+            atLabels @?= [Below]
+    , testCase "with segment decoration — adds LabelOnSegment with SegBelow default" $ do
+        case parseGeometry "drawPoly A -[segment \"$c$\"]- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let segLabels = [(lbl, side) | Label (LabelOnSegment _ lbl side _) <- cmds]
+            segLabels @?= [(MathLabel "c", SegBelow)]
+    , testCase "with segment decoration — explicit side" $ do
+        case parseGeometry "drawPoly A -[segment \"$c$\" left]- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let segLabels = [side | Label (LabelOnSegment _ _ side _) <- cmds]
+            segLabels @?= [SegAbove]
+    , testCase "with angle decoration" $ do
+        case parseGeometry "drawPoly A [angle \"$\\\\alpha$\"] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let angles = [ref | Draw (DrawAngle ref) <- cmds]
+                angleLbls = [lbl | Label (LabelAngle _ lbl) <- cmds]
+            length angles @?= 1
+            length angleLbls @?= 1
+    , testCase "with rightAngle decoration" $ do
+        case parseGeometry "drawPoly A [rightAngle] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let rightAngles = [ref | Draw (DrawRightAngle ref) <- cmds]
+            length rightAngles @?= 1
+    , testCase "inline coordinates — generates DefPoint" $ do
+        case parseGeometry "drawPoly (0, 0) [point \"A\"] -- (4, 0) -- (0, 3)" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let defs = [n | DefPoint n _ <- cmds]
+            length defs @?= 3
+    , testCase "with close and closing edge decoration" $ do
+        case parseGeometry "drawPoly A -- B -- C -[segment \"$b$\"]- close" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let segLabels = [lbl | Label (LabelOnSegment _ lbl _ _) <- cmds]
+            segLabels @?= [MathLabel "b"]
+    , testCase "fewer than 3 vertices fails" $ do
+        let result = parseGeometry "drawPoly A -- B"
+        assertBool "should fail" (isLeft result)
+    ]
+
+-- -----------------------------------------------------------------
+-- drawPoly eval tests
+-- -----------------------------------------------------------------
+
+drawPolyEvalGroup :: TestTree
+drawPolyEvalGroup =
+  testGroup
+    "drawPoly Eval"
+    [ testCase "LabelAutoPoint on right triangle — correct position" $ do
+        -- CCW triangle: A=(0,0), B=(4,0), C=(0,3)
+        -- At vertex A=(0,0), prev=C=(0,3), succ=B=(4,0)
+        -- Edge C->A: dir=(0,-3), right perp = (-3,0)/3 = (-1,0)
+        -- Edge A->B: dir=(4,0), right perp = (0,-4)/4 = (0,-1)
+        -- Average outward: (-1,-1) -> BelowLeft
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 3)
+                , Label (LabelAutoPoint (AngleRef "C" "A" "B") (PlainLabel "A"))
+                ]
+        case main result of
+          [RenderLabel (Vec2 lx ly) lbl pos _] -> do
+            lbl @?= PlainLabel "A"
+            lx @?= 0
+            ly @?= 0
+            pos @?= BelowLeft
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "LabelAutoPoint at top vertex — Above" $ do
+        -- Equilateral-ish: A=(0,0), B=(4,0), C=(2,3)
+        -- At vertex C, prev=B=(4,0), succ=A=(0,0)
+        -- Edge B→C: dir=(-2,3), outward normal = (3,2)/sqrt(13)
+        -- Edge C→A: dir=(-2,-3), outward normal = (-3,2)/sqrt(13)
+        -- Average: (0,4)/sqrt(13) → Above
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 2 3)
+                , Label (LabelAutoPoint (AngleRef "B" "C" "A") (PlainLabel "C"))
+                ]
+        case main result of
+          [RenderLabel _ _ pos _] -> pos @?= Above
+          other -> assertFailure $ "Expected [RenderLabel], got: " <> show other
+    , testCase "DrawFilledPolygon with fill active — renders to background" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 3)
+                , ModifierBlock
+                    (EnvMod (SetFill (NamedColor "red")))
+                    [Draw (DrawFilledPolygon ["A", "B", "C"])]
+                ]
+        case background result of
+          [RenderFilledPolygon vs env] -> do
+            length vs @?= 3
+            fillColor env @?= Just (NamedColor "red")
+          other -> assertFailure $ "Expected [RenderFilledPolygon], got: " <> show other
+    , testCase "DrawFilledPolygon without fill — nothing" $ do
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 3)
+                , Draw (DrawFilledPolygon ["A", "B", "C"])
+                ]
+        background result @?= []
+        main result @?= []
+    , testCase "fill modifier scoping" $ do
+        -- fill inside block, outside should be Nothing again
+        let result =
+              evalScene
+                [ DefPoint "A" (Vec2 0 0)
+                , DefPoint "B" (Vec2 4 0)
+                , DefPoint "C" (Vec2 0 3)
+                , ModifierBlock
+                    (EnvMod (SetFill (NamedColor "blue")))
+                    [Draw (DrawFilledPolygon ["A", "B", "C"])]
+                , Draw (DrawFilledPolygon ["A", "B", "C"])
+                ]
+        -- First fill goes to background, second is a no-op
+        length (background result) @?= 1
+    , testCase "fill block parser" $ do
+        case parseGeometry "fill red {\n  drawPoly A -- B -- C\n}" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            -- Should be wrapped in ModifierBlock with SetFill
+            case cmds of
+              [ModifierBlock (EnvMod (SetFill (NamedColor "red"))) _children] -> pure ()
+              other -> assertFailure $ "Expected fill modifier block, got: " <> show other
+    , testCase "extractMathLabels — LabelAutoPoint with MathLabel" $
+        extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (MathLabel "\\beta"))]
+          @?= ["\\beta"]
+    , testCase "extractMathLabels — LabelAutoPoint with PlainLabel" $
+        extractMathLabels [Label (LabelAutoPoint (AngleRef "A" "B" "C") (PlainLabel "B"))]
+          @?= []
     ]
 
 -- -----------------------------------------------------------------

@@ -102,8 +102,10 @@ commandP = do
     "labelPoint" -> one <$> labelPointP
     "labelSegment" -> one <$> labelSegmentP
     "labelAngle" -> one <$> labelAngleP
+    "drawPoly" -> drawPolyP
     -- Modifier blocks
     "color" -> one <$> colorBlockP
+    "fill" -> one <$> fillBlockP
     "dashed" -> one <$> modifierBlockP (EnvMod SetDashed)
     "thick" -> one <$> modifierBlockP (EnvMod SetThick)
     "thin" -> one <$> modifierBlockP (EnvMod SetThin)
@@ -311,6 +313,7 @@ modifierValueP = do
   kw <- lexeme keywordP
   case kw of
     "color" -> EnvMod . SetColor . NamedColor <$> lexeme nameP
+    "fill" -> EnvMod . SetFill . NamedColor <$> lexeme nameP
     "dashed" -> pure $ EnvMod SetDashed
     "thick" -> pure $ EnvMod SetThick
     "thin" -> pure $ EnvMod SetThin
@@ -337,6 +340,187 @@ nestModifiers :: [Modifier] -> [Command] -> Command
 nestModifiers [] _ = error "nestModifiers: impossible empty list"
 nestModifiers [m] cmds = ModifierBlock m cmds
 nestModifiers (m : ms) cmds = ModifierBlock m [nestModifiers ms cmds]
+
+-- -----------------------------------------------------------------
+-- Fill modifier block
+-- -----------------------------------------------------------------
+
+-- | @fill <color> { ... }@
+fillBlockP :: Parser Command
+fillBlockP = do
+  name <- lexeme nameP
+  modifierBlockP (EnvMod (SetFill (NamedColor name)))
+
+-- -----------------------------------------------------------------
+-- drawPoly command
+-- -----------------------------------------------------------------
+
+-- | Internal representation of a polygon vertex (not exported)
+data PolyVertex = PolyNamed !Name | PolyInline !Vec2
+
+-- | Vertex decoration
+data PolyVertexDec
+  = PVPoint !(Maybe LabelContent) !(Maybe LabelPosition)
+  | PVAngle !(Maybe LabelContent)
+  | PVRightAngle
+
+-- | Edge decoration
+data PolyEdgeDec = PESegment !LabelContent !(Maybe SegmentSide)
+
+-- | @drawPoly vertex (edge vertex)* [edge "close"]@
+drawPolyP :: Parser [Command]
+drawPolyP = do
+  offset <- getOffset
+  -- Parse first vertex
+  v0 <- lexeme polyVertexP
+  decs0 <- option [] polyVertexDecsP
+  -- Parse (edge vertex)* with optional close
+  (edges, hasClose, closeDec) <- polyEdgesP
+  let allVertices = (v0, decs0) : map snd edges
+      allEdgeDecs = map fst edges
+  if length allVertices < 3 && not hasClose
+    then fail "drawPoly requires at least 3 vertices"
+    else desugarPoly offset allVertices allEdgeDecs hasClose closeDec
+
+-- | Parse remaining edges and vertices after the first vertex.
+-- Returns: ([(edgeDec, (vertex, vertexDecs))], hasClose, maybeClosingEdgeDec)
+polyEdgesP :: Parser ([(Maybe PolyEdgeDec, (PolyVertex, [PolyVertexDec]))], Bool, Maybe PolyEdgeDec)
+polyEdgesP = go []
+  where
+    go acc = do
+      mEdge <- optional (try polyEdgeP)
+      case mEdge of
+        Nothing -> pure (reverse acc, False, Nothing)
+        Just edgeDec -> do
+          -- Check for "close"
+          mClose <- optional (try (lexeme (string "close")))
+          case mClose of
+            Just _ -> pure (reverse acc, True, edgeDec)
+            Nothing -> do
+              v <- lexeme polyVertexP
+              decs <- option [] polyVertexDecsP
+              go ((edgeDec, (v, decs)) : acc)
+
+-- | Parse a polygon vertex: @(x, y)@ or a name (but not "close")
+polyVertexP :: Parser PolyVertex
+polyVertexP =
+  (PolyInline <$> vec2P)
+    <|> do
+      n <- lookAhead nameP
+      if n == "close"
+        then fail "unexpected close"
+        else PolyNamed <$> lexeme nameP
+
+-- | Parse vertex decorations: @[point "A", angle "$\alpha$", rightAngle]@
+polyVertexDecsP :: Parser [PolyVertexDec]
+polyVertexDecsP = between (lexeme (char '[')) (lexeme (char ']')) $
+  polyVertexDecP `sepBy1` lexeme (char ',')
+
+polyVertexDecP :: Parser PolyVertexDec
+polyVertexDecP = do
+  kw <- lexeme keywordP
+  case kw of
+    "point" -> do
+      mTxt <- optional (lexeme quotedTextP)
+      mPos <- optional (lexeme labelPositionP)
+      pure $ PVPoint (parseLabelContent <$> mTxt) mPos
+    "angle" -> do
+      mTxt <- optional (lexeme quotedTextP)
+      pure $ PVAngle (parseLabelContent <$> mTxt)
+    "rightAngle" -> pure PVRightAngle
+    _ -> fail $ "Unknown vertex decoration: " <> T.unpack kw
+
+-- | Parse an edge: @--@ (bare) or @-[segment "label" side]-@
+polyEdgeP :: Parser (Maybe PolyEdgeDec)
+polyEdgeP =
+  (Nothing <$ try (lexeme (string "--") <* notFollowedBy (char '[')))
+    <|> (Just <$> decoratedEdgeP)
+
+decoratedEdgeP :: Parser PolyEdgeDec
+decoratedEdgeP = do
+  _ <- lexeme (string "-[")
+  kw <- lexeme keywordP
+  dec <- case kw of
+    "segment" -> do
+      txt <- lexeme quotedTextP
+      mSide <- optional (lexeme segmentSideP)
+      pure $ PESegment (parseLabelContent txt) mSide
+    _ -> fail $ "Unknown edge decoration: " <> T.unpack kw
+  _ <- lexeme (string "]-")
+  pure dec
+
+-- | Desugar a parsed polygon into a list of commands
+desugarPoly
+  :: Int
+  -> [(PolyVertex, [PolyVertexDec])]
+  -> [Maybe PolyEdgeDec]
+  -> Bool
+  -> Maybe PolyEdgeDec
+  -> Parser [Command]
+desugarPoly offset vertices edgeDecs _hasClose closeEdgeDec = do
+  let prefix = "_p" <> T.pack (show offset)
+      n = length vertices
+
+      -- Assign names to each vertex
+      vertexName :: Int -> PolyVertex -> Name
+      vertexName idx (PolyInline _) = prefix <> "_v" <> T.pack (show idx)
+      vertexName _ (PolyNamed name) = name
+
+      names = [vertexName i (fst v) | (i, v) <- zip [0 ..] vertices]
+
+      -- DefPoint commands for inline coordinates
+      defPoints =
+        [ DefPoint (vertexName i (PolyInline vec)) vec
+        | (i, (PolyInline vec, _)) <- zip [0 ..] vertices
+        ]
+
+      -- All edge decorations including closing edge
+      allEdgeDecs = edgeDecs <> [closeEdgeDec]
+
+      -- Edge pairs: (from, to) for each edge including closing
+      edgePairs = [(names !! i, names !! ((i + 1) `mod` n)) | i <- [0 .. n - 1]]
+
+      -- DrawFilledPolygon
+      fillCmd = [Draw (DrawFilledPolygon names)]
+
+      -- Segments
+      segmentCmds = concat
+        [ Draw (DrawSegment (SegInline from to))
+            : case allEdgeDecs !! i of
+              Just (PESegment lbl mSide) ->
+                [Label (LabelOnSegment (SegInline from to) lbl (maybe SegBelow id mSide) 0.5)]
+              _ -> []
+        | (i, (from, to)) <- zip [0 ..] edgePairs
+        ]
+
+      -- Vertex decorations
+      vertexCmds = concat
+        [ desugarVertexDecs (names !! i) (names !! ((i - 1 + n) `mod` n)) (names !! ((i + 1) `mod` n)) decs
+        | (i, (_, decs)) <- zip [0 ..] vertices
+        ]
+
+  pure $ defPoints <> fillCmd <> segmentCmds <> vertexCmds
+
+-- | Desugar vertex decorations into commands.
+-- @prev@ is the predecessor vertex, @succ@ is the successor vertex.
+desugarVertexDecs :: Name -> Name -> Name -> [PolyVertexDec] -> [Command]
+desugarVertexDecs _name _prev _succ [] = []
+desugarVertexDecs name prev succ_ decs = concatMap go decs
+  where
+    angleRef = AngleRef prev name succ_
+    go = \case
+      PVPoint mLbl mPos ->
+        [Draw (DrawPoint name)]
+          <> case mLbl of
+            Nothing -> []
+            Just lbl -> case mPos of
+              Just pos -> [Label (LabelAtPoint name lbl pos)]
+              Nothing -> [Label (LabelAutoPoint angleRef lbl)]
+      PVAngle mLbl ->
+        [Draw (DrawAngle angleRef)]
+          <> maybe [] (\lbl -> [Label (LabelAngle angleRef lbl)]) mLbl
+      PVRightAngle ->
+        [Draw (DrawRightAngle angleRef)]
 
 -- -----------------------------------------------------------------
 -- Primitives

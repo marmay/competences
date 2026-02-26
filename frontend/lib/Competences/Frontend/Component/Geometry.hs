@@ -132,6 +132,7 @@ primVecs = \case
   RenderGridLine v1 v2 _ -> [v1, v2]
   RenderAngleArc v startA sweepA r _ -> angleArcVecs v startA sweepA r
   RenderRightAngle v startA sweepA r _ -> angleArcVecs v startA sweepA r
+  RenderFilledPolygon vs _ -> vs
 
 -- | Estimate bounding-box corners of a label for viewBox calculation.
 labelBounds :: Vec2 -> LabelContent -> LabelPosition -> [Vec2]
@@ -308,6 +309,16 @@ renderPrimitive symbols = \case
               , SP.fill_ (ms $ envColor env)
               ]
           ]
+  RenderFilledPolygon vecs env ->
+    case fillColor env of
+      Nothing -> Svg.g_ [] []
+      Just fc ->
+        Svg.polygon_
+          [ SP.points_ $ ms $ pointsString vecs
+          , SP.fill_ (ms $ envColor' fc)
+          , M.textProp "fill-opacity" "0.15"
+          , SP.stroke_ "none"
+          ]
 
 -- | Render a MathJax-rendered formula as an SVG @\<image\>@ element.
 -- Converts MathJax's @ex@ units to geometry coordinate units.
@@ -376,6 +387,15 @@ arcParams vx vy startAngle sweepAngle radius =
 -- -----------------------------------------------------------------
 -- Environment to SVG attributes
 -- -----------------------------------------------------------------
+
+-- | Convert a list of Vec2 to an SVG points string (Y-flipped)
+pointsString :: [Vec2] -> Text
+pointsString = T.intercalate " " . map (\(Vec2 x y) -> T.pack (show x <> "," <> show (-y)))
+
+-- | Color value from a 'Color' (without DrawEnv lookup)
+envColor' :: Color -> Text
+envColor' CurrentColor = "currentColor"
+envColor' (NamedColor c) = c
 
 envColor :: DrawEnv -> Text
 envColor env = case color env of
