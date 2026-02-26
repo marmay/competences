@@ -322,6 +322,8 @@ data Label
   | LblContents
   | LblDescriptionToggle
   | LblAnswerGrid
+  | LblInlineField
+  | LblItemsPerRow
   | LblPresetAufgabenblatt
   | LblPresetArbeitsblatt
   | LblPresetLoesungsblatt
@@ -660,6 +662,8 @@ labels' =
   , LblContents
   , LblDescriptionToggle
   , LblAnswerGrid
+  , LblInlineField
+  , LblItemsPerRow
   , LblPresetAufgabenblatt
   , LblPresetArbeitsblatt
   , LblPresetLoesungsblatt
@@ -1018,6 +1022,8 @@ defaultTranslation LblFormat = "Format"
 defaultTranslation LblContents = "Inhalt"
 defaultTranslation LblDescriptionToggle = "Angabe"
 defaultTranslation LblAnswerGrid = "Kästchen"
+defaultTranslation LblInlineField = "Lösungsfeld"
+defaultTranslation LblItemsPerRow = "Teilaufgaben pro Zeile"
 defaultTranslation LblPresetAufgabenblatt = "Aufgabenblatt"
 defaultTranslation LblPresetArbeitsblatt = "Arbeitsblatt"
 defaultTranslation LblPresetLoesungsblatt = "Lösungsblatt"

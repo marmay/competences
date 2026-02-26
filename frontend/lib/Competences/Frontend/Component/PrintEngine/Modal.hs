@@ -95,6 +95,8 @@ data PrintModalAction
   | ToggleSolution !TaskId !SolutionId
   | ToggleGrid !TaskId
   | SetGridHeight !TaskId !Double
+  | ToggleInlineAnswer !TaskId
+  | SetItemsPerRow !TaskId !Int
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
@@ -164,12 +166,22 @@ updatePrintModal (ToggleSolution tid sid) _total m =
     , previewTaskIndex = 0
     }
 updatePrintModal (ToggleGrid tid) _total m =
-  m { contentSettings = modifyTaskSetting tid toggleGrid m.contentSettings
+  m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {gridHeightMm = case tcs.gridHeightMm of Nothing -> Just defaultGridHeightMm; Just _ -> Nothing}) m.contentSettings
     , pageGrouping = []
     , previewTaskIndex = 0
     }
 updatePrintModal (SetGridHeight tid h) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {gridHeightMm = Just (max 5.0 (min 200.0 h))}) m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+updatePrintModal (ToggleInlineAnswer tid) _total m =
+  m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {inlineAnswer = not tcs.inlineAnswer}) m.contentSettings
+    , pageGrouping = []
+    , previewTaskIndex = 0
+    }
+updatePrintModal (SetItemsPerRow tid n) _total m =
+  m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {itemsPerRow = max 1 (min 4 n)}) m.contentSettings
     , pageGrouping = []
     , previewTaskIndex = 0
     }
@@ -188,12 +200,6 @@ toggleSolution sid tcs =
         then tcs {visibleSolutions = Set.delete sid vs}
         else tcs {visibleSolutions = Set.insert sid vs}
 
--- | Toggle grid on/off
-toggleGrid :: TaskContentSetting -> TaskContentSetting
-toggleGrid tcs = case tcs.gridHeightMm of
-  Nothing -> tcs {gridHeightMm = Just defaultGridHeightMm}
-  Just _ -> tcs {gridHeightMm = Nothing}
-
 -- | Whether a modal action requires re-measurement of task heights
 needsRemeasure :: PrintModalAction -> Bool
 needsRemeasure (SetPaperSize _) = True
@@ -209,6 +215,8 @@ needsRemeasure (ToggleDescription _) = True
 needsRemeasure (ToggleSolution _ _) = True
 needsRemeasure (ToggleGrid _) = True
 needsRemeasure (SetGridHeight _ _) = True
+needsRemeasure (ToggleInlineAnswer _) = True
+needsRemeasure (SetItemsPerRow _ _) = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -359,8 +367,19 @@ taskSection cs wrap ti =
           [ Typography.muted (ms ident)
           ]
       , -- Description toggle
-        checkboxToggle (C.translate' C.LblDescriptionToggle) tcs.showDescription (\b -> wrap (if b then ToggleDescription ti.taskId else ToggleDescription ti.taskId))
+        checkboxToggle (C.translate' C.LblDescriptionToggle) tcs.showDescription (\_ -> wrap (ToggleDescription ti.taskId))
       ]
+      -- Sub-options when description is on and task has letter-list items
+      <> ( if tcs.showDescription && ti.hasLetterList
+             then
+               [ M.div_
+                   [class_ "ml-6 space-y-1"]
+                   [ itemsPerRowRow tcs wrap ti.taskId
+                   , checkboxToggle (C.translate' C.LblInlineField) tcs.inlineAnswer (\_ -> wrap (ToggleInlineAnswer ti.taskId))
+                   ]
+               ]
+             else []
+         )
       -- Per-solution toggles
       <> [ solutionToggle cs wrap ti.taskId sid stype
          | (sid, stype) <- ti.solutionInfos
@@ -376,39 +395,46 @@ solutionToggle cs wrap tid sid stype =
       lbl = C.translate' (C.LblSolutionType stype)
    in checkboxToggle lbl isOn (\_ -> wrap (ToggleSolution tid sid))
 
--- | Grid toggle row with optional height input
+-- | Items per row control (1–4)
+itemsPerRowRow :: TaskContentSetting -> (PrintModalAction -> action) -> TaskId -> M.View model action
+itemsPerRowRow tcs wrap tid =
+  M.div_
+    [class_ "flex items-center gap-2"]
+    [ M.span_ [class_ "text-xs text-muted-foreground"] [M.text (C.translate' C.LblItemsPerRow)]
+    , M.input_
+        [ MP.type_ "number"
+        , MP.value_ (ms (show tcs.itemsPerRow))
+        , M.onInput (\v -> wrap (SetItemsPerRow tid (parseIntOr tcs.itemsPerRow v)))
+        , M.textProp "min" "1"
+        , M.textProp "max" "4"
+        , M.textProp "step" "1"
+        , class_ "input w-14 h-6 text-xs px-1"
+        ]
+    ]
+
+-- | Grid toggle with height input
 gridToggleRow :: TaskContentSetting -> (PrintModalAction -> action) -> TaskId -> M.View model action
 gridToggleRow tcs wrap tid =
-  let isOn = case tcs.gridHeightMm of { Just _ -> True; Nothing -> False }
+  let gridOn = case tcs.gridHeightMm of Just _ -> True; Nothing -> False
    in M.div_
-        [class_ "field"]
-        [ M.label_
-            [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
-            [ M.input_
-                [ MP.type_ "checkbox"
-                , M.textProp "role" "switch"
-                , MP.checked_ isOn
-                , M.onClick (wrap (ToggleGrid tid))
-                , class_ "input"
-                ]
-            , M.text (C.translate' C.LblAnswerGrid)
-            , case tcs.gridHeightMm of
-                Nothing -> M.text ""
-                Just h ->
-                  M.span_
-                    [class_ "flex items-center gap-1"]
-                    [ M.input_
-                        [ MP.type_ "number"
-                        , MP.value_ (ms (show (round h :: Int)))
-                        , M.onInput (\v -> wrap (SetGridHeight tid (parseDoubleOr h v)))
-                        , M.textProp "min" "5"
-                        , M.textProp "max" "200"
-                        , M.textProp "step" "5"
-                        , class_ "input w-16 h-6 text-xs px-1"
-                        ]
-                    , M.span_ [class_ "text-xs text-muted-foreground"] [M.text "mm"]
+        [class_ "space-y-1"]
+        [ checkboxToggle (C.translate' C.LblAnswerGrid) gridOn (\_ -> wrap (ToggleGrid tid))
+        , case tcs.gridHeightMm of
+            Just h ->
+              M.div_
+                [class_ "ml-6 flex items-center gap-1"]
+                [ M.input_
+                    [ MP.type_ "number"
+                    , MP.value_ (ms (show (round h :: Int)))
+                    , M.onInput (\v -> wrap (SetGridHeight tid (parseDoubleOr h v)))
+                    , M.textProp "min" "5"
+                    , M.textProp "max" "200"
+                    , M.textProp "step" "5"
+                    , class_ "input w-16 h-6 text-xs px-1"
                     ]
-            ]
+                , M.span_ [class_ "text-xs text-muted-foreground"] [M.text "mm"]
+                ]
+            Nothing -> M.text ""
         ]
 
 -- | Modal footer with cancel and print buttons

@@ -31,8 +31,12 @@ where
 import Competences.Document.Id (Id)
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionType (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier)
+import Competences.Markdown.AST qualified as MD
+import Competences.Markdown.Parser qualified as Markdown
+import Competences.TaskContent.RichContent (RichContent, toRawText)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (isJust)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -171,6 +175,8 @@ data TaskContentSetting = TaskContentSetting
   { showDescription :: !Bool
   , visibleSolutions :: !(Set SolutionId)
   , gridHeightMm :: !(Maybe Double)
+  , inlineAnswer :: !Bool
+  , itemsPerRow :: !Int
   }
   deriving (Eq, Show, Generic)
 
@@ -193,6 +199,7 @@ data TaskInfo = TaskInfo
   { taskId :: !TaskId
   , identifier :: !TaskIdentifier
   , solutionInfos :: ![(SolutionId, SolutionType)]
+  , hasLetterList :: !Bool
   }
   deriving (Eq, Show, Generic)
 
@@ -200,14 +207,30 @@ data TaskInfo = TaskInfo
 defaultGridHeightMm :: Double
 defaultGridHeightMm = 40.0
 
--- | Build TaskInfo list from tasks with solutions
-mkTaskInfos :: [(Task, [Solution])] -> [TaskInfo]
-mkTaskInfos = map $ \(task, sols) ->
+-- | Build TaskInfo list from tasks with solutions and content
+mkTaskInfos :: [(Task, [Solution], Maybe RichContent)] -> [TaskInfo]
+mkTaskInfos = map $ \(task, sols, mContent) ->
   TaskInfo
     { taskId = task.id
     , identifier = task.identifier
     , solutionInfos = map (\s -> (s.id, s.solutionType)) sols
+    , hasLetterList = containsLetterList mContent
     }
+
+-- | Check whether rich content contains a LetterList block
+containsLetterList :: Maybe RichContent -> Bool
+containsLetterList Nothing = False
+containsLetterList (Just rc) = case Markdown.parseMarkdown (toRawText rc) of
+  Left _ -> False
+  Right (MD.Document blocks) -> any hasLetterListBlock blocks
+
+hasLetterListBlock :: MD.Block -> Bool
+hasLetterListBlock (MD.LetterList _) = True
+hasLetterListBlock (MD.OrderedList _ items) = any (any hasLetterListBlock) items
+hasLetterListBlock (MD.BulletList items) = any (any hasLetterListBlock) items
+hasLetterListBlock (MD.Admonition _ _ blocks) = any hasLetterListBlock blocks
+hasLetterListBlock (MD.NotesGrid c1 c2 c3 c4) = any hasLetterListBlock (c1 ++ c2 ++ c3 ++ c4)
+hasLetterListBlock _ = False
 
 -- | Apply a preset to produce content settings for the given tasks
 applyPreset :: ContentPreset -> [TaskInfo] -> ContentSettings
@@ -220,16 +243,22 @@ presetForTask Aufgabenblatt ti = TaskContentSetting
   { showDescription = True
   , visibleSolutions = solutionsOfType Hint ti
   , gridHeightMm = Nothing
+  , inlineAnswer = False
+  , itemsPerRow = 1
   }
 presetForTask Arbeitsblatt ti = TaskContentSetting
   { showDescription = True
   , visibleSolutions = solutionsOfType Hint ti
   , gridHeightMm = Just defaultGridHeightMm
+  , inlineAnswer = False
+  , itemsPerRow = 1
   }
 presetForTask Loesungsblatt ti = TaskContentSetting
   { showDescription = False
   , visibleSolutions = solutionsOfType Results ti
   , gridHeightMm = Nothing
+  , inlineAnswer = False
+  , itemsPerRow = 1
   }
 presetForTask Musteraufgaben ti =
   let completeIds = solutionsOfType Complete ti
@@ -240,6 +269,8 @@ presetForTask Musteraufgaben ti =
         { showDescription = True
         , visibleSolutions = Set.union hintIds visible
         , gridHeightMm = Nothing
+        , inlineAnswer = False
+        , itemsPerRow = 1
         }
 
 solutionsOfType :: SolutionType -> TaskInfo -> Set (Id Solution)
@@ -253,9 +284,7 @@ isTaskVisible cs tid = case Map.lookup tid cs.perTask of
   Just tcs ->
     tcs.showDescription
       || not (Set.null tcs.visibleSolutions)
-      || case tcs.gridHeightMm of
-        Just _ -> True
-        Nothing -> False
+      || isJust tcs.gridHeightMm
 
 -- | Look up content setting for a task, defaulting to everything off
 taskContentSetting :: ContentSettings -> TaskId -> TaskContentSetting
@@ -264,5 +293,7 @@ taskContentSetting cs tid = case Map.lookup tid cs.perTask of
     { showDescription = False
     , visibleSolutions = Set.empty
     , gridHeightMm = Nothing
+    , inlineAnswer = False
+    , itemsPerRow = 1
     }
   Just tcs -> tcs

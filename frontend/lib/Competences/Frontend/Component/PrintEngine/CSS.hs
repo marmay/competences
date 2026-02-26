@@ -51,6 +51,16 @@ sharedCSS settings =
         , ".page-print-content .print-page-footer { text-align: center; font-size: 0.75em; color: #999; }"
         , ".page-print-content .print-name-field { font-size: 0.85em; text-align: center; margin: 1.5em 0; }"
         , ".page-print-content .print-name-field-line { display: inline-block; border-bottom: 1px solid #333; width: 60%; vertical-align: bottom; }"
+        , -- Multi-column letter lists (grid for row-first flow)
+          ".page-print-content .print-columns-2 ol { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 1em; }"
+        , ".page-print-content .print-columns-3 ol { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 1em; }"
+        , ".page-print-content .print-columns-4 ol { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 1em; }"
+        , ".page-print-content .print-columns-2 ol li, .page-print-content .print-columns-3 ol li, .page-print-content .print-columns-4 ol li { margin-top: 0.25em !important; }"
+        , -- Inline answer field: flex layout on <li> with ::after grid
+          ".page-print-content .print-inline-answer ol { list-style: none; padding-left: 0; margin-left: 0; counter-reset: letter-counter; }"
+        , ".page-print-content .print-inline-answer ol li { display: flex; align-items: center; counter-increment: letter-counter; }"
+        , ".page-print-content .print-inline-answer ol li::before { content: counter(letter-counter, lower-alpha) \") \"; flex-shrink: 0; font-weight: 500; color: #57534e; margin-right: 0.25em; }"
+        , ".page-print-content .print-inline-answer ol li::after { content: \"\"; flex: 1; height: 10mm; min-width: 20mm; background-image: linear-gradient(to right, #ccc 1px, transparent 1px), linear-gradient(to bottom, #ccc 1px, transparent 1px); background-size: 5mm 5mm; background-position: right top; print-color-adjust: exact; -webkit-print-color-adjust: exact; margin-left: 0.5em; }"
         ]
 
 -- | Continuous mode: zero-margin @page, explicit page dimensions and structural margins.

@@ -117,6 +117,7 @@ import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.DSL (jsg, (#))
 import Miso.Html qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
@@ -345,7 +346,7 @@ viewerComponent r user assignment wm =
     update OpenPagePrintModal = do
       M.modify $ \m ->
         let infos = mkTaskInfos
-              [ (tws.task, tws.solutions)
+              [ (tws.task, tws.solutions, tws.taskContent)
               | tws <- m.projection.tasksWithSolutions
               ]
          in m & #pagePrintModal .~ Just (initPrintModalModel infos)
@@ -720,7 +721,10 @@ viewerComponent r user assignment wm =
           descriptionView
             | tcs.showDescription =
                 [ M.div_
-                    [class_ "prose prose-stone prose-sm max-w-none"]
+                    [ MP.class_ $ "prose prose-stone prose-sm max-w-none"
+                        <> printColumnsClass tcs.itemsPerRow
+                        <> if tcs.inlineAnswer then " print-inline-answer" else ""
+                    ]
                     [renderRichText r.formulaCache content]
                 | Just content <- [tws.taskContent]
                 ]
@@ -763,6 +767,11 @@ viewerComponent r user assignment wm =
             ]
         ]
         []
+
+    -- | CSS class for multi-column letter lists
+    printColumnsClass :: Int -> MisoString
+    printColumnsClass 1 = ""
+    printColumnsClass n = " print-columns-" <> ms (show (min 4 n))
 
     -- | Build a map from TaskId to its 1-based position in the original
     -- (unfiltered) task list, so hidden tasks don't renumber visible ones.
