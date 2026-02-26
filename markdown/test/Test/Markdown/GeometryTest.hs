@@ -785,6 +785,32 @@ drawPolyParserGroup =
                 angles = [ref | Draw (DrawAngle ref) <- cmds]
             colorBlocks @?= ["red"]
             length angles @?= 1
+    , testCase "label with explicit position — LabelAtPoint only, no DrawPoint" $ do
+        case parseGeometry "drawPoly A [label \"A\" below] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let atLabels = [(lbl, pos) | Label (LabelAtPoint _ lbl pos) <- cmds]
+                dots = [n | Draw (DrawPoint n) <- cmds]
+            atLabels @?= [(PlainLabel "A", Below)]
+            dots @?= []
+    , testCase "label with auto position — LabelAutoPoint only, no DrawPoint" $ do
+        case parseGeometry "drawPoly A [label \"A\"] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let autoLabels = [lbl | Label (LabelAutoPoint _ lbl) <- cmds]
+                dots = [n | Draw (DrawPoint n) <- cmds]
+            autoLabels @?= [PlainLabel "A"]
+            dots @?= []
+    , testCase "label mixed with other decorations" $ do
+        case parseGeometry "drawPoly A [label \"A\" below, angle \"$\\\\alpha$\"] -- B -- C" of
+          Left err -> assertFailure $ "Parse failed: " <> show err
+          Right cmds -> do
+            let atLabels = [pos | Label (LabelAtPoint _ _ pos) <- cmds]
+                angles = [ref | Draw (DrawAngle ref) <- cmds]
+                dots = [n | Draw (DrawPoint n) <- cmds]
+            atLabels @?= [Below]
+            length angles @?= 1
+            dots @?= []
     ]
 
 -- -----------------------------------------------------------------

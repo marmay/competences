@@ -364,6 +364,7 @@ data PolyVertexDec
   = PVPoint !(Maybe LabelContent) !(Maybe LabelPosition)
   | PVAngle !(Maybe LabelContent)
   | PVRightAngle
+  | PVLabel !LabelContent !(Maybe LabelPosition)
 
 -- | Edge decoration
 data PolyEdgeDec = PESegment !LabelContent !(Maybe SegmentSide)
@@ -445,6 +446,10 @@ polyVertexDecPlainP = do
       mTxt <- optional (lexeme quotedTextP)
       pure $ PVAngle (parseLabelContent <$> mTxt)
     "rightAngle" -> pure PVRightAngle
+    "label" -> do
+      txt <- lexeme quotedTextP
+      mPos <- optional (lexeme labelPositionP)
+      pure $ PVLabel (parseLabelContent txt) mPos
     _ -> fail $ "Unknown vertex decoration: " <> T.unpack kw
 
 -- | Parse one or more @\@@-prefixed modifiers: @\@color red@ or @\@color red, \@thick@
@@ -565,6 +570,9 @@ desugarVertexDecs name prev succ_ decs = concatMap go decs
           <> maybe [] (\lbl -> [Label (LabelAngle angleRef lbl Nothing)]) mLbl
       PVRightAngle ->
         [Draw (DrawRightAngle angleRef)]
+      PVLabel lbl mPos -> case mPos of
+        Just pos -> [Label (LabelAtPoint name lbl pos)]
+        Nothing -> [Label (LabelAutoPoint angleRef lbl)]
 
 -- -----------------------------------------------------------------
 -- Primitives
