@@ -209,7 +209,7 @@ renderPrimitive symbols = \case
                           , SP.fontStyle_ "italic"
                           ]
                           [M.text (ms wrappedLatex)]
-                  Just es -> renderMathLabel (Vec2 x y) es pos env
+                  Just es -> renderMathLabel (Vec2 x y) es pos env latex
   RenderAxisLine (Vec2 x1 y1) (Vec2 x2 y2) env ->
     Svg.line_
       [ SP.x1_ (ms $ show x1)
@@ -331,8 +331,8 @@ renderPrimitive symbols = \case
 -- below ~0.5 SVG user units (geometry coordinates are small — typically
 -- sub-1.0). We work around this by rendering the image at a 100× nominal
 -- size and wrapping it in a @\<g transform="translate(…) scale(0.01)"\>@.
-renderMathLabel :: Vec2 -> EmbeddedSymbol -> LabelPosition -> DrawEnv -> M.View model action
-renderMathLabel (Vec2 x y) es pos env =
+renderMathLabel :: Vec2 -> EmbeddedSymbol -> LabelPosition -> DrawEnv -> Text -> M.View model action
+renderMathLabel (Vec2 x y) es pos env latex =
   let parseEx t = maybe 1.0 id $ T.stripSuffix "ex" t >>= (readMaybe . T.unpack)
       exToCoord = 0.22 * (fontSize env / 0.45) :: Double
       imgW = parseEx es.width * exToCoord
@@ -351,6 +351,8 @@ renderMathLabel (Vec2 x y) es pos env =
    in Svg.g_
         [ SP.transform_ $ ms $
             "translate(" <> show imgX <> "," <> show imgY <> ") scale(" <> show s <> ")"
+        , M.textProp "role" "img"
+        , M.textProp "aria-label" (ms latex)
         ]
         [ Svg.image_
             [ SP.x_ "0"

@@ -331,6 +331,7 @@ mathImgRef symbols sid latex display =
             M.img_
               [ class_ "math-formula"
               , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+              , M.textProp (ms ("alt" :: Text)) (ms latex)
               , M.textProp (ms ("style" :: Text)) (ms styleVal)
               ]
        in case display of
@@ -340,6 +341,7 @@ mathImgRef symbols sid latex display =
               M.img_
                 [ class_ "math-formula inline-block"
                 , M.textProp (ms ("src" :: Text)) (ms es.dataUrl)
+                , M.textProp (ms ("alt" :: Text)) (ms latex)
                 , M.textProp (ms ("style" :: Text)) (ms styleVal)
                 ]
 
