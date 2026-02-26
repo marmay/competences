@@ -112,7 +112,7 @@ pinLessonEvaluator r mDateFrom lesson =
         { key = "lesson-evaluation-" <> idToText lesson.id
         , category = PinCatLessonEvaluation
         , sortKey = SortKey [SortAtom mDateFrom, SortAtom lesson.order, SortAtom lesson.date, SortAtom lesson.id]
-        , context = Just (M.ms lesson.title)
+        , context = fmap C.formatDayShort lesson.date
         }
    in pinDialog r.windowManager
         meta

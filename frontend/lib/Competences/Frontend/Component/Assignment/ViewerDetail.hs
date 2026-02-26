@@ -202,7 +202,7 @@ pinAssignmentViewer r user assignment =
         { key = "assignment-" <> idToText assignment.id
         , category = PinCatAssignment
         , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-        , context = Just (ms nameText)
+        , context = Just (C.formatDayShort assignment.assignmentDate)
         }
    in pinDialogWith r.windowManager
         meta

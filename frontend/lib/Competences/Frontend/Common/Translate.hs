@@ -5,6 +5,7 @@ module Competences.Frontend.Common.Translate
   , addLanguage
   , extend
   , formatDay
+  , formatDayShort
   , labelOf
   , loadTranslations
   , merge
@@ -1100,6 +1101,9 @@ translate' k = unsafePerformIO $ do
 
 formatDay :: Day -> MisoString
 formatDay d = ms $ formatTime defaultTimeLocale "%d.%m.%Y" d
+
+formatDayShort :: Day -> MisoString
+formatDayShort d = ms $ formatTime defaultTimeLocale "%d.%m." d
 
 labelOf :: Label -> Text
 labelOf = T.pack . show

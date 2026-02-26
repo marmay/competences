@@ -115,7 +115,7 @@ pinLessonNotesViewer r ln =
         { key = "lesson-notes-" <> idToText ln.id
         , category = PinCatLessonNotes
         , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
-        , context = Just (M.ms ln.title)
+        , context = Just (C.formatDayShort ln.date)
         }
    in pinDialogWith r.windowManager
         meta
