@@ -8,13 +8,18 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Competence (competenceLevelIdsOf)
+import Competences.Document.Evidence (Evidence (..), TaskRemark (..))
 import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationRecord (..), ParticipationType (..))
+import Competences.Document.Task (Task (..))
 import Competences.Document.User (UserId)
 import Competences.HouseCup.Config (ResolvedConfig (..), ResolvedExtraPoints (..))
 import Competences.Query.Mastery (MasteryStatus (..), getUserMastery)
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatus)
 import Data.Map.Strict qualified as Map
+import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Time (Day)
 
 type ScoreTable = [(Text, Integer)]
 
@@ -80,18 +85,32 @@ masteryTier StreakTwoPlus = 2
 masteryTier StreakTwoAssessed = 3
 
 -- | Rule 3: Score newly completed tasks.
--- Any task going from not-done to done earns +1.
+-- Exceptional → +3, normal → +1, Sloppy/Lacking → 0.
 taskPoints :: Document -> Document -> UserId -> Integer
 taskPoints docBefore docAfter userId =
   let allTasks = Ix.toList docAfter.tasks
-   in fromIntegral $ length $ filter becameDone allTasks
+   in sum $ map scoreTask allTasks
   where
-    becameDone task =
+    scoreTask task =
       let before = taskCompletionStatus docBefore userId task
           after = taskCompletionStatus docAfter userId task
-       in isDone after && not (isDone before)
+       in if isDone after && not (isDone before)
+            then remarkBonus task
+            else 0
     isDone (TaskDone _) = True
     isDone _ = False
+    remarkBonus task =
+      let taskEvs = docAfter.evidences Ix.@= userId Ix.@= task.id
+          newestFirst = Ix.toDescList (Proxy @Day) taskEvs
+          remarks = case newestFirst of
+            (ev : _) -> Map.findWithDefault Set.empty task.id ev.taskRemarks
+            [] -> Set.empty
+       in if Set.member Sloppy remarks || Set.member Lacking remarks
+            then 0
+            else
+              if Set.member Exceptional remarks
+                then 3
+                else 1
 
 -- | Compute house points by diffing two document states.
 computePoints :: ResolvedConfig -> ResolvedExtraPoints -> Document -> Document -> ScoreTable
