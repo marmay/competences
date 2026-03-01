@@ -21,6 +21,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (sortOn)
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -138,7 +139,7 @@ mesoPlanSelectorComponent r initialSelection parentLens =
     filteredPlans m =
       let proj = m.projection
           query = T.toLower m.searchQuery
-          sorted = sortOn (.title) $ Ix.toList proj.mesoPlans
+          sorted = sortOn (\p -> (isNothing p.dateFrom, p.dateFrom, p.title)) $ Ix.toList proj.mesoPlans
        in if T.null query
             then sorted
             else filter (\p -> query `T.isInfixOf` T.toLower p.title) sorted
