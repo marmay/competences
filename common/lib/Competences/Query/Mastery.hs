@@ -5,6 +5,7 @@ module Competences.Query.Mastery
   ( -- * Mastery Classification
     MasteryStatus (..)
   , classifyMasteryConstrained
+  , classifyWithReasoning
 
     -- * Cross-Level Ability Bounds
   , AbilityBounds (..)
@@ -23,6 +24,7 @@ module Competences.Query.Mastery
 
     -- * Document Queries
   , getUserMastery
+  , getUserMasteryWithReasoning
   , getClassMasteryStats
   , getClassMasteryWithStudents
 
@@ -37,7 +39,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, allLevels)
 import Competences.Document.ActivityType (ActivityType (..), isAssessmentActivity)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..))
+import Competences.Document.Evidence (Ability (..), Evidence (..), EvidenceId, Observation (..), SocialForm (..))
 import Competences.Document.User (User (..), UserId)
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
@@ -205,89 +207,86 @@ classifyAllLevels timeline =
 -- For StreakTwoPlus, at least one contributing evidence must have SocialForm Individual.
 -- For StreakTwoAssessed (++2), additionally requires at least one Exam/Conversation.
 classifyMasteryConstrained :: [AbilityBounds] -> MasteryStatus
-classifyMasteryConstrained [] = NotTried
-classifyMasteryConstrained bounds
+classifyMasteryConstrained bounds =
+  fst $ classifyWithReasoning (zip [(0 :: Int) ..] bounds)
+
+-- | Like 'classifyMasteryConstrained' but carries tags through and returns the
+-- tags of bounds that influenced the mastery decision.
+--
+-- Each element is @(tag, bounds)@. The returned list contains the tags of all
+-- bounds that contributed to the classification:
+-- - Veto path: the tag of the bound that triggered 'MasteryNotYet'
+-- - Streak path: tags of all streak-contributing bounds + the streak-breaker (if any)
+-- - Remaining path: the tag of the 'FromBoth' bound found by the floor scan
+classifyWithReasoning :: [(a, AbilityBounds)] -> (MasteryStatus, [a])
+classifyWithReasoning [] = (NotTried, [])
+classifyWithReasoning tagged
   -- Negative check: latest direct ceiling vetoes if negative.
-  -- Only FromBoth has a direct ceiling (observation at target level).
-  | Just latestCeiling <- findLatestDirectCeiling bounds
+  | Just (latestCeiling, vetoTag) <- findLatestDirectCeilingT tagged
   , latestCeiling == WithSupport || latestCeiling == NotYet =
-      MasteryNotYet
+      (MasteryNotYet, [vetoTag])
   -- Positive check: count streak from noLowerThan values
   | otherwise =
-      let (streakLen, hasIndiv, hasAssessed) = countConstrainedStreak bounds
+      let (streakLen, hasIndiv, hasAssessed, streakTags) = countConstrainedStreakT tagged
        in case () of
             _
-              | (streakLen :: Int) >= 2, hasIndiv, hasAssessed -> StreakTwoAssessed
-              | streakLen >= 2, hasIndiv -> StreakTwoPlus
-              | streakLen >= 1 -> OneSuccess
-              | otherwise -> classifyRemaining bounds
+              | (streakLen :: Int) >= 2, hasIndiv, hasAssessed -> (StreakTwoAssessed, streakTags)
+              | streakLen >= 2, hasIndiv -> (StreakTwoPlus, streakTags)
+              | streakLen >= 1 -> (OneSuccess, streakTags)
+              | otherwise -> classifyRemainingT tagged
   where
-    -- Find the latest ceiling from a direct (FromBoth) or below-level (FromBelow)
-    -- observation, scanning past indirect entries. Stops early (no veto) if a
-    -- positive floor from above is found — success at a higher level proves
-    -- competence here, superseding any older ceiling.
-    -- FromBelow ceilings are included so that a failure at a lower level
-    -- propagates upward (monotonicity).
-    findLatestDirectCeiling [] = Nothing
-    findLatestDirectCeiling (FromBoth _ c _ : _) = Just c
-    findLatestDirectCeiling (FromBelow c : rest)
-      | c == WithSupport || c == NotYet = Just c -- negative ceiling from below vetoes
-      | otherwise = findLatestDirectCeiling rest -- positive from below: skip
-    findLatestDirectCeiling (b : rest) = case abilityFloor b of
-      Just SelfReliant -> Nothing -- positive from above supersedes older ceilings
-      Just SelfReliantWithSillyMistakes -> Nothing -- still shows understanding
-      _ -> findLatestDirectCeiling rest
+    -- Tagged variant of findLatestDirectCeiling: returns (ceiling, tag)
+    findLatestDirectCeilingT [] = Nothing
+    findLatestDirectCeilingT ((tag, FromBoth _ c _) : _) = Just (c, tag)
+    findLatestDirectCeilingT ((tag, FromBelow c) : rest)
+      | c == WithSupport || c == NotYet = Just (c, tag)
+      | otherwise = findLatestDirectCeilingT rest
+    findLatestDirectCeilingT ((_, b) : rest) = case abilityFloor b of
+      Just SelfReliant -> Nothing
+      Just SelfReliantWithSillyMistakes -> Nothing
+      _ -> findLatestDirectCeilingT rest
 
-    -- Count consecutive SelfReliant from noLowerThan values (newest first).
-    -- Skip entries where floor is SillyMistakes or Nothing.
-    -- Negative floors from indirect entries (FromAbove) skip rather than break —
-    -- failing at a higher level doesn't invalidate success at a lower one.
-    -- FromBoth and FromBelow with negative ceilings break the streak (monotonicity).
-    -- Also track whether any streak entry has Individual or assessment activity.
-    countConstrainedStreak = go 0 False False
+    -- Tagged variant of countConstrainedStreak: also collects tags
+    countConstrainedStreakT = go 0 False False []
       where
-        go !n !indiv !assessed [] = (n, indiv, assessed)
-        go !n !indiv !assessed (b : rest) = case abilityFloor b of
+        go !n !indiv !assessed !tags [] = (n, indiv, assessed, tags)
+        go !n !indiv !assessed !tags ((tag, b) : rest) = case abilityFloor b of
           Just SelfReliant ->
-            go (n + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) rest
-          Just SelfReliantWithSillyMistakes -> go n indiv assessed rest -- skip, don't break
+            go (n + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) (tag : tags) rest
+          Just SelfReliantWithSillyMistakes -> go n indiv assessed tags rest -- skip, don't break
           Nothing -> case b of
             FromBelow c
-              | c == WithSupport || c == NotYet -> (n, indiv, assessed) -- below-level failure: breaks streak
-            _ -> go n indiv assessed rest -- no floor info, skip
+              | c == WithSupport || c == NotYet -> (n, indiv, assessed, tag : tags) -- breaks streak, include breaker
+            _ -> go n indiv assessed tags rest
           _ -> case b of
-            FromBoth {} -> (n, indiv, assessed) -- direct negative observation: breaks streak
-            _ -> go n indiv assessed rest -- indirect negative: skip
+            FromBoth {} -> (n, indiv, assessed, tag : tags) -- direct negative: breaks streak, include breaker
+            _ -> go n indiv assessed tags rest
 
-    -- Classify when there's no positive streak: check floors for remaining info.
-    -- Only direct observations (FromBoth) can produce MasteryNotYet or OnlySillyMistakes.
-    classifyRemaining :: [AbilityBounds] -> MasteryStatus
-    classifyRemaining bs = case findLatestDirectFloor bs of
-      Just SelfReliant -> OneSuccess -- shouldn't normally happen (streak would be >= 1)
-      Just WithSupport -> MasteryNotYet
-      Just NotYet -> MasteryNotYet
-      Just SelfReliantWithSillyMistakes -> OnlySillyMistakes
+    -- Tagged variant of classifyRemaining
+    classifyRemainingT :: [(a, AbilityBounds)] -> (MasteryStatus, [a])
+    classifyRemainingT bs = case findLatestDirectFloorT bs of
+      Just (SelfReliant, tag) -> (OneSuccess, [tag])
+      Just (WithSupport, tag) -> (MasteryNotYet, [tag])
+      Just (NotYet, tag) -> (MasteryNotYet, [tag])
+      Just (SelfReliantWithSillyMistakes, tag) -> (OnlySillyMistakes, [tag])
       Nothing ->
-        -- No real direct floor found. If any FromBoth entry exists, its floor
-        -- must be SillyMistakes (others handled above) → OnlySillyMistakes.
-        -- Without any direct observation, the level is NotTried.
-        if any hasDirectObs bs
-          then OnlySillyMistakes
-          else NotTried
+        if any (hasDirectObs . snd) bs
+          then (OnlySillyMistakes, [tag' | (tag', FromBoth {}) <- bs])
+          else (NotTried, [])
 
     hasDirectObs :: AbilityBounds -> Bool
     hasDirectObs (FromBoth {}) = True
     hasDirectObs _ = False
 
-    -- Find latest "real" floor from a direct observation (FromBoth only).
-    -- Skips SillyMistakes (not "real" for classification) and indirect entries.
-    findLatestDirectFloor :: [AbilityBounds] -> Maybe Ability
-    findLatestDirectFloor [] = Nothing
-    findLatestDirectFloor (b : rest) = case b of
+    -- Tagged variant of findLatestDirectFloor
+    findLatestDirectFloorT :: [(a, AbilityBounds)] -> Maybe (Ability, a)
+    findLatestDirectFloorT [] = Nothing
+    findLatestDirectFloorT ((tag, b) : rest) = case b of
       FromBoth {} -> case abilityFloor b of
-        Just SelfReliantWithSillyMistakes -> findLatestDirectFloor rest
-        flr -> flr
-      _ -> findLatestDirectFloor rest
+        Just SelfReliantWithSillyMistakes -> findLatestDirectFloorT rest
+        Just flr -> Just (flr, tag)
+        Nothing -> findLatestDirectFloorT rest
+      _ -> findLatestDirectFloorT rest
 
 -- ============================================================================
 -- Document Queries
@@ -301,15 +300,23 @@ classifyMasteryConstrained bounds
 --
 -- Returns a unified timeline of 'AbilityBounds', sorted newest-first.
 getConstrainedObservations :: Document -> UserId -> CompetenceLevelId -> [AbilityBounds]
-getConstrainedObservations doc userId (compId, targetLevel) =
+getConstrainedObservations doc userId clId =
+  map snd $ getConstrainedObservationsTagged doc userId clId
+
+-- | Like 'getConstrainedObservations' but pairs each bound with its source 'EvidenceId'.
+getConstrainedObservationsTagged :: Document -> UserId -> CompetenceLevelId -> [(EvidenceId, AbilityBounds)]
+getConstrainedObservationsTagged doc userId (compId, targetLevel) =
   let userEvidences = QEvidence.userEvidencesDesc doc userId
       grouped = QEvidence.groupByLessonDay userEvidences
-   in mapMaybe (groupToBounds compId targetLevel) grouped
+   in mapMaybe (groupToBoundsTagged compId targetLevel) grouped
   where
     -- From a lesson group (sorted by reliability desc), pick the first
-    -- evidence that produces bounds for this competence.
-    groupToBounds cId lvl evs =
-      listToMaybe $ mapMaybe (evidenceToBounds cId lvl) evs
+    -- evidence that produces bounds for this competence, tagged with its id.
+    groupToBoundsTagged cId lvl evs =
+      listToMaybe $ mapMaybe (evidenceToBoundsTagged cId lvl) evs
+
+    evidenceToBoundsTagged cId lvl ev =
+      fmap (ev.id,) $ evidenceToBounds cId lvl ev
 
 -- | Compute AbilityBounds for a single evidence at a target competence/level.
 -- Returns Nothing if the evidence has no observations for this competence.
@@ -330,6 +337,11 @@ evidenceToBounds compId targetLevel ev =
 getUserMastery :: Document -> UserId -> CompetenceLevelId -> MasteryStatus
 getUserMastery doc userId compLevelId =
   classifyMasteryConstrained $ getConstrainedObservations doc userId compLevelId
+
+-- | Get mastery status with the evidence IDs that influenced the decision.
+getUserMasteryWithReasoning :: Document -> UserId -> CompetenceLevelId -> (MasteryStatus, [EvidenceId])
+getUserMasteryWithReasoning doc userId compLevelId =
+  classifyWithReasoning $ getConstrainedObservationsTagged doc userId compLevelId
 
 -- | Get class-wide mastery statistics for one competence-level
 --

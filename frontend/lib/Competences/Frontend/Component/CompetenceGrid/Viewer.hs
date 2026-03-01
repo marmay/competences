@@ -27,6 +27,7 @@ import Competences.Document
 import Competences.Document.Id (idToText)
 import Competences.Document.Evidence
   ( Evidence (..)
+  , EvidenceId
   , Observation (..)
   )
 import Competences.Document.Competence (CompetenceLevelId)
@@ -83,6 +84,7 @@ import Competences.Query.Mastery
   , getClassMasteryStats
   , getClassMasteryWithStudents
   , getUserMastery
+  , getUserMasteryWithReasoning
   )
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Control.Concurrent (threadDelay)
@@ -90,6 +92,8 @@ import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (listToMaybe, maybeToList)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import Data.Time (Day)
@@ -144,6 +148,8 @@ data UserData = UserData
   -- ^ Pre-computed: most recent grid grade for this grid and focused user
   , userMastery :: !(Map CompetenceLevelId MasteryStatus)
   -- ^ Pre-computed mastery status per competence level (for stripe display)
+  , masteryInfluencing :: !(Map CompetenceLevelId (Set EvidenceId))
+  -- ^ Evidence IDs that influenced the mastery decision per competence level
   }
   deriving (Eq, Generic, Show)
 
@@ -259,10 +265,12 @@ viewerComponent r grid wm =
                     }
             Just u ->
               -- Focused user: compute user-specific data
-              let mastery = Map.fromList
-                    [ (clId, getUserMastery doc u.id clId)
+              let masteryWithReasoning = Map.fromList
+                    [ (clId, getUserMasteryWithReasoning doc u.id clId)
                     | clId <- competenceLevels
                     ]
+                  mastery = Map.map fst masteryWithReasoning
+                  influencing = Map.map (Set.fromList . snd) masteryWithReasoning
                in UserViewData $ UserData
                     { focusedUser = u
                     , userEvidences = QEvidence.userEvidences doc u.id
@@ -270,6 +278,7 @@ viewerComponent r grid wm =
                     , activeGridGrade = listToMaybe $ Ix.toDescList (Proxy @Day) $
                         doc.competenceGridGrades Ix.@= u.id Ix.@= grid.id
                     , userMastery = mastery
+                    , masteryInfluencing = influencing
                     }
           -- Pre-compute resource tasks (needed for both display and status computation)
           resTasks = computeResourceTasks doc gridCompetences
@@ -539,12 +548,15 @@ viewerComponent r grid wm =
             ]
 
           -- Cross-level badges: observations at OTHER levels of the same competence
-          -- that influence this level's mastery via cross-level inference
+          -- that influence this level's mastery via cross-level inference.
+          -- Only show badges for evidences that actually influenced the mastery decision.
+          influencingIds = Map.findWithDefault Set.empty competenceLevelId userData.masteryInfluencing
           crossLevelBadges =
             [ (e.date, showCrossLevel obs)
             | lvl <- allLevels
             , lvl /= level
             , e <- Ix.toAscList (Proxy @Day) (evidences Ix.@= (competence.id, lvl))
+            , Set.member e.id influencingIds
             , Ix.null (e.observations Ix.@= competenceLevelId)
             , obs <- maybeToList $ Ix.getOne (e.observations Ix.@= (competence.id, lvl))
             ]
