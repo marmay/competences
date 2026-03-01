@@ -21,7 +21,7 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
 import Data.List (sortBy)
-import Data.Ord (Down (..), comparing)
+import Data.Ord (comparing)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (getCurrentTime, utctDay)
@@ -110,7 +110,7 @@ lessonNotesSelectorComponent r canCreate initialSelection parentLens =
         ]
 
     viewItems m =
-      let allItems = sortBy (comparing (Down . (.date)) <> comparing (.title))
+      let allItems = sortBy (comparing (.date) <> comparing (.title))
                        $ Ix.toList m.allNotes
           query = T.toLower m.searchQuery
           filteredItems =
