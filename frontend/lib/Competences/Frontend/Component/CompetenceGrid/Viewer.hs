@@ -24,6 +24,7 @@ import Competences.Document
   , hasLevelContent
   , ordered
   )
+import Competences.Document.ActivityType (activityReliability)
 import Competences.Document.Id (idToText)
 import Competences.Document.Evidence
   ( Evidence (..)
@@ -89,6 +90,7 @@ import Competences.Query.Mastery
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Control.Concurrent (threadDelay)
 import Data.List (sortOn)
+import Data.Ord (Down (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (listToMaybe, maybeToList)
@@ -541,9 +543,9 @@ viewerComponent r grid wm =
     renderUserCell proj userData competence level levelInfo hasDescription competenceLevelId stripeStyle =
       let evidences = userData.userEvidences
 
-          -- Direct evidence badges paired with date for sorting
+          -- Direct evidence badges paired with (date, reliability) for sorting
           directBadges =
-            [ (e.date, showEvidence e)
+            [ ((e.date, Down (activityReliability e.activityType)), showEvidence e)
             | e <- Ix.toAscList (Proxy @Day) (evidences Ix.@= competenceLevelId)
             ]
 
@@ -552,7 +554,7 @@ viewerComponent r grid wm =
           -- Only show badges for evidences that actually influenced the mastery decision.
           influencingIds = Map.findWithDefault Set.empty competenceLevelId userData.masteryInfluencing
           crossLevelBadges =
-            [ (e.date, showCrossLevel obs)
+            [ ((e.date, Down (activityReliability e.activityType)), showCrossLevel obs)
             | lvl <- allLevels
             , lvl /= level
             , e <- Ix.toAscList (Proxy @Day) (evidences Ix.@= (competence.id, lvl))
@@ -827,18 +829,18 @@ printView grid pd proj =
                     [class_ "border border-stone-300 px-2 py-1 align-top"]
                     (masteryLine : taskLines)
 
--- | Render mastery indicator for print: symbol + German text
+-- | Render mastery indicator for print: symbol + label (consistent with grid badges)
 printMasteryIndicator :: MasteryStatus -> M.View m a
 printMasteryIndicator StreakTwoAssessed =
-  MH.span_ [class_ "font-semibold text-green-700"] [M.text "✓✓ Überprüft"]
+  MH.span_ [class_ "font-semibold text-green-700"] [M.text $ "✓✓ " <> masteryBadgeLabel StreakTwoAssessed]
 printMasteryIndicator StreakTwoPlus =
-  MH.span_ [class_ "font-semibold text-green-600"] [M.text "✓✓ Serie"]
+  MH.span_ [class_ "font-semibold text-green-600"] [M.text $ "✓✓ " <> masteryBadgeLabel StreakTwoPlus]
 printMasteryIndicator OneSuccess =
-  MH.span_ [class_ "text-green-600"] [M.text "✓ Erste Erfolge"]
+  MH.span_ [class_ "text-green-600"] [M.text $ "✓ " <> masteryBadgeLabel OneSuccess]
 printMasteryIndicator OnlySillyMistakes =
-  MH.span_ [class_ "text-yellow-600"] [M.text "~ Flüchtigkeitsfehler"]
+  MH.span_ [class_ "text-yellow-600"] [M.text $ "~ " <> masteryBadgeLabel OnlySillyMistakes]
 printMasteryIndicator MasteryNotYet =
-  MH.span_ [class_ "text-red-600"] [M.text "✗ Noch nicht"]
+  MH.span_ [class_ "text-red-600"] [M.text $ "✗ " <> masteryBadgeLabel MasteryNotYet]
 printMasteryIndicator NotTried =
   MH.span_ [] []
 
