@@ -52,6 +52,9 @@
 /* Print engine classes (page-print modal) */
 @source inline("print-task print-page print-cell page-print-content");
 
+/* Competence grid print view */
+@source inline("print:hidden print:block break-before-page grid-print-table");
+
 /* NavBar tooltip + hover dropdown classes */
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
 @source inline("w-7 h-7 -translate-x-1/2 left-1/2 border-primary-foreground");
@@ -446,5 +449,16 @@
   .page-print-content .geometry-scene {
     max-width: 100% !important;
     height: auto !important;
+  }
+
+  /* Competence grid print table */
+  .grid-print-table {
+    font-size: 10pt;
+    border-collapse: collapse;
+  }
+  .grid-print-table th,
+  .grid-print-table td {
+    border: 1px solid #d6d3d1;
+    padding: 3px 6px;
   }
 }

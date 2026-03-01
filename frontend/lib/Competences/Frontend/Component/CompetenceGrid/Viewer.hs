@@ -54,11 +54,16 @@ import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , SyncDocumentEnv (..)
+  , getFocusedUserRef
+  , readSyncDocument
   , subscribeWithProjection
   , syncDocumentEnv
   )
+import Competences.Frontend.SyncContext.UIState (readFocusedUser)
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
 import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
@@ -79,18 +84,22 @@ import Competences.Query.Mastery
   , getClassMasteryWithStudents
   , getUserMastery
   )
-import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuses)
+import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
+import Control.Concurrent (threadDelay)
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, maybeToList)
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.CSS qualified as MC
+import Miso.DSL (jsg, (#))
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
+import Miso.String (MisoString)
 import Optics.Core ((.~))
 
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
@@ -149,9 +158,24 @@ data AnalyticsData = AnalyticsData
   }
   deriving (Eq, Generic, Show)
 
+-- | Data for printing a single student's competence grid
+data StudentPrintData = StudentPrintData
+  { studentName :: !T.Text
+  , mastery :: !(Map CompetenceLevelId MasteryStatus)
+  , uncompletedTasks :: !(Map CompetenceLevelId [TaskIdentifier])
+  }
+  deriving (Eq, Generic, Show)
+
+-- | All data needed to render the print view
+data PrintData = PrintData
+  { students :: ![StudentPrintData]
+  }
+  deriving (Eq, Generic, Show)
+
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
+  , printData :: !(Maybe PrintData)
   }
   deriving (Eq, Generic, Show)
 
@@ -160,6 +184,9 @@ data ViewerAction
   = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
   | OpenResourceModal !CompetenceLevelId
   | PinThis
+  | TriggerPrint
+  | DoPrint !PrintData
+  | ClearPrint
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -317,7 +344,7 @@ viewerComponent r grid wm =
       , viewData = AnalyticsViewData $ AnalyticsData 0 Map.empty Map.empty
       }
 
-    model = ViewerModel emptyProjection
+    model = ViewerModel emptyProjection Nothing
 
     update (ViewerProjectionChanged change) =
       M.modify $ #projection .~ change.projection
@@ -331,16 +358,81 @@ viewerComponent r grid wm =
 
     update PinThis = M.io_ $ pinCompetenceGridViewer r grid
 
+    update TriggerPrint = M.io $ do
+      syncDoc <- readSyncDocument r
+      let doc = syncDoc.localDocument
+      mUser <- readFocusedUser (getFocusedUserRef r)
+      let isTeacher = connectedRole == Teacher
+          studentsToprint = case (isTeacher, mUser) of
+            (True, Nothing) -> QUser.studentsSortedByName doc
+            (True, Just u) -> [u]
+            (False, _) -> [(syncDocumentEnv r).connectedUser]
+          gridCompetences = QCompetence.gridCompetences doc grid.id
+          competenceLevels =
+            [ (c.id, level)
+            | c <- Ix.toList gridCompetences
+            , level <- allLevels
+            , let li = getLevelInfo level c
+            , not (T.null li.description)
+            ]
+          resTasks = computeResourceTasks doc gridCompetences
+          allResTasks = concatMap (map (.task)) (Map.elems resTasks)
+          mkStudentData u =
+            let mastery = Map.fromList
+                  [ (clId, getUserMastery doc u.id clId)
+                  | clId <- competenceLevels
+                  ]
+                tStatuses = taskCompletionStatuses doc u.id allResTasks
+                uncompleted = Map.mapWithKey
+                  (\_clId tasks' ->
+                    [ t.task.identifier
+                    | t <- tasks'
+                    , case Map.lookup t.task.id tStatuses of
+                        Just (TaskDone _) -> False
+                        _ -> True
+                    ]
+                  )
+                  resTasks
+             in StudentPrintData
+                  { studentName = u.name
+                  , mastery = mastery
+                  , uncompletedTasks = uncompleted
+                  }
+          pd = PrintData { students = map mkStudentData studentsToprint }
+      pure $ DoPrint pd
+
+    update (DoPrint pd) = do
+      M.modify $ #printData .~ Just pd
+      M.io $ do
+        threadDelay 500000 -- 500ms for DOM patch to complete
+        triggerBrowserPrint
+        pure ClearPrint
+
+    update ClearPrint =
+      M.modify $ #printData .~ Nothing
+
     -- Main view: dispatch based on view data type
     view m =
-      Layout.vFlow
-        (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
-        [ header
-        , description
-        , competencesTable m
+      MH.div_
+        []
+        [ MH.div_
+            [class_ "print:hidden"]
+            [ Layout.vFlow
+                (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
+                [ header
+                , description
+                , competencesTable m
+                ]
+            ]
+        , case m.printData of
+            Just pd -> printView grid pd m.projection
+            Nothing -> Layout.empty
         ]
       where
         proj = m.projection
+
+        printButton' =
+          Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnPrint) (Just TriggerPrint))
 
         -- Header varies by view type
         header = case proj.viewData of
@@ -352,6 +444,7 @@ viewerComponent r grid wm =
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
                   ]
+                  <> [ printButton' ]
                   <> [ pinButton PinThis | not (isPinned wm) ]
                   <> [ case userData.activeGridGrade of
                          Just gridGrade -> gradeBadgeView gridGrade.grade
@@ -366,6 +459,7 @@ viewerComponent r grid wm =
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
                   ]
+                  <> [ printButton' ]
                   <> [ pinButton PinThis | not (isPinned wm) ]
               ]
 
@@ -437,8 +531,26 @@ viewerComponent r grid wm =
     -- Render cell for user view (shows evidence icons, assessment status)
     renderUserCell proj userData competence level levelInfo hasDescription competenceLevelId stripeStyle =
       let evidences = userData.userEvidences
-          evidences' = evidences Ix.@= competenceLevelId
-          evidenceList = Ix.toAscList (Proxy @Day) evidences'
+
+          -- Direct evidence badges paired with date for sorting
+          directBadges =
+            [ (e.date, showEvidence e)
+            | e <- Ix.toAscList (Proxy @Day) (evidences Ix.@= competenceLevelId)
+            ]
+
+          -- Cross-level badges: observations at OTHER levels of the same competence
+          -- that influence this level's mastery via cross-level inference
+          crossLevelBadges =
+            [ (e.date, showCrossLevel obs)
+            | lvl <- allLevels
+            , lvl /= level
+            , e <- Ix.toAscList (Proxy @Day) (evidences Ix.@= (competence.id, lvl))
+            , Ix.null (e.observations Ix.@= competenceLevelId)
+            , obs <- maybeToList $ Ix.getOne (e.observations Ix.@= (competence.id, lvl))
+            ]
+
+          -- Merge by date (ascending = oldest first)
+          allBadges = map snd $ sortOn fst (directBadges ++ crossLevelBadges)
 
           showEvidence evidence =
             case Ix.getOne (evidence.observations Ix.@= competenceLevelId) of
@@ -453,6 +565,17 @@ viewerComponent r grid wm =
                 [ Icon.icon [] (EvidenceIcon.activityTypeIcon activityType)
                 , Icon.icon [] (EvidenceIcon.socialFormIcon socialForm)
                 ]
+
+          showCrossLevel obs =
+            let fromLevel = snd obs.competenceLevelId
+                arrowIcon = if fromLevel > level then Icon.IcnArrowDown else Icon.IcnArrowUp
+                lvlText = levelShortLabel fromLevel
+             in Badge.badge (abilityPalette obs.ability) $
+                  MH.span_
+                    [class_ "inline-flex items-center gap-0 opacity-60"]
+                    [ Icon.icon [class_ "w-3 h-3"] arrowIcon
+                    , M.text (M.ms lvlText)
+                    ]
 
           -- Get active assessment
           mAssessment = QAssessment.activeAssessment userData.userAssessments competence.id
@@ -529,13 +652,13 @@ viewerComponent r grid wm =
                   , if hasDescription
                       then Typography.small (M.ms levelInfo.description)
                       else Layout.empty
-                  , if not (null evidenceList)
+                  , if not (null allBadges)
                       then
                         MH.div_
                           [class_ "mt-1"]
                           [ Layout.hFlow
                               (Layout.gapT <> Layout.flexWrap)
-                              (map showEvidence evidenceList)
+                              allBadges
                           ]
                       else Layout.empty
                   , resourceIcon
@@ -606,6 +729,108 @@ viewerComponent r grid wm =
             }
 
 -- ============================================================================
+-- PRINT VIEW
+-- ============================================================================
+
+-- | Render the print-only view, hidden on screen but visible when printing.
+printView :: CompetenceGrid -> PrintData -> ViewerProjection -> M.View ViewerModel ViewerAction
+printView grid pd proj =
+  MH.div_
+    [class_ "hidden print:block"]
+    ( case pd.students of
+        [] -> []
+        (first' : rest) ->
+          renderStudent "" first' <> concatMap (renderStudent "break-before-page") rest
+    )
+  where
+    comps = ordered proj.competences
+
+    renderStudent :: M.MisoString -> StudentPrintData -> [M.View ViewerModel ViewerAction]
+    renderStudent breakClass spd =
+      [ MH.div_
+          [ MP.class_ breakClass ]
+          [ MH.div_
+              [class_ "flex justify-between items-baseline mb-1"]
+              [ MH.h2_ [class_ "text-xl font-bold"] [M.text (M.ms grid.title)]
+              , MH.span_ [class_ "text-lg font-semibold"] [M.text (M.ms spd.studentName)]
+              ]
+          , MH.p_ [class_ "text-sm text-stone-600 mb-2"] [M.text (M.ms grid.description)]
+          , MH.table_
+              [ class_ "w-full border-collapse text-xs grid-print-table"
+              , MC.style_ [("print-color-adjust", "exact"), ("-webkit-print-color-adjust", "exact")]
+              ]
+              [ MH.thead_
+                  []
+                  [ MH.tr_
+                      []
+                      ( MH.th_ [class_ "border border-stone-300 px-2 py-1 text-left bg-stone-100"]
+                          [M.text (C.translate' C.LblCompetenceDescription)]
+                          : [ MH.th_ [class_ "border border-stone-300 px-2 py-1 text-left bg-stone-100"]
+                                [M.text (C.translate' $ C.LblCompetenceLevelDescription l)]
+                            | l <- allLevels
+                            ]
+                      )
+                  ]
+              , MH.tbody_
+                  []
+                  (map (renderPrintRow spd) comps)
+              ]
+          ]
+      ]
+
+    renderPrintRow :: StudentPrintData -> Competence -> M.View ViewerModel ViewerAction
+    renderPrintRow spd competence =
+      MH.tr_
+        []
+        ( MH.td_ [class_ "border border-stone-300 px-2 py-1 align-top"]
+            [MH.span_ [] [M.text (M.ms competence.description)]]
+            : [ renderPrintLevelCell spd competence level | level <- allLevels ]
+        )
+
+    renderPrintLevelCell :: StudentPrintData -> Competence -> Level -> M.View ViewerModel ViewerAction
+    renderPrintLevelCell spd competence level =
+      let levelInfo = getLevelInfo level competence
+          clId = (competence.id, level)
+          hasDesc = not (T.null levelInfo.description)
+       in if not hasDesc
+            then
+              MH.td_
+                [ class_ "border border-stone-300 px-2 py-1"
+                , MC.style_ CellStyle.stripedStyle
+                ]
+                []
+            else
+              let ms' = Map.findWithDefault NotTried clId spd.mastery
+                  tasks = Map.findWithDefault [] clId spd.uncompletedTasks
+                  masteryLine = printMasteryIndicator ms'
+                  taskLines =
+                    if null tasks
+                      then []
+                      else
+                        [ MH.div_
+                            [class_ "mt-0.5 text-stone-600"]
+                            [ M.text $ M.ms $ T.intercalate ", " [ident | TaskIdentifier ident <- tasks] ]
+                        ]
+               in MH.td_
+                    [class_ "border border-stone-300 px-2 py-1 align-top"]
+                    (masteryLine : taskLines)
+
+-- | Render mastery indicator for print: symbol + German text
+printMasteryIndicator :: MasteryStatus -> M.View m a
+printMasteryIndicator StreakTwoAssessed =
+  MH.span_ [class_ "font-semibold text-green-700"] [M.text "✓✓ Überprüft"]
+printMasteryIndicator StreakTwoPlus =
+  MH.span_ [class_ "font-semibold text-green-600"] [M.text "✓✓ Serie"]
+printMasteryIndicator OneSuccess =
+  MH.span_ [class_ "text-green-600"] [M.text "✓ Erste Erfolge"]
+printMasteryIndicator OnlySillyMistakes =
+  MH.span_ [class_ "text-yellow-600"] [M.text "~ Flüchtigkeitsfehler"]
+printMasteryIndicator MasteryNotYet =
+  MH.span_ [class_ "text-red-600"] [M.text "✗ Noch nicht"]
+printMasteryIndicator NotTried =
+  MH.span_ [] []
+
+-- ============================================================================
 -- HELPER TYPES AND FUNCTIONS
 -- ============================================================================
 
@@ -620,6 +845,19 @@ data CellAssessmentStatus
   | NotYetAchieved -- ^ Cell level is above the assessed level
   | NoAssessment   -- ^ No assessment exists for this competence
   deriving (Eq, Show)
+
+-- | Trigger browser print dialog via JSaddle FFI.
+triggerBrowserPrint :: IO ()
+triggerBrowserPrint = do
+  window <- jsg ("window" :: MisoString)
+  _ <- window # ("print" :: MisoString) $ ([] :: [MisoString])
+  pure ()
+
+-- | Short numeric label for a level, used in cross-level badges.
+levelShortLabel :: Level -> T.Text
+levelShortLabel BasicLevel = "1"
+levelShortLabel IntermediateLevel = "2"
+levelShortLabel AdvancedLevel = "3"
 
 -- | Short badge label for a mastery status in grid cells.
 masteryBadgeLabel :: MasteryStatus -> M.MisoString
