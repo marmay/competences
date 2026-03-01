@@ -155,8 +155,6 @@ observationBounds _targetLevel [] = Nothing
 observationBounds targetLevel obs =
   let -- Aggregate: worst ability per level (Haskell maximum = domain worst)
       aggMap = Map.fromListWith max [(o.level, o.ability) | o <- obs]
-      -- Whether any observation is directly at the target level
-      hasTargetObs = Map.member targetLevel aggMap
       -- Compute bounds
       aboveOrAt = [a | (lvl, a) <- Map.toList aggMap, lvl >= targetLevel]
       belowOrAt = [a | (lvl, a) <- Map.toList aggMap, lvl <= targetLevel]
@@ -170,13 +168,12 @@ observationBounds targetLevel obs =
    in case (mFloor, mCeiling) of
         (Just f, Nothing) -> Just (FromAbove f quality)
         (Nothing, Just c) -> Just (FromBelow c)
-        (Just f, Just c)
-          -- Direct observation at target level: both bounds are meaningful.
-          | hasTargetObs -> Just (FromBoth f c quality)
-          -- Observations surround the target but none at it: keep the positive
-          -- floor (from above), drop the ceiling (from below) — the student
-          -- hasn't been observed at this level, so below-evidence can't condemn.
-          | otherwise -> Just (FromAbove f quality)
+        -- Both floor and ceiling present: always keep both bounds.
+        -- This covers direct observations at the target level and the
+        -- "surrounding" case (observations above and below but not at the
+        -- target). Keeping both preserves monotonicity — a failure below
+        -- the target level must still constrain intermediate levels.
+        (Just f, Just c) -> Just (FromBoth f c quality)
         (Nothing, Nothing) -> Nothing -- shouldn't happen since obs is non-empty
 
 -- | Classify mastery at all levels from a timeline of evidences (newest first).
@@ -225,12 +222,17 @@ classifyMasteryConstrained bounds
               | streakLen >= 1 -> OneSuccess
               | otherwise -> classifyRemaining bounds
   where
-    -- Find the ceiling from the newest direct observation (FromBoth), scanning
-    -- past indirect entries. Stops early (no veto) if a positive floor from
-    -- above is found — success at a higher level proves competence here,
-    -- superseding any older direct ceiling.
+    -- Find the latest ceiling from a direct (FromBoth) or below-level (FromBelow)
+    -- observation, scanning past indirect entries. Stops early (no veto) if a
+    -- positive floor from above is found — success at a higher level proves
+    -- competence here, superseding any older ceiling.
+    -- FromBelow ceilings are included so that a failure at a lower level
+    -- propagates upward (monotonicity).
     findLatestDirectCeiling [] = Nothing
     findLatestDirectCeiling (FromBoth _ c _ : _) = Just c
+    findLatestDirectCeiling (FromBelow c : rest)
+      | c == WithSupport || c == NotYet = Just c -- negative ceiling from below vetoes
+      | otherwise = findLatestDirectCeiling rest -- positive from below: skip
     findLatestDirectCeiling (b : rest) = case abilityFloor b of
       Just SelfReliant -> Nothing -- positive from above supersedes older ceilings
       Just SelfReliantWithSillyMistakes -> Nothing -- still shows understanding
@@ -240,6 +242,7 @@ classifyMasteryConstrained bounds
     -- Skip entries where floor is SillyMistakes or Nothing.
     -- Negative floors from indirect entries (FromAbove) skip rather than break —
     -- failing at a higher level doesn't invalidate success at a lower one.
+    -- FromBoth and FromBelow with negative ceilings break the streak (monotonicity).
     -- Also track whether any streak entry has Individual or assessment activity.
     countConstrainedStreak = go 0 False False
       where
@@ -248,7 +251,10 @@ classifyMasteryConstrained bounds
           Just SelfReliant ->
             go (n + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) rest
           Just SelfReliantWithSillyMistakes -> go n indiv assessed rest -- skip, don't break
-          Nothing -> go n indiv assessed rest -- no floor info, skip
+          Nothing -> case b of
+            FromBelow c
+              | c == WithSupport || c == NotYet -> (n, indiv, assessed) -- below-level failure: breaks streak
+            _ -> go n indiv assessed rest -- no floor info, skip
           _ -> case b of
             FromBoth {} -> (n, indiv, assessed) -- direct negative observation: breaks streak
             _ -> go n indiv assessed rest -- indirect negative: skip

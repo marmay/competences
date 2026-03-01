@@ -49,12 +49,13 @@ genAllGroupTimeline = listOf (listOf genGroupObs)
   where
     genGroupObs = LevelObservation <$> arbitrary <*> arbitrary <*> pure Group <*> arbitrary
 
--- | Generate a timeline with no observations at the given level.
-genTimelineWithout :: Level -> Gen ObservationTimeline
-genTimelineWithout targetLevel = listOf (listOf genObs)
-  where
-    otherLevels = filter (/= targetLevel) allLevels
-    genObs = LevelObservation <$> elements otherLevels <*> arbitrary <*> arbitrary <*> arbitrary
+-- | Generate a timeline with no observations at or below the given level.
+genTimelineWithoutAtOrBelow :: Level -> Gen ObservationTimeline
+genTimelineWithoutAtOrBelow targetLevel =
+  let higherLevels = filter (> targetLevel) allLevels
+   in if null higherLevels
+        then pure [] -- no levels above target, so empty timeline
+        else listOf (listOf (LevelObservation <$> elements higherLevels <*> arbitrary <*> arbitrary <*> arbitrary))
 
 -- | Generate a timeline where all observations use non-assessment activity types.
 genNonAssessmentTimeline :: Gen ObservationTimeline
@@ -161,6 +162,13 @@ classifierExamples =
               , [obs BasicLevel SelfReliant Group]
               ]
          in masteryAt BasicLevel timeline @?= OneSuccess
+    , testCase "surrounding observations preserve monotonicity" $
+        let timeline = [[obs BasicLevel WithSupport Group, obs AdvancedLevel SelfReliant Individual]]
+         in do
+              masteryAt BasicLevel timeline @?= MasteryNotYet
+              -- IntermediateLevel must be at least as bad as BasicLevel (monotonicity)
+              masteryAt IntermediateLevel timeline @?= MasteryNotYet
+              masteryAt AdvancedLevel timeline @?= MasteryNotYet
     ]
 
 -- ============================================================================
@@ -257,11 +265,11 @@ classifierProperties =
                         Map.findWithDefault NotTried lvl result <= OneSuccess
                     | lvl <- lowerLevels
                     ]
-    , -- P8: MasteryNotYet and OnlySillyMistakes require direct observation.
-      -- Without any observation at the target level, mastery is never negative.
-      testProperty "P8: no direct observation -> never MasteryNotYet or OnlySillyMistakes" $
+    , -- P8: MasteryNotYet and OnlySillyMistakes require observation at or below
+      -- the target level. Without such observations, no ceiling can form.
+      testProperty "P8: no observation at or below target -> never MasteryNotYet or OnlySillyMistakes" $
         forAll arbitrary $ \targetLevel ->
-          forAll (genTimelineWithout targetLevel) $ \timeline ->
+          forAll (genTimelineWithoutAtOrBelow targetLevel) $ \timeline ->
             let result = masteryAt targetLevel timeline
              in counterexample ("result=" ++ show result) $
                   result =/= MasteryNotYet .&&. result =/= OnlySillyMistakes
@@ -296,6 +304,24 @@ classifierProperties =
                     status =/= StreakTwoAssessed
                 | (lvl, status) <- Map.toList result
                 ]
+    , -- P12: Monotonicity — easier levels have at least as good mastery as harder levels.
+      -- Only compared between levels that have been tried (NotTried = no data, skip).
+      testProperty "P12: monotonicity — easier level mastery <= harder level mastery" $
+        \(timeline :: ObservationTimeline) ->
+          let result = classifyAllLevels timeline
+              tried =
+                [ (lvl, status)
+                | lvl <- allLevels
+                , let status = Map.findWithDefault NotTried lvl result
+                , status /= NotTried
+                ]
+              pairs = zip tried (drop 1 tried)
+           in counterexample (show tried) $
+                conjoin
+                  [ counterexample (show l1 ++ "=" ++ show s1 ++ " vs " ++ show l2 ++ "=" ++ show s2) $
+                      property (s1 <= s2)
+                  | ((l1, s1), (l2, s2)) <- pairs
+                  ]
     , -- Smoke test: classifyAllLevels never crashes
       testProperty "smoke: classifyAllLevels terminates for any input" $
         \(timeline :: ObservationTimeline) ->
