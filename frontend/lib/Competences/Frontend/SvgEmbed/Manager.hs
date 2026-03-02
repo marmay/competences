@@ -138,6 +138,10 @@ injectSvgColor (Just hex) svg =
           -- Prepend color into existing style value
           before <> "style=\"color:" <> hex <> ";" <> T.drop (T.length needle) after
 
+prepareFormula :: MathDisplay -> Text -> Text
+prepareFormula Inline latex = "{" <> latex <> "}"
+prepareFormula Block latex = latex
+
 -- | Render a LaTeX formula to SVG via MathJax and return as a data URL.
 -- An optional hex color is injected into the SVG root element.
 --
@@ -155,7 +159,7 @@ renderFormula display latex mColor = do
       options <- create
       displayVal <- toJSVal (display == Block)
       setProp ("display" :: MisoString) displayVal options
-      latexVal <- toJSVal (ms latex :: MisoString)
+      latexVal <- toJSVal (ms (prepareFormula display latex) :: MisoString)
       result <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
       resultIsNull <- isNull result
       if resultIsNull
