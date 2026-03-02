@@ -368,6 +368,8 @@ data Label
   | LblUsedInAssignments
     -- Extra tasks
   | LblExtraTask
+    -- Start-from-empty mode
+  | LblOnlySelectedTasks
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
@@ -709,6 +711,7 @@ labels' =
   , LblUsedInAssignments
     -- Extra tasks
   , LblExtraTask
+  , LblOnlySelectedTasks
   , LblViewAsStudent
   , LblReturnToTeacher
   ]
@@ -1074,6 +1077,7 @@ defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"
 defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"
 -- Extra tasks
 defaultTranslation LblExtraTask = "Zusätzlich"
+defaultTranslation LblOnlySelectedTasks = "Nur ausgewählte Aufgaben werten"
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"

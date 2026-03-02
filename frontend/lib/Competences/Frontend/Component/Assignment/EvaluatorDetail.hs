@@ -113,6 +113,8 @@ data EvaluatorModel = EvaluatorModel
   , additionalTasks :: !(Set.Set TaskId)
   -- Counter to re-key the inline extra-task selector (incremented on reset)
   , selectorGeneration :: !Int
+  -- Session preference: start with all tasks excluded when selecting students
+  , startFromEmpty :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -131,6 +133,7 @@ data EvaluatorAction
   | LoadStudentEvidence !UserId -- Load existing evidence data into evaluator
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
+  | ToggleStartFromEmpty -- Toggle "start from empty" session preference
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -162,6 +165,7 @@ evaluatorComponent r assignment =
         , taskRemarks = Map.empty
         , additionalTasks = Set.empty
         , selectorGeneration = 0
+        , startFromEmpty = False
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -201,6 +205,7 @@ evaluatorComponent r assignment =
               then Set.delete userId m.selectedStudents
               else Set.insert userId m.selectedStudents
           newSocialForm = if Set.size newSelected == 1 then Individual else Group
+          goingFromEmpty = Set.null m.selectedStudents && not (Set.null newSelected)
        in m{ selectedStudents = newSelected
            , selectedSocialForm = newSocialForm
            , editingEvidence = Nothing
@@ -210,6 +215,10 @@ evaluatorComponent r assignment =
            , taskRemarks = Map.empty
            , additionalTasks = Set.empty
            , selectorGeneration = m.selectorGeneration + 1
+           , excludedTasks =
+               if goingFromEmpty && m.startFromEmpty
+                 then Set.fromList m.assignment.tasks
+                 else m.excludedTasks
            }
 
     update (SetSocialForm sf) = M.modify $ \m ->
@@ -338,6 +347,9 @@ evaluatorComponent r assignment =
                          else Map.insert taskId updated m.taskRemarks
        in m & #taskRemarks .~ newRemarks
 
+    update ToggleStartFromEmpty = M.modify $ \m ->
+      m{startFromEmpty = not m.startFromEmpty}
+
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
     -- otherwise create a new one.
@@ -448,6 +460,10 @@ evaluatorComponent r assignment =
                     , Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
                         [ M.span_ [class_ "font-semibold text-sm"] [M.text $ C.translate' C.LblEvidenceDate <> ":"]
                         , Input.dateInput dateValue SetEvaluationDate
+                        ]
+                    , M.label_ [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
+                        [ M.input_ [MP.type_ "checkbox", MP.checked_ m.startFromEmpty, M.onClick ToggleStartFromEmpty]
+                        , M.text (C.translate' C.LblOnlySelectedTasks)
                         ]
                     ]
                 ]
