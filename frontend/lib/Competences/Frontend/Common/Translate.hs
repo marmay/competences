@@ -366,6 +366,8 @@ data Label
     -- Assignment references
   | LblUsedInAssignment
   | LblUsedInAssignments
+    -- Extra tasks
+  | LblExtraTask
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
@@ -705,6 +707,8 @@ labels' =
     -- Assignment references
   , LblUsedInAssignment
   , LblUsedInAssignments
+    -- Extra tasks
+  , LblExtraTask
   , LblViewAsStudent
   , LblReturnToTeacher
   ]
@@ -1068,6 +1072,8 @@ defaultTranslation (LblTaskRemark Lacking) = "Lückenhaft"
 -- Assignment references
 defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"
 defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"
+-- Extra tasks
+defaultTranslation LblExtraTask = "Zusätzlich"
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"

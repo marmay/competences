@@ -10,7 +10,7 @@ import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
-import Competences.Document.Task (TaskId)
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
@@ -46,7 +46,11 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Optics.Core ((&), (.~))
+import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens (..))
+import Competences.Frontend.Component.Selector.ListSelector (ListSelectorConfig (..), listSelectorConfig)
+import Competences.Frontend.Component.Selector.SearchableListSelector (searchableMultiSelectorComponent)
 
 -- | Find evidences for a specific date, keyed by student.
 -- Used to filter assignmentEvidences by the current evaluationDate at each usage site.
@@ -105,6 +109,10 @@ data EvaluatorModel = EvaluatorModel
   , taskStatuses :: !(Map.Map UserId (Map.Map TaskId TaskCompletionStatus))
   -- Per-task qualitative remarks (e.g. sloppy, exceptional)
   , taskRemarks :: !(Map.Map TaskId (Set.Set TaskRemark))
+  -- Extra tasks added by teacher (not in assignment.tasks)
+  , additionalTasks :: !(Set.Set TaskId)
+  -- Counter to re-key the inline extra-task selector (incremented on reset)
+  , selectorGeneration :: !Int
   }
   deriving (Eq, Generic, Show)
 
@@ -152,6 +160,8 @@ evaluatorComponent r assignment =
         , aggregationStale = False
         , taskStatuses = Map.empty
         , taskRemarks = Map.empty
+        , additionalTasks = Set.empty
+        , selectorGeneration = 0
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -198,13 +208,19 @@ evaluatorComponent r assignment =
            , aggregatedResults = Map.empty
            , aggregationStale = False
            , taskRemarks = Map.empty
+           , additionalTasks = Set.empty
+           , selectorGeneration = m.selectorGeneration + 1
            }
 
     update (SetSocialForm sf) = M.modify $ \m ->
       m{selectedSocialForm = sf}
 
     update ComputeAggregation = M.modify $ \m ->
-      let aggregated = Eval.computeAggregation m.taskObservations
+      let activeTaskIds = Set.fromList m.assignment.tasks <> m.additionalTasks
+          activeObs = Map.filterWithKey
+            (\(tid, _) _ -> Set.member tid activeTaskIds && not (Set.member tid m.excludedTasks))
+            m.taskObservations
+          aggregated = Eval.computeAggregation activeObs
        in m{aggregatedResults = aggregated, aggregationStale = False}
 
     update (SetAggregatedResult compId ability) = M.modify $ \m ->
@@ -229,15 +245,25 @@ evaluatorComponent r assignment =
         , editingEvidence = Nothing
         , aggregationStale = False
         , taskRemarks = Map.empty
+        , additionalTasks = Set.empty
+        , selectorGeneration = m'.selectorGeneration + 1
         }
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
-      m{ excludedTasks =
-           if Set.member taskId m.excludedTasks
-             then Set.delete taskId m.excludedTasks  -- Re-include
-             else Set.insert taskId m.excludedTasks  -- Exclude
-       , aggregationStale = not (Map.null m.aggregatedResults)
-       }
+      if Set.member taskId m.additionalTasks
+        then -- Extra task: remove entirely instead of just excluding
+          m{ additionalTasks = Set.delete taskId m.additionalTasks
+           , taskObservations = Map.filterWithKey (\(t, _) _ -> t /= taskId) m.taskObservations
+           , aggregationStale = not (Map.null m.aggregatedResults)
+           , selectorGeneration = m.selectorGeneration + 1
+           }
+        else -- Assignment task: toggle exclusion as before
+          m{ excludedTasks =
+               if Set.member taskId m.excludedTasks
+                 then Set.delete taskId m.excludedTasks
+                 else Set.insert taskId m.excludedTasks
+           , aggregationStale = not (Map.null m.aggregatedResults)
+           }
 
     update (SetEvaluationDate dateStr) = M.modify $ \m ->
       case parseTimeM True defaultTimeLocale "%Y-%m-%d" (M.fromMisoString dateStr) of
@@ -275,6 +301,10 @@ evaluatorComponent r assignment =
                 [ (obs.competenceLevelId, obs.ability)
                 | obs <- Ix.toList ev.observations
                 ]
+              -- Compute extra tasks (in evidence but not in assignment)
+              assignmentTaskSet = Set.fromList m.assignment.tasks
+              evidenceTaskSet = Map.keysSet ev.tasks
+              loadedExtras = evidenceTaskSet `Set.difference` assignmentTaskSet
            in m{ taskObservations = loadedObs
                , aggregatedResults = loadedAgg
                , editingEvidence = Just userId
@@ -284,6 +314,8 @@ evaluatorComponent r assignment =
                , evaluationDate = ev.date
                , aggregationStale = False
                , taskRemarks = ev.taskRemarks
+               , additionalTasks = loadedExtras
+               , selectorGeneration = m.selectorGeneration + 1
                }
 
     update ResetLoadedEvidence = M.modify $ \m ->
@@ -292,6 +324,8 @@ evaluatorComponent r assignment =
        , aggregatedResults = Map.empty
        , aggregationStale = False
        , taskRemarks = Map.empty
+       , additionalTasks = Set.empty
+       , selectorGeneration = m.selectorGeneration + 1
        }
 
     update (ToggleTaskRemark taskId remark) = M.modify $ \m ->
@@ -312,10 +346,11 @@ evaluatorComponent r assignment =
       let sf = m.selectedSocialForm
           asmt = m.assignment
           -- Build tasks map: for each included task, collect its per-competence evaluations
+          allTaskIds = Set.toList (Set.fromList asmt.tasks <> m.additionalTasks)
           tasksMap :: Map.Map TaskId TaskEvaluations
           tasksMap = Map.fromList
             [ (tid, taskEvals)
-            | tid <- asmt.tasks
+            | tid <- allTaskIds
             , not (Set.member tid m.excludedTasks)
             , let taskEvals = Map.fromList
                     [ (cid, ab)
@@ -369,23 +404,26 @@ evaluatorComponent r assignment =
               }
 
     view' m =
-      if null m.assignment.tasks
-        then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
-        else
-          let -- Sort tasks by identifier for consistent display order
-              sortedTaskIds =
-                map snd $
-                  Map.toAscList $
-                    Map.fromList
-                      [ (tvd.identifier, tid)
-                      | tid <- m.assignment.tasks
-                      , Just tvd <- [Map.lookup tid m.taskViewData]
-                      ]
-           in M.div_
+      let allTaskIds = m.assignment.tasks
+            <> [tid | tid <- Set.toList m.additionalTasks, tid `notElem` m.assignment.tasks]
+          -- Sort tasks by identifier for consistent display order
+          sortedTaskIds =
+            map snd $
+              Map.toAscList $
+                Map.fromList
+                  [ (tvd.identifier, tid)
+                  | tid <- allTaskIds
+                  , Just tvd <- [Map.lookup tid m.taskViewData]
+                  ]
+       in if null sortedTaskIds && Set.null m.additionalTasks
+            then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
+            else
+              M.div_
                 []
                 [ viewStudentSelection m
                 , viewOverwriteBanner m
                 , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
+                , viewExtraTaskSelector m
                 , viewAggregationSection m
                 , viewCreateEvidencesButton m
                 ]
@@ -489,14 +527,19 @@ evaluatorComponent r assignment =
 
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
+          isExtra = Set.member taskId m.additionalTasks
           selectedList = Set.toList m.selectedStudents
+          extraBadge =
+            if isExtra
+              then [Badge.outline (Badge.badgeLabel C.LblExtraTask)]
+              else []
           statusDots =
             if null selectedList
               then []
               else [Layout.hFlow (Layout.hFull <> Layout.crossCenter <> Layout.gapMicro) (map (viewCompactStudentStatus m taskId) selectedList)]
        in M.div_
             [class_ "border-b pb-4"]
-            [ Eval.viewTaskHeader m.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) statusDots
+            [ Eval.viewTaskHeader m.taskViewData taskId isExcluded (ToggleTaskIncluded taskId) (extraBadge <> statusDots)
             , if isExcluded
                 then M.text ""
                 else M.div_ []
@@ -547,6 +590,28 @@ evaluatorComponent r assignment =
       if null m.selectedStudents
         then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
         else Eval.viewTaskCompetences m.taskViewData m.competenceLevelInfos m.taskObservations taskId SetTaskObservationForAll
+
+    viewExtraTaskSelector m =
+      let assignmentTaskSet = Set.fromList m.assignment.tasks
+          extraTaskConfig =
+            (listSelectorConfig
+              (\doc -> filter (\t -> not (Set.member t.id assignmentTaskSet))
+                             (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks))
+              (\t -> let TaskIdentifier ident = t.identifier in ms ident))
+            { isInitialValue = \task -> Set.member task.id m.additionalTasks
+            , showSelectAll = False
+            }
+          selectorLensBinding = SelectorTransformedLens
+            { lens = #additionalTasks
+            , transform = (.id)
+            , embed = Set.fromList
+            }
+          key = "extra-task-selector-" <> ms (show m.selectorGeneration)
+       in M.div_ [class_ "border-t pt-3"]
+            [ Typography.h4 (C.translate' C.LblAddTask)
+            , inlineComponent key
+                (searchableMultiSelectorComponent r extraTaskConfig selectorLensBinding)
+            ]
 
     viewAggregationSection m =
       M.div_
