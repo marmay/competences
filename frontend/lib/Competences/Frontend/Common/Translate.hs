@@ -174,6 +174,8 @@ data Label
   | LblReconnecting !Int
   | LblPendingChanges !Int
   | LblUnsavedChanges !Int
+  | LblChangesPendingWarning
+  | LblChangesNowSynced
   | LblLockedLevels
     -- Grid grading
   | LblGrade
@@ -508,6 +510,8 @@ labels' =
   , LblReconnecting 0
   , LblPendingChanges 0
   , LblUnsavedChanges 0
+  , LblChangesPendingWarning
+  , LblChangesNowSynced
   , LblLockedLevels
     -- Grid grading
   , LblGrade
@@ -865,6 +869,8 @@ defaultTranslation LblDisconnected = "Getrennt"
 defaultTranslation (LblReconnecting n) = "Verbinde... (Versuch " <> ms (show n) <> ")"
 defaultTranslation (LblPendingChanges n) = ms (show n) <> " Änderungen werden gesendet"
 defaultTranslation (LblUnsavedChanges n) = ms (show n) <> " ungespeicherte Änderungen"
+defaultTranslation LblChangesPendingWarning = "Änderungen konnten noch nicht gespeichert werden"
+defaultTranslation LblChangesNowSynced = "Alle Änderungen gespeichert"
 defaultTranslation LblLockedLevels = "Gesperrt"
 -- Grid grading
 defaultTranslation LblGrade = "Benotung"

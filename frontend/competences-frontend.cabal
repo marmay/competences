@@ -157,6 +157,7 @@ library
         Competences.Frontend.View.StatusIcon,
         Competences.Frontend.View.Table,
         Competences.Frontend.View.TagInput,
+        Competences.Frontend.View.Notification,
         Competences.Frontend.View.Tailwind,
         Competences.Frontend.View.TaskStatus,
         Competences.Frontend.View.Text,
