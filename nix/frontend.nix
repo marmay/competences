@@ -10,7 +10,7 @@
 
 pkgs.stdenv.mkDerivation {
   pname = "competences-frontend";
-  version = "0.13.3";
+  version = "0.13.4";
 
   dontUnpack = true;
   dontBuild = true;
