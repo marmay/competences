@@ -23,6 +23,8 @@ module Competences.Frontend.SyncContext.SyncDocument
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
+    -- * File Cache
+  , FileCache
     -- * Server Info
   , setServerInfo
   , readServerInfo
@@ -42,6 +44,7 @@ import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Protocol (ServerInfo (..))
+import Competences.Frontend.FileCache (FileCache, newFileCache)
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SvgEmbed.Manager (FormulaCache, newFormulaCache)
 import Competences.Frontend.SyncContext.WindowManager
@@ -118,6 +121,7 @@ data SyncContext = SyncContext
   , windowManager :: !WindowManagerRef
   , serverInfoRef :: !(IORef ServerInfo)
   , formulaCache :: !FormulaCache
+  , fileCache :: !FileCache
   }
 
 -- | Get the environment from a SyncContext
@@ -148,7 +152,8 @@ mkSyncDocument env = do
   winMgr <- liftIO newWindowManager
   srvInfo <- newIORef defaultServerInfo
   fc <- liftIO newFormulaCache
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo fc
+  filec <- liftIO newFileCache
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo fc filec
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -158,7 +163,8 @@ mkSyncDocument' env rgen m = do
   winMgr <- liftIO newWindowManager
   srvInfo <- newIORef defaultServerInfo
   fc <- liftIO newFormulaCache
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo fc
+  filec <- liftIO newFileCache
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo fc filec
 
 readSyncDocument :: (MonadIO m) => SyncContext -> m SyncDocument
 readSyncDocument d = readMVar d.syncDocument

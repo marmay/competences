@@ -110,6 +110,16 @@ in {
       description = "Directory where frontend static files will be deployed";
     };
 
+    casDir = mkOption {
+      type = types.path;
+      default = "/var/lib/competences/files";
+      description = ''
+        Directory for the content-addressable store (CAS).
+        Uploaded files are stored here by their SHA-256 hash.
+        Shared between instances (content-addressed = safe to share).
+      '';
+    };
+
     instances = mkOption {
       type = types.attrsOf (types.submodule instanceOpts);
       default = {};
@@ -177,11 +187,14 @@ in {
       }) (attrNames cfg.instances);
     };
 
-    # Deploy frontend static files
+    # Deploy frontend static files and create CAS directory
     system.activationScripts.competences-frontend = ''
       mkdir -p ${cfg.staticDir}
       cp -r ${cfg.frontendPackage}/* ${cfg.staticDir}/
       chmod -R 755 ${cfg.staticDir}
+      mkdir -p ${cfg.casDir}
+      chown root:competences ${cfg.casDir}
+      chmod 775 ${cfg.casDir}
     '';
 
     # Create system users and groups
@@ -259,6 +272,7 @@ in {
             "--database \"host=/run/postgresql dbname=${instance.database} user=${instance.database}\""
             "--config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
+            "--cas-dir ${cfg.casDir}"
           ] ++ optional (instance.ensureTeacherO365 != null) "--ensure-teacher-o365 ${instance.ensureTeacherO365}");
 
           # Security hardening
@@ -266,7 +280,7 @@ in {
           PrivateTmp = true;
           ProtectSystem = "strict";
           ProtectHome = true;
-          ReadWritePaths = [ ];
+          ReadWritePaths = [ cfg.casDir ];
         };
       }
     ) (attrNames cfg.instances));

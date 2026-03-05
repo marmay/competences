@@ -7,8 +7,9 @@ where
 
 import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
 import Competences.Backend.BuildInfo (backendVersion)
+import Competences.Backend.CAS qualified as CAS
 import Competences.Backend.State
-  ( AppState
+  ( AppState (..)
   , ConnectionId
   , broadcastToUsers
   , getDocument
@@ -19,6 +20,7 @@ import Competences.Backend.State
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
+import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Exception (finally)
@@ -141,3 +143,22 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
   KeepAlive -> do
     -- Respond to keep-alive
     WS.sendBinaryData conn (Bin.encode KeepAliveResponse)
+
+  RequestFile hash -> do
+    putStrLn $ "File requested: " <> show hash
+    mContents <- CAS.fetchFile state.cas hash
+    case mContents of
+      Nothing -> WS.sendBinaryData conn (Bin.encode $ FileNotFound hash)
+      Just contents ->
+        WS.sendBinaryData conn (Bin.encode $ FileContents hash (FileData contents))
+
+  UploadFile fileName mimeType (FileData contents) -> do
+    putStrLn $ "File upload: " <> T.unpack fileName <> " (" <> T.unpack mimeType <> ")"
+    (sha, fileSize) <- CAS.storeAndRegister state.cas state.instanceId contents
+    let fileRef = FileRef
+          { hash = sha
+          , fileName = fileName
+          , mimeType = mimeType
+          , fileSize = fileSize
+          }
+    WS.sendBinaryData conn (Bin.encode $ FileUploaded fileRef)

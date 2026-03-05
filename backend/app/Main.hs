@@ -1,5 +1,6 @@
 module Main where
 
+import Competences.Backend.CAS (newCAS)
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
@@ -38,6 +39,7 @@ data Options = Options
   , dbConnString :: !ByteString
   , configPath :: !FilePath
   , staticDir :: !FilePath
+  , casDir :: !FilePath
   , ensureTeacherO365 :: !(Maybe String)
   }
 
@@ -72,6 +74,13 @@ optionsParser =
           <> Opt.metavar "DIR"
           <> Opt.help "Static files directory"
       )
+    <*> Opt.strOption
+      ( Opt.long "cas-dir"
+          <> Opt.metavar "DIR"
+          <> Opt.value "./files"
+          <> Opt.showDefault
+          <> Opt.help "Content-addressable store directory for uploaded files"
+      )
     <*> Opt.optional
       ( Opt.strOption
           ( Opt.long "ensure-teacher-o365"
@@ -105,6 +114,7 @@ main = do
   putStrLn $ "Port: " <> show opts.port
   putStrLn $ "Database: " <> BS.unpack opts.dbConnString
   putStrLn $ "Static directory: " <> opts.staticDir
+  putStrLn $ "CAS directory: " <> opts.casDir
   putStrLn ""
 
   -- Initialize database connection pool
@@ -156,8 +166,14 @@ main = do
   startupCmds <- buildStartupMigrations opts
   (doc', latestGen) <- applyStartupMigrations pool doc initialGen startupCmds
 
+  -- Initialize CAS (content-addressable store for files)
+  cas <- newCAS opts.casDir
+
+  -- Derive instance ID from database name in connection string
+  let instId = extractDbName (BS.unpack opts.dbConnString)
+
   -- Initialize application state
-  state <- initAppState pool
+  state <- initAppState pool cas instId
   atomically $ writeTVar state.document doc'
 
   -- Log startup
@@ -259,6 +275,20 @@ snapshotTimer state _shutdown = go
         doc <- atomically $ readTVar state.document
         DB.saveSnapshot state.dbPool doc maxGen
       go
+
+-- | Extract database name from PostgreSQL connection string.
+-- Looks for "dbname=<name>" in the connection string.
+-- Falls back to the full connection string if not found.
+extractDbName :: String -> T.Text
+extractDbName connStr =
+  case lookup "dbname" pairs of
+    Just name -> T.pack name
+    Nothing -> T.pack connStr
+  where
+    pairs = map parseKV (words connStr)
+    parseKV s = case break (== '=') s of
+      (k, '=' : v) -> (k, v)
+      (k, _) -> (k, "")
 
 -- | Graceful shutdown: create final snapshot and log shutdown
 gracefulShutdown :: AppState -> Pool Connection -> UUID.UUID -> MVar () -> IO ()

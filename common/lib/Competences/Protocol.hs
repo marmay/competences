@@ -10,6 +10,7 @@ where
 
 import Competences.Command (Command)
 import Competences.Document (Document, User, UserId)
+import Competences.Document.FileRef (FileData, FileRef, SHA256Hash)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -55,6 +56,11 @@ data ClientMessage
     SendCommand !Command
   | -- | Keep-alive ping to prevent connection timeout.
     KeepAlive
+  | -- | Request a file from the CAS by its content hash.
+    RequestFile !SHA256Hash
+  | -- | Upload a file to the CAS.
+    -- Fields: fileName, mimeType, file contents.
+    UploadFile !Text !Text !FileData
   deriving (Eq, Generic, Show)
 
 instance Binary ClientMessage
@@ -80,6 +86,14 @@ data ServerMessage
     CommandRejected !Command !Text
   | -- | Response to KeepAlive ping.
     KeepAliveResponse
+  | -- | File contents from the CAS (response to RequestFile).
+    FileContents !SHA256Hash !FileData
+  | -- | Requested file was not found in the CAS.
+    FileNotFound !SHA256Hash
+  | -- | File upload succeeded, returning the FileRef with hash and metadata.
+    FileUploaded !FileRef
+  | -- | File upload failed with an error message.
+    FileUploadFailed !Text
   deriving (Eq, Generic, Show)
 
 instance Binary ServerMessage

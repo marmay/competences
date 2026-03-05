@@ -14,6 +14,7 @@ module Competences.Backend.State
   )
 where
 
+import Competences.Backend.CAS (CAS, InstanceId)
 import Competences.Backend.Database qualified as DB
 import Competences.Command (Command, handleCommand)
 import Competences.Command.Common (AffectedUsers (..))
@@ -51,21 +52,25 @@ data AppState = AppState
   -- ^ Counter for generating unique connection IDs
   , dbPool :: !(Pool Connection)
   -- ^ Database connection pool for command/snapshot persistence
+  , cas :: !CAS
+  -- ^ Content-addressable store for file storage
+  , instanceId :: !InstanceId
+  -- ^ Instance identifier (database name) for CAS ownership tracking
   }
 
 -- | Initialize empty application state
-initAppState :: Pool Connection -> IO AppState
-initAppState pool = do
+initAppState :: Pool Connection -> CAS -> InstanceId -> IO AppState
+initAppState pool cas' instId = do
   doc <- newTVarIO emptyDocument
   conns <- newTVarIO Map.empty
   nextId <- newTVarIO 0
-  pure $ AppState doc conns nextId pool
+  pure $ AppState doc conns nextId pool cas' instId
 
 -- | Load application state from file (deprecated - use database loading instead)
 -- Returns empty state if file doesn't exist
 -- NOTE: This is kept for backward compatibility but database loading is preferred
-loadAppState :: FilePath -> Pool Connection -> IO AppState
-loadAppState path pool = do
+loadAppState :: FilePath -> Pool Connection -> CAS -> InstanceId -> IO AppState
+loadAppState path pool cas' instId = do
   docResult <- eitherDecodeFileStrict path
   doc <- case docResult of
     Left err -> do
@@ -78,7 +83,7 @@ loadAppState path pool = do
   docVar <- newTVarIO doc
   conns <- newTVarIO Map.empty
   nextId <- newTVarIO 0
-  pure $ AppState docVar conns nextId pool
+  pure $ AppState docVar conns nextId pool cas' instId
 
 -- | Save application state to file
 saveAppState :: FilePath -> AppState -> IO ()

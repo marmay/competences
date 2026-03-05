@@ -12,10 +12,12 @@ module Competences.Frontend.WebSocket.Handlers
 where
 
 import Competences.Document (Document, User (..), UserId)
+import Competences.Document.FileRef (FileRef (..))
 import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.Logging (logInfo, logWarn)
+import Competences.Frontend.FileCache qualified as FC
 import Competences.Frontend.SyncContext
-  ( SyncContext
+  ( SyncContext (..)
   , applyRemoteCommand
   , mkSyncDocument
   , mkSyncDocumentEnv
@@ -82,6 +84,15 @@ operationLoop ref ws = loop `catch` handleDisconnect
         logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
         rejectCommand ref cmd
       KeepAliveResponse -> pure ()
+      FileContents hash fileData -> do
+        logInfo $ M.ms $ "Received file: " <> show hash
+        FC.insertFile ref.fileCache hash fileData
+      FileNotFound hash -> do
+        logWarn $ M.ms $ "File not found: " <> show hash
+      FileUploaded fileRef -> do
+        logInfo $ M.ms $ "File uploaded: " <> T.unpack fileRef.fileName <> " (" <> show fileRef.hash <> ")"
+      FileUploadFailed reason -> do
+        logWarn $ M.ms $ "File upload failed: " <> T.unpack reason
       other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
 
 -- ============================================================================

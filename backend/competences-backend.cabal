@@ -24,6 +24,7 @@ library
         Competences.Backend.API.Auth
         Competences.Backend.Auth
         Competences.Backend.BuildInfo
+        Competences.Backend.CAS
         Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Envelope

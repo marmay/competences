@@ -164,6 +164,7 @@ library
         Competences.Frontend.View.Tooltip,
         Competences.Frontend.View.Typography,
         Competences.Frontend.BinaryFFI,
+        Competences.Frontend.FileCache,
         Competences.Frontend.WebSocket,
         Competences.Frontend.WebSocket.CommandSender,
         Competences.Frontend.WebSocket.Handlers,

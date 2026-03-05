@@ -12,6 +12,7 @@ module Competences.Document
   , module Competences.Document.Competence
   , module Competences.Document.CompetenceGrid
   , module Competences.Document.Evidence
+  , module Competences.Document.FileRef
   , module Competences.Document.Order
   , module Competences.Document.Resource
   , module Competences.Document.Solution
@@ -58,6 +59,7 @@ import Competences.Document.CompetenceGridGrade
   , CompetenceGridGradeIxs
   )
 import Competences.Document.Evidence (Evidence (..), EvidenceId, EvidenceIxs, Observation (..))
+import Competences.Document.FileRef (FileData (..), FileRef (..), SHA256Hash (..), sha256HashToText, sha256HashFromText)
 import Competences.Document.Lesson
   ( Lesson (..)
   , LessonId
