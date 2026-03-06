@@ -43,6 +43,7 @@ library
         Competences.Command.ParticipationRecords
         Competences.Command.Resources
         Competences.Command.Solutions
+        Competences.Command.Submissions
         Competences.Command.Tasks
         Competences.Command.Users
         Competences.Common.BinaryOrphans
@@ -67,6 +68,7 @@ library
         Competences.Document.ParticipationRecord
         Competences.Document.Resource
         Competences.Document.Solution
+        Competences.Document.Submission
         Competences.Document.Task
         Competences.Document.User
         Competences.Import.ASTExtract

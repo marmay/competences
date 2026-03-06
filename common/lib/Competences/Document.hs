@@ -24,6 +24,7 @@ module Competences.Document
   , module Competences.Document.LessonNotes
   , module Competences.Document.ParticipationRecord
   , module Competences.Document.Absence
+  , module Competences.Document.Submission
   )
 where
 
@@ -98,6 +99,7 @@ import Competences.Document.Resource
   , mkResource
   )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs)
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 #ifdef WITH_AESON
@@ -126,6 +128,7 @@ data Document = Document
   , lessonNotes :: !(Ix.IxSet LessonNotesIxs LessonNotes)
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   , absences :: !(Ix.IxSet AbsenceIxs Absence)
+  , submissions :: !(Ix.IxSet SubmissionIxs Submission)
   }
   deriving (Eq, Generic, Show)
 
@@ -152,6 +155,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "lessonNotes" .!= [])
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
       <*> fmap Ix.fromList (v .:? "absences" .!= [])
+      <*> fmap Ix.fromList (v .:? "submissions" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -173,6 +177,7 @@ instance ToJSON Document where
       , "lessonNotes" .= Ix.toList d.lessonNotes
       , "participationRecords" .= Ix.toList d.participationRecords
       , "absences" .= Ix.toList d.absences
+      , "submissions" .= Ix.toList d.submissions
       ]
 #endif
 
@@ -196,6 +201,7 @@ emptyDocument =
     , lessonNotes = Ix.empty
     , participationRecords = Ix.empty
     , absences = Ix.empty
+    , submissions = Ix.empty
     }
 
 
@@ -217,6 +223,7 @@ projectDocument user doc
         & #lessons .~ Ix.empty
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
         & #absences .~ (doc.absences Ix.@= user.id) -- Own absences only
+        & #submissions .~ (doc.submissions Ix.@= user.id) -- Own submissions only
         -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
         -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
@@ -251,5 +258,9 @@ projectDocument user doc
       AbsenceLock aid ->
         case Ix.getOne (doc.absences Ix.@= aid) of
           Just a -> user.id == a.userId
+          Nothing -> False
+      SubmissionLock sid ->
+        case Ix.getOne (doc.submissions Ix.@= sid) of
+          Just s -> user.id == s.userId
           Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)

@@ -81,6 +81,7 @@ import Competences.Frontend.Component.TaskResource
   )
 import Competences.Frontend.Component.TaskResource qualified as TRL
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
+import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
@@ -483,6 +484,11 @@ viewerComponent r user assignment wm =
               ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
                 [ taskResourceListView r.formulaCache showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
               )
+            , -- Students see submission form; teachers don't (teacher view comes in Part 2)
+              if proj.connectedUserRole == Student
+                then inlineComponentWith ("submission-" <> M.ms (show proj.currentAssignment.id))
+                       (Submission.submissionComponent r proj.currentAssignment.id user.id)
+                else M.text ""
             ]
 
 

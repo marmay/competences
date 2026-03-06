@@ -18,6 +18,7 @@ import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.ParticipationRecord (ParticipationRecordId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
+import Competences.Document.Submission (SubmissionId)
 import Competences.Document.Task (TaskGroupId, TaskId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
@@ -46,6 +47,7 @@ data Lock
   | ParticipationRecordLock !ParticipationRecordId
   | LessonNotesLock !LessonNotesId
   | AbsenceLock !AbsenceId
+  | SubmissionLock !SubmissionId
   deriving (Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON

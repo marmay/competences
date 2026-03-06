@@ -213,4 +213,5 @@ emptyDocument =
     , lessonNotes = Ix.empty
     , participationRecords = Ix.empty
     , absences = Ix.empty
+    , submissions = Ix.empty
     }

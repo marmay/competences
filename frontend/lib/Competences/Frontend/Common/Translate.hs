@@ -383,6 +383,12 @@ data Label
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
+    -- Submissions
+  | LblSubmitWork
+  | LblSubmissionDescription
+  | LblNoSubmissions
+  | LblDeleteSubmission
+  | LblConfirmDeleteSubmission
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -733,6 +739,11 @@ labels' =
   , LblAttachments
   , LblViewAsStudent
   , LblReturnToTeacher
+  , LblSubmitWork
+  , LblSubmissionDescription
+  , LblNoSubmissions
+  , LblDeleteSubmission
+  , LblConfirmDeleteSubmission
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1110,6 +1121,12 @@ defaultTranslation LblAttachments = "Anhänge"
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"
+-- Submissions
+defaultTranslation LblSubmitWork = "Abgabe einreichen"
+defaultTranslation LblSubmissionDescription = "Anmerkung (optional)"
+defaultTranslation LblNoSubmissions = "Noch keine Abgabe"
+defaultTranslation LblDeleteSubmission = "Abgabe löschen"
+defaultTranslation LblConfirmDeleteSubmission = "Abgabe wirklich löschen?"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

@@ -103,6 +103,7 @@ library
         Competences.Frontend.Component.Selector.UserSelector,
         Competences.Frontend.Component.FilePreview,
         Competences.Frontend.Component.FileUpload,
+        Competences.Frontend.Component.Submission,
         Competences.Frontend.Component.Resource.EditorDetail,
         Competences.Frontend.Component.LessonNotes,
         Competences.Frontend.Component.LessonNotes.EditorDetail,

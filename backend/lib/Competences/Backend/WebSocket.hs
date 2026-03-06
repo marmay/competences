@@ -17,6 +17,7 @@ import Competences.Backend.State
   , unregisterClient
   , updateDocument
   )
+import Competences.Command (Command (..))
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
@@ -123,11 +124,11 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
 
   SendCommand cmd -> do
     putStrLn $ "Received command from " <> show uid <> ": " <> show cmd
-    -- Authorization check: currently all commands require Teacher role
-    if user.role /= Teacher
+    -- Authorization check: teachers can do anything, students can only submit
+    if not (isAuthorized user.role cmd)
       then do
-        putStrLn $ "Command rejected: user " <> show uid <> " is not a teacher"
-        WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Only teachers can execute commands")
+        putStrLn $ "Command rejected: user " <> show uid <> " is not authorized"
+        WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Not authorized for this command")
       else do
         result <- updateDocument state uid cmd
         case result of
@@ -162,3 +163,11 @@ handleClientMessage state uid user clientMsg conn = case clientMsg of
           , fileSize = fileSize
           }
     WS.sendBinaryData conn (Bin.encode $ FileUploaded fileRef)
+
+-- | Check if a user role is authorized to execute a command.
+-- Teachers can execute any command. Students can only submit.
+-- Fine-grained checks (e.g., "can only submit as yourself") are in the command handler.
+isAuthorized :: UserRole -> Command -> Bool
+isAuthorized Teacher _ = True
+isAuthorized Student (Submissions _) = True
+isAuthorized Student _ = False
