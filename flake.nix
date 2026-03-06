@@ -73,6 +73,8 @@
             pkgs.gnumake
             pkgs.http-server
             pkgs.cabal-install
+            pkgs.esbuild
+            pkgs.tailwindcss_4
           ];
 	};
       }) // {
