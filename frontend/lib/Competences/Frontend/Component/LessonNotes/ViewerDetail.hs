@@ -16,13 +16,15 @@ import Competences.Document
   , LessonNoteItem (..)
   , LessonNotes (..)
   , Resource (..)
+  , FileRef (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
   )
 import Competences.Document.Id (idToText)
 import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Frontend.Component.FileUpload (showFileSize)
+import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
@@ -176,14 +178,14 @@ viewerComponent r ln wm =
                 , -- Items (resources and tasks)
                   if null proj.resolvedItems
                     then M.text ""
-                    else MH.div_ [class_ "space-y-2"] (map (viewResolvedItem r.formulaCache) proj.resolvedItems)
+                    else MH.div_ [class_ "space-y-2"] (map (viewResolvedItem r) proj.resolvedItems)
                 ]
             ]
 
 -- | Render a resolved item in the viewer
-viewResolvedItem :: FormulaCache -> ResolvedItem -> M.View model action
-viewResolvedItem fc (ResolvedResource res) = viewResourceCard fc res
-viewResolvedItem fc (ResolvedTask tws) = taskExpandedCard fc tws
+viewResolvedItem :: SyncContext -> ResolvedItem -> M.View model action
+viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
+viewResolvedItem r (ResolvedTask tws) = taskExpandedCard r.formulaCache tws
 
 -- ============================================================================
 -- Shared renderers
@@ -193,10 +195,11 @@ viewResolvedItem fc (ResolvedTask tws) = taskExpandedCard fc tws
 --
 -- Used by views that show resources inline without collapse/expand controls
 -- (e.g. lesson notes viewer detail, resource lookup view).
-viewResourceCard :: FormulaCache -> Resource -> M.View model action
-viewResourceCard fc res =
+viewResourceCard :: SyncContext -> Resource -> M.View model action
+viewResourceCard r res =
   let ResourceIdentifier ident = res.identifier
       displayName = if T.null ident then "(Unbenannt)" else ident
+      fc = r.formulaCache
    in case res.content of
         InlineContent rc ->
           Card.contentCard Icon.IcnResources (M.ms displayName)
@@ -204,11 +207,16 @@ viewResourceCard fc res =
                 then
                   MH.div_
                     [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                    [renderRichText fc rc]
+                    [renderRichTextWithFiles fc r res.attachments rc]
                 else Layout.empty
             ]
         WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
         VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
+        FileContent fileRef ->
+          Card.contentCard Icon.IcnResources (M.ms displayName)
+            [ MH.div_ [class_ "px-3 pb-3 text-sm text-muted-foreground"]
+                [M.text $ M.ms $ fileRef.fileName <> " (" <> showFileSize fileRef.fileSize <> ")"]
+            ]
 
 -- | Render a link card (web or video) with icon, name, and optional title.
 viewLinkCard :: Icon.Icon -> T.Text -> T.Text -> T.Text -> T.Text -> M.View model action

@@ -15,13 +15,18 @@ module Competences.Frontend.WebSocket.CommandSender
   , updateWebSocket
   , clearWebSocket
   , isConnected
+    -- * File Upload
+  , sendUploadFile
+    -- * File Download
+  , sendRequestFile
     -- * Subscriptions
   , subscribeConnection
   )
 where
 
 import Competences.Command (Command)
-import Competences.Frontend.Logging (logDebug)
+import Competences.Document.FileRef (FileData, SHA256Hash)
+import Competences.Frontend.Logging (logDebug, logWarn)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
 import Competences.Protocol (ClientMessage (..))
 import Control.Concurrent (forkIO)
@@ -29,6 +34,7 @@ import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, new
 import Control.Exception (SomeException, catch)
 import Control.Monad (forM_, forever, void)
 import Data.Map.Strict qualified as Map
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Subscription.Util (createSub)
@@ -161,6 +167,26 @@ isConnected sender = do
   pure $ case maybeWs of
     Just _ -> True
     Nothing -> False
+
+-- | Send a file upload request over the WebSocket connection.
+-- Does nothing if not connected.
+sendUploadFile :: CommandSender -> Text -> Text -> FileData -> IO ()
+sendUploadFile sender fileName mimeType fileData = do
+  maybeWs <- readMVar sender.wsRef
+  case maybeWs of
+    Nothing -> logWarn "sendUploadFile: not connected"
+    Just ws -> ws.send (UploadFile fileName mimeType fileData) `catch` \(_ :: SomeException) ->
+      logWarn "sendUploadFile: send failed"
+
+-- | Send a file download request over the WebSocket connection.
+-- Does nothing if not connected.
+sendRequestFile :: CommandSender -> SHA256Hash -> IO ()
+sendRequestFile sender hash = do
+  maybeWs <- readMVar sender.wsRef
+  case maybeWs of
+    Nothing -> logWarn "sendRequestFile: not connected"
+    Just ws -> ws.send (RequestFile hash) `catch` \(_ :: SomeException) ->
+      logWarn "sendRequestFile: send failed"
 
 -- | Subscribe to connection state changes
 subscribeConnection :: forall a. CommandSender -> (ConnectionChange -> a) -> M.Sink a -> IO ()

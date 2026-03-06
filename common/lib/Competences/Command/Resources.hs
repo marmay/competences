@@ -11,6 +11,7 @@ import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.FileRef (FileRef)
 import Competences.Document.Resource (Resource (..), ResourceContent, ResourceIdentifier)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
@@ -29,6 +30,7 @@ data ResourcePatch = ResourcePatch
   { identifier :: !(Change ResourceIdentifier)
   , competenceLevels :: !(Change [CompetenceLevelId])
   , content :: !(Change ResourceContent)
+  , attachments :: !(Change [FileRef])
   }
   deriving (Eq, Generic, Show)
 
@@ -59,6 +61,7 @@ instance Default ResourcePatch where
       { identifier = Nothing
       , competenceLevels = Nothing
       , content = Nothing
+      , attachments = Nothing
       }
 
 -- | Validate that a Resource has at least one competence level
@@ -74,6 +77,7 @@ applyResourcePatch resource patch =
     patchField' @"identifier" patch
       >=> patchField' @"competenceLevels" patch
       >=> patchField' @"content" patch
+      >=> patchField' @"attachments" patch
       >=> validateResource
 
 -- | Handle a Resources context command

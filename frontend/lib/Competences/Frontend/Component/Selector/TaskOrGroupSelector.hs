@@ -88,6 +88,7 @@ taskOrGroupSelectorComponent r parentLens =
             , identifier = TaskIdentifier ""
             , content = Nothing
             , taskType = SelfContained defaultTaskAttributes
+            , attachments = []
             }
       modifySyncDocument r $ Tasks (OnTasks (CreateAndLock newTask))
       s CloseDropdown

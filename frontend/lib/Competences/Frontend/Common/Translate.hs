@@ -217,6 +217,7 @@ data Label
   | LblInlineContent
   | LblWebLink
   | LblVideoLink
+  | LblFile
   | LblAddResource
   | LblNoResources
   | LblOtherResources
@@ -225,6 +226,11 @@ data Label
   | LblFilterResources
   | LblUrl
   | LblDescription
+    -- File Upload
+  | LblNoFileSelected
+  | LblUploadFile
+  | LblFileUploadFailed
+  | LblUploading
     -- Import
   | LblCreate
   | LblImportCompetenceGrids
@@ -372,6 +378,8 @@ data Label
   | LblExtraTask
     -- Start-from-empty mode
   | LblOnlySelectedTasks
+    -- Attachments
+  | LblAttachments
     -- Impersonation
   | LblViewAsStudent
   | LblReturnToTeacher
@@ -551,6 +559,7 @@ labels' =
   , LblInlineContent
   , LblWebLink
   , LblVideoLink
+  , LblFile
   , LblAddResource
   , LblNoResources
   , LblOtherResources
@@ -559,6 +568,11 @@ labels' =
   , LblFilterResources
   , LblUrl
   , LblDescription
+    -- File Upload
+  , LblNoFileSelected
+  , LblUploadFile
+  , LblFileUploadFailed
+  , LblUploading
     -- Import
   , LblCreate
   , LblImportCompetenceGrids
@@ -716,6 +730,7 @@ labels' =
     -- Extra tasks
   , LblExtraTask
   , LblOnlySelectedTasks
+  , LblAttachments
   , LblViewAsStudent
   , LblReturnToTeacher
   ]
@@ -916,6 +931,7 @@ defaultTranslation LblResourceContent = "Inhalt"
 defaultTranslation LblInlineContent = "Inline-Inhalt"
 defaultTranslation LblWebLink = "Web-Link"
 defaultTranslation LblVideoLink = "Video-Link"
+defaultTranslation LblFile = "Datei"
 defaultTranslation LblAddResource = "Ressource hinzufügen"
 defaultTranslation LblNoResources = "Keine Ressourcen"
 defaultTranslation LblOtherResources = "Weitere Materialien"
@@ -924,6 +940,11 @@ defaultTranslation LblManageResources = "Ressourcen"
 defaultTranslation LblFilterResources = "Ressourcen filtern..."
 defaultTranslation LblUrl = "URL"
 defaultTranslation LblDescription = "Beschreibung"
+-- File Upload
+defaultTranslation LblNoFileSelected = "Keine Datei ausgewählt"
+defaultTranslation LblUploadFile = "Datei hochladen"
+defaultTranslation LblFileUploadFailed = "Upload fehlgeschlagen"
+defaultTranslation LblUploading = "Wird hochgeladen..."
 -- Import
 defaultTranslation LblCreate = "Erstellen"
 defaultTranslation LblImportCompetenceGrids = "Kompetenzraster importieren"
@@ -1084,6 +1105,8 @@ defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"
 -- Extra tasks
 defaultTranslation LblExtraTask = "Zusätzlich"
 defaultTranslation LblOnlySelectedTasks = "Nur ausgewählte Aufgaben werten"
+-- Attachments
+defaultTranslation LblAttachments = "Anhänge"
 -- Impersonation
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"

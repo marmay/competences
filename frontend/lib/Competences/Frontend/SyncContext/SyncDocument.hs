@@ -23,6 +23,12 @@ module Competences.Frontend.SyncContext.SyncDocument
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
+    -- * File Upload
+  , uploadFile
+  , completeFileUpload
+    -- * File Download
+  , downloadFile
+  , completeFileDownload
     -- * File Cache
   , FileCache
     -- * Server Info
@@ -42,6 +48,7 @@ where
 
 import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
+import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
 import Competences.Protocol (ServerInfo (..))
 import Competences.Frontend.FileCache (FileCache, newFileCache)
@@ -62,15 +69,20 @@ import Competences.Frontend.SyncContext.UIState
   , subscribeFocusedUser
   , unregisterFocusedUserHandler
   )
+import Competences.Frontend.FileCache qualified as FC
 import Competences.Frontend.WebSocket.CommandSender
   ( CommandSender
   , acknowledgeCommand
   , enqueueCommand
   , getAllPending
   , getPending
+  , sendRequestFile
+  , sendUploadFile
   )
 import Control.Monad (forM_, when)
+import Data.ByteString.Lazy qualified as BL
 import Data.Map qualified as Map
+import Data.Text (Text)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
@@ -78,7 +90,7 @@ import Miso qualified as M
 import Miso.Subscription.Util (createSub)
 import Optics.Core ((&), (.~))
 import System.Random (StdGen, newStdGen, random)
-import UnliftIO (IORef, MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newIORef, newMVar, readIORef, readMVar, writeIORef)
+import UnliftIO (IORef, MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newEmptyMVar, newIORef, newMVar, readIORef, readMVar, takeMVar, tryPutMVar, writeIORef)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -122,6 +134,8 @@ data SyncContext = SyncContext
   , serverInfoRef :: !(IORef ServerInfo)
   , formulaCache :: !FormulaCache
   , fileCache :: !FileCache
+  , fileUploadResult :: !(IORef (Maybe (MVar (Either Text FileRef))))
+  , fileDownloadResults :: !(IORef (Map.Map SHA256Hash (MVar (Maybe BL.ByteString))))
   }
 
 -- | Get the environment from a SyncContext
@@ -153,7 +167,9 @@ mkSyncDocument env = do
   srvInfo <- newIORef defaultServerInfo
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo fc filec
+  fur <- newIORef Nothing
+  fdr <- newIORef Map.empty
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo fc filec fur fdr
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -164,7 +180,59 @@ mkSyncDocument' env rgen m = do
   srvInfo <- newIORef defaultServerInfo
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo fc filec
+  fur <- newIORef Nothing
+  fdr <- newIORef Map.empty
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo fc filec fur fdr
+
+-- | Upload a file to the server's CAS and wait for the result.
+-- Serializes uploads: only one upload can be in-flight at a time.
+uploadFile :: SyncContext -> Text -> Text -> BL.ByteString -> IO (Either Text FileRef)
+uploadFile r fileName mimeType contents = do
+  resultVar <- liftIO newEmptyMVar
+  liftIO $ writeIORef r.fileUploadResult (Just resultVar)
+  sendUploadFile r.env.commandSender fileName mimeType (FileData contents)
+  result <- liftIO $ takeMVar resultVar
+  liftIO $ writeIORef r.fileUploadResult Nothing
+  pure result
+
+-- | Complete a pending file upload by filling the MVar with the result.
+-- Called from the WebSocket handler when FileUploaded or FileUploadFailed is received.
+completeFileUpload :: SyncContext -> Either Text FileRef -> IO ()
+completeFileUpload r result = do
+  mVar <- readIORef r.fileUploadResult
+  case mVar of
+    Nothing -> pure ()  -- No pending upload
+    Just resultVar -> do
+      _ <- tryPutMVar resultVar result
+      pure ()
+
+-- | Download a file from the server's CAS, using the local cache first.
+-- Blocks until the file is received or not found.
+downloadFile :: SyncContext -> SHA256Hash -> IO (Maybe BL.ByteString)
+downloadFile r hash = do
+  cached <- FC.lookupFile r.fileCache hash
+  case cached of
+    Just bs -> pure (Just bs)
+    Nothing -> do
+      resultVar <- newEmptyMVar
+      pending <- readIORef r.fileDownloadResults
+      writeIORef r.fileDownloadResults (Map.insert hash resultVar pending)
+      sendRequestFile r.env.commandSender hash
+      result <- takeMVar resultVar
+      pending' <- readIORef r.fileDownloadResults
+      writeIORef r.fileDownloadResults (Map.delete hash pending')
+      pure result
+
+-- | Complete a pending file download by filling the MVar with the result.
+-- Called from the WebSocket handler when FileContents or FileNotFound is received.
+completeFileDownload :: SyncContext -> SHA256Hash -> Maybe BL.ByteString -> IO ()
+completeFileDownload r hash mData = do
+  pending <- readIORef r.fileDownloadResults
+  case Map.lookup hash pending of
+    Just var -> do
+      _ <- tryPutMVar var mData
+      pure ()
+    Nothing -> pure ()
 
 readSyncDocument :: (MonadIO m) => SyncContext -> m SyncDocument
 readSyncDocument d = readMVar d.syncDocument

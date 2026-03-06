@@ -12,13 +12,15 @@ module Competences.Frontend.WebSocket.Handlers
 where
 
 import Competences.Document (Document, User (..), UserId)
-import Competences.Document.FileRef (FileRef (..))
+import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.FileCache qualified as FC
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , applyRemoteCommand
+  , completeFileDownload
+  , completeFileUpload
   , mkSyncDocument
   , mkSyncDocumentEnv
   , rejectCommand
@@ -87,12 +89,16 @@ operationLoop ref ws = loop `catch` handleDisconnect
       FileContents hash fileData -> do
         logInfo $ M.ms $ "Received file: " <> show hash
         FC.insertFile ref.fileCache hash fileData
+        completeFileDownload ref hash (Just ((.unFileData) fileData))
       FileNotFound hash -> do
         logWarn $ M.ms $ "File not found: " <> show hash
+        completeFileDownload ref hash Nothing
       FileUploaded fileRef -> do
         logInfo $ M.ms $ "File uploaded: " <> T.unpack fileRef.fileName <> " (" <> show fileRef.hash <> ")"
+        completeFileUpload ref (Right fileRef)
       FileUploadFailed reason -> do
         logWarn $ M.ms $ "File upload failed: " <> T.unpack reason
+        completeFileUpload ref (Left reason)
       other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
 
 -- ============================================================================

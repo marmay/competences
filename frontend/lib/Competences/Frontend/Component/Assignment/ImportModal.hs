@@ -272,6 +272,7 @@ applyTaskAndGetId r doc preview = do
               , identifier = t.identifier
               , content = t.content
               , taskType = SelfContained taskAttrs
+              , attachments = []
               }
       modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
       pure newId
@@ -331,6 +332,7 @@ buildTaskPatch old new matchedCompetences =
         , secondary = Nothing
         , purpose = Nothing
         , displayInResources = Nothing
+        , attachments = Nothing
         }
 
 getTaskPrimary :: Task -> [CompetenceLevelId]

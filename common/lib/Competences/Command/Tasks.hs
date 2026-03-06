@@ -10,6 +10,7 @@ module Competences.Command.Tasks
 where
 
 import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), ModifyCommand (..), UpdateResult, inContext, patchField')
+import Competences.Document.FileRef (FileRef)
 import Competences.Command.Interpret (EntityCommandContext (..), doLock, doRelease, mkEntityCommandContext)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Evidence (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), User (..))
@@ -48,6 +49,7 @@ data TaskPatch = TaskPatch
   , secondary :: !(Change [CompetenceLevelId])
   , purpose :: !(Change TaskPurpose)
   , displayInResources :: !(Change Bool)
+  , attachments :: !(Change [FileRef])
   }
   deriving (Eq, Generic, Show)
 
@@ -120,6 +122,7 @@ instance Default TaskPatch where
       , secondary = Nothing
       , purpose = Nothing
       , displayInResources = Nothing
+      , attachments = Nothing
       }
 
 instance Default TaskGroupPatch where
@@ -157,6 +160,7 @@ applyTaskPatch task patch = do
         inContext "Task" task $
           patchField' @"identifier" patch
             >=> patchField' @"content" patch
+            >=> patchField' @"attachments" patch
       -- Patch TaskAttributes fields
       attrs' <-
         inContext "TaskAttributes" attrs $

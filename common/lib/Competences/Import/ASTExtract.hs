@@ -48,6 +48,7 @@ inlinesToText = T.concat . map go
       Code t -> t
       MathInline t -> "$" <> t <> "$"
       Link _ inlines _ -> inlinesToText inlines
+      FileEmbed _ inlines _ -> inlinesToText inlines
       SoftLineBreak -> " "
       HardLineBreak -> "\n"
 
@@ -96,6 +97,10 @@ inlinesToMarkdown = T.concat . map go
       MathInline t -> "$" <> t <> "$"
       Link url inlines mTitle ->
         "[" <> inlinesToMarkdown inlines <> "](" <> url
+          <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
+          <> ")"
+      FileEmbed url inlines mTitle ->
+        "![" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
       SoftLineBreak -> "\n"

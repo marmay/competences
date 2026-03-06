@@ -36,6 +36,7 @@ inlineP =
     , codeSpanP
     , mathInlineParenP
     , mathInlineP
+    , fileEmbedP
     , linkP
     , plainP
     ]
@@ -52,6 +53,7 @@ lineInlinesP = some lineInlineP
         , codeSpanP
         , mathInlineParenP
         , mathInlineP
+        , fileEmbedP
         , linkP
         , plainP
         ]
@@ -128,6 +130,7 @@ inlineInStrongP =
     [ emphP
     , codeSpanP
     , mathInlineP
+    , fileEmbedP
     , linkP
     , plainInDelimP "*"
     ]
@@ -139,6 +142,7 @@ inlineInEmphP =
     [ strongP
     , codeSpanP
     , mathInlineP
+    , fileEmbedP
     , linkP
     , plainInDelimP "*"
     ]
@@ -170,6 +174,24 @@ mathInlineParenP = do
   content <- manyTill anySingle (string "\\)")
   pure $ MathInline (T.pack content)
 
+-- | File embed: ![alt](url) or ![alt](url "title")
+fileEmbedP :: Parser Inline
+fileEmbedP = do
+  _ <- try (char '!' *> char '[')
+  content <- manyTill linkInlineP (char ']')
+  _ <- char '('
+  hspace
+  url' <- takeWhileP (Just "URL") (\c -> c /= ')' && c /= ' ' && c /= '"')
+  title <- optional $ do
+    hspace
+    _ <- char '"'
+    t <- takeWhileP (Just "title") (/= '"')
+    _ <- char '"'
+    pure t
+  hspace
+  _ <- char ')'
+  pure $ FileEmbed url' content title
+
 -- | Link: [text](url) or [text](url "title")
 linkP :: Parser Inline
 linkP = do
@@ -196,6 +218,7 @@ linkInlineP =
     , emphP
     , codeSpanP
     , mathInlineP
+    , fileEmbedP
     , plainInDelimP "]"
     ]
 
@@ -204,7 +227,7 @@ plainInDelimP :: Text -> Parser Inline
 plainInDelimP extra = Plain <$> takeWhile1P (Just "text") isPlainInDelim
   where
     isPlainInDelim c =
-      c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '\\' && c /= '\n'
+      c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '!' && c /= '\\' && c /= '\n'
         && not (T.any (== c) extra)
 
 -- | Plain text (everything that's not a special marker)
@@ -219,4 +242,4 @@ plainP = Plain <$> (plainChunk <|> singleSpecial)
       T.singleton <$> anySingle
 
     isPlainChar c =
-      c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '\\' && c /= '\n'
+      c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '!' && c /= '\\' && c /= '\n'

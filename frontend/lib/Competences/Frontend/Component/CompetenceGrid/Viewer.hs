@@ -333,9 +333,10 @@ viewerComponent r grid wm =
           resourceSortKey res =
             let ResourceIdentifier ident = res.identifier
                 typeOrder = case res.content of
-                  InlineContent _ -> 0
+                  InlineContent _ -> 0 :: Int
                   VideoLink _ _ -> 1
                   WebLink _ _ -> 2
+                  FileContent _ -> 3
              in (typeOrder, ident)
           groupByCompetenceLevel :: [Resource] -> Map CompetenceLevelId [Resource]
           groupByCompetenceLevel resources =

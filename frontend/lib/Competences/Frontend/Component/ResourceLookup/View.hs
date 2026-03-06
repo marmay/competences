@@ -14,6 +14,7 @@ where
 
 import Competences.Document
   ( Document
+  , FileRef (..)
   , LessonNotes (..)
   , Resource (..)
   , ResourceContent (..)
@@ -25,9 +26,10 @@ import Competences.Document.Id (idToText)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Task (TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewLinkCard)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup
   ( AnnotatedLessonNoteGroup (..)
   , GroupedResources (..)
@@ -138,8 +140,8 @@ groupedResourcesComponent r project =
       | otherwise =
           MH.div_
             [class_ "space-y-3"]
-            ( map (viewLessonNoteGroup r.formulaCache m) gr.lessonNoteGroups
-                <> viewOtherSection r.formulaCache m gr
+            ( map (viewLessonNoteGroup r m) gr.lessonNoteGroups
+                <> viewOtherSection r m gr
             )
       where
         gr = m.groupedResources
@@ -150,18 +152,18 @@ groupedResourcesComponent r project =
 
 -- | Render a lesson note group as a collapsible disclosure.
 viewLessonNoteGroup
-  :: FormulaCache
+  :: SyncContext
   -> GroupedResourcesModel
   -> AnnotatedLessonNoteGroup
   -> M.View GroupedResourcesModel GroupedResourcesAction
-viewLessonNoteGroup fc m group =
+viewLessonNoteGroup r m group =
   let ln = group.lessonNotes
       isExpanded = not (Set.member ln.id m.collapsedLessonNotes)
       titleView = Disclosure.titleIconText Icon.IcnLessonNotes (ms ln.title)
       bodyView =
         MH.div_
           [class_ "space-y-2"]
-          (map (viewAnnotatedItem fc m) group.items)
+          (map (viewAnnotatedItem r m) group.items)
       openAction = Disclosure.Action Icon.IcnOpenModal (OpenLessonNotes ln)
    in Disclosure.innerDisclosure (ToggleLessonNoteGroup ln.id) $
         Disclosure.contents titleView isExpanded bodyView [openAction]
@@ -172,11 +174,11 @@ viewLessonNoteGroup fc m group =
 
 -- | Render ungrouped resources and tasks in a collapsible "Other" disclosure.
 viewOtherSection
-  :: FormulaCache
+  :: SyncContext
   -> GroupedResourcesModel
   -> GroupedResources
   -> [M.View GroupedResourcesModel GroupedResourcesAction]
-viewOtherSection fc m gr'
+viewOtherSection r m gr'
   | null gr'.ungroupedResources && null gr'.ungroupedTasks = []
   | otherwise =
       let isExpanded = not m.otherCollapsed
@@ -184,8 +186,8 @@ viewOtherSection fc m gr'
           bodyView =
             MH.div_
               [class_ "space-y-2"]
-              ( map (viewResourceItem fc m Relevant) gr'.ungroupedResources
-                  <> map (viewTaskItem fc m Relevant) gr'.ungroupedTasks
+              ( map (viewResourceItem r m Relevant) gr'.ungroupedResources
+                  <> map (viewTaskItem r.formulaCache m Relevant) gr'.ungroupedTasks
               )
        in [ Disclosure.innerDisclosure ToggleOtherSection $
               Disclosure.contents titleView isExpanded bodyView []
@@ -200,14 +202,14 @@ viewOtherSection fc m gr'
 -- Relevant items use a primary-accented (pop) disclosure header.
 -- Context-only items use the default muted header with a "Kontext" badge.
 viewAnnotatedItem
-  :: FormulaCache
+  :: SyncContext
   -> GroupedResourcesModel
   -> (ResolvedItem, ItemRelevance)
   -> M.View GroupedResourcesModel GroupedResourcesAction
-viewAnnotatedItem fc m (item, relevance) =
+viewAnnotatedItem r m (item, relevance) =
   case item of
-    ResolvedResource res -> viewResourceItem fc m relevance res
-    ResolvedTask tws -> viewTaskItem fc m relevance tws
+    ResolvedResource res -> viewResourceItem r m relevance res
+    ResolvedTask tws -> viewTaskItem r.formulaCache m relevance tws
 
 -- | Pick the right inner disclosure variant based on relevance.
 relevanceDisclosure :: ItemRelevance -> a -> Disclosure.DisclosureContents m a -> M.View m a
@@ -226,12 +228,12 @@ relevanceTitle ContextOnly title = title
 
 -- | Render a single resource as a disclosure or link card.
 viewResourceItem
-  :: FormulaCache
+  :: SyncContext
   -> GroupedResourcesModel
   -> ItemRelevance
   -> Resource
   -> M.View GroupedResourcesModel GroupedResourcesAction
-viewResourceItem fc m relevance res =
+viewResourceItem r m relevance res =
   let ResourceIdentifier ident = res.identifier
       displayName = if T.null ident then "(Unbenannt)" else ident
       key = "res-" <> idToText res.id
@@ -244,7 +246,7 @@ viewResourceItem fc m relevance res =
               bodyView =
                 MH.div_
                   [class_ "prose prose-stone prose-sm max-w-none"]
-                  [renderRichText fc rc]
+                  [renderRichTextWithFiles r.formulaCache r res.attachments rc]
            in if hasContent
                 then
                   relevanceDisclosure relevance (ToggleItemExpanded key) $
@@ -263,6 +265,20 @@ viewResourceItem fc m relevance res =
                     ]
         WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
         VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
+        FileContent fileRef ->
+          MH.div_
+            [class_ "rounded overflow-hidden"]
+            [ MH.div_
+                [class_ "px-2 py-1.5"]
+                [ Layout.hFlow
+                    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+                    [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
+                    , MH.span_ [class_ "font-medium"] [M.text (ms displayName)]
+                    , MH.span_ [class_ "text-sm text-muted-foreground"]
+                        [M.text $ ms $ fileRef.fileName <> " (" <> showFileSize fileRef.fileSize <> ")"]
+                    ]
+                ]
+            ]
 
 -- ============================================================================
 -- Task Item

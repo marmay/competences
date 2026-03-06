@@ -36,6 +36,7 @@ import Competences.Document.Competence
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Lesson (Lesson (..), LessonPhase (..))
 import Competences.Document.Order (Order)
+import Competences.Document.FileRef (FileRef (..))
 import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Solution (Solution (..), SolutionType (..))
 import Competences.Document.Task
@@ -163,7 +164,11 @@ exportTaskAsSubsection doc task =
       -- Get solutions for this task
       solutions = Ix.toList $ doc.solutions Ix.@= task.id
       solutionSections = T.concat $ map exportSolution solutions
-   in header <> contentSection <> competenceSection <> solutionSections
+      attachmentSection =
+        if null task.attachments
+          then ""
+          else "\n#### Anhänge\n" <> T.intercalate "\n" (map formatAttachment task.attachments) <> "\n"
+   in header <> contentSection <> competenceSection <> solutionSections <> attachmentSection
 
 -- | Export competence references for a task
 -- Note: This requires looking up the competence and grid from the stored IDs
@@ -230,12 +235,17 @@ exportResource doc resource =
            in if T.null (T.strip raw) then "" else "\n## Inhalt\n" <> T.strip raw <> "\n"
         WebLink url desc -> "\n## Inhalt\nLink: " <> url <> " (" <> desc <> ")\n"
         VideoLink url desc -> "\n## Inhalt\nVideo: " <> url <> " (" <> desc <> ")\n"
+        FileContent fileRef -> "\n## Inhalt\nDatei: " <> fileRef.fileName <> "\n"
       competenceSection =
         let refs = mapMaybe (formatCompetenceRef doc) resource.competenceLevels
          in if null refs
               then ""
               else "\n## Kompetenzen\n" <> T.intercalate "\n" refs <> "\n"
-   in header <> contentSection <> competenceSection
+      attachmentSection =
+        if null resource.attachments
+          then ""
+          else "\n## Anhänge\n" <> T.intercalate "\n" (map formatAttachment resource.attachments) <> "\n"
+   in header <> contentSection <> competenceSection <> attachmentSection
 
 -- ============================================================================
 -- Lesson Export
@@ -289,6 +299,11 @@ exportPhase phase =
    in if T.null (T.strip notesRaw)
         then phaseHeader
         else phaseHeader <> "\n  " <> T.replace "\n" "\n  " (T.strip notesRaw)
+
+-- | Format a file attachment as a markdown list item
+formatAttachment :: FileRef -> Text
+formatAttachment fr =
+  "- " <> fr.fileName <> " (" <> fr.mimeType <> ")"
 
 -- | Look up resource identifier by ID
 lookupResourceIdentifier :: Document -> Id Resource -> Maybe Text

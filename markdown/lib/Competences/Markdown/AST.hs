@@ -87,6 +87,8 @@ data Inline
     MathInline !Text
   | -- | Link [content](url) or [content](url "title")
     Link !Url ![Inline] !(Maybe Text)
+  | -- | File embed ![caption](file:name) or ![caption](fileIdx:N)
+    FileEmbed !Url ![Inline] !(Maybe Text)
   | -- | Soft line break (single newline within paragraph)
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)

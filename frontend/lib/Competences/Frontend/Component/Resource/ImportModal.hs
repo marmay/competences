@@ -18,6 +18,7 @@ import Competences.Command qualified as Cmd
 import Competences.Command (ModifyCommand (..), ResourcePatch (..))
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.FileRef (FileRef (..))
 import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
@@ -125,6 +126,7 @@ contentPreview action =
         InlineContent _ -> "Textinhalt"
         WebLink url _ -> "Link: " <> url
         VideoLink url _ -> "Video: " <> url
+        FileContent fileRef -> "Datei: " <> fileRef.fileName
 
 competenceMatchView :: CompetenceMatch -> M.View (IM.Model ResourceImportPreview) IM.Action
 competenceMatchView cm =
@@ -173,6 +175,7 @@ applyResourcePreview r preview = do
               , identifier = res.identifier
               , competenceLevels = matchedCompetences
               , content = res.content
+              , attachments = []
               }
       modifySyncDocument r (Cmd.Resources $ Cmd.OnResources $ Cmd.Create newResource)
     Update old new -> do
@@ -194,4 +197,5 @@ buildResourcePatch old new matchedCompetences =
           then Nothing
           else Just (old.competenceLevels, matchedCompetences)
     , content = if old.content == new.content then Nothing else Just (old.content, new.content)
+    , attachments = Nothing
     }

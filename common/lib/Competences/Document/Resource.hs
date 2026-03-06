@@ -15,9 +15,10 @@ module Competences.Document.Resource
 where
 
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.FileRef (FileRef)
 import Competences.Document.Id (Id)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 #endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
@@ -49,6 +50,8 @@ data ResourceContent
     WebLink !Text !Text
   | -- | Video link with URL and description
     VideoLink !Text !Text
+  | -- | File stored in content-addressable storage
+    FileContent !FileRef
   deriving (Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON
@@ -59,6 +62,7 @@ instance FromJSON ResourceContent where
       "InlineContent" -> InlineContent <$> v .: "content"
       "WebLink" -> WebLink <$> v .: "url" <*> v .: "description"
       "VideoLink" -> VideoLink <$> v .: "url" <*> v .: "description"
+      "FileContent" -> FileContent <$> v .: "fileRef"
       _ -> fail "Invalid ResourceContent tag"
 
 instance ToJSON ResourceContent where
@@ -79,6 +83,11 @@ instance ToJSON ResourceContent where
       , "url" .= url
       , "description" .= desc
       ]
+  toJSON (FileContent fileRef) =
+    object
+      [ "tag" .= ("FileContent" :: Text)
+      , "fileRef" .= fileRef
+      ]
 #endif
 
 instance Binary ResourceContent
@@ -94,6 +103,8 @@ data Resource = Resource
     -- Multiple levels can be associated with a single resource.
   , content :: !ResourceContent
     -- ^ The resource content (inline, web link, or video link).
+  , attachments :: ![FileRef]
+    -- ^ Files attached to this resource, referenced from markdown via file: URLs.
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -105,6 +116,7 @@ instance FromJSON Resource where
       <*> v .: "identifier"
       <*> v .: "competenceLevels"
       <*> v .: "content"
+      <*> v .:? "attachments" .!= []
 
 instance ToJSON Resource where
   toJSON resource =
@@ -113,6 +125,7 @@ instance ToJSON Resource where
       , "identifier" .= resource.identifier
       , "competenceLevels" .= resource.competenceLevels
       , "content" .= resource.content
+      , "attachments" .= resource.attachments
       ]
 #endif
 
@@ -135,4 +148,5 @@ mkResource rid = Resource
   , identifier = ResourceIdentifier ""
   , competenceLevels = []
   , content = InlineContent mempty
+  , attachments = []
   }

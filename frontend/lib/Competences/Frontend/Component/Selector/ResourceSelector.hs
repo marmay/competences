@@ -149,3 +149,4 @@ contentIcon :: ResourceContent -> Icon.Icon
 contentIcon (InlineContent _) = Icon.IcnResources
 contentIcon (WebLink _ _) = Icon.IcnLink
 contentIcon (VideoLink _ _) = Icon.IcnVideo
+contentIcon (FileContent _) = Icon.IcnResources

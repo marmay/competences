@@ -35,9 +35,10 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.FileRef (FileRef)
 import Competences.Document.Id (Id)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.=))
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
 #endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
@@ -248,6 +249,8 @@ data Task = Task
     -- Nothing = reference-only task (students look up by identifier).
     -- Just text = task content shown inline.
   , taskType :: !TaskType
+  , attachments :: ![FileRef]
+    -- ^ Files attached to this task, referenced from markdown via file: URLs.
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -259,6 +262,7 @@ instance FromJSON Task where
       <*> v .: "identifier"
       <*> v .:? "content"
       <*> v .: "taskType"
+      <*> v .:? "attachments" .!= []
 
 instance ToJSON Task where
   toJSON task =
@@ -267,6 +271,7 @@ instance ToJSON Task where
       , "identifier" .= task.identifier
       , "content" .= task.content
       , "taskType" .= task.taskType
+      , "attachments" .= task.attachments
       ]
 #endif
 

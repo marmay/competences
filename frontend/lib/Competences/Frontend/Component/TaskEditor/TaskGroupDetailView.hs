@@ -98,6 +98,7 @@ taskGroupEditorComponent r group =
             , identifier = TaskIdentifier ""
             , content = Nothing
             , taskType = SubTask group.id emptyOverride
+            , attachments = []
             }
       modifySyncDocument r $ Tasks (OnSubTasks (CreateAndLock newSubTask))
       where

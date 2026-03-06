@@ -258,6 +258,7 @@ makeNewTask parsed =
     , identifier = parsed.identifier
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = SelfContained defaultTaskAttributes
+    , attachments = []
     }
 
 -- | Update existing task with parsed data
@@ -268,6 +269,7 @@ updateTask existing parsed =
     , identifier = parsed.identifier
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = existing.taskType
+    , attachments = existing.attachments
     }
 
 -- | Check if two tasks are equal
@@ -453,6 +455,7 @@ makeNewResource parsed =
     , identifier = ResourceIdentifier parsed.identifier
     , competenceLevels = [] -- Will be filled from matched competences
     , content = InlineContent (fromTrustedInput parsed.content)
+    , attachments = []
     }
 
 -- | Update existing resource with parsed data
@@ -463,6 +466,7 @@ updateResource existing parsed =
     , identifier = ResourceIdentifier parsed.identifier
     , competenceLevels = existing.competenceLevels -- Preserved, will be updated from matches
     , content = if T.null parsed.content then existing.content else InlineContent (fromTrustedInput parsed.content)
+    , attachments = existing.attachments
     }
 
 -- | Check if two resources are equal (for detecting changes)
