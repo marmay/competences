@@ -1,6 +1,6 @@
 module Test.Markdown.ParserTest (parserTests) where
 
-import Competences.Markdown.AST
+import Competences.Markdown.AST (AdmonitionType (..), Block (..), Document (..), Inline (..), ThumbSize (..))
 import Competences.Markdown.Parser (parseMarkdown)
 import Data.Text qualified as T
 import Test.Tasty
@@ -160,28 +160,43 @@ fileEmbedTests =
   [ testCase "basic file embed" $
       assertParse
         "file embed"
-        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing]])
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing Nothing]])
         "![alt](file:photo.jpg)"
   , testCase "file embed by index" $
       assertParse
         "fileIdx"
-        (Document [Paragraph [FileEmbed "fileIdx:0" [] Nothing]])
+        (Document [Paragraph [FileEmbed "fileIdx:0" [] Nothing Nothing]])
         "![](fileIdx:0)"
   , testCase "file embed with title" $
       assertParse
         "file+title"
-        (Document [Paragraph [FileEmbed "file:x.png" [Plain "cap"] (Just "title")]])
+        (Document [Paragraph [FileEmbed "file:x.png" [Plain "cap"] (Just "title") Nothing]])
         "![cap](file:x.png \"title\")"
   , testCase "file embed with nested inline" $
       assertParse
         "file+bold"
-        (Document [Paragraph [FileEmbed "file:y.jpg" [Strong [Plain "bold"]] Nothing]])
+        (Document [Paragraph [FileEmbed "file:y.jpg" [Strong [Plain "bold"]] Nothing Nothing]])
         "![**bold**](file:y.jpg)"
   , testCase "exclamation mark without bracket is plain text" $
       assertParse
         "plain bang"
         (Document [Paragraph [Plain "Hello", Plain "!", Plain " World"]])
         "Hello! World"
+  , testCase "file embed with thumb=small" $
+      assertParse
+        "thumb small"
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Just ThumbSmall)]])
+        "![alt](file:photo.jpg){thumb=small}"
+  , testCase "file embed with thumb=medium" $
+      assertParse
+        "thumb medium"
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Just ThumbMedium)]])
+        "![alt](file:photo.jpg){thumb=medium}"
+  , testCase "file embed with title and thumb=large" $
+      assertParse
+        "thumb+title"
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "cap"] (Just "title") (Just ThumbLarge)]])
+        "![cap](file:photo.jpg \"title\"){thumb=large}"
   ]
 
 linkTests :: [TestTree]

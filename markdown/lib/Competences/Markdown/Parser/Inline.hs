@@ -3,7 +3,8 @@
 -- Description : Inline-level markdown parsers
 --
 -- Parses inline elements: plain text, emphasis, strong, code spans,
--- inline math, links, and line breaks.
+-- inline math, links, file embeds (with optional @{thumb=…}@ attribute),
+-- and line breaks.
 module Competences.Markdown.Parser.Inline
   ( inlinesP
   , inlineP
@@ -174,7 +175,7 @@ mathInlineParenP = do
   content <- manyTill anySingle (string "\\)")
   pure $ MathInline (T.pack content)
 
--- | File embed: ![alt](url) or ![alt](url "title")
+-- | File embed: ![alt](url) or ![alt](url "title") with optional {thumb=size}
 fileEmbedP :: Parser Inline
 fileEmbedP = do
   _ <- try (char '!' *> char '[')
@@ -190,7 +191,22 @@ fileEmbedP = do
     pure t
   hspace
   _ <- char ')'
-  pure $ FileEmbed url' content title
+  mThumb <- optional thumbAttrP
+  pure $ FileEmbed url' content title mThumb
+
+-- | Parse {thumb=small|medium|large} attribute
+thumbAttrP :: Parser ThumbSize
+thumbAttrP = do
+  _ <- char '{'
+  hspace
+  _ <- string "thumb="
+  size <-
+    (ThumbSmall <$ string "small")
+      <|> (ThumbMedium <$ string "medium")
+      <|> (ThumbLarge <$ string "large")
+  hspace
+  _ <- char '}'
+  pure size
 
 -- | Link: [text](url) or [text](url "title")
 linkP :: Parser Inline

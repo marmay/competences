@@ -15,7 +15,7 @@ module Competences.Import.ASTExtract
   )
 where
 
-import Competences.Markdown.AST
+import Competences.Markdown.AST (Block (..), Inline (..), ThumbSize (..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -48,7 +48,7 @@ inlinesToText = T.concat . map go
       Code t -> t
       MathInline t -> "$" <> t <> "$"
       Link _ inlines _ -> inlinesToText inlines
-      FileEmbed _ inlines _ -> inlinesToText inlines
+      FileEmbed _ inlines _ _ -> inlinesToText inlines
       SoftLineBreak -> " "
       HardLineBreak -> "\n"
 
@@ -99,12 +99,19 @@ inlinesToMarkdown = T.concat . map go
         "[" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
-      FileEmbed url inlines mTitle ->
+      FileEmbed url inlines mTitle mThumb ->
         "![" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
+          <> maybe "" thumbSizeAttr mThumb
       SoftLineBreak -> "\n"
       HardLineBreak -> "\\\n"
+
+-- | Serialize a ThumbSize back to its markdown attribute syntax.
+thumbSizeAttr :: ThumbSize -> Text
+thumbSizeAttr ThumbSmall = "{thumb=small}"
+thumbSizeAttr ThumbMedium = "{thumb=medium}"
+thumbSizeAttr ThumbLarge = "{thumb=large}"
 
 -- | Extract plain text from each item in a BulletList's @[[Block]]@.
 bulletListItemTexts :: [[Block]] -> [Text]

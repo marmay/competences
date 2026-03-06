@@ -6,6 +6,7 @@ where
 import Competences.Command (Command (..), EntityCommand (..), ResourcesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Resource (..), ResourceContent (..), ResourceIxs)
+import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
 import Competences.Document.Resource (ResourceIdentifier (..), mkResource)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Resource.ImportModal qualified as ImportModal
@@ -43,6 +44,7 @@ data Action
   | CreateInlineResource
   | CreateWebLinkResource
   | CreateVideoLinkResource
+  | CreateFileResource
   | ToggleDropdown
   | CloseDropdown
   | SetSearchQuery !Text
@@ -68,6 +70,7 @@ resourceSelectorComponent r parentLens =
     update CreateInlineResource = createResource (InlineContent mempty)
     update CreateWebLinkResource = createResource (WebLink "" "")
     update CreateVideoLinkResource = createResource (VideoLink "" "")
+    update CreateFileResource = createResource (FileContent (FileRef (SHA256Hash "") "" "" 0))
 
     update ToggleDropdown = M.modify $ \m ->
       m & #dropdownOpen .~ not m.dropdownOpen
@@ -118,6 +121,7 @@ resourceSelectorComponent r parentLens =
                 [ SL.dropdownItem Icon.IcnResources (C.translate' C.LblInlineContent) CreateInlineResource
                 , SL.dropdownItem Icon.IcnLink (C.translate' C.LblWebLink) CreateWebLinkResource
                 , SL.dropdownItem Icon.IcnVideo (C.translate' C.LblVideoLink) CreateVideoLinkResource
+                , SL.dropdownItem Icon.IcnExport (C.translate' C.LblFile) CreateFileResource
                 , SL.dropdownItem Icon.IcnImport (C.translate' C.LblImportResources) OpenImportModal
                 ]
             , SL.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterResources) (SetSearchQuery . M.fromMisoString)

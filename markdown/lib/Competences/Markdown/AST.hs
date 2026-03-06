@@ -10,6 +10,7 @@
 -- * Inline code (@`...`@)
 -- * Inline math (@$...$@) and display math (@$$...$$@)
 -- * Links (@[text](url)@ and @[text](url "title")@)
+-- * File embeds (@![caption](file:name)@) with optional thumb attribute (@{thumb=small|medium|large}@)
 -- * Fenced code blocks (with optional info string)
 -- * Ordered lists (@1. 2. 3.@)
 -- * Bullet lists (@- item@, @* item@, @+ item@)
@@ -23,11 +24,13 @@ module Competences.Markdown.AST
   , Block (..)
   , Inline (..)
   , AdmonitionType (..)
+  , ThumbSize (..)
   , Url
   )
 where
 
 import Data.Text (Text)
+import GHC.Generics (Generic)
 
 -- | Root document type - a sequence of blocks
 newtype Document = Document [Block]
@@ -88,12 +91,17 @@ data Inline
   | -- | Link [content](url) or [content](url "title")
     Link !Url ![Inline] !(Maybe Text)
   | -- | File embed ![caption](file:name) or ![caption](fileIdx:N)
-    FileEmbed !Url ![Inline] !(Maybe Text)
+    --   Optional thumb size: ![caption](file:name){thumb=small}
+    FileEmbed !Url ![Inline] !(Maybe Text) !(Maybe ThumbSize)
   | -- | Soft line break (single newline within paragraph)
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)
     HardLineBreak
   deriving (Eq, Show)
+
+-- | Thumbnail size for file embeds
+data ThumbSize = ThumbSmall | ThumbMedium | ThumbLarge
+  deriving (Eq, Show, Generic)
 
 -- | URL type alias
 type Url = Text

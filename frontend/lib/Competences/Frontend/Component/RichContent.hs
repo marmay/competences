@@ -255,7 +255,7 @@ extractFromInline = \case
   MD.Code _ -> []
   MD.MathInline latex -> [(Inline, latex, Nothing)]
   MD.Link _ inlines _ -> concatMap extractFromInline inlines
-  MD.FileEmbed _ inlines _ -> concatMap extractFromInline inlines
+  MD.FileEmbed _ inlines _ _ -> concatMap extractFromInline inlines
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []
 
@@ -391,12 +391,21 @@ renderInline resolver symbols = \case
       , class_ "text-sky-600 hover:text-sky-700 underline"
       ]
       $ map (renderInline resolver symbols) inlines
-  MD.FileEmbed url _caption _title ->
+  MD.FileEmbed url _caption _title mThumb ->
     case resolver url of
       Left err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
-      Right fileView -> fileView
+      Right fileView ->
+        case mThumb of
+          Nothing -> fileView
+          Just size -> M.div_ [class_ (thumbClasses size)] [fileView]
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
+
+-- | CSS classes for thumbnail sizing
+thumbClasses :: MD.ThumbSize -> Text
+thumbClasses MD.ThumbSmall = "max-w-[20%] mx-auto"
+thumbClasses MD.ThumbMedium = "max-w-[60%] mx-auto"
+thumbClasses MD.ThumbLarge = "max-w-[90%] mx-auto"
 
 -- | Create <img> element with data URL for a MathJax-rendered formula.
 -- Shows the LaTeX source as a muted placeholder while rendering is pending.
@@ -504,7 +513,7 @@ referencedFileHashes attachments (MD.Document blocks) =
 
     extractRefsFromInline :: MD.Inline -> [SHA256Hash]
     extractRefsFromInline = \case
-      MD.FileEmbed url _ _ ->
+      MD.FileEmbed url _ _ _ ->
         case resolveFileRef attachments url of
           Just fr -> [fr.hash]
           Nothing -> []

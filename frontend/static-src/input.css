@@ -48,6 +48,7 @@
 @source inline("text-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
 @source inline("border-{gray,green,blue,yellow,orange}-{50,100,200,300,400,500,600,700,800,900}");
 @source inline("bg-{red,blue,green,orange,purple}-{100,600}");
+@source inline("max-w-[20%] max-w-[60%] max-w-[90%]");
 
 /* Print engine classes (page-print modal) */
 @source inline("print-task print-page print-cell page-print-content");
