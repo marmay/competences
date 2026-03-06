@@ -20,5 +20,9 @@ $WASM_TOOLS strip -o static/app.wasm static/app.wasm
 echo "Copying source files to static/..."
 cp frontend/static-src/index.js static/index.js
 
+echo "Copying MathJax font data..."
+rm -rf static/mathjax-newcm-font
+cp -r node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font
+
 echo "Building Tailwind CSS..."
 npm run build:css
