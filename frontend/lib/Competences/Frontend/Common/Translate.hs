@@ -384,6 +384,8 @@ data Label
   | LblViewAsStudent
   | LblReturnToTeacher
     -- Submissions
+  | LblSubmissions
+  | LblNoSubmissionsForStudent
   | LblSubmitWork
   | LblSubmissionDescription
   | LblNoSubmissions
@@ -739,6 +741,8 @@ labels' =
   , LblAttachments
   , LblViewAsStudent
   , LblReturnToTeacher
+  , LblSubmissions
+  , LblNoSubmissionsForStudent
   , LblSubmitWork
   , LblSubmissionDescription
   , LblNoSubmissions
@@ -1122,6 +1126,8 @@ defaultTranslation LblAttachments = "Anhänge"
 defaultTranslation LblViewAsStudent = "Als Schüler anzeigen"
 defaultTranslation LblReturnToTeacher = "Zurück zur Lehreransicht"
 -- Submissions
+defaultTranslation LblSubmissions = "Abgaben"
+defaultTranslation LblNoSubmissionsForStudent = "Keine Abgaben"
 defaultTranslation LblSubmitWork = "Abgabe einreichen"
 defaultTranslation LblSubmissionDescription = "Anmerkung (optional)"
 defaultTranslation LblNoSubmissions = "Noch keine Abgabe"

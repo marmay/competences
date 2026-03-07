@@ -8,6 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
@@ -33,12 +34,15 @@ import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
+import Competences.Frontend.View.SubmissionViewer qualified as SubViewer
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Ord (Down (..))
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
+import Data.List (sortOn)
+import Data.Time (Day, UTCTime (..), defaultTimeLocale, formatTime, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -115,6 +119,10 @@ data EvaluatorModel = EvaluatorModel
   , selectorGeneration :: !Int
   -- Session preference: start with all tasks excluded when selecting students
   , startFromEmpty :: !Bool
+  -- All submissions for this assignment (any student), indexed by user
+  , submissions :: !(Ix.IxSet SubmissionIxs Submission)
+  -- Currently selected/opened submission
+  , selectedSubmission :: !(Maybe SubmissionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -134,6 +142,8 @@ data EvaluatorAction
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
   | ToggleStartFromEmpty -- Toggle "start from empty" session preference
+  | SelectSubmission !SubmissionId -- Select a submission in the viewer
+  | DeselectSubmission -- Clear selected submission
   deriving (Eq, Show)
 
 -- | The evaluator component with its own state management
@@ -166,6 +176,8 @@ evaluatorComponent r assignment =
         , additionalTasks = Set.empty
         , selectorGeneration = 0
         , startFromEmpty = False
+        , submissions = Ix.empty
+        , selectedSubmission = Nothing
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -188,6 +200,7 @@ evaluatorComponent r assignment =
             , competenceLevelInfos = Eval.projectCompetenceLevels doc.competences doc.competenceGrids
             , assignmentEvidences = asmtEvidences
             , taskStatuses = allStatuses
+            , submissions = doc.submissions Ix.@= m.assignment.id
             }
 
     update (SetTaskObservationForAll taskId compId ability) = M.modify $ \m ->
@@ -209,6 +222,7 @@ evaluatorComponent r assignment =
        in m{ selectedStudents = newSelected
            , selectedSocialForm = newSocialForm
            , editingEvidence = Nothing
+           , selectedSubmission = Nothing
            , taskObservations = Map.empty
            , aggregatedResults = Map.empty
            , aggregationStale = False
@@ -350,6 +364,16 @@ evaluatorComponent r assignment =
     update ToggleStartFromEmpty = M.modify $ \m ->
       m{startFromEmpty = not m.startFromEmpty}
 
+    update (SelectSubmission sid) = M.modify $ \m ->
+      case Ix.getOne (m.submissions Ix.@= sid) of
+        Just s -> m{ selectedSubmission = Just sid
+                   , evaluationDate = utctDay s.submittedAt
+                   }
+        Nothing -> m
+
+    update DeselectSubmission = M.modify $ \m ->
+      m{selectedSubmission = Nothing}
+
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
     -- otherwise create a new one.
@@ -427,17 +451,39 @@ evaluatorComponent r assignment =
                   | tid <- allTaskIds
                   , Just tvd <- [Map.lookup tid m.taskViewData]
                   ]
+          selectedSubmissions = m.submissions Ix.@+ Set.toList m.selectedStudents
+          hasSubmissions = not (Ix.null selectedSubmissions)
+          -- Left panel: task evaluation content
+          taskContent =
+            Layout.vFlow
+              Layout.gapL
+              [ Layout.vFlow Layout.gapL (map (viewTaskSection m) sortedTaskIds)
+              , viewExtraTaskSelector m
+              , viewAggregationSection m
+              , viewCreateEvidencesButton m
+              ]
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else
-              M.div_
-                []
+              Layout.vFlow
+                mempty
                 [ viewStudentSelection m
                 , viewOverwriteBanner m
-                , M.div_ [class_ "space-y-6"] (map (viewTaskSection m) sortedTaskIds)
-                , viewExtraTaskSelector m
-                , viewAggregationSection m
-                , viewCreateEvidencesButton m
+                , if hasSubmissions && not (Set.null m.selectedStudents)
+                    then
+                      Layout.hFlow
+                        (Layout.gapM <> Layout.hFull)
+                        [ Layout.scrollContent $ Layout.grow taskContent
+                        , Layout.scrollContent $
+                            Layout.shrink0 $
+                              Layout.fixedWidth 320 $
+                                SubViewer.viewSubmissionsPanel
+                                  SelectSubmission
+                                  m.selectedSubmission
+                                  m.users
+                                  (sortOn (Down . (.submittedAt)) $ Ix.toList selectedSubmissions)
+                        ]
+                    else taskContent
                 ]
 
     viewStudentSelection m =
@@ -473,9 +519,12 @@ evaluatorComponent r assignment =
       Button.toggle (m.selectedSocialForm == sf) (Button.button (C.LblSocialForm sf) (SetSocialForm sf))
 
     viewStudentButton m student =
-      let contents = if hasEvidence then Button.toButtonContents (Icon.IcnApply, ms student.name)
-                                    else Button.toButtonContents (ms student.name)
-          hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
+      let hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
+          hasOpenSubmission = any (SubViewer.isSubmissionOpen m.assignmentEvidences) $ Ix.toList (m.submissions Ix.@= student.id)
+          contents
+            | hasOpenSubmission = Button.toButtonContents (Icon.IcnImport, ms student.name)
+            | hasEvidence = Button.toButtonContents (Icon.IcnApply, ms student.name)
+            | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button contents (ToggleStudentSelection student.id)
 
     viewOverwriteBanner m =
