@@ -91,6 +91,7 @@ library
         Competences.Frontend.Component.Selector.MesoPlanSelector,
         Competences.Frontend.Component.Selector.MultiStageSelector,
         Competences.Frontend.Component.Selector.SearchableListSelector,
+        Competences.Frontend.Component.Selector.SearchSelect,
         Competences.Frontend.Component.Selector.MultiTaskSelector,
         Competences.Frontend.Component.Selector.LessonNotesSelector,
         Competences.Frontend.Component.Selector.LessonSelector,

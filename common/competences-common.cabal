@@ -96,6 +96,7 @@ library
         Competences.Query.Task
         Competences.Query.TaskStatus
         Competences.Query.User
+        Competences.Search
         Competences.TaskContent.RichContent
     build-depends:
         base ^>=4.21.0.0,
@@ -132,6 +133,7 @@ test-suite competences-common-test
     other-modules:
         Test.Generators
         Test.Query.MasteryTest
+        Test.SearchTest
     build-depends:
         base ^>=4.21.0.0,
         competences-common,
