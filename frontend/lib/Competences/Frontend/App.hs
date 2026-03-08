@@ -69,6 +69,7 @@ data Action
 -- Includes defaultEvents, keyboardEvents, and mouseEvents for full event support
 appEvents :: M.Events
 appEvents = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
+  <> M.dragEvents
   <> Map.fromList [("beforeinput", M.BUBBLE)]
 
 runApp :: App -> IO ()

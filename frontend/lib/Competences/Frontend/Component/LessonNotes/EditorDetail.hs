@@ -104,8 +104,8 @@ noteItemSearchConfig =
         NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
         NoteTask t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
-    , selectionOrder = AutoOrder id
-    , tagLayout = TagsInline
+    , selectionOrder = ManualReorder
+    , tagLayout = TagsVertical
     }
 
 -- | Editor field for the items list using SearchSelect

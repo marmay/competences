@@ -46,6 +46,8 @@ module Competences.Frontend.View.Badge
 
     -- * Interactive badges
   , interactive
+  , interactiveMulti
+  , withActions
   , paletteInteractive
 
     -- * Content helpers
@@ -93,26 +95,61 @@ renderInteractiveBadge baseClasses mAction content =
   where
     hasAction = case mAction of Just _ -> True; Nothing -> False
 
+-- | Internal: render a badge with multiple hover-revealed action buttons.
+renderInteractiveMultiBadge
+  :: Text
+  -> [(Icon.Icon, action)]
+  -> M.View model action
+  -> M.View model action
+renderInteractiveMultiBadge baseClasses actions content =
+  M.span_
+    [class_ $ baseClasses <> " group" <> if null actions then "" else " pr-0.5"]
+    ([content] <> map (renderActionBtn hoverActionBtnClasses) actions)
+
+-- | Internal: render a badge with multiple always-visible action buttons.
+renderWithActionsBadge
+  :: Text
+  -> [(Icon.Icon, action)]
+  -> M.View model action
+  -> M.View model action
+renderWithActionsBadge baseClasses actions content =
+  M.span_
+    [class_ $ baseClasses <> if null actions then "" else " pr-0.5"]
+    ([content] <> map (renderActionBtn visibleActionBtnClasses) actions)
+
 -- | Render the optional action button that appears on hover
 actionButton :: Maybe (Icon.Icon, action) -> [M.View model action]
 actionButton Nothing = []
 actionButton (Just (icn, action)) =
-  [ M.button_
-      [ class_ actionButtonClasses
-      , MP.type_ "button"
-      , M.intProp "tabindex" (-1)
-      , M.onClick action
-      ]
-      [Icon.icon [] icn]
-  ]
+  [renderActionBtn hoverActionBtnClasses (icn, action)]
 
-actionButtonClasses :: Text
-actionButtonClasses =
-  "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto \
-  \-mr-1 ml-0.5 h-4 w-4 rounded-full \
+-- | Render a single action button with given CSS classes.
+renderActionBtn :: Text -> (Icon.Icon, action) -> M.View model action
+renderActionBtn classes (icn, action) =
+  M.button_
+    [ class_ classes
+    , MP.type_ "button"
+    , M.intProp "tabindex" (-1)
+    , M.onClick action
+    ]
+    [Icon.icon [] icn]
+
+-- | Shared button sizing/layout classes.
+actionBtnBase :: Text
+actionBtnBase =
+  "-mr-0.5 ml-0.5 h-4 w-4 rounded-full \
   \flex items-center justify-center text-secondary-foreground/70 \
   \hover:bg-destructive hover:text-destructive-foreground \
   \transition-opacity focus:opacity-100 [&>svg]:size-3"
+
+-- | Hover-revealed action button classes.
+hoverActionBtnClasses :: Text
+hoverActionBtnClasses =
+  "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto " <> actionBtnBase
+
+-- | Always-visible action button classes.
+visibleActionBtnClasses :: Text
+visibleActionBtnClasses = actionBtnBase
 
 -- ============================================================================
 -- COLOR SOURCES: Variant vs Palette
@@ -164,6 +201,26 @@ interactive
   -> M.View model action
 interactive v mAction =
   renderInteractiveBadge (variantClass v) mAction
+
+-- | Render an interactive badge with multiple hover-revealed action buttons.
+--
+-- All action icons appear on hover in a compact row inside the badge.
+interactiveMulti
+  :: BadgeVariant
+  -> [(Icon.Icon, action)]
+  -> M.View model action
+  -> M.View model action
+interactiveMulti v = renderInteractiveMultiBadge (variantClass v)
+
+-- | Render a badge with always-visible action buttons.
+--
+-- Like 'interactiveMulti' but buttons are always shown (for active reorder states).
+withActions
+  :: BadgeVariant
+  -> [(Icon.Icon, action)]
+  -> M.View model action
+  -> M.View model action
+withActions v = renderWithActionsBadge (variantClass v)
 
 -- | Render an interactive badge with a semantic color palette.
 --

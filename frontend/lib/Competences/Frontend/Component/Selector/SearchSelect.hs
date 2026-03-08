@@ -22,6 +22,7 @@ module Competences.Frontend.Component.Selector.SearchSelect
   )
 where
 
+import Control.Monad (when)
 import Competences.Document (Document (..))
 import Competences.Frontend.Component.Selector.Common
   ( SelectorTransformedLens (..)
@@ -40,14 +41,17 @@ import Competences.Frontend.View.TagInput (TagInputConfig (..), TagLayout (..), 
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Search (Query, QuerySegment (..), matchItemWithFilters, parseQuery, segmentQuery)
+import Data.List (elemIndex)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.DSL (Object (..), create, isNull, jsg, setProp, toJSVal, (#))
 import Miso.Html qualified as MH
+import Miso.Html.Event qualified as ME
 import Miso.Html.Property qualified as MP
-import Miso.String (fromMisoString, ms)
+import Miso.String (MisoString, fromMisoString, ms)
 import Optics.Core qualified as O
 import Optics.Core ((&), (.~))
 
@@ -124,6 +128,9 @@ data Model a id = Model
   , searchQuery :: !Text
   , highlightIdx :: !(Maybe Int)
   , hasFocus :: !Bool
+  , reorderingItem :: !(Maybe id)
+  , draggingItem :: !(Maybe id)
+  , dragOverGap :: !(Maybe Int)
   }
   deriving (Eq, Generic, Show)
 
@@ -141,8 +148,18 @@ data Action a id
   | RemoveLast
   | ToggleItem !id
   | ClearAll
-  | MoveItemUp !id
-  | MoveItemDown !id
+  | -- Button-based reorder
+    StartReorder !id
+  | CancelReorder
+  | InsertBefore !id
+  | InsertAfter !id
+  | MoveToFront
+  | MoveToBack
+  | -- Drag-and-drop
+    DragStart !id
+  | DragOverGap !Int
+  | DragDropAt !Int
+  | DragEnd
   | SetFocus !Bool
   | NoOp
   deriving (Eq, Generic, Show)
@@ -177,6 +194,9 @@ searchSelectComponent r cfg initIds lensBinding =
         , searchQuery = ""
         , highlightIdx = Nothing
         , hasFocus = False
+        , reorderingItem = Nothing
+        , draggingItem = Nothing
+        , dragOverGap = Nothing
         }
 
     -- | Virtual lens: reads [a] (resolved from selectedIds), writes back [id].
@@ -196,27 +216,31 @@ searchSelectComponent r cfg initIds lensBinding =
       M.modify $ #allItems .~ change.projection.allItems
     update (SetQuery q) =
       M.modify $ \m -> m & #searchQuery .~ q & #highlightIdx .~ Nothing
-    update AddAll = M.modify $ \m ->
-      let query = parseQuery m.searchQuery
-          selectedSet = Set.fromList m.selectedIds
-          matches = getMatches cfg query selectedSet m.allItems
-          newIds = map (cfg.itemId) matches
-       in m & #selectedIds .~ (m.selectedIds <> newIds)
-            & #searchQuery .~ ""
-            & #highlightIdx .~ Nothing
-    update AddHighlighted = M.modify $ \m ->
-      case m.highlightIdx of
-        Nothing -> m
-        Just idx ->
-          let query = parseQuery m.searchQuery
-              selectedSet = Set.fromList m.selectedIds
-              matches = getMatches cfg query selectedSet m.allItems
-           in case drop idx matches of
-                (item : _) ->
-                  m & #selectedIds .~ (m.selectedIds <> [cfg.itemId item])
-                    & #searchQuery .~ ""
-                    & #highlightIdx .~ Nothing
-                [] -> m
+    update AddAll = do
+      M.modify $ \m ->
+        let query = parseQuery m.searchQuery
+            selectedSet = Set.fromList m.selectedIds
+            matches = getMatches cfg query selectedSet m.allItems
+            newIds = map (cfg.itemId) matches
+         in m & #selectedIds .~ (m.selectedIds <> newIds)
+              & #searchQuery .~ ""
+              & #highlightIdx .~ Nothing
+      M.io_ $ M.focus searchInputId
+    update AddHighlighted = do
+      M.modify $ \m ->
+        case m.highlightIdx of
+          Nothing -> m
+          Just idx ->
+            let query = parseQuery m.searchQuery
+                selectedSet = Set.fromList m.selectedIds
+                matches = getMatches cfg query selectedSet m.allItems
+             in case drop idx matches of
+                  (item : _) ->
+                    m & #selectedIds .~ (m.selectedIds <> [cfg.itemId item])
+                      & #searchQuery .~ ""
+                      & #highlightIdx .~ Nothing
+                  [] -> m
+      M.io_ $ M.focus searchInputId
     update (MoveHighlight delta) = M.modify $ \m ->
       let query = parseQuery m.searchQuery
           selectedSet = Set.fromList m.selectedIds
@@ -234,22 +258,59 @@ searchSelectComponent r cfg initIds lensBinding =
        in m & #highlightIdx .~ newIdx
     update (RemoveItem i) =
       M.modify $ \m -> m & #selectedIds .~ filter (/= i) m.selectedIds
-    update RemoveLast = M.modify $ \m ->
-      case reverse m.selectedIds of
-        [] -> m
-        (_ : rest) -> m & #selectedIds .~ reverse rest
-    update (ToggleItem i) = M.modify $ \m ->
-      if i `elem` m.selectedIds
-        then m & #selectedIds .~ filter (/= i) m.selectedIds
-        else m & #selectedIds .~ (m.selectedIds <> [i])
+    update RemoveLast = do
+      M.modify $ \m ->
+        case reverse m.selectedIds of
+          [] -> m
+          (_ : rest) -> m & #selectedIds .~ reverse rest
+      M.io_ $ M.focus searchInputId
+    update (ToggleItem i) = do
+      M.modify $ \m ->
+        if i `elem` m.selectedIds
+          then m & #selectedIds .~ filter (/= i) m.selectedIds
+          else m & #selectedIds .~ (m.selectedIds <> [i])
+      M.io_ $ M.focus searchInputId
     update ClearAll =
       M.modify $ #selectedIds .~ []
-    update (MoveItemUp targetId) =
-      M.modify $ \m -> m & #selectedIds .~ moveUp targetId m.selectedIds
-    update (MoveItemDown targetId) =
-      M.modify $ \m -> m & #selectedIds .~ moveDown targetId m.selectedIds
-    update (SetFocus focused) =
+    update (StartReorder i) =
+      M.modify $ #reorderingItem .~ Just i
+    update CancelReorder =
+      M.modify $ #reorderingItem .~ Nothing
+    update (InsertBefore targetId) = M.modify $ \m ->
+      case m.reorderingItem of
+        Nothing -> m
+        Just src -> m & #selectedIds .~ insertBeforeId src targetId m.selectedIds
+                      & #reorderingItem .~ Nothing
+    update (InsertAfter targetId) = M.modify $ \m ->
+      case m.reorderingItem of
+        Nothing -> m
+        Just src -> m & #selectedIds .~ insertAfterId src targetId m.selectedIds
+                      & #reorderingItem .~ Nothing
+    update MoveToFront = M.modify $ \m ->
+      case m.reorderingItem of
+        Nothing -> m
+        Just src -> m & #selectedIds .~ moveToFrontId src m.selectedIds
+                      & #reorderingItem .~ Nothing
+    update MoveToBack = M.modify $ \m ->
+      case m.reorderingItem of
+        Nothing -> m
+        Just src -> m & #selectedIds .~ moveToBackId src m.selectedIds
+                      & #reorderingItem .~ Nothing
+    update (DragStart i) =
+      M.modify $ #draggingItem .~ Just i
+    update (DragOverGap i) =
+      M.modify $ #dragOverGap .~ Just i
+    update (DragDropAt gapIdx) = M.modify $ \m ->
+      case m.draggingItem of
+        Nothing -> m
+        Just src -> m & #selectedIds .~ insertAtGap src gapIdx m.selectedIds
+                      & #draggingItem .~ Nothing
+                      & #dragOverGap .~ Nothing
+    update DragEnd =
+      M.modify $ \m -> m & #draggingItem .~ Nothing & #dragOverGap .~ Nothing
+    update (SetFocus focused) = do
       M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
+      M.io_ $ when focused scrollInputToCenter
     update NoOp = pure ()
 
 -- | Get matching items that are not already selected.
@@ -264,21 +325,35 @@ applyOrder :: SelectionOrder a -> [a] -> [a]
 applyOrder ManualReorder xs = xs
 applyOrder (AutoOrder f) xs = f xs
 
--- | Swap target with its predecessor.
-moveUp :: (Eq id) => id -> [id] -> [id]
-moveUp _ [] = []
-moveUp _ [x] = [x]
-moveUp target (x : y : rest)
-  | y == target = y : x : rest
-  | otherwise = x : moveUp target (y : rest)
+-- | Remove item from list, insert before target.
+insertBeforeId :: (Eq id) => id -> id -> [id] -> [id]
+insertBeforeId src target xs =
+  let without = filter (/= src) xs
+   in concatMap (\x -> if x == target then [src, x] else [x]) without
 
--- | Swap target with its successor.
-moveDown :: (Eq id) => id -> [id] -> [id]
-moveDown _ [] = []
-moveDown _ [x] = [x]
-moveDown target (x : y : rest)
-  | x == target = y : x : rest
-  | otherwise = x : moveDown target (y : rest)
+-- | Remove item from list, insert after target.
+insertAfterId :: (Eq id) => id -> id -> [id] -> [id]
+insertAfterId src target xs =
+  let without = filter (/= src) xs
+   in concatMap (\x -> if x == target then [x, src] else [x]) without
+
+-- | Remove item, prepend.
+moveToFrontId :: (Eq id) => id -> [id] -> [id]
+moveToFrontId src xs = src : filter (/= src) xs
+
+-- | Remove item, append.
+moveToBackId :: (Eq id) => id -> [id] -> [id]
+moveToBackId src xs = filter (/= src) xs <> [src]
+
+-- | Remove source, insert at gap position (0 = before first, n = after last).
+-- The gap index refers to the original list; adjusted after removing source.
+insertAtGap :: (Eq id) => id -> Int -> [id] -> [id]
+insertAtGap src gapIdx ids =
+  let srcIdx = maybe 0 (\x -> x) (elemIndex src ids)
+      without = filter (/= src) ids
+      adjusted = if srcIdx < gapIdx then gapIdx - 1 else gapIdx
+      (before, after) = splitAt adjusted without
+   in before <> [src] <> after
 
 -- ============================================================================
 -- View
@@ -296,8 +371,8 @@ view cfg m =
       selectedItems = resolveSelected cfg m
       tags = case cfg.selectionOrder of
         ManualReorder ->
-          [ viewReorderableTag cfg selectedItems i a
-          | (i, a) <- zip [0 ..] selectedItems
+          [ viewReorderableTag cfg m idx a
+          | (idx, a) <- zip [0 ..] selectedItems
           ]
         AutoOrder _ ->
           map (viewSelectedTag cfg) selectedItems
@@ -312,30 +387,29 @@ view cfg m =
             MH.input_
               [ class_ "absolute inset-0 w-full bg-transparent text-sm text-transparent caret-foreground outline-none placeholder:text-muted-foreground"
               , MP.type_ "text"
+              , MP.id_ searchInputId
               , MP.value_ (ms m.searchQuery)
               , MH.onInput (SetQuery . fromMisoString)
               , MP.placeholder_ (ms cfg.placeholder)
               ]
           ]
-      popoverContent =
-        if null matches
-          then Nothing
-          else Just $ viewSuggestions cfg m.highlightIdx matches
+      hasClearAll = length selectedItems >= 2
+      hasFilters = not (null cfg.metaFilters)
+      showBox = m.hasFocus && (not (null matches) || hasFilters)
    in MH.div_
         [class_ "relative"]
         [ tagInput
             TagInputConfig
               { badges = tags
               , inputArea = inputArea
-              , popover = popoverContent
+              , popover = Nothing
               , hasFocus = m.hasFocus
               , onKeyDown = Just (handleKeyDown m)
               , onFocus = Just (SetFocus True)
               , onBlur = Just (SetFocus False)
               , tagLayout = cfg.tagLayout
               }
-        , viewClearAll selectedItems
-        , viewFilterHints cfg m.hasFocus
+        , viewBelowInput cfg hasClearAll hasFilters showBox m.highlightIdx matches
         ]
 
 -- | Resolve selected IDs back to items, applying configured ordering.
@@ -356,47 +430,214 @@ viewSelectedTag cfg a =
         (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
         (Badge.badgeIconText icn label)
 
--- | Render a selected item with reorder buttons (for ManualReorder mode).
+-- | Render a selected item in ManualReorder mode.
+-- Supports drag-and-drop and button-based reorder depending on model state.
 viewReorderableTag
   :: forall a id
-   . SearchSelectConfig a id
-  -> [a]
+   . (Eq id)
+  => SearchSelectConfig a id
+  -> Model a id
   -> Int
   -> a
   -> M.View (Model a id) (Action a id)
-viewReorderableTag cfg selectedItems idx a =
-  let isFirst = idx == 0
-      isLast = idx == length selectedItems - 1
+viewReorderableTag cfg m idx a =
+  let thisId = cfg.itemId a
       (icn, label) = cfg.viewTag a
-      badge =
-        Badge.interactive
-          Badge.Secondary
-          (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
-          (Badge.badgeIconText icn label)
-      moveUpAction = MoveItemUp (cfg.itemId a) :: Action a id
-      moveDownAction = MoveItemDown (cfg.itemId a) :: Action a id
+      badgeContent = case cfg.tagLayout of
+        TagsVertical ->
+          MH.span_ [class_ "inline-flex items-center gap-1 flex-1 min-w-0"]
+            [Icon.icon [] icn, MH.span_ [class_ "truncate"] [M.text label]]
+        TagsInline -> Badge.badgeIconText icn label
+   in case m.reorderingItem of
+        -- Button reorder mode: this is the source item
+        Just srcId | srcId == thisId ->
+          viewReorderSourceTag cfg.tagLayout badgeContent
+        -- Button reorder mode: this is a target item
+        Just _srcId ->
+          viewReorderTargetTag cfg.tagLayout thisId badgeContent
+        -- Normal state: draggable tag with hover actions
+        Nothing ->
+          viewDraggableTag cfg.tagLayout m.draggingItem m.dragOverGap idx thisId badgeContent
+
+-- | Source tag in button-reorder mode: highlighted with move-to-front/back/cancel.
+viewReorderSourceTag
+  :: forall a id
+   . TagLayout
+  -> M.View (Model a id) (Action a id)
+  -> M.View (Model a id) (Action a id)
+viewReorderSourceTag layout badgeContent =
+  MH.span_ [class_ $ verticalStretchCls layout]
+    [ Badge.withActions Badge.Outline
+        [ (Icon.IcnDoubleArrowUp, MoveToFront)
+        , (Icon.IcnDoubleArrowDown, MoveToBack)
+        , (Icon.IcnCancel, CancelReorder)
+        ]
+        badgeContent
+    ]
+
+-- | Target tag in button-reorder mode: insert-before/after buttons inside badge.
+viewReorderTargetTag
+  :: forall a id
+   . TagLayout
+  -> id
+  -> M.View (Model a id) (Action a id)
+  -> M.View (Model a id) (Action a id)
+viewReorderTargetTag layout thisId badgeContent =
+  MH.span_ [class_ $ verticalStretchCls layout]
+    [ Badge.withActions Badge.Secondary
+        [ (Icon.IcnArrowDown, InsertBefore thisId)
+        , (Icon.IcnArrowUp, InsertAfter thisId)
+        ]
+        badgeContent
+    ]
+
+-- | CSS class to make a badge stretch full-width in vertical layout.
+verticalStretchCls :: TagLayout -> Text
+verticalStretchCls TagsVertical = "[&_.badge-secondary]:w-full [&_.badge-outline]:w-full"
+verticalStretchCls TagsInline = ""
+
+-- | Normal state: draggable tag with overlay drop zones for DnD.
+-- Each tag is split into two invisible overlay halves (before/after).
+-- Overlays are always in the DOM but only interactive during an active drag.
+-- Visual indicator: a 2px primary-colored border on the insertion edge.
+viewDraggableTag
+  :: forall a id
+   . (Eq id)
+  => TagLayout
+  -> Maybe id
+  -> Maybe Int
+  -> Int
+  -> id
+  -> M.View (Model a id) (Action a id)
+  -> M.View (Model a id) (Action a id)
+viewDraggableTag layout mDraggingItem mDragOverGap idx thisId badgeContent =
+  let isDragging = mDraggingItem /= Nothing
+      isSelf = mDraggingItem == Just thisId
+      showBefore = mDragOverGap == Just idx
+      showAfter = mDragOverGap == Just (idx + 1)
+      indicatorCls = case layout of
+        TagsVertical ->
+          (if showBefore then " border-t-2 border-t-primary" else "")
+            <> (if showAfter then " border-b-2 border-b-primary" else "")
+        TagsInline ->
+          (if showBefore then " border-l-2 border-l-primary" else "")
+            <> (if showAfter then " border-r-2 border-r-primary" else "")
+      overlayPE = if isDragging then "pointer-events-auto" else "pointer-events-none"
+      -- Overlays extend into the flex gap (gap-1.5 = 6px, so 3px each side)
+      -- so there are no dead zones between tags.
+      (beforeOverlayCls, afterOverlayCls) = case layout of
+        TagsVertical ->
+          ( "absolute inset-x-0 -top-[3px] bottom-1/2 z-10 " <> overlayPE
+          , "absolute inset-x-0 top-1/2 -bottom-[3px] z-10 " <> overlayPE
+          )
+        TagsInline ->
+          ( "absolute inset-y-0 -left-[3px] right-1/2 z-10 " <> overlayPE
+          , "absolute inset-y-0 left-1/2 -right-[3px] z-10 " <> overlayPE
+          )
+      opacityCls = if isSelf then " opacity-40" else ""
+      stretchCls = case layout of
+        TagsVertical -> " w-full [&_.badge-secondary]:w-full"
+        TagsInline -> ""
    in MH.div_
-        [class_ "inline-flex items-center"]
-        [ if not isFirst
-            then Button.ghostSm $ Button.button Icon.IcnArrowUp moveUpAction
-            else M.text ""
-        , badge
-        , if not isLast
-            then Button.ghostSm $ Button.button Icon.IcnArrowDown moveDownAction
-            else M.text ""
+        [class_ $ "relative rounded-md" <> indicatorCls <> opacityCls <> stretchCls]
+        [ MH.span_
+            [ class_ $ case layout of TagsVertical -> "w-full"; TagsInline -> ""
+            , MP.draggable_ True
+            , ME.onDragStart (DragStart thisId)
+            , ME.onDragEnd DragEnd
+            ]
+            [ Badge.interactiveMulti Badge.Secondary
+                [ (Icon.IcnReorder, StartReorder thisId)
+                , (Icon.IcnCancel, RemoveItem thisId)
+                ]
+                badgeContent
+            ]
+        , -- Before-half overlay
+          MH.div_
+            [ class_ beforeOverlayCls
+            , ME.onDragOverWithOptions M.preventDefault (DragOverGap idx)
+            , ME.onDrop M.preventDefault (DragDropAt idx)
+            ]
+            []
+        , -- After-half overlay
+          MH.div_
+            [ class_ afterOverlayCls
+            , ME.onDragOverWithOptions M.preventDefault (DragOverGap (idx + 1))
+            , ME.onDrop M.preventDefault (DragDropAt (idx + 1))
+            ]
+            []
         ]
 
--- | Show a "Deselect all" ghost button when ≥ 2 items are selected.
-viewClearAll
+-- | Container below the tag input: holds clear-all button (absolute) and suggestion box (absolute overlay).
+viewBelowInput
   :: forall a id
-   . [a]
+   . (Eq id, Ord id)
+  => SearchSelectConfig a id
+  -> Bool
+  -- ^ Has clear-all button (≥ 2 selected)
+  -> Bool
+  -- ^ Has meta filters
+  -> Bool
+  -- ^ Show suggestion box
+  -> Maybe Int
+  -- ^ Highlight index
+  -> [a]
+  -- ^ Matches
   -> M.View (Model a id) (Action a id)
-viewClearAll selectedItems
-  | length selectedItems >= 2 =
-      MH.div_
-        [class_ "flex justify-end pt-1"]
-        [Button.ghostSm $ Button.button C.LblDeselectAll (ClearAll :: Action a id)]
-  | otherwise = M.text ""
+viewBelowInput cfg hasClearAll hasFilters showBox highlightIdx matches =
+  MH.div_
+    [class_ "relative"]
+    [ -- Clear-all button: absolute, doesn't affect flow
+      if hasClearAll
+        then
+          MH.div_
+            [class_ "absolute right-0 top-0 z-10"]
+            [Button.ghostSm $ Button.button C.LblDeselectAll (ClearAll :: Action a id)]
+        else M.text ""
+    , -- Suggestion box: absolute overlay below
+      if showBox
+        then
+          MH.div_
+            [ class_ $
+                "absolute left-0 mt-1 z-50 bg-popover border border-border \
+                \rounded-md shadow-lg p-2 max-h-48 overflow-y-auto "
+                  <> if hasClearAll then "right-24 top-0" else "right-0 top-0"
+            ]
+            ( [viewFilterHintRow cfg | hasFilters]
+                <> [viewSuggestions cfg highlightIdx matches | not (null matches)]
+            )
+        else M.text ""
+    , -- Invisible sentinel: absolutely positioned below the suggestion area.
+      -- Guarantees the page is tall enough to scroll the input to center.
+      -- Always in the DOM, doesn't affect layout.
+      MH.div_ [class_ "absolute left-0 top-full mt-52 h-px w-px"] []
+    ]
+
+-- | The DOM id for the search input, used to refocus and scroll into view.
+searchInputId :: MisoString
+searchInputId = "search-select-input"
+
+-- | Scroll the search input to the center of the viewport.
+scrollInputToCenter :: IO ()
+scrollInputToCenter = do
+  doc <- jsg ("document" :: MisoString)
+  el <- doc # ("getElementById" :: MisoString) $ [toJSVal searchInputId]
+  elIsNull <- isNull el
+  when (not elIsNull) $ do
+    Object opts <- create
+    setProp ("block" :: MisoString) ("center" :: MisoString) (Object opts)
+    setProp ("behavior" :: MisoString) ("smooth" :: MisoString) (Object opts)
+    _ <- el # ("scrollIntoView" :: MisoString) $ [opts]
+    pure ()
+
+-- | Filter hints rendered as a muted italic header inside the suggestion box.
+viewFilterHintRow
+  :: SearchSelectConfig a id
+  -> M.View (Model a id) (Action a id)
+viewFilterHintRow cfg =
+  MH.div_
+    [class_ "px-2 py-1 text-xs text-muted-foreground italic border-b border-border mb-1"]
+    [M.text $ ms $ "Filter: " <> T.intercalate ", " (map (.hint) cfg.metaFilters)]
 
 -- | Render highlighted query segments for the overlay layer.
 viewHighlightedQuery
@@ -413,20 +654,6 @@ viewHighlightedQuery cfg queryText =
         [class_ "text-destructive underline decoration-destructive/60"]
         [M.text (ms t)]
 
--- | Render filter hints below the input when focused.
--- Shows available @-filters as a tooltip. Hidden when not focused or no filters.
-viewFilterHints
-  :: SearchSelectConfig a id
-  -> Bool
-  -> M.View (Model a id) (Action a id)
-viewFilterHints cfg focused
-  | not focused || null cfg.metaFilters = M.text ""
-  | otherwise =
-      MH.div_
-        [ class_ "absolute left-0 right-0 top-full mt-1 px-2 py-1.5 rounded-md bg-popover border border-border text-xs text-muted-foreground shadow-sm z-10"
-        ]
-        [ M.text $ ms $ T.intercalate ", " $ map (.hint) cfg.metaFilters
-        ]
 
 -- | Render the suggestion dropdown.
 viewSuggestions
