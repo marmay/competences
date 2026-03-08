@@ -9,6 +9,7 @@ and observations.
 module Competences.Frontend.View.TagInput
   ( -- * Tag Input Component
     TagInputConfig (..)
+  , TagLayout (..)
   , tagInput
   , tagInputDisabled
   )
@@ -18,6 +19,14 @@ import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+
+-- | Controls how tags are laid out inside the input container.
+data TagLayout
+  = -- | Tags wrap inline with the input (default)
+    TagsInline
+  | -- | Each tag on its own line; input below
+    TagsVertical
+  deriving (Eq, Generic, Show)
 
 -- | Configuration for a tag input component
 data TagInputConfig m a = TagInputConfig
@@ -35,6 +44,8 @@ data TagInputConfig m a = TagInputConfig
   -- ^ Focus handler
   , onBlur :: !(Maybe a)
   -- ^ Blur handler
+  , tagLayout :: !TagLayout
+  -- ^ How tags are arranged in the container
   }
   deriving (Generic)
 
@@ -82,21 +93,29 @@ tagInput config =
     -- Uses focus-within for automatic focus ring styling
     -- overflow-visible ensures badge tooltips aren't clipped
     containerClasses =
-      "flex flex-wrap gap-1.5 items-center min-h-9 w-full rounded-md border \
-      \border-input bg-background px-3 py-1.5 shadow-xs cursor-text \
-      \focus-within:ring-2 focus-within:ring-ring focus-within:border-ring \
-      \overflow-visible"
+      layoutClasses
+        <> " min-h-9 w-full rounded-md border \
+           \border-input bg-background px-3 py-1.5 shadow-xs cursor-text \
+           \focus-within:ring-2 focus-within:ring-ring focus-within:border-ring \
+           \overflow-visible"
+    layoutClasses = case config.tagLayout of
+      TagsInline -> "flex flex-wrap gap-1.5 items-center"
+      TagsVertical -> "flex flex-col gap-1.5"
 
 -- | Render a disabled tag input (view-only, no keyboard input)
-tagInputDisabled :: [M.View m a] -> M.View m a
-tagInputDisabled badges =
+tagInputDisabled :: TagLayout -> [M.View m a] -> M.View m a
+tagInputDisabled layout badges =
   M.div_
     [class_ disabledClasses]
     badges
   where
     disabledClasses =
-      "flex flex-wrap gap-1.5 items-center min-h-9 w-full rounded-md border \
-      \border-input bg-muted px-3 py-1.5"
+      layoutCls
+        <> " min-h-9 w-full rounded-md border \
+           \border-input bg-muted px-3 py-1.5"
+    layoutCls = case layout of
+      TagsInline -> "flex flex-wrap gap-1.5 items-center"
+      TagsVertical -> "flex flex-col gap-1.5"
 
 -- | Render the popover above the input
 -- Uses CSS to show/hide based on visibility flag to keep DOM structure stable

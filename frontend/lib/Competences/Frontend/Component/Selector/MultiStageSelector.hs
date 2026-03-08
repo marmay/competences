@@ -41,7 +41,7 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
-import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
+import Competences.Frontend.View.TagInput (TagInputConfig (..), TagLayout (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Char (isDigit)
 import Data.Kind (Type)
@@ -570,7 +570,7 @@ genericView config model =
   case config.style of
     MultiStageSelectorDisabled ->
       -- Disabled mode: just show badges, no input
-      tagInputDisabled (map (viewResultBadge config model) model.selectedResults)
+      tagInputDisabled TagsInline (map (viewResultBadge config model) model.selectedResults)
     MultiStageSelectorEnabled ->
       -- Enabled mode: tag input with keyboard support and popover
       tagInput
@@ -582,6 +582,7 @@ genericView config model =
           , onKeyDown = Just HandleKeyPress
           , onFocus = Just Focus
           , onBlur = Just Blur
+          , tagLayout = TagsInline
           }
 
 -- | Render a single result badge with tooltip and optional delete button

@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Selector.SearchSelect
   ( -- * Config
     SearchSelectConfig (..)
   , SelectionOrder (..)
+  , TagLayout (..)
 
     -- * Meta filters
   , MetaFilter (..)
@@ -35,7 +36,7 @@ import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput)
+import Competences.Frontend.View.TagInput (TagInputConfig (..), TagLayout (..), tagInput)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Search (Query, QuerySegment (..), matchItemWithFilters, parseQuery, segmentQuery)
@@ -95,6 +96,8 @@ data SearchSelectConfig a id = SearchSelectConfig
   , placeholder :: !Text
   , selectionOrder :: !(SelectionOrder a)
   -- ^ How selected items are ordered: manual reorder buttons or automatic sorting.
+  , tagLayout :: !TagLayout
+  -- ^ How tags are laid out: inline (default) or vertical (one per line).
   }
 
 -- | Extract parser functions from MetaFilter list (for Search module compatibility).
@@ -329,6 +332,7 @@ view cfg m =
               , onKeyDown = Just (handleKeyDown m)
               , onFocus = Just (SetFocus True)
               , onBlur = Just (SetFocus False)
+              , tagLayout = cfg.tagLayout
               }
         , viewClearAll selectedItems
         , viewFilterHints cfg m.hasFocus
