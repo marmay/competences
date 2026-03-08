@@ -69,9 +69,7 @@ tagInput config =
           viewPopover config.hasFocus popoverContent
     , -- Main container (looks like an input)
       M.div_
-        ( [ class_ containerClasses
-          , M.intProp "tabindex" 0
-          ]
+        ( [class_ containerClasses]
             <> maybe [] (\h -> [M.onKeyDownWithInfo h]) config.onKeyDown
             <> maybe [] (\h -> [M.onFocus h]) config.onFocus
             <> maybe [] (\h -> [M.onBlur h]) config.onBlur
@@ -87,7 +85,6 @@ tagInput config =
       "flex flex-wrap gap-1.5 items-center min-h-9 w-full rounded-md border \
       \border-input bg-background px-3 py-1.5 shadow-xs cursor-text \
       \focus-within:ring-2 focus-within:ring-ring focus-within:border-ring \
-      \focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring \
       \overflow-visible"
 
 -- | Render a disabled tag input (view-only, no keyboard input)

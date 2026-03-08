@@ -33,22 +33,26 @@ module Competences.Frontend.Component.Selector.MultiStageSelector
 where
 
 import Competences.Document (Document (..), emptyDocument)
+import Competences.Document.Id (idToText)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding)
-import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, isInitialUpdate, nextId, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput, tagInputDisabled)
 import Competences.Frontend.View.Tailwind (class_)
+import Data.Char (isDigit)
 import Data.Kind (Type)
 import Data.List (delete, intercalate)
 import Data.List.Extra (isInfixOf)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
-import Miso.String (MisoString, ms)
+import Miso.Html.Property qualified as MP
+import Miso.JSON (withObject, (.:), (.:?))
+import Miso.String (MisoString, fromMisoString, ms)
 import Optics.Core ((%~), (&), (.~))
 
 -- | Heterogeneous list for storing pipeline context
@@ -256,22 +260,40 @@ data MappedKeyCode
   deriving (Eq, Show)
 
 -- | Map Miso key codes to our representation
+--
+-- Enter and Backspace are handled via onKeyDown (always fires).
+-- Digit/period input goes through onBeforeInput on the input element.
+-- Backspace must go through onKeyDown because beforeinput doesn't fire
+-- when the input is empty (nothing to delete).
 mapKeyCode :: M.KeyCode -> Maybe MappedKeyCode
 mapKeyCode (M.KeyCode c)
   | c == 13 = Just MEnter
   | c == 8 = Just MBackspace
-  | c == 190 = Just MPeriod
-  | c == 48 = Just $ MChar '0'
-  | c == 49 = Just $ MChar '1'
-  | c == 50 = Just $ MChar '2'
-  | c == 51 = Just $ MChar '3'
-  | c == 52 = Just $ MChar '4'
-  | c == 53 = Just $ MChar '5'
-  | c == 54 = Just $ MChar '6'
-  | c == 55 = Just $ MChar '7'
-  | c == 56 = Just $ MChar '8'
-  | c == 57 = Just $ MChar '9'
   | otherwise = Nothing
+
+-- | Data from a beforeinput event
+data BeforeInputEvent = BeforeInputEvent
+  { inputData :: !(Maybe MisoString)
+  , inputType :: !MisoString
+  }
+  deriving (Eq, Show)
+
+-- | Decoder for beforeinput events (reads event.data and event.inputType)
+beforeInputDecoder :: M.Decoder BeforeInputEvent
+beforeInputDecoder =
+  M.Decoder
+    { M.decoder = withObject "beforeinput" $ \o ->
+        BeforeInputEvent
+          <$> (o .:? ("data" :: MisoString))
+          <*> (o .: ("inputType" :: MisoString))
+    , M.decodeAt = M.DecodeTarget []
+    }
+
+-- | Attribute for handling beforeinput events with preventDefault
+onBeforeInput :: (BeforeInputEvent -> action) -> M.Attribute action
+onBeforeInput handler =
+  M.onWithOptions M.BUBBLE M.preventDefault ("beforeinput" :: MisoString) beforeInputDecoder
+    (\evt _ref -> handler evt)
 
 -- | Result of updating a single stage
 data StateUpdateResult (ctx :: [Type]) a
@@ -336,6 +358,8 @@ data Model result = Model
   , runtimeState :: RuntimeState result
   , error :: Maybe M.MisoString
   , hasFocus :: Bool
+  , inputId :: !MisoString
+  -- ^ Unique DOM id for the input element, used for programmatic focus
   }
   deriving (Generic)
 
@@ -345,10 +369,12 @@ deriving instance (Eq result) => Eq (Model result)
 data Action result
   = UpdateDocument !DocumentChange
   | HandleKeyPress !M.KeyInfo
+  | HandleBeforeInput !BeforeInputEvent
   | AddResult !result
   | DeleteResult !result
   | TooltipFor !(Maybe result)
   | UpdateState !(RuntimeState result) !(Maybe M.MisoString) -- Internal: update runtime state
+  | SetInputId !MisoString -- Internal: set the unique input DOM id
   | Focus
   | Blur
 
@@ -358,10 +384,12 @@ deriving instance (Eq result) => Eq (Action result)
 instance (Show result) => Show (Action result) where
   show (UpdateDocument dc) = "UpdateDocument " ++ show dc
   show (HandleKeyPress ki) = "HandleKeyPress " ++ show ki
+  show (HandleBeforeInput evt) = "HandleBeforeInput " ++ show evt
   show (AddResult r) = "AddResult " ++ show r
   show (DeleteResult r) = "DeleteResult " ++ show r
   show (TooltipFor r) = "TooltipFor " ++ show r
   show (UpdateState _ err) = "UpdateState <RuntimeState> " ++ show err
+  show (SetInputId i) = "SetInputId " ++ show i
   show Focus = "Focus"
   show Blur = "Blur"
 
@@ -484,14 +512,29 @@ genericUpdate config action =
       case mapKeyCode keyInfo.keyCode of
         Just k -> genericUpdate' config (InputKey k)
         Nothing -> pure ()
+    HandleBeforeInput evt ->
+      -- Only handle text insertion here; backspace goes through onKeyDown
+      -- because beforeinput doesn't fire when the input is empty.
+      case fromMisoString evt.inputType :: String of
+        "insertText" -> case fmap fromMisoString evt.inputData :: Maybe String of
+          Just [c]
+            | isDigit c -> genericUpdate' config (InputKey (MChar c))
+            | c == '.' -> genericUpdate' config (InputKey MPeriod)
+          _ -> pure ()
+        _ -> pure ()
     AddResult r ->
       M.modify (#selectedResults %~ (<> [r]))
-    DeleteResult r ->
+    DeleteResult r -> do
       M.modify (#selectedResults %~ delete r)
+      -- Refocus input after clicking badge delete button
+      m <- M.get
+      M.io_ (M.focus m.inputId)
     TooltipFor r ->
       M.modify (#tooltipFor .~ r)
     UpdateState newState maybeError ->
       M.modify $ \m -> m & (#runtimeState .~ newState) & (#error .~ maybeError)
+    SetInputId newId ->
+      M.modify (#inputId .~ newId)
     Focus ->
       M.modify (#hasFocus .~ True)
     Blur ->
@@ -503,7 +546,7 @@ genericUpdate'
   -> Input
   -> M.Effect p (Model result) (Action result)
 genericUpdate' config input = do
-  Model {document = doc, runtimeState} <- M.get
+  Model {document = doc, runtimeState, inputId} <- M.get
   M.withSink $ \sink -> do
     resultOrState <- handleKeyboardInput config.errorMessage doc input runtimeState
     case resultOrState of
@@ -511,6 +554,8 @@ genericUpdate' config input = do
         -- Finished: result selected - add it and reset state
         sink $ AddResult result
         sink $ UpdateState (config.initialState doc) Nothing
+        -- Refocus input after state reset (DOM update may lose focus)
+        M.focus inputId
       Right (newState, maybeError) ->
         -- Update the runtime state
         sink $ UpdateState newState maybeError
@@ -559,7 +604,13 @@ viewResultBadge config model result =
           (fmap (\a -> (Icon.IcnCancel, a)) deleteAction)
           (Badge.badgeText badgeText)
 
--- | Render the current input cursor showing breadcrumb and partial input
+-- | Render the current input as a real input element
+--
+-- Uses onBeforeInput with preventDefault to intercept all input:
+-- - Digits (0-9) and period are accepted and fed to the state machine
+-- - All other input is silently rejected (event already prevented)
+-- - Backspace goes through onBeforeInput as deleteContentBackward
+-- - Enter is handled by onKeyDown on the TagInput container (bubbles up)
 viewInputCursor
   :: Model result
   -> M.View (Model result) (Action result)
@@ -567,11 +618,15 @@ viewInputCursor model =
   let breadcrumbPath = getCurrentBreadcrumb model.runtimeState
       currentInput = getCurrentInput model.runtimeState
       displayText = case breadcrumbPath of
-        [] -> currentInput <> "▁"
-        _ -> intercalate "." breadcrumbPath <> "." <> currentInput <> "▁"
-   in M.span_
-        [class_ "text-muted-foreground font-mono text-sm"]
-        [M.text (ms displayText)]
+        [] -> currentInput
+        _ -> intercalate "." breadcrumbPath <> "." <> currentInput
+   in M.input_
+        [ class_ "flex-1 min-w-40 bg-transparent font-mono text-sm text-muted-foreground outline-none"
+        , MP.type_ "text"
+        , MP.value_ (ms displayText)
+        , MP.id_ model.inputId
+        , onBeforeInput HandleBeforeInput
+        ]
 
 -- | Render the suggestions popover content
 viewSuggestions
@@ -639,9 +694,22 @@ multiStageSelectorComponent r config lens =
         , tooltipFor = Nothing
         , runtimeState = config.initialState emptyDocument
         , error = Nothing
-        , hasFocus = False  -- Popover only shows when focused
+        , hasFocus = False
+        , inputId = ""
         }
 
-    update = genericUpdate config
+    update action = do
+      -- Generate a unique input ID on the initial document update
+      case action of
+        UpdateDocument (DocumentChange _ info) | isInitialUpdate info -> do
+          m <- M.get
+          if m.inputId == ""
+            then
+              M.withSink $ \sink -> do
+                newId <- nextId r
+                sink $ SetInputId ("mss-input-" <> ms (idToText newId))
+            else pure ()
+        _ -> pure ()
+      genericUpdate config action
 
     view = genericView config

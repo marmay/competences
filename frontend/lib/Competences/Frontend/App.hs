@@ -40,6 +40,7 @@ import Competences.Frontend.View.NavBar qualified as NavBar
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.User qualified as QUser
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
@@ -68,6 +69,7 @@ data Action
 -- Includes defaultEvents, keyboardEvents, and mouseEvents for full event support
 appEvents :: M.Events
 appEvents = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
+  <> Map.fromList [("beforeinput", M.BUBBLE)]
 
 runApp :: App -> IO ()
 runApp = M.startComponent appEvents
