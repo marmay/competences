@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField)
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), keywordsFilter)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), keywordsFilter)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
@@ -104,6 +104,7 @@ noteItemSearchConfig =
         NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
         NoteTask t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
+    , selectionOrder = AutoOrder id
     }
 
 -- | Editor field for the items list using SearchSelect

@@ -53,7 +53,7 @@ import Optics.Core ((&), (.~))
 import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
 import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), searchSelectComponent)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), searchSelectComponent)
 
 -- | Find evidences for a specific date, keyed by student.
 -- Used to filter assignmentEvidences by the current evaluationDate at each usage site.
@@ -667,6 +667,7 @@ evaluatorComponent r assignment =
               , metaFilters = []
               , viewTag = \t -> (Icon.IcnTask, ms $ let TaskIdentifier ident = t.identifier in ident)
               , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+              , selectionOrder = AutoOrder id
               }
           key = "extra-task-selector-" <> ms (show m.selectorGeneration)
        in M.div_ [class_ "border-t pt-3"]

@@ -1,6 +1,7 @@
 module Competences.Frontend.Component.Selector.SearchSelect
   ( -- * Config
     SearchSelectConfig (..)
+  , SelectionOrder (..)
 
     -- * Meta filters
   , MetaFilter (..)
@@ -71,6 +72,14 @@ keywordsFilter keywords predicate =
           else Nothing
     }
 
+-- | Controls how selected items are ordered in the tag list.
+data SelectionOrder a
+  = -- | Show reorder buttons on tags; user controls order via up/down
+    ManualReorder
+  | -- | Post-process resolved items (e.g. @sortOn (.name)@).
+    -- @AutoOrder id@ = insertion order (current default).
+    AutoOrder !([a] -> [a])
+
 -- | Configuration for a generic search-select component.
 data SearchSelectConfig a id = SearchSelectConfig
   { projectItems :: !(Document -> [a])
@@ -84,6 +93,8 @@ data SearchSelectConfig a id = SearchSelectConfig
   , viewTag :: !(a -> (Icon.Icon, M.MisoString))
   -- ^ Icon + label for the inline badge. Component handles x-button and remove action.
   , placeholder :: !Text
+  , selectionOrder :: !(SelectionOrder a)
+  -- ^ How selected items are ordered: manual reorder buttons or automatic sorting.
   }
 
 -- | Extract parser functions from MetaFilter list (for Search module compatibility).
@@ -127,6 +138,8 @@ data Action a id
   | RemoveLast
   | ToggleItem !id
   | ClearAll
+  | MoveItemUp !id
+  | MoveItemDown !id
   | SetFocus !Bool
   | NoOp
   deriving (Eq, Generic, Show)
@@ -168,7 +181,8 @@ searchSelectComponent r cfg initIds lensBinding =
     selectedEntitiesLens = O.lens getter setter
       where
         getter m =
-          concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
+          applyOrder cfg.selectionOrder $
+            concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
         setter m newSelected =
           m & #selectedIds .~ map cfg.itemId newSelected
 
@@ -227,6 +241,10 @@ searchSelectComponent r cfg initIds lensBinding =
         else m & #selectedIds .~ (m.selectedIds <> [i])
     update ClearAll =
       M.modify $ #selectedIds .~ []
+    update (MoveItemUp targetId) =
+      M.modify $ \m -> m & #selectedIds .~ moveUp targetId m.selectedIds
+    update (MoveItemDown targetId) =
+      M.modify $ \m -> m & #selectedIds .~ moveDown targetId m.selectedIds
     update (SetFocus focused) =
       M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
     update NoOp = pure ()
@@ -237,6 +255,27 @@ getMatches
 getMatches cfg query selectedSet items =
   filter (matchItemWithFilters cfg.itemLabel (metaParsers cfg.metaFilters) query)
     $ filter (\a -> not $ Set.member (cfg.itemId a) selectedSet) items
+
+-- | Apply ordering to resolved items.
+applyOrder :: SelectionOrder a -> [a] -> [a]
+applyOrder ManualReorder xs = xs
+applyOrder (AutoOrder f) xs = f xs
+
+-- | Swap target with its predecessor.
+moveUp :: (Eq id) => id -> [id] -> [id]
+moveUp _ [] = []
+moveUp _ [x] = [x]
+moveUp target (x : y : rest)
+  | y == target = y : x : rest
+  | otherwise = x : moveUp target (y : rest)
+
+-- | Swap target with its successor.
+moveDown :: (Eq id) => id -> [id] -> [id]
+moveDown _ [] = []
+moveDown _ [x] = [x]
+moveDown target (x : y : rest)
+  | x == target = y : x : rest
+  | otherwise = x : moveDown target (y : rest)
 
 -- ============================================================================
 -- View
@@ -252,7 +291,13 @@ view cfg m =
       selectedSet = Set.fromList m.selectedIds
       matches = getMatches cfg query selectedSet m.allItems
       selectedItems = resolveSelected cfg m
-      tags = map (viewSelectedTag cfg) selectedItems
+      tags = case cfg.selectionOrder of
+        ManualReorder ->
+          [ viewReorderableTag cfg selectedItems i a
+          | (i, a) <- zip [0 ..] selectedItems
+          ]
+        AutoOrder _ ->
+          map (viewSelectedTag cfg) selectedItems
       inputArea =
         MH.div_
           [class_ "relative flex-1 min-w-20"]
@@ -289,10 +334,11 @@ view cfg m =
         , viewFilterHints cfg m.hasFocus
         ]
 
--- | Resolve selected IDs back to items, preserving selection order.
+-- | Resolve selected IDs back to items, applying configured ordering.
 resolveSelected :: (Eq id) => SearchSelectConfig a id -> Model a id -> [a]
 resolveSelected cfg m =
-  concatMap (\i -> filter (\a -> cfg.itemId a == i) m.allItems) m.selectedIds
+  applyOrder cfg.selectionOrder $
+    concatMap (\i -> filter (\a -> cfg.itemId a == i) m.allItems) m.selectedIds
 
 -- | Render a selected item as an interactive badge with a remove button.
 viewSelectedTag
@@ -305,6 +351,36 @@ viewSelectedTag cfg a =
         Badge.Secondary
         (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
         (Badge.badgeIconText icn label)
+
+-- | Render a selected item with reorder buttons (for ManualReorder mode).
+viewReorderableTag
+  :: forall a id
+   . SearchSelectConfig a id
+  -> [a]
+  -> Int
+  -> a
+  -> M.View (Model a id) (Action a id)
+viewReorderableTag cfg selectedItems idx a =
+  let isFirst = idx == 0
+      isLast = idx == length selectedItems - 1
+      (icn, label) = cfg.viewTag a
+      badge =
+        Badge.interactive
+          Badge.Secondary
+          (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
+          (Badge.badgeIconText icn label)
+      moveUpAction = MoveItemUp (cfg.itemId a) :: Action a id
+      moveDownAction = MoveItemDown (cfg.itemId a) :: Action a id
+   in MH.div_
+        [class_ "inline-flex items-center"]
+        [ if not isFirst
+            then Button.ghostSm $ Button.button Icon.IcnArrowUp moveUpAction
+            else M.text ""
+        , badge
+        , if not isLast
+            then Button.ghostSm $ Button.button Icon.IcnArrowDown moveDownAction
+            else M.text ""
+        ]
 
 -- | Show a "Deselect all" ghost button when ≥ 2 items are selected.
 viewClearAll
@@ -426,7 +502,8 @@ searchSelectViewerComponent r cfg initIds lensBinding =
     viewerEntitiesLens = O.lens getter setter
       where
         getter m =
-          concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
+          applyOrder cfg.selectionOrder $
+            concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
         setter m newSelected =
           m & #selectedIds .~ map cfg.itemId newSelected
 
@@ -437,7 +514,9 @@ searchSelectViewerComponent r cfg initIds lensBinding =
       M.modify $ #allItems .~ change.projection.allItems
 
     viewViewer m =
-      let resolved = concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
+      let resolved =
+            applyOrder cfg.selectionOrder $
+              concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
        in case resolved of
             [] -> Typography.muted (ms cfg.placeholder)
             items ->

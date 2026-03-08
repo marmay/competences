@@ -25,7 +25,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.ListReorder (ListReorderAction (..), ListReorderState (..), initialListReorderState, listReorderButtons, ListReorderButtons (..), moveElement)
 import Competences.Frontend.Component.Selector.Common (selectorLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
-import Competences.Frontend.Component.Selector.SearchSelect (MetaFilter (..), SearchSelectConfig (..), keywordsFilter, searchSelectComponent)
+import Competences.Frontend.Component.Selector.SearchSelect (MetaFilter (..), SearchSelectConfig (..), SelectionOrder (..), keywordsFilter, searchSelectComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
@@ -467,6 +467,7 @@ assignmentSearchConfig =
         ]
     , viewTag = \a -> (Icon.IcnAssignment, M.ms $ unName a.name)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectAssignments
+    , selectionOrder = AutoOrder id
     }
   where
     eligible a = a.activityType `elem` [SchoolExercise, HomeExercise, Exam]
@@ -499,6 +500,7 @@ lessonNotesSearchConfig lessonId =
         let title = if Text.null ln.title then "(Ohne Titel)" else ln.title
          in (Icon.IcnLessonNotes, M.ms title)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectLessonNotes
+    , selectionOrder = AutoOrder id
     }
 
 -- ============================================================================

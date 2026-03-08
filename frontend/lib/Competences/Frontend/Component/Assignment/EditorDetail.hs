@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..))
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -226,6 +226,7 @@ taskSearchConfig =
     , metaFilters = []
     , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+    , selectionOrder = AutoOrder id
     }
 
 userSearchConfig :: SearchSelectConfig User UserId
@@ -238,4 +239,5 @@ userSearchConfig =
     , metaFilters = []
     , viewTag = \u -> (Icon.IcnSocialFormIndividual, M.ms u.name)
     , placeholder = "Schüler auswählen..."
+    , selectionOrder = AutoOrder id
     }

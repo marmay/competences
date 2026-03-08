@@ -32,7 +32,7 @@ import Competences.Frontend.Component.Selector.EvidenceSelector
   ( EvidenceSelectorStyle (..)
   , evidenceSelectorComponent
   )
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..))
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
@@ -328,4 +328,5 @@ taskSearchConfig =
     , metaFilters = []
     , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+    , selectionOrder = AutoOrder id
     }
