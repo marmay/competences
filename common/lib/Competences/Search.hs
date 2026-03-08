@@ -17,6 +17,10 @@ module Competences.Search
   , matchItemWithFilters
   , matchTermResolved
   , unresolvedTerms
+
+    -- * Query segmentation (for inline highlighting)
+  , QuerySegment (..)
+  , segmentQuery
   )
 where
 
@@ -140,3 +144,42 @@ matchTermResolved _ filters item (MetaTerm t) =
 unresolvedTerms :: [Text -> Maybe (a -> Bool)] -> Query -> [Text]
 unresolvedTerms filters query =
   [t | clause <- query, MetaTerm t <- clause, isNothing (resolveMetaTerm filters t)]
+
+-- ============================================================================
+-- Query segmentation (for inline highlighting)
+-- ============================================================================
+
+-- | A segment of the raw query text, preserving the original characters exactly.
+data QuerySegment
+  = PlainText !Text
+  | ResolvedFilter !Text
+  | UnresolvedFilter !Text
+  deriving (Eq, Show)
+
+-- | Split raw query text into typed segments for inline highlighting.
+--
+-- Preserves the exact original text (whitespace, @, separators).
+-- Each @-filter segment includes the @ prefix.
+segmentQuery :: [Text -> Maybe (a -> Bool)] -> Text -> [QuerySegment]
+segmentQuery filters input =
+  case T.splitOn "@" input of
+    [] -> []
+    (first : rest) ->
+      [PlainText first | not (T.null first)]
+        <> concatMap processAtPart rest
+  where
+    -- Characters that end a filter term
+    isSeparator c = c == ' ' || c == '@' || c == '&' || c == ',' || c == '|'
+
+    processAtPart part
+      | T.null part = [PlainText "@"]
+      | otherwise =
+          let (term, remainder) = T.span (not . isSeparator) part
+           in if T.null term
+                then PlainText "@" : [PlainText remainder | not (T.null remainder)]
+                else
+                  let filterSeg =
+                        if isJust (resolveMetaTerm filters term)
+                          then ResolvedFilter ("@" <> term)
+                          else UnresolvedFilter ("@" <> term)
+                   in filterSeg : [PlainText remainder | not (T.null remainder)]

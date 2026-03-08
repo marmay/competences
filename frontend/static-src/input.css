@@ -56,6 +56,9 @@
 /* Competence grid print view */
 @source inline("print:hidden print:block break-before-page grid-print-table");
 
+/* SearchSelect inline filter highlighting */
+@source inline("text-transparent caret-foreground");
+
 /* NavBar tooltip + hover dropdown classes */
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
 @source inline("w-7 h-7 -translate-x-1/2 left-1/2 border-primary-foreground");

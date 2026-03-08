@@ -31,7 +31,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Search (Query, matchItemWithFilters, parseQuery, unresolvedTerms)
+import Competences.Search (Query, QuerySegment (..), matchItemWithFilters, parseQuery, segmentQuery)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -224,41 +224,35 @@ view cfg m =
       selectedItems = resolveSelected cfg m
       tags = map (viewSelectedTag cfg) selectedItems
       inputArea =
-        MH.input_
-          [ class_ "flex-1 min-w-20 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          , MP.type_ "text"
-          , MP.value_ (ms m.searchQuery)
-          , MH.onInput (SetQuery . fromMisoString)
-          , MP.placeholder_ (ms cfg.placeholder)
+        MH.div_
+          [class_ "relative flex-1 min-w-20"]
+          [ -- Highlight layer: visible styled text behind the input
+            MH.div_
+              [class_ "text-sm whitespace-pre pointer-events-none overflow-hidden h-5"]
+              (viewHighlightedQuery cfg m.searchQuery)
+          , -- Actual input: transparent text, visible caret, on top
+            MH.input_
+              [ class_ "absolute inset-0 w-full bg-transparent text-sm text-transparent caret-foreground outline-none placeholder:text-muted-foreground"
+              , MP.type_ "text"
+              , MP.value_ (ms m.searchQuery)
+              , MH.onInput (SetQuery . fromMisoString)
+              , MP.placeholder_ (ms cfg.placeholder)
+              ]
           ]
       popoverContent =
         if null matches
           then Nothing
           else Just $ viewSuggestions cfg m.highlightIdx matches
-      unresolved = unresolvedTerms cfg.metaFilters query
-      tagInputView =
-        tagInput
-          TagInputConfig
-            { badges = tags
-            , inputArea = inputArea
-            , popover = popoverContent
-            , hasFocus = m.hasFocus
-            , onKeyDown = Just (handleKeyDown m)
-            , onFocus = Just (SetFocus True)
-            , onBlur = Just (SetFocus False)
-            }
-   in if null unresolved
-        then tagInputView
-        else
-          MH.div_
-            [class_ "space-y-1"]
-            [ tagInputView
-            , MH.div_
-                [class_ "text-xs text-muted-foreground flex gap-1 flex-wrap"]
-                [ MH.span_ [class_ "underline decoration-destructive"] [M.text $ ms t]
-                | t <- unresolved
-                ]
-            ]
+   in tagInput
+        TagInputConfig
+          { badges = tags
+          , inputArea = inputArea
+          , popover = popoverContent
+          , hasFocus = m.hasFocus
+          , onKeyDown = Just (handleKeyDown m)
+          , onFocus = Just (SetFocus True)
+          , onBlur = Just (SetFocus False)
+          }
 
 -- | Resolve selected IDs back to items, preserving selection order.
 resolveSelected :: (Eq id) => SearchSelectConfig a id -> Model a id -> [a]
@@ -276,6 +270,21 @@ viewSelectedTag cfg a =
         Badge.Secondary
         (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
         (Badge.badgeIconText icn label)
+
+-- | Render highlighted query segments for the overlay layer.
+viewHighlightedQuery
+  :: SearchSelectConfig a id
+  -> Text
+  -> [M.View (Model a id) (Action a id)]
+viewHighlightedQuery cfg queryText =
+  map viewSegment (segmentQuery cfg.metaFilters queryText)
+  where
+    viewSegment (PlainText t) = MH.span_ [] [M.text (ms t)]
+    viewSegment (ResolvedFilter t) = MH.span_ [] [M.text (ms t)]
+    viewSegment (UnresolvedFilter t) =
+      MH.span_
+        [class_ "text-destructive underline decoration-destructive/60"]
+        [M.text (ms t)]
 
 -- | Render the suggestion dropdown.
 viewSuggestions
