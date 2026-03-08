@@ -2,6 +2,10 @@ module Competences.Frontend.Component.Selector.SearchSelect
   ( -- * Config
     SearchSelectConfig (..)
 
+    -- * Meta filters
+  , MetaFilter (..)
+  , keywordsFilter
+
     -- * Component
   , searchSelectComponent
 
@@ -47,6 +51,24 @@ import Optics.Core ((&), (.~))
 -- Config
 -- ============================================================================
 
+-- | A named meta filter with a hint string for tooltip display.
+data MetaFilter a = MetaFilter
+  { hint :: !Text
+  , parser :: !(Text -> Maybe (a -> Bool))
+  }
+
+-- | Build a MetaFilter from keywords and a predicate.
+-- The hint is auto-derived: @["hü", "hausübung"]@ → @"\@hü | \@hausübung"@
+keywordsFilter :: [Text] -> (a -> Bool) -> MetaFilter a
+keywordsFilter keywords predicate =
+  MetaFilter
+    { hint = T.intercalate " | " (map ("@" <>) keywords)
+    , parser = \input ->
+        if any (T.toLower input `T.isPrefixOf`) keywords
+          then Just predicate
+          else Nothing
+    }
+
 -- | Configuration for a generic search-select component.
 data SearchSelectConfig a id = SearchSelectConfig
   { projectItems :: !(Document -> [a])
@@ -55,13 +77,16 @@ data SearchSelectConfig a id = SearchSelectConfig
   -- ^ Stable key for tracking selections across document updates
   , itemLabel :: !(a -> Text)
   -- ^ Primary identifier text (for display in dropdown AND text search)
-  , metaFilters :: ![Text -> Maybe (a -> Bool)]
-  -- ^ Typed @-filters. Each function tries to parse the text after @
-  -- into a predicate. First successful parse wins.
+  , metaFilters :: ![MetaFilter a]
+  -- ^ Typed @-filters with hints for tooltip display.
   , viewTag :: !(a -> (Icon.Icon, M.MisoString))
   -- ^ Icon + label for the inline badge. Component handles x-button and remove action.
   , placeholder :: !Text
   }
+
+-- | Extract parser functions from MetaFilter list (for Search module compatibility).
+metaParsers :: [MetaFilter a] -> [Text -> Maybe (a -> Bool)]
+metaParsers = map (.parser)
 
 -- ============================================================================
 -- Projection
@@ -205,7 +230,7 @@ searchSelectComponent r cfg initIds lensBinding =
 getMatches
   :: (Ord id) => SearchSelectConfig a id -> Query -> Set.Set id -> [a] -> [a]
 getMatches cfg query selectedSet items =
-  filter (matchItemWithFilters cfg.itemLabel cfg.metaFilters query)
+  filter (matchItemWithFilters cfg.itemLabel (metaParsers cfg.metaFilters) query)
     $ filter (\a -> not $ Set.member (cfg.itemId a) selectedSet) items
 
 -- ============================================================================
@@ -243,16 +268,20 @@ view cfg m =
         if null matches
           then Nothing
           else Just $ viewSuggestions cfg m.highlightIdx matches
-   in tagInput
-        TagInputConfig
-          { badges = tags
-          , inputArea = inputArea
-          , popover = popoverContent
-          , hasFocus = m.hasFocus
-          , onKeyDown = Just (handleKeyDown m)
-          , onFocus = Just (SetFocus True)
-          , onBlur = Just (SetFocus False)
-          }
+   in MH.div_
+        [class_ "relative"]
+        [ tagInput
+            TagInputConfig
+              { badges = tags
+              , inputArea = inputArea
+              , popover = popoverContent
+              , hasFocus = m.hasFocus
+              , onKeyDown = Just (handleKeyDown m)
+              , onFocus = Just (SetFocus True)
+              , onBlur = Just (SetFocus False)
+              }
+        , viewFilterHints cfg m.hasFocus
+        ]
 
 -- | Resolve selected IDs back to items, preserving selection order.
 resolveSelected :: (Eq id) => SearchSelectConfig a id -> Model a id -> [a]
@@ -277,7 +306,7 @@ viewHighlightedQuery
   -> Text
   -> [M.View (Model a id) (Action a id)]
 viewHighlightedQuery cfg queryText =
-  map viewSegment (segmentQuery cfg.metaFilters queryText)
+  map viewSegment (segmentQuery (metaParsers cfg.metaFilters) queryText)
   where
     viewSegment (PlainText t) = MH.span_ [] [M.text (ms t)]
     viewSegment (ResolvedFilter t) = MH.span_ [] [M.text (ms t)]
@@ -285,6 +314,21 @@ viewHighlightedQuery cfg queryText =
       MH.span_
         [class_ "text-destructive underline decoration-destructive/60"]
         [M.text (ms t)]
+
+-- | Render filter hints below the input when focused.
+-- Shows available @-filters as a tooltip. Hidden when not focused or no filters.
+viewFilterHints
+  :: SearchSelectConfig a id
+  -> Bool
+  -> M.View (Model a id) (Action a id)
+viewFilterHints cfg focused
+  | not focused || null cfg.metaFilters = M.text ""
+  | otherwise =
+      MH.div_
+        [ class_ "absolute left-0 right-0 top-full mt-1 px-2 py-1.5 rounded-md bg-popover border border-border text-xs text-muted-foreground shadow-sm z-10"
+        ]
+        [ M.text $ ms $ T.intercalate ", " $ map (.hint) cfg.metaFilters
+        ]
 
 -- | Render the suggestion dropdown.
 viewSuggestions

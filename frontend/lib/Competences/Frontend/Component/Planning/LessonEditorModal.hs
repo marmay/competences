@@ -25,7 +25,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.ListReorder (ListReorderAction (..), ListReorderState (..), initialListReorderState, listReorderButtons, ListReorderButtons (..), moveElement)
 import Competences.Frontend.Component.Selector.Common (selectorLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), searchSelectComponent)
+import Competences.Frontend.Component.Selector.SearchSelect (MetaFilter (..), SearchSelectConfig (..), keywordsFilter, searchSelectComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
@@ -461,30 +461,16 @@ assignmentSearchConfig =
     , itemId = (.id)
     , itemLabel = \a -> unName a.name <> " (" <> Text.pack (show $ C.formatDay a.assignmentDate) <> ")"
     , metaFilters =
-        [ activityTypeFilter
-        , dateFilter
+        [ keywordsFilter ["hü", "hausübung"] (\a -> a.activityType == HomeExercise)
+        , keywordsFilter ["sü", "schulübung"] (\a -> a.activityType == SchoolExercise)
+        , MetaFilter {hint = "@datum", parser = dateFilter}
         ]
     , viewTag = \a -> (Icon.IcnAssignment, M.ms $ unName a.name)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectAssignments
     }
   where
-    eligible a = a.activityType == SchoolExercise || a.activityType == Exam
+    eligible a = a.activityType `elem` [SchoolExercise, HomeExercise, Exam]
     unName (AssignmentName t) = t
-
-    -- @hü → matches Hausübung, @test → matches Test
-    activityTypeFilter :: Text -> Maybe (Assignment -> Bool)
-    activityTypeFilter t =
-      let matches = filter (\(_, name) -> Text.toLower t `Text.isPrefixOf` Text.toLower name) typeNames
-       in case matches of
-            [(at, _)] -> Just (\a -> a.activityType == at)
-            _ -> Nothing
-    typeNames :: [(ActivityType, Text)]
-    typeNames =
-      [ (SchoolExercise, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription SchoolExercise)
-      , (HomeExercise, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription HomeExercise)
-      , (Exam, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription Exam)
-      , (Conversation, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription Conversation)
-      ]
 
     -- @06.03 → matches assignments with that date substring
     dateFilter :: Text -> Maybe (Assignment -> Bool)

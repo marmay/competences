@@ -24,7 +24,7 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField)
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
-import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), keywordsFilter)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
@@ -33,7 +33,6 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Query.Resource qualified as QResource
 import Competences.Query.Task qualified as QTask
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as Text
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
 
@@ -97,19 +96,15 @@ noteItemSearchConfig =
     , itemLabel = \case
         NoteResource r' -> let ResourceIdentifier x = r'.identifier in x
         NoteTask t -> let TaskIdentifier x = t.identifier in x
-    , metaFilters = [itemTypeFilter]
+    , metaFilters =
+        [ keywordsFilter ["material"] $ \case NoteResource _ -> True; _ -> False
+        , keywordsFilter ["aufgabe"] $ \case NoteTask _ -> True; _ -> False
+        ]
     , viewTag = \case
         NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
         NoteTask t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
     }
-
--- | @res/@resource → resources only, @aufg/@task → tasks only
-itemTypeFilter :: Text.Text -> Maybe (NoteItem -> Bool)
-itemTypeFilter t
-  | "res" `Text.isPrefixOf` Text.toLower t = Just $ \case NoteResource _ -> True; _ -> False
-  | "aufg" `Text.isPrefixOf` Text.toLower t = Just $ \case NoteTask _ -> True; _ -> False
-  | otherwise = Nothing
 
 -- | Editor field for the items list using SearchSelect
 -- Viewer: comma-separated resource/task names
