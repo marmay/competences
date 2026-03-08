@@ -14,17 +14,18 @@ where
 import Competences.Command (Command (Lessons), EntityCommand (..), LessonNotesCommand (..), LessonPatch (..), LessonsCommand (..), ModifyCommand (..))
 import Competences.Command qualified as Cmd
 import Competences.Command.LessonNotes (LessonNotesPatch (..))
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document.ActivityType (ActivityType (..))
-import Competences.Document.Assignment (Assignment (..), AssignmentId)
+import Competences.Document (Document (..))
+import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Lesson (ActionForm (..), Lesson (..), LessonPhase (..), TeachingSocialForm (..))
+import Competences.Document.Lesson (ActionForm (..), Lesson (..), LessonId, LessonPhase (..), TeachingSocialForm (..))
 import Competences.Document.LessonNotes (LessonNotes (..), LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.ListReorder (ListReorderAction (..), ListReorderState (..), initialListReorderState, listReorderButtons, ListReorderButtons (..), moveElement)
-import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.Common (selectorLens, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelSelectorComponent)
-import Competences.Frontend.Component.Selector.MultiSelectAssignmentSelector (multiSelectAssignmentSelectorComponent)
-import Competences.Frontend.Component.Selector.MultiSelectLessonNotesSelector (multiSelectLessonNotesSelectorComponent)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), searchSelectComponent)
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
@@ -38,6 +39,8 @@ import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.List (sortOn)
+import Data.Ord (Down (..))
 import Data.Default (def)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -339,24 +342,22 @@ lessonEditorModal r lesson' lessonNotesIds wm =
       Input.fieldWrapper (C.translate' C.LblLessonAssignments) $
         inlineComponent
           "lesson-editor-assignment-selector"
-          ( multiSelectAssignmentSelectorComponent
+          ( searchSelectComponent
               syncCtx
-              ( \a ->
-                  a.activityType == SchoolExercise || a.activityType == Exam
-              )
+              assignmentSearchConfig
               m.selectedAssignments
-              (selectorLens #selectedAssignments)
+              (selectorTransformedLens (.id) id #selectedAssignments)
           )
 
     lessonNotesSection syncCtx m =
       Input.fieldWrapper (C.translate' C.LblLessonNotesEntries) $
         inlineComponent
           "lesson-editor-lesson-notes-selector"
-          ( multiSelectLessonNotesSelectorComponent
+          ( searchSelectComponent
               syncCtx
-              (\ln -> ln.lessonId == Nothing || ln.lessonId == Just m.lesson.id)
+              (lessonNotesSearchConfig m.lesson.id)
               m.selectedLessonNotes
-              (selectorLens #selectedLessonNotes)
+              (selectorTransformedLens (.id) id #selectedLessonNotes)
           )
 
     notesSection m =
@@ -447,6 +448,72 @@ lessonEditorModal r lesson' lessonNotesIds wm =
             inlineComponent ("phase-notes-" <> M.ms (show idx))
               (richContentEditorComponent r.formulaCache phase.notes (phaseNoteStateLens idx))
         ]
+
+-- ============================================================================
+-- Assignment search config
+-- ============================================================================
+
+assignmentSearchConfig :: SearchSelectConfig Assignment AssignmentId
+assignmentSearchConfig =
+  SearchSelectConfig
+    { projectItems = \doc ->
+        sortOn (.assignmentDate) $ filter eligible $ Ix.toList doc.assignments
+    , itemId = (.id)
+    , itemLabel = \a -> unName a.name <> " (" <> Text.pack (show $ C.formatDay a.assignmentDate) <> ")"
+    , metaFilters =
+        [ activityTypeFilter
+        , dateFilter
+        ]
+    , viewTag = \a -> (Icon.IcnAssignment, M.ms $ unName a.name)
+    , placeholder = M.fromMisoString $ C.translate' C.LblSelectAssignments
+    }
+  where
+    eligible a = a.activityType == SchoolExercise || a.activityType == Exam
+    unName (AssignmentName t) = t
+
+    -- @hü → matches Hausübung, @test → matches Test
+    activityTypeFilter :: Text -> Maybe (Assignment -> Bool)
+    activityTypeFilter t =
+      let matches = filter (\(_, name) -> Text.toLower t `Text.isPrefixOf` Text.toLower name) typeNames
+       in case matches of
+            [(at, _)] -> Just (\a -> a.activityType == at)
+            _ -> Nothing
+    typeNames :: [(ActivityType, Text)]
+    typeNames =
+      [ (SchoolExercise, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription SchoolExercise)
+      , (HomeExercise, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription HomeExercise)
+      , (Exam, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription Exam)
+      , (Conversation, M.fromMisoString $ C.translate' $ C.LblActivityTypeDescription Conversation)
+      ]
+
+    -- @06.03 → matches assignments with that date substring
+    dateFilter :: Text -> Maybe (Assignment -> Bool)
+    dateFilter t
+      | Text.any (\c -> c == '.' || (c >= '0' && c <= '9')) t && Text.length t >= 2 =
+          Just (\a -> Text.toLower t `Text.isInfixOf` Text.toLower (Text.pack $ show $ C.formatDay a.assignmentDate))
+      | otherwise = Nothing
+
+-- ============================================================================
+-- Lesson notes search config
+-- ============================================================================
+
+lessonNotesSearchConfig :: LessonId -> SearchSelectConfig LessonNotes LessonNotesId
+lessonNotesSearchConfig lessonId =
+  SearchSelectConfig
+    { projectItems = \doc ->
+        sortOn (Down . (.date)) $
+          filter (\ln -> ln.lessonId == Nothing || ln.lessonId == Just lessonId) $
+            Ix.toList doc.lessonNotes
+    , itemId = (.id)
+    , itemLabel = \ln ->
+        let title = if Text.null ln.title then "(Ohne Titel)" else ln.title
+         in title <> " (" <> Text.pack (show $ C.formatDay ln.date) <> ")"
+    , metaFilters = []
+    , viewTag = \ln ->
+        let title = if Text.null ln.title then "(Ohne Titel)" else ln.title
+         in (Icon.IcnLessonNotes, M.ms title)
+    , placeholder = M.fromMisoString $ C.translate' C.LblSelectLessonNotes
+    }
 
 -- ============================================================================
 -- Helpers

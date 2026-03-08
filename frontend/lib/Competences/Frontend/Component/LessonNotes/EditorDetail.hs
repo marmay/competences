@@ -12,18 +12,28 @@ import Competences.Document
   ( Document (..)
   , LessonNotes (..)
   , Lock (..)
+  , Resource (..)
+  , Task (..)
   )
+import Competences.Document.LessonNotes (LessonNoteItem (..))
+import Competences.Document.Resource (ResourceIdentifier (..))
+import Competences.Document.Task (TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Editor.EditorField (EditorField)
 import Competences.Frontend.Component.Editor.FormView qualified as TE
-import Competences.Frontend.Component.Selector.Common (entityPatchLens, entityPatchTransformedLens)
+import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
-import Competences.Frontend.Component.Selector.MultiSelectItemSelector (multiSelectItemSelectorComponent, multiSelectItemViewerComponent)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Query.Resource qualified as QResource
+import Competences.Query.Task qualified as QTask
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
 import Miso qualified as M
 import Optics.Core ((&), (?~), (^.))
 
@@ -68,15 +78,54 @@ editorDetailView r ln =
                            , itemsEditorField r
                            )
 
--- | Editor field for the items list using multi-select item selector
--- Viewer: read-only list of resource/task names
--- Editor: two comboboxes + reorderable list with action buttons
+-- ============================================================================
+-- NoteItem: union of Resource and Task for the combined selector
+-- ============================================================================
+
+data NoteItem = NoteResource !Resource | NoteTask !Task
+  deriving (Eq, Show)
+
+noteItemSearchConfig :: SearchSelectConfig NoteItem LessonNoteItem
+noteItemSearchConfig =
+  SearchSelectConfig
+    { projectItems = \doc ->
+        map NoteResource (QResource.allResources doc)
+          <> map NoteTask (QTask.allTasksSorted doc)
+    , itemId = \case
+        NoteResource r' -> LessonResource r'.id
+        NoteTask t -> LessonTask t.id
+    , itemLabel = \case
+        NoteResource r' -> let ResourceIdentifier x = r'.identifier in x
+        NoteTask t -> let TaskIdentifier x = t.identifier in x
+    , metaFilters = [itemTypeFilter]
+    , viewTag = \case
+        NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
+        NoteTask t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+    , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
+    }
+
+-- | @res/@resource → resources only, @aufg/@task → tasks only
+itemTypeFilter :: Text.Text -> Maybe (NoteItem -> Bool)
+itemTypeFilter t
+  | "res" `Text.isPrefixOf` Text.toLower t = Just $ \case NoteResource _ -> True; _ -> False
+  | "aufg" `Text.isPrefixOf` Text.toLower t = Just $ \case NoteTask _ -> True; _ -> False
+  | otherwise = Nothing
+
+-- | Editor field for the items list using SearchSelect
+-- Viewer: comma-separated resource/task names
+-- Editor: unified SearchSelect with @res/@aufg meta filters
 itemsEditorField
   :: SyncContext
   -> EditorField LessonNotes LessonNotesPatch f
 itemsEditorField r =
-  selectorEditorFieldWithViewer
+  searchSelectEditorField
+    r
     "lesson-notes-items"
-    (entityPatchLens #items #items)
-    (\ln stl -> multiSelectItemViewerComponent r ln.items stl)
-    (\ln stl -> multiSelectItemSelectorComponent r ln.items stl)
+    noteItemSearchConfig
+    (.items)
+    (entityPatchTransformedLens #items #items noteItemToLessonNoteItem id)
+
+noteItemToLessonNoteItem :: NoteItem -> LessonNoteItem
+noteItemToLessonNoteItem = \case
+  NoteResource r' -> LessonResource r'.id
+  NoteTask t -> LessonTask t.id

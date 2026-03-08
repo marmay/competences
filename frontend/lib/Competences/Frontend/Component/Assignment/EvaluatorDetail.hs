@@ -52,9 +52,8 @@ import Miso.String (MisoString, ms)
 import Optics.Core ((&), (.~))
 import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
-import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens (..))
-import Competences.Frontend.Component.Selector.ListSelector (ListSelectorConfig (..), listSelectorConfig)
-import Competences.Frontend.Component.Selector.SearchableListSelector (searchableMultiSelectorComponent)
+import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), searchSelectComponent)
 
 -- | Find evidences for a specific date, keyed by student.
 -- Used to filter assignmentEvidences by the current evaluationDate at each usage site.
@@ -658,24 +657,24 @@ evaluatorComponent r assignment =
 
     viewExtraTaskSelector m =
       let assignmentTaskSet = Set.fromList m.assignment.tasks
-          extraTaskConfig =
-            (listSelectorConfig
-              (\doc -> filter (\t -> not (Set.member t.id assignmentTaskSet))
-                             (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks))
-              (\t -> let TaskIdentifier ident = t.identifier in ms ident))
-            { isInitialValue = \task -> Set.member task.id m.additionalTasks
-            , showSelectAll = False
-            }
-          selectorLensBinding = SelectorTransformedLens
-            { lens = #additionalTasks
-            , transform = (.id)
-            , embed = Set.fromList
-            }
+          extraTaskSearchConfig =
+            SearchSelectConfig
+              { projectItems = \doc ->
+                  filter (\t -> not (Set.member t.id assignmentTaskSet))
+                    (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks)
+              , itemId = (.id)
+              , itemLabel = \t -> let TaskIdentifier ident = t.identifier in ident
+              , metaFilters = []
+              , viewTag = \t -> (Icon.IcnTask, ms $ let TaskIdentifier ident = t.identifier in ident)
+              , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+              }
           key = "extra-task-selector-" <> ms (show m.selectorGeneration)
        in M.div_ [class_ "border-t pt-3"]
             [ Typography.h4 (C.translate' C.LblAddTask)
             , inlineComponent key
-                (searchableMultiSelectorComponent r extraTaskConfig selectorLensBinding)
+                (searchSelectComponent r extraTaskSearchConfig
+                   (Set.toList m.additionalTasks)
+                   (selectorTransformedLens (.id) Set.fromList #additionalTasks))
             ]
 
     viewAggregationSection m =

@@ -5,6 +5,11 @@ module Competences.Frontend.Component.Selector.SearchSelect
     -- * Component
   , searchSelectComponent
 
+    -- * Viewer (read-only display for EditorField)
+  , ViewerModel
+  , ViewerAction
+  , searchSelectViewerComponent
+
     -- * Types (for parent modules)
   , Model
   , Action
@@ -25,7 +30,8 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Search (Query, matchItem, parseQuery)
+import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Search (Query, matchItemWithFilters, parseQuery, unresolvedTerms)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -35,7 +41,7 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.String (fromMisoString, ms)
 import Optics.Core qualified as O
-import Optics.Core ((.~))
+import Optics.Core ((&), (.~))
 
 -- ============================================================================
 -- Config
@@ -49,13 +55,13 @@ data SearchSelectConfig a id = SearchSelectConfig
   -- ^ Stable key for tracking selections across document updates
   , itemLabel :: !(a -> Text)
   -- ^ Primary identifier text (for display in dropdown AND text search)
-  , itemMetadata :: !(a -> [Text])
-  -- ^ Metadata values for @ filters (entity-specific, defined per use-case)
+  , metaFilters :: ![Text -> Maybe (a -> Bool)]
+  -- ^ Typed @-filters. Each function tries to parse the text after @
+  -- into a predicate. First successful parse wins.
   , viewTag :: !(a -> (Icon.Icon, M.MisoString))
   -- ^ Icon + label for the inline badge. Component handles x-button and remove action.
   , placeholder :: !Text
   }
-  deriving (Generic)
 
 -- ============================================================================
 -- Projection
@@ -136,7 +142,7 @@ searchSelectComponent r cfg initIds lensBinding =
         getter m =
           concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
         setter m newSelected =
-          m {selectedIds = map cfg.itemId newSelected}
+          m & #selectedIds .~ map cfg.itemId newSelected
 
     projection :: SearchSelectConfig a id -> Document -> Maybe user -> Projection a
     projection c doc _ = Projection {allItems = c.projectItems doc}
@@ -144,17 +150,15 @@ searchSelectComponent r cfg initIds lensBinding =
     update (ProjectionChanged change) =
       M.modify $ #allItems .~ change.projection.allItems
     update (SetQuery q) =
-      M.modify $ \m -> m {searchQuery = q, highlightIdx = Nothing}
+      M.modify $ \m -> m & #searchQuery .~ q & #highlightIdx .~ Nothing
     update AddAll = M.modify $ \m ->
       let query = parseQuery m.searchQuery
           selectedSet = Set.fromList m.selectedIds
           matches = getMatches cfg query selectedSet m.allItems
           newIds = map (cfg.itemId) matches
-       in m
-            { selectedIds = m.selectedIds <> newIds
-            , searchQuery = ""
-            , highlightIdx = Nothing
-            }
+       in m & #selectedIds .~ (m.selectedIds <> newIds)
+            & #searchQuery .~ ""
+            & #highlightIdx .~ Nothing
     update AddHighlighted = M.modify $ \m ->
       case m.highlightIdx of
         Nothing -> m
@@ -164,11 +168,9 @@ searchSelectComponent r cfg initIds lensBinding =
               matches = getMatches cfg query selectedSet m.allItems
            in case drop idx matches of
                 (item : _) ->
-                  m
-                    { selectedIds = m.selectedIds <> [cfg.itemId item]
-                    , searchQuery = ""
-                    , highlightIdx = Nothing
-                    }
+                  m & #selectedIds .~ (m.selectedIds <> [cfg.itemId item])
+                    & #searchQuery .~ ""
+                    & #highlightIdx .~ Nothing
                 [] -> m
     update (MoveHighlight delta) = M.modify $ \m ->
       let query = parseQuery m.searchQuery
@@ -184,26 +186,26 @@ searchSelectComponent r cfg initIds lensBinding =
                in if next < 0 || next >= matchCount
                     then Nothing
                     else Just next
-       in m {highlightIdx = newIdx}
+       in m & #highlightIdx .~ newIdx
     update (RemoveItem i) =
-      M.modify $ \m -> m {selectedIds = filter (/= i) m.selectedIds}
+      M.modify $ \m -> m & #selectedIds .~ filter (/= i) m.selectedIds
     update RemoveLast = M.modify $ \m ->
       case reverse m.selectedIds of
         [] -> m
-        (_ : rest) -> m {selectedIds = reverse rest}
+        (_ : rest) -> m & #selectedIds .~ reverse rest
     update (ToggleItem i) = M.modify $ \m ->
       if i `elem` m.selectedIds
-        then m {selectedIds = filter (/= i) m.selectedIds}
-        else m {selectedIds = m.selectedIds <> [i]}
+        then m & #selectedIds .~ filter (/= i) m.selectedIds
+        else m & #selectedIds .~ (m.selectedIds <> [i])
     update (SetFocus focused) =
-      M.modify $ \m -> m {hasFocus = focused, highlightIdx = Nothing}
+      M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
     update NoOp = pure ()
 
 -- | Get matching items that are not already selected.
 getMatches
   :: (Ord id) => SearchSelectConfig a id -> Query -> Set.Set id -> [a] -> [a]
 getMatches cfg query selectedSet items =
-  filter (matchItem cfg.itemLabel cfg.itemMetadata query)
+  filter (matchItemWithFilters cfg.itemLabel cfg.metaFilters query)
     $ filter (\a -> not $ Set.member (cfg.itemId a) selectedSet) items
 
 -- ============================================================================
@@ -233,16 +235,30 @@ view cfg m =
         if null matches
           then Nothing
           else Just $ viewSuggestions cfg m.highlightIdx matches
-   in tagInput
-        TagInputConfig
-          { badges = tags
-          , inputArea = inputArea
-          , popover = popoverContent
-          , hasFocus = m.hasFocus
-          , onKeyDown = Just (handleKeyDown m)
-          , onFocus = Just (SetFocus True)
-          , onBlur = Just (SetFocus False)
-          }
+      unresolved = unresolvedTerms cfg.metaFilters query
+      tagInputView =
+        tagInput
+          TagInputConfig
+            { badges = tags
+            , inputArea = inputArea
+            , popover = popoverContent
+            , hasFocus = m.hasFocus
+            , onKeyDown = Just (handleKeyDown m)
+            , onFocus = Just (SetFocus True)
+            , onBlur = Just (SetFocus False)
+            }
+   in if null unresolved
+        then tagInputView
+        else
+          MH.div_
+            [class_ "space-y-1"]
+            [ tagInputView
+            , MH.div_
+                [class_ "text-xs text-muted-foreground flex gap-1 flex-wrap"]
+                [ MH.span_ [class_ "underline decoration-destructive"] [M.text $ ms t]
+                | t <- unresolved
+                ]
+            ]
 
 -- | Resolve selected IDs back to items, preserving selection order.
 resolveSelected :: (Eq id) => SearchSelectConfig a id -> Model a id -> [a]
@@ -296,3 +312,64 @@ handleKeyDown m keyInfo =
       | T.null m.searchQuery -> RemoveLast
     27 -> SetFocus False -- Escape
     _ -> NoOp
+
+-- ============================================================================
+-- Viewer (read-only display for EditorField)
+-- ============================================================================
+
+-- | Minimal model for the read-only viewer: just items + selected IDs.
+data ViewerModel a id = ViewerModel
+  { allItems :: ![a]
+  , selectedIds :: ![id]
+  }
+  deriving (Eq, Generic, Show)
+
+data ViewerAction a
+  = ViewerProjectionChanged !(ProjectedChange (Projection a))
+  deriving (Eq, Generic, Show)
+
+-- | Read-only viewer component for SearchSelect.
+-- Shows comma-separated item labels, or muted placeholder when empty.
+-- Used as the viewer half of an EditorField.
+searchSelectViewerComponent
+  :: forall a id p f' a'
+   . (Eq a, Eq id, Ord id, Show a, Show id)
+  => SyncContext
+  -> SearchSelectConfig a id
+  -> [id]
+  -> SelectorTransformedLens p [] a f' a'
+  -> M.Component p (ViewerModel a id) (ViewerAction a)
+searchSelectViewerComponent r cfg initIds lensBinding =
+  (M.component model update viewViewer)
+    { M.bindings = [mkSelectorBinding lensBinding viewerEntitiesLens]
+    , M.subs = [subscribeWithProjection r (projection cfg) ViewerProjectionChanged]
+    }
+  where
+    model =
+      ViewerModel
+        { allItems = []
+        , selectedIds = initIds
+        }
+
+    viewerEntitiesLens :: O.Lens' (ViewerModel a id) [a]
+    viewerEntitiesLens = O.lens getter setter
+      where
+        getter m =
+          concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
+        setter m newSelected =
+          m & #selectedIds .~ map cfg.itemId newSelected
+
+    projection :: SearchSelectConfig a id -> Document -> Maybe user -> Projection a
+    projection c doc _ = Projection {allItems = c.projectItems doc}
+
+    update (ViewerProjectionChanged change) =
+      M.modify $ #allItems .~ change.projection.allItems
+
+    viewViewer m =
+      let resolved = concatMap (\i -> filter (\x -> cfg.itemId x == i) m.allItems) m.selectedIds
+       in case resolved of
+            [] -> Typography.muted (ms cfg.placeholder)
+            items ->
+              let labels = T.intercalate ", " (map cfg.itemLabel items)
+                  count = T.pack $ " (" <> show (length items) <> ")"
+               in MH.span_ [] [M.text $ ms $ labels <> count]

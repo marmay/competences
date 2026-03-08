@@ -7,12 +7,20 @@ module Competences.Search
     -- * Parsing
   , parseQuery
 
-    -- * Matching
+    -- * Matching (metadata as text lists)
   , matchItem
   , matchTerm
+
+    -- * Matching (typed meta filters)
+  , resolveMetaTerm
+  , isClauseValid
+  , matchItemWithFilters
+  , matchTermResolved
+  , unresolvedTerms
   )
 where
 
+import Data.Maybe (isJust, isNothing, listToMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 
@@ -94,3 +102,41 @@ matchTerm label _ item (TextTerm t) =
   T.toLower t `T.isInfixOf` T.toLower (label item)
 matchTerm _ metadata item (MetaTerm t) =
   any (\v -> T.toLower t `T.isInfixOf` T.toLower v) (metadata item)
+
+-- ============================================================================
+-- Typed meta filters
+-- ============================================================================
+
+-- | Try filters in order, return first successful parse.
+resolveMetaTerm :: [Text -> Maybe (a -> Bool)] -> Text -> Maybe (a -> Bool)
+resolveMetaTerm filters t = listToMaybe $ mapMaybe (\f -> f t) filters
+
+-- | A clause is valid if all its MetaTerms resolve.
+isClauseValid :: [Text -> Maybe (a -> Bool)] -> Clause -> Bool
+isClauseValid filters = all termValid
+  where
+    termValid (TextTerm _) = True
+    termValid (MetaTerm t) = isJust (resolveMetaTerm filters t)
+
+-- | Match with typed meta filters. Invalid clauses (containing
+-- unresolvable @-terms) are dropped. If no valid clauses remain,
+-- everything matches (like an empty query).
+matchItemWithFilters :: (a -> Text) -> [Text -> Maybe (a -> Bool)] -> Query -> a -> Bool
+matchItemWithFilters _ _ [] _ = True
+matchItemWithFilters label filters query item =
+  let valid = filter (isClauseValid filters) query
+   in null valid || any (all (matchTermResolved label filters item)) valid
+
+-- | Match a single term using typed filters for MetaTerms.
+matchTermResolved :: (a -> Text) -> [Text -> Maybe (a -> Bool)] -> a -> Term -> Bool
+matchTermResolved label _ item (TextTerm t) =
+  T.toLower t `T.isInfixOf` T.toLower (label item)
+matchTermResolved _ filters item (MetaTerm t) =
+  case resolveMetaTerm filters t of
+    Just p -> p item
+    Nothing -> True -- shouldn't happen (already filtered by isClauseValid)
+
+-- | Collect unresolved meta terms from a query (for UI feedback).
+unresolvedTerms :: [Text -> Maybe (a -> Bool)] -> Query -> [Text]
+unresolvedTerms filters query =
+  [t | clause <- query, MetaTerm t <- clause, isNothing (resolveMetaTerm filters t)]

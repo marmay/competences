@@ -15,15 +15,17 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.User (isStudent)
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
+import Competences.Document.User (UserId, isStudent)
+import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
-import Competences.Frontend.Component.Selector.MultiTaskSelector (multiTaskEditorField)
-import Competences.Frontend.Component.Selector.UserSelector (searchableMultiUserEditorField)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -37,6 +39,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
+import Data.List (sortOn)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -170,17 +173,20 @@ editorWrapperComponent r assignment =
                                #activityType
                            )
         `TE.addNamedField` ( C.translate' C.LblStudents
-                           , searchableMultiUserEditorField
+                           , searchSelectEditorField
                                r
                                (assignmentEditorId <> "-users")
-                               isStudent
-                               (entityPatchTransformedLens #studentIds #studentIds (\u -> u.id) Set.fromList)
+                               userSearchConfig
+                               (Set.toList . (.studentIds))
+                               (entityPatchTransformedLens #studentIds #studentIds (.id) Set.fromList)
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignmentTasks
-                           , multiTaskEditorField
+                           , searchSelectEditorField
                                r
                                (assignmentEditorId <> "-tasks")
-                               (entityPatchTransformedLens #tasks #tasks id id)
+                               taskSearchConfig
+                               (.tasks)
+                               (entityPatchTransformedLens #tasks #tasks (.id) id)
                            )
 
 -- | Iso for converting between AssignmentName and Text
@@ -206,3 +212,30 @@ nameViewLens = #name % assignmentNameTextIso
 -- | Lens for patching assignment name as Text
 namePatchLens :: Lens' AssignmentPatch (Change T.Text)
 namePatchLens = #name % changeAssignmentNameTextIso
+
+-- ============================================================================
+-- SearchSelect configs
+-- ============================================================================
+
+taskSearchConfig :: SearchSelectConfig Task TaskId
+taskSearchConfig =
+  SearchSelectConfig
+    { projectItems = QTask.allTasksSorted
+    , itemId = (.id)
+    , itemLabel = \t -> let TaskIdentifier x = t.identifier in x
+    , metaFilters = []
+    , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+    , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+    }
+
+userSearchConfig :: SearchSelectConfig User UserId
+userSearchConfig =
+  SearchSelectConfig
+    { projectItems = \doc ->
+        sortOn (.name) $ filter isStudent $ Ix.toList doc.users
+    , itemId = (.id)
+    , itemLabel = (.name)
+    , metaFilters = []
+    , viewTag = \u -> (Icon.IcnSocialFormIndividual, M.ms u.name)
+    , placeholder = "Schüler auswählen..."
+    }

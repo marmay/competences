@@ -1,6 +1,8 @@
 module Test.SearchTest (tests) where
 
 import Competences.Search
+import Data.Text (Text)
+import Data.Text qualified as T
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -10,6 +12,7 @@ tests =
     "Search"
     [ parsingTests
     , matchingTests
+    , typedFilterTests
     ]
 
 -- ============================================================================
@@ -91,4 +94,72 @@ matchingTests =
     , testCase "text + meta AND fails when text doesn't match" $
         matchItem id (const ["math"]) [[TextTerm "Tri", MetaTerm "ma"]] "Isolde"
           @?= False
+    ]
+
+-- ============================================================================
+-- Typed filter tests
+-- ============================================================================
+
+-- Test data type
+data Item = Item
+  { iLabel :: !Text
+  , iColor :: !Text
+  , iSize :: !Text
+  }
+
+-- Sample filters for testing
+colorFilter :: Text -> Maybe (Item -> Bool)
+colorFilter t
+  | T.toLower t == "rot" = Just (\i -> i.iColor == "red")
+  | T.toLower t == "blau" = Just (\i -> i.iColor == "blue")
+  | otherwise = Nothing
+
+sizeFilter :: Text -> Maybe (Item -> Bool)
+sizeFilter t
+  | T.toLower t == "groß" = Just (\i -> i.iSize == "large")
+  | T.toLower t == "klein" = Just (\i -> i.iSize == "small")
+  | otherwise = Nothing
+
+testFilters :: [Text -> Maybe (Item -> Bool)]
+testFilters = [colorFilter, sizeFilter]
+
+redLarge :: Item
+redLarge = Item "Apfel" "red" "large"
+
+blueSmall :: Item
+blueSmall = Item "Beere" "blue" "small"
+
+redSmall :: Item
+redSmall = Item "Kirsche" "red" "small"
+
+typedFilterTests :: TestTree
+typedFilterTests =
+  testGroup
+    "matchItemWithFilters"
+    [ testCase "@rot resolves and matches red item" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "rot"]] redLarge @?= True
+    , testCase "@rot does not match blue item" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "rot"]] blueSmall @?= False
+    , testCase "@r does not resolve → clause dropped → matches everything" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "r"]] blueSmall @?= True
+    , testCase "@rot @groß → both resolve, AND them → red+large matches" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "rot", MetaTerm "groß"]] redLarge @?= True
+    , testCase "@rot @groß → AND → red+small does not match" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "rot", MetaTerm "groß"]] redSmall @?= False
+    , testCase "@rot @x → @x unresolved → entire clause invalid → matches everything" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "rot", MetaTerm "x"]] blueSmall @?= True
+    , testCase "text term still works" $
+        matchItemWithFilters (.iLabel) testFilters [[TextTerm "Apf"]] redLarge @?= True
+    , testCase "text + meta AND" $
+        matchItemWithFilters (.iLabel) testFilters [[TextTerm "Apf", MetaTerm "rot"]] redLarge @?= True
+    , testCase "text + meta AND fails when text doesn't match" $
+        matchItemWithFilters (.iLabel) testFilters [[TextTerm "Bee", MetaTerm "rot"]] redLarge @?= False
+    , testCase "OR: first clause valid, second invalid → first used" $
+        matchItemWithFilters (.iLabel) testFilters [[MetaTerm "blau"], [MetaTerm "x"]] redLarge @?= False
+    , testCase "empty query matches everything" $
+        matchItemWithFilters (.iLabel) testFilters [] redLarge @?= True
+    , testCase "unresolvedTerms finds unresolved terms" $
+        unresolvedTerms testFilters [[MetaTerm "rot", MetaTerm "x"], [MetaTerm "y"]] @?= ["x", "y"]
+    , testCase "unresolvedTerms empty when all resolve" $
+        unresolvedTerms testFilters [[MetaTerm "rot", MetaTerm "groß"]] @?= []
     ]

@@ -20,7 +20,7 @@ import Competences.Document
   , emptyDocument
   )
 import Competences.Document.Evidence (Observation (..))
-import Competences.Document.Task (Task (..), TaskIdentifier (..))
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
 import Competences.Document.User (isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -32,7 +32,9 @@ import Competences.Frontend.Component.Selector.EvidenceSelector
   ( EvidenceSelectorStyle (..)
   , evidenceSelectorComponent
   )
-import Competences.Frontend.Component.Selector.MultiTaskSelector (searchableMultiTaskEditorField)
+import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..))
+import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
+import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
 import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
@@ -256,7 +258,7 @@ evidenceEditorDetailView r evidence =
     -- | Lens bridging Map TaskId TaskEvaluations <-> [TaskId] for the task selector.
     -- The selector only edits which tasks are present (keys); evaluations are
     -- preserved for existing tasks and default to empty for newly added ones.
-    tasksToTaskIdsLens = EntityPatchTransformedLens
+    tasksToTasksLens = EntityPatchTransformedLens
       { viewLens = lens
           (\e -> Map.keys e.tasks)
           (\e ids -> e & #tasks .~ Map.fromList
@@ -264,7 +266,7 @@ evidenceEditorDetailView r evidence =
       , patchLens = lens
           (\p -> fmap (bimap Map.keys Map.keys) p.tasks)
           (\p mc -> p & #tasks .~ fmap (bimap toTaskMap toTaskMap) mc)
-      , transform = id
+      , transform = (.id)
       , embed = id
       }
     toTaskMap ids = Map.fromList [(tid, Map.empty) | tid <- ids]
@@ -292,10 +294,12 @@ evidenceEditorDetailView r evidence =
                                (entityPatchTransformedLens #userId #userId (.id) id)
                            )
         `TE.addNamedField` ( C.translate' C.LblTasksAndGroups
-                           , searchableMultiTaskEditorField
+                           , searchSelectEditorField
                                r
                                (evidenceEditorId <> "-tasks")
-                               tasksToTaskIdsLens
+                               taskSearchConfig
+                               (Map.keys . (.tasks))
+                               tasksToTasksLens
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignments
                            , searchableSingleAssignmentEditorField
@@ -313,3 +317,15 @@ evidenceEditorDetailView r evidence =
                                (.id)
                                (entityPatchTransformedLens #observations #observations id IxSet.fromList)
                            )
+
+-- | Shared SearchSelect config for tasks
+taskSearchConfig :: SearchSelectConfig Task TaskId
+taskSearchConfig =
+  SearchSelectConfig
+    { projectItems = QTask.allTasksSorted
+    , itemId = (.id)
+    , itemLabel = \t -> let TaskIdentifier x = t.identifier in x
+    , metaFilters = []
+    , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+    , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
+    }
