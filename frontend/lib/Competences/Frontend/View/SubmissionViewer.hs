@@ -8,7 +8,7 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Evidence (Evidence)
 import Competences.Document.FileRef (FileRef (..))
-import Competences.Document.Submission (Submission (..), SubmissionId)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), ownerIds)
 import Competences.Document.User (User (..), UserIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileUpload (showFileSize)
@@ -54,9 +54,13 @@ viewSubmissionCard
   -> M.View m a
 viewSubmissionCard selectAction selectedSid users submission =
   let isSelected = selectedSid == Just submission.id
-      studentName = case Ix.getOne (users Ix.@= submission.userId) of
-        Just u -> u.name
-        Nothing -> T.pack (show submission.userId)
+      owners = ownerIds submission.ownership
+      studentName = case owners of
+        [uid] -> case Ix.getOne (users Ix.@= uid) of
+          Just u -> u.name
+          Nothing -> T.pack (show uid)
+        _ -> T.intercalate ", " $
+          map (\uid -> maybe (T.pack (show uid)) (.name) (Ix.getOne (users Ix.@= uid))) owners
       borderClass =
         if isSelected
           then "border-2 border-sky-500 bg-sky-50"
@@ -69,16 +73,27 @@ viewSubmissionCard selectAction selectedSid users submission =
           MH.div_ [class_ "font-medium text-sm"] [M.text $ ms studentName]
         , -- Timestamp
           Typography.small $ ms $ show submission.submittedAt
-        , -- Files
-          Layout.vFlow Layout.gapMicro (map viewFileRef submission.files)
-        , -- Description
-          case submission.description of
+        , -- Kind-specific details
+          viewKindDetails submission.kind
+        , -- Remark
+          case submission.remark of
             Nothing -> M.text ""
-            Just desc ->
+            Just rmk ->
               MH.div_
                 [class_ "text-sm text-muted-foreground mt-1"]
-                [M.text $ ms desc]
+                [M.text $ ms rmk]
         ]
+
+-- | Render kind-specific submission details.
+viewKindDetails :: SubmissionKind -> M.View m a
+viewKindDetails (DigitalSubmission files) =
+  Layout.vFlow Layout.gapMicro (map viewFileRef files)
+viewKindDetails (NonDigitalSubmission mLoc) =
+  case mLoc of
+    Nothing -> M.text ""
+    Just loc -> MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
+viewKindDetails (VoidSubmission reason) =
+  MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text $ ms reason]
 
 -- | Render a single file reference line.
 viewFileRef :: FileRef -> M.View m a

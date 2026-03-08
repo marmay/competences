@@ -172,6 +172,8 @@ data ViewerProjection = ViewerProjection
   , tasksWithCompetences :: !(Set.Set TaskId)
     -- | Per-task qualitative remarks (union across all evidences for this assignment/user)
   , taskRemarkMap :: !(Map TaskId (Set.Set TaskRemark))
+    -- | Pre-computed submission summary for the effective user (students only)
+  , submissionSummary :: !Submission.SubmissionSummary
   }
   deriving (Eq, Generic, Show)
 
@@ -188,6 +190,7 @@ emptyProjection role assignment = ViewerProjection
   , taskStatuses = Map.empty
   , tasksWithCompetences = Set.empty
   , taskRemarkMap = Map.empty
+  , submissionSummary = Submission.NoSubmissions
   }
 
 -- ============================================================================
@@ -242,6 +245,7 @@ data ViewerAction
   | OpenPagePrintModal
   | PagePrintMsg !PrintModalAction
   | ClearPagePrint
+  | OpenSubmissionModal
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -312,6 +316,10 @@ viewerComponent r user assignment wm =
           taskRemarkMap = Map.unionsWith Set.union
             [ ev.taskRemarks | ev <- userEvidences ]
 
+          -- Compute submission summary for this assignment+user
+          userSubmissions = Ix.toList $ doc.submissions Ix.@= updatedAssignment.id Ix.@= effectiveUserId
+          subSummary = Submission.submissionSummary userSubmissions
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -323,6 +331,7 @@ viewerComponent r user assignment wm =
             , taskStatuses
             , tasksWithCompetences
             , taskRemarkMap
+            , submissionSummary = subSummary
             }
 
     update (ProjectionChanged change) =
@@ -405,6 +414,9 @@ viewerComponent r user assignment wm =
 
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
+    update OpenSubmissionModal = M.io_ $
+      Submission.openSubmissionModal r assignment.id user.id
+
     view' m =
       M.div_
         []
@@ -454,22 +466,25 @@ viewerComponent r user assignment wm =
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
-                [ -- Title line with date + status + print on the right
+                [ -- Title line with action buttons on the right
                   Layout.hFlow (Layout.hFull <> Layout.crossCenter)
                     [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
                     , Layout.flowSpring
                     , M.div_
                         [class_ "text-sm"]
                         [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) $
-                            [ M.span_
-                                [class_ "text-muted-foreground"]
-                                [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
-                            , statusIcon proj.status
-                            ]
+                            -- Students: status button; Teachers: status icon
+                            (if proj.connectedUserRole == Student
+                              then [viewSubmissionStatusButton proj.submissionSummary]
+                              else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
                             <> [ viewPagePrintButton ]
                         ]
                     ]
+                , -- Date below title (muted, small)
+                  M.span_
+                    [class_ "text-sm text-muted-foreground"]
+                    [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
                 , -- Description (if present, supports math syntax)
                   if desc == mempty
                     then M.text ""
@@ -484,11 +499,6 @@ viewerComponent r user assignment wm =
               ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
                 [ taskResourceListView r.formulaCache showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
               )
-            , -- Students see submission form; teachers don't (teacher view comes in Part 2)
-              if proj.connectedUserRole == Student
-                then inlineComponentWith ("submission-" <> M.ms (show proj.currentAssignment.id))
-                       (Submission.submissionComponent r proj.currentAssignment.id user.id)
-                else M.text ""
             ]
 
 
@@ -550,6 +560,22 @@ viewerComponent r user assignment wm =
     viewRemarkBadge Exceptional = Badge.badge (PaletteName "ability-success") (Badge.badgeLabel (C.LblTaskRemark Exceptional))
     viewRemarkBadge Sloppy = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Sloppy))
     viewRemarkBadge Lacking = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Lacking))
+
+    -- ========================================================================
+    -- Submission Status Button (students only)
+    -- ========================================================================
+
+    viewSubmissionStatusButton :: Submission.SubmissionSummary -> M.View ViewerModel ViewerAction
+    viewSubmissionStatusButton Submission.NoSubmissions =
+      Button.primarySm (Button.button (C.translate' C.LblAbgabe) OpenSubmissionModal)
+    viewSubmissionStatusButton (Submission.DigitalOnly _date) =
+      Button.secondarySm (Button.button (C.translate' C.LblAbgegeben) OpenSubmissionModal)
+    viewSubmissionStatusButton (Submission.NonDigitalOnly _date) =
+      Button.secondarySm (Button.button (C.translate' C.LblGemacht) OpenSubmissionModal)
+    viewSubmissionStatusButton Submission.DigitalAndNonDigital =
+      Button.secondarySm (Button.button (C.translate' C.LblAbgegebenUndGemacht) OpenSubmissionModal)
+    viewSubmissionStatusButton Submission.VoidOnly =
+      Button.outlineSm (Button.button (C.translate' C.LblNichtGemacht) OpenSubmissionModal)
 
     -- ========================================================================
     -- Page Print

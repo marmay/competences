@@ -11,11 +11,11 @@ import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..
 import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
-import Competences.Document.FileRef (FileRef)
-import Competences.Document.Submission (Submission (..), SubmissionId)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
 import Competences.Document.User (UserId)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
+import Data.Text qualified as T
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -26,8 +26,9 @@ import Optics.Core ((&), (%~))
 
 -- | Patch for modifying a Submission
 data SubmissionPatch = SubmissionPatch
-  { description :: !(Change (Maybe Text))
-  , files :: !(Change [FileRef])
+  { kind :: !(Change SubmissionKind)
+  , remark :: !(Change (Maybe Text))
+  , ownership :: !(Change SubmissionOwnership)
   }
   deriving (Eq, Generic, Show)
 
@@ -52,8 +53,50 @@ instance ToJSON SubmissionsCommand
 applySubmissionPatch :: Submission -> SubmissionPatch -> Either Text Submission
 applySubmissionPatch s p =
   Right s
-    >>= patchField' @"description" p
-    >>= patchField' @"files" p
+    >>= patchField' @"kind" p
+    >>= patchField' @"remark" p
+    >>= patchField' @"ownership" p
+
+-- | Check if the acting user is an owner of the submission.
+isOwner :: UserId -> Submission -> Bool
+isOwner uid s = uid `elem` ownerIds s.ownership
+
+-- | Validate a submission kind.
+validateKind :: SubmissionKind -> Either Text ()
+validateKind (DigitalSubmission files) =
+  when (null files) $ Left "Submission: at least one file required for digital submission"
+validateKind (NonDigitalSubmission _) = Right ()
+validateKind (VoidSubmission reason) =
+  when (T.null (T.strip reason)) $ Left "Submission: void submission requires a non-empty reason"
+
+-- | Validate that all owners are students assigned to this assignment.
+validateOwnership :: SubmissionOwnership -> UserId -> Assignment -> Document -> Either Text ()
+validateOwnership own actingUserId assignment d = do
+  let owners = ownerIds own
+  -- Acting user must be in ownership list
+  unless (actingUserId `elem` owners) $
+    Left "Submission: submitting user must be in ownership list"
+  -- All owners must be students assigned to this assignment
+  mapM_ (\uid -> do
+    case Ix.getOne (d.users Ix.@= uid) of
+      Nothing -> Left "Submission: owner user not found"
+      Just u -> when (u.role == Teacher) $ Left "Teachers cannot own submissions"
+    unless (Set.member uid assignment.studentIds) $
+      Left "Submission: owner not assigned to this assignment"
+    ) owners
+
+-- | Validate void submissions: can't create if non-void submissions exist for this assignment+user.
+validateVoidConstraint :: SubmissionKind -> Submission -> Document -> Either Text ()
+validateVoidConstraint (VoidSubmission _) s d =
+  let existing = Ix.toList $ d.submissions Ix.@= s.assignmentId
+      userOwns sub = any (`elem` ownerIds sub.ownership) (ownerIds s.ownership)
+      nonVoidExists = any (\sub -> userOwns sub && not (isVoid sub.kind)) existing
+   in when nonVoidExists $
+        Left "Submission: cannot create void submission when non-void submissions exist"
+  where
+    isVoid (VoidSubmission _) = True
+    isVoid _ = False
+validateVoidConstraint _ _ _ = Right ()
 
 -- | Handle a Submissions command.
 -- Custom handler because submissions have student-only authorization.
@@ -65,31 +108,27 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
     Just u -> when (u.role == Teacher) $ Left "Teachers cannot create submissions"
   case cmd of
     Create s -> do
-      when (s.userId /= userId) $
+      unless (isOwner userId s) $
         Left "Submission: can only submit as yourself"
-      -- Verify assignment exists and includes this student
+      -- Verify assignment exists and validate ownership
       case Ix.getOne (d.assignments Ix.@= s.assignmentId) of
         Nothing -> Left "Submission: assignment not found"
-        Just a ->
-          unless (Set.member userId a.studentIds) $
-            Left "Submission: not assigned to this student"
-      when (null s.files) $
-        Left "Submission: at least one file required"
+        Just a -> validateOwnership s.ownership userId a d
+      validateKind s.kind
+      validateVoidConstraint s.kind s d
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
       Right (d', affectedUsersFor s d)
 
     CreateAndLock s -> do
-      when (s.userId /= userId) $
+      unless (isOwner userId s) $
         Left "Submission: can only submit as yourself"
       case Ix.getOne (d.assignments Ix.@= s.assignmentId) of
         Nothing -> Left "Submission: assignment not found"
-        Just a ->
-          unless (Set.member userId a.studentIds) $
-            Left "Submission: not assigned to this student"
-      when (null s.files) $
-        Left "Submission: at least one file required"
+        Just a -> validateOwnership s.ownership userId a d
+      validateKind s.kind
+      validateVoidConstraint s.kind s d
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
@@ -98,26 +137,25 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
 
     Delete sid -> do
       s <- fetchSubmission sid d
-      when (s.userId /= userId) $
+      unless (isOwner userId s) $
         Left "Submission: can only delete your own submission"
-      -- TODO: When evidence→submission link exists, check no evidences reference this submission
       let d' = d & #submissions %~ Ix.delete s
       Right (d', affectedUsersFor s d)
 
     Modify sid Lock -> do
       s <- fetchSubmission sid d
-      when (s.userId /= userId) $
+      unless (isOwner userId s) $
         Left "Submission: can only modify your own submission"
       d' <- doLock userId (SubmissionLock sid) d
       Right (d', affectedUsersFor s d)
 
     Modify sid (Release patch) -> do
       s <- fetchSubmission sid d
-      when (s.userId /= userId) $
+      unless (isOwner userId s) $
         Left "Submission: can only modify your own submission"
-      -- TODO: When evidence→submission link exists, reject file changes if referenced by evidence
       d' <- doRelease userId (SubmissionLock sid) d
       s' <- applySubmissionPatch s patch
+      validateKind s'.kind
       let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx sid
       Right (d'', affectedUsersFor s d <> affectedUsersFor s' d)
 
@@ -128,10 +166,11 @@ fetchSubmission sid d =
     Nothing -> Left "Submission: not found"
     Just s -> Right s
 
--- | Affected users: all teachers + the submitting student
+-- | Affected users: all teachers + all owners of the submission
 affectedUsersFor :: Submission -> Document -> AffectedUsers
 affectedUsersFor s d =
-  AffectedUsers $
-    map (.id) $
-      filter (\u -> u.role == Teacher || u.id == s.userId) $
-        Ix.toList d.users
+  let owners = Set.fromList (ownerIds s.ownership)
+   in AffectedUsers $
+        map (.id) $
+          filter (\u -> u.role == Teacher || Set.member u.id owners) $
+            Ix.toList d.users

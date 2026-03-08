@@ -99,7 +99,7 @@ import Competences.Document.Resource
   , mkResource
   )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, ownerIds)
 import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 #ifdef WITH_AESON
@@ -261,6 +261,6 @@ projectDocument user doc
           Nothing -> False
       SubmissionLock sid ->
         case Ix.getOne (doc.submissions Ix.@= sid) of
-          Just s -> user.id == s.userId
+          Just s -> user.id `elem` ownerIds s.ownership
           Nothing -> False
       _ -> True -- Other locks (competence, grid, etc.) are visible (public materials)

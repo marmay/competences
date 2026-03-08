@@ -1,9 +1,12 @@
 -- | Student submission component for assignments.
 --
--- Renders inline inside the assignment viewer (students only).
--- Allows uploading files with an optional description to create submissions.
+-- Opens as a modal dialog. Allows choosing submission kind
+-- (digital upload, non-digital, or void), optional collaboration,
+-- and managing existing submissions.
 module Competences.Frontend.Component.Submission
-  ( submissionComponent
+  ( openSubmissionModal
+  , SubmissionSummary (..)
+  , submissionSummary
   )
 where
 
@@ -18,7 +21,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.FileRef (FileRef (..))
-import Competences.Document.Submission (SubmissionId)
+import Competences.Document.Submission (SubmissionId, SubmissionKind (..), SubmissionOwnership (..))
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.FileUpload (fileUploadComponent, showFileSize)
@@ -29,12 +32,23 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
+import Competences.Frontend.SyncContext.WindowManager
+  ( ModalConfig (..)
+  , ModalId (..)
+  , ModalHeight (..)
+  , ModalWidth (..)
+  , WindowChrome (..)
+  , WindowMode
+  , inlineComponent
+  , openFramedModalWith
+  )
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Frontend.SyncContext.WindowManager (WindowMode, inlineComponent)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Data.Text qualified as T
@@ -45,6 +59,71 @@ import Miso.Html qualified as MH
 import Miso.String (MisoString, fromMisoString, ms)
 import Optics.Core ((&), (.~))
 
+-- ============================================================================
+-- Submission Summary (for ViewerDetail status button)
+-- ============================================================================
+
+-- | Summary of a student's submissions for one assignment, used by status button.
+data SubmissionSummary
+  = NoSubmissions
+  | DigitalOnly !UTCTime        -- ^ Most recent digital submission date
+  | NonDigitalOnly !UTCTime     -- ^ Most recent non-digital submission date
+  | DigitalAndNonDigital        -- ^ Has both kinds
+  | VoidOnly                    -- ^ Only void submissions
+  deriving (Eq, Show)
+
+-- | Compute a submission summary from a list of submissions for one assignment+user.
+submissionSummary :: [Submission] -> SubmissionSummary
+submissionSummary [] = NoSubmissions
+submissionSummary subs =
+  let hasDigital = any isDigital subs
+      hasNonDigital = any isNonDigital subs
+      hasNonVoid = hasDigital || hasNonDigital
+      latestDigital = maximum' [s.submittedAt | s <- subs, isDigital s]
+      latestNonDigital = maximum' [s.submittedAt | s <- subs, isNonDigital s]
+   in case (hasDigital, hasNonDigital, hasNonVoid) of
+        (True, True, _) -> DigitalAndNonDigital
+        (True, False, _) -> DigitalOnly (maybe (error "impossible") id latestDigital)
+        (False, True, _) -> NonDigitalOnly (maybe (error "impossible") id latestNonDigital)
+        (_, _, False) -> VoidOnly
+        _ -> NoSubmissions
+  where
+    isDigital s = case s.kind of DigitalSubmission _ -> True; _ -> False
+    isNonDigital s = case s.kind of NonDigitalSubmission _ -> True; _ -> False
+    maximum' [] = Nothing
+    maximum' xs = Just (maximum xs)
+
+-- ============================================================================
+-- Modal Entry Point
+-- ============================================================================
+
+-- | Open the submission modal for a specific assignment and user.
+openSubmissionModal :: SyncContext -> AssignmentId -> UserId -> IO ()
+openSubmissionModal r assignmentId userId = do
+  let cfg = ModalConfig
+        { chrome = WindowChrome (C.translate' C.LblAbgabe) Icon.IcnAssignment
+        , modalId = ModalId ("submission-" <> T.pack (show assignmentId))
+        , width = ModalNarrow
+        , height = ModalAuto
+        , pinnable = Nothing
+        }
+  openFramedModalWith r.windowManager cfg (submissionModalComponent r assignmentId userId)
+
+-- ============================================================================
+-- Submission Kind Tab
+-- ============================================================================
+
+-- | Which kind of submission the user is creating.
+data KindTab
+  = TabDigital
+  | TabNonDigital
+  | TabVoid
+  deriving (Eq, Show, Generic)
+
+-- ============================================================================
+-- Component Model & Actions
+-- ============================================================================
+
 -- | Projection: existing submissions for this assignment + user
 data SubmissionProjection = SubmissionProjection
   { submissions :: ![Submission]
@@ -54,15 +133,21 @@ data SubmissionProjection = SubmissionProjection
 -- | Component model
 data SubmissionModel = SubmissionModel
   { projection :: !SubmissionProjection
+  , activeTab :: !KindTab
   , files :: ![FileRef]
-  , description :: !MisoString
+  , locationText :: !MisoString
+  , voidReason :: !MisoString
+  , remarkText :: !MisoString
   , confirmDelete :: !(Maybe SubmissionId)
   }
   deriving (Eq, Generic, Show)
 
 data SubmissionAction
   = ProjectionChanged !(ProjectedChange SubmissionProjection)
-  | SetDescription !MisoString
+  | SetActiveTab !KindTab
+  | SetLocationText !MisoString
+  | SetVoidReason !MisoString
+  | SetRemarkText !MisoString
   | SubmitWork
   | DoSubmit !UTCTime
   | RequestDelete !SubmissionId
@@ -70,22 +155,28 @@ data SubmissionAction
   | CancelDelete
   deriving (Eq, Show)
 
--- | Create a submission component for a specific assignment and user.
-submissionComponent
+-- ============================================================================
+-- Component
+-- ============================================================================
+
+submissionModalComponent
   :: SyncContext
   -> AssignmentId
   -> UserId
   -> WindowMode
   -> M.Component p SubmissionModel SubmissionAction
-submissionComponent r assignmentId userId _wm =
+submissionModalComponent r assignmentId userId _wm =
   (M.component model update view')
     { M.subs = [subscribeWithProjection r (submissionProjection assignmentId userId) ProjectionChanged]
     }
   where
     model = SubmissionModel
       { projection = SubmissionProjection []
+      , activeTab = TabDigital
       , files = []
-      , description = ""
+      , locationText = ""
+      , voidReason = ""
+      , remarkText = ""
       , confirmDelete = Nothing
       }
 
@@ -98,31 +189,54 @@ submissionComponent r assignmentId userId _wm =
     update (ProjectionChanged change) =
       M.modify $ \m -> m & #projection .~ change.projection
 
-    update (SetDescription t) =
-      M.modify $ \m -> m & #description .~ t
+    update (SetActiveTab tab) =
+      M.modify $ \m -> m & #activeTab .~ tab
+
+    update (SetLocationText t) =
+      M.modify $ \m -> m & #locationText .~ t
+
+    update (SetVoidReason t) =
+      M.modify $ \m -> m & #voidReason .~ t
+
+    update (SetRemarkText t) =
+      M.modify $ \m -> m & #remarkText .~ t
 
     update SubmitWork =
       M.io $ DoSubmit <$> getCurrentTime
 
     update (DoSubmit now) = do
       m <- M.get
-      if null m.files
-        then pure ()
-        else do
+      let remarkStr = T.pack (fromMisoString m.remarkText)
+          mRemark = if T.null remarkStr then Nothing else Just remarkStr
+          mKind = case m.activeTab of
+            TabDigital
+              | null m.files -> Nothing
+              | otherwise -> Just (DigitalSubmission m.files)
+            TabNonDigital ->
+              let loc = T.pack (fromMisoString m.locationText)
+               in Just (NonDigitalSubmission (if T.null loc then Nothing else Just loc))
+            TabVoid ->
+              let reason = T.strip (T.pack (fromMisoString m.voidReason))
+               in if T.null reason then Nothing else Just (VoidSubmission reason)
+      case mKind of
+        Nothing -> pure ()  -- Validation failed, do nothing
+        Just kind -> do
           M.io_ $ do
             sid <- nextId r
-            let descText = T.pack (fromMisoString m.description)
-                desc = if T.null descText then Nothing else Just descText
-                submission = Submission
+            let submission = Submission
                   { id = sid
                   , assignmentId = assignmentId
-                  , userId = userId
-                  , files = m.files
-                  , description = desc
+                  , ownership = IndividualSubmission userId
+                  , kind = kind
+                  , remark = mRemark
                   , submittedAt = now
                   }
             modifySyncDocument r $ Submissions (OnSubmissions (Create submission))
-          M.modify $ \m' -> m' & #files .~ [] & #description .~ ""
+          M.modify $ \m' -> m'
+            & #files .~ []
+            & #locationText .~ ""
+            & #voidReason .~ ""
+            & #remarkText .~ ""
 
     update (RequestDelete sid) =
       M.modify $ \m -> m & #confirmDelete .~ Just sid
@@ -134,30 +248,92 @@ submissionComponent r assignmentId userId _wm =
       M.io_ $ modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))
       M.modify $ \m -> m & #confirmDelete .~ Nothing
 
+    -- ========================================================================
+    -- View
+    -- ========================================================================
+
     view' m =
       MH.div_
-        [class_ "space-y-4"]
-        [ -- Existing submissions
-          if null m.projection.submissions
-            then Typography.small $ C.translate' C.LblNoSubmissions
-            else MH.div_ [class_ "space-y-2"] (map (viewSubmission m.confirmDelete) m.projection.submissions)
-        , -- New submission form
-          Card.card
-            [ Typography.h4 $ C.translate' C.LblSubmitWork
-            , MH.div_
-                [class_ "space-y-3"]
-                [ -- File upload
-                  inlineComponent "submission-file-upload"
-                    (fileUploadComponent r m.files #files)
-                , -- Description textarea
-                  Input.textarea m.description SetDescription
-                , -- Submit button
-                  if null m.files
-                    then Button.primary (Button.button (C.translate' C.LblSubmitWork) Button.Disabled)
-                    else Button.primary (Button.button (C.translate' C.LblSubmitWork) SubmitWork)
-                ]
+        [class_ "space-y-6"]
+        [ -- New submission form
+          viewNewSubmissionForm m
+        , -- Existing submissions
+          viewExistingSubmissions m
+        ]
+
+    viewNewSubmissionForm m =
+      Card.card
+        [ -- Tab selector
+          viewTabSelector m.activeTab (hasNonVoidSubmission m)
+        , -- Tab-specific form
+          MH.div_
+            [class_ "mt-4 space-y-3"]
+            [ case m.activeTab of
+                TabDigital -> viewDigitalForm m
+                TabNonDigital -> viewNonDigitalForm m
+                TabVoid -> viewVoidForm m
+            , -- Remark (shared across all tabs)
+              Input.textInput' (C.translate' C.LblRemark) m.remarkText SetRemarkText
+            , -- Submit button
+              viewSubmitButton m
             ]
         ]
+
+    viewTabSelector activeTab voidDisabled =
+      MH.div_
+        [class_ "flex gap-1 rounded-lg bg-stone-100 p-1"]
+        [ tabButton TabDigital activeTab (C.translate' C.LblUploadFiles) False
+        , tabButton TabNonDigital activeTab (C.translate' C.LblDoneInNotebook) False
+        , tabButton TabVoid activeTab (C.translate' C.LblNichtGemacht) voidDisabled
+        ]
+
+    tabButton tab activeTab label disabled =
+      let isActive = tab == activeTab
+          baseClasses = "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          activeClasses = if isActive then " bg-white text-stone-900 shadow-sm" else " text-stone-500 hover:text-stone-700"
+          disabledClasses = if disabled then " opacity-50 cursor-not-allowed" else " cursor-pointer"
+          attrs = [class_ (baseClasses <> activeClasses <> disabledClasses)]
+                  <> [MH.onClick (SetActiveTab tab) | not disabled && not isActive]
+       in MH.button_ attrs [M.text label]
+
+    viewDigitalForm m =
+      MH.div_
+        [class_ "space-y-2"]
+        [ inlineComponent "submission-file-upload"
+            (fileUploadComponent r m.files #files)
+        ]
+
+    viewNonDigitalForm _m =
+      Input.textInput' (C.translate' C.LblLocation) _m.locationText SetLocationText
+
+    viewVoidForm _m =
+      Input.textInput' (C.translate' C.LblVoidReason) _m.voidReason SetVoidReason
+
+    viewSubmitButton m =
+      let canSubmit = case m.activeTab of
+            TabDigital -> not (null m.files)
+            TabNonDigital -> True
+            TabVoid -> not (T.null (T.strip (T.pack (fromMisoString m.voidReason))))
+       in if canSubmit
+            then Button.primary (Button.button (C.translate' C.LblAbgabe) SubmitWork)
+            else Button.primary (Button.button (C.translate' C.LblAbgabe) Button.Disabled)
+
+    hasNonVoidSubmission m =
+      any (\s -> case s.kind of VoidSubmission _ -> False; _ -> True) m.projection.submissions
+
+    -- ========================================================================
+    -- Existing submissions list
+    -- ========================================================================
+
+    viewExistingSubmissions m =
+      if null m.projection.submissions
+        then Typography.small $ C.translate' C.LblNoSubmissions
+        else MH.div_
+          [class_ "space-y-2"]
+          [ Typography.h4 $ C.translate' C.LblSubmissions
+          , MH.div_ [class_ "space-y-2"]
+              (map (viewSubmission m.confirmDelete) m.projection.submissions)
+          ]
 
     viewSubmission confirmingDelete s =
       Card.card
@@ -165,14 +341,20 @@ submissionComponent r assignmentId userId _wm =
             [class_ "flex items-start justify-between gap-4"]
             [ MH.div_
                 [class_ "flex-1 min-w-0 space-y-1"]
-                [ -- Timestamp
-                  Typography.small $ ms $ show s.submittedAt
-                , -- Files list
-                  MH.div_ [class_ "space-y-1"] (map viewFileRef s.files)
-                , -- Description
-                  case s.description of
+                [ -- Kind badge + timestamp
+                  MH.div_
+                    [class_ "flex items-center gap-2"]
+                    [ kindBadge s.kind
+                    , Typography.small $ ms $ show s.submittedAt
+                    ]
+                , -- Kind-specific details
+                  viewKindDetails s.kind
+                , -- Remark
+                  case s.remark of
                     Nothing -> M.text ""
-                    Just desc -> MH.div_ [class_ "text-sm text-muted-foreground mt-1"] [M.text $ ms desc]
+                    Just rmk -> MH.div_ [class_ "text-sm text-muted-foreground mt-1"] [M.text $ ms rmk]
+                , -- Ownership info
+                  viewOwnership s.ownership
                 ]
             , -- Delete button or confirmation
               case confirmingDelete of
@@ -186,6 +368,25 @@ submissionComponent r assignmentId userId _wm =
                   Button.ghostSm $ Button.button C.LblDeleteSubmission (RequestDelete s.id)
             ]
         ]
+
+    kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
+    kindBadge (NonDigitalSubmission _) = Badge.secondary (Badge.badgeText (C.translate' C.LblGemacht))
+    kindBadge (VoidSubmission _) = Badge.outline (Badge.badgeText (C.translate' C.LblNichtGemacht))
+
+    viewKindDetails (DigitalSubmission files) =
+      MH.div_ [class_ "space-y-1"] (map viewFileRef files)
+    viewKindDetails (NonDigitalSubmission mLoc) =
+      case mLoc of
+        Nothing -> M.text ""
+        Just loc -> MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
+    viewKindDetails (VoidSubmission reason) =
+      MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text $ ms reason]
+
+    viewOwnership (IndividualSubmission _) = M.text ""
+    viewOwnership (CollaborativeSubmission _uids) =
+      MH.div_
+        [class_ "text-xs text-muted-foreground"]
+        [M.text $ C.translate' C.LblCollaborativeSubmission]
 
     viewFileRef ref =
       MH.div_

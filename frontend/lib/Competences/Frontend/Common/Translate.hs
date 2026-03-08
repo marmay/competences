@@ -391,6 +391,18 @@ data Label
   | LblNoSubmissions
   | LblDeleteSubmission
   | LblConfirmDeleteSubmission
+  | LblAbgabe
+  | LblAbgegeben
+  | LblGemacht
+  | LblNichtGemacht
+  | LblUploadFiles
+  | LblDoneInNotebook
+  | LblLocation
+  | LblRemark
+  | LblVoidReason
+  | LblIndividualSubmission
+  | LblCollaborativeSubmission
+  | LblAbgegebenUndGemacht
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -748,6 +760,18 @@ labels' =
   , LblNoSubmissions
   , LblDeleteSubmission
   , LblConfirmDeleteSubmission
+  , LblAbgabe
+  , LblAbgegeben
+  , LblGemacht
+  , LblNichtGemacht
+  , LblUploadFiles
+  , LblDoneInNotebook
+  , LblLocation
+  , LblRemark
+  , LblVoidReason
+  , LblIndividualSubmission
+  , LblCollaborativeSubmission
+  , LblAbgegebenUndGemacht
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1133,6 +1157,18 @@ defaultTranslation LblSubmissionDescription = "Anmerkung (optional)"
 defaultTranslation LblNoSubmissions = "Noch keine Abgabe"
 defaultTranslation LblDeleteSubmission = "Abgabe löschen"
 defaultTranslation LblConfirmDeleteSubmission = "Abgabe wirklich löschen?"
+defaultTranslation LblAbgabe = "Abgabe"
+defaultTranslation LblAbgegeben = "Abgegeben"
+defaultTranslation LblGemacht = "Gemacht"
+defaultTranslation LblNichtGemacht = "Nicht gemacht"
+defaultTranslation LblUploadFiles = "Datei hochladen"
+defaultTranslation LblDoneInNotebook = "Im Heft erledigt"
+defaultTranslation LblLocation = "Ort (optional)"
+defaultTranslation LblRemark = "Anmerkung (optional)"
+defaultTranslation LblVoidReason = "Begründung"
+defaultTranslation LblIndividualSubmission = "Einzelarbeit"
+defaultTranslation LblCollaborativeSubmission = "Gemeinsame Abgabe mit"
+defaultTranslation LblAbgegebenUndGemacht = "Abgegeben & Gemacht"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
