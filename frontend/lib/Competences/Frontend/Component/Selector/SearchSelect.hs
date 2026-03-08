@@ -30,7 +30,9 @@ import Competences.Frontend.SyncContext
   , SyncContext
   , subscribeWithProjection
   )
+import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.TagInput (TagInputConfig (..), tagInput)
 import Competences.Frontend.View.Tailwind (class_)
@@ -124,6 +126,7 @@ data Action a id
   | RemoveItem !id
   | RemoveLast
   | ToggleItem !id
+  | ClearAll
   | SetFocus !Bool
   | NoOp
   deriving (Eq, Generic, Show)
@@ -222,6 +225,8 @@ searchSelectComponent r cfg initIds lensBinding =
       if i `elem` m.selectedIds
         then m & #selectedIds .~ filter (/= i) m.selectedIds
         else m & #selectedIds .~ (m.selectedIds <> [i])
+    update ClearAll =
+      M.modify $ #selectedIds .~ []
     update (SetFocus focused) =
       M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
     update NoOp = pure ()
@@ -280,6 +285,7 @@ view cfg m =
               , onFocus = Just (SetFocus True)
               , onBlur = Just (SetFocus False)
               }
+        , viewClearAll selectedItems
         , viewFilterHints cfg m.hasFocus
         ]
 
@@ -299,6 +305,18 @@ viewSelectedTag cfg a =
         Badge.Secondary
         (Just (Icon.IcnCancel, RemoveItem (cfg.itemId a)))
         (Badge.badgeIconText icn label)
+
+-- | Show a "Deselect all" ghost button when ≥ 2 items are selected.
+viewClearAll
+  :: forall a id
+   . [a]
+  -> M.View (Model a id) (Action a id)
+viewClearAll selectedItems
+  | length selectedItems >= 2 =
+      MH.div_
+        [class_ "flex justify-end pt-1"]
+        [Button.ghostSm $ Button.button C.LblDeselectAll (ClearAll :: Action a id)]
+  | otherwise = M.text ""
 
 -- | Render highlighted query segments for the overlay layer.
 viewHighlightedQuery
