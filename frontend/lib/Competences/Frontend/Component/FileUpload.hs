@@ -122,7 +122,7 @@ fileUploadComponent syncCtx initialFiles parentLens =
           MH.div_ [class_ "flex items-center gap-3"]
             [ MH.input_
                 [ MP.type_ "file"
-                , class_ "text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                , class_ "text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-secondary file:text-secondary-foreground file:shadow-xs file:cursor-pointer hover:file:bg-accent"
                 , M.on "change" M.emptyDecoder $ \() domRef -> FileSelected domRef
                 ]
             , case m.uploadStatus of

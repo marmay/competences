@@ -48,6 +48,7 @@ import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tabs qualified as Tabs
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (sortOn)
@@ -257,46 +258,32 @@ submissionModalComponent r assignmentId userId _wm =
       Layout.padM $
         Layout.vFlow
           Layout.gapM
-          [ -- New submission form
-            viewNewSubmissionForm m
-          , -- Existing submissions
-            viewExistingSubmissions m
+          [ viewExistingSubmissions m
+          , viewNewSubmissionForm m
           ]
 
     viewNewSubmissionForm m =
-      Card.card
-        [ -- Tab selector
-          viewTabSelector m.activeTab (hasNonVoidSubmission m)
-        , -- Tab-specific form
-          Layout.vFlow
-            Layout.gapS
-            [ case m.activeTab of
-                TabDigital -> viewDigitalForm m
-                TabNonDigital -> viewNonDigitalForm m
-                TabVoid -> viewVoidForm m
-            , -- Remark (shared across all tabs)
-              Input.textInput' (C.translate' C.LblRemark) m.remarkText SetRemarkText
-            , -- Submit button
-              viewSubmitButton m
-            ]
-        ]
+      Tabs.cardWithTabs
+        Tabs.Tabs
+          { tabs = [TabDigital, TabNonDigital, TabVoid]
+          , activeTab = m.activeTab
+          , onSelect = SetActiveTab
+          , tabSpec = \case
+              TabDigital -> Tabs.TabSpec (C.translate' C.LblUploadFiles) False
+              TabNonDigital -> Tabs.TabSpec (C.translate' C.LblDoneInNotebook) False
+              TabVoid -> Tabs.TabSpec (C.translate' C.LblNichtGemacht) (hasNonVoidSubmission m)
+          , tabContent = \case
+              TabDigital -> [viewDigitalForm m, viewRemarkAndSubmit m]
+              TabNonDigital -> [viewNonDigitalForm m, viewRemarkAndSubmit m]
+              TabVoid -> [viewVoidForm m, viewRemarkAndSubmit m]
+          }
 
-    viewTabSelector activeTab voidDisabled =
-      MH.div_
-        [class_ "flex gap-1 rounded-lg bg-stone-100 p-1"]
-        [ tabButton TabDigital activeTab (C.translate' C.LblUploadFiles) False
-        , tabButton TabNonDigital activeTab (C.translate' C.LblDoneInNotebook) False
-        , tabButton TabVoid activeTab (C.translate' C.LblNichtGemacht) voidDisabled
+    viewRemarkAndSubmit m =
+      Layout.vFlow
+        Layout.gapS
+        [ Input.textInput' (C.translate' C.LblRemark) m.remarkText SetRemarkText
+        , viewSubmitButton m
         ]
-
-    tabButton tab activeTab label disabled =
-      let isActive = tab == activeTab
-          baseClasses = "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          activeClasses = if isActive then " bg-white text-stone-900 shadow-sm" else " text-stone-500 hover:text-stone-700"
-          disabledClasses = if disabled then " opacity-50 cursor-not-allowed" else " cursor-pointer"
-          attrs = [class_ (baseClasses <> activeClasses <> disabledClasses)]
-                  <> [MH.onClick (SetActiveTab tab) | not disabled && not isActive]
-       in MH.button_ attrs [M.text label]
 
     viewDigitalForm m =
       MH.div_

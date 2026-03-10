@@ -158,6 +158,7 @@ library
         Competences.Frontend.View.StatusIcon,
         Competences.Frontend.View.SubmissionViewer,
         Competences.Frontend.View.Table,
+        Competences.Frontend.View.Tabs,
         Competences.Frontend.View.TagInput,
         Competences.Frontend.View.Notification,
         Competences.Frontend.View.Tailwind,
