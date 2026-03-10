@@ -64,7 +64,9 @@ import Competences.Markdown.Geometry.Palette (resolveStrokeColor)
 import Competences.Markdown.Geometry.Parser (isGeometryInfo, parseGeometry)
 import Competences.Markdown.Parser qualified as Markdown
 import Competences.TaskContent.RichContent (RichContent, toRawText)
+import Competences.Frontend.Logging (logWarn)
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception (SomeException, catch, displayException)
 import Control.Monad (when)
 import Data.Bits (xor, (.&.))
 import Data.Char (ord)
@@ -184,11 +186,15 @@ richContentComponent fc resolver footer _key doc =
       -- Phase 2: async MathJax render for uncached formulas
       M.withSink $ \sink -> do
         _ <- forkIO $ do
-          rendered <- mapM (\(d, l, mc) -> renderFormulaCached fc d l mc) formulas
-          let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
-              failCount = length formulas - Map.size successful
-          sink (SymbolsReady successful)
-          when (failCount > 0) $ sink (RetryRender 0)
+          let go = do
+                rendered <- mapM (\(d, l, mc) -> renderFormulaCached fc d l mc) formulas
+                let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
+                    failCount = length formulas - Map.size successful
+                sink (SymbolsReady successful)
+                when (failCount > 0) $ sink (RetryRender 0)
+          go `catch` \(e :: SomeException) -> do
+            logWarn $ ms ("RichContent render thread failed: " <> T.pack (displayException e))
+            sink (RetryRender 0)
         pure ()
 
     update (SymbolsReady newSymbols) =

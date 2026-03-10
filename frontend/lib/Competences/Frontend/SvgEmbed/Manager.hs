@@ -36,6 +36,8 @@ module Competences.Frontend.SvgEmbed.Manager
   )
 where
 
+import Competences.Frontend.Logging (logWarn)
+import Control.Exception (SomeException, displayException, try)
 import Data.Bits (xor, (.&.))
 import Data.ByteString.Base64 qualified as Base64
 import Data.Char (ord)
@@ -154,45 +156,51 @@ renderFormula display latex mColor = do
     then pure Nothing
     else do
       let sid = hashLatexColored display latex mColor
-      -- Render with MathJax (returns a detached container element)
-      mathJax <- jsg ("MathJax" :: MisoString)
-      options <- create
-      displayVal <- toJSVal (display == Block)
-      setProp ("display" :: MisoString) displayVal options
-      latexVal <- toJSVal (ms (prepareFormula display latex) :: MisoString)
-      result <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
-      resultIsNull <- isNull result
-      if resultIsNull
-        then pure Nothing
-        else do
-          -- Query the <svg> from the result container
-          svgElement <- result # ("querySelector" :: MisoString) $ [toJSVal ("svg" :: MisoString)]
-          svgIsNull <- isNull svgElement
-          if svgIsNull
-            then pure Nothing
-            else do
-              -- Extract dimensions from the SVG element
-              widthVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
-              mWidth <- fromJSVal @MisoString widthVal
-              heightVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
-              mHeight <- fromJSVal @MisoString heightVal
-              styleObj <- svgElement ! ("style" :: MisoString)
-              vertAlignVal <- styleObj ! ("verticalAlign" :: MisoString)
-              mVertAlign <- fromJSVal @MisoString vertAlignVal
-              -- Serialize SVG to text via .outerHTML
-              outerHtmlVal <- svgElement ! ("outerHTML" :: MisoString)
-              mOuterHtml <- fromJSVal @MisoString outerHtmlVal
-              case (mWidth, mHeight, mOuterHtml) of
-                (Just w, Just h, Just svgHtml) ->
-                  let svgText = injectSvgColor mColor (fromMisoString svgHtml)
-                   in pure $ Just EmbeddedSymbol
-                        { symbolId = sid
-                        , dataUrl = svgToDataUrl svgText
-                        , width = fromMisoString w
-                        , height = fromMisoString h
-                        , verticalAlign = maybe "0" fromMisoString mVertAlign
-                        }
-                _ -> pure Nothing
+      result <- try @SomeException $ do
+        -- Render with MathJax (returns a detached container element)
+        mathJax <- jsg ("MathJax" :: MisoString)
+        options <- create
+        displayVal <- toJSVal (display == Block)
+        setProp ("display" :: MisoString) displayVal options
+        latexVal <- toJSVal (ms (prepareFormula display latex) :: MisoString)
+        mjResult <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
+        resultIsNull <- isNull mjResult
+        if resultIsNull
+          then pure Nothing
+          else do
+            -- Query the <svg> from the result container
+            svgElement <- mjResult # ("querySelector" :: MisoString) $ [toJSVal ("svg" :: MisoString)]
+            svgIsNull <- isNull svgElement
+            if svgIsNull
+              then pure Nothing
+              else do
+                -- Extract dimensions from the SVG element
+                widthVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
+                mWidth <- fromJSVal @MisoString widthVal
+                heightVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
+                mHeight <- fromJSVal @MisoString heightVal
+                styleObj <- svgElement ! ("style" :: MisoString)
+                vertAlignVal <- styleObj ! ("verticalAlign" :: MisoString)
+                mVertAlign <- fromJSVal @MisoString vertAlignVal
+                -- Serialize SVG to text via .outerHTML
+                outerHtmlVal <- svgElement ! ("outerHTML" :: MisoString)
+                mOuterHtml <- fromJSVal @MisoString outerHtmlVal
+                case (mWidth, mHeight, mOuterHtml) of
+                  (Just w, Just h, Just svgHtml) ->
+                    let svgText = injectSvgColor mColor (fromMisoString svgHtml)
+                     in pure $ Just EmbeddedSymbol
+                          { symbolId = sid
+                          , dataUrl = svgToDataUrl svgText
+                          , width = fromMisoString w
+                          , height = fromMisoString h
+                          , verticalAlign = maybe "0" fromMisoString mVertAlign
+                          }
+                  _ -> pure Nothing
+      case result of
+        Right v -> pure v
+        Left e -> do
+          logWarn $ ms ("MathJax renderFormula failed for: " <> latex <> " — " <> T.pack (displayException e))
+          pure Nothing
 
 -- | Encode SVG text as a base64 data URL. Pure function, no IO.
 --
