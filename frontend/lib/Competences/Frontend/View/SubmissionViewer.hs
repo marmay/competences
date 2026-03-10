@@ -72,7 +72,7 @@ viewSubmissionCard selectAction selectedSid users submission =
         [ -- Student name
           MH.div_ [class_ "font-medium text-sm"] [M.text $ ms studentName]
         , -- Timestamp
-          Typography.small $ ms $ show submission.submittedAt
+          Typography.small $ C.formatDateTime submission.submittedAt
         , -- Kind-specific details
           viewKindDetails submission.kind
         , -- Remark

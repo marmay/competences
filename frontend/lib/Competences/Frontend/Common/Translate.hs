@@ -5,6 +5,7 @@ module Competences.Frontend.Common.Translate
   , addLanguage
   , extend
   , formatDay
+  , formatDateTime
   , formatDayShort
   , labelOf
   , loadTranslations
@@ -31,7 +32,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (Day, defaultTimeLocale, formatTime)
+import Data.Time (Day, UTCTime, defaultTimeLocale, formatTime)
 import System.IO.Unsafe (unsafePerformIO)
 
 data Language
@@ -1202,6 +1203,9 @@ formatDay d = ms $ formatTime defaultTimeLocale "%d.%m.%Y" d
 
 formatDayShort :: Day -> MisoString
 formatDayShort d = ms $ formatTime defaultTimeLocale "%d.%m." d
+
+formatDateTime :: UTCTime -> MisoString
+formatDateTime t = ms $ formatTime defaultTimeLocale "%d.%m.%Y %H:%M" t
 
 labelOf :: Label -> Text
 labelOf = T.pack . show

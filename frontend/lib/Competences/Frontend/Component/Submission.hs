@@ -47,6 +47,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (sortOn)
@@ -253,21 +254,22 @@ submissionModalComponent r assignmentId userId _wm =
     -- ========================================================================
 
     view' m =
-      MH.div_
-        [class_ "space-y-6"]
-        [ -- New submission form
-          viewNewSubmissionForm m
-        , -- Existing submissions
-          viewExistingSubmissions m
-        ]
+      Layout.padM $
+        Layout.vFlow
+          Layout.gapM
+          [ -- New submission form
+            viewNewSubmissionForm m
+          , -- Existing submissions
+            viewExistingSubmissions m
+          ]
 
     viewNewSubmissionForm m =
       Card.card
         [ -- Tab selector
           viewTabSelector m.activeTab (hasNonVoidSubmission m)
         , -- Tab-specific form
-          MH.div_
-            [class_ "mt-4 space-y-3"]
+          Layout.vFlow
+            Layout.gapS
             [ case m.activeTab of
                 TabDigital -> viewDigitalForm m
                 TabNonDigital -> viewNonDigitalForm m
@@ -328,10 +330,10 @@ submissionModalComponent r assignmentId userId _wm =
     viewExistingSubmissions m =
       if null m.projection.submissions
         then Typography.small $ C.translate' C.LblNoSubmissions
-        else MH.div_
-          [class_ "space-y-2"]
+        else Layout.vFlow
+          Layout.gapS
           [ Typography.h4 $ C.translate' C.LblSubmissions
-          , MH.div_ [class_ "space-y-2"]
+          , Layout.vFlow Layout.gapS
               (map (viewSubmission m.confirmDelete) m.projection.submissions)
           ]
 
@@ -339,28 +341,28 @@ submissionModalComponent r assignmentId userId _wm =
       Card.card
         [ MH.div_
             [class_ "flex items-start justify-between gap-4"]
-            [ MH.div_
-                [class_ "flex-1 min-w-0 space-y-1"]
+            [ Layout.vFlow
+                Layout.gapMicro
                 [ -- Kind badge + timestamp
-                  MH.div_
-                    [class_ "flex items-center gap-2"]
+                  Layout.hFlow
+                    (Layout.gapS <> Layout.crossCenter)
                     [ kindBadge s.kind
-                    , Typography.small $ ms $ show s.submittedAt
+                    , Typography.small $ C.formatDateTime s.submittedAt
                     ]
                 , -- Kind-specific details
                   viewKindDetails s.kind
                 , -- Remark
                   case s.remark of
                     Nothing -> M.text ""
-                    Just rmk -> MH.div_ [class_ "text-sm text-muted-foreground mt-1"] [M.text $ ms rmk]
+                    Just rmk -> MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ ms rmk]
                 , -- Ownership info
                   viewOwnership s.ownership
                 ]
             , -- Delete button or confirmation
               case confirmingDelete of
                 Just sid | sid == s.id ->
-                  MH.div_
-                    [class_ "flex gap-2"]
+                  Layout.hFlow
+                    Layout.gapS
                     [ Button.destructiveSm $ Button.button C.LblDelete (ConfirmDelete s.id)
                     , Button.secondarySm $ Button.button C.LblCancel CancelDelete
                     ]
@@ -389,9 +391,9 @@ submissionModalComponent r assignmentId userId _wm =
         [M.text $ C.translate' C.LblCollaborativeSubmission]
 
     viewFileRef ref =
-      MH.div_
-        [class_ "flex items-center gap-2 text-sm"]
-        [ MH.span_ [class_ "font-medium truncate"] [M.text $ ms ref.fileName]
-        , MH.span_ [class_ "text-muted-foreground"]
+      Layout.hFlow
+        (Layout.gapS <> Layout.crossCenter)
+        [ MH.span_ [class_ "text-sm font-medium truncate"] [M.text $ ms ref.fileName]
+        , MH.span_ [class_ "text-sm text-muted-foreground"]
             [M.text $ ms $ "(" <> showFileSize ref.fileSize <> ")"]
         ]
