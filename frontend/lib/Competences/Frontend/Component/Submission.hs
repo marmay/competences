@@ -24,7 +24,7 @@ import Competences.Document.FileRef (FileRef (..))
 import Competences.Document.Submission (SubmissionId, SubmissionKind (..), SubmissionOwnership (..))
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.Component.FileUpload (fileUploadComponent, showFileSize)
+import Competences.Frontend.Component.FileUpload (fileUploadComponent)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
@@ -44,10 +44,11 @@ import Competences.Frontend.SyncContext.WindowManager
   )
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Card qualified as Card
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tabs qualified as Tabs
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -105,7 +106,7 @@ openSubmissionModal r assignmentId userId = do
   let cfg = ModalConfig
         { chrome = WindowChrome (C.translate' C.LblAbgabe) Icon.IcnAssignment
         , modalId = ModalId ("submission-" <> T.pack (show assignmentId))
-        , width = ModalNarrow
+        , width = ModalWide
         , height = ModalAuto
         , pinnable = Nothing
         }
@@ -121,6 +122,10 @@ data KindTab
   | TabNonDigital
   | TabVoid
   deriving (Eq, Show, Generic)
+
+-- | Columns for the existing submissions table.
+data SubCol = SubColKind | SubColDate | SubColDetails | SubColRemark | SubColActions
+  deriving (Eq, Show)
 
 -- ============================================================================
 -- Component Model & Actions
@@ -140,7 +145,7 @@ data SubmissionModel = SubmissionModel
   , locationText :: !MisoString
   , voidReason :: !MisoString
   , remarkText :: !MisoString
-  , confirmDelete :: !(Maybe SubmissionId)
+  , holdingDelete :: !(Maybe SubmissionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -152,9 +157,7 @@ data SubmissionAction
   | SetRemarkText !MisoString
   | SubmitWork
   | DoSubmit !UTCTime
-  | RequestDelete !SubmissionId
-  | ConfirmDelete !SubmissionId
-  | CancelDelete
+  | OnHoldDelete !(HoldButton.HoldAction SubmissionId)
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -179,7 +182,7 @@ submissionModalComponent r assignmentId userId _wm =
       , locationText = ""
       , voidReason = ""
       , remarkText = ""
-      , confirmDelete = Nothing
+      , holdingDelete = Nothing
       }
 
     submissionProjection :: AssignmentId -> UserId -> Document -> Maybe User -> SubmissionProjection
@@ -240,15 +243,10 @@ submissionModalComponent r assignmentId userId _wm =
             & #voidReason .~ ""
             & #remarkText .~ ""
 
-    update (RequestDelete sid) =
-      M.modify $ \m -> m & #confirmDelete .~ Just sid
-
-    update CancelDelete =
-      M.modify $ \m -> m & #confirmDelete .~ Nothing
-
-    update (ConfirmDelete sid) = do
-      M.io_ $ modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))
-      M.modify $ \m -> m & #confirmDelete .~ Nothing
+    update (OnHoldDelete ha) =
+      HoldButton.handleHoldAction #holdingDelete doDelete OnHoldDelete ha
+      where
+        doDelete sid = modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))
 
     -- ========================================================================
     -- View
@@ -259,6 +257,7 @@ submissionModalComponent r assignmentId userId _wm =
         Layout.vFlow
           Layout.gapM
           [ viewExistingSubmissions m
+          , Typography.h4 $ C.translate' C.LblNewSubmission
           , viewNewSubmissionForm m
           ]
 
@@ -311,7 +310,7 @@ submissionModalComponent r assignmentId userId _wm =
       any (\s -> case s.kind of VoidSubmission _ -> False; _ -> True) m.projection.submissions
 
     -- ========================================================================
-    -- Existing submissions list
+    -- Existing submissions table
     -- ========================================================================
 
     viewExistingSubmissions m =
@@ -320,67 +319,47 @@ submissionModalComponent r assignmentId userId _wm =
         else Layout.vFlow
           Layout.gapS
           [ Typography.h4 $ C.translate' C.LblSubmissions
-          , Layout.vFlow Layout.gapS
-              (map (viewSubmission m.confirmDelete) m.projection.submissions)
+          , Table.viewTable $ Table.defTable
+              { Table.columns = [SubColKind, SubColDate, SubColDetails, SubColRemark, SubColActions]
+              , Table.rows = m.projection.submissions
+              , Table.columnSpec = subColumnSpec
+              , Table.rowContents = Table.cellContents (subCell m.holdingDelete)
+              }
           ]
 
-    viewSubmission confirmingDelete s =
-      Card.card
-        [ MH.div_
-            [class_ "flex items-start justify-between gap-4"]
-            [ Layout.vFlow
-                Layout.gapMicro
-                [ -- Kind badge + timestamp
-                  Layout.hFlow
-                    (Layout.gapS <> Layout.crossCenter)
-                    [ kindBadge s.kind
-                    , Typography.small $ C.formatDateTime s.submittedAt
-                    ]
-                , -- Kind-specific details
-                  viewKindDetails s.kind
-                , -- Remark
-                  case s.remark of
-                    Nothing -> M.text ""
-                    Just rmk -> MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ ms rmk]
-                , -- Ownership info
-                  viewOwnership s.ownership
-                ]
-            , -- Delete button or confirmation
-              case confirmingDelete of
-                Just sid | sid == s.id ->
-                  Layout.hFlow
-                    Layout.gapS
-                    [ Button.destructiveSm $ Button.button C.LblDelete (ConfirmDelete s.id)
-                    , Button.secondarySm $ Button.button C.LblCancel CancelDelete
-                    ]
-                _ ->
-                  Button.ghostSm $ Button.button C.LblDeleteSubmission (RequestDelete s.id)
-            ]
+    subColumnSpec SubColKind = Table.TableColumnSpec Table.AutoSizedColumn ""
+    subColumnSpec SubColDate = Table.TableColumnSpec Table.AutoSizedColumn ""
+    subColumnSpec SubColDetails = Table.TableColumnSpec Table.EqualWidthColumn ""
+    subColumnSpec SubColRemark = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblRemark)
+    subColumnSpec SubColActions = Table.TableColumnSpec Table.SingleActionColumn ""
+
+    subCell _holding s SubColKind =
+      MH.div_ [class_ "px-3 py-2"] [kindBadge s.kind]
+    subCell _holding s SubColDate =
+      MH.div_ [class_ "px-3 py-2 whitespace-nowrap"]
+        [Typography.small $ C.formatDateTime s.submittedAt]
+    subCell _holding s SubColDetails =
+      MH.div_ [class_ "px-3 py-2 truncate"] [viewKindDetails s.kind]
+    subCell _holding s SubColRemark =
+      MH.div_ [class_ "px-3 py-2"]
+        [ case s.remark of
+            Nothing -> M.text ""
+            Just rmk -> MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms rmk]
         ]
+    subCell holding s SubColActions =
+      MH.div_ [class_ "px-3 py-2"]
+        [HoldButton.holdButton OnHoldDelete (holding == Just s.id) s.id]
 
     kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
     kindBadge (NonDigitalSubmission _) = Badge.secondary (Badge.badgeText (C.translate' C.LblGemacht))
     kindBadge (VoidSubmission _) = Badge.outline (Badge.badgeText (C.translate' C.LblNichtGemacht))
 
     viewKindDetails (DigitalSubmission files) =
-      MH.div_ [class_ "space-y-1"] (map viewFileRef files)
+      MH.span_ [class_ "text-sm"]
+        [M.text $ ms $ T.intercalate ", " $ map (.fileName) files]
     viewKindDetails (NonDigitalSubmission mLoc) =
       case mLoc of
         Nothing -> M.text ""
-        Just loc -> MH.div_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
+        Just loc -> MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
     viewKindDetails (VoidSubmission reason) =
-      MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text $ ms reason]
-
-    viewOwnership (IndividualSubmission _) = M.text ""
-    viewOwnership (CollaborativeSubmission _uids) =
-      MH.div_
-        [class_ "text-xs text-muted-foreground"]
-        [M.text $ C.translate' C.LblCollaborativeSubmission]
-
-    viewFileRef ref =
-      Layout.hFlow
-        (Layout.gapS <> Layout.crossCenter)
-        [ MH.span_ [class_ "text-sm font-medium truncate"] [M.text $ ms ref.fileName]
-        , MH.span_ [class_ "text-sm text-muted-foreground"]
-            [M.text $ ms $ "(" <> showFileSize ref.fileSize <> ")"]
-        ]
+      MH.span_ [class_ "text-sm text-muted-foreground italic"] [M.text $ ms reason]

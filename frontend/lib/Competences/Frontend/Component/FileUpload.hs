@@ -15,13 +15,15 @@ module Competences.Frontend.Component.FileUpload
 where
 
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
+import Competences.Document.Id (idToText)
 import Competences.Frontend.BinaryFFI (readFileFromInput)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Logging (logError)
-import Competences.Frontend.SyncContext.SyncDocument (SyncContext, uploadFile)
+import Competences.Frontend.SyncContext.SyncDocument (SyncContext, nextId, uploadFile)
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Data.ByteString.Lazy qualified as BL
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -31,7 +33,7 @@ import Miso qualified as M
 import Miso.DSL (JSVal)
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
-import Miso.String (ms)
+import Miso.String (MisoString, ms)
 import Optics.Core qualified as O
 
 -- | Upload status of the component.
@@ -45,6 +47,7 @@ data UploadStatus
 data FileUploadModel = FileUploadModel
   { files :: ![FileRef]
   , uploadStatus :: !UploadStatus
+  , inputId :: !MisoString
   }
   deriving (Eq, Show, Generic)
 
@@ -58,9 +61,17 @@ data FileUploadAction
     UploadResult !(Either Text FileRef)
   | -- | Remove a file from the list by hash
     RemoveFile !SHA256Hash
+  | -- | Generate a unique DOM id for the hidden input
+    GenerateInputId
+  | -- | Set the generated input id
+    SetInputId !MisoString
 
 instance Eq FileUploadAction where
   _ == _ = False
+
+-- | Columns for the file table.
+data FileCol = ColName | ColSize | ColActions
+  deriving (Eq, Show)
 
 -- | A self-contained Miso component for uploading files.
 --
@@ -80,13 +91,23 @@ fileUploadComponent
 fileUploadComponent syncCtx initialFiles parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #files]
+    , M.initialAction = Just GenerateInputId
     }
   where
     model =
       FileUploadModel
         { files = initialFiles
         , uploadStatus = Idle
+        , inputId = ""
         }
+
+    update GenerateInputId =
+      M.io $ do
+        newId <- nextId syncCtx
+        pure $ SetInputId ("file-upload-" <> ms (idToText newId))
+
+    update (SetInputId iid) =
+      M.modify $ \m -> m{inputId = iid}
 
     update (FileSelected domRef) =
       M.io $ do
@@ -113,18 +134,19 @@ fileUploadComponent syncCtx initialFiles parentLens =
 
     view m =
       MH.div_ [class_ "space-y-3"]
-        [ -- List of uploaded files
-          if null m.files
-            then MH.div_ [class_ "text-sm text-muted-foreground italic"]
-                   [M.text $ C.translate' C.LblNoFileSelected]
-            else MH.div_ [class_ "space-y-2"] (map viewFile m.files)
-        , -- Upload area
+        [ -- Upload button row: hidden input + styled label + status
           MH.div_ [class_ "flex items-center gap-3"]
             [ MH.input_
                 [ MP.type_ "file"
-                , class_ "text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-secondary file:text-secondary-foreground file:shadow-xs file:cursor-pointer hover:file:bg-accent"
+                , MP.id_ m.inputId
+                , class_ "hidden"
                 , M.on "change" M.emptyDecoder $ \() domRef -> FileSelected domRef
                 ]
+            , MH.label_
+                [ MP.for_ m.inputId
+                , class_ "btn btn-secondary btn-sm cursor-pointer"
+                ]
+                [M.text $ C.translate' C.LblUploadFile]
             , case m.uploadStatus of
                 Idle -> MH.span_ [] []
                 Uploading ->
@@ -137,17 +159,31 @@ fileUploadComponent syncCtx initialFiles parentLens =
                     , M.text $ ms err
                     ]
             ]
+        , -- File list: table or empty-state text
+          if null m.files
+            then MH.div_ [class_ "text-sm text-muted-foreground italic"]
+                   [M.text $ C.translate' C.LblNoFileSelected]
+            else Table.viewTable $ Table.defTable
+                   { Table.columns = [ColName, ColSize, ColActions]
+                   , Table.rows = m.files
+                   , Table.columnSpec = fileColumnSpec
+                   , Table.rowContents = Table.cellContents fileCell
+                   }
         ]
 
-    viewFile ref =
-      MH.div_ [class_ "flex items-center gap-3 p-2 bg-stone-50 rounded-md border border-stone-200"]
-        [ MH.div_ [class_ "flex-1 min-w-0"]
-            [ MH.div_ [class_ "text-sm font-medium truncate"] [M.text $ ms ref.fileName]
-            , Typography.small $ ms $
-                ref.mimeType <> " (" <> showFileSize ref.fileSize <> ")"
-            ]
-        , Button.destructiveSm $ Button.button C.LblDelete (RemoveFile ref.hash)
-        ]
+    fileColumnSpec ColName = Table.TableColumnSpec Table.EqualWidthColumn (C.translate' C.LblFile)
+    fileColumnSpec ColSize = Table.TableColumnSpec Table.AutoSizedColumn ""
+    fileColumnSpec ColActions = Table.TableColumnSpec Table.SingleActionColumn ""
+
+    fileCell ref ColName =
+      MH.div_ [class_ "px-3 py-2 truncate"]
+        [MH.span_ [class_ "text-sm font-medium"] [M.text $ ms ref.fileName]]
+    fileCell ref ColSize =
+      MH.div_ [class_ "px-3 py-2 whitespace-nowrap"]
+        [MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms $ showFileSize ref.fileSize]]
+    fileCell ref ColActions =
+      MH.div_ [class_ "px-3 py-2"]
+        [Button.ghostSm $ Button.button Icon.IcnDelete (RemoveFile ref.hash)]
 
 -- | Format a file size in human-readable form.
 showFileSize :: Int64 -> Text

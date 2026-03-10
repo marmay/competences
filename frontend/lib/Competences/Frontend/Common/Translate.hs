@@ -404,6 +404,7 @@ data Label
   | LblIndividualSubmission
   | LblCollaborativeSubmission
   | LblAbgegebenUndGemacht
+  | LblNewSubmission
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -773,6 +774,7 @@ labels' =
   , LblIndividualSubmission
   , LblCollaborativeSubmission
   , LblAbgegebenUndGemacht
+  , LblNewSubmission
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1170,6 +1172,7 @@ defaultTranslation LblVoidReason = "Begründung"
 defaultTranslation LblIndividualSubmission = "Einzelarbeit"
 defaultTranslation LblCollaborativeSubmission = "Gemeinsame Abgabe mit"
 defaultTranslation LblAbgegebenUndGemacht = "Abgegeben & Gemacht"
+defaultTranslation LblNewSubmission = "Neue Abgabe"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

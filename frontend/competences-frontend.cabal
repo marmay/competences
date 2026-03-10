@@ -145,6 +145,7 @@ library
         Competences.Frontend.View.Evaluation,
         Competences.Frontend.View.EvidenceIcon,
         Competences.Frontend.View.Form,
+        Competences.Frontend.View.HoldButton,
         Competences.Frontend.View.Icon,
         Competences.Frontend.View.GradeBadge,
         Competences.Frontend.View.Input,
