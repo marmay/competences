@@ -145,7 +145,7 @@ data SubmissionModel = SubmissionModel
   , locationText :: !MisoString
   , voidReason :: !MisoString
   , remarkText :: !MisoString
-  , holdingDelete :: !(Maybe SubmissionId)
+  , holdingDelete :: !(HoldButton.HoldState SubmissionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -182,7 +182,7 @@ submissionModalComponent r assignmentId userId _wm =
       , locationText = ""
       , voidReason = ""
       , remarkText = ""
-      , holdingDelete = Nothing
+      , holdingDelete = HoldButton.emptyHoldState
       }
 
     submissionProjection :: AssignmentId -> UserId -> Document -> Maybe User -> SubmissionProjection
@@ -348,7 +348,7 @@ submissionModalComponent r assignmentId userId _wm =
         ]
     subCell holding s SubColActions =
       MH.div_ [class_ "px-3 py-2"]
-        [HoldButton.holdButton OnHoldDelete (holding == Just s.id) s.id]
+        [HoldButton.holdButton OnHoldDelete (HoldButton.isHoldingId holding s.id) s.id]
 
     kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
     kindBadge (NonDigitalSubmission _) = Badge.secondary (Badge.badgeText (C.translate' C.LblGemacht))
