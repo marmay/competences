@@ -46,8 +46,10 @@ import Competences.Frontend.Component.Geometry (renderGeometryBlock)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
   , FormulaCache
+  , FormulaResult (..)
   , MathDisplay (..)
   , SymbolId (..)
+  , formulaResultId
   , hashLatex
   , hashLatexColored
   , lookupCachedFormulas
@@ -56,6 +58,7 @@ import Competences.Frontend.SvgEmbed.Manager
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Markdown.AST qualified as MD
@@ -87,8 +90,8 @@ import Text.Read (readMaybe)
 data RichContentModel = RichContentModel
   { content :: !MD.Document
   -- ^ Parsed AST
-  , embeddedSymbols :: !(Map SymbolId EmbeddedSymbol)
-  -- ^ MathJax-rendered formulas with their data URLs and dimensions
+  , embeddedSymbols :: !(Map SymbolId FormulaResult)
+  -- ^ MathJax-rendered formulas: successes (data URLs) and TeX errors
   }
   deriving (Eq, Show, Generic)
 
@@ -96,8 +99,8 @@ data RichContentModel = RichContentModel
 data RichContentAction
   = -- | Initial action: render all MathJax formulas
     RenderMath
-  | -- | A batch of formulas rendered successfully (merged into existing)
-    SymbolsReady !(Map SymbolId EmbeddedSymbol)
+  | -- | A batch of formula results (successes + errors, merged into existing)
+    SymbolsReady !(Map SymbolId FormulaResult)
   | -- | Retry rendering after exponential backoff (attempt number)
     RetryRender !Int
   deriving (Eq, Show)
@@ -188,17 +191,19 @@ richContentComponent fc resolver footer _key doc =
         _ <- forkIO $ do
           let go = do
                 rendered <- mapM (\(d, l, mc) -> renderFormulaCached fc d l mc) formulas
-                let successful = Map.fromList [(es.symbolId, es) | Just es <- rendered]
-                    failCount = length formulas - Map.size successful
-                sink (SymbolsReady successful)
-                when (failCount > 0) $ sink (RetryRender 0)
+                let results = Map.fromList
+                      [(formulaResultId fr, fr) | fr <- rendered]
+                    pendingCount = length [() | FormulaPending {} <- rendered]
+                sink (SymbolsReady results)
+                when (pendingCount > 0) $ sink (RetryRender 0)
           go `catch` \(e :: SomeException) -> do
             logWarn $ ms ("RichContent render thread failed: " <> T.pack (displayException e))
             sink (RetryRender 0)
         pure ()
 
+    -- Prefer new results: upgrades Pending → Success/Error on retry
     update (SymbolsReady newSymbols) =
-      M.modify $ \m -> m {embeddedSymbols = m.embeddedSymbols <> newSymbols}
+      M.modify $ \m -> m {embeddedSymbols = newSymbols <> m.embeddedSymbols}
 
     update (RetryRender n)
       | n >= 5 = pure () -- give up after 5 retries
@@ -269,7 +274,7 @@ extractFromInline = \case
 -- Rendering
 -- ============================================================================
 
-renderBlock :: FileResolver -> Map SymbolId EmbeddedSymbol -> MD.Block -> M.View RichContentModel RichContentAction
+renderBlock :: FileResolver -> Map SymbolId FormulaResult -> MD.Block -> M.View RichContentModel RichContentAction
 renderBlock resolver symbols = \case
   MD.Paragraph inlines ->
     M.p_ [class_ "text-stone-800 leading-relaxed"] $
@@ -279,7 +284,7 @@ renderBlock resolver symbols = \case
      in tag [class_ classes] $ map (renderInline resolver symbols) inlines
   MD.FencedCodeBlock info body ->
     case info of
-      Just i | isGeometryInfo i -> renderGeometryBlock symbols info body
+      Just i | isGeometryInfo i -> renderGeometryBlock (successfulSymbols symbols) info body
       Just "svg" ->
         M.div_
           [class_ "flex justify-center my-4"]
@@ -322,14 +327,14 @@ headingStyle 4 = (M.h4_, "text-base font-semibold text-stone-700 mb-2")
 headingStyle 5 = (M.h5_, "text-sm font-semibold text-stone-700 mb-1")
 headingStyle _ = (M.h6_, "text-sm font-medium text-stone-600 mb-1")
 
-renderListItem :: FileResolver -> Map SymbolId EmbeddedSymbol -> [MD.Block] -> M.View RichContentModel RichContentAction
+renderListItem :: FileResolver -> Map SymbolId FormulaResult -> [MD.Block] -> M.View RichContentModel RichContentAction
 renderListItem resolver symbols blocks =
   M.li_ [class_ "text-stone-800 leading-relaxed pl-1"] $
     map (renderBlock resolver symbols) blocks
 
 renderAdmonition
   :: FileResolver
-  -> Map SymbolId EmbeddedSymbol
+  -> Map SymbolId FormulaResult
   -> MD.AdmonitionType
   -> Maybe [MD.Inline]
   -> [MD.Block]
@@ -351,7 +356,7 @@ renderAdmonition resolver symbols adType mTitle bodyBlocks =
 -- | Render a 2x2 BTC notes grid
 renderNotesGrid
   :: FileResolver
-  -> Map SymbolId EmbeddedSymbol
+  -> Map SymbolId FormulaResult
   -> [MD.Block]
   -> [MD.Block]
   -> [MD.Block]
@@ -380,7 +385,7 @@ admonitionLabel = \case
   MD.Merksatz -> "Merksatz"
   MD.Example -> "Beispiel"
 
-renderInline :: FileResolver -> Map SymbolId EmbeddedSymbol -> MD.Inline -> M.View RichContentModel RichContentAction
+renderInline :: FileResolver -> Map SymbolId FormulaResult -> MD.Inline -> M.View RichContentModel RichContentAction
 renderInline resolver symbols = \case
   MD.Plain text -> M.text (ms text)
   MD.Emph inlines ->
@@ -413,14 +418,25 @@ thumbClasses MD.ThumbSmall = "max-w-[20%] mx-auto"
 thumbClasses MD.ThumbMedium = "max-w-[60%] mx-auto"
 thumbClasses MD.ThumbLarge = "max-w-[90%] mx-auto"
 
--- | Create <img> element with data URL for a MathJax-rendered formula.
--- Shows the LaTeX source as a muted placeholder while rendering is pending.
-mathImgRef :: Map SymbolId EmbeddedSymbol -> SymbolId -> Text -> MathDisplay -> M.View RichContentModel RichContentAction
+-- | Create view for a MathJax formula with four states:
+-- not-yet-attempted (static placeholder), pending (pulsing placeholder),
+-- success (img), error (raw source + warning icon).
+mathImgRef :: Map SymbolId FormulaResult -> SymbolId -> Text -> MathDisplay -> M.View RichContentModel RichContentAction
 mathImgRef symbols sid latex display =
   case Map.lookup sid symbols of
     Nothing ->
+      -- Not yet attempted — brief initial state before first render pass
       Typography.placeholder (ms latex)
-    Just es ->
+    Just (FormulaPending _ _reason) ->
+      -- Transient failure — pulsing indicates retry in progress
+      let content =
+            M.span_
+              [class_ "text-muted-foreground italic animate-pulse"]
+              [M.text (ms latex)]
+       in case display of
+            Block -> M.div_ [class_ "flex justify-center my-2"] [content]
+            Inline -> content
+    Just (FormulaSuccess es) ->
       let styleVal =
             "width:" <> es.width
               <> ";height:" <> es.height
@@ -442,6 +458,20 @@ mathImgRef symbols sid latex display =
                 , M.textProp (ms ("alt" :: Text)) (ms latex)
                 , M.textProp (ms ("style" :: Text)) (ms styleVal)
                 ]
+    Just (FormulaError _ errMsg) ->
+      let content =
+            M.span_
+              [class_ "inline-flex items-center gap-1"]
+              [ M.span_ [class_ "text-muted-foreground italic"] [M.text (ms latex)]
+              , M.span_
+                  [ class_ "text-destructive cursor-help"
+                  , M.textProp (ms ("title" :: Text)) (ms errMsg)
+                  ]
+                  [Icon.iconVS Icon.Destructive Icon.Small Icon.IcnWarning]
+              ]
+       in case display of
+            Block -> M.div_ [class_ "flex justify-center my-2"] [content]
+            Inline -> content
 
 -- ============================================================================
 -- Convenience functions
@@ -559,6 +589,15 @@ unreferencedFilesList attachments doc
 -- ============================================================================
 -- Internal helpers
 -- ============================================================================
+
+-- | Extract only successful renders from a formula result map.
+-- Used when passing to modules that expect 'Map SymbolId EmbeddedSymbol'
+-- (e.g., Geometry renderer).
+successfulSymbols :: Map SymbolId FormulaResult -> Map SymbolId EmbeddedSymbol
+successfulSymbols = Map.mapMaybe $ \case
+  FormulaSuccess es -> Just es
+  FormulaPending {} -> Nothing
+  FormulaError {} -> Nothing
 
 -- | Generate a stable hash key from Document
 hashDocument :: MD.Document -> Text

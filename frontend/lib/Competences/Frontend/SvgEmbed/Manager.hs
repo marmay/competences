@@ -16,6 +16,8 @@ module Competences.Frontend.SvgEmbed.Manager
     SymbolId (..)
   , EmbeddedSymbol (..)
   , MathDisplay (..)
+  , FormulaResult (..)
+  , formulaResultId
 
     -- * Formula cache
   , FormulaCache (..)
@@ -88,6 +90,30 @@ data MathDisplay
     Block
   deriving (Eq, Show)
 
+-- | Result of rendering a LaTeX formula via MathJax.
+--
+-- Three states with clear caching/retry semantics:
+--
+-- * 'FormulaPending' — transient failure (MathJax not loaded, FFI exception).
+--   NOT cached, triggers retry with exponential backoff.
+-- * 'FormulaSuccess' — rendered SVG. Cached permanently.
+-- * 'FormulaError' — permanent failure (TeX error, malformed output).
+--   Cached permanently — the source needs fixing, retrying won't help.
+data FormulaResult
+  = -- | Transient: MathJax not ready or FFI exception, will retry
+    FormulaPending !SymbolId !Text
+  | -- | Permanent: successfully rendered SVG with dimensions
+    FormulaSuccess !EmbeddedSymbol
+  | -- | Permanent: TeX error or malformed MathJax output
+    FormulaError !SymbolId !Text
+  deriving (Eq, Ord, Show)
+
+-- | Extract the symbol ID from a formula result.
+formulaResultId :: FormulaResult -> SymbolId
+formulaResultId (FormulaPending sid _) = sid
+formulaResultId (FormulaSuccess es) = es.symbolId
+formulaResultId (FormulaError sid _) = sid
+
 -- | Hash LaTeX source to create a symbol ID
 -- Uses a simple hash for fast, collision-resistant IDs
 hashLatex :: MathDisplay -> Text -> SymbolId
@@ -147,15 +173,23 @@ prepareFormula Block latex = latex
 -- | Render a LaTeX formula to SVG via MathJax and return as a data URL.
 -- An optional hex color is injected into the SVG root element.
 --
+-- Always returns a 'FormulaResult':
+--
+-- * 'FormulaPending' for transient failures (MathJax not loaded, FFI exception)
+-- * 'FormulaSuccess' on successful render
+-- * 'FormulaError' for permanent failures (TeX error, malformed output)
+--
 -- The MathJax result is a detached DOM element that gets garbage collected —
 -- nothing is inserted into the live DOM.
-renderFormula :: MathDisplay -> Text -> Maybe Text -> IO (Maybe EmbeddedSymbol)
+renderFormula :: MathDisplay -> Text -> Maybe Text -> IO FormulaResult
 renderFormula display latex mColor = do
+  let sid = hashLatexColored display latex mColor
   ready <- isMathJaxReady
   if not ready
-    then pure Nothing
+    then pure $ FormulaPending sid "MathJax loading"
     else do
-      let sid = hashLatexColored display latex mColor
+      -- MathJax is ready — failures from here are permanent (TeX error,
+      -- missing SVG, malformed output). Only FFI exceptions are transient.
       result <- try @SomeException $ do
         -- Render with MathJax (returns a detached container element)
         mathJax <- jsg ("MathJax" :: MisoString)
@@ -166,41 +200,51 @@ renderFormula display latex mColor = do
         mjResult <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
         resultIsNull <- isNull mjResult
         if resultIsNull
-          then pure Nothing
+          then pure $ FormulaError sid "MathJax returned null"
           else do
-            -- Query the <svg> from the result container
-            svgElement <- mjResult # ("querySelector" :: MisoString) $ [toJSVal ("svg" :: MisoString)]
-            svgIsNull <- isNull svgElement
-            if svgIsNull
-              then pure Nothing
+            -- Check for MathJax TeX error before extracting SVG.
+            -- MathJax puts data-mjx-error on a child <span>, not the container.
+            errElement <- mjResult # ("querySelector" :: MisoString) $ [toJSVal ("[data-mjx-error]" :: MisoString)]
+            errIsNull <- isNull errElement
+            if not errIsNull
+              then do
+                errAttrVal <- errElement # ("getAttribute" :: MisoString) $ [toJSVal ("data-mjx-error" :: MisoString)]
+                mErrAttr <- fromJSVal @MisoString errAttrVal
+                pure $ FormulaError sid (maybe "Unknown TeX error" fromMisoString mErrAttr)
               else do
-                -- Extract dimensions from the SVG element
-                widthVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
-                mWidth <- fromJSVal @MisoString widthVal
-                heightVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
-                mHeight <- fromJSVal @MisoString heightVal
-                styleObj <- svgElement ! ("style" :: MisoString)
-                vertAlignVal <- styleObj ! ("verticalAlign" :: MisoString)
-                mVertAlign <- fromJSVal @MisoString vertAlignVal
-                -- Serialize SVG to text via .outerHTML
-                outerHtmlVal <- svgElement ! ("outerHTML" :: MisoString)
-                mOuterHtml <- fromJSVal @MisoString outerHtmlVal
-                case (mWidth, mHeight, mOuterHtml) of
-                  (Just w, Just h, Just svgHtml) ->
-                    let svgText = injectSvgColor mColor (fromMisoString svgHtml)
-                     in pure $ Just EmbeddedSymbol
-                          { symbolId = sid
-                          , dataUrl = svgToDataUrl svgText
-                          , width = fromMisoString w
-                          , height = fromMisoString h
-                          , verticalAlign = maybe "0" fromMisoString mVertAlign
-                          }
-                  _ -> pure Nothing
+                -- Query the <svg> from the result container
+                svgElement <- mjResult # ("querySelector" :: MisoString) $ [toJSVal ("svg" :: MisoString)]
+                svgIsNull <- isNull svgElement
+                if svgIsNull
+                  then pure $ FormulaError sid "MathJax produced no SVG element"
+                  else do
+                    -- Extract dimensions from the SVG element
+                    widthVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("width" :: MisoString)]
+                    mWidth <- fromJSVal @MisoString widthVal
+                    heightVal <- svgElement # ("getAttribute" :: MisoString) $ [toJSVal ("height" :: MisoString)]
+                    mHeight <- fromJSVal @MisoString heightVal
+                    styleObj <- svgElement ! ("style" :: MisoString)
+                    vertAlignVal <- styleObj ! ("verticalAlign" :: MisoString)
+                    mVertAlign <- fromJSVal @MisoString vertAlignVal
+                    -- Serialize SVG to text via .outerHTML
+                    outerHtmlVal <- svgElement ! ("outerHTML" :: MisoString)
+                    mOuterHtml <- fromJSVal @MisoString outerHtmlVal
+                    case (mWidth, mHeight, mOuterHtml) of
+                      (Just w, Just h, Just svgHtml) ->
+                        let svgText = injectSvgColor mColor (fromMisoString svgHtml)
+                         in pure $ FormulaSuccess EmbeddedSymbol
+                              { symbolId = sid
+                              , dataUrl = svgToDataUrl svgText
+                              , width = fromMisoString w
+                              , height = fromMisoString h
+                              , verticalAlign = maybe "0" fromMisoString mVertAlign
+                              }
+                      _ -> pure $ FormulaError sid "Could not extract SVG dimensions"
       case result of
-        Right v -> pure v
+        Right fr -> pure fr
         Left e -> do
-          logWarn $ ms ("MathJax renderFormula failed for: " <> latex <> " — " <> T.pack (displayException e))
-          pure Nothing
+          logWarn $ ms ("MathJax renderFormula exception for: " <> latex <> " — " <> T.pack (displayException e))
+          pure $ FormulaPending sid (T.pack (displayException e))
 
 -- | Encode SVG text as a base64 data URL. Pure function, no IO.
 --
@@ -215,7 +259,9 @@ svgToDataUrl svg =
 -- ============================================================================
 
 -- | Explicit formula cache, held in 'SyncContext'.
-newtype FormulaCache = FormulaCache (IORef (Map SymbolId EmbeddedSymbol))
+-- Only stores permanent results ('FormulaSuccess', 'FormulaError').
+-- 'FormulaPending' is never cached — it triggers retries.
+newtype FormulaCache = FormulaCache (IORef (Map SymbolId FormulaResult))
 
 -- | Create a new, empty formula cache.
 newFormulaCache :: IO FormulaCache
@@ -223,24 +269,27 @@ newFormulaCache = FormulaCache <$> newIORef Map.empty
 
 -- | Render a formula via MathJax, using the given cache.
 -- On cache hit, returns immediately without calling MathJax.
-renderFormulaCached :: FormulaCache -> MathDisplay -> Text -> Maybe Text -> IO (Maybe EmbeddedSymbol)
+-- 'FormulaSuccess' and 'FormulaError' are cached permanently;
+-- 'FormulaPending' bypasses the cache and will be retried.
+renderFormulaCached :: FormulaCache -> MathDisplay -> Text -> Maybe Text -> IO FormulaResult
 renderFormulaCached (FormulaCache ref) display latex mColor = do
   let sid = hashLatexColored display latex mColor
   cache <- readIORef ref
   case Map.lookup sid cache of
-    Just es -> pure (Just es)
+    Just fr -> pure fr
     Nothing -> do
-      result <- renderFormula display latex mColor
-      case result of
-        Just es -> do
-          atomicModifyIORef' ref $ \c -> (Map.insert sid es c, ())
-          pure (Just es)
-        Nothing -> pure Nothing
+      fr <- renderFormula display latex mColor
+      case fr of
+        FormulaPending {} -> pure fr
+        _ -> do
+          atomicModifyIORef' ref $ \c -> (Map.insert sid fr c, ())
+          pure fr
 
 -- | Bulk cache lookup for a list of symbol IDs.
--- Returns all currently cached symbols without rendering anything.
-lookupCachedFormulas :: FormulaCache -> [SymbolId] -> IO (Map SymbolId EmbeddedSymbol)
+-- Returns all currently cached results (only 'FormulaSuccess' and
+-- 'FormulaError') without rendering anything.
+lookupCachedFormulas :: FormulaCache -> [SymbolId] -> IO (Map SymbolId FormulaResult)
 lookupCachedFormulas (FormulaCache ref) sids = do
   cache <- readIORef ref
   pure $ Map.fromList
-    [(sid, es) | sid <- sids, Just es <- [Map.lookup sid cache]]
+    [(sid, fr) | sid <- sids, Just fr <- [Map.lookup sid cache]]
