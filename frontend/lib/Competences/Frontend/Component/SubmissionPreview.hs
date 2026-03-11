@@ -4,7 +4,7 @@
 --   submissionPreviewPanel (mounts container)
 --   └─ Container component (holds selectedId)
 --      ├─ CustomSelect component (derives options, pushes selectedId via binding)
---      └─ Detail component (keyed by selectedId, loads files on init)
+--      └─ Detail component (keyed by selectedId, delegates files to FileGallery)
 --
 -- When the user picks a different submission in the CustomSelect, the container's
 -- selectedId changes via binding, which changes the detail component's key,
@@ -18,45 +18,32 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (AssignmentId, Document (..), User (..))
-import Competences.Document.FileRef (FileRef (..), SHA256Hash)
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..))
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.FileUpload (showFileSize)
+import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
 import Competences.Frontend.Component.Selector.CustomSelect
   ( CustomSelectConfig (..)
   , customSelectComponent
   )
-import Competences.Frontend.FileCache (fileToDataUrl)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
-  , downloadFile
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (sortOn)
 import Data.Ord (Down (..))
-import Data.Text (Text)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MP
 import Miso.String (ms)
 import Optics.Core ((.~), (&))
-
--- | Check if a MIME type is an image type.
-isImageMime :: Text -> Bool
-isImageMime mime =
-  any (`T.isPrefixOf` mime)
-    ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg"]
 
 -- ===========================================================================
 -- Shared view helpers
@@ -174,20 +161,11 @@ detailProjection sid doc _mUser =
 
 data DetailModel = DetailModel
   { submission :: !(Maybe Submission)
-  , imageFiles :: ![(FileRef, Maybe Text)]
-  , nonImageFiles :: ![FileRef]
-  , currentImageIndex :: !Int
-  , showFilePopover :: !Bool
   }
   deriving (Eq, Show, Generic)
 
 data DetailAction
   = DetailProjectionChanged !(ProjectedChange DetailProjection)
-  | ImageLoaded !SHA256Hash !Text
-  | ImageNotAvailable !SHA256Hash
-  | PrevImage
-  | NextImage
-  | ToggleFilePopover
   deriving (Eq, Show)
 
 submissionDetailComponent
@@ -198,87 +176,30 @@ submissionDetailComponent r sid =
     { M.subs = [subscribeWithProjection r (detailProjection sid) DetailProjectionChanged]
     }
   where
-    model =
-      DetailModel
-        { submission = Nothing
-        , imageFiles = []
-        , nonImageFiles = []
-        , currentImageIndex = 0
-        , showFilePopover = False
-        }
+    model = DetailModel {submission = Nothing}
 
     update (DetailProjectionChanged pc) = do
       m <- M.get
       let newSub = pc.projection.projSubmission
       M.put (m & #submission .~ newSub :: DetailModel)
-      -- On initial load (Nothing → Just), load files
-      case (m.submission, newSub) of
-        (Nothing, Just sub) -> loadFilesForSub sub
-        _ -> pure ()
-
-    update (ImageLoaded hash url) = M.modify $ \m ->
-      m
-        { imageFiles =
-            [ if ref.hash == hash then (ref, Just url) else (ref, mUrl)
-            | (ref, mUrl) <- m.imageFiles
-            ]
-        }
-
-    update (ImageNotAvailable hash) = M.modify $ \m ->
-      m
-        { imageFiles =
-            [ if ref.hash == hash then (ref, Just "") else (ref, mUrl)
-            | (ref, mUrl) <- m.imageFiles
-            ]
-        }
-
-    update PrevImage = M.modify $ \m ->
-      let total = length m.imageFiles
-          newIdx = if m.currentImageIndex > 0 then m.currentImageIndex - 1 else total - 1
-       in m{currentImageIndex = newIdx}
-
-    update NextImage = M.modify $ \m ->
-      let total = length m.imageFiles
-          newIdx = if m.currentImageIndex < total - 1 then m.currentImageIndex + 1 else 0
-       in m{currentImageIndex = newIdx}
-
-    update ToggleFilePopover = M.modify $ \m ->
-      m{showFilePopover = not m.showFilePopover}
-
-    loadFilesForSub (sub :: Submission) = case sub.kind of
-      DigitalSubmission files ->
-        let imgs = filter (isImageMime . (.mimeType)) files
-            nonImgs = filter (not . isImageMime . (.mimeType)) files
-         in do
-              M.modify $ \m ->
-                m
-                  { imageFiles = map (\f -> (f, Nothing)) imgs
-                  , nonImageFiles = nonImgs
-                  , currentImageIndex = 0
-                  }
-              mapM_ initiateDownload imgs
-      _ -> M.modify $ \m -> m{imageFiles = [], nonImageFiles = [], currentImageIndex = 0}
-
-    initiateDownload ref = M.io $ do
-      mData <- downloadFile r ref.hash
-      case mData of
-        Just bs -> pure $ ImageLoaded ref.hash (fileToDataUrl ref.mimeType bs)
-        Nothing -> pure $ ImageNotAvailable ref.hash
 
     view' m = case m.submission of
       Nothing ->
         MH.div_
           [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm"]
           [M.text $ C.translate' C.LblNoSubmissionSelected]
-      Just sub -> viewSubmissionContent m sub
+      Just sub -> viewSubmissionContent r sub
 
 -- ---------------------------------------------------------------------------
--- Preview Views (used by DetailModel)
+-- Preview Views
 -- ---------------------------------------------------------------------------
 
-viewSubmissionContent :: DetailModel -> Submission -> M.View m DetailAction
-viewSubmissionContent m sub = case sub.kind of
-  DigitalSubmission _files -> viewDigitalContent m
+viewSubmissionContent :: SyncContext -> Submission -> M.View m DetailAction
+viewSubmissionContent r sub = case sub.kind of
+  DigitalSubmission files ->
+    inlineComponent
+      ("gallery-" <> ms (show sub.id))
+      (fileGalleryComponent r files)
   NonDigitalSubmission mLoc ->
     MH.div_
       [class_ "p-4 text-sm"]
@@ -310,133 +231,6 @@ viewRemark sub = case sub.remark of
       [ MH.span_ [class_ "font-medium"] [M.text $ C.translate' C.LblRemark <> ": "]
       , M.text (ms rmk)
       ]
-
--- ---------------------------------------------------------------------------
--- Digital Content: Image Gallery + File List
--- ---------------------------------------------------------------------------
-
-viewDigitalContent :: DetailModel -> M.View m DetailAction
-viewDigitalContent m
-  | null m.imageFiles && null m.nonImageFiles =
-      MH.div_
-        [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm"]
-        [M.text $ C.translate' C.LblNoSubmissions]
-  | null m.imageFiles =
-      viewFileList m.nonImageFiles
-  | otherwise =
-      Layout.vFlow
-        mempty
-        [ viewImageGallery m
-        , viewGalleryBottomBar m
-        ]
-
-viewImageGallery :: DetailModel -> M.View m DetailAction
-viewImageGallery m =
-  let idx = m.currentImageIndex
-      mEntry = if idx < length m.imageFiles then Just (m.imageFiles !! idx) else Nothing
-   in MH.div_
-        [class_ "bg-stone-50 rounded-t-lg flex items-center justify-center min-h-48"]
-        [ case mEntry of
-            Nothing -> M.text ""
-            Just (ref, Nothing) ->
-              MH.div_
-                [class_ "flex flex-col items-center gap-2 p-8 animate-pulse"]
-                [MH.span_ [class_ "text-sm text-stone-500"] [M.text $ ms ref.fileName]]
-            Just (_ref, Just "") ->
-              MH.div_
-                [class_ "p-8 text-red-500 text-sm"]
-                [M.text "Datei nicht verfügbar"]
-            Just (ref, Just url) ->
-              MH.img_
-                [ MP.src_ (ms url)
-                , MP.alt_ (ms ref.fileName)
-                , class_ "max-h-96 object-contain"
-                ]
-        ]
-
-viewGalleryBottomBar :: DetailModel -> M.View m DetailAction
-viewGalleryBottomBar m =
-  let totalImages = length m.imageFiles
-      hasNonImageFiles = not (null m.nonImageFiles)
-      showNav = totalImages > 1
-   in MH.div_
-        [class_ "flex items-center justify-between px-3 py-2 bg-stone-100 rounded-b-lg border-t border-stone-200"]
-        [ if showNav
-            then
-              Layout.hFlow
-                (Layout.gapS <> Layout.crossCenter)
-                [ MH.button_
-                    [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
-                    , MH.onClick PrevImage
-                    ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowUp]
-                , MH.span_
-                    [class_ "text-sm text-muted-foreground font-medium tabular-nums"]
-                    [M.text $ ms (show (m.currentImageIndex + 1)) <> "/" <> ms (show totalImages)]
-                , MH.button_
-                    [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
-                    , MH.onClick NextImage
-                    ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowDown]
-                ]
-            else MH.span_ [] []
-        , if hasNonImageFiles
-            then viewFileIndicator m
-            else M.text ""
-        ]
-
-viewFileIndicator :: DetailModel -> M.View m DetailAction
-viewFileIndicator m =
-  let fileCount = length m.nonImageFiles
-   in MH.div_
-        [class_ "relative"]
-        [ MH.button_
-            [ class_ "flex items-center gap-1.5 px-2 py-1 rounded text-sm text-muted-foreground hover:bg-stone-200 transition-colors"
-            , MH.onClick ToggleFilePopover
-            ]
-            [ M.text $ C.translate' (C.LblMoreFiles fileCount)
-            , Icon.iconS Icon.Small Icon.IcnImport
-            ]
-        , if m.showFilePopover
-            then viewFilePopover m.nonImageFiles
-            else M.text ""
-        ]
-
-viewFilePopover :: [FileRef] -> M.View m a
-viewFilePopover files =
-  MH.div_
-    [class_ "absolute bottom-full right-0 mb-1 w-64 bg-popover border border-border rounded-lg shadow-lg p-2 z-10"]
-    (map viewPopoverFileItem files)
-
-viewPopoverFileItem :: FileRef -> M.View m a
-viewPopoverFileItem ref =
-  Layout.hFlow
-    (Layout.gapS <> Layout.crossCenter)
-    [ MH.span_ [class_ "text-xs font-medium truncate flex-1"] [M.text $ ms ref.fileName]
-    , MH.span_
-        [class_ "text-xs text-muted-foreground flex-shrink-0"]
-        [M.text $ ms $ showFileSize ref.fileSize]
-    ]
-
-viewFileList :: [FileRef] -> M.View m a
-viewFileList files =
-  MH.div_
-    [class_ "p-3"]
-    [ Layout.vFlow
-        Layout.gapS
-        (map viewFileListItem files)
-    ]
-
-viewFileListItem :: FileRef -> M.View m a
-viewFileListItem ref =
-  Layout.hFlow
-    (Layout.gapS <> Layout.crossCenter)
-    [ Icon.iconS Icon.Small Icon.IcnImport
-    , MH.span_ [class_ "text-sm font-medium truncate flex-1"] [M.text $ ms ref.fileName]
-    , MH.span_
-        [class_ "text-sm text-muted-foreground flex-shrink-0"]
-        [M.text $ ms $ "(" <> showFileSize ref.fileSize <> ")"]
-    ]
 
 -- ---------------------------------------------------------------------------
 -- Public API

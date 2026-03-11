@@ -100,6 +100,7 @@ library
         Competences.Frontend.Component.Selector.ObservationSelector,
         Competences.Frontend.Component.Selector.TaskOrGroupSelector,
         Competences.Frontend.Component.Selector.UserSelector,
+        Competences.Frontend.Component.FileGallery,
         Competences.Frontend.Component.FilePreview,
         Competences.Frontend.Component.FileUpload,
         Competences.Frontend.Component.Submission,

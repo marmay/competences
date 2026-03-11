@@ -11,12 +11,12 @@ module Competences.Frontend.Component.FilePreview
 where
 
 import Competences.Document.FileRef (FileRef (..))
+import Competences.Frontend.Component.FileGallery (isImageMime)
+import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.FileCache (fileToDataUrl)
 import Competences.Frontend.SyncContext.SyncDocument (SyncContext, downloadFile)
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.Component.FileUpload (showFileSize)
 import Data.Text (Text)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -38,12 +38,6 @@ data FilePreviewAction
   | FileNotAvailable
   | ToggleEnlarged
   deriving (Eq, Show)
-
--- | Check if a MIME type is an image type.
-isImageMime :: Text -> Bool
-isImageMime mime =
-  any (`T.isPrefixOf` mime)
-    ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg"]
 
 -- | A self-contained Miso component for previewing a single file.
 filePreviewComponent :: SyncContext -> FileRef -> M.Component p FilePreviewModel FilePreviewAction

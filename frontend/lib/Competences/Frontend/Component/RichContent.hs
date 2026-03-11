@@ -40,8 +40,8 @@ module Competences.Frontend.Component.RichContent
 where
 
 import Competences.Document.FileRef (FileRef (..), SHA256Hash)
+import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.FilePreview (filePreviewComponent)
-import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.Component.Geometry (renderGeometryBlock)
 import Competences.Frontend.SvgEmbed.Manager
   ( EmbeddedSymbol (..)
@@ -510,7 +510,7 @@ documentViewWithFiles :: FormulaCache -> SyncContext -> [FileRef] -> MD.Document
 documentViewWithFiles fc syncCtx attachments doc =
   let key = hashDocument doc
       resolver = mkFileResolver syncCtx attachments
-      footer = unreferencedFilesList attachments doc
+      footer = unreferencedFilesList syncCtx attachments doc
    in inlineComponent
         ("rich-" <> M.ms key)
         (richContentComponent fc resolver footer key doc)
@@ -558,33 +558,23 @@ referencedFileHashes attachments (MD.Document blocks) =
       MD.Link _ inlines _ -> concatMap extractRefsFromInline inlines
       _ -> []
 
--- | Render the list of unreferenced attachments (files attached but not used in markdown).
+-- | Render unreferenced attachments (files attached but not used in markdown) via FileGallery.
 unreferencedFilesList
-  :: [FileRef] -> MD.Document -> [M.View RichContentModel RichContentAction]
-unreferencedFilesList attachments doc
+  :: SyncContext -> [FileRef] -> MD.Document -> [M.View RichContentModel RichContentAction]
+unreferencedFilesList syncCtx attachments doc
   | null unreferenced = []
   | otherwise =
       [ M.div_
-          [class_ "mt-4 pt-4 border-t border-stone-200 space-y-2"]
-          ( Typography.small "Anhänge:"
-              : map viewUnreferencedFile unreferenced
-          )
+          [class_ "mt-4 pt-4 border-t border-stone-200"]
+          [ Typography.small "Anhänge:"
+          , inlineComponent
+              "unreferenced-gallery"
+              (fileGalleryComponent syncCtx unreferenced)
+          ]
       ]
   where
     referenced = referencedFileHashes attachments doc
     unreferenced = filter (\fr -> not $ Set.member fr.hash referenced) attachments
-
-    viewUnreferencedFile fr =
-      M.div_
-        [class_ "flex items-center gap-3 p-2 bg-stone-50 rounded-md border border-stone-200"]
-        [ M.div_
-            [class_ "flex-1 min-w-0"]
-            [ M.div_ [class_ "text-sm font-medium truncate"] [M.text $ ms fr.fileName]
-            , Typography.small $
-                ms $
-                  fr.mimeType <> " (" <> showFileSize fr.fileSize <> ")"
-            ]
-        ]
 
 -- ============================================================================
 -- Internal helpers

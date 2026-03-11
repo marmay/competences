@@ -26,7 +26,7 @@ import Competences.Document.Id (idToText)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Task (TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.FileUpload (showFileSize)
+import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewLinkCard)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
@@ -38,6 +38,7 @@ import Competences.Frontend.Component.ResourceLookup
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -266,19 +267,15 @@ viewResourceItem r m relevance res =
         WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
         VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
         FileContent fileRef ->
-          MH.div_
-            [class_ "rounded overflow-hidden"]
-            [ MH.div_
-                [class_ "px-2 py-1.5"]
-                [ Layout.hFlow
-                    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-                    [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
-                    , MH.span_ [class_ "font-medium"] [M.text (ms displayName)]
-                    , MH.span_ [class_ "text-sm text-muted-foreground"]
-                        [M.text $ ms $ fileRef.fileName <> " (" <> showFileSize fileRef.fileSize <> ")"]
-                    ]
-                ]
-            ]
+          let isExpanded' = Set.member key m.expandedItems
+              titleBase' = Disclosure.titleIconText Icon.IcnResources (ms displayName)
+              disclosureTitle' = relevanceTitle relevance titleBase'
+              bodyView' =
+                inlineComponent
+                  ("res-gallery-" <> ms (show fileRef.hash))
+                  (fileGalleryComponent r [fileRef])
+           in relevanceDisclosure relevance (ToggleItemExpanded key) $
+                Disclosure.contents disclosureTitle' isExpanded' bodyView' []
 
 -- ============================================================================
 -- Task Item
