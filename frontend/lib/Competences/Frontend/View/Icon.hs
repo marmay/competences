@@ -39,6 +39,8 @@ data Icon
   | IcnCancel
   | IcnArrowUp
   | IcnArrowDown
+  | IcnArrowLeft
+  | IcnArrowRight
   | IcnDoubleArrowUp
   | IcnDoubleArrowDown
   | IcnExpandShrinkArrowLeft
@@ -191,6 +193,8 @@ iconId = \case
   IcnCancel -> "icon-x"
   IcnArrowUp -> "icon-arrow-up"
   IcnArrowDown -> "icon-arrow-down"
+  IcnArrowLeft -> "icon-arrow-left"
+  IcnArrowRight -> "icon-arrow-right"
   IcnDoubleArrowUp -> "icon-arrow-up-double"
   IcnDoubleArrowDown -> "icon-arrow-down-double"
   IcnExpandShrinkArrowLeft -> "icon-expand-shrink-arrow-left"
@@ -335,6 +339,14 @@ iconDefOf' = \case
   IcnArrowDown ->
     mkPathesDR
       [ "M19 9L12 15L5 9"
+      ]
+  IcnArrowLeft ->
+    mkPathesDR
+      [ "M15 5L9 12L15 19"
+      ]
+  IcnArrowRight ->
+    mkPathesDR
+      [ "M9 5L15 12L9 19"
       ]
   IcnDoubleArrowUp ->
     mkPathesDR

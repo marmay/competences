@@ -170,8 +170,8 @@ fileGalleryComponent r files =
       | null m.imageFiles =
           viewFileList m.nonImageFiles
       | otherwise =
-          Layout.vFlow
-            mempty
+          MH.div_
+            [class_ "flex flex-col w-full h-full"]
             [ case m.viewMode of
                 GalleryView -> viewImageGallery m
                 TableView -> viewFileTable m
@@ -187,23 +187,23 @@ viewImageGallery m =
   let idx = m.currentImageIndex
       mEntry = if idx < length m.imageFiles then Just (m.imageFiles !! idx) else Nothing
    in MH.div_
-        [class_ "bg-stone-50 rounded-t-lg flex items-center justify-center min-h-48 relative group"]
+        [class_ "bg-stone-50 rounded-t-lg flex flex-1 min-h-0 items-center justify-center p-2 relative group"]
         [ case mEntry of
             Nothing -> M.text ""
             Just (ref, Nothing) ->
               MH.div_
-                [class_ "flex flex-col items-center gap-2 p-8 animate-pulse"]
+                [class_ "flex flex-col items-center gap-2 animate-pulse"]
                 [MH.span_ [class_ "text-sm text-stone-500"] [M.text $ ms ref.fileName]]
             Just (_ref, Just "") ->
               MH.div_
-                [class_ "p-8 text-red-500 text-sm"]
+                [class_ "text-red-500 text-sm"]
                 [M.text "Datei nicht verfügbar"]
             Just (ref, Just url) ->
-              MH.div_ [class_ "relative"]
+              MH.div_ [class_ "relative max-h-full max-w-full"]
                 [ MH.img_
                     [ MP.src_ (ms url)
                     , MP.alt_ (ms ref.fileName)
-                    , class_ "max-h-96 object-contain cursor-pointer"
+                    , class_ "max-h-full max-w-full object-contain cursor-pointer"
                     , MH.onClick ToggleEnlarged
                     ]
                 , MH.a_
@@ -254,8 +254,10 @@ viewGalleryBottomBar m =
       hasNonImageFiles = not (null m.nonImageFiles)
       showNav = totalImages > 1 && m.viewMode == GalleryView
    in MH.div_
-        [class_ "flex items-center justify-between px-3 py-2 bg-stone-100 rounded-b-lg border-t border-stone-200"]
-        [ -- Left: navigation controls (gallery mode only)
+        [class_ "flex items-center px-3 py-1.5 bg-stone-100 rounded-b-lg border-t border-stone-200"]
+        [ -- Left: spacer (balances right side for centering)
+          MH.div_ [class_ "flex-1"] []
+        , -- Center: navigation controls (gallery mode only)
           if showNav
             then
               Layout.hFlow
@@ -264,7 +266,7 @@ viewGalleryBottomBar m =
                     [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
                     , MH.onClick PrevImage
                     ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowUp]
+                    [Icon.iconS Icon.Small Icon.IcnArrowLeft]
                 , MH.span_
                     [class_ "text-sm text-muted-foreground font-medium tabular-nums"]
                     [M.text $ ms (show (m.currentImageIndex + 1)) <> "/" <> ms (show totalImages)]
@@ -272,16 +274,19 @@ viewGalleryBottomBar m =
                     [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
                     , MH.onClick NextImage
                     ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowDown]
+                    [Icon.iconS Icon.Small Icon.IcnArrowRight]
                 ]
             else MH.span_ [] []
         , -- Right: view toggle + file indicator
-          Layout.hFlow
-            (Layout.gapS <> Layout.crossCenter)
-            [ viewModeToggle m.viewMode
-            , if hasNonImageFiles
-                then viewFileIndicator m
-                else M.text ""
+          MH.div_
+            [class_ "flex-1 flex justify-end"]
+            [ Layout.hFlow
+                (Layout.gapS <> Layout.crossCenter)
+                [ viewModeToggle m.viewMode
+                , if hasNonImageFiles
+                    then viewFileIndicator m
+                    else M.text ""
+                ]
             ]
         ]
 
@@ -338,7 +343,7 @@ viewPopoverFileItem ref =
 viewFileTable :: FileGalleryModel -> M.View m FileGalleryAction
 viewFileTable m =
   MH.div_
-    [class_ "bg-stone-50 rounded-t-lg divide-y divide-stone-200"]
+    [class_ "bg-stone-50 rounded-t-lg divide-y divide-stone-200 flex-1 min-h-0 overflow-y-auto"]
     ( map viewImageFileRow m.imageFiles
         ++ map (viewNonImageFileRow m.downloadingFiles) m.nonImageFiles
     )
