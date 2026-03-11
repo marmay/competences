@@ -1,8 +1,9 @@
 -- | Reusable file gallery component.
 --
--- Shows images in a navigable gallery with prev/next controls and a download
--- button. Non-image files appear in a popover (when mixed with images) or as
--- a plain file list (when no images are present). Empty file lists render nothing.
+-- Shows images in a navigable gallery with prev/next controls, click-to-enlarge
+-- lightbox, and download overlays. Non-image files appear in a popover (when
+-- mixed with images) or as a plain file list (when no images are present).
+-- A toggle switches between gallery and table views. Empty file lists render nothing.
 module Competences.Frontend.Component.FileGallery
   ( fileGalleryComponent
   , FileGalleryModel
@@ -12,6 +13,7 @@ module Competences.Frontend.Component.FileGallery
 where
 
 import Competences.Document.FileRef (FileRef (..), SHA256Hash)
+import Competences.Frontend.BinaryFFI (triggerDownload)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.FileCache (fileToDataUrl)
@@ -19,6 +21,9 @@ import Competences.Frontend.SyncContext (SyncContext (..), downloadFile)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
+import Data.ByteString.Lazy qualified as BL
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
@@ -37,6 +42,9 @@ isImageMime mime =
 -- Model & Actions
 -- ===========================================================================
 
+data ViewMode = GalleryView | TableView
+  deriving (Eq, Show, Generic)
+
 data FileGalleryModel = FileGalleryModel
   { imageFiles :: ![(FileRef, Maybe Text)]
   -- ^ Image files with their loaded data URL (Nothing = loading)
@@ -44,6 +52,12 @@ data FileGalleryModel = FileGalleryModel
   -- ^ Non-image files
   , currentImageIndex :: !Int
   , showFilePopover :: !Bool
+  , enlarged :: !Bool
+  -- ^ Lightbox open?
+  , viewMode :: !ViewMode
+  -- ^ Gallery vs table view
+  , downloadingFiles :: !(Set SHA256Hash)
+  -- ^ Files currently being downloaded (for spinner in table view)
   }
   deriving (Eq, Show, Generic)
 
@@ -54,6 +68,10 @@ data FileGalleryAction
   | PrevImage
   | NextImage
   | ToggleFilePopover
+  | ToggleEnlarged
+  | SetViewMode !ViewMode
+  | DownloadNonImageFile !FileRef
+  | DownloadComplete !SHA256Hash
   deriving (Eq, Show)
 
 -- ===========================================================================
@@ -63,7 +81,7 @@ data FileGalleryAction
 -- | A self-contained gallery component for a list of file references.
 --
 -- Behaviour:
---   * Has images → navigable image gallery; non-images in a popover.
+--   * Has images → navigable image gallery (or table view); non-images in popover.
 --   * All non-images → plain file table.
 --   * Empty list → renders nothing.
 fileGalleryComponent
@@ -83,6 +101,9 @@ fileGalleryComponent r files =
         , nonImageFiles = nonImgs
         , currentImageIndex = 0
         , showFilePopover = False
+        , enlarged = False
+        , viewMode = GalleryView
+        , downloadingFiles = Set.empty
         }
 
     update LoadFiles =
@@ -117,6 +138,26 @@ fileGalleryComponent r files =
     update ToggleFilePopover = M.modify $ \m ->
       m{showFilePopover = not m.showFilePopover}
 
+    update ToggleEnlarged = M.modify $ \m ->
+      m{enlarged = not m.enlarged}
+
+    update (SetViewMode mode) = M.modify $ \m ->
+      m{viewMode = mode}
+
+    update (DownloadNonImageFile ref) = do
+      M.modify $ \m -> m{downloadingFiles = Set.insert ref.hash m.downloadingFiles}
+      M.io $ do
+        mData <- downloadFile r ref.hash
+        case mData of
+          Just bs -> do
+            triggerDownload (BL.toStrict bs) ref.mimeType ref.fileName
+            pure $ DownloadComplete ref.hash
+          Nothing ->
+            pure $ DownloadComplete ref.hash
+
+    update (DownloadComplete hash) = M.modify $ \m ->
+      m{downloadingFiles = Set.delete hash m.downloadingFiles}
+
     initiateDownload ref = M.io $ do
       mData <- downloadFile r ref.hash
       case mData of
@@ -131,7 +172,9 @@ fileGalleryComponent r files =
       | otherwise =
           Layout.vFlow
             mempty
-            [ viewImageGallery m
+            [ case m.viewMode of
+                GalleryView -> viewImageGallery m
+                TableView -> viewFileTable m
             , viewGalleryBottomBar m
             ]
 
@@ -144,7 +187,7 @@ viewImageGallery m =
   let idx = m.currentImageIndex
       mEntry = if idx < length m.imageFiles then Just (m.imageFiles !! idx) else Nothing
    in MH.div_
-        [class_ "bg-stone-50 rounded-t-lg flex items-center justify-center min-h-48"]
+        [class_ "bg-stone-50 rounded-t-lg flex items-center justify-center min-h-48 relative group"]
         [ case mEntry of
             Nothing -> M.text ""
             Just (ref, Nothing) ->
@@ -156,23 +199,63 @@ viewImageGallery m =
                 [class_ "p-8 text-red-500 text-sm"]
                 [M.text "Datei nicht verfügbar"]
             Just (ref, Just url) ->
-              MH.img_
-                [ MP.src_ (ms url)
-                , MP.alt_ (ms ref.fileName)
-                , class_ "max-h-96 object-contain"
+              MH.div_ [class_ "relative"]
+                [ MH.img_
+                    [ MP.src_ (ms url)
+                    , MP.alt_ (ms ref.fileName)
+                    , class_ "max-h-96 object-contain cursor-pointer"
+                    , MH.onClick ToggleEnlarged
+                    ]
+                , MH.a_
+                    [ MP.href_ (ms url)
+                    , M.textProp "download" (ms ref.fileName)
+                    , class_ "absolute bottom-2 right-2 p-1.5 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    , MP.title_ "Herunterladen"
+                    ]
+                    [Icon.iconS Icon.Small Icon.IcnImport]
                 ]
+        , if m.enlarged
+            then viewEnlargedModal mEntry
+            else MH.span_ [] []
         ]
+
+-- | Lightbox modal for enlarged image viewing.
+viewEnlargedModal :: Maybe (FileRef, Maybe Text) -> M.View m FileGalleryAction
+viewEnlargedModal (Just (ref, Just url))
+  | not (T.null url) =
+      MH.div_
+        [ class_ "fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
+        , MH.onClick ToggleEnlarged
+        ]
+        [ MH.img_
+            [ MP.src_ (ms url)
+            , MP.alt_ (ms ref.fileName)
+            , class_ "max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            ]
+        , MH.a_
+            [ MP.href_ (ms url)
+            , M.textProp "download" (ms ref.fileName)
+            , class_ "absolute top-4 right-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors"
+            , MP.title_ "Herunterladen"
+            ]
+            [ Icon.iconS Icon.Small Icon.IcnImport
+            , MH.span_ [class_ "text-sm"] [M.text $ ms ref.fileName]
+            ]
+        ]
+viewEnlargedModal _ = MH.span_ [] []
+
+-- ---------------------------------------------------------------------------
+-- Bottom Bar
+-- ---------------------------------------------------------------------------
 
 viewGalleryBottomBar :: FileGalleryModel -> M.View m FileGalleryAction
 viewGalleryBottomBar m =
   let totalImages = length m.imageFiles
       hasNonImageFiles = not (null m.nonImageFiles)
-      showNav = totalImages > 1
-      idx = m.currentImageIndex
-      mEntry = if idx < length m.imageFiles then Just (m.imageFiles !! idx) else Nothing
+      showNav = totalImages > 1 && m.viewMode == GalleryView
    in MH.div_
         [class_ "flex items-center justify-between px-3 py-2 bg-stone-100 rounded-b-lg border-t border-stone-200"]
-        [ -- Left: navigation controls
+        [ -- Left: navigation controls (gallery mode only)
           if showNav
             then
               Layout.hFlow
@@ -192,27 +275,28 @@ viewGalleryBottomBar m =
                     [Icon.iconS Icon.Small Icon.IcnArrowDown]
                 ]
             else MH.span_ [] []
-        , -- Right: download button + file indicator
+        , -- Right: view toggle + file indicator
           Layout.hFlow
             (Layout.gapS <> Layout.crossCenter)
-            [ viewDownloadButton mEntry
+            [ viewModeToggle m.viewMode
             , if hasNonImageFiles
                 then viewFileIndicator m
                 else M.text ""
             ]
         ]
 
--- | Download button for the current image (rendered as an <a> with download attribute).
-viewDownloadButton :: Maybe (FileRef, Maybe Text) -> M.View m a
-viewDownloadButton (Just (ref, Just url))
-  | not (T.null url) =
-      MH.a_
-        [ MP.href_ (ms url)
-        , M.textProp "download" (ms ref.fileName)
-        , class_ "flex items-center gap-1 px-2 py-1 rounded text-sm text-muted-foreground hover:bg-stone-200 transition-colors"
+-- | Toggle button to switch between gallery and table view.
+viewModeToggle :: ViewMode -> M.View m FileGalleryAction
+viewModeToggle current =
+  let (targetMode, icon, title) = case current of
+        GalleryView -> (TableView, Icon.IcnMenu, "Tabellenansicht")
+        TableView -> (GalleryView, Icon.IcnEvidence, "Galerieansicht")
+   in MH.button_
+        [ class_ "p-1 rounded text-muted-foreground hover:bg-stone-200 transition-colors"
+        , MH.onClick (SetViewMode targetMode)
+        , MP.title_ title
         ]
-        [Icon.iconS Icon.Small Icon.IcnExport]
-viewDownloadButton _ = M.text ""
+        [Icon.iconS Icon.Small icon]
 
 viewFileIndicator :: FileGalleryModel -> M.View m FileGalleryAction
 viewFileIndicator m =
@@ -248,7 +332,67 @@ viewPopoverFileItem ref =
     ]
 
 -- ---------------------------------------------------------------------------
--- File List (non-image only)
+-- Table View (all files)
+-- ---------------------------------------------------------------------------
+
+viewFileTable :: FileGalleryModel -> M.View m FileGalleryAction
+viewFileTable m =
+  MH.div_
+    [class_ "bg-stone-50 rounded-t-lg divide-y divide-stone-200"]
+    ( map viewImageFileRow m.imageFiles
+        ++ map (viewNonImageFileRow m.downloadingFiles) m.nonImageFiles
+    )
+
+-- | Row for an image file in table view — download via <a> since data URL is loaded.
+viewImageFileRow :: (FileRef, Maybe Text) -> M.View m a
+viewImageFileRow (ref, mUrl) =
+  MH.div_
+    [class_ "flex items-center gap-2 px-3 py-2"]
+    [ Icon.iconS Icon.Small Icon.IcnEvidence
+    , MH.span_ [class_ "text-sm font-medium truncate flex-1"] [M.text $ ms ref.fileName]
+    , MH.span_
+        [class_ "text-sm text-muted-foreground flex-shrink-0"]
+        [M.text $ ms $ showFileSize ref.fileSize]
+    , case mUrl of
+        Just url | not (T.null url) ->
+          MH.a_
+            [ MP.href_ (ms url)
+            , M.textProp "download" (ms ref.fileName)
+            , class_ "p-1 rounded text-muted-foreground hover:bg-stone-200 transition-colors"
+            , MP.title_ "Herunterladen"
+            ]
+            [Icon.iconS Icon.Small Icon.IcnImport]
+        _ ->
+          MH.span_ [class_ "p-1 text-stone-300"] [Icon.iconS Icon.Small Icon.IcnImport]
+    ]
+
+-- | Row for a non-image file — on-demand download via WebSocket + triggerDownload.
+viewNonImageFileRow :: Set SHA256Hash -> FileRef -> M.View m FileGalleryAction
+viewNonImageFileRow downloading ref =
+  let isDownloading = Set.member ref.hash downloading
+   in MH.div_
+        [class_ "flex items-center gap-2 px-3 py-2"]
+        [ Icon.iconS Icon.Small Icon.IcnImport
+        , MH.span_ [class_ "text-sm font-medium truncate flex-1"] [M.text $ ms ref.fileName]
+        , MH.span_
+            [class_ "text-sm text-muted-foreground flex-shrink-0"]
+            [M.text $ ms $ showFileSize ref.fileSize]
+        , if isDownloading
+            then
+              MH.span_
+                [class_ "p-1 text-stone-400 animate-spin"]
+                [Icon.iconS Icon.Small Icon.IcnProgress]
+            else
+              MH.button_
+                [ class_ "p-1 rounded text-muted-foreground hover:bg-stone-200 transition-colors"
+                , MH.onClick (DownloadNonImageFile ref)
+                , MP.title_ "Herunterladen"
+                ]
+                [Icon.iconS Icon.Small Icon.IcnImport]
+        ]
+
+-- ---------------------------------------------------------------------------
+-- File List (non-image only, no toggle)
 -- ---------------------------------------------------------------------------
 
 viewFileList :: [FileRef] -> M.View m a

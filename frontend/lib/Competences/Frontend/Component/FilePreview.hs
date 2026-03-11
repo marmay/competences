@@ -15,6 +15,7 @@ import Competences.Frontend.Component.FileGallery (isImageMime)
 import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.FileCache (fileToDataUrl)
 import Competences.Frontend.SyncContext.SyncDocument (SyncContext, downloadFile)
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -87,7 +88,7 @@ filePreviewComponent syncCtx ref =
         ]
 
     viewImage url fr isEnlarged =
-      MH.div_ []
+      MH.div_ [class_ "relative inline-block group"]
         [ MH.img_
             [ MP.src_ (ms url)
             , MP.alt_ (ms fr.fileName)
@@ -95,6 +96,13 @@ filePreviewComponent syncCtx ref =
             , MP.title_ "Klicken zum Vergrößern"
             , MH.onClick ToggleEnlarged
             ]
+        , MH.a_
+            [ MP.href_ (ms url)
+            , M.textProp "download" (ms fr.fileName)
+            , class_ "absolute bottom-2 right-2 p-1.5 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+            , MP.title_ "Herunterladen"
+            ]
+            [Icon.iconS Icon.Small Icon.IcnImport]
         , if isEnlarged
             then viewEnlargedModal url fr
             else MH.span_ [] []
@@ -109,6 +117,15 @@ filePreviewComponent syncCtx ref =
             [ MP.src_ (ms url)
             , MP.alt_ (ms fr.fileName)
             , class_ "max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            ]
+        , MH.a_
+            [ MP.href_ (ms url)
+            , M.textProp "download" (ms fr.fileName)
+            , class_ "absolute top-4 right-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors"
+            , MP.title_ "Herunterladen"
+            ]
+            [ Icon.iconS Icon.Small Icon.IcnImport
+            , MH.span_ [class_ "text-sm"] [M.text $ ms fr.fileName]
             ]
         ]
 
