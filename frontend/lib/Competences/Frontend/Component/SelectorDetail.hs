@@ -124,7 +124,7 @@ selectorDetailComponent config =
       Nothing -> config.emptyView
       Just item ->
         V.vFlow
-          (V.gapM <> V.wFull <> V.crossStart)
+          (V.gapM <> V.wFull <> V.hFull <> V.crossStart)
           [ modeSwitcher m
           , V.flexGrow (config.detailView m.activeMode item)
           ]

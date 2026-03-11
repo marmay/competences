@@ -107,7 +107,7 @@ renderPinnedDialogs m =
                 chrome
                 (TogglePin pid)
                 (ClosePin pid)
-                [MH.div_ [class_ "flex-1 min-h-0"] [M.ms ("pin-" <> M.ms meta.key) M.+> comp]]
+                [MH.div_ [class_ "h-full"] [M.ms ("pin-" <> M.ms meta.key) M.+> comp]]
             ]
         PinMinimized ->
           -- Keep in DOM but hidden to preserve component state

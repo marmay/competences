@@ -409,6 +409,9 @@ data Label
   | LblDate
   | LblDetails
   | LblSize
+    -- Submission preview
+  | LblNoSubmissionSelected
+  | LblMoreFiles !Int
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -783,6 +786,9 @@ labels' =
   , LblDate
   , LblDetails
   , LblSize
+    -- Submission preview
+  , LblNoSubmissionSelected
+  , LblMoreFiles 0
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1185,6 +1191,9 @@ defaultTranslation LblFiles = "Dateien"
 defaultTranslation LblDate = "Datum"
 defaultTranslation LblDetails = "Details"
 defaultTranslation LblSize = "Größe"
+-- Submission preview
+defaultTranslation LblNoSubmissionSelected = "Keine Abgabe ausgewählt"
+defaultTranslation (LblMoreFiles n) = ms (show n) <> " weitere Dateien"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

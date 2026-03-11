@@ -34,14 +34,13 @@ import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
+import Competences.Frontend.Component.SubmissionPreview qualified as SubPreview
 import Competences.Frontend.View.SubmissionViewer qualified as SubViewer
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
-import Data.Ord (Down (..))
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.List (sortOn)
 import Data.Time (Day, UTCTime (..), defaultTimeLocale, formatTime, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -461,29 +460,29 @@ evaluatorComponent r assignment =
               , viewAggregationSection m
               , viewCreateEvidencesButton m
               ]
+          leftContent =
+            Layout.vFlow
+              mempty
+              [ viewStudentSelection m
+              , viewOverwriteBanner m
+              , taskContent
+              ]
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else
-              Layout.vFlow
-                mempty
-                [ viewStudentSelection m
-                , viewOverwriteBanner m
-                , if hasSubmissions && not (Set.null m.selectedStudents)
-                    then
-                      Layout.hFlow
+              if hasSubmissions && not (Set.null m.selectedStudents)
+                then
+                  let selectedUserId = case Set.toList m.selectedStudents of
+                        (uid : _) -> uid
+                        [] -> error "impossible: selectedStudents is not empty"
+                   in Layout.hFlow
                         (Layout.gapM <> Layout.hFull)
-                        [ Layout.scrollContent $ Layout.grow taskContent
+                        [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
                         , Layout.scrollContent $
-                            Layout.shrink0 $
-                              Layout.fixedWidth 320 $
-                                SubViewer.viewSubmissionsPanel
-                                  SelectSubmission
-                                  m.selectedSubmission
-                                  m.users
-                                  (sortOn (Down . (.submittedAt)) $ Ix.toList selectedSubmissions)
+                            Layout.addClass "w-1/2" $
+                              SubPreview.submissionPreviewPanel r m.assignment.id selectedUserId
                         ]
-                    else taskContent
-                ]
+                else leftContent
 
     viewStudentSelection m =
       let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList m.assignment.studentIds

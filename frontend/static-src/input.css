@@ -62,6 +62,9 @@
 /* SearchSelect inline filter highlighting */
 @source inline("text-transparent caret-foreground");
 
+/* Evaluator split layout + custom select dropdown */
+@source inline("w-1/2 w-max min-w-full max-w-32");
+
 /* NavBar tooltip + hover dropdown classes */
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
 @source inline("w-7 h-7 -translate-x-1/2 left-1/2 border-primary-foreground");
