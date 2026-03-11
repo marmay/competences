@@ -405,6 +405,10 @@ data Label
   | LblCollaborativeSubmission
   | LblAbgegebenUndGemacht
   | LblNewSubmission
+  | LblFiles
+  | LblDate
+  | LblDetails
+  | LblSize
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -775,6 +779,10 @@ labels' =
   , LblCollaborativeSubmission
   , LblAbgegebenUndGemacht
   , LblNewSubmission
+  , LblFiles
+  , LblDate
+  , LblDetails
+  , LblSize
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1173,6 +1181,10 @@ defaultTranslation LblIndividualSubmission = "Einzelarbeit"
 defaultTranslation LblCollaborativeSubmission = "Gemeinsame Abgabe mit"
 defaultTranslation LblAbgegebenUndGemacht = "Abgegeben & Gemacht"
 defaultTranslation LblNewSubmission = "Neue Abgabe"
+defaultTranslation LblFiles = "Dateien"
+defaultTranslation LblDate = "Datum"
+defaultTranslation LblDetails = "Details"
+defaultTranslation LblSize = "Größe"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

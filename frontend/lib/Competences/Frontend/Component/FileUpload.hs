@@ -172,7 +172,7 @@ fileUploadComponent syncCtx initialFiles parentLens =
         ]
 
     fileColumnSpec ColName = Table.TableColumnSpec Table.EqualWidthColumn (C.translate' C.LblFile)
-    fileColumnSpec ColSize = Table.TableColumnSpec Table.AutoSizedColumn ""
+    fileColumnSpec ColSize = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblSize)
     fileColumnSpec ColActions = Table.TableColumnSpec Table.SingleActionColumn ""
 
     fileCell ref ColName =

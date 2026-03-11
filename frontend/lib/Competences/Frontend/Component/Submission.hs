@@ -327,9 +327,9 @@ submissionModalComponent r assignmentId userId _wm =
               }
           ]
 
-    subColumnSpec SubColKind = Table.TableColumnSpec Table.AutoSizedColumn ""
-    subColumnSpec SubColDate = Table.TableColumnSpec Table.AutoSizedColumn ""
-    subColumnSpec SubColDetails = Table.TableColumnSpec Table.EqualWidthColumn ""
+    subColumnSpec SubColKind = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblAbgabe)
+    subColumnSpec SubColDate = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblDate)
+    subColumnSpec SubColDetails = Table.TableColumnSpec Table.EqualWidthColumn (C.translate' C.LblDetails)
     subColumnSpec SubColRemark = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblRemark)
     subColumnSpec SubColActions = Table.TableColumnSpec Table.SingleActionColumn ""
 
@@ -355,8 +355,10 @@ submissionModalComponent r assignmentId userId _wm =
     kindBadge (VoidSubmission _) = Badge.outline (Badge.badgeText (C.translate' C.LblNichtGemacht))
 
     viewKindDetails (DigitalSubmission files) =
-      MH.span_ [class_ "text-sm"]
-        [M.text $ ms $ T.intercalate ", " $ map (.fileName) files]
+      let n = length files
+          w = if n == 1 then C.translate' C.LblFile else C.translate' C.LblFiles
+       in MH.span_ [class_ "text-sm text-muted-foreground"]
+            [M.text $ ms $ "(" <> T.pack (show n) <> " " <> fromMisoString w <> ")"]
     viewKindDetails (NonDigitalSubmission mLoc) =
       case mLoc of
         Nothing -> M.text ""
