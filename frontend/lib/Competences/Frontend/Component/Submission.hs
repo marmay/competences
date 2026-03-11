@@ -288,7 +288,7 @@ submissionModalComponent r assignmentId userId _wm =
       MH.div_
         [class_ "space-y-2"]
         [ inlineComponent "submission-file-upload"
-            (fileUploadComponent r m.files #files)
+            (fileUploadComponent r Nothing m.files #files)
         ]
 
     viewNonDigitalForm _m =

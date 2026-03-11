@@ -188,13 +188,11 @@ resourceContentEditorField r =
                     [ inlineComponentAttrs "rc-resource-editor"
                         (if refocusTarget then [M.id_ "refocus-target"] else [])
                         (richContentEditorComponent fc rc (resourceRichContentLens original))
-                    , MH.div_ []
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblAttachments]
-                        , inlineComponent "resource-attachments-upload"
-                            (fileUploadComponent r
-                              (currentAttachments original patch)
-                              (resourceAttachmentsLens original))
-                        ]
+                    , inlineComponent "resource-attachments-upload"
+                        (fileUploadComponent r
+                          (Just $ C.translate' C.LblAttachments)
+                          (currentAttachments original patch)
+                          (resourceAttachmentsLens original))
                     ]
                 WebLink url desc ->
                   MH.div_ [class_ "space-y-2"]
@@ -249,6 +247,7 @@ resourceContentEditorField r =
                 FileContent fileRef ->
                   inlineComponent "file-upload-editor"
                     (fileUploadComponent r
+                      Nothing
                       (if isNilFileRef fileRef then [] else [fileRef])
                       (resourceFileRefsLens original))
             ]

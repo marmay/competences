@@ -85,10 +85,11 @@ data FileCol = ColName | ColSize | ColActions
 -- @
 fileUploadComponent
   :: SyncContext
+  -> Maybe MisoString
   -> [FileRef]
   -> O.Lens' p [FileRef]
   -> M.Component p FileUploadModel FileUploadAction
-fileUploadComponent syncCtx initialFiles parentLens =
+fileUploadComponent syncCtx mTitle initialFiles parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #files]
     , M.initialAction = Just GenerateInputId
@@ -134,31 +135,34 @@ fileUploadComponent syncCtx initialFiles parentLens =
 
     view m =
       MH.div_ [class_ "space-y-3"]
-        [ -- Upload button row: hidden input + styled label + status
+        [ -- Upload button row: optional title + hidden input + styled label + status
           MH.div_ [class_ "flex items-center gap-3"]
-            [ MH.input_
-                [ MP.type_ "file"
-                , MP.id_ m.inputId
-                , class_ "hidden"
-                , M.on "change" M.emptyDecoder $ \() domRef -> FileSelected domRef
-                ]
-            , MH.label_
-                [ MP.for_ m.inputId
-                , class_ "btn btn-secondary btn-sm cursor-pointer"
-                ]
-                [M.text $ C.translate' C.LblUploadFile]
-            , case m.uploadStatus of
-                Idle -> MH.span_ [] []
-                Uploading ->
-                  MH.span_ [class_ "text-sm text-muted-foreground animate-pulse"]
-                    [M.text $ C.translate' C.LblUploading]
-                Failed err ->
-                  MH.span_ [class_ "text-sm text-red-600"]
-                    [ M.text $ C.translate' C.LblFileUploadFailed
-                    , M.text ": "
-                    , M.text $ ms err
-                    ]
-            ]
+            $ maybe [] (\t -> [MH.span_ [class_ "font-medium text-sm"] [M.text t]]) mTitle
+            ++ [ MH.span_ [class_ "ml-auto flex items-center gap-3"]
+                   [ MH.input_
+                       [ MP.type_ "file"
+                       , MP.id_ m.inputId
+                       , class_ "hidden"
+                       , M.on "change" M.emptyDecoder $ \() domRef -> FileSelected domRef
+                       ]
+                   , MH.label_
+                       [ MP.for_ m.inputId
+                       , class_ "btn btn-secondary btn-sm cursor-pointer"
+                       ]
+                       [M.text $ C.translate' C.LblUploadFile]
+                   , case m.uploadStatus of
+                       Idle -> MH.span_ [] []
+                       Uploading ->
+                         MH.span_ [class_ "text-sm text-muted-foreground animate-pulse"]
+                           [M.text $ C.translate' C.LblUploading]
+                       Failed err ->
+                         MH.span_ [class_ "text-sm text-red-600"]
+                           [ M.text $ C.translate' C.LblFileUploadFailed
+                           , M.text ": "
+                           , M.text $ ms err
+                           ]
+                   ]
+               ]
         , -- File list: table or empty-state text
           if null m.files
             then MH.div_ [class_ "text-sm text-muted-foreground italic"]
