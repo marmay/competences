@@ -194,7 +194,7 @@ in {
       chmod -R 755 ${cfg.staticDir}
       mkdir -p ${cfg.casDir}
       chown root:competences ${cfg.casDir}
-      chmod 775 ${cfg.casDir}
+      chmod 2775 ${cfg.casDir}
     '';
 
     # Create system users and groups
@@ -280,6 +280,7 @@ in {
           PrivateTmp = true;
           ProtectSystem = "strict";
           ProtectHome = true;
+          UMask = "0002";
           ReadWritePaths = [ cfg.casDir ];
         };
       }
