@@ -101,6 +101,7 @@ newtype WrapperModel = WrapperModel
 
 data WrapperAction
   = AddNewTask
+  | TaskCreated !TaskId
   deriving (Eq, Show)
 
 -- | Component wrapping SearchSelect with an "Add Task" button.
@@ -140,7 +141,7 @@ wrapperComponent r k origin cfg initIds parentBinding =
       , attachments = []
       }
 
-    update AddNewTask = M.io_ $ do
+    update AddNewTask = M.withSink $ \sink -> do
       taskId <- nextId r
       let newTask = Task
             { id = taskId
@@ -152,10 +153,15 @@ wrapperComponent r k origin cfg initIds parentBinding =
           wrap = case origin of
             Published -> id
             Draft -> retargetForDraft
-      -- Create the task (not locked - the inner editor handles lock/release)
-      modifySyncDocument r $ wrap $ Tasks (OnTasks (Create newTask))
+      -- CreateAndLock so the inner editor opens in edit mode immediately
+      modifySyncDocument r $ wrap $ Tasks (OnTasks (CreateAndLock newTask))
+      -- Add to selected IDs so the assignment references this task
+      sink (TaskCreated taskId)
       -- Open modal editor
       openTaskEditorModal r origin taskId
+
+    update (TaskCreated taskId) =
+      M.modify $ \m -> m & #selectedIds .~ (m.selectedIds <> [taskId])
 
     view m =
       MH.div_
@@ -173,18 +179,18 @@ wrapperComponent r k origin cfg initIds parentBinding =
 -- Task editor modal
 -- ============================================================================
 
-newtype ModalModel = ModalModel
-  { saved :: Bool
+data ModalModel = ModalModel
+  { taskExists :: !Bool
   }
   deriving (Eq, Generic, Show)
 
-data ModalAction
-  = ModalDocumentChanged !DocumentChange
-  | CloseAndDelete
-  | CloseAndKeep
+newtype ModalAction
+  = ModalDocumentChanged DocumentChange
   deriving (Eq, Show)
 
 -- | Open a modal containing the task detail editor.
+-- The modal auto-closes when the task is deleted (via the inner editor's
+-- Delete button), so no custom footer buttons are needed.
 openTaskEditorModal :: SyncContext -> EntityOrigin -> TaskId -> IO ()
 openTaskEditorModal r origin taskId =
   let cfg = ModalConfig
@@ -207,28 +213,16 @@ taskEditorModalComponent r origin taskId wm =
     { M.subs = [subscribeDocument r ModalDocumentChanged]
     }
   where
-    model = ModalModel {saved = False}
-
-    wrap = case origin of
-      Published -> id
-      Draft -> retargetForDraft
+    model = ModalModel {taskExists = True}
 
     update (ModalDocumentChanged dc) = do
-      -- Track whether the task has been saved with a non-empty identifier
       let doc = dc.document
           mTask = case origin of
             Published -> Ix.getOne $ doc.tasks Ix.@= taskId
             Draft -> Ix.getOne $ doc.draftTasks Ix.@= taskId
       case mTask of
-        Just t | let TaskIdentifier ident = t.identifier, ident /= "" ->
-          M.modify $ #saved .~ True
-        _ -> pure ()
-
-    update CloseAndDelete = M.io_ $ do
-      modifySyncDocument r $ wrap $ Tasks (OnTasks (Delete taskId))
-      closeWindow wm
-
-    update CloseAndKeep = M.io_ $ closeWindow wm
+        Nothing -> M.io_ $ closeWindow wm
+        Just _ -> pure ()
 
     -- Stub task for taskDetailView (it uses task.id and task.taskType for routing)
     stubTask = Task
@@ -239,17 +233,7 @@ taskEditorModalComponent r origin taskId wm =
       , attachments = []
       }
 
-    view m =
+    view _m =
       MH.div_
-        [class_ "flex flex-col h-full"]
-        [ MH.div_
-            [class_ "flex-1 overflow-y-auto p-4"]
-            [taskDetailView r origin stubTask]
-        , MH.div_
-            [class_ "flex justify-end gap-2 p-4 border-t border-border"]
-            [ Button.destructiveSm $ Button.button (Icon.IcnCancel, C.LblDelete) CloseAndDelete
-            , if m.saved
-                then Button.primarySm $ Button.button (Icon.IcnApply, C.LblApply) CloseAndKeep
-                else Button.outlineSm $ Button.button (Icon.IcnApply, C.LblApply) CloseAndKeep
-            ]
-        ]
+        [class_ "p-4"]
+        [taskDetailView r origin stubTask]
