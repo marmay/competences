@@ -148,6 +148,9 @@ taskDetailView r origin task =
         `TE.addNamedField` ( C.translate' C.LblTaskDisplayInResources
                            , TE.boolEditorField displayInResourcesViewLens displayInResourcesPatchLens
                            )
+        `TE.addNamedField` ( C.translate' C.LblAttachments
+                           , TE.fileUploadEditorField r (#attachments) (#attachments)
+                           )
 
 -- Lenses for identifier (TaskIdentifier <-> Text conversion)
 taskIdentifierTextIso :: Iso' TaskIdentifier Text

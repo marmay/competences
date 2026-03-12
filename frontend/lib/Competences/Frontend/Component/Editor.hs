@@ -15,6 +15,7 @@ module Competences.Frontend.Component.Editor
   , editable
   , editorComponent
   , selectorEditorField
+  , fileUploadEditorField
   , msIso
   )
 where

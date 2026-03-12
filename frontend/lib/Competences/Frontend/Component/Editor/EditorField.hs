@@ -14,14 +14,18 @@ module Competences.Frontend.Component.Editor.EditorField
   , selectorEditorField
   , selectorEditorFieldNoStyle
   , selectorEditorFieldWithViewer
+  , fileUploadEditorField
   )
 where
 
 import Competences.Command.Common (Change)
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
+import Competences.Frontend.Component.FileUpload (fileUploadComponent)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Document.FileRef (FileRef (..))
+import Competences.Frontend.SyncContext.SyncDocument (SyncContext)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -448,6 +452,34 @@ enumEditorField'
   -> Lens' patch (Change e)
   -> EditorField a patch f
 enumEditorField' = enumEditorField (M.ms . show)
+
+-- | File upload editor field for [FileRef] fields
+--   Viewer: shows list of file names or placeholder
+--   Editor: self-contained file upload component
+fileUploadEditorField
+  :: (Ord a, Default patch)
+  => SyncContext
+  -> Lens' a [FileRef]
+  -> Lens' patch (Change [FileRef])
+  -> EditorField a patch f
+fileUploadEditorField r viewLens patchLens =
+  EditorField
+    { viewer = attachmentsViewer viewLens
+    , editor = \_ original patch ->
+        inlineComponent "file-upload"
+          (fileUploadComponent r
+            Nothing
+            (currentValue original patch viewLens patchLens)
+            (mkFieldLens viewLens patchLens original))
+    }
+
+attachmentsViewer :: Lens' a [FileRef] -> a -> M.View (Model a patch f) (Action a patch)
+attachmentsViewer viewLens a =
+  let files = a ^. viewLens
+   in if null files
+        then Typography.placeholder "—"
+        else M.ul_ [class_ "text-sm space-y-1"]
+              [M.li_ [] [M.text (M.ms f.fileName)] | f <- files]
 
 refocusTargetAttr :: Bool -> [M.Attribute action]
 refocusTargetAttr True = [M.id_ refocusTargetString]
