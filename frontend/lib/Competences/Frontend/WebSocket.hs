@@ -62,7 +62,10 @@ connectWebSocketRaw wsUrl callbacks onMessage = do
     msgData <- msgEvent ! "data"
     bytes <- arrayBufferToByteString msgData
     case decodeOrFail (BL.fromStrict bytes) of
-      Left (_, _, err) -> logWarn $ M.ms $ "Failed to decode binary message: " <> err
+      Left (_, _, err) -> do
+        logWarn $ M.ms $ "Failed to decode binary message: " <> err
+        _ <- ws # "close" $ ([] :: [JSVal])
+        pure ()
       Right (_, _, serverMsg) -> onMessage serverMsg
 
   -- Set up onopen handler - NO authentication, just call callback
