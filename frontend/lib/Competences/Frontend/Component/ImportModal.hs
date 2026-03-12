@@ -214,4 +214,7 @@ emptyDocument =
     , participationRecords = Ix.empty
     , absences = Ix.empty
     , submissions = Ix.empty
+    , draftTasks = Ix.empty
+    , draftTaskGroups = Ix.empty
+    , draftAssignments = Ix.empty
     }

@@ -4,7 +4,7 @@ module Competences.Frontend.Component.Selector.AssignmentSelector
   )
 where
 
-import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..))
+import Competences.Command (AssignmentsCommand (..), Command (..), DraftAssignmentsCommand (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
@@ -24,6 +24,7 @@ import Competences.Frontend.SyncContext
   , syncDocumentEnv
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
@@ -53,30 +54,39 @@ data SelectorProjection = SelectorProjection
   , focusedUser :: !(Maybe User)
     -- | Pre-computed status for each assignment (only when focusedUser is set)
   , statusMap :: !(Map.Map AssignmentId AssignmentStatus)
+    -- | IDs of draft assignments (for showing Draft badge)
+  , draftIds :: !(Set.Set AssignmentId)
   }
   deriving (Eq, Generic, Show)
 
 emptyProjection :: SelectorProjection
-emptyProjection = SelectorProjection Ix.empty Nothing Map.empty
+emptyProjection = SelectorProjection Ix.empty Nothing Map.empty Set.empty
 
 -- | Projection function - pre-computes all assignment statuses
 -- Filters assignments by focused user if set (shows only assignments assigned to that user)
+-- Merges real + draft assignments (drafts are empty for students via projection)
 selectorProjection :: Document -> Maybe User -> SelectorProjection
 selectorProjection doc mUser =
-  let -- Filter assignments by focused user if set
+  let -- Merge real + draft assignments
+      draftList = Ix.toList doc.draftAssignments
+      draftIds' = Set.fromList $ map (.id) draftList
+      allAssignments = Ix.fromList $ Ix.toList doc.assignments <> draftList
+      -- Filter assignments by focused user if set
       assignments = case mUser of
-        Nothing -> doc.assignments  -- No focused user, show all
-        Just user -> doc.assignments Ix.@= user.id  -- Filter by focused user's studentIds
+        Nothing -> allAssignments
+        Just user -> allAssignments Ix.@= user.id
       statusMap = case mUser of
         Nothing -> Map.empty
         Just user -> Map.fromList
           [ (a.id, assignmentStatus doc user.id a.id)
           | a <- Ix.toList assignments
+          , not (Set.member a.id draftIds')  -- Only real assignments have status
           ]
    in SelectorProjection
         { assignments
         , focusedUser = mUser
         , statusMap
+        , draftIds = draftIds'
         }
 
 data AssignmentFilter = AllAssignments | NotGradedOnly
@@ -95,6 +105,7 @@ data Model = Model
 data Action
   = SelectAssignment !Assignment
   | CreateNewAssignment
+  | CreateNewDraftAssignment
   | SetSearchQuery !Text
   | ProjectionChanged !(ProjectedChange SelectorProjection)
   | ToggleDropdown
@@ -131,6 +142,14 @@ assignmentSelectorComponent r initialSelection parentLens =
       let today = syncDocumentEnv r ^. #currentDay
       let newAssignment = mkAssignment assignmentId (AssignmentName "") today
       modifySyncDocument r $ Assignments (OnAssignments (CreateAndLock newAssignment))
+      s ToggleDropdown
+      s (SelectAssignment newAssignment)
+
+    update CreateNewDraftAssignment = M.withSink $ \s -> do
+      assignmentId <- nextId r
+      let today = syncDocumentEnv r ^. #currentDay
+      let newAssignment = mkAssignment assignmentId (AssignmentName "") today
+      modifySyncDocument r $ DraftAssignments (OnDraftAssignments (CreateAndLock newAssignment))
       s ToggleDropdown
       s (SelectAssignment newAssignment)
 
@@ -175,6 +194,7 @@ assignmentSelectorComponent r initialSelection parentLens =
                 m.isDropdownOpen
                 ToggleDropdown
                 [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
+                , SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblNewDraftAssignment) CreateNewDraftAssignment
                 , SelectorList.dropdownItem Icon.IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
                 ]
             , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
@@ -218,16 +238,19 @@ assignmentSelectorComponent r initialSelection parentLens =
     viewAssignment m a =
       let proj = m.projection
           isSelected = m.selectedAssignment == Just a || m.newAssignment == Just a
+          isDraft = Set.member a.id proj.draftIds
           mStatus = do
             _ <- proj.focusedUser  -- Only show status if user is focused
             Map.lookup a.id proj.statusMap
        in SelectorList.selectorItemMultiLine isSelected
-            [ -- Line 1: Icon + Name
+            [ -- Line 1: Icon + Name + Draft badge
               M.div_
                 [class_ "flex items-center gap-2"]
-                [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] (EvidenceIcon.activityTypeIcon a.activityType)
-                , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unAssignmentName a.name]
-                ]
+                ( [ Icon.icon [class_ "w-4 h-4 text-muted-foreground shrink-0"] (EvidenceIcon.activityTypeIcon a.activityType)
+                  , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unAssignmentName a.name]
+                  ]
+                  <> [ Badge.secondary (Badge.badgeText (C.translate' C.LblDraft)) | isDraft ]
+                )
             , -- Line 2: Date + Status
               M.div_
                 [class_ "flex items-center gap-2 text-xs text-muted-foreground"]

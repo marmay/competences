@@ -45,7 +45,7 @@ taskEditorComponent r =
 
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-    detailView (Just (SelectableTask task)) =
-      taskDetailView r task
-    detailView (Just (SelectableGroup group)) =
-      taskGroupDetailView r group
+    detailView (Just (SelectableTask origin task)) =
+      taskDetailView r origin task
+    detailView (Just (SelectableGroup origin group)) =
+      taskGroupDetailView r origin group

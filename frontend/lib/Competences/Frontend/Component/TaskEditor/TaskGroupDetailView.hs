@@ -4,6 +4,7 @@ module Competences.Frontend.Component.TaskEditor.TaskGroupDetailView
 where
 
 import Competences.Command (Command (..), EntityCommand (..), SubTaskPatch (..), TaskGroupPatch (..), TasksCommand (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), emptyDocument)
@@ -55,12 +56,13 @@ import Optics.Core (Iso', Lens', iso, lens, (&), (%), (.~), (?~), (^.))
 -- | Detail view for editing a TaskGroup and its SubTasks
 taskGroupDetailView
   :: SyncContext
+  -> EntityOrigin
   -> TaskGroup
   -> M.View p a
-taskGroupDetailView r group =
+taskGroupDetailView r origin group =
   inlineComponent
     ("group-editor-" <> M.ms (show group.id))
-    (taskGroupEditorComponent r group)
+    (taskGroupEditorComponent r origin group)
 
 -- | Internal model for the TaskGroup editor component
 data TaskGroupEditorModel = TaskGroupEditorModel
@@ -75,8 +77,8 @@ data TaskGroupEditorAction
   deriving (Eq, Show)
 
 -- | The TaskGroup editor component with SubTask management
-taskGroupEditorComponent :: SyncContext -> TaskGroup -> M.Component p TaskGroupEditorModel TaskGroupEditorAction
-taskGroupEditorComponent r group =
+taskGroupEditorComponent :: SyncContext -> EntityOrigin -> TaskGroup -> M.Component p TaskGroupEditorModel TaskGroupEditorAction
+taskGroupEditorComponent r origin group =
   (M.component model update view')
     { M.subs = [subscribeDocument r UpdateDocument]
     }
@@ -86,9 +88,16 @@ taskGroupEditorComponent r group =
       , subTasks = []
       }
 
+    wrap = case origin of
+      Published -> id
+      Draft -> retargetForDraft
+
     update (UpdateDocument dc) = M.modify $ \m ->
       let doc = dc.document
-          subTasks' = getTasksInGroup group.id doc.tasks
+          -- Get subtasks from the appropriate collection based on origin
+          subTasks' = case origin of
+            Published -> getTasksInGroup group.id doc.tasks
+            Draft -> getTasksInGroup group.id doc.draftTasks
        in m { currentDocument = doc, subTasks = subTasks' }
 
     update CreateSubTask = M.io_ $ do
@@ -100,7 +109,7 @@ taskGroupEditorComponent r group =
             , taskType = SubTask group.id emptyOverride
             , attachments = []
             }
-      modifySyncDocument r $ Tasks (OnSubTasks (CreateAndLock newSubTask))
+      modifySyncDocument r $ wrap $ Tasks (OnSubTasks (CreateAndLock newSubTask))
       where
         emptyOverride = TaskAttributesOverride Nothing Nothing Nothing Nothing
 
@@ -121,12 +130,13 @@ taskGroupEditorComponent r group =
     taskGroupEditable =
       TE.editable
         ( \d ->
-            fmap
-              (\g -> (g, (d ^. #locks) Map.!? TaskGroupLock g.id))
-              (Ix.getOne $ d.taskGroups Ix.@= group.id)
+            let mGroup = case origin of
+                  Published -> Ix.getOne $ d.taskGroups Ix.@= group.id
+                  Draft -> Ix.getOne $ d.draftTaskGroups Ix.@= group.id
+             in fmap (\g -> (g, (d ^. #locks) Map.!? TaskGroupLock g.id)) mGroup
         )
-        & (#modify ?~ (\g modify -> Tasks $ OnTaskGroups (Modify g.id modify)))
-        & (#delete ?~ (\g -> Tasks $ OnTaskGroups (Delete g.id)))
+        & (#modify ?~ (\g modify -> wrap $ Tasks $ OnTaskGroups (Modify g.id modify)))
+        & (#delete ?~ (\g -> wrap $ Tasks $ OnTaskGroups (Delete g.id)))
 
     taskGroupEditor =
       TE.editor
@@ -255,12 +265,13 @@ taskGroupEditorComponent r group =
     subTaskEditable taskId =
       TE.editable
         ( \d ->
-            fmap
-              (\t -> (t, (d ^. #locks) Map.!? TaskLock t.id))
-              (Ix.getOne $ d.tasks Ix.@= taskId)
+            let mTask = case origin of
+                  Published -> Ix.getOne $ d.tasks Ix.@= taskId
+                  Draft -> Ix.getOne $ d.draftTasks Ix.@= taskId
+             in fmap (\t -> (t, (d ^. #locks) Map.!? TaskLock t.id)) mTask
         )
-        & (#modify ?~ (\t modify -> Tasks $ OnSubTasks (Modify t.id modify)))
-        & (#delete ?~ (\t -> Tasks $ OnSubTasks (Delete t.id)))
+        & (#modify ?~ (\t modify -> wrap $ Tasks $ OnSubTasks (Modify t.id modify)))
+        & (#delete ?~ (\t -> wrap $ Tasks $ OnSubTasks (Delete t.id)))
 
 -- Lenses for TaskGroup identifier
 groupIdentifierTextIso :: Iso' TaskGroupIdentifier Text

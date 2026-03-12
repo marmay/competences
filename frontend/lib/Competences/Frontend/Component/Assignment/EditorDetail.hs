@@ -4,7 +4,7 @@ module Competences.Frontend.Component.Assignment.EditorDetail
   )
 where
 
-import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..))
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
@@ -12,14 +12,16 @@ import Competences.Document
   , Document (..)
   , Lock (..)
   , User (..)
+  , emptyDocument
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
+import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), getTasksInGroup, taskGroupId)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
@@ -30,6 +32,7 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , modifySyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
@@ -52,14 +55,16 @@ import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.), (.~))
 -- Wrapper Model and Actions
 -- ============================================================================
 
-newtype EditorModel = EditorModel
-  { document :: Document
+data EditorModel = EditorModel
+  { document :: !Document
+  , origin :: !EntityOrigin
   }
   deriving (Eq, Generic, Show)
 
 data EditorAction
   = DocumentUpdated !DocumentChange
   | PinEvaluation
+  | PublishAssignment
   deriving (Eq, Show)
 
 -- | Pin the assignment evaluator as a persistent dialog.
@@ -96,67 +101,84 @@ editorWrapperComponent r assignment =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = EditorModel {document = emptyDocument}
+    initialModel = EditorModel {document = emptyDoc, origin = Published}
 
-    emptyDocument =
-      Document
-        { competenceGrids = Ix.empty
-        , competences = Ix.empty
-        , users = Ix.empty
-        , evidences = Ix.empty
-        , locks = mempty
-        , tasks = Ix.empty
-        , taskGroups = Ix.empty
-        , solutions = Ix.empty
-        , resources = Ix.empty
-        , assignments = Ix.empty
-        , competenceAssessments = Ix.empty
-        , competenceGridGrades = Ix.empty
-        , mesoPlans = Ix.empty
-        , lessons = Ix.empty
-        , lessonNotes = Ix.empty
-        , participationRecords = Ix.empty
-        , absences = Ix.empty
-        , submissions = Ix.empty
-        }
+    emptyDoc = emptyDocument
 
-    update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
+    -- Determine origin from document: if assignment.id is in draftAssignments, it's a Draft
+    detectOrigin :: Document -> EntityOrigin
+    detectOrigin doc = case Ix.getOne (doc.draftAssignments Ix.@= assignment.id) of
+      Just _ -> Draft
+      Nothing -> Published
+
+    update (DocumentUpdated dc) = M.modify $ \m ->
+      m & #document .~ dc.document
+        & #origin .~ detectOrigin dc.document
 
     update PinEvaluation = M.io_ $ pinAssignmentEvaluator r assignment
 
-    view _m =
+    update PublishAssignment = do
+      m <- M.get
+      M.io_ $ do
+        let doc = m.document
+            -- Get the current assignment from draft collection
+            mDraftAssignment = Ix.getOne (doc.draftAssignments Ix.@= assignment.id)
+            -- Get all draft tasks referenced by this assignment
+            draftTaskIds = maybe [] (.tasks) mDraftAssignment
+            draftTasks = [t | t <- Ix.toList doc.draftTasks, t.id `elem` draftTaskIds]
+            -- Get all draft task groups referenced by draft tasks
+            draftGroupIds = [gid | t <- draftTasks, Just gid <- [taskGroupId t]]
+            draftGroups = [g | g <- Ix.toList doc.draftTaskGroups, g.id `elem` draftGroupIds]
+            -- Also include subtasks from those groups
+            groupSubTasks = concatMap (\g -> getTasksInGroup g.id doc.draftTasks) draftGroups
+            allDraftTasks = draftTasks <> groupSubTasks
+        modifySyncDocument r $ Publish PublishData
+          { taskGroups = draftGroups
+          , tasks = allDraftTasks
+          , assignment = mDraftAssignment
+          }
+
+    view m =
       Layout.vFlow Layout.gapM
         [ inlineComponent
-            ("assignment-editor-" <> M.ms (show assignment.id))
-            (TE.editorComponent assignmentEditor r)
+            ("assignment-editor-" <> M.ms (show assignment.id) <> "-" <> M.ms (show m.origin))
+            (TE.editorComponent (assignmentEditor m.origin) r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
-            [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
-            , inlineComponent
-                ("export-btn-" <> M.ms (show assignment.id))
-                (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
-            ]
+            ( [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
+              , inlineComponent
+                  ("export-btn-" <> M.ms (show assignment.id))
+                  (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
+              ]
+              <> [ Button.primary $ Button.button (Icon.IcnApply, C.LblPublishAssignment) PublishAssignment
+                 | m.origin == Draft
+                 ]
+            )
         ]
 
     assignmentEditorId = "assignment-editor-" <> M.ms (show assignment.id)
 
-    assignmentEditable =
-      TE.editable
-        ( \d ->
-            fmap
-              (\c -> (c, (d ^. #locks) Map.!? AssignmentLock c.id))
-              (Ix.getOne $ d.assignments Ix.@= assignment.id)
-        )
-        & (#modify ?~ (\a modify -> Assignments $ OnAssignments (Modify a.id modify)))
-        & (#delete ?~ (\a -> Assignments $ OnAssignments (Delete a.id)))
+    assignmentEditable origin' =
+      let wrap = case origin' of
+            Published -> id
+            Draft -> retargetForDraft
+       in TE.editable
+            ( \d ->
+                let mAssignment = case origin' of
+                      Published -> Ix.getOne $ d.assignments Ix.@= assignment.id
+                      Draft -> Ix.getOne $ d.draftAssignments Ix.@= assignment.id
+                 in fmap (\c -> (c, (d ^. #locks) Map.!? AssignmentLock c.id)) mAssignment
+            )
+            & (#modify ?~ (\a modify -> wrap $ Assignments $ OnAssignments (Modify a.id modify)))
+            & (#delete ?~ (\a -> wrap $ Assignments $ OnAssignments (Delete a.id)))
 
-    assignmentEditor =
+    assignmentEditor origin' =
       TE.editor
         ( TE.editorFormView'
             (C.translate' C.LblEditAssignment)
             id
         )
-        assignmentEditable
+        (assignmentEditable origin')
         `TE.addNamedField` ( C.translate' C.LblAssignmentName
                            , TE.textEditorField nameViewLens namePatchLens
                            )

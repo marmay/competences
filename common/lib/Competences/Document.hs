@@ -129,6 +129,9 @@ data Document = Document
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   , absences :: !(Ix.IxSet AbsenceIxs Absence)
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
+  , draftTasks :: !(Ix.IxSet TaskIxs Task)
+  , draftTaskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
+  , draftAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
   }
   deriving (Eq, Generic, Show)
 
@@ -156,6 +159,9 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
       <*> fmap Ix.fromList (v .:? "absences" .!= [])
       <*> fmap Ix.fromList (v .:? "submissions" .!= [])
+      <*> fmap Ix.fromList (v .:? "draftTasks" .!= [])
+      <*> fmap Ix.fromList (v .:? "draftTaskGroups" .!= [])
+      <*> fmap Ix.fromList (v .:? "draftAssignments" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -178,6 +184,9 @@ instance ToJSON Document where
       , "participationRecords" .= Ix.toList d.participationRecords
       , "absences" .= Ix.toList d.absences
       , "submissions" .= Ix.toList d.submissions
+      , "draftTasks" .= Ix.toList d.draftTasks
+      , "draftTaskGroups" .= Ix.toList d.draftTaskGroups
+      , "draftAssignments" .= Ix.toList d.draftAssignments
       ]
 #endif
 
@@ -202,6 +211,9 @@ emptyDocument =
     , participationRecords = Ix.empty
     , absences = Ix.empty
     , submissions = Ix.empty
+    , draftTasks = Ix.empty
+    , draftTaskGroups = Ix.empty
+    , draftAssignments = Ix.empty
     }
 
 
@@ -223,8 +235,10 @@ projectDocument user doc
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
         & #absences .~ (doc.absences Ix.@= user.id) -- Own absences only
         & #submissions .~ (doc.submissions Ix.@= user.id) -- Own submissions only
+        & #draftTasks .~ Ix.empty -- Drafts are teacher-only
+        & #draftTaskGroups .~ Ix.empty
+        & #draftAssignments .~ Ix.empty
         -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
-        -- TODO: May need to filter tasks/taskGroups in the future (e.g., hide exam questions before exam date)
   where
     -- Student can see locks on entities they have access to
     isLockVisible lock _ = case lock of

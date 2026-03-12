@@ -143,6 +143,9 @@ detailComponent r initialPlan =
         , participationRecords = Ix.empty
         , absences = Ix.empty
         , submissions = Ix.empty
+        , draftTasks = Ix.empty
+        , draftTaskGroups = Ix.empty
+        , draftAssignments = Ix.empty
         }
 
     update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases dc.document

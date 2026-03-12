@@ -13,6 +13,9 @@ module Competences.Command
   , module Competences.Command.Evidences
   , module Competences.Command.Tasks
   , module Competences.Command.Assignments
+  , module Competences.Command.DraftTasks
+  , module Competences.Command.DraftAssignments
+  , module Competences.Command.Publish
   , module Competences.Command.Solutions
   , module Competences.Command.Resources
   , module Competences.Command.MesoPlans
@@ -26,6 +29,9 @@ where
 
 import Competences.Command.Absences (AbsencePatch (..), AbsencesCommand (..), handleAbsencesCommand)
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..), handleAssignmentsCommand)
+import Competences.Command.DraftAssignments (DraftAssignmentsCommand (..), handleDraftAssignmentsCommand)
+import Competences.Command.DraftTasks (DraftTasksCommand (..), handleDraftTasksCommand)
+import Competences.Command.Publish (PublishData (..), handlePublish)
 import Competences.Command.Resources (ResourcePatch (..), ResourcesCommand (..), handleResourcesCommand)
 import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Command.Solutions (SolutionPatch (..), SolutionsCommand (..), handleSolutionsCommand)
@@ -88,6 +94,9 @@ data Command
   | ParticipationRecords !ParticipationRecordsCommand
   | Absences !AbsencesCommand
   | Submissions !SubmissionsCommand
+  | DraftTasks !DraftTasksCommand
+  | DraftAssignments !DraftAssignmentsCommand
+  | Publish !PublishData
   | Migration !MigrationCommand
   deriving (Eq, Generic, Show)
 
@@ -123,6 +132,9 @@ handleCommand userId cmd d = case cmd of
   ParticipationRecords c -> handleParticipationRecordsCommand userId c d
   Absences c -> handleAbsencesCommand userId c d
   Submissions c -> handleSubmissionsCommand userId c d
+  DraftTasks c -> handleDraftTasksCommand userId c d
+  DraftAssignments c -> handleDraftAssignmentsCommand userId c d
+  Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d
 
 -- | Handle migration commands (system-level, userId not used)

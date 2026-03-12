@@ -111,6 +111,11 @@ commandAudience (Assignments (OnAssignments ec)) = assignmentAudience ec
 commandAudience (ParticipationRecords (OnParticipationRecords ec)) = participationAudience ec
 commandAudience (Absences (OnAbsences ec)) = absenceAudience ec
 commandAudience (Submissions (OnSubmissions ec)) = submissionAudience ec
+-- Draft entities: teacher-only
+commandAudience (DraftTasks _) = AudienceTeachers
+commandAudience (DraftAssignments _) = AudienceTeachers
+-- Publish: affects all users (creates real entities visible to students)
+commandAudience (Publish _) = AudienceAll
 
 -- Helpers for user-specific entity commands
 

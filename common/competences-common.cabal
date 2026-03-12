@@ -36,12 +36,15 @@ library
         Competences.Command.CompetenceAssessments
         Competences.Command.CompetenceGridGrades
         Competences.Command.Competences
+        Competences.Command.DraftAssignments
+        Competences.Command.DraftTasks
         Competences.Command.Evidences
         Competences.Command.Interpret
         Competences.Command.Lessons
         Competences.Command.LessonNotes
         Competences.Command.MesoPlans
         Competences.Command.ParticipationRecords
+        Competences.Command.Publish
         Competences.Command.Resources
         Competences.Command.Solutions
         Competences.Command.Submissions

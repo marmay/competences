@@ -4,6 +4,7 @@ module Competences.Command.Assignments
   ( AssignmentsCommand (..)
   , AssignmentPatch (..)
   , handleAssignmentsCommand
+  , applyAssignmentPatch
   )
 where
 

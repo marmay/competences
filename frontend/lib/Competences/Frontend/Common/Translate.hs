@@ -119,6 +119,11 @@ data Label
   | LblSelfContainedTasks
   | LblNewTask
   | LblNewTaskGroup
+  | LblNewDraftTask
+  | LblNewDraftTaskGroup
+  | LblNewDraftAssignment
+  | LblDraft
+  | LblPublishAssignment
   | LblTasksAndGroups
   | LblEditTaskGroup
   | LblEditSubTask
@@ -493,6 +498,11 @@ labels' =
   , LblSelfContainedTasks
   , LblNewTask
   , LblNewTaskGroup
+  , LblNewDraftTask
+  , LblNewDraftTaskGroup
+  , LblNewDraftAssignment
+  , LblDraft
+  , LblPublishAssignment
   , LblTasksAndGroups
   , LblEditTaskGroup
   , LblEditSubTask
@@ -885,6 +895,11 @@ defaultTranslation LblTotalObservations = "Gesamtanzahl Beobachtungen"
 defaultTranslation LblSelfContainedTasks = "Aufgaben"
 defaultTranslation LblNewTask = "Neue Aufgabe"
 defaultTranslation LblNewTaskGroup = "Neue Aufgabengruppe"
+defaultTranslation LblNewDraftTask = "Neuer Aufgabenentwurf"
+defaultTranslation LblNewDraftTaskGroup = "Neuer Aufgabengruppenentwurf"
+defaultTranslation LblNewDraftAssignment = "Neuer Arbeitsauftragsentwurf"
+defaultTranslation LblDraft = "Entwurf"
+defaultTranslation LblPublishAssignment = "Veröffentlichen"
 defaultTranslation LblTasksAndGroups = "Aufgaben"
 defaultTranslation LblEditTaskGroup = "Aufgabengruppe bearbeiten"
 defaultTranslation LblEditSubTask = "Unteraufgabe bearbeiten"

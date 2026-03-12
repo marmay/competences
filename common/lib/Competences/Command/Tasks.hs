@@ -6,6 +6,9 @@ module Competences.Command.Tasks
   , TaskGroupPatch (..)
   , SubTaskPatch (..)
   , handleTasksCommand
+  , applyTaskPatch
+  , applyTaskGroupPatch
+  , applySubTaskPatch
   )
 where
 

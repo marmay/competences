@@ -4,6 +4,7 @@ module Competences.Frontend.Component.TaskEditor.TaskDetailView
 where
 
 import Competences.Command (Command (..), EntityCommand (..), TaskPatch (..), TasksCommand (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskType (..), User)
@@ -73,9 +74,10 @@ assignmentRefsBanner r taskId =
 -- Includes the task editor form and a solutions list below it
 taskDetailView
   :: SyncContext
+  -> EntityOrigin
   -> Task
   -> M.View p a
-taskDetailView r task =
+taskDetailView r origin task =
   MH.div_
     [class_ "space-y-6"]
     [ inlineComponent
@@ -91,19 +93,24 @@ taskDetailView r task =
   where
     taskEditorId = "task-editor-" <> M.ms (show task.id)
 
+    wrap = case origin of
+      Published -> id
+      Draft -> retargetForDraft
+
     taskEditable =
       TE.editable
         ( \d -> do
-            -- Verify it's a SelfContained task
+            -- Verify it's a SelfContained task — check both real and draft collections
             case task.taskType of
               SelfContained _ ->
-                fmap
-                  (\c -> (c, (d ^. #locks) Map.!? TaskLock c.id))
-                  (Ix.getOne $ d.tasks Ix.@= task.id)
+                let mTask = case origin of
+                      Published -> Ix.getOne $ d.tasks Ix.@= task.id
+                      Draft -> Ix.getOne $ d.draftTasks Ix.@= task.id
+                 in fmap (\c -> (c, (d ^. #locks) Map.!? TaskLock c.id)) mTask
               SubTask _ _ -> Nothing -- Not editable in this editor
         )
-        & (#modify ?~ (\t modify -> Tasks $ OnTasks (Modify t.id modify)))
-        & (#delete ?~ (\t -> Tasks $ OnTasks (Delete t.id)))
+        & (#modify ?~ (\t modify -> wrap $ Tasks $ OnTasks (Modify t.id modify)))
+        & (#delete ?~ (\t -> wrap $ Tasks $ OnTasks (Delete t.id)))
 
     taskEditor =
       TE.editor
