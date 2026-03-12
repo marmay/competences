@@ -20,6 +20,9 @@ $WASM_TOOLS strip -o static/app.wasm static/app.wasm
 echo "Bundling index.js with esbuild..."
 esbuild frontend/static-src/index.js --bundle --format=esm --outfile=static/index.js --minify
 
+echo "Copying MathJax bundle..."
+cp node_modules/mathjax/tex-svg.js static/mathjax-tex-svg.js
+
 echo "Copying MathJax font data..."
 rm -rf static/mathjax-newcm-font
 cp -r node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font

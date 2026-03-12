@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
@@ -51,18 +52,24 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Miso.DSL
   ( JSVal
-  , Object (..)
-  , create
   , fromJSVal
   , isNull
   , jsg
-  , setProp
   , toJSVal
   , (!)
   , (#)
   )
 import Miso.String (MisoString, fromMisoString, ms)
 import Numeric (showHex)
+
+#ifdef WASM
+foreign import javascript safe
+  "await MathJax.tex2svgPromise($1, {display: $2})"
+  js_tex2svgPromise :: MisoString -> Bool -> IO JSVal
+#else
+js_tex2svgPromise :: MisoString -> Bool -> IO JSVal
+js_tex2svgPromise _ _ = error "SvgEmbed.Manager: tex2svgPromise not available outside WASM"
+#endif
 
 -- | Unique ID for an embedded symbol (hash of source content)
 newtype SymbolId = SymbolId {unSymbolId :: Text}
@@ -141,8 +148,8 @@ isMathJaxReady = do
   case mMathJax of
     Nothing -> pure False
     Just mathJax -> do
-      mTex2svg <- mathJax ! ("tex2svg" :: MisoString) >>= fromJSVal @JSVal
-      pure $ case mTex2svg of
+      mTex2svgPromise <- mathJax ! ("tex2svgPromise" :: MisoString) >>= fromJSVal @JSVal
+      pure $ case mTex2svgPromise of
         Nothing -> False
         Just _ -> True
 
@@ -191,13 +198,9 @@ renderFormula display latex mColor = do
       -- MathJax is ready — failures from here are permanent (TeX error,
       -- missing SVG, malformed output). Only FFI exceptions are transient.
       result <- try @SomeException $ do
-        -- Render with MathJax (returns a detached container element)
-        mathJax <- jsg ("MathJax" :: MisoString)
-        options <- create
-        displayVal <- toJSVal (display == Block)
-        setProp ("display" :: MisoString) displayVal options
-        latexVal <- toJSVal (ms (prepareFormula display latex) :: MisoString)
-        mjResult <- mathJax # ("tex2svg" :: MisoString) $ [latexVal, unObject options]
+        -- Render with MathJax (returns a detached container element).
+        -- Uses tex2svgPromise via FFI to properly await dynamic font loading.
+        mjResult <- js_tex2svgPromise (ms (prepareFormula display latex)) (display == Block)
         resultIsNull <- isNull mjResult
         if resultIsNull
           then pure $ FormulaError sid "MathJax returned null"
