@@ -361,10 +361,12 @@ taskSection :: ContentSettings -> (PrintModalAction -> action) -> TaskInfo -> [M
 taskSection cs wrap ti =
   let tcs = taskContentSetting cs ti.taskId
       TaskIdentifier ident = ti.identifier
+      displayName = let base = if T.null ident then "(Unbenannt)" else ident
+                     in if T.null ti.title then base else base <> " \x2014 " <> ti.title
    in [ -- Section header with task identifier
         M.div_
           [class_ "mt-3 pt-2 border-t border-border"]
-          [ Typography.muted (ms ident)
+          [ Typography.muted (ms displayName)
           ]
       , -- Description toggle
         checkboxToggle (C.translate' C.LblDescriptionToggle) tcs.showDescription (\_ -> wrap (ToggleDescription ti.taskId))

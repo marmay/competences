@@ -16,7 +16,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), TaskType (..), defaultTaskAttributes, getTasksInGroup, taskGroupId)
+import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), TaskType (..), defaultTaskAttributes, getTasksInGroup, taskDisplayName, taskGroupId)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -251,9 +251,9 @@ taskSearchConfig r origin =
               Published -> real
               Draft -> sortOn (\t -> let TaskIdentifier x = t.identifier in x) (real <> draft)
     , itemId = (.id)
-    , itemLabel = \t -> let TaskIdentifier x = t.identifier in x
+    , itemLabel = taskDisplayName
     , metaFilters = []
-    , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+    , viewTag = \t -> (Icon.IcnTask, M.ms $ taskDisplayName t)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
@@ -262,6 +262,7 @@ taskSearchConfig r origin =
         let newTask = Task
               { id = taskId
               , identifier = TaskIdentifier ""
+              , title = ""
               , content = Nothing
               , taskType = SelfContained defaultTaskAttributes
               , attachments = []

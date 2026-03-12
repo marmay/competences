@@ -30,6 +30,7 @@ module Competences.Document.Task
   , getTaskAllCompetences
   , getTasksInGroup
   , taskGroupId
+  , taskDisplayName
   )
 where
 
@@ -46,6 +47,7 @@ import Data.List (singleton, sortOn)
 import Data.Maybe (fromMaybe)
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 
 -- | ID for a Task.
@@ -244,6 +246,9 @@ data Task = Task
   , identifier :: !TaskIdentifier
     -- ^ Human-readable identifier (e.g., "Book-1.2.3.a", "Worksheet-15-Task-2").
     -- User is responsible for uniqueness.
+  , title :: !Text
+    -- ^ Descriptive title (e.g., "Quadratische Gleichungen").
+    -- Empty string means no title.
   , content :: !(Maybe RichContent)
     -- ^ Inline task content (if provided).
     -- Nothing = reference-only task (students look up by identifier).
@@ -260,6 +265,7 @@ instance FromJSON Task where
     Task
       <$> v .: "id"
       <*> v .: "identifier"
+      <*> v .:? "title" .!= ""
       <*> v .:? "content"
       <*> v .: "taskType"
       <*> v .:? "attachments" .!= []
@@ -269,6 +275,7 @@ instance ToJSON Task where
     object
       [ "id" .= task.id
       , "identifier" .= task.identifier
+      , "title" .= task.title
       , "content" .= task.content
       , "taskType" .= task.taskType
       , "attachments" .= task.attachments
@@ -361,6 +368,13 @@ getTasksInGroup groupId tasks =
   sortOn (.identifier) $
     Ix.toList $
       Ix.getEQ (Just groupId) tasks
+
+-- | Display name for a task: "identifier — title" or just identifier.
+taskDisplayName :: Task -> Text
+taskDisplayName task =
+  let TaskIdentifier ident = task.identifier
+      base = if T.null ident then "(Unbenannt)" else ident
+   in if T.null task.title then base else base <> " \x2014 " <> task.title
 
 -- | Default TaskAttributes for new tasks
 defaultTaskAttributes :: TaskAttributes

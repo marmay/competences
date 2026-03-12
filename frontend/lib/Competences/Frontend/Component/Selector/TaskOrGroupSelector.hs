@@ -9,7 +9,7 @@ where
 import Competences.Command (Command (..), DraftTasksCommand (..), EntityCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Task (..), TaskGroup (..), TaskGroupIxs, TaskIxs, TaskType (..))
-import Competences.Document.Task (TaskGroupId, TaskGroupIdentifier (..), TaskId, TaskIdentifier (..), defaultTaskAttributes)
+import Competences.Document.Task (TaskGroupId, TaskGroupIdentifier (..), TaskId, TaskIdentifier (..), defaultTaskAttributes, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.SyncContext
@@ -43,8 +43,7 @@ data TaskOrGroup
 
 -- | Get the identifier text for sorting
 itemIdentifier :: TaskOrGroup -> Text
-itemIdentifier (SelectableTask _ t) =
-  let TaskIdentifier ident = t.identifier in ident
+itemIdentifier (SelectableTask _ t) = taskDisplayName t
 itemIdentifier (SelectableGroup _ g) =
   let TaskGroupIdentifier ident = g.identifier in ident
 
@@ -101,6 +100,7 @@ taskOrGroupSelectorComponent r parentLens =
       let newTask = Task
             { id = taskId
             , identifier = TaskIdentifier ""
+            , title = ""
             , content = Nothing
             , taskType = SelfContained defaultTaskAttributes
             , attachments = []
@@ -114,6 +114,7 @@ taskOrGroupSelectorComponent r parentLens =
       let newTask = Task
             { id = taskId
             , identifier = TaskIdentifier ""
+            , title = ""
             , content = Nothing
             , taskType = SelfContained defaultTaskAttributes
             , attachments = []

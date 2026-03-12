@@ -27,6 +27,7 @@ import Competences.Document.Task
   , TaskIdentifier (..)
   , getTaskAttributes
   , getTaskContent
+  , taskDisplayName
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
@@ -736,7 +737,7 @@ viewerComponent r user assignment wm =
     -- .page-print-content CSS rule.
     printTaskView :: TaskHeaderStyle -> ContentSettings -> Int -> [M.Attribute ViewerAction] -> TaskWithSolutions -> M.View ViewerModel ViewerAction
     printTaskView style cs taskNum attrs tws =
-      let TaskIdentifier ident = tws.task.identifier
+      let displayName = taskDisplayName tws.task
           tcs = taskContentSetting cs tws.task.id
           prefix = C.translate' C.LblTaskWord
           numText = ms (show taskNum) <> "."
@@ -744,11 +745,11 @@ viewerComponent r user assignment wm =
             HeaderNumber ->
               [M.h2_ [] [M.text (prefix <> numText)]]
             HeaderTitle ->
-              [M.h2_ [] [M.text $ ms ident]]
+              [M.h2_ [] [M.text $ ms displayName]]
             HeaderBoth ->
               [M.h2_ []
                 [ M.strong_ [] [M.text (prefix <> numText)]
-                , M.text (" " <> ms ident)
+                , M.text (" " <> ms displayName)
                 ]]
           descriptionView
             | tcs.showDescription =

@@ -11,9 +11,8 @@ import Competences.Document
   ( Document (..)
   , Lock (..)
   , Solution (..)
-  , Task (..)
   )
-import Competences.Document.Task (TaskId, TaskIdentifier (..))
+import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..), readOnlyField)
@@ -101,9 +100,7 @@ taskDisplayComponent r taskId =
       M.modify $ \m ->
         let name = case Ix.getOne (doc.tasks Ix.@= taskId) of
               Nothing -> "(Aufgabe nicht gefunden)"
-              Just task ->
-                let TaskIdentifier ident = task.identifier
-                 in M.ms ident
+              Just task -> M.ms (taskDisplayName task)
          in m & #taskName .~ name
 
     view' m =

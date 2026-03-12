@@ -138,6 +138,7 @@ data Label
   | LblFilterAllAssignments
   | LblFilterNotGraded
   | LblTaskIdentifier
+  | LblTaskTitle
   | LblTaskContent
   | LblTaskPrimaryCompetences
   | LblTaskSecondaryCompetences
@@ -517,6 +518,7 @@ labels' =
   , LblFilterAllAssignments
   , LblFilterNotGraded
   , LblTaskIdentifier
+  , LblTaskTitle
   , LblTaskContent
   , LblTaskPrimaryCompetences
   , LblTaskSecondaryCompetences
@@ -914,6 +916,7 @@ defaultTranslation LblFilterAssignments = "Nach Name filtern..."
 defaultTranslation LblFilterAllAssignments = "Alle"
 defaultTranslation LblFilterNotGraded = "Nicht korrigiert"
 defaultTranslation LblTaskIdentifier = "Bezeichnung"
+defaultTranslation LblTaskTitle = "Titel"
 defaultTranslation LblTaskContent = "Inhalt"
 defaultTranslation LblTaskPrimaryCompetences = "Primäre Kompetenzen"
 defaultTranslation LblTaskSecondaryCompetences = "Sekundäre Kompetenzen"

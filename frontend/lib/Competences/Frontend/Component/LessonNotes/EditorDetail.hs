@@ -17,7 +17,7 @@ import Competences.Document
   )
 import Competences.Document.LessonNotes (LessonNoteItem (..))
 import Competences.Document.Resource (ResourceIdentifier (..))
-import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField)
@@ -95,14 +95,14 @@ noteItemSearchConfig =
         NoteTask t -> LessonTask t.id
     , itemLabel = \case
         NoteResource r' -> let ResourceIdentifier x = r'.identifier in x
-        NoteTask t -> let TaskIdentifier x = t.identifier in x
+        NoteTask t -> taskDisplayName t
     , metaFilters =
         [ keywordsFilter ["material"] $ \case NoteResource _ -> True; _ -> False
         , keywordsFilter ["aufgabe"] $ \case NoteTask _ -> True; _ -> False
         ]
     , viewTag = \case
         NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
-        NoteTask t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+        NoteTask t -> (Icon.IcnTask, M.ms $ taskDisplayName t)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
     , selectionOrder = ManualReorder
     , tagLayout = TagsVertical

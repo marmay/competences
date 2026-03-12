@@ -122,6 +122,9 @@ taskDetailView r origin task =
         `TE.addNamedField` ( C.translate' C.LblTaskIdentifier
                            , TE.textEditorField identifierViewLens identifierPatchLens
                            )
+        `TE.addNamedField` ( C.translate' C.LblTaskTitle
+                           , TE.textEditorField titleViewLens titlePatchLens
+                           )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
                            , TE.richTextWithFilesEditorField r "content" contentViewLens contentPatchLens #attachments
                            )
@@ -169,6 +172,13 @@ identifierViewLens = #identifier % taskIdentifierTextIso
 
 identifierPatchLens :: Lens' TaskPatch (Change Text)
 identifierPatchLens = #identifier % changeTaskIdentifierTextIso
+
+-- Lenses for title (plain Text field)
+titleViewLens :: Lens' Task Text
+titleViewLens = #title
+
+titlePatchLens :: Lens' TaskPatch (Change Text)
+titlePatchLens = #title
 
 -- Lenses for content (Maybe RichContent <-> RichContent conversion, empty = Nothing)
 contentIso :: Iso' (Maybe RichContent) RichContent

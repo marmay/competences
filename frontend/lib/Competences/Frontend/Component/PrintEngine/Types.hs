@@ -198,6 +198,7 @@ data ContentPreset
 data TaskInfo = TaskInfo
   { taskId :: !TaskId
   , identifier :: !TaskIdentifier
+  , title :: !Text
   , solutionInfos :: ![(SolutionId, SolutionType)]
   , hasLetterList :: !Bool
   }
@@ -213,6 +214,7 @@ mkTaskInfos = map $ \(task, sols, mContent) ->
   TaskInfo
     { taskId = task.id
     , identifier = task.identifier
+    , title = task.title
     , solutionInfos = map (\s -> (s.id, s.solutionType)) sols
     , hasLetterList = containsLetterList mContent
     }

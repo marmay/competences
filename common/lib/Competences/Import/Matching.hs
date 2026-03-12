@@ -256,6 +256,7 @@ makeNewTask parsed =
   Task
     { id = Id UUID.nil
     , identifier = parsed.identifier
+    , title = ""
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = SelfContained defaultTaskAttributes
     , attachments = []
@@ -267,6 +268,7 @@ updateTask existing parsed =
   Task
     { id = existing.id
     , identifier = parsed.identifier
+    , title = existing.title
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = existing.taskType
     , attachments = existing.attachments

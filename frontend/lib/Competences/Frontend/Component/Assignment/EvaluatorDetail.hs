@@ -11,7 +11,7 @@ import Competences.Document (Assignment (..), Document (..), Solution (..), Solu
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
-import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
@@ -662,9 +662,9 @@ evaluatorComponent r assignment =
                   filter (\t -> not (Set.member t.id assignmentTaskSet))
                     (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks)
               , itemId = (.id)
-              , itemLabel = \t -> let TaskIdentifier ident = t.identifier in ident
+              , itemLabel = taskDisplayName
               , metaFilters = []
-              , viewTag = \t -> (Icon.IcnTask, ms $ let TaskIdentifier ident = t.identifier in ident)
+              , viewTag = \t -> (Icon.IcnTask, ms $ taskDisplayName t)
               , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
               , selectionOrder = AutoOrder id
               , tagLayout = TagsInline

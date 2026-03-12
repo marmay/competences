@@ -105,6 +105,7 @@ taskGroupEditorComponent r origin group =
       let newSubTask = Task
             { id = taskId
             , identifier = TaskIdentifier ""
+            , title = ""
             , content = Nothing
             , taskType = SubTask group.id emptyOverride
             , attachments = []
@@ -219,6 +220,9 @@ taskGroupEditorComponent r origin group =
         (subTaskEditable taskId)
         `TE.addNamedField` ( C.translate' C.LblTaskIdentifier
                            , TE.textEditorField subTaskIdentifierViewLens subTaskIdentifierPatchLens
+                           )
+        `TE.addNamedField` ( C.translate' C.LblTaskTitle
+                           , TE.textEditorField subTaskTitleViewLens subTaskTitlePatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
                            , TE.richTextEditorField r.formulaCache "content" subTaskContentViewLens subTaskContentPatchLens
@@ -364,6 +368,13 @@ subTaskIdentifierViewLens = #identifier % taskIdentifierTextIso
 
 subTaskIdentifierPatchLens :: Lens' SubTaskPatch (Change Text)
 subTaskIdentifierPatchLens = #identifier % changeTaskIdentifierTextIso
+
+-- SubTask title lens (plain Text field)
+subTaskTitleViewLens :: Lens' Task Text
+subTaskTitleViewLens = #title
+
+subTaskTitlePatchLens :: Lens' SubTaskPatch (Change Text)
+subTaskTitlePatchLens = #title
 
 -- SubTask content lens (Maybe RichContent -> RichContent)
 subTaskContentViewLens :: Lens' Task RichContent

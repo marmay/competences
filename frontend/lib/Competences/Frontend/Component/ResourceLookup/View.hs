@@ -24,7 +24,7 @@ import Competences.Document
   )
 import Competences.Document.Id (idToText)
 import Competences.Document.LessonNotes (LessonNotesId)
-import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewLinkCard)
@@ -289,8 +289,7 @@ viewTaskItem
   -> TaskWithSolutions
   -> M.View GroupedResourcesModel GroupedResourcesAction
 viewTaskItem fc m relevance tws =
-  let TaskIdentifier ident = tws.task.identifier
-      displayName = if T.null ident then "(Unbenannt)" else ident
+  let displayName = taskDisplayName tws.task
       key = "task-" <> idToText tws.task.id
       isExpanded = Set.member key m.expandedItems
       titleBase = Disclosure.titleIconText Icon.IcnTask (ms displayName)

@@ -20,7 +20,7 @@ import Competences.Document
   , emptyDocument
   )
 import Competences.Document.Evidence (Observation (..))
-import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
+import Competences.Document.Task (Task (..), TaskId, taskDisplayName)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -204,7 +204,7 @@ viewerComponent r evidence =
 
     getTaskName m taskId =
       case Ix.getOne (m.document.tasks Ix.@= taskId) of
-        Just task -> let TaskIdentifier ident = task.identifier in ident
+        Just task -> taskDisplayName task
         Nothing -> T.pack $ show taskId
 
     viewObservations m e =
@@ -341,9 +341,9 @@ taskSearchConfig =
   SearchSelectConfig
     { projectItems = QTask.allTasksSorted
     , itemId = (.id)
-    , itemLabel = \t -> let TaskIdentifier x = t.identifier in x
+    , itemLabel = taskDisplayName
     , metaFilters = []
-    , viewTag = \t -> (Icon.IcnTask, M.ms $ let TaskIdentifier x = t.identifier in x)
+    , viewTag = \t -> (Icon.IcnTask, M.ms $ taskDisplayName t)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline

@@ -31,7 +31,7 @@ import Competences.Document.Task
 import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:?), (.!=))
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
@@ -46,6 +46,7 @@ import Optics.Core ((&), (%~), (.~), (^.))
 -- | Patch for modifying a SelfContained Task
 data TaskPatch = TaskPatch
   { identifier :: !(Change TaskIdentifier)
+  , title :: !(Change Text)
   , content :: !(Change (Maybe RichContent))
     -- Unwrapped TaskAttributes fields
   , primary :: !(Change [CompetenceLevelId])
@@ -72,6 +73,7 @@ data TaskGroupPatch = TaskGroupPatch
 -- | Patch for modifying a SubTask
 data SubTaskPatch = SubTaskPatch
   { identifier :: !(Change TaskIdentifier)
+  , title :: !(Change Text)
   , content :: !(Change (Maybe RichContent))
     -- TaskAttributesOverride fields (each is Maybe, so Change (Maybe X))
   , primary :: !(Change (Maybe [CompetenceLevelId]))
@@ -93,7 +95,17 @@ data TasksCommand
 
 instance Binary TaskPatch
 #ifdef WITH_AESON
-instance FromJSON TaskPatch
+instance FromJSON TaskPatch where
+  parseJSON = withObject "TaskPatch" $ \v ->
+    TaskPatch
+      <$> v .:? "identifier" .!= Nothing
+      <*> v .:? "title" .!= Nothing
+      <*> v .:? "content" .!= Nothing
+      <*> v .:? "primary" .!= Nothing
+      <*> v .:? "secondary" .!= Nothing
+      <*> v .:? "purpose" .!= Nothing
+      <*> v .:? "displayInResources" .!= Nothing
+      <*> v .:? "attachments" .!= Nothing
 instance ToJSON TaskPatch
 #endif
 
@@ -105,7 +117,16 @@ instance ToJSON TaskGroupPatch
 
 instance Binary SubTaskPatch
 #ifdef WITH_AESON
-instance FromJSON SubTaskPatch
+instance FromJSON SubTaskPatch where
+  parseJSON = withObject "SubTaskPatch" $ \v ->
+    SubTaskPatch
+      <$> v .:? "identifier" .!= Nothing
+      <*> v .:? "title" .!= Nothing
+      <*> v .:? "content" .!= Nothing
+      <*> v .:? "primary" .!= Nothing
+      <*> v .:? "secondary" .!= Nothing
+      <*> v .:? "purpose" .!= Nothing
+      <*> v .:? "displayInResources" .!= Nothing
 instance ToJSON SubTaskPatch
 #endif
 
@@ -120,6 +141,7 @@ instance Default TaskPatch where
   def =
     TaskPatch
       { identifier = Nothing
+      , title = Nothing
       , content = Nothing
       , primary = Nothing
       , secondary = Nothing
@@ -144,6 +166,7 @@ instance Default SubTaskPatch where
   def =
     SubTaskPatch
       { identifier = Nothing
+      , title = Nothing
       , content = Nothing
       , primary = Nothing
       , secondary = Nothing
@@ -162,6 +185,7 @@ applyTaskPatch task patch = do
       task' <-
         inContext "Task" task $
           patchField' @"identifier" patch
+            >=> patchField' @"title" patch
             >=> patchField' @"content" patch
             >=> patchField' @"attachments" patch
       -- Patch TaskAttributes fields
@@ -202,6 +226,7 @@ applySubTaskPatch task patch = do
       task' <-
         inContext "SubTask" task $
           patchField' @"identifier" patch
+            >=> patchField' @"title" patch
             >=> patchField' @"content" patch
       -- Patch TaskAttributesOverride fields
       override' <-

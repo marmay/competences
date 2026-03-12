@@ -85,6 +85,7 @@ taskEditorModalComponent r origin taskId wm =
     stubTask = Task
       { id = taskId
       , identifier = TaskIdentifier ""
+      , title = ""
       , content = Nothing
       , taskType = SelfContained defaultTaskAttributes
       , attachments = []

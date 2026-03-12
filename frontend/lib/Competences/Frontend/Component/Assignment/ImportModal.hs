@@ -21,7 +21,7 @@ import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
-import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
+import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes, taskDisplayName)
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
@@ -181,9 +181,9 @@ previewTaskView preview =
     ]
 
 taskTitle :: ImportAction Task -> Text
-taskTitle (Create t) = let TaskIdentifier ident = t.identifier in ident
-taskTitle (Update _ t) = let TaskIdentifier ident = t.identifier in ident
-taskTitle (NoChange t) = let TaskIdentifier ident = t.identifier in ident
+taskTitle (Create t) = taskDisplayName t
+taskTitle (Update _ t) = taskDisplayName t
+taskTitle (NoChange t) = taskDisplayName t
 
 competenceMatchView :: CompetenceMatch -> M.View (IM.Model AssignmentImportPreview) IM.Action
 competenceMatchView cm =
@@ -270,6 +270,7 @@ applyTaskAndGetId r doc preview = do
             Task
               { id = newId
               , identifier = t.identifier
+              , title = ""
               , content = t.content
               , taskType = SelfContained taskAttrs
               , attachments = []
@@ -327,6 +328,7 @@ buildTaskPatch old new matchedCompetences =
   let oldPrimary = getTaskPrimary old
    in TaskPatch
         { identifier = if old.identifier == new.identifier then Nothing else Just (old.identifier, new.identifier)
+        , title = Nothing
         , content = if old.content == new.content then Nothing else Just (old.content, new.content)
         , primary = if oldPrimary == matchedCompetences then Nothing else Just (oldPrimary, matchedCompetences)
         , secondary = Nothing

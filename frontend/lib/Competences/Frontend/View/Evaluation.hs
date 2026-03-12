@@ -47,10 +47,10 @@ import Competences.Document.Task
   , TaskGroup
   , TaskGroupIxs
   , TaskId
-  , TaskIdentifier (..)
   , TaskIxs
   , getTaskAttributes
   , getTaskContent
+  , taskDisplayName
   )
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
@@ -108,10 +108,9 @@ projectTasks taskGroups tasks =
     ]
   where
     mkTaskViewData task =
-      let TaskIdentifier ident = task.identifier
-          attrs = getTaskAttributes taskGroups task
+      let attrs = getTaskAttributes taskGroups task
        in TaskViewData
-            { identifier = ident
+            { identifier = taskDisplayName task
             , content = getTaskContent taskGroups task
             , competenceLevels = attrs.primary <> attrs.secondary
             }

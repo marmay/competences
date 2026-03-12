@@ -12,7 +12,7 @@ where
 
 import Competences.Document (Solution (..), Task (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..))
-import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
+import Competences.Document.Task (TaskId, TaskPurpose (..), taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.SyncContext.SyncDocument (SyncContext (..))
@@ -124,7 +124,7 @@ taskResourceListView r showPurposeBadge taskExtra statuses tasks state extraBody
 viewTask :: SyncContext -> Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
 viewTask r showPurposeBadge taskExtra statuses state extraBody liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
-      TaskIdentifier identifier = tws.task.identifier
+      displayName = taskDisplayName tws.task
       hasContent = case tws.taskContent of
         Nothing -> False
         Just c -> c /= mempty
@@ -133,7 +133,7 @@ viewTask r showPurposeBadge taskExtra statuses state extraBody liftAction tws =
       isExpandable = hasContent || hasSolutions || not (null extra)
       mPalette = taskStatusPalette (Map.lookup tws.task.id statuses)
       headerBg = taskStatusHeaderBg (Map.lookup tws.task.id statuses)
-      titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms identifier)
+      titleLeft = Disclosure.titleIconText Icon.IcnTask (M.ms displayName)
       titleRight =
         Layout.hFlow
           (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
@@ -203,9 +203,7 @@ viewSolution fc state liftAction sol =
 -- Shows task content and solutions inline.
 taskExpandedCard :: SyncContext -> TaskWithSolutions -> M.View model action
 taskExpandedCard r tws =
-  let TaskIdentifier identifier = tws.task.identifier
-      displayName = if identifier == mempty then "(Unbenannt)" else identifier
-   in Card.contentCard Icon.IcnTask (M.ms displayName) $
+  Card.contentCard Icon.IcnTask (M.ms $ taskDisplayName tws.task) $
         [ case tws.taskContent of
             Just rc
               | rc /= mempty ->
