@@ -86,6 +86,7 @@ data Icon
   | IcnCloudSync -- ^ Connected, sending/receiving (cloud + arrows)
   | IcnCloudOff -- ^ Disconnected (cloud + slash)
   | IcnSick -- ^ Thermometer (absence/sick)
+  | IcnStar -- ^ Star (assessment marker)
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -240,6 +241,7 @@ iconId = \case
   IcnCloudSync -> "icon-cloud-sync"
   IcnCloudOff -> "icon-cloud-off"
   IcnSick -> "icon-sick"
+  IcnStar -> "icon-star"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -643,6 +645,16 @@ iconDefOf' = \case
     mkPathesDR
       [ "M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"
       ]
+  -- Star icon (Lucide star, filled polygon)
+  IcnStar ->
+    [ MS.path_
+        [ MSP.d_ "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.fill_ "currentColor"
+        , MSP.strokeLinecap_ "round"
+        , MSP.strokeLinejoin_ "round"
+        ]
+    ]
   where
     -- Consistent cloud outline shared by all cloud status icons (Lucide cloud)
     cloudBase :: M.MisoString

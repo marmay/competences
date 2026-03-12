@@ -37,6 +37,7 @@ import Competences.Document.Task
   ( TaskAttributes (..)
   , TaskId
   , TaskIdentifier (..)
+  , TaskPurpose (..)
   , getTaskAttributes
   , getTaskContent
   , getTaskPrimaryCompetences
@@ -312,8 +313,10 @@ viewerComponent r grid wm =
             , taskPurpose = (getTaskAttributes taskGroups task).purpose
             , solutions = Ix.toList $ doc.solutions Ix.@= task.id
             }
-          taskSortKey :: TaskWithSolutions -> T.Text
-          taskSortKey tws = let TaskIdentifier ident = tws.task.identifier in ident
+          taskSortKey :: TaskWithSolutions -> (Down TaskPurpose, T.Text)
+          taskSortKey tws =
+            let TaskIdentifier ident = tws.task.identifier
+             in (Down tws.taskPurpose, ident)
           groupByCompetenceLevel :: [TaskWithSolutions] -> Map CompetenceLevelId [TaskWithSolutions]
           groupByCompetenceLevel tasks =
             Map.map (sortOn taskSortKey) $ foldr insertTask Map.empty tasks
@@ -397,12 +400,15 @@ viewerComponent r grid wm =
                 tStatuses = taskCompletionStatuses doc u.id allResTasks
                 uncompleted = Map.mapWithKey
                   (\_clId tasks' ->
-                    [ t.task.identifier
-                    | t <- tasks'
-                    , case Map.lookup t.task.id tStatuses of
-                        Just (TaskDone _) -> False
-                        _ -> True
-                    ]
+                    let incomplete =
+                          [ t
+                          | t <- tasks'
+                          , case Map.lookup t.task.id tStatuses of
+                              Just (TaskDone _) -> False
+                              _ -> True
+                          ]
+                        sorted = sortOn (Down . (.taskPurpose)) incomplete
+                     in map (.task.identifier) (take 5 sorted)
                   )
                   resTasks
              in StudentPrintData

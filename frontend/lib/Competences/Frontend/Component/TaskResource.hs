@@ -141,6 +141,9 @@ viewTask r showPurposeBadge taskExtra statuses state extraBody liftAction tws =
           , if showPurposeBadge
               then purposeBadge tws.taskPurpose
               else Layout.empty
+          , if tws.taskPurpose == Assessment
+              then Icon.icon [class_ "w-4 h-4 text-amber-500"] Icon.IcnStar
+              else Layout.empty
           ]
       titleView = Disclosure.titleWithAnnotation titleLeft titleRight
       contentView =
