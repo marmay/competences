@@ -42,6 +42,7 @@ data Options = Options
   , staticDir :: !FilePath
   , casDir :: !FilePath
   , backupDir :: !FilePath
+  , pgDumpPath :: !FilePath
   , ensureTeacherO365 :: !(Maybe String)
   }
 
@@ -90,6 +91,13 @@ optionsParser =
           <> Opt.showDefault
           <> Opt.help "Directory for database migration backups"
       )
+    <*> Opt.strOption
+      ( Opt.long "pg-dump"
+          <> Opt.metavar "PATH"
+          <> Opt.value "pg_dump"
+          <> Opt.showDefault
+          <> Opt.help "Path to pg_dump executable"
+      )
     <*> Opt.optional
       ( Opt.strOption
           ( Opt.long "ensure-teacher-o365"
@@ -132,7 +140,7 @@ main = do
 
   -- Run pending database migrations (if any)
   putStrLn "Checking database schema..."
-  DB.runMigrations pool opts.dbConnString opts.backupDir
+  DB.runMigrations pool opts.dbConnString opts.backupDir opts.pgDumpPath
 
   -- Generate instance ID for startup logging
   instanceId <- UUID.nextRandom

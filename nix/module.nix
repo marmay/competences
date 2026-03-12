@@ -284,6 +284,7 @@ in {
             "--static ${cfg.staticDir}"
             "--cas-dir ${cfg.casDir}"
             "--backup-dir /var/lib/competences/backups/${name}"
+            "--pg-dump ${cfg.postgresql.package}/bin/pg_dump"
           ] ++ optional (instance.ensureTeacherO365 != null) "--ensure-teacher-o365 ${instance.ensureTeacherO365}");
 
           # Security hardening
