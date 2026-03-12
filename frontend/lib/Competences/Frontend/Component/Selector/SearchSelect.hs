@@ -391,6 +391,7 @@ view cfg m =
               , MP.value_ (ms m.searchQuery)
               , MH.onInput (SetQuery . fromMisoString)
               , MP.placeholder_ (ms cfg.placeholder)
+              , MP.autocomplete_ False
               ]
           ]
       hasClearAll = length selectedItems >= 2
@@ -568,7 +569,7 @@ viewDraggableTag layout mDraggingItem mDragOverGap idx thisId badgeContent =
             []
         ]
 
--- | Container below the tag input: holds clear-all button (absolute) and suggestion box (absolute overlay).
+-- | Container below the tag input: holds clear-all button (in flow) and suggestion box (absolute overlay).
 viewBelowInput
   :: forall a id
    . (Eq id, Ord id)
@@ -587,21 +588,20 @@ viewBelowInput
 viewBelowInput cfg hasClearAll hasFilters showBox highlightIdx matches =
   MH.div_
     [class_ "relative"]
-    [ -- Clear-all button: absolute, doesn't affect flow
+    [ -- Clear-all button: in flow so it reserves space
       if hasClearAll
         then
           MH.div_
-            [class_ "absolute right-0 top-0 z-10"]
+            [class_ "flex justify-end"]
             [Button.ghostSm $ Button.button C.LblDeselectAll (ClearAll :: Action a id)]
         else M.text ""
     , -- Suggestion box: absolute overlay below
       if showBox
         then
           MH.div_
-            [ class_ $
-                "absolute left-0 mt-1 z-50 bg-popover border border-border \
-                \rounded-md shadow-lg p-2 max-h-48 overflow-y-auto "
-                  <> if hasClearAll then "right-24 top-0" else "right-0 top-0"
+            [ class_
+                "absolute left-0 right-0 top-0 mt-1 z-50 bg-popover border border-border \
+                \rounded-md shadow-lg p-2 max-h-48 overflow-y-auto"
             ]
             ( [viewFilterHintRow cfg | hasFilters]
                 <> [viewSuggestions cfg highlightIdx matches | not (null matches)]
