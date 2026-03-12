@@ -39,7 +39,7 @@ searchSelectEditorField r k cfg extractIds eptl =
     k
     eptl
     (\e stl -> searchSelectViewerComponent r cfg (extractIds e) stl)
-    (\e stl -> searchSelectComponent r cfg (extractIds e) stl)
+    (\e stl -> searchSelectComponent r k cfg (extractIds e) stl)
 
 -- | Single-select variant of 'searchSelectEditorField'.
 --
@@ -59,7 +59,7 @@ searchSelectSingleEditorField r k cfg extractId eptl =
     k
     adaptedEptl
     (\e stl -> searchSelectViewerComponent r cfg (maybeToList $ extractId e) stl)
-    (\e stl -> searchSelectComponent r cfg (maybeToList $ extractId e) stl)
+    (\e stl -> searchSelectComponent r k cfg (maybeToList $ extractId e) stl)
   where
     -- Adapt from Maybe to []: keep viewLens/patchLens unchanged (they store
     -- Maybe on the model side), but change embed so that the [] coming from

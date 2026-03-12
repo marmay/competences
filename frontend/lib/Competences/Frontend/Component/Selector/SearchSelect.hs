@@ -177,16 +177,20 @@ searchSelectComponent
   :: forall a id p f' a'
    . (Eq a, Eq id, Ord id, Show a, Show id)
   => SyncContext
+  -> MisoString
+  -- ^ Unique key for this instance (used to derive a unique DOM id)
   -> SearchSelectConfig a id
   -> [id]
   -> SelectorTransformedLens p [] a f' a'
   -> M.Component p (Model a id) (Action a id)
-searchSelectComponent r cfg initIds lensBinding =
-  (M.component model update (view cfg))
+searchSelectComponent r instanceKey cfg initIds lensBinding =
+  (M.component model update (view inputId cfg))
     { M.bindings = [mkSelectorBinding lensBinding selectedEntitiesLens]
     , M.subs = [subscribeWithProjection r (projection cfg) ProjectionChanged]
     }
   where
+    inputId = instanceKey <> "-input"
+
     model =
       Model
         { allItems = []
@@ -225,7 +229,7 @@ searchSelectComponent r cfg initIds lensBinding =
          in m & #selectedIds .~ (m.selectedIds <> newIds)
               & #searchQuery .~ ""
               & #highlightIdx .~ Nothing
-      M.io_ $ M.focus searchInputId
+      M.io_ $ M.focus inputId
     update AddHighlighted = do
       M.modify $ \m ->
         case m.highlightIdx of
@@ -240,7 +244,7 @@ searchSelectComponent r cfg initIds lensBinding =
                       & #searchQuery .~ ""
                       & #highlightIdx .~ Nothing
                   [] -> m
-      M.io_ $ M.focus searchInputId
+      M.io_ $ M.focus inputId
     update (MoveHighlight delta) = M.modify $ \m ->
       let query = parseQuery m.searchQuery
           selectedSet = Set.fromList m.selectedIds
@@ -263,13 +267,13 @@ searchSelectComponent r cfg initIds lensBinding =
         case reverse m.selectedIds of
           [] -> m
           (_ : rest) -> m & #selectedIds .~ reverse rest
-      M.io_ $ M.focus searchInputId
+      M.io_ $ M.focus inputId
     update (ToggleItem i) = do
       M.modify $ \m ->
         if i `elem` m.selectedIds
           then m & #selectedIds .~ filter (/= i) m.selectedIds
           else m & #selectedIds .~ (m.selectedIds <> [i])
-      M.io_ $ M.focus searchInputId
+      M.io_ $ M.focus inputId
     update ClearAll =
       M.modify $ #selectedIds .~ []
     update (StartReorder i) =
@@ -310,7 +314,7 @@ searchSelectComponent r cfg initIds lensBinding =
       M.modify $ \m -> m & #draggingItem .~ Nothing & #dragOverGap .~ Nothing
     update (SetFocus focused) = do
       M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
-      M.io_ $ when focused scrollInputToCenter
+      M.io_ $ when focused (scrollInputToCenter inputId)
     update NoOp = pure ()
 
 -- | Get matching items that are not already selected.
@@ -361,10 +365,11 @@ insertAtGap src gapIdx ids =
 
 view
   :: (Eq id, Ord id)
-  => SearchSelectConfig a id
+  => MisoString
+  -> SearchSelectConfig a id
   -> Model a id
   -> M.View (Model a id) (Action a id)
-view cfg m =
+view inputId cfg m =
   let query = parseQuery m.searchQuery
       selectedSet = Set.fromList m.selectedIds
       matches = getMatches cfg query selectedSet m.allItems
@@ -387,7 +392,7 @@ view cfg m =
             MH.input_
               [ class_ "absolute inset-0 w-full bg-transparent text-sm text-transparent caret-foreground outline-none placeholder:text-muted-foreground"
               , MP.type_ "text"
-              , MP.id_ searchInputId
+              , MP.id_ inputId
               , MP.value_ (ms m.searchQuery)
               , MH.onInput (SetQuery . fromMisoString)
               , MP.placeholder_ (ms cfg.placeholder)
@@ -613,15 +618,11 @@ viewBelowInput cfg hasClearAll hasFilters showBox highlightIdx matches =
       MH.div_ [class_ "absolute left-0 top-full mt-52 h-px w-px"] []
     ]
 
--- | The DOM id for the search input, used to refocus and scroll into view.
-searchInputId :: MisoString
-searchInputId = "search-select-input"
-
 -- | Scroll the search input to the center of the viewport.
-scrollInputToCenter :: IO ()
-scrollInputToCenter = do
+scrollInputToCenter :: MisoString -> IO ()
+scrollInputToCenter elemId = do
   doc <- jsg ("document" :: MisoString)
-  el <- doc # ("getElementById" :: MisoString) $ [toJSVal searchInputId]
+  el <- doc # ("getElementById" :: MisoString) $ [toJSVal elemId]
   elIsNull <- isNull el
   when (not elIsNull) $ do
     Object opts <- create

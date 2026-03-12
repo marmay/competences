@@ -167,7 +167,7 @@ wrapperComponent r k origin cfg initIds parentBinding =
       MH.div_
         [class_ "space-y-2"]
         [ inlineComponent (k <> "-search-select")
-            (searchSelectComponent r cfg m.selectedIds childBinding)
+            (searchSelectComponent r (k <> "-search-select") cfg m.selectedIds childBinding)
         , Button.secondarySm $ Button.button (Icon.IcnAdd, C.LblAddTask) AddNewTask
         ]
 

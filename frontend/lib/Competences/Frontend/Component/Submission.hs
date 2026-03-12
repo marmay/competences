@@ -312,7 +312,7 @@ submissionModalComponent r assignmentId userId _wm =
         [class_ "space-y-1"]
         [ Typography.small $ C.translate' C.LblCollaborativeSubmission
         , inlineComponent "collaborator-selector"
-            (SS.searchSelectComponent r collaboratorConfig []
+            (SS.searchSelectComponent r "collaborator-selector" collaboratorConfig []
               (selectorLens (O.castOptic #collaborators)))
         ]
 

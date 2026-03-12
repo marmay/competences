@@ -673,7 +673,7 @@ evaluatorComponent r assignment =
        in M.div_ [class_ "border-t pt-3"]
             [ Typography.h4 (C.translate' C.LblAddTask)
             , inlineComponent key
-                (searchSelectComponent r extraTaskSearchConfig
+                (searchSelectComponent r key extraTaskSearchConfig
                    (Set.toList m.additionalTasks)
                    (selectorTransformedLens (.id) Set.fromList #additionalTasks))
             ]

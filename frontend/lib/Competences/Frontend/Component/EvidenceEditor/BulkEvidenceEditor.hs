@@ -242,6 +242,7 @@ bulkEvidenceEditorComponent r =
                       [class_ "w-full"]
                       ( searchSelectComponent
                           r'
+                          "bulk-student-selector"
                           studentSearchConfig
                           (map (.id) m'.selectedStudents)
                           studentSelectorLens

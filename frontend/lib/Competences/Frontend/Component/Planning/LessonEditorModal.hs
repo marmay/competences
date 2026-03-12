@@ -344,6 +344,7 @@ lessonEditorModal r lesson' lessonNotesIds wm =
           "lesson-editor-assignment-selector"
           ( searchSelectComponent
               syncCtx
+              "lesson-editor-assignment-selector"
               assignmentSearchConfig
               m.selectedAssignments
               (selectorTransformedLens (.id) id #selectedAssignments)
@@ -355,6 +356,7 @@ lessonEditorModal r lesson' lessonNotesIds wm =
           "lesson-editor-lesson-notes-selector"
           ( searchSelectComponent
               syncCtx
+              "lesson-editor-lesson-notes-selector"
               (lessonNotesSearchConfig m.lesson.id)
               m.selectedLessonNotes
               (selectorTransformedLens (.id) id #selectedLessonNotes)
