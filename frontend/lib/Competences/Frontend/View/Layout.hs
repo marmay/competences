@@ -294,8 +294,8 @@ sideMenu side main =
   M.div_
     [class_ "flex-1 h-full"]
     [ hFlow hFull
-        [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4 print:hidden"] [side]
-        , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4 print:pl-0"] [main]
+        [ M.div_ [class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4 print-hide"] [side]
+        , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4 print-no-pl"] [main]
         ]
     ]
 

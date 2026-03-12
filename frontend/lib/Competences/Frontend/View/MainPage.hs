@@ -34,7 +34,7 @@ mainPage burgerBtn title categoryIcons focusedUserView connectionStatus content 
   where
     navBanner =
       MH.nav_
-        [class_ "bg-primary text-primary-foreground py-1.5 flex-shrink-0 print:hidden"]
+        [class_ "bg-primary text-primary-foreground py-1.5 flex-shrink-0 print-hide"]
         [ MH.div_
             [class_ "max-w-4xl mx-auto w-full px-3"]
             [ Layout.hFlow

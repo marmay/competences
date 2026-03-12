@@ -117,7 +117,7 @@ mkApp ir initialUri =
                           (page (m ^. #uri))
                        ]
                 )
-            , M.div_ [class_ "print:hidden"] [V.inlineComponent "window-host" (windowHostComponent ir.windowManager)]
+            , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowManager)]
             ]
 
     page uri = case M.route uri of
@@ -370,7 +370,7 @@ impersonationBannerComponent user =
 
     view u =
       M.div_
-        [class_ "bg-amber-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0 print:hidden"]
+        [class_ "bg-amber-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0 print-hide"]
         [ M.div_
             [class_ "flex items-center gap-2"]
             [ Icon.iconS Icon.Small Icon.IcnView

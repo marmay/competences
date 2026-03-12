@@ -54,7 +54,7 @@
 @source inline("print-task print-page print-cell page-print-content");
 
 /* Competence grid print view */
-@source inline("print:hidden print:block break-before-page grid-print-table");
+@source inline("print:block break-before-page grid-print-table");
 
 /* File input Basecoat button styling */
 @source inline("file:bg-secondary file:text-secondary-foreground file:border-input file:shadow-xs file:cursor-pointer hover:file:bg-accent");
@@ -442,12 +442,20 @@
 
 /* Print layout: flatten containers so print-only content flows naturally */
 @media print {
-  body, body > div, body > div > div,
+  body, body > div, body > div > div:not(.print-hide),
   main, main > div {
     display: block !important;
     height: auto !important;
     overflow: visible !important;
     padding: 0 !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .print-no-pl {
+    padding-left: 0 !important;
   }
 
   /* Let geometry SVGs print at exact physical cm dimensions */

@@ -421,7 +421,7 @@ viewerComponent r user assignment wm =
       M.div_
         []
         [ M.div_
-            [class_ "space-y-6 print:hidden"]
+            [class_ "space-y-6 print-hide"]
             [ viewAssignment m
             ]
         , -- Page-print modal (when open)

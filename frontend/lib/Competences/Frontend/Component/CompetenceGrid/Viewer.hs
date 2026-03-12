@@ -428,7 +428,7 @@ viewerComponent r grid wm =
       MH.div_
         []
         [ MH.div_
-            [class_ "print:hidden"]
+            [class_ "print-hide"]
             [ Layout.vFlow
                 (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
                 [ header
