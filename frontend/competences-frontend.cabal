@@ -38,6 +38,7 @@ library
         Competences.Frontend.Component.AboutDialog,
         Competences.Frontend.Component.Assignment,
         Competences.Frontend.Component.Assignment.EditorDetail,
+        Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd,
         Competences.Frontend.Component.Assignment.EvaluatorDetail,
         Competences.Frontend.Component.Assignment.TaskResources,
         Competences.Frontend.Component.Assignment.ViewerDetail,

@@ -18,7 +18,6 @@ import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), getTasksInGroup, taskGroupId)
 import Competences.Document.User (UserId, isStudent)
-import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
@@ -27,6 +26,7 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
+import Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd (taskSearchSelectWithAddEditorField)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -43,6 +43,7 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
 import Data.List (sortOn)
+import Data.Proxy (Proxy (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -203,10 +204,11 @@ editorWrapperComponent r assignment =
                                (entityPatchTransformedLens #studentIds #studentIds (.id) Set.fromList)
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignmentTasks
-                           , searchSelectEditorField
+                           , taskSearchSelectWithAddEditorField
                                r
                                (assignmentEditorId <> "-tasks")
-                               taskSearchConfig
+                               origin'
+                               (taskSearchConfig origin')
                                (.tasks)
                                (entityPatchTransformedLens #tasks #tasks (.id) id)
                            )
@@ -239,10 +241,15 @@ namePatchLens = #name % changeAssignmentNameTextIso
 -- SearchSelect configs
 -- ============================================================================
 
-taskSearchConfig :: SearchSelectConfig Task TaskId
-taskSearchConfig =
+taskSearchConfig :: EntityOrigin -> SearchSelectConfig Task TaskId
+taskSearchConfig origin =
   SearchSelectConfig
-    { projectItems = QTask.allTasksSorted
+    { projectItems = \doc ->
+        let real = Ix.toAscList (Proxy @TaskIdentifier) doc.tasks
+            draft = Ix.toAscList (Proxy @TaskIdentifier) doc.draftTasks
+         in case origin of
+              Published -> real
+              Draft -> sortOn (\t -> let TaskIdentifier x = t.identifier in x) (real <> draft)
     , itemId = (.id)
     , itemLabel = \t -> let TaskIdentifier x = t.identifier in x
     , metaFilters = []
