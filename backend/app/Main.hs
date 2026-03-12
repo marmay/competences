@@ -41,6 +41,7 @@ data Options = Options
   , configPath :: !FilePath
   , staticDir :: !FilePath
   , casDir :: !FilePath
+  , backupDir :: !FilePath
   , ensureTeacherO365 :: !(Maybe String)
   }
 
@@ -81,6 +82,13 @@ optionsParser =
           <> Opt.value "./files"
           <> Opt.showDefault
           <> Opt.help "Content-addressable store directory for uploaded files"
+      )
+    <*> Opt.strOption
+      ( Opt.long "backup-dir"
+          <> Opt.metavar "DIR"
+          <> Opt.value "."
+          <> Opt.showDefault
+          <> Opt.help "Directory for database migration backups"
       )
     <*> Opt.optional
       ( Opt.strOption
@@ -124,7 +132,7 @@ main = do
 
   -- Run pending database migrations (if any)
   putStrLn "Checking database schema..."
-  DB.runMigrations pool opts.dbConnString
+  DB.runMigrations pool opts.dbConnString opts.backupDir
 
   -- Generate instance ID for startup logging
   instanceId <- UUID.nextRandom

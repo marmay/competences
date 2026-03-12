@@ -195,7 +195,17 @@ in {
       mkdir -p ${cfg.casDir}
       chown root:competences ${cfg.casDir}
       chmod 2775 ${cfg.casDir}
-    '';
+    '' + concatStringsSep "\n" (map (name:
+      let
+        instance = cfg.instances.${name};
+        userName = if instance.user != null then instance.user else instance.database;
+        backupDir = "/var/lib/competences/backups/${name}";
+      in ''
+        mkdir -p ${backupDir}
+        chown ${userName}:${instance.group} ${backupDir}
+        chmod 750 ${backupDir}
+      ''
+    ) (attrNames cfg.instances));
 
     # Create system users and groups
     users.groups.competences = {};
@@ -273,6 +283,7 @@ in {
             "--config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
             "--cas-dir ${cfg.casDir}"
+            "--backup-dir /var/lib/competences/backups/${name}"
           ] ++ optional (instance.ensureTeacherO365 != null) "--ensure-teacher-o365 ${instance.ensureTeacherO365}");
 
           # Security hardening
@@ -281,7 +292,7 @@ in {
           ProtectSystem = "strict";
           ProtectHome = true;
           UMask = "0002";
-          ReadWritePaths = [ cfg.casDir ];
+          ReadWritePaths = [ cfg.casDir "/var/lib/competences/backups/${name}" ];
         };
       }
     ) (attrNames cfg.instances));

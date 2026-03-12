@@ -130,8 +130,8 @@ migrations =
 -- (each in its own transaction), and verifies the final version matches
 -- 'expectedSchemaVersion'. Before applying migrations, creates a pg_dump
 -- backup. Aborts startup if the database is not initialized or if backup fails.
-runMigrations :: Pool Connection -> ByteString -> IO ()
-runMigrations pool connStr = withResource pool $ \conn -> do
+runMigrations :: Pool Connection -> ByteString -> FilePath -> IO ()
+runMigrations pool connStr backupDir = withResource pool $ \conn -> do
   -- Get current schema version
   currentVersion <- getCurrentVersion conn
 
@@ -141,7 +141,7 @@ runMigrations pool connStr = withResource pool $ \conn -> do
     else do
       -- Create backup before applying migrations
       let nextVersion = case pending of ((v, _, _) : _) -> v; [] -> error "unreachable"
-      let backupFile = "backup-before-migration-" <> show nextVersion <> ".sql"
+      let backupFile = backupDir <> "/backup-before-migration-" <> show nextVersion <> ".sql"
       putStrLn $ "Creating database backup: " <> backupFile
       (exitCode, _stdout, stderr) <-
         readProcessWithExitCode "pg_dump" ["--dbname=" <> BS.unpack connStr, "-f", backupFile] ""
