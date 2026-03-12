@@ -21,7 +21,7 @@ import Competences.Document
   )
 import Competences.Document.Evidence (Observation (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..))
-import Competences.Document.User (isStudent)
+import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -33,10 +33,9 @@ import Competences.Frontend.Component.Selector.EvidenceSelector
   , evidenceSelectorComponent
   )
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
-import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
+import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField, searchSelectSingleEditorField)
 import Competences.Query.Task qualified as QTask
 import Competences.Frontend.Component.Selector.ObservationSelector qualified as TE
-import Competences.Frontend.Component.Selector.UserSelector (searchableSingleUserEditorField)
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
 import Competences.Frontend.View qualified as V
 import Competences.Frontend.View.Button qualified as Button
@@ -44,6 +43,8 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Map qualified as Map
+import Data.Proxy (Proxy (..))
+import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -287,10 +288,11 @@ evidenceEditorDetailView r evidence =
                                #activityType
                            )
         `TE.addNamedField` ( C.translate' C.LblStudent
-                           , searchableSingleUserEditorField
+                           , searchSelectSingleEditorField
                                r
                                (evidenceEditorId <> "-user")
-                               isStudent
+                               userSearchConfig
+                               (.userId)
                                (entityPatchTransformedLens #userId #userId (.id) id)
                            )
         `TE.addNamedField` ( C.translate' C.LblTasksAndGroups
@@ -317,6 +319,20 @@ evidenceEditorDetailView r evidence =
                                (.id)
                                (entityPatchTransformedLens #observations #observations id IxSet.fromList)
                            )
+
+-- | SearchSelect config for student user selection
+userSearchConfig :: SearchSelectConfig User UserId
+userSearchConfig =
+  SearchSelectConfig
+    { projectItems = \doc -> filter isStudent $ Ix.toAscList (Proxy @Text) doc.users
+    , itemId = (.id)
+    , itemLabel = (.name)
+    , metaFilters = []
+    , viewTag = \u -> (Icon.IcnSocialFormIndividual, M.ms u.name)
+    , placeholder = M.fromMisoString $ C.translate' C.LblStudent
+    , selectionOrder = AutoOrder id
+    , tagLayout = TagsInline
+    }
 
 -- | Shared SearchSelect config for tasks
 taskSearchConfig :: SearchSelectConfig Task TaskId

@@ -51,9 +51,11 @@ import Competences.Frontend.Component.Selector.ObservationSelector
   , competenceP
   , levelP
   )
-import Competences.Frontend.Component.Selector.UserSelector
-  ( UserSelectorConfig (..)
-  , searchableMultiUserSelectorComponent
+import Competences.Frontend.Component.Selector.SearchSelect
+  ( SearchSelectConfig (..)
+  , SelectionOrder (..)
+  , TagLayout (..)
+  , searchSelectComponent
   )
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -76,6 +78,8 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (intercalate)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (maybeToList)
+import Data.Proxy (Proxy (..))
+import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -236,9 +240,10 @@ bulkEvidenceEditorComponent r =
                     V.inlineComponentAttrs
                       "bulk-student-selector"
                       [class_ "w-full"]
-                      ( searchableMultiUserSelectorComponent
+                      ( searchSelectComponent
                           r'
-                          (studentSelectorConfig m')
+                          studentSearchConfig
+                          (map (.id) m'.selectedStudents)
                           studentSelectorLens
                       )
                 , -- Observation selector
@@ -263,11 +268,18 @@ bulkEvidenceEditorComponent r =
             ]
         ]
 
-    -- Student selector configuration
-    studentSelectorConfig m' =
-      UserSelectorConfig
-        { isPossibleUser = isStudent
-        , isInitialUser = \u -> u `elem` m'.selectedStudents
+    -- Student search config for SearchSelect
+    studentSearchConfig :: SearchSelectConfig User UserId
+    studentSearchConfig =
+      SearchSelectConfig
+        { projectItems = \doc -> filter isStudent $ Ix.toAscList (Proxy @Text) doc.users
+        , itemId = (.id)
+        , itemLabel = (.name)
+        , metaFilters = []
+        , viewTag = \u -> (Icon.IcnSocialFormIndividual, M.ms u.name)
+        , placeholder = M.fromMisoString $ C.translate' C.LblStudents
+        , selectionOrder = AutoOrder id
+        , tagLayout = TagsInline
         }
 
     -- Student selector lens (syncs selectedStudents with component)

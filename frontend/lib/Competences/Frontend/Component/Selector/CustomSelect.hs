@@ -2,7 +2,6 @@
 --
 -- Unlike HTML @\<select\>@, supports badges, icons, and rich formatting
 -- in both the trigger button and the dropdown items.
--- Follows the selector component pattern (cf. 'ListSelector').
 module Competences.Frontend.Component.Selector.CustomSelect
   ( CustomSelectConfig (..)
   , CustomSelectModel
