@@ -185,7 +185,7 @@ viewerComponent r ln wm =
 -- | Render a resolved item in the viewer
 viewResolvedItem :: SyncContext -> ResolvedItem -> M.View model action
 viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
-viewResolvedItem r (ResolvedTask tws) = taskExpandedCard r.formulaCache tws
+viewResolvedItem r (ResolvedTask tws) = taskExpandedCard r tws
 
 -- ============================================================================
 -- Shared renderers

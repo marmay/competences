@@ -3,7 +3,6 @@ module Competences.Frontend.Component.TaskResource
   , DisplayMode (..)
   , TaskWithSolutions (..)
   , Action (..)
-  , FormulaCache
   , initialState
   , taskResourceListView
   , taskExpandedCard
@@ -15,7 +14,8 @@ import Competences.Document (Solution (..), Task (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..), TaskPurpose (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.SyncContext.SyncDocument (SyncContext (..))
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
@@ -103,7 +103,7 @@ initialState mode statuses tasks =
 -- The taskStatuses map is used to tint disclosure headers by completion status
 -- The extraBody parameter renders optional per-task body content appended after solutions
 taskResourceListView
-  :: FormulaCache
+  :: SyncContext
   -> Bool  -- ^ Show purpose badge (Practice/Assessment)
   -> (TaskId -> M.View model a)  -- ^ Per-task extra view (e.g., status indicator); use @const empty@ for none
   -> Map TaskId TaskCompletionStatus  -- ^ Task statuses for header tinting
@@ -112,17 +112,17 @@ taskResourceListView
   -> (TaskId -> [M.View model a])  -- ^ Extra body content per task (e.g., related materials)
   -> (Action -> a)  -- ^ Lift action to parent action type
   -> M.View model a
-taskResourceListView fc showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
+taskResourceListView r showPurposeBadge taskExtra statuses tasks state extraBody liftAction =
   if null tasks
     then Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
     else
       Layout.vFlow
         Layout.gapM
-        (map (viewTask fc showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
+        (map (viewTask r showPurposeBadge taskExtra statuses state extraBody liftAction) tasks)
 
 -- | View a single task with its solutions
-viewTask :: FormulaCache -> Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
-viewTask fc showPurposeBadge taskExtra statuses state extraBody liftAction tws =
+viewTask :: SyncContext -> Bool -> (TaskId -> M.View model a) -> Map TaskId TaskCompletionStatus -> TaskResourceList -> (TaskId -> [M.View model a]) -> (Action -> a) -> TaskWithSolutions -> M.View model a
+viewTask r showPurposeBadge taskExtra statuses state extraBody liftAction tws =
   let isExpanded = Set.member tws.task.id state.expandedTasks
       TaskIdentifier identifier = tws.task.identifier
       hasContent = case tws.taskContent of
@@ -154,10 +154,10 @@ viewTask fc showPurposeBadge taskExtra statuses state extraBody liftAction tws =
                     else
                       MH.div_
                         [class_ "prose prose-stone prose-sm max-w-none"]
-                        [renderRichText fc content]
+                        [renderRichTextWithFiles r.formulaCache r tws.task.attachments content]
             , if null tws.solutions
                 then Layout.empty
-                else viewSolutions fc state liftAction tws.solutions
+                else viewSolutions r.formulaCache state liftAction tws.solutions
             ]
               <> extra
           )
@@ -201,8 +201,8 @@ viewSolution fc state liftAction sol =
 
 -- | Render a task always expanded (no disclosure, no status palette).
 -- Shows task content and solutions inline.
-taskExpandedCard :: FormulaCache -> TaskWithSolutions -> M.View model action
-taskExpandedCard fc tws =
+taskExpandedCard :: SyncContext -> TaskWithSolutions -> M.View model action
+taskExpandedCard r tws =
   let TaskIdentifier identifier = tws.task.identifier
       displayName = if identifier == mempty then "(Unbenannt)" else identifier
    in Card.contentCard Icon.IcnTask (M.ms displayName) $
@@ -211,14 +211,14 @@ taskExpandedCard fc tws =
               | rc /= mempty ->
                   MH.div_
                     [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                    [renderRichText fc rc]
+                    [renderRichTextWithFiles r.formulaCache r tws.task.attachments rc]
             _ -> Layout.empty
         , if null tws.solutions
             then Layout.empty
             else
               MH.div_
                 [class_ "px-3 pb-3 space-y-3"]
-                (map (solutionInlineView fc) tws.solutions)
+                (map (solutionInlineView r.formulaCache) tws.solutions)
         ]
 
 -- | Render a solution always visible with type label (no disclosure).

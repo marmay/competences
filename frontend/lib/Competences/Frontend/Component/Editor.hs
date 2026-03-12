@@ -16,6 +16,7 @@ module Competences.Frontend.Component.Editor
   , editorComponent
   , selectorEditorField
   , fileUploadEditorField
+  , richTextWithFilesEditorField
   , msIso
   )
 where

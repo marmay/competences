@@ -123,7 +123,7 @@ taskDetailView r origin task =
                            , TE.textEditorField identifierViewLens identifierPatchLens
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskContent
-                           , TE.richTextEditorField r.formulaCache "content" contentViewLens contentPatchLens
+                           , TE.richTextWithFilesEditorField r "content" contentViewLens contentPatchLens #attachments
                            )
         `TE.addNamedField` ( C.translate' C.LblTaskPurposeLabel
                            , TE.enumEditorField

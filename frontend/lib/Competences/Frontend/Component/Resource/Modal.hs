@@ -20,7 +20,6 @@ import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.TaskResource
   ( DisplayMode (..)
-  , FormulaCache
   , TaskResourceList
   , TaskWithSolutions (..)
   , initialState
@@ -48,7 +47,7 @@ import Miso.Html qualified as MH
 openResourceModal :: SyncContext -> ResourceModalConfig -> IO ()
 openResourceModal r cfg =
   let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
-   in openFramedModal r.windowManager frameCfg (resourceModalComponent r r.formulaCache cfg)
+   in openFramedModal r.windowManager frameCfg (resourceModalComponent r cfg)
 
 -- ============================================================================
 -- Configuration
@@ -106,8 +105,8 @@ data Action
 -- Component
 -- ============================================================================
 
-resourceModalComponent :: SyncContext -> FormulaCache -> ResourceModalConfig -> M.Component p Model Action
-resourceModalComponent r fc cfg =
+resourceModalComponent :: SyncContext -> ResourceModalConfig -> M.Component p Model Action
+resourceModalComponent r cfg =
   M.component model update view
   where
     -- Determine default view mode based on available content
@@ -148,9 +147,9 @@ resourceModalComponent r fc cfg =
             ViewTasks
               | Map.null m.config.taskStatuses ->
                   -- No focused user: flat list without grouping
-                  taskResourceListView fc m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
+                  taskResourceListView r m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
               | otherwise ->
-                  groupedTasksView fc m
+                  groupedTasksView r m
             ViewLearningResources ->
               inlineComponent
                 "resource-modal-learning-resources"
@@ -177,24 +176,24 @@ modeSwitcher currentMode hasTasks hasResources =
 -- ============================================================================
 
 -- | Render tasks grouped by completion status
-groupedTasksView :: FormulaCache -> Model -> M.View Model Action
-groupedTasksView fc m =
+groupedTasksView :: SyncContext -> Model -> M.View Model Action
+groupedTasksView r m =
   let groups = groupByTaskStatus (.task.id) m.config.taskStatuses m.config.tasks
    in if null groups
         then
           MH.div_
             [class_ "text-muted-foreground text-sm py-4 text-center"]
             [M.text $ C.translate' C.LblNoTasksAvailable]
-        else MH.div_ [class_ "space-y-3"] (map (viewStatusGroup fc m) groups)
+        else MH.div_ [class_ "space-y-3"] (map (viewStatusGroup r m) groups)
 
 -- | Render a single status group as a collapsible section
-viewStatusGroup :: FormulaCache -> Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
-viewStatusGroup fc m (group, tasks) =
+viewStatusGroup :: SyncContext -> Model -> (TaskStatusGroup, [TaskWithSolutions]) -> M.View Model Action
+viewStatusGroup r m (group, tasks) =
   let isExpanded = not $ Set.member group m.collapsedGroups
       title = statusGroupLabel group
       content =
         taskResourceListView
-          fc
+          r
           m.config.showPurposeBadge
           (viewTaskCompletionStatusFromMap m.config.taskStatuses)
           m.config.taskStatuses

@@ -15,6 +15,7 @@ module Competences.Frontend.Component.Editor.EditorField
   , selectorEditorFieldNoStyle
   , selectorEditorFieldWithViewer
   , fileUploadEditorField
+  , richTextWithFilesEditorField
   )
 where
 
@@ -23,9 +24,9 @@ import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.Editor.View (refocusTargetString)
 import Competences.Frontend.Component.FileUpload (fileUploadComponent)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
 import Competences.Document.FileRef (FileRef (..))
-import Competences.Frontend.SyncContext.SyncDocument (SyncContext)
+import Competences.Frontend.SyncContext.SyncDocument (SyncContext (..))
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -169,6 +170,37 @@ richTextEditorField fc fieldName viewLens patchLens =
             (currentValue original patch viewLens patchLens)
             (mkContentStateLens fieldName viewLens patchLens original))
     }
+
+-- | Rich text editor field with file attachment support
+--   Viewer: renders content with file embeds resolved + unreferenced files gallery
+--   Editor: same as richTextEditorField (self-contained component)
+richTextWithFilesEditorField
+  :: (Ord a, Default patch)
+  => SyncContext
+  -> Text
+  -> Lens' a RichContent
+  -> Lens' patch (Change RichContent)
+  -> Lens' a [FileRef]
+  -> EditorField a patch f
+richTextWithFilesEditorField r fieldName viewLens patchLens attachmentsLens =
+  EditorField
+    { viewer = richTextWithFilesViewer r.formulaCache r viewLens attachmentsLens
+    , editor = \refocusTarget original patch ->
+        inlineComponentAttrs
+          "rc-editor"
+          (refocusTargetAttr refocusTarget)
+          (richContentEditorComponent r.formulaCache
+            (currentValue original patch viewLens patchLens)
+            (mkContentStateLens fieldName viewLens patchLens original))
+    }
+
+richTextWithFilesViewer :: FormulaCache -> SyncContext -> Lens' a RichContent -> Lens' a [FileRef] -> a -> M.View (Model a patch f) (Action a patch)
+richTextWithFilesViewer fc syncCtx viewLens attachmentsLens a =
+  let content = a ^. viewLens
+      attachments = a ^. attachmentsLens
+   in if content == mempty
+        then Typography.placeholder "No content"
+        else renderRichTextWithFiles fc syncCtx attachments content
 
 richTextViewer :: FormulaCache -> Lens' a RichContent -> a -> M.View (Model a patch f) (Action a patch)
 richTextViewer fc viewLens a =

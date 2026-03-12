@@ -70,7 +70,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , taskContentSetting
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.TaskResource
   ( TaskResourceList
   , TaskWithSolutions (..)
@@ -497,7 +497,7 @@ viewerComponent r user assignment wm =
             , M.div_
               [class_ "space-y-4"]
               ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
-                [ taskResourceListView r.formulaCache showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
+                [ taskResourceListView r showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
               )
             ]
 
@@ -757,7 +757,7 @@ viewerComponent r user assignment wm =
                         <> printColumnsClass tcs.itemsPerRow
                         <> if tcs.inlineAnswer then " print-inline-answer" else ""
                     ]
-                    [renderRichText r.formulaCache content]
+                    [renderRichTextWithFiles r.formulaCache r tws.task.attachments content]
                 | Just content <- [tws.taskContent]
                 ]
             | otherwise = []
