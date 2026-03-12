@@ -843,7 +843,7 @@ printMasteryIndicator OnlySillyMistakes =
 printMasteryIndicator MasteryNotYet =
   MH.span_ [class_ "text-red-600"] [M.text $ "✗ " <> masteryBadgeLabel MasteryNotYet]
 printMasteryIndicator NotTried =
-  MH.span_ [] []
+  MH.span_ [class_ "text-stone-400"] [M.text $ C.translate' C.LblMasteryNotTried]
 
 -- ============================================================================
 -- HELPER TYPES AND FUNCTIONS
