@@ -213,7 +213,6 @@ projectDocument user doc
   | otherwise =
       -- Students see filtered view based on their identity
       doc
-        & #users .~ Ix.fromList [user] -- Only their own user
         & #evidences .~ (doc.evidences Ix.@= user.id) -- Only evidences about them (via UserId index)
         & #assignments .~ (doc.assignments Ix.@= user.id) -- Only assignments assigned to them (via UserId index)
         & #competenceAssessments .~ (doc.competenceAssessments Ix.@= user.id) -- Only assessments about them
