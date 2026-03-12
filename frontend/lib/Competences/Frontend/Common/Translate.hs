@@ -405,6 +405,7 @@ data Label
   | LblCollaborativeSubmission
   | LblAbgegebenUndGemacht
   | LblNewSubmission
+  | LblFilesForSubmission
   | LblFiles
   | LblDate
   | LblDetails
@@ -782,6 +783,7 @@ labels' =
   , LblCollaborativeSubmission
   , LblAbgegebenUndGemacht
   , LblNewSubmission
+  , LblFilesForSubmission
   , LblFiles
   , LblDate
   , LblDetails
@@ -1187,6 +1189,7 @@ defaultTranslation LblIndividualSubmission = "Einzelarbeit"
 defaultTranslation LblCollaborativeSubmission = "Gemeinsame Abgabe mit"
 defaultTranslation LblAbgegebenUndGemacht = "Abgegeben & Gemacht"
 defaultTranslation LblNewSubmission = "Neue Abgabe"
+defaultTranslation LblFilesForSubmission = "Dateien zur Abgabe"
 defaultTranslation LblFiles = "Dateien"
 defaultTranslation LblDate = "Datum"
 defaultTranslation LblDetails = "Details"

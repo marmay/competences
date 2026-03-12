@@ -19,10 +19,16 @@ import Competences.Document
   , Submission (..)
   , User (..)
   )
-import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.FileRef (FileRef (..))
 import Competences.Document.Submission (SubmissionId, SubmissionKind (..), SubmissionOwnership (..))
+import Competences.Frontend.Component.Selector.Common (selectorLens)
+import Competences.Frontend.Component.Selector.SearchSelect qualified as SS
 import Competences.Document.User (UserId)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Proxy (Proxy (..))
+import Data.Set qualified as Set
+import Data.Text (Text)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.FileUpload (fileUploadComponent)
 import Competences.Frontend.SyncContext
@@ -61,6 +67,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString, fromMisoString, ms)
 import Optics.Core ((&), (.~))
+import Optics.Core qualified as O
 
 -- ============================================================================
 -- Submission Summary (for ViewerDetail status button)
@@ -146,6 +153,7 @@ data SubmissionModel = SubmissionModel
   , voidReason :: !MisoString
   , remarkText :: !MisoString
   , holdingDelete :: !(HoldButton.HoldState SubmissionId)
+  , collaborators :: ![User]
   }
   deriving (Eq, Generic, Show)
 
@@ -183,6 +191,7 @@ submissionModalComponent r assignmentId userId _wm =
       , voidReason = ""
       , remarkText = ""
       , holdingDelete = HoldButton.emptyHoldState
+      , collaborators = []
       }
 
     submissionProjection :: AssignmentId -> UserId -> Document -> Maybe User -> SubmissionProjection
@@ -228,10 +237,13 @@ submissionModalComponent r assignmentId userId _wm =
         Just kind -> do
           M.io_ $ do
             sid <- nextId r
-            let submission = Submission
+            let ownership = case m.collaborators of
+                      [] -> IndividualSubmission userId
+                      cs -> CollaborativeSubmission (userId :| map (.id) cs)
+                submission = Submission
                   { id = sid
                   , assignmentId = assignmentId
-                  , ownership = IndividualSubmission userId
+                  , ownership = ownership
                   , kind = kind
                   , remark = mRemark
                   , submittedAt = now
@@ -242,6 +254,7 @@ submissionModalComponent r assignmentId userId _wm =
             & #locationText .~ ""
             & #voidReason .~ ""
             & #remarkText .~ ""
+            & #collaborators .~ []
 
     update (OnHoldDelete ha) =
       HoldButton.handleHoldAction #holdingDelete doDelete OnHoldDelete ha
@@ -272,10 +285,36 @@ submissionModalComponent r assignmentId userId _wm =
               TabNonDigital -> Tabs.TabSpec (C.translate' C.LblDoneInNotebook) False
               TabVoid -> Tabs.TabSpec (C.translate' C.LblNichtGemacht) (hasNonVoidSubmission m)
           , tabContent = \case
-              TabDigital -> [viewDigitalForm m, viewRemarkAndSubmit m]
-              TabNonDigital -> [viewNonDigitalForm m, viewRemarkAndSubmit m]
+              TabDigital -> [viewDigitalForm m, viewCollaboratorSelector, viewRemarkAndSubmit m]
+              TabNonDigital -> [viewNonDigitalForm m, viewCollaboratorSelector, viewRemarkAndSubmit m]
               TabVoid -> [viewVoidForm m, viewRemarkAndSubmit m]
           }
+
+    collaboratorConfig :: SS.SearchSelectConfig User UserId
+    collaboratorConfig =
+      SS.SearchSelectConfig
+        { projectItems = \doc -> case Ix.getOne (doc.assignments Ix.@= assignmentId) of
+            Nothing -> []
+            Just a ->
+              filter (\u -> Set.member u.id a.studentIds && u.id /= userId)
+                $ Ix.toAscList (Proxy @Text) doc.users
+        , itemId = (.id)
+        , itemLabel = (.name)
+        , metaFilters = []
+        , viewTag = \u -> (Icon.IcnSocialFormIndividual, ms u.name)
+        , placeholder = fromMisoString $ C.translate' C.LblCollaborativeSubmission
+        , selectionOrder = SS.AutoOrder id
+        , tagLayout = SS.TagsInline
+        }
+
+    viewCollaboratorSelector =
+      MH.div_
+        [class_ "space-y-1"]
+        [ Typography.small $ C.translate' C.LblCollaborativeSubmission
+        , inlineComponent "collaborator-selector"
+            (SS.searchSelectComponent r collaboratorConfig []
+              (selectorLens (O.castOptic #collaborators)))
+        ]
 
     viewRemarkAndSubmit m =
       Layout.vFlow
@@ -288,7 +327,7 @@ submissionModalComponent r assignmentId userId _wm =
       MH.div_
         [class_ "space-y-2"]
         [ inlineComponent "submission-file-upload"
-            (fileUploadComponent r Nothing m.files #files)
+            (fileUploadComponent r (Just (C.translate' C.LblFilesForSubmission)) m.files #files)
         ]
 
     viewNonDigitalForm _m =

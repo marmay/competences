@@ -25,6 +25,8 @@ library
         Competences.Backend.Auth
         Competences.Backend.BuildInfo
         Competences.Backend.CAS
+        Competences.Backend.Checkpoint
+        Competences.Backend.CommandLog
         Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Envelope
@@ -56,6 +58,7 @@ library
         optics-core,
         optparse-applicative,
         postgresql-simple >= 0.7.0.1,
+        process,
         resource-pool,
         servant,
         servant-blaze,

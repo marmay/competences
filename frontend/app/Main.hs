@@ -19,6 +19,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.Logging (logDebug, logError)
 import Competences.Frontend.WebSocket (getJWTToken)
 import Competences.Frontend.WebSocket.CommandSender (mkCommandSender)
+import Competences.Frontend.IndexedDB (openDatabase)
 import Competences.Frontend.WebSocket.Handlers (mkInitialHandler, mkReconnectHandler)
 import Competences.Frontend.WebSocket.Protocol (AuthenticationException (..), withWebSocket)
 import Control.Concurrent (forkIO)
@@ -72,10 +73,14 @@ main = do
               setField htmlDoc "title" (C.translate' C.LblPageTitle)
               runApp $ mkApp ref initialUri
 
+        -- Open IndexedDB for checkpoint storage
+        idb <- openDatabase
+        let mIdb = Just idb
+
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
-        let initial = mkInitialHandler jwtToken mImpersonate imp forkApp
-            reconnect = mkReconnectHandler jwtToken mImpersonate
+        let initial = mkInitialHandler jwtToken mImpersonate imp mIdb forkApp
+            reconnect = mkReconnectHandler jwtToken mImpersonate mIdb
 
         withWebSocket wsUrl initial reconnect
           `catch` handleAuthFailure location

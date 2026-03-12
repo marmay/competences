@@ -168,6 +168,7 @@ library
         Competences.Frontend.View.Tooltip,
         Competences.Frontend.View.Typography,
         Competences.Frontend.BinaryFFI,
+        Competences.Frontend.IndexedDB,
         Competences.Frontend.FileCache,
         Competences.Frontend.WebSocket,
         Competences.Frontend.WebSocket.CommandSender,

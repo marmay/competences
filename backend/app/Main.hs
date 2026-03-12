@@ -1,6 +1,7 @@
 module Main where
 
 import Competences.Backend.CAS (newCAS)
+import Competences.Backend.CommandLog (newCommandLog)
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
@@ -121,9 +122,9 @@ main = do
   putStrLn "Initializing database connection pool..."
   pool <- DB.initPool opts.dbConnString
 
-  -- Check schema version
-  putStrLn "Checking database schema version..."
-  DB.checkSchemaVersion pool
+  -- Run pending database migrations (if any)
+  putStrLn "Checking database schema..."
+  DB.runMigrations pool opts.dbConnString
 
   -- Generate instance ID for startup logging
   instanceId <- UUID.nextRandom
@@ -152,7 +153,7 @@ main = do
   unless (null migrationCmds) $ do
     putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
     let systemUserId = Id UUID.nil
-    latestGen <- foldM (\_ cmd -> DB.saveCommand pool systemUserId cmd) initialGen migrationCmds
+    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemUserId cmd) initialGen migrationCmds
     DB.saveSnapshot pool doc latestGen
     putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
 
@@ -172,8 +173,11 @@ main = do
   -- Derive instance ID from database name in connection string
   let instId = extractDbName (BS.unpack opts.dbConnString)
 
+  -- Initialize command log (shared broadcast cache)
+  cmdLog <- newCommandLog pool latestGen
+
   -- Initialize application state
-  state <- initAppState pool cas instId
+  state <- initAppState pool cas instId latestGen cmdLog
   atomically $ writeTVar state.document doc'
 
   -- Log startup
@@ -238,7 +242,7 @@ applyStartupMigrations pool = go
           putStrLn $ "Startup migration skipped: " <> T.unpack reason
           go doc gen rest
         Right (doc', _) -> do
-          gen' <- DB.saveCommand pool systemUserId cmd
+          (_cmdId, gen') <- DB.saveCommand pool systemUserId cmd
           putStrLn $ "Startup migration applied at generation " <> show gen'
           go doc' gen' rest
 

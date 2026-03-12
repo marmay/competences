@@ -20,6 +20,7 @@ module Competences.Backend.CAS
   , registerOwner
   , isHashRegistered
   , storeAndRegister
+  , computeSHA256
   )
 where
 

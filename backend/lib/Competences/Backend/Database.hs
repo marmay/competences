@@ -10,16 +10,22 @@ module Competences.Backend.Database
   , closePool
 
     -- * Schema management
-  , checkSchemaVersion
+  , runMigrations
   , expectedSchemaVersion
 
     -- * Database state queries
   , isDatabaseEmpty
   , getMaxGeneration
+  , getLatestCommandId
 
     -- * Command persistence
   , saveCommand
+  , saveCommandWithAudience
   , loadCommandsSince
+  , loadCommandsForUser
+  , loadRecentCommands
+  , countCommandsForUser
+  , lookupCommandGeneration
 
     -- * Snapshot persistence
   , saveSnapshot
@@ -40,9 +46,12 @@ import Competences.Backend.Envelope
   , wrapSnapshot
   )
 import Competences.Command (Command)
-import Competences.Document (Document)
+import Competences.Command.Audience (CommandAudience, audienceFromText, audienceRecipients, audienceToText)
+import Competences.Document (Document, UserRole (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
+import Competences.Protocol (CommandId)
+import Control.Monad (forM_)
 import Data.Aeson (Value, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
@@ -51,21 +60,26 @@ import Data.Text (Text)
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.UUID.V4 qualified as UUID
+import Data.ByteString.Char8 qualified as BS
 import Database.PostgreSQL.Simple
   ( Connection
   , Only (..)
   , connectPostgreSQL
   , close
   , execute
+  , execute_
   , query
   , query_
+  , withTransaction
   )
 import Database.PostgreSQL.Simple.SqlQQ (sql)
-import System.Exit (die)
+import Database.PostgreSQL.Simple.Types (Query (..))
+import System.Exit (ExitCode (..), die)
+import System.Process (readProcessWithExitCode)
 
 -- | Expected database schema version
 expectedSchemaVersion :: Int
-expectedSchemaVersion = 1
+expectedSchemaVersion = 2
 
 -- | Initialize connection pool
 --
@@ -87,28 +101,94 @@ initPool connStr =
 closePool :: Pool Connection -> IO ()
 closePool = destroyAllResources
 
--- | Check schema version matches expected version
+-- | Embedded schema migrations.
 --
--- Fails with error message if versions don't match.
-checkSchemaVersion :: Pool Connection -> IO ()
-checkSchemaVersion pool = withResource pool $ \conn -> do
+-- Each entry is (version, description, sql). Migration 1 is the initial schema
+-- (applied by schema.sql on first deploy) and is never run by the migration runner.
+-- Only migrations with version > current database version are applied.
+migrations :: [(Int, String, ByteString)]
+migrations =
+  [
+    ( 2
+    , "Command audience tracking for incremental sync"
+    , BS.intercalate "\n"
+        [ "ALTER TABLE commands ADD COLUMN audience TEXT NOT NULL DEFAULT 'all';"
+        , ""
+        , "CREATE TABLE command_recipients ("
+        , "  generation BIGINT NOT NULL REFERENCES commands(generation),"
+        , "  user_id UUID NOT NULL,"
+        , "  PRIMARY KEY (generation, user_id)"
+        , ");"
+        , "CREATE INDEX idx_command_recipients_user_gen ON command_recipients(user_id, generation);"
+        ]
+    )
+  ]
+
+-- | Run pending database migrations automatically.
+--
+-- Reads the current schema version, applies any pending migrations in order
+-- (each in its own transaction), and verifies the final version matches
+-- 'expectedSchemaVersion'. Before applying migrations, creates a pg_dump
+-- backup. Aborts startup if the database is not initialized or if backup fails.
+runMigrations :: Pool Connection -> ByteString -> IO ()
+runMigrations pool connStr = withResource pool $ \conn -> do
+  -- Get current schema version
+  currentVersion <- getCurrentVersion conn
+
+  let pending = filter (\(v, _, _) -> v > currentVersion) migrations
+  if null pending
+    then putStrLn $ "Database schema is up to date (version " <> show currentVersion <> ")"
+    else do
+      -- Create backup before applying migrations
+      let nextVersion = case pending of ((v, _, _) : _) -> v; [] -> error "unreachable"
+      let backupFile = "backup-before-migration-" <> show nextVersion <> ".sql"
+      putStrLn $ "Creating database backup: " <> backupFile
+      (exitCode, _stdout, stderr) <-
+        readProcessWithExitCode "pg_dump" ["--dbname=" <> BS.unpack connStr, "-f", backupFile] ""
+      case exitCode of
+        ExitSuccess -> putStrLn "Backup created successfully"
+        ExitFailure code ->
+          die $
+            "pg_dump failed (exit code " <> show code <> "): " <> stderr
+              <> "\nAborting migrations. Fix pg_dump or apply migrations manually."
+
+      -- Apply each pending migration in its own transaction
+      mapM_ (applyMigration conn) pending
+
+  -- Verify final version
+  finalVersion <- getCurrentVersion conn
+  if finalVersion == expectedSchemaVersion
+    then pure ()
+    else
+      die $
+        "Schema version mismatch after migrations. Expected: "
+          <> show expectedSchemaVersion
+          <> ", Found: "
+          <> show finalVersion
+
+-- | Get the current schema version from the database.
+getCurrentVersion :: Connection -> IO Int
+getCurrentVersion conn = do
   rows <- query_ conn [sql|
     SELECT version FROM schema_migrations
     ORDER BY version DESC LIMIT 1
   |]
   case rows of
     [] -> die "No schema migrations found. Please initialize database with schema.sql"
-    [Only (version :: Int)] ->
-      if version == expectedSchemaVersion
-        then pure ()
-        else
-          die $
-            "Schema version mismatch. Expected: "
-              <> show expectedSchemaVersion
-              <> ", Found: "
-              <> show version
-              <> ". Please run migrations."
-    _ -> die "Multiple schema versions found. Database is in inconsistent state."
+    [Only version] -> pure version
+    _ -> die "Unexpected result querying schema_migrations"
+
+-- | Apply a single migration in a transaction.
+applyMigration :: Connection -> (Int, String, ByteString) -> IO ()
+applyMigration conn (version, description, migrationSql) = do
+  putStrLn $ "Applying migration " <> show version <> ": " <> description
+  _ <- withTransaction conn $ do
+    _ <- execute_ conn (Query migrationSql)
+    execute
+      conn
+      [sql|INSERT INTO schema_migrations (version, description) VALUES (?, ?)|]
+      (version, description)
+  putStrLn $ "Migration " <> show version <> " applied successfully"
 
 -- | Check if database is empty (no commands or snapshots)
 isDatabaseEmpty :: Pool Connection -> IO Bool
@@ -127,11 +207,26 @@ getMaxGeneration pool = withResource pool $ \conn -> do
     [Only (Just gen)] -> pure gen
     _ -> pure 0
 
+-- | Get the command_id of the latest command.
+--
+-- Returns Nothing if no commands exist.
+getLatestCommandId :: Pool Connection -> IO (Maybe CommandId)
+getLatestCommandId pool = withResource pool $ \conn -> do
+  rows <-
+    query_ conn [sql|
+      SELECT command_id FROM commands ORDER BY generation DESC LIMIT 1
+    |] :: IO [Only UUID]
+  case rows of
+    [Only uuid] -> pure (Just (Id uuid))
+    _ -> pure Nothing
+
 -- | Save a command to the database
 --
 -- The command is wrapped in a versioned envelope before storage.
 -- The generation number is auto-assigned by the database BIGSERIAL.
-saveCommand :: Pool Connection -> UserId -> Command -> IO Int64
+-- Uses default audience 'all'.
+-- Returns (CommandId, generation).
+saveCommand :: Pool Connection -> UserId -> Command -> IO (CommandId, Int64)
 saveCommand pool userId cmd = withResource pool $ \conn -> do
   commandId <- UUID.nextRandom
   let envelope = wrapCommand userId cmd
@@ -145,7 +240,39 @@ saveCommand pool userId cmd = withResource pool $ \conn -> do
       RETURNING generation
     |]
       (commandId, userId.unId, envelopeJson)
-  pure generation
+  pure (Id commandId, generation)
+
+-- | Save a command with explicit audience tracking.
+--
+-- Records the audience classification and any specific recipient user IDs
+-- in the command_recipients table for efficient incremental sync queries.
+-- Returns (CommandId, generation).
+saveCommandWithAudience :: Pool Connection -> UserId -> Command -> CommandAudience -> IO (CommandId, Int64)
+saveCommandWithAudience pool userId cmd audience = withResource pool $ \conn -> do
+  commandId <- UUID.nextRandom
+  let envelope = wrapCommand userId cmd
+  let envelopeJson = encode envelope
+  let audienceText = audienceToText audience
+  [Only generation] <-
+    query
+      conn
+      [sql|
+      INSERT INTO commands (command_id, user_id, command_data, audience)
+      VALUES (?, ?, ?, ?)
+      RETURNING generation
+    |]
+      (commandId, userId.unId, envelopeJson, audienceText)
+  -- Insert specific recipients if needed
+  let recipients = audienceRecipients audience
+  forM_ recipients $ \recipientId ->
+    execute
+      conn
+      [sql|
+      INSERT INTO command_recipients (generation, user_id)
+      VALUES (?, ?)
+    |]
+      (generation, recipientId.unId)
+  pure (Id commandId, generation)
 
 -- | Load commands since a given generation (exclusive)
 --
@@ -170,6 +297,134 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]
     ]
+
+-- | Load commands since a given generation that are relevant for a specific user.
+--
+-- For teachers: includes 'all', 'teachers', 'teachers_and_recipients',
+-- and 'recipients' (only if the user is a specific recipient).
+-- For students: includes 'all', and 'teachers_and_recipients'/'recipients'
+-- only if the user is a specific recipient.
+--
+-- Returns (CommandId, generation, Command) tuples ordered by generation.
+loadCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO [(CommandId, Int64, Command)]
+loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
+  rows <- case role of
+    Teacher ->
+      query
+        conn
+        [sql|
+        SELECT c.command_id, c.generation, c.command_data
+        FROM commands c
+        LEFT JOIN command_recipients cr ON c.generation = cr.generation AND cr.user_id = ?
+        WHERE c.generation > ?
+          AND (c.audience IN ('all', 'teachers', 'teachers_and_recipients')
+               OR (c.audience = 'recipients' AND cr.user_id IS NOT NULL))
+        ORDER BY c.generation
+      |]
+        (userId.unId, sinceGen) ::
+        IO [(UUID, Int64, Value)]
+    Student ->
+      query
+        conn
+        [sql|
+        SELECT c.command_id, c.generation, c.command_data
+        FROM commands c
+        LEFT JOIN command_recipients cr ON c.generation = cr.generation AND cr.user_id = ?
+        WHERE c.generation > ?
+          AND (c.audience = 'all'
+               OR (c.audience IN ('teachers_and_recipients', 'recipients') AND cr.user_id IS NOT NULL))
+        ORDER BY c.generation
+      |]
+        (userId.unId, sinceGen) ::
+        IO [(UUID, Int64, Value)]
+  pure
+    [ (Id cmdId, gen, cmd)
+    | (cmdId, gen, envelopeValue) <- rows
+    , Success envelope <- [fromJSON envelopeValue]
+    , Right cmd <- [unwrapCommand envelope]
+    ]
+
+-- | Load the N most recent commands with full audience information.
+--
+-- Used to prime the CommandLog on startup. Returns entries in ascending
+-- generation order (oldest first).
+loadRecentCommands :: Pool Connection -> Int -> IO [(CommandId, Int64, Command, CommandAudience)]
+loadRecentCommands pool n = withResource pool $ \conn -> do
+  -- Load the last N commands (subquery for DESC, outer for ASC)
+  rows <-
+    query
+      conn
+      [sql|
+      SELECT command_id, generation, command_data, audience
+      FROM (
+        SELECT command_id, generation, command_data, audience
+        FROM commands ORDER BY generation DESC LIMIT ?
+      ) sub
+      ORDER BY generation ASC
+    |]
+      (Only n) ::
+      IO [(UUID, Int64, Value, Text)]
+  -- For each command, load its recipients
+  sequence
+    [ do
+        recipientRows <-
+          query
+            conn
+            [sql|SELECT user_id FROM command_recipients WHERE generation = ?|]
+            (Only gen) ::
+            IO [Only UUID]
+        let recipients = [Id uid | Only uid <- recipientRows]
+            audience = audienceFromText audText recipients
+        pure (Id cmdId, gen, cmd, audience)
+    | (cmdId, gen, envelopeValue, audText) <- rows
+    , Success envelope <- [fromJSON envelopeValue]
+    , Right cmd <- [unwrapCommand envelope]
+    ]
+
+-- | Count commands since a given generation that are relevant for a specific user.
+countCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO Int
+countCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
+  [Only count] <- case role of
+    Teacher ->
+      query
+        conn
+        [sql|
+        SELECT COUNT(*)
+        FROM commands c
+        LEFT JOIN command_recipients cr ON c.generation = cr.generation AND cr.user_id = ?
+        WHERE c.generation > ?
+          AND (c.audience IN ('all', 'teachers', 'teachers_and_recipients')
+               OR (c.audience = 'recipients' AND cr.user_id IS NOT NULL))
+      |]
+        (userId.unId, sinceGen)
+    Student ->
+      query
+        conn
+        [sql|
+        SELECT COUNT(*)
+        FROM commands c
+        LEFT JOIN command_recipients cr ON c.generation = cr.generation AND cr.user_id = ?
+        WHERE c.generation > ?
+          AND (c.audience = 'all'
+               OR (c.audience IN ('teachers_and_recipients', 'recipients') AND cr.user_id IS NOT NULL))
+      |]
+        (userId.unId, sinceGen)
+  pure count
+
+-- | Look up the generation for a command by its UUID.
+lookupCommandGeneration :: Pool Connection -> CommandId -> IO (Maybe Int64)
+lookupCommandGeneration pool cmdId = withResource pool $ \conn -> do
+  rows <-
+    query
+      conn
+      [sql|
+      SELECT generation FROM commands WHERE command_id = ?
+    |]
+      (Only cmdId.unId) ::
+      IO [Only Int64]
+  case rows of
+    [Only gen] -> pure (Just gen)
+    _ -> pure Nothing
 
 -- | Save a snapshot of the document at a specific generation
 --

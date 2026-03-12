@@ -30,6 +30,7 @@ library
         Competences.Command
         Competences.Command.Absences
         Competences.Command.Assignments
+        Competences.Command.Audience
         Competences.Command.ChangeField
         Competences.Command.Common
         Competences.Command.CompetenceAssessments

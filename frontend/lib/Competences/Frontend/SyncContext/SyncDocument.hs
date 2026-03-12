@@ -50,7 +50,7 @@ import Competences.Command (Command, handleCommand)
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
-import Competences.Protocol (ServerInfo (..))
+import Competences.Protocol (CommandId, ServerInfo (..))
 import Competences.Frontend.FileCache (FileCache, newFileCache)
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SvgEmbed.Manager (FormulaCache, newFormulaCache)
@@ -132,6 +132,7 @@ data SyncContext = SyncContext
   , focusedUserRef :: !FocusedUserRef
   , windowManager :: !WindowManagerRef
   , serverInfoRef :: !(IORef ServerInfo)
+  , currentCommandId :: !(IORef (Maybe CommandId))
   , formulaCache :: !FormulaCache
   , fileCache :: !FileCache
   , fileUploadResult :: !(IORef (Maybe (MVar (Either Text FileRef))))
@@ -165,11 +166,12 @@ mkSyncDocument env = do
   focusedUser <- mkFocusedUserRef env.connectedUser
   winMgr <- liftIO newWindowManager
   srvInfo <- newIORef defaultServerInfo
+  cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
   fur <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo fc filec fur fdr
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec fur fdr
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -178,11 +180,12 @@ mkSyncDocument' env rgen m = do
   focusedUser <- mkFocusedUserRef env.connectedUser
   winMgr <- liftIO newWindowManager
   srvInfo <- newIORef defaultServerInfo
+  cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
   fur <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo fc filec fur fdr
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec fur fdr
 
 -- | Upload a file to the server's CAS and wait for the result.
 -- Serializes uploads: only one upload can be in-flight at a time.

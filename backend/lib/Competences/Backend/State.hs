@@ -10,20 +10,21 @@ module Competences.Backend.State
   , registerClient
   , unregisterClient
   , getConnectedClients
-  , broadcastToUsers
   )
 where
 
 import Competences.Backend.CAS (CAS, InstanceId)
+import Competences.Backend.CommandLog (CommandLog, CommandEntry (..), appendCommand)
 import Competences.Backend.Database qualified as DB
 import Competences.Command (Command, handleCommand)
+import Competences.Command.Audience (audienceRecipients, commandAudience)
 import Competences.Command.Common (AffectedUsers (..))
 import Competences.Document (Document, User (..), UserId, emptyDocument)
-import Competences.Protocol (ServerMessage (..))
+import Competences.Protocol (CommandId)
 import Control.Concurrent.STM (TVar, atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
-import Control.Monad (forM_, when)
+import Control.Monad (when)
 import Data.Aeson (eitherDecodeFileStrict, encodeFile)
-import Data.Binary qualified as Bin
+import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Pool (Pool)
@@ -56,21 +57,26 @@ data AppState = AppState
   -- ^ Content-addressable store for file storage
   , instanceId :: !InstanceId
   -- ^ Instance identifier (database name) for CAS ownership tracking
+  , commandLog :: !CommandLog
+  -- ^ Shared in-memory command cache for broadcast via sender threads
+  , currentGeneration :: !(TVar Int64)
+  -- ^ Current command generation number (tracks latest DB generation)
   }
 
 -- | Initialize empty application state
-initAppState :: Pool Connection -> CAS -> InstanceId -> IO AppState
-initAppState pool cas' instId = do
+initAppState :: Pool Connection -> CAS -> InstanceId -> Int64 -> CommandLog -> IO AppState
+initAppState pool cas' instId gen cmdLog = do
   doc <- newTVarIO emptyDocument
   conns <- newTVarIO Map.empty
   nextId <- newTVarIO 0
-  pure $ AppState doc conns nextId pool cas' instId
+  genVar <- newTVarIO gen
+  pure $ AppState doc conns nextId pool cas' instId cmdLog genVar
 
 -- | Load application state from file (deprecated - use database loading instead)
 -- Returns empty state if file doesn't exist
 -- NOTE: This is kept for backward compatibility but database loading is preferred
-loadAppState :: FilePath -> Pool Connection -> CAS -> InstanceId -> IO AppState
-loadAppState path pool cas' instId = do
+loadAppState :: FilePath -> Pool Connection -> CAS -> InstanceId -> CommandLog -> IO AppState
+loadAppState path pool cas' instId cmdLog = do
   docResult <- eitherDecodeFileStrict path
   doc <- case docResult of
     Left err -> do
@@ -83,7 +89,8 @@ loadAppState path pool cas' instId = do
   docVar <- newTVarIO doc
   conns <- newTVarIO Map.empty
   nextId <- newTVarIO 0
-  pure $ AppState docVar conns nextId pool cas' instId
+  genVar <- newTVarIO 0
+  pure $ AppState docVar conns nextId pool cas' instId cmdLog genVar
 
 -- | Save application state to file
 saveAppState :: FilePath -> AppState -> IO ()
@@ -96,10 +103,11 @@ saveAppState path state = do
 getDocument :: AppState -> IO Document
 getDocument = readTVarIO . (.document)
 
--- | Update document by applying a command
--- Returns the new document or an error
--- Also saves command to database and triggers snapshot if needed
-updateDocument :: AppState -> UserId -> Command -> IO (Either Text (Document, AffectedUsers))
+-- | Update document by applying a command.
+-- Returns the new document, affected users, CommandId, and generation, or an error.
+-- Also saves command (with audience) to database, appends to CommandLog,
+-- and triggers snapshot if needed.
+updateDocument :: AppState -> UserId -> Command -> IO (Either Text (Document, AffectedUsers, CommandId, Int64))
 updateDocument state uid cmd = do
   -- Apply command to in-memory document atomically
   result <- atomically $ do
@@ -114,8 +122,23 @@ updateDocument state uid cmd = do
   case result of
     Left err -> pure $ Left err
     Right (doc', affected) -> do
-      -- Save command to database
-      generation <- DB.saveCommand state.dbPool uid cmd
+      -- Save command with audience tracking
+      let audience = commandAudience cmd
+      (cmdId, generation) <- DB.saveCommandWithAudience state.dbPool uid cmd audience
+
+      -- Update current generation
+      atomically $ writeTVar state.currentGeneration generation
+
+      -- Append to CommandLog for broadcast via sender threads
+      let AffectedUsers affectedUsers = affected
+          entry = CommandEntry
+            { commandId = cmdId
+            , generation = generation
+            , command = cmd
+            , audience = audience
+            , recipients = audienceRecipients audience ++ affectedUsers
+            }
+      appendCommand state.commandLog entry
 
       -- Check if we should take a snapshot
       shouldSnapshot <- DB.shouldTakeSnapshot state.dbPool generation
@@ -123,7 +146,7 @@ updateDocument state uid cmd = do
         putStrLn $ "Taking snapshot at generation " <> show generation
         DB.saveSnapshot state.dbPool doc' generation
 
-      pure $ Right (doc', affected)
+      pure $ Right (doc', affected, cmdId, generation)
 
 -- | Register a new client connection, returning a unique ConnectionId
 registerClient :: AppState -> UserId -> User -> WS.Connection -> IO ConnectionId
@@ -148,15 +171,3 @@ unregisterClient state uid cid = atomically $
 getConnectedClients :: AppState -> IO [ClientConnection]
 getConnectedClients state =
   concatMap Map.elems . Map.elems <$> readTVarIO state.clients
-
--- | Broadcast a message to specific users
-broadcastToUsers :: AppState -> [UserId] -> ServerMessage -> IO ()
-broadcastToUsers state userIds msg = do
-  clients <- readTVarIO state.clients
-  -- Deduplicate user IDs to avoid sending the same message multiple times
-  let uniqueUserIds = Map.keys $ Map.fromList [(uid, ()) | uid <- userIds]
-  forM_ uniqueUserIds $ \uid ->
-    case Map.lookup uid clients of
-      Nothing -> pure () -- User not connected
-      Just conns -> forM_ (Map.elems conns) $ \client ->
-        WS.sendBinaryData client.connection (Bin.encode msg)

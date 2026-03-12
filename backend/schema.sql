@@ -17,6 +17,7 @@ CREATE TABLE commands (
   command_id UUID NOT NULL UNIQUE,
   user_id UUID NOT NULL,
   command_data JSONB NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'all',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -63,6 +64,16 @@ CREATE TABLE startup_log (
 
 CREATE INDEX idx_startup_log_started_at ON startup_log(started_at DESC);
 
--- Record this schema as version 1
+-- Command recipients (for commands with audience 'teachers_and_recipients' or 'recipients')
+CREATE TABLE command_recipients (
+  generation BIGINT NOT NULL REFERENCES commands(generation),
+  user_id UUID NOT NULL,
+  PRIMARY KEY (generation, user_id)
+);
+CREATE INDEX idx_command_recipients_user_gen ON command_recipients(user_id, generation);
+
+-- Record schema versions
 INSERT INTO schema_migrations (version, description)
 VALUES (1, 'Initial schema: commands, snapshots, metadata, schema_migrations, startup_log');
+INSERT INTO schema_migrations (version, description)
+VALUES (2, 'Command audience tracking for incremental sync');
