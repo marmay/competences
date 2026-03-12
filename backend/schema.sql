@@ -30,6 +30,7 @@ CREATE TABLE snapshots (
   snapshot_id UUID NOT NULL UNIQUE,
   generation BIGINT NOT NULL,
   document_data JSONB NOT NULL,
+  protected BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   FOREIGN KEY (generation) REFERENCES commands(generation)
 );
@@ -77,3 +78,5 @@ INSERT INTO schema_migrations (version, description)
 VALUES (1, 'Initial schema: commands, snapshots, metadata, schema_migrations, startup_log');
 INSERT INTO schema_migrations (version, description)
 VALUES (2, 'Command audience tracking for incremental sync');
+INSERT INTO schema_migrations (version, description)
+VALUES (3, 'Add protected flag for snapshot garbage collection');

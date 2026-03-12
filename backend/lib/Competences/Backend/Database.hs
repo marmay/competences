@@ -31,6 +31,7 @@ module Competences.Backend.Database
   , saveSnapshot
   , loadLatestSnapshot
   , shouldTakeSnapshot
+  , pruneSnapshots
 
     -- * Startup logging
   , logStartup
@@ -45,19 +46,20 @@ import Competences.Backend.Envelope
   , wrapCommand
   , wrapSnapshot
   )
-import Competences.Command (Command)
+import Competences.Command (Command, handleCommand)
 import Competences.Command.Audience (CommandAudience, audienceFromText, audienceRecipients, audienceToText)
 import Competences.Document (Document, UserRole (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
 import Competences.Protocol (CommandId)
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Aeson (Value, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.Pool (Pool, newPool, defaultPoolConfig, setNumStripes, destroyAllResources, withResource)
 import Data.Text (Text)
-import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
+import Data.Text qualified as T
+import Data.Time (UTCTime, NominalDiffTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.UUID.V4 qualified as UUID
 import Data.ByteString.Char8 qualified as BS
@@ -79,7 +81,7 @@ import System.Process (readProcessWithExitCode)
 
 -- | Expected database schema version
 expectedSchemaVersion :: Int
-expectedSchemaVersion = 2
+expectedSchemaVersion = 3
 
 -- | Initialize connection pool
 --
@@ -121,6 +123,10 @@ migrations =
         , ");"
         , "CREATE INDEX idx_command_recipients_user_gen ON command_recipients(user_id, generation);"
         ]
+    )
+  , ( 3
+    , "Add protected flag for snapshot garbage collection"
+    , "ALTER TABLE snapshots ADD COLUMN protected BOOLEAN NOT NULL DEFAULT FALSE;"
     )
   ]
 
@@ -516,6 +522,155 @@ shouldTakeSnapshot pool currentGeneration = withResource pool $ \conn -> do
       let lastSnapTime = read lastSnapTimeText :: UTCTime
       let minutesSince = realToFrac (now `diffUTCTime` lastSnapTime) / 60 :: Double
       pure (minutesSince >= 15 && commandsSince > 0)
+
+-- | Prune old snapshots using age-based thresholds with reproducibility verification.
+--
+-- Walks snapshots oldest→newest, keeping the oldest and latest snapshots unconditionally.
+-- Candidates in between are pruned if they can be reproduced by replaying commands from
+-- the previous kept snapshot. Non-reproducible snapshots are permanently protected.
+--
+-- Returns the number of deleted snapshots.
+pruneSnapshots :: Pool Connection -> IO Int
+pruneSnapshots pool = withResource pool $ \conn -> do
+  -- Load all snapshots ordered by generation
+  rows <-
+    query_ conn [sql|
+      SELECT id, generation, document_data, created_at, protected
+      FROM snapshots
+      ORDER BY generation ASC
+    |] :: IO [(Int64, Int64, Value, UTCTime, Bool)]
+  case rows of
+    [] -> pure 0
+    [_] -> pure 0
+    -- Need at least 3 snapshots (oldest + candidate + newest) to prune anything
+    (oldest : middle@(_ : _)) -> do
+      now <- getCurrentTime
+      let candidates = init middle -- everything except newest (always kept)
+      -- Start walking from the oldest snapshot
+      let (_, oldestGen, oldestData, _, _) = oldest
+      case loadSnapshotDocument oldestData of
+        Left err -> do
+          putStrLn $ "Snapshot GC: failed to load oldest snapshot: " <> err
+          pure 0
+        Right oldestDoc -> do
+          deleted <- walkCandidates conn now oldestDoc oldestGen candidates
+          let remaining = length rows - deleted
+          when (deleted > 0) $
+            putStrLn $
+              "Snapshot GC: pruned " <> show deleted <> " snapshot(s), "
+                <> show remaining <> " remaining"
+          pure deleted
+
+-- | Walk candidate snapshots, verifying and pruning where possible.
+-- Carries forward the last kept document and generation.
+walkCandidates :: Connection -> UTCTime -> Document -> Int64 -> [(Int64, Int64, Value, UTCTime, Bool)] -> IO Int
+walkCandidates _conn _now _lastDoc _lastGen [] = pure 0
+walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, candidateData, createdAt, isProtected) : rest) = do
+  let age = now `diffUTCTime` createdAt
+      commandGap = candidateGen - lastGen
+  if isProtected
+    then do
+      -- Protected: must keep, update carried state
+      case loadSnapshotDocument candidateData of
+        Left err -> do
+          putStrLn $ "Snapshot GC: failed to load protected snapshot at gen " <> show candidateGen <> ": " <> err
+          -- Can't continue walking since we lost the document chain
+          pure 0
+        Right candidateDoc ->
+          walkCandidates conn now candidateDoc candidateGen rest
+    else if age < twoDays
+      then do
+        -- Too young: always keep
+        case loadSnapshotDocument candidateData of
+          Left err -> do
+            putStrLn $ "Snapshot GC: failed to load young snapshot at gen " <> show candidateGen <> ": " <> err
+            pure 0
+          Right candidateDoc ->
+            walkCandidates conn now candidateDoc candidateGen rest
+      else if not (isPruneCandidate age commandGap)
+        then do
+          -- Gap too large: keep to limit replay distance
+          case loadSnapshotDocument candidateData of
+            Left err -> do
+              putStrLn $ "Snapshot GC: failed to load snapshot at gen " <> show candidateGen <> ": " <> err
+              pure 0
+            Right candidateDoc ->
+              walkCandidates conn now candidateDoc candidateGen rest
+        else do
+          -- Candidate for pruning: verify reproducibility
+          cmds <-
+            query
+              conn
+              [sql|
+              SELECT user_id, command_data
+              FROM commands
+              WHERE generation > ? AND generation <= ?
+              ORDER BY generation ASC
+            |]
+              (lastGen, candidateGen) :: IO [(UUID, Value)]
+          let parsedCmds =
+                [ (Id uid, cmd)
+                | (uid, envelopeValue) <- cmds
+                , Success envelope <- [fromJSON envelopeValue]
+                , Right cmd <- [unwrapCommand envelope]
+                ]
+          case loadSnapshotDocument candidateData of
+            Left err -> do
+              putStrLn $ "Snapshot GC: failed to load candidate snapshot at gen " <> show candidateGen <> ": " <> err
+              pure 0
+            Right candidateDoc ->
+              case replayCommandsForGC lastDoc parsedCmds of
+                Left err -> do
+                  putStrLn $
+                    "Snapshot GC WARNING: replay failed for gen " <> show candidateGen
+                      <> ": " <> T.unpack err <> " — marking as protected"
+                  _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
+                  walkCandidates conn now candidateDoc candidateGen rest
+                Right replayedDoc
+                  | replayedDoc == candidateDoc -> do
+                      -- Reproducible: safe to delete
+                      _ <- execute conn [sql|DELETE FROM snapshots WHERE id = ?|] (Only snapId)
+                      -- Don't update lastDoc/lastGen — we deleted this snapshot
+                      deletedRest <- walkCandidates conn now lastDoc lastGen rest
+                      pure (1 + deletedRest)
+                  | otherwise -> do
+                      putStrLn $
+                        "Snapshot GC WARNING: document mismatch at gen " <> show candidateGen
+                          <> " — marking as protected"
+                      _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
+                      walkCandidates conn now candidateDoc candidateGen rest
+
+-- | Age-based threshold: is the snapshot a candidate for pruning given its age and
+-- the command gap from the previous kept snapshot?
+isPruneCandidate :: NominalDiffTime -> Int64 -> Bool
+isPruneCandidate age commandGap
+  | age < fourteenDays = commandGap < 500 -- 2-14 days: prune if gap < 500
+  | otherwise = commandGap < 2000 -- > 14 days: prune if gap < 2000
+
+twoDays :: NominalDiffTime
+twoDays = 2 * 24 * 3600
+
+fourteenDays :: NominalDiffTime
+fourteenDays = 14 * 24 * 3600
+
+-- | Deserialize a snapshot's document_data JSON value through the versioned envelope.
+loadSnapshotDocument :: Value -> Either String Document
+loadSnapshotDocument val =
+  case fromJSON val of
+    Error err -> Left $ "Failed to decode envelope: " <> err
+    Success envelope ->
+      case unwrapSnapshot envelope of
+        Left err -> Left $ "Failed to unwrap snapshot: " <> T.unpack err
+        Right (doc, _cmds) -> Right doc
+
+-- | Replay a sequence of commands for GC verification.
+-- Returns the resulting document, or Left on first failure.
+replayCommandsForGC :: Document -> [(UserId, Command)] -> Either Text Document
+replayCommandsForGC doc [] = Right doc
+replayCommandsForGC doc ((userId, cmd) : rest) =
+  case handleCommand userId cmd doc of
+    Left err -> Left err
+    Right (doc', _) -> replayCommandsForGC doc' rest
 
 -- | Log backend startup to startup_log table
 logStartup

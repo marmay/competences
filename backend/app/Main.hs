@@ -294,6 +294,8 @@ snapshotTimer state _shutdown = go
         putStrLn $ "Periodic snapshot timer: taking snapshot at generation " <> show maxGen
         doc <- atomically $ readTVar state.document
         DB.saveSnapshot state.dbPool doc maxGen
+      -- Run snapshot garbage collection
+      _ <- DB.pruneSnapshots state.dbPool
       go
 
 -- | Extract database name from PostgreSQL connection string.
