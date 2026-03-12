@@ -19,7 +19,7 @@ import Competences.Document.Id (idToText)
 import Competences.Frontend.BinaryFFI (readFileFromInput)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Logging (logError)
-import Competences.Frontend.SyncContext.SyncDocument (SyncContext, nextId, uploadFile)
+import Competences.Frontend.SyncContext.SyncDocument (SyncContext, nextId, requestUploadPermission, uploadFile)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Table qualified as Table
@@ -39,6 +39,7 @@ import Optics.Core qualified as O
 -- | Upload status of the component.
 data UploadStatus
   = Idle
+  | RequestingPermission
   | Uploading
   | Failed !Text
   deriving (Eq, Show, Generic)
@@ -57,6 +58,8 @@ data FileUploadAction
     FileSelected !JSVal
   | -- | File was read from the browser
     FileRead !Text !Text !Int64 !BL.ByteString
+  | -- | Permission granted, proceed with upload (carries name, mime, contents)
+    PermissionGranted !Text !Text !BL.ByteString
   | -- | Upload completed (success or failure)
     UploadResult !(Either Text FileRef)
   | -- | Remove a file from the list by hash
@@ -117,11 +120,18 @@ fileUploadComponent syncCtx mTitle initialFiles parentLens =
           Nothing -> pure (UploadResult (Left "No file selected"))
           Just (name, mime, size, contents) -> pure (FileRead name mime size contents)
 
-    update (FileRead name mime _size contents) = do
+    update (FileRead name mime size contents) = do
+      M.modify $ \m -> m{uploadStatus = RequestingPermission}
+      M.withSink $ \sink ->
+        requestUploadPermission syncCtx name mime size $ \case
+          Left reason -> sink (UploadResult (Left reason))
+          Right () -> sink (PermissionGranted name mime contents)
+
+    update (PermissionGranted name mime contents) = do
       M.modify $ \m -> m{uploadStatus = Uploading}
-      M.io $ do
-        result <- uploadFile syncCtx name mime contents
-        pure (UploadResult result)
+      M.withSink $ \sink ->
+        uploadFile syncCtx name mime contents $ \result ->
+          sink (UploadResult result)
 
     update (UploadResult (Right ref)) =
       M.modify $ \m -> m{files = m.files ++ [ref], uploadStatus = Idle}
@@ -152,6 +162,9 @@ fileUploadComponent syncCtx mTitle initialFiles parentLens =
                        [M.text $ C.translate' C.LblUploadFile]
                    , case m.uploadStatus of
                        Idle -> MH.span_ [] []
+                       RequestingPermission ->
+                         MH.span_ [class_ "text-sm text-muted-foreground animate-pulse"]
+                           [M.text $ C.translate' C.LblUploading]
                        Uploading ->
                          MH.span_ [class_ "text-sm text-muted-foreground animate-pulse"]
                            [M.text $ C.translate' C.LblUploading]

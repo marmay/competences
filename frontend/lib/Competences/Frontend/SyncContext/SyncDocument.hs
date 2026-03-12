@@ -23,6 +23,9 @@ module Competences.Frontend.SyncContext.SyncDocument
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
+    -- * Upload Permission
+  , requestUploadPermission
+  , completeUploadPermission
     -- * File Upload
   , uploadFile
   , completeFileUpload
@@ -77,10 +80,12 @@ import Competences.Frontend.WebSocket.CommandSender
   , getAllPending
   , getPending
   , sendRequestFile
+  , sendRequestUploadPermission
   , sendUploadFile
   )
 import Control.Monad (forM_, when)
 import Data.ByteString.Lazy qualified as BL
+import Data.Int (Int64)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Time (Day, UTCTime (..), getCurrentTime)
@@ -135,7 +140,8 @@ data SyncContext = SyncContext
   , currentCommandId :: !(IORef (Maybe CommandId))
   , formulaCache :: !FormulaCache
   , fileCache :: !FileCache
-  , fileUploadResult :: !(IORef (Maybe (MVar (Either Text FileRef))))
+  , uploadPermissionCallback :: !(IORef (Maybe (Either Text () -> IO ())))
+  , fileUploadCallback :: !(IORef (Maybe (Either Text FileRef -> IO ())))
   , fileDownloadResults :: !(IORef (Map.Map SHA256Hash (MVar (Maybe BL.ByteString))))
   }
 
@@ -169,9 +175,10 @@ mkSyncDocument env = do
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
-  fur <- newIORef Nothing
+  upc <- newIORef Nothing
+  fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec fur fdr
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -183,31 +190,44 @@ mkSyncDocument' env rgen m = do
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
   filec <- liftIO newFileCache
-  fur <- newIORef Nothing
+  upc <- newIORef Nothing
+  fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec fur fdr
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr
 
--- | Upload a file to the server's CAS and wait for the result.
--- Serializes uploads: only one upload can be in-flight at a time.
-uploadFile :: SyncContext -> Text -> Text -> BL.ByteString -> IO (Either Text FileRef)
-uploadFile r fileName mimeType contents = do
-  resultVar <- liftIO newEmptyMVar
-  liftIO $ writeIORef r.fileUploadResult (Just resultVar)
+-- | Request permission to upload a file. The callback is invoked with
+-- Right () on UploadPermitted, or Left reason on UploadDenied.
+requestUploadPermission :: SyncContext -> Text -> Text -> Int64 -> (Either Text () -> IO ()) -> IO ()
+requestUploadPermission r fileName mimeType fileSize callback = do
+  writeIORef r.uploadPermissionCallback (Just callback)
+  sendRequestUploadPermission r.env.commandSender fileName mimeType fileSize
+
+-- | Complete a pending upload permission request by invoking the stored callback.
+-- Called from the WebSocket handler when UploadPermitted or UploadDenied is received.
+completeUploadPermission :: SyncContext -> Either Text () -> IO ()
+completeUploadPermission r result = do
+  mCb <- readIORef r.uploadPermissionCallback
+  writeIORef r.uploadPermissionCallback Nothing
+  case mCb of
+    Just cb -> cb result
+    Nothing -> pure ()
+
+-- | Upload a file to the server's CAS via callback.
+-- The callback is invoked with the result when FileUploaded or FileUploadFailed is received.
+uploadFile :: SyncContext -> Text -> Text -> BL.ByteString -> (Either Text FileRef -> IO ()) -> IO ()
+uploadFile r fileName mimeType contents callback = do
+  writeIORef r.fileUploadCallback (Just callback)
   sendUploadFile r.env.commandSender fileName mimeType (FileData contents)
-  result <- liftIO $ takeMVar resultVar
-  liftIO $ writeIORef r.fileUploadResult Nothing
-  pure result
 
--- | Complete a pending file upload by filling the MVar with the result.
+-- | Complete a pending file upload by invoking the stored callback.
 -- Called from the WebSocket handler when FileUploaded or FileUploadFailed is received.
 completeFileUpload :: SyncContext -> Either Text FileRef -> IO ()
 completeFileUpload r result = do
-  mVar <- readIORef r.fileUploadResult
-  case mVar of
-    Nothing -> pure ()  -- No pending upload
-    Just resultVar -> do
-      _ <- tryPutMVar resultVar result
-      pure ()
+  mCb <- readIORef r.fileUploadCallback
+  writeIORef r.fileUploadCallback Nothing
+  case mCb of
+    Just cb -> cb result
+    Nothing -> pure ()
 
 -- | Download a file from the server's CAS, using the local cache first.
 -- Blocks until the file is received or not found.

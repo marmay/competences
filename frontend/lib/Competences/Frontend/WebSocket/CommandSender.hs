@@ -17,6 +17,7 @@ module Competences.Frontend.WebSocket.CommandSender
   , isConnected
     -- * File Upload
   , sendUploadFile
+  , sendRequestUploadPermission
     -- * File Download
   , sendRequestFile
     -- * Subscriptions
@@ -29,6 +30,7 @@ import Competences.Document.FileRef (FileData, SHA256Hash)
 import Competences.Frontend.Logging (logDebug, logWarn)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
 import Competences.Protocol (ClientMessage (..))
+import Data.Int (Int64)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, readMVar, takeMVar, tryPutMVar)
 import Control.Exception (SomeException, catch)
@@ -177,6 +179,16 @@ sendUploadFile sender fileName mimeType fileData = do
     Nothing -> logWarn "sendUploadFile: not connected"
     Just ws -> ws.send (UploadFile fileName mimeType fileData) `catch` \(_ :: SomeException) ->
       logWarn "sendUploadFile: send failed"
+
+-- | Send an upload permission request over the WebSocket connection.
+-- Does nothing if not connected.
+sendRequestUploadPermission :: CommandSender -> Text -> Text -> Int64 -> IO ()
+sendRequestUploadPermission sender fileName mimeType fileSize = do
+  maybeWs <- readMVar sender.wsRef
+  case maybeWs of
+    Nothing -> logWarn "sendRequestUploadPermission: not connected"
+    Just ws -> ws.send (RequestUploadPermission fileName mimeType fileSize) `catch` \(_ :: SomeException) ->
+      logWarn "sendRequestUploadPermission: send failed"
 
 -- | Send a file download request over the WebSocket connection.
 -- Does nothing if not connected.

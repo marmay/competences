@@ -24,6 +24,7 @@ import Competences.Frontend.SyncContext
   , applyRemoteCommand
   , completeFileDownload
   , completeFileUpload
+  , completeUploadPermission
   , mkSyncDocument
   , mkSyncDocumentEnv
   , readSyncDocument
@@ -152,6 +153,14 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
       FileUploadFailed reason -> do
         logWarn $ M.ms $ "File upload failed: " <> T.unpack reason
         completeFileUpload ref (Left reason)
+
+      UploadPermitted -> do
+        logInfo $ M.ms ("Upload permission granted" :: String)
+        completeUploadPermission ref (Right ())
+
+      UploadDenied reason -> do
+        logWarn $ M.ms $ "Upload denied: " <> T.unpack reason
+        completeUploadPermission ref (Left reason)
 
       SnapshotUpdate cmdId doc mChecksum -> do
         -- Unexpected full snapshot during operation - handle as resync

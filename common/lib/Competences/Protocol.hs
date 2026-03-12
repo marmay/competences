@@ -18,6 +18,7 @@ import Competences.Document.Id (Id)
 import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
+import Data.Int (Int64)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -78,6 +79,9 @@ data ClientMessage
   | -- | Upload a file to the CAS.
     -- Fields: fileName, mimeType, file contents.
     UploadFile !Text !Text !FileData
+  | -- | Request permission to upload a file.
+    -- Fields: fileName, mimeType, fileSize.
+    RequestUploadPermission !Text !Text !Int64
   deriving (Eq, Generic, Show)
 
 instance Binary ClientMessage
@@ -112,6 +116,10 @@ data ServerMessage
     FileUploaded !FileRef
   | -- | File upload failed with an error message.
     FileUploadFailed !Text
+  | -- | Server grants permission to proceed with upload.
+    UploadPermitted
+  | -- | Server denies upload with reason.
+    UploadDenied !Text
   deriving (Eq, Generic, Show)
 
 instance Binary ServerMessage

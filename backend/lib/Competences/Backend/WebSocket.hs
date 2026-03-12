@@ -31,6 +31,7 @@ import Control.Exception (SomeException, finally, try)
 import Control.Monad (forever, unless)
 import Data.Binary (decodeOrFail)
 import Data.Binary qualified as Bin
+import Data.ByteString.Lazy qualified as BL
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -44,6 +45,10 @@ checksumInterval = 50
 -- | Maximum commands for incremental sync before falling back to snapshot.
 maxIncrementalCommands :: Int
 maxIncrementalCommands = 500
+
+-- | Maximum file upload size in bytes (10 MB).
+maxUploadSize :: Int64
+maxUploadSize = 10 * 1024 * 1024
 
 -- | WebSocket application handler.
 -- Accepts connection first, then waits for authentication message.
@@ -322,15 +327,26 @@ handleClientMessage state uid user clientMsg conn ackSignal positionRef = case c
         WS.sendBinaryData conn (Bin.encode $ FileContents hash (FileData contents))
 
   UploadFile fileName mimeType (FileData contents) -> do
-    putStrLn $ "File upload: " <> T.unpack fileName <> " (" <> T.unpack mimeType <> ")"
-    (sha, fileSize) <- CAS.storeAndRegister state.cas state.instanceId contents
-    let fileRef = FileRef
-          { hash = sha
-          , fileName = fileName
-          , mimeType = mimeType
-          , fileSize = fileSize
-          }
-    WS.sendBinaryData conn (Bin.encode $ FileUploaded fileRef)
+    let contentSize = BL.length contents
+    putStrLn $ "File upload: " <> T.unpack fileName <> " (" <> T.unpack mimeType <> ", " <> show contentSize <> " bytes)"
+    if contentSize > maxUploadSize
+      then WS.sendBinaryData conn (Bin.encode $ FileUploadFailed $
+             "File too large (" <> T.pack (show contentSize) <> " bytes, max " <> T.pack (show maxUploadSize) <> ")")
+      else do
+        (sha, fileSize) <- CAS.storeAndRegister state.cas state.instanceId contents
+        let fileRef = FileRef
+              { hash = sha
+              , fileName = fileName
+              , mimeType = mimeType
+              , fileSize = fileSize
+              }
+        WS.sendBinaryData conn (Bin.encode $ FileUploaded fileRef)
+
+  RequestUploadPermission _fileName _mimeType fileSize -> do
+    if fileSize > maxUploadSize
+      then WS.sendBinaryData conn (Bin.encode $ UploadDenied $
+             "File too large (" <> T.pack (show fileSize) <> " bytes, max " <> T.pack (show maxUploadSize) <> ")")
+      else WS.sendBinaryData conn (Bin.encode UploadPermitted)
 
 -- | Check if a user role is authorized to execute a command.
 isAuthorized :: UserRole -> Command -> Bool
