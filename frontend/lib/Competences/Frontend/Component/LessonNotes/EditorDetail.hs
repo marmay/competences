@@ -106,6 +106,7 @@ noteItemSearchConfig =
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
     , selectionOrder = ManualReorder
     , tagLayout = TagsVertical
+    , onCreate = Nothing
     }
 
 -- | Editor field for the items list using SearchSelect

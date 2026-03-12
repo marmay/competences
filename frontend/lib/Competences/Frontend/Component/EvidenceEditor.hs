@@ -332,6 +332,7 @@ userSearchConfig =
     , placeholder = M.fromMisoString $ C.translate' C.LblStudent
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Nothing
     }
 
 -- | Shared SearchSelect config for tasks
@@ -346,4 +347,5 @@ taskSearchConfig =
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Nothing
     }

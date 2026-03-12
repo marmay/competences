@@ -102,6 +102,9 @@ data SearchSelectConfig a id = SearchSelectConfig
   -- ^ How selected items are ordered: manual reorder buttons or automatic sorting.
   , tagLayout :: !TagLayout
   -- ^ How tags are laid out: inline (default) or vertical (one per line).
+  , onCreate :: !(Maybe (IO id))
+  -- ^ Optional callback to create a new item. Returns the new item's id.
+  -- SearchSelect will add the id to selectedIds automatically.
   }
 
 -- | Extract parser functions from MetaFilter list (for Search module compatibility).
@@ -161,6 +164,8 @@ data Action a id
   | DragDropAt !Int
   | DragEnd
   | SetFocus !Bool
+  | CreateNew
+  | ItemCreated !id
   | NoOp
   deriving (Eq, Generic, Show)
 
@@ -315,6 +320,13 @@ searchSelectComponent r instanceKey cfg initIds lensBinding =
     update (SetFocus focused) = do
       M.modify $ \m -> m & #hasFocus .~ focused & #highlightIdx .~ Nothing
       M.io_ $ when focused (scrollInputToCenter inputId)
+    update CreateNew = case cfg.onCreate of
+      Nothing -> pure ()
+      Just createAction -> M.withSink $ \sink -> do
+        newId <- createAction
+        sink (ItemCreated newId)
+    update (ItemCreated newId) =
+      M.modify $ \m -> m & #selectedIds .~ (m.selectedIds <> [newId])
     update NoOp = pure ()
 
 -- | Get matching items that are not already selected.
@@ -364,7 +376,8 @@ insertAtGap src gapIdx ids =
 -- ============================================================================
 
 view
-  :: (Eq id, Ord id)
+  :: forall a id
+   . (Eq id, Ord id)
   => MisoString
   -> SearchSelectConfig a id
   -> Model a id
@@ -402,19 +415,29 @@ view inputId cfg m =
       hasClearAll = length selectedItems >= 2
       hasFilters = not (null cfg.metaFilters)
       showBox = m.hasFocus && (not (null matches) || hasFilters)
+      tagInputView =
+        tagInput
+          TagInputConfig
+            { badges = tags
+            , inputArea = inputArea
+            , popover = Nothing
+            , hasFocus = m.hasFocus
+            , onKeyDown = Just (handleKeyDown m)
+            , onFocus = Just (SetFocus True)
+            , onBlur = Just (SetFocus False)
+            , tagLayout = cfg.tagLayout
+            }
+      mainContent = case cfg.onCreate of
+        Nothing -> tagInputView
+        Just _ ->
+          MH.div_
+            [class_ "flex items-start gap-2"]
+            [ MH.div_ [class_ "flex-1 min-w-0"] [tagInputView]
+            , Button.outlineSm $ Button.button Icon.IcnAdd (CreateNew :: Action a id)
+            ]
    in MH.div_
         [class_ "relative"]
-        [ tagInput
-            TagInputConfig
-              { badges = tags
-              , inputArea = inputArea
-              , popover = Nothing
-              , hasFocus = m.hasFocus
-              , onKeyDown = Just (handleKeyDown m)
-              , onFocus = Just (SetFocus True)
-              , onBlur = Just (SetFocus False)
-              , tagLayout = cfg.tagLayout
-              }
+        [ mainContent
         , viewBelowInput cfg hasClearAll hasFilters showBox m.highlightIdx matches
         ]
 

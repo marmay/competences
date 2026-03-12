@@ -668,6 +668,7 @@ evaluatorComponent r assignment =
               , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
               , selectionOrder = AutoOrder id
               , tagLayout = TagsInline
+              , onCreate = Nothing
               }
           key = "extra-task-selector-" <> ms (show m.selectorGeneration)
        in M.div_ [class_ "border-t pt-3"]

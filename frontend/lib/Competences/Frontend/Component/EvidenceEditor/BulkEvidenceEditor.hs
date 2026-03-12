@@ -281,6 +281,7 @@ bulkEvidenceEditorComponent r =
         , placeholder = M.fromMisoString $ C.translate' C.LblStudents
         , selectionOrder = AutoOrder id
         , tagLayout = TagsInline
+        , onCreate = Nothing
         }
 
     -- Student selector lens (syncs selectedStudents with component)

@@ -4,7 +4,7 @@ module Competences.Frontend.Component.Assignment.EditorDetail
   )
 where
 
-import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..))
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..), TasksCommand (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
@@ -16,7 +16,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), getTasksInGroup, taskGroupId)
+import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), TaskType (..), defaultTaskAttributes, getTasksInGroup, taskGroupId)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -26,13 +26,14 @@ import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
-import Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd (taskSearchSelectWithAddEditorField)
+import Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd (openTaskEditorModal)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
   , modifySyncDocument
+  , nextId
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
@@ -204,11 +205,10 @@ editorWrapperComponent r assignment =
                                (entityPatchTransformedLens #studentIds #studentIds (.id) Set.fromList)
                            )
         `TE.addNamedField` ( C.translate' C.LblAssignmentTasks
-                           , taskSearchSelectWithAddEditorField
+                           , searchSelectEditorField
                                r
                                (assignmentEditorId <> "-tasks")
-                               origin'
-                               (taskSearchConfig origin')
+                               (taskSearchConfig r origin')
                                (.tasks)
                                (entityPatchTransformedLens #tasks #tasks (.id) id)
                            )
@@ -241,8 +241,8 @@ namePatchLens = #name % changeAssignmentNameTextIso
 -- SearchSelect configs
 -- ============================================================================
 
-taskSearchConfig :: EntityOrigin -> SearchSelectConfig Task TaskId
-taskSearchConfig origin =
+taskSearchConfig :: SyncContext -> EntityOrigin -> SearchSelectConfig Task TaskId
+taskSearchConfig r origin =
   SearchSelectConfig
     { projectItems = \doc ->
         let real = Ix.toAscList (Proxy @TaskIdentifier) doc.tasks
@@ -257,6 +257,21 @@ taskSearchConfig origin =
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Just $ do
+        taskId <- nextId r
+        let newTask = Task
+              { id = taskId
+              , identifier = TaskIdentifier ""
+              , content = Nothing
+              , taskType = SelfContained defaultTaskAttributes
+              , attachments = []
+              }
+            wrap = case origin of
+              Published -> id
+              Draft -> retargetForDraft
+        modifySyncDocument r $ wrap $ Tasks (OnTasks (CreateAndLock newTask))
+        openTaskEditorModal r origin taskId
+        pure taskId
     }
 
 userSearchConfig :: SearchSelectConfig User UserId
@@ -271,4 +286,5 @@ userSearchConfig =
     , placeholder = "Schüler auswählen..."
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Nothing
     }

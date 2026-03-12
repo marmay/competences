@@ -471,6 +471,7 @@ assignmentSearchConfig =
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectAssignments
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Nothing
     }
   where
     eligible a = a.activityType `elem` [SchoolExercise, HomeExercise, Exam]
@@ -505,6 +506,7 @@ lessonNotesSearchConfig lessonId =
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectLessonNotes
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
+    , onCreate = Nothing
     }
 
 -- ============================================================================

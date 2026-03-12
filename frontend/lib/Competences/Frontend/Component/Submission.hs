@@ -305,6 +305,7 @@ submissionModalComponent r assignmentId userId _wm =
         , placeholder = fromMisoString $ C.translate' C.LblCollaborativeSubmission
         , selectionOrder = SS.AutoOrder id
         , tagLayout = SS.TagsInline
+        , onCreate = Nothing
         }
 
     viewCollaboratorSelector =
