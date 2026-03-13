@@ -33,11 +33,12 @@ import Competences.Frontend.SyncContext.WindowManager
   , unpinDialog
   )
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.WindowFrame (modalFrame, pinFrame, pinSidebarIcon)
+import Competences.Frontend.View.WindowFrame (modalDialog, pinFrame, pinSidebarIcon)
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.Html.Event (onClick)
 
 -- | Actions for the WindowHost component.
 data Action
@@ -56,7 +57,7 @@ windowHostComponent ref =
   where
     model =
       Model
-        { activeModal = Nothing
+        { modalStack = []
         , pinnedDialogs = Map.empty
         , pinOrder = []
         }
@@ -64,7 +65,7 @@ windowHostComponent ref =
     update (WindowsChanged change) =
       M.modify $ \_ ->
         Model
-          { activeModal = change.activeModal
+          { modalStack = change.modalStack
           , pinnedDialogs = change.pinnedDialogs
           , pinOrder = change.pinOrder
           }
@@ -155,11 +156,23 @@ renderPinBackdrop m =
         then MH.div_ [class_ "fixed inset-0 z-20 bg-foreground/30"] []
         else M.text ""
 
--- | Render the modal overlay (backdrop + centered dialog box with title bar).
--- Only shown when a modal is active.
+-- | Render the modal stack: single shared backdrop + all stacked modals.
+-- Only the topmost modal is visible; others are hidden to preserve component state.
 renderModal :: Model -> M.View Model Action
-renderModal m = case m.activeModal of
-  Nothing -> M.text ""
-  Just (AnyModal comp cfg) ->
-    let ModalId mid = cfg.modalId
-     in modalFrame cfg BackdropClicked [("modal-" <> M.ms mid) M.+> comp]
+renderModal m = case m.modalStack of
+  [] -> M.text ""
+  modals ->
+    MH.div_
+      []
+      ( MH.div_
+          [class_ "fixed inset-0 z-50 bg-foreground/50", onClick BackdropClicked]
+          []
+          : zipWith renderOneModal (True : repeat False) modals
+      )
+  where
+    renderOneModal isTop (AnyModal comp cfg) =
+      let ModalId mid = cfg.modalId
+          key = "modal-" <> M.ms mid
+       in if isTop
+            then modalDialog cfg BackdropClicked [key M.+> comp]
+            else MH.div_ [class_ "hidden"] [key M.+> comp]

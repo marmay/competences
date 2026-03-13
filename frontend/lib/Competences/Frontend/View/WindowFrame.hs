@@ -13,6 +13,7 @@ module Competences.Frontend.View.WindowFrame
   , pinButton
     -- * Modal frame
   , modalFrame
+  , modalDialog
     -- * Pin frame
   , pinFrame
   , pinSidebarIcon
@@ -94,6 +95,20 @@ modalFrame cfg closeAction content =
           M.div_
             [class_ $ contentClasses cfg]
             content
+        ]
+    ]
+
+-- | Modal dialog box without backdrop. Used by WindowHost for stacked rendering.
+-- The positioning container uses @pointer-events-none@ so clicks pass through
+-- to the backdrop, with @pointer-events-auto@ on the actual dialog box.
+modalDialog :: ModalConfig -> a -> [M.View m a] -> M.View m a
+modalDialog cfg closeAction content =
+  M.div_
+    [class_ "fixed inset-0 z-50 flex items-center justify-center pointer-events-none"]
+    [ M.div_
+        [class_ $ "relative pointer-events-auto flex flex-col " <> dialogClasses cfg]
+        [ windowTitleBar cfg.chrome [closeButton closeAction]
+        , M.div_ [class_ $ contentClasses cfg] content
         ]
     ]
 

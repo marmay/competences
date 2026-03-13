@@ -6,7 +6,7 @@
 --
 -- Manages two types of windows:
 --
--- * __Modals__: Blocking dialogs with backdrop. At most one active at a time.
+-- * __Modals__: Blocking dialogs with backdrop. Supports stacking (most recent on top).
 --   For confirmations, imports, quick edits.
 --
 -- * __Pinned dialogs__: Non-blocking, minimizable, persistent across navigation.
@@ -280,7 +280,7 @@ instance Eq AnyPinnedDialog where
 -- | Host model used as the parent type for all managed components.
 -- Defined here to avoid circular imports with WindowHost.
 data Model = Model
-  { activeModal :: !(Maybe AnyModal)
+  { modalStack :: ![AnyModal]
   , pinnedDialogs :: !(Map.Map PinId (AnyPinnedDialog, PinVisibility))
   , pinOrder :: ![PinId]
   }
@@ -288,7 +288,7 @@ data Model = Model
 
 -- | Change notification sent to subscribers.
 data WindowChange = WindowChange
-  { activeModal :: !(Maybe AnyModal)
+  { modalStack :: ![AnyModal]
   , pinnedDialogs :: !(Map.Map PinId (AnyPinnedDialog, PinVisibility))
   , pinOrder :: ![PinId]
   , isInitial :: !Bool
@@ -299,7 +299,7 @@ data WindowChange = WindowChange
 -- ---------------------------------------------------------------------------
 
 data WindowState = WindowState
-  { currentModal :: !(Maybe AnyModal)
+  { modals :: ![AnyModal]
   , pins :: !(Map.Map PinId AnyPinnedDialog)
   , pinVisibility :: !(Map.Map PinId PinVisibility)
   , pinOrder :: ![PinId]
@@ -323,7 +323,7 @@ newWindowManager = WindowManagerRef <$> newMVar emptyState
   where
     emptyState =
       WindowState
-        { currentModal = Nothing
+        { modals = []
         , pins = Map.empty
         , pinVisibility = Map.empty
         , pinOrder = []
@@ -336,11 +336,11 @@ newWindowManager = WindowManagerRef <$> newMVar emptyState
 -- ---------------------------------------------------------------------------
 
 -- | Open a blocking modal. Renders above everything including pinned dialogs.
--- Replaces any currently open modal.
+-- Pushes onto the modal stack; the new modal appears on top.
 openModal :: WindowManagerRef -> AnyModal -> IO ()
 openModal (WindowManagerRef ref) modal = do
   modifyMVar_ ref $ \s -> do
-    let s' = s {currentModal = Just modal}
+    let s' = s {modals = modal : s.modals}
     notifyHandlers s'
     pure s'
 
@@ -355,11 +355,11 @@ openFramedModal
 openFramedModal ref cfg comp =
   openFramedModalWith ref cfg (const comp)
 
--- | Close the active modal.
+-- | Close the topmost modal. If multiple modals are stacked, reveals the next one.
 closeModal :: WindowManagerRef -> IO ()
 closeModal (WindowManagerRef ref) = do
   modifyMVar_ ref $ \s -> do
-    let s' = s {currentModal = Nothing}
+    let s' = s {modals = drop 1 s.modals}
     notifyHandlers s'
     pure s'
 
@@ -462,7 +462,7 @@ buildPinnedDialogs s =
 mkWindowChange :: Bool -> WindowState -> WindowChange
 mkWindowChange initial s =
   WindowChange
-    { activeModal = s.currentModal
+    { modalStack = s.modals
     , pinnedDialogs = buildPinnedDialogs s
     , pinOrder = s.pinOrder
     , isInitial = initial
