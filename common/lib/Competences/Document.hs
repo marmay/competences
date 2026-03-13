@@ -25,11 +25,18 @@ module Competences.Document
   , module Competences.Document.ParticipationRecord
   , module Competences.Document.Absence
   , module Competences.Document.Submission
+  , module Competences.Document.CompetenceLevelExample
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Absence (Absence (..), AbsenceId, AbsenceIxs)
+import Competences.Document.CompetenceLevelExample
+  ( CompetenceLevelExample (..)
+  , CompetenceLevelExampleId
+  , CompetenceLevelExampleIxs
+  , mkCompetenceLevelExample
+  )
 import Competences.Document.Assessment
   ( CompetenceAssessment (..)
   , CompetenceAssessmentId
@@ -132,6 +139,7 @@ data Document = Document
   , draftTasks :: !(Ix.IxSet TaskIxs Task)
   , draftTaskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , draftAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
+  , competenceLevelExamples :: !(Ix.IxSet CompetenceLevelExampleIxs CompetenceLevelExample)
   }
   deriving (Eq, Generic, Show)
 
@@ -162,6 +170,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "draftTasks" .!= [])
       <*> fmap Ix.fromList (v .:? "draftTaskGroups" .!= [])
       <*> fmap Ix.fromList (v .:? "draftAssignments" .!= [])
+      <*> fmap Ix.fromList (v .:? "competenceLevelExamples" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -187,6 +196,7 @@ instance ToJSON Document where
       , "draftTasks" .= Ix.toList d.draftTasks
       , "draftTaskGroups" .= Ix.toList d.draftTaskGroups
       , "draftAssignments" .= Ix.toList d.draftAssignments
+      , "competenceLevelExamples" .= Ix.toList d.competenceLevelExamples
       ]
 #endif
 
@@ -214,6 +224,7 @@ emptyDocument =
     , draftTasks = Ix.empty
     , draftTaskGroups = Ix.empty
     , draftAssignments = Ix.empty
+    , competenceLevelExamples = Ix.empty
     }
 
 
@@ -261,6 +272,7 @@ projectDocument user doc
           Nothing -> False
       SolutionLock _ -> True -- Solutions are visible to all users
       ResourceLock _ -> True -- Resources are visible to all users
+      CompetenceLevelExampleLock _ -> True -- Examples are visible to all users
       LessonNotesLock _ -> True -- Lesson notes are visible to all users
       MesoPlanLock _ -> False -- Planning is teacher-only
       LessonLock _ -> False

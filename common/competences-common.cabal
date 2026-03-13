@@ -35,6 +35,7 @@ library
         Competences.Command.Common
         Competences.Command.CompetenceAssessments
         Competences.Command.CompetenceGridGrades
+        Competences.Command.CompetenceLevelExamples
         Competences.Command.Competences
         Competences.Command.DraftAssignments
         Competences.Command.DraftTasks
@@ -60,6 +61,7 @@ library
         Competences.Document.Competence
         Competences.Document.CompetenceGrid
         Competences.Document.CompetenceGridGrade
+        Competences.Document.CompetenceLevelExample
         Competences.Document.Evidence
         Competences.Document.FileRef
         Competences.Document.Grade

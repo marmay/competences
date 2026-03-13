@@ -217,4 +217,5 @@ emptyDocument =
     , draftTasks = Ix.empty
     , draftTaskGroups = Ix.empty
     , draftAssignments = Ix.empty
+    , competenceLevelExamples = Ix.empty
     }

@@ -98,6 +98,7 @@ commandAudience (Users _) = AudienceAll
 commandAudience (Tasks _) = AudienceAll
 commandAudience (Solutions _) = AudienceAll
 commandAudience (Resources _) = AudienceAll
+commandAudience (CompetenceLevelExamples _) = AudienceAll
 commandAudience (LessonNotes _) = AudienceAll
 commandAudience (Migration _) = AudienceAll
 -- Teacher-only entities

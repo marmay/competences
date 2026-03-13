@@ -24,10 +24,12 @@ module Competences.Command
   , module Competences.Command.ParticipationRecords
   , module Competences.Command.Absences
   , module Competences.Command.Submissions
+  , module Competences.Command.CompetenceLevelExamples
   )
 where
 
 import Competences.Command.Absences (AbsencePatch (..), AbsencesCommand (..), handleAbsencesCommand)
+import Competences.Command.CompetenceLevelExamples (CompetenceLevelExamplePatch (..), CompetenceLevelExamplesCommand (..), handleCompetenceLevelExamplesCommand)
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..), handleAssignmentsCommand)
 import Competences.Command.DraftAssignments (DraftAssignmentsCommand (..), handleDraftAssignmentsCommand)
 import Competences.Command.DraftTasks (DraftTasksCommand (..), handleDraftTasksCommand)
@@ -96,6 +98,7 @@ data Command
   | Submissions !SubmissionsCommand
   | DraftTasks !DraftTasksCommand
   | DraftAssignments !DraftAssignmentsCommand
+  | CompetenceLevelExamples !CompetenceLevelExamplesCommand
   | Publish !PublishData
   | Migration !MigrationCommand
   deriving (Eq, Generic, Show)
@@ -134,6 +137,7 @@ handleCommand userId cmd d = case cmd of
   Submissions c -> handleSubmissionsCommand userId c d
   DraftTasks c -> handleDraftTasksCommand userId c d
   DraftAssignments c -> handleDraftAssignmentsCommand userId c d
+  CompetenceLevelExamples c -> handleCompetenceLevelExamplesCommand userId c d
   Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d
 
