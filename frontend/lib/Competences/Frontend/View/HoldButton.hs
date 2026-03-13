@@ -26,8 +26,10 @@ where
 
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Color.Status (Status (..), statusPalette)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Notification (notificationBanner)
 import Competences.Frontend.View.Tailwind (class_)
 import Control.Concurrent (threadDelay)
 import Data.Maybe (maybeToList)
@@ -136,15 +138,15 @@ holdButton wrap hs eid variant size contents =
             , MH.onTouchCancel (wrap ReleaseHold)
             ]
             []
-        , -- Tooltip hint (shown after short click, hidden during hold)
-          MH.div_
-            [ class_ $
-                "absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 \
-                \bg-primary text-primary-foreground text-xs rounded-md \
-                \whitespace-nowrap pointer-events-none z-50"
-                  <> if hs.showHint && not isHolding then "" else " hidden"
-            ]
-            [M.text $ C.translate' C.LblHoldToDelete]
+        , -- Notification banner hint (shown after short click, hidden during hold).
+          -- Uses fixed positioning to escape any overflow containers (tables, modals).
+          if hs.showHint && not isHolding
+            then
+              notificationBanner (statusPalette Pending)
+                [ Icon.iconVS Icon.Primary Icon.Small Icon.IcnInfo
+                , MH.span_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblHoldToDelete]
+                ]
+            else M.text ""
         , -- Button with progress animation
           MH.div_
             [ class_ "relative z-[10001] inline-flex overflow-hidden rounded-md"
