@@ -64,7 +64,7 @@ selectorHeaderWithDropdown title isOpen toggleAction menuItems =
         , if isOpen
             then
               M.div_
-                [class_ "absolute right-0 top-full mt-1 z-50 min-w-48 rounded-md border bg-popover p-1 shadow-md"]
+                [class_ "absolute right-0 top-full mt-1 z-50 min-w-48 max-w-56 rounded-md border bg-popover p-1 shadow-md"]
                 menuItems
             else M.text ""
         ]

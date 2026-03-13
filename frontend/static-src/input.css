@@ -63,7 +63,7 @@
 @source inline("text-transparent caret-foreground");
 
 /* Evaluator split layout + custom select dropdown */
-@source inline("w-1/2 w-max min-w-full max-w-32");
+@source inline("w-1/2 w-max min-w-full max-w-32 max-w-56");
 
 /* NavBar tooltip + hover dropdown classes */
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
