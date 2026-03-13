@@ -54,6 +54,7 @@ library
         Competences.Frontend.Component.Geometry,
         Competences.Frontend.Component.MarkdownEditor,
         Competences.Frontend.Component.RichContent,
+        Competences.Frontend.Component.CompetenceLevelExampleEditor,
         Competences.Frontend.Component.CompetenceGrid.Editor,
         Competences.Frontend.Component.CompetenceGrid.Grading,
         Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal,

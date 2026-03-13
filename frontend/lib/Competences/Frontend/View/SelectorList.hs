@@ -9,6 +9,8 @@ module Competences.Frontend.View.SelectorList
   , selectorItem
   , selectorItemWithBadge
   , selectorItemMultiLine
+    -- * Navigation
+  , indexedNav
     -- * Search
   , selectorSearchField
     -- * Container
@@ -179,3 +181,32 @@ selectorList items =
   Layout.grow $
     Layout.vScrollable $
       Layout.vFlow Layout.gapS items
+
+-- | Numbered navigation bar (1/N with prev/next arrows).
+-- Matches the gallery navigation style from FileGallery.
+indexedNav
+  :: Maybe action
+  -- ^ Prev action (Nothing = disabled)
+  -> Int
+  -- ^ Current 1-based display index
+  -> Int
+  -- ^ Total count
+  -> Maybe action
+  -- ^ Next action (Nothing = disabled)
+  -> M.View m action
+indexedNav mPrev displayIdx total mNext =
+  Layout.hFlow
+    (Layout.gapS <> Layout.crossCenter)
+    [ navButton Icon.IcnArrowLeft mPrev
+    , M.span_
+        [class_ "text-sm text-muted-foreground font-medium tabular-nums"]
+        [M.text $ M.ms (show displayIdx) <> "/" <> M.ms (show total)]
+    , navButton Icon.IcnArrowRight mNext
+    ]
+  where
+    navButton icn mAction =
+      M.button_
+        ( class_ ("p-1 rounded transition-colors" <> maybe " opacity-30 cursor-default" (const " hover:bg-stone-200") mAction)
+            : maybe [] (\a -> [M.onClickWithOptions M.stopPropagation a]) mAction
+        )
+        [Icon.iconS Icon.Small icn]

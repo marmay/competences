@@ -11,10 +11,12 @@ import Competences.Document
   , CompetenceAssessmentIxs
   , CompetenceGrid (..)
   , CompetenceIxs
+  , CompetenceLevelExample (..)
   , Document (..)
   , EvidenceIxs
   , Level (..)
   , LevelInfo (..)
+  , Order
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
@@ -49,6 +51,7 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
@@ -66,6 +69,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.UIState (readFocusedUser)
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
@@ -129,6 +133,10 @@ data ViewerProjection = ViewerProjection
   -- ^ Per-task completion status for the focused user (empty when no user focused)
   , viewData :: !ViewData
   -- ^ Either user-specific data or class-wide analytics
+  , examples :: !(Map CompetenceLevelId [CompetenceLevelExample])
+  -- ^ Examples for each competence level, ordered
+  , gridHasExamples :: !Bool
+  -- ^ Whether any examples exist in this grid (for toggle visibility)
   }
   deriving (Eq, Generic, Show)
 
@@ -181,10 +189,17 @@ data PrintData = PrintData
   }
   deriving (Eq, Generic, Show)
 
+-- | Toggle between showing descriptions and examples in grid cells
+data GridCellMode = ShowDescriptions | ShowExamples
+  deriving (Eq, Generic, Show)
+
 -- | Model for the viewer detail component
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
   , printData :: !(Maybe PrintData)
+  , cellMode :: !GridCellMode
+  , exampleIndices :: !(Map CompetenceLevelId Int)
+  -- ^ Current example index per cell (for navigating multiple examples)
   }
   deriving (Eq, Generic, Show)
 
@@ -196,6 +211,9 @@ data ViewerAction
   | TriggerPrint
   | DoPrint !PrintData
   | ClearPrint
+  | ToggleCellMode
+  | NextExample !CompetenceLevelId
+  | PrevExample !CompetenceLevelId
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -291,6 +309,13 @@ viewerComponent r grid wm =
           tStatuses = case mUser of
             Just u -> taskCompletionStatuses doc u.id allResTasks
             Nothing -> Map.empty
+          -- Pre-compute examples grouped by competence level
+          examplesByLevel = Map.fromList
+            [ (clId, Ix.toAscList (Proxy @Order) (doc.competenceLevelExamples Ix.@= clId))
+            | clId <- competenceLevels
+            , not . null $ Ix.toList (doc.competenceLevelExamples Ix.@= clId)
+            ]
+          hasExamples = not (Map.null examplesByLevel)
        in ViewerProjection
             { competences = gridCompetences
             , resourceTasks = resTasks
@@ -298,6 +323,8 @@ viewerComponent r grid wm =
             , connectedUserRole = role
             , taskStatuses = tStatuses
             , viewData = vData
+            , examples = examplesByLevel
+            , gridHasExamples = hasExamples
             }
 
     -- Compute resource tasks grouped by competence level
@@ -357,9 +384,16 @@ viewerComponent r grid wm =
       , connectedUserRole = connectedRole
       , taskStatuses = Map.empty
       , viewData = AnalyticsViewData $ AnalyticsData 0 Map.empty Map.empty
+      , examples = Map.empty
+      , gridHasExamples = False
       }
 
-    model = ViewerModel emptyProjection Nothing
+    -- Default cell mode: ShowExamples for students, ShowDescriptions for teachers
+    defaultCellMode = case connectedRole of
+      Teacher -> ShowDescriptions
+      Student -> ShowExamples
+
+    model = ViewerModel emptyProjection Nothing defaultCellMode Map.empty
 
     update (ViewerProjectionChanged change) =
       M.modify $ #projection .~ change.projection
@@ -429,6 +463,26 @@ viewerComponent r grid wm =
     update ClearPrint =
       M.modify $ #printData .~ Nothing
 
+    update ToggleCellMode =
+      M.modify $ \m' -> m'
+        { cellMode = case m'.cellMode of
+            ShowDescriptions -> ShowExamples
+            ShowExamples -> ShowDescriptions
+        }
+
+    update (NextExample clId) =
+      M.modify $ \m' ->
+        let total = length $ Map.findWithDefault [] clId m'.projection.examples
+            cur = Map.findWithDefault 0 clId m'.exampleIndices
+            next = min (total - 1) (cur + 1)
+         in m' { exampleIndices = Map.insert clId next m'.exampleIndices }
+
+    update (PrevExample clId) =
+      M.modify $ \m' ->
+        let cur = Map.findWithDefault 0 clId m'.exampleIndices
+            prev = max 0 (cur - 1)
+         in m' { exampleIndices = Map.insert clId prev m'.exampleIndices }
+
     -- Main view: dispatch based on view data type
     view m =
       MH.div_
@@ -452,6 +506,12 @@ viewerComponent r grid wm =
         printButton' =
           Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnPrint) (Just TriggerPrint))
 
+        toggleButton =
+          let (icon, label) = case m.cellMode of
+                ShowDescriptions -> (Icon.IcnInfo, C.translate' C.LblShowExamples)
+                ShowExamples -> (Icon.IcnCompetenceGrid, C.translate' C.LblShowDescriptions)
+           in Button.ghostSm (Button.button (icon, label) (Just ToggleCellMode))
+
         -- Header varies by view type
         header = case proj.viewData of
           UserViewData userData ->
@@ -462,6 +522,7 @@ viewerComponent r grid wm =
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
                   ]
+                  <> [ toggleButton | proj.gridHasExamples ]
                   <> [ printButton' ]
                   <> [ pinButton PinThis | not (isPinned wm) ]
                   <> [ case userData.activeGridGrade of
@@ -477,6 +538,7 @@ viewerComponent r grid wm =
                   [ Typography.h2 (M.ms grid.title)
                   , Layout.flowSpring
                   ]
+                  <> [ toggleButton | proj.gridHasExamples ]
                   <> [ printButton' ]
                   <> [ pinButton PinThis | not (isPinned wm) ]
               ]
@@ -500,7 +562,7 @@ viewerComponent r grid wm =
                   ViewerDescriptionColumn ->
                     renderDescriptionCell proj competence
                   ViewerLevelColumn level ->
-                    renderLevelCell proj competence level
+                    renderLevelCell vm proj competence level
               }
 
     -- | Look up mastery status for a competence level (defaults to NotTried)
@@ -531,7 +593,7 @@ viewerComponent r grid wm =
             }
 
     -- Render level cell (varies by view type)
-    renderLevelCell proj competence level =
+    renderLevelCell vm proj' competence level =
       let levelInfo = getLevelInfo level competence
           hasDescription = not (T.null levelInfo.description)
           competenceLevelId = (competence.id, level)
@@ -540,15 +602,44 @@ viewerComponent r grid wm =
           stripeStyle :: [(M.MisoString, M.MisoString)]
           stripeStyle = if not hasDescription then CellStyle.stripedStyle else []
 
-       in case proj.viewData of
+          -- Examples for this cell
+          cellExamples = Map.findWithDefault [] competenceLevelId proj'.examples
+          exIdx = Map.findWithDefault 0 competenceLevelId vm.exampleIndices
+
+          -- Content to show in place of description text
+          descriptionContent = case vm.cellMode of
+            ShowDescriptions ->
+              Typography.small (M.ms levelInfo.description)
+            ShowExamples
+              | (ex : _) <- drop exIdx cellExamples ->
+                  Layout.vFlow Layout.gapT $
+                    [ MH.div_
+                        [class_ "prose prose-stone prose-sm max-w-none"]
+                        [renderRichTextWithFiles r.formulaCache r ex.attachments ex.content]
+                    ]
+                    <> [ MH.div_ [class_ "flex justify-center"]
+                           [ SL.indexedNav
+                               (if exIdx > 0 then Just (PrevExample competenceLevelId) else Nothing)
+                               (exIdx + 1)
+                               (length cellExamples)
+                               (if exIdx < length cellExamples - 1 then Just (NextExample competenceLevelId) else Nothing)
+                           ]
+                       | length cellExamples > 1
+                       ]
+              | otherwise ->
+                  -- No examples for this level: show description in muted style
+                  MH.span_ [class_ "text-stone-400 italic text-sm"] [M.text (M.ms levelInfo.description)]
+
+       in case proj'.viewData of
             UserViewData userData ->
-              renderUserCell proj userData competence level levelInfo hasDescription competenceLevelId stripeStyle
+              renderUserCell proj' userData competence level hasDescription competenceLevelId stripeStyle descriptionContent
             AnalyticsViewData analyticsData ->
-              renderAnalyticsCell proj analyticsData levelInfo hasDescription competenceLevelId stripeStyle
+              renderAnalyticsCell proj' analyticsData hasDescription competenceLevelId stripeStyle descriptionContent
 
     -- Render cell for user view (shows evidence icons, assessment status)
-    renderUserCell proj userData competence level levelInfo hasDescription competenceLevelId stripeStyle =
-      let evidences = userData.userEvidences
+    renderUserCell proj' userData competence level hasDescription competenceLevelId stripeStyle descriptionContent =
+      let levelInfo = getLevelInfo level competence
+          evidences = userData.userEvidences
 
           -- Direct evidence badges paired with (date, reliability) for sorting
           directBadges =
@@ -627,8 +718,8 @@ viewerComponent r grid wm =
           statusIcon = StatusIcon.statusIconOverlay cellVisualStatus
 
           -- Resource handling
-          hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
-          hasLearningResources' = not $ null $ Map.findWithDefault [] competenceLevelId proj.learningResources
+          hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj'.resourceTasks
+          hasLearningResources' = not $ null $ Map.findWithDefault [] competenceLevelId proj'.learningResources
           hasResources = hasResourceTasks || hasLearningResources'
 
           resourceIcon =
@@ -671,7 +762,7 @@ viewerComponent r grid wm =
                   [ statusIcon
                   , masteryBadgeRow
                   , if hasDescription
-                      then Typography.small (M.ms levelInfo.description)
+                      then descriptionContent
                       else Layout.empty
                   , if not (null allBadges)
                       then
@@ -701,10 +792,10 @@ viewerComponent r grid wm =
 
     -- Render cell for analytics view (shows mastery distribution bars + resources)
     -- Same structure as user view, but with mastery bars instead of evidence icons
-    renderAnalyticsCell proj analyticsData levelInfo hasDescription competenceLevelId stripeStyle =
+    renderAnalyticsCell proj' analyticsData hasDescription competenceLevelId stripeStyle descriptionContent =
       let -- Resource handling (same as user view)
-          hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj.resourceTasks
-          hasLearningResources' = not $ null $ Map.findWithDefault [] competenceLevelId proj.learningResources
+          hasResourceTasks = not $ null $ Map.findWithDefault [] competenceLevelId proj'.resourceTasks
+          hasLearningResources' = not $ null $ Map.findWithDefault [] competenceLevelId proj'.learningResources
           hasResources = hasResourceTasks || hasLearningResources'
 
           resourceIcon =
@@ -728,7 +819,7 @@ viewerComponent r grid wm =
               (class_ "min-h-[44px]" : clickHandler)
               [ Layout.vFlow Layout.mainCenter
                   [ if hasDescription
-                      then Typography.small (M.ms levelInfo.description)
+                      then descriptionContent
                       else Layout.empty
                   , if hasDescription
                       then

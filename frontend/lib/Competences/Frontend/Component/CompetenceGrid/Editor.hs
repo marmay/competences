@@ -18,6 +18,7 @@ import Competences.Document
 import Competences.Document.Order (orderPosition)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
+import Competences.Frontend.Component.CompetenceLevelExampleEditor (openExampleEditor)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -27,7 +28,7 @@ import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -189,23 +190,23 @@ editorComponent r grid =
                            , TE.textEditorField #description #description
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription BasicLevel)
-                           , levelDescriptionWithLockField BasicLevel
+                           , levelDescriptionWithLockField r BasicLevel
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription IntermediateLevel)
-                           , levelDescriptionWithLockField IntermediateLevel
+                           , levelDescriptionWithLockField r IntermediateLevel
                            )
         `TE.addNamedField` ( C.translate' (C.LblCompetenceLevelDescription AdvancedLevel)
-                           , levelDescriptionWithLockField AdvancedLevel
+                           , levelDescriptionWithLockField r AdvancedLevel
                            )
 
--- | Combined editor field for level description with lock toggle
+-- | Combined editor field for level description with lock toggle and examples button
 -- Shows text input with a lock button next to it
 -- Lock button is only enabled when description is non-empty
-levelDescriptionWithLockField :: Level -> EditorField Competence CompetencePatch f
-levelDescriptionWithLockField lvl =
+levelDescriptionWithLockField :: SyncContext -> Level -> EditorField Competence CompetencePatch f
+levelDescriptionWithLockField r lvl =
   EditorField
-    { viewer = levelDescriptionWithLockViewer lvl
-    , editor = levelDescriptionWithLockEditor lvl
+    { viewer = levelDescriptionWithLockViewer r lvl
+    , editor = levelDescriptionWithLockEditor r lvl
     }
 
 -- | Get current level info, considering pending patch
@@ -221,26 +222,32 @@ currentLevelInfo original patch lvl =
         Nothing -> origInfo.locked
    in LevelInfo desc lck
 
--- | Viewer for level description with lock indicator
-levelDescriptionWithLockViewer :: Level -> Competence -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
-levelDescriptionWithLockViewer lvl c =
+-- | Viewer for level description with lock indicator and examples button
+levelDescriptionWithLockViewer :: SyncContext -> Level -> Competence -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
+levelDescriptionWithLockViewer r lvl c =
   let info = Map.findWithDefault (LevelInfo T.empty False) lvl c.levels
+      btnKey = "examples-btn-" <> M.ms (show c.id) <> "-" <> M.ms (show lvl)
+      hasDescription = not (T.null info.description)
    in Layout.hFlow
         (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
         [ MH.span_ [class_ "flex-1"] [text_ (M.ms info.description)]
+        , if hasDescription
+            then inlineComponent btnKey (examplesButtonComponent r c lvl)
+            else Layout.empty
         , if info.locked
             then StatusIcon.lockIcon
             else Layout.empty
         ]
 
--- | Editor for level description with lock toggle
+-- | Editor for level description with lock toggle and examples button
 levelDescriptionWithLockEditor
-  :: Level
+  :: SyncContext
+  -> Level
   -> Bool
   -> Competence
   -> CompetencePatch
   -> M.View (Model Competence CompetencePatch f) (Action Competence CompetencePatch)
-levelDescriptionWithLockEditor lvl _refocusTarget original patch =
+levelDescriptionWithLockEditor r lvl _refocusTarget original patch =
   let currentInfo = currentLevelInfo original patch lvl
       origInfo = Map.findWithDefault (LevelInfo T.empty False) lvl original.levels
       hasDescription = not (T.null currentInfo.description)
@@ -258,6 +265,7 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             newLevelPatch = levelPatch & #locked ?~ (origInfo.locked, newLocked)
             newPatch = patch & #levels % O.at lvl ?~ newLevelPatch
          in UpdatePatch original newPatch
+      btnKey = "examples-btn-edit-" <> M.ms (show original.id) <> "-" <> M.ms (show lvl)
    in Layout.hFlow
         (Layout.gapT <> Layout.hFull <> Layout.crossCenter)
         [ MH.input_
@@ -265,10 +273,21 @@ levelDescriptionWithLockEditor lvl _refocusTarget original patch =
             , MH.onChange updateDesc
             , MP.value_ (M.ms currentInfo.description)
             ]
+        , if hasDescription
+            then inlineComponent btnKey (examplesButtonComponent r original lvl)
+            else Layout.empty
         , Button.toggleSm currentInfo.locked
             ( Button.button
                 (if currentInfo.locked then Icon.IcnLock else Icon.IcnLockOpen)
                 (hasDescription, toggleLock)
             )
         ]
+
+-- | Inline component that renders an examples button and opens the editor modal on click.
+examplesButtonComponent :: SyncContext -> Competence -> Level -> M.Component p () ()
+examplesButtonComponent r comp lvl =
+  M.component () update' view'
+  where
+    update' () = M.io_ $ openExampleEditor r comp.description comp.id lvl
+    view' () = Button.outlineSm (Button.button Icon.IcnInfo (Just ()))
 

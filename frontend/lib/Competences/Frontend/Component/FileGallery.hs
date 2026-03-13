@@ -20,6 +20,7 @@ import Competences.Frontend.FileCache (fileToDataUrl)
 import Competences.Frontend.SyncContext (SyncContext (..), downloadFile)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
 import Data.ByteString.Lazy qualified as BL
 import Data.Set (Set)
@@ -260,22 +261,11 @@ viewGalleryBottomBar m =
         , -- Center: navigation controls (gallery mode only)
           if showNav
             then
-              Layout.hFlow
-                (Layout.gapS <> Layout.crossCenter)
-                [ MH.button_
-                    [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
-                    , MH.onClick PrevImage
-                    ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowLeft]
-                , MH.span_
-                    [class_ "text-sm text-muted-foreground font-medium tabular-nums"]
-                    [M.text $ ms (show (m.currentImageIndex + 1)) <> "/" <> ms (show totalImages)]
-                , MH.button_
-                    [ class_ "p-1 rounded hover:bg-stone-200 transition-colors"
-                    , MH.onClick NextImage
-                    ]
-                    [Icon.iconS Icon.Small Icon.IcnArrowRight]
-                ]
+              SL.indexedNav
+                (Just PrevImage)
+                (m.currentImageIndex + 1)
+                totalImages
+                (Just NextImage)
             else MH.span_ [] []
         , -- Right: view toggle + file indicator
           MH.div_

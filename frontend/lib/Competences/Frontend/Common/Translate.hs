@@ -421,6 +421,17 @@ data Label
   | LblNoSubmissionSelected
   | LblMoreFiles !Int
   | LblHoldToDelete
+    -- Competence Level Examples
+  | LblExamples
+  | LblExample
+  | LblAddExample
+  | LblNoExamples
+  | LblSelectExample
+  | LblEditExample
+  | LblNoContent
+  | LblExamplesCount !Int
+  | LblShowDescriptions
+  | LblShowExamples
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -807,6 +818,17 @@ labels' =
   , LblNoSubmissionSelected
   , LblMoreFiles 0
   , LblHoldToDelete
+    -- Competence Level Examples
+  , LblExamples
+  , LblExample
+  , LblAddExample
+  , LblNoExamples
+  , LblSelectExample
+  , LblEditExample
+  , LblNoContent
+  , LblExamplesCount 0
+  , LblShowDescriptions
+  , LblShowExamples
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1221,6 +1243,17 @@ defaultTranslation LblSize = "Größe"
 defaultTranslation LblNoSubmissionSelected = "Keine Abgabe ausgewählt"
 defaultTranslation (LblMoreFiles n) = ms (show n) <> " weitere Dateien"
 defaultTranslation LblHoldToDelete = "Gedrückt halten zum Löschen"
+-- Competence Level Examples
+defaultTranslation LblExamples = "Beispiele"
+defaultTranslation LblExample = "Beispiel"
+defaultTranslation LblAddExample = "Beispiel hinzufügen"
+defaultTranslation LblNoExamples = "Keine Beispiele vorhanden"
+defaultTranslation LblSelectExample = "Beispiel auswählen"
+defaultTranslation LblEditExample = "Beispiel bearbeiten"
+defaultTranslation LblNoContent = "Kein Inhalt"
+defaultTranslation (LblExamplesCount n) = "Beispiele (" <> ms (show n) <> ")"
+defaultTranslation LblShowDescriptions = "Beschreibungen"
+defaultTranslation LblShowExamples = "Beispiele"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
