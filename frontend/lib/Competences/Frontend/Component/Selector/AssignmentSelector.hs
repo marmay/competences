@@ -8,6 +8,7 @@ import Competences.Command (AssignmentsCommand (..), Command (..), DraftAssignme
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
+import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
@@ -184,19 +185,25 @@ assignmentSelectorComponent r initialSelection parentLens =
             & #selectedAssignment .~ selected'
             & #newAssignment .~ new'
 
+    connectedUser = (syncDocumentEnv r).connectedUser
+
     view' m =
       M.div_
         [class_ "h-full"]
         [ Layout.vFlow
             (Layout.gapS <> Layout.hFull) $
-            [ SelectorList.selectorHeaderWithDropdown
-                (C.translate' C.LblAssignments)
-                m.isDropdownOpen
-                ToggleDropdown
-                [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
-                , SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblNewDraftAssignment) CreateNewDraftAssignment
-                , SelectorList.dropdownItem Icon.IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
-                ]
+            [ if isTeacher connectedUser
+                then
+                  SelectorList.selectorHeaderWithDropdown
+                    (C.translate' C.LblAssignments)
+                    m.isDropdownOpen
+                    ToggleDropdown
+                    [ SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblCreate) CreateNewAssignment
+                    , SelectorList.dropdownItem Icon.IcnAdd (C.translate' C.LblNewDraftAssignment) CreateNewDraftAssignment
+                    , SelectorList.dropdownItem Icon.IcnImport (C.translate' C.LblImportAssignments) OpenImportModal
+                    ]
+                else
+                  SelectorList.selectorHeader (C.translate' C.LblAssignments) Nothing
             , SelectorList.selectorSearchField (ms m.searchQuery) (C.translate' C.LblFilterAssignments) (SetSearchQuery . M.fromMisoString)
             ]
             <> [ inlineComponent
