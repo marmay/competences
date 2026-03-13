@@ -23,6 +23,10 @@ esbuild frontend/static-src/index.js --bundle --format=esm --outfile=static/inde
 echo "Copying MathJax bundle..."
 cp node_modules/mathjax/tex-svg.js static/mathjax-tex-svg.js
 
+echo "Copying MathJax SRE speech worker (for future a11y use)..."
+mkdir -p static/sre
+cp node_modules/mathjax/sre/speech-worker.js static/sre/speech-worker.js
+
 echo "Copying MathJax font data..."
 rm -rf static/mathjax-newcm-font
 cp -r node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font

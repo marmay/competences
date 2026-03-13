@@ -302,7 +302,7 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
         \startup: { typeset: false },\
         \tex: { packages: ['base', 'ams'] },\
         \svg: { fontCache: 'local' },\
-        \options: { enableMenu: false, enableSpeech: false, enableBraille: false, enableExplorer: false }\
+        \options: { enableMenu: false, enableEnrichment: false, enableSpeech: false, enableBraille: false, enableExplorer: false, enableComplexity: false, menuOptions: { settings: { enrich: false, speech: false, braille: false, collapsible: false } } }\
       \};" :: Text)
     -- Load MathJax 4 for LaTeX rendering (async to not block page load)
     let mathjaxUrl = "/static/mathjax-tex-svg.js?v=" <> mathjaxHash
