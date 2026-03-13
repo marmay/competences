@@ -63,11 +63,14 @@ import Miso.String (MisoString, fromMisoString, ms)
 import Numeric (showHex)
 
 #ifdef WASM
+-- Uses JSVal (not MisoString) for the string argument because
+-- 'safe' FFI imports go through C stubs, and HsJSString is not
+-- available in the WASM RTS.
 foreign import javascript safe
   "await MathJax.tex2svgPromise($1, {display: $2})"
-  js_tex2svgPromise :: MisoString -> Bool -> IO JSVal
+  js_tex2svgPromise :: JSVal -> Bool -> IO JSVal
 #else
-js_tex2svgPromise :: MisoString -> Bool -> IO JSVal
+js_tex2svgPromise :: JSVal -> Bool -> IO JSVal
 js_tex2svgPromise _ _ = error "SvgEmbed.Manager: tex2svgPromise not available outside WASM"
 #endif
 
@@ -200,7 +203,8 @@ renderFormula display latex mColor = do
       result <- try @SomeException $ do
         -- Render with MathJax (returns a detached container element).
         -- Uses tex2svgPromise via FFI to properly await dynamic font loading.
-        mjResult <- js_tex2svgPromise (ms (prepareFormula display latex)) (display == Block)
+        latexVal <- toJSVal (ms (prepareFormula display latex) :: MisoString)
+        mjResult <- js_tex2svgPromise latexVal (display == Block)
         resultIsNull <- isNull mjResult
         if resultIsNull
           then pure $ FormulaError sid "MathJax returned null"
