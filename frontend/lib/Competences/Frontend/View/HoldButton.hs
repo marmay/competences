@@ -127,19 +127,9 @@ holdButton wrap hs eid variant size contents =
   let isHolding = isHoldingId hs eid
    in MH.div_
         [class_ "relative inline-flex"]
-        [ -- Full-screen overlay to capture mouseup anywhere during hold.
-          -- Always rendered to keep stable DOM child indices (avoids Miso
-          -- virtual-DOM diffing issues that break CSS transitions).
-          MH.div_
-            [ class_ $ "fixed inset-0 z-[10000]" <> if isHolding then "" else " hidden"
-            , MH.onMouseUp (wrap ReleaseHold)
-            , MH.onMouseEnter (wrap ReleaseHold)
-            , MH.onTouchEnd (wrap ReleaseHold)
-            , MH.onTouchCancel (wrap ReleaseHold)
-            ]
-            []
-        , -- Notification banner hint (shown after short click, hidden during hold).
-          -- Uses fixed positioning to escape any overflow containers (tables, modals).
+        [ -- Notification banner hint (shown after short click, hidden during hold).
+          -- Rendered outside the isolate wrapper so its fixed positioning and z-200
+          -- participate in the root stacking context (above modals).
           if hs.showHint && not isHolding
             then
               notificationBanner (statusPalette Pending)
@@ -147,30 +137,46 @@ holdButton wrap hs eid variant size contents =
                 , MH.span_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblHoldToDelete]
                 ]
             else M.text ""
-        , -- Button with progress animation
+        , -- Isolated stacking context: contains overlay and button z-indices so they
+          -- don't escape to compete with modals or other page elements.
           MH.div_
-            [ class_ "relative z-[10001] inline-flex overflow-hidden rounded-md"
-            , MH.onMouseDown (wrap (StartHold eid))
-            , MH.onMouseUp (wrap ReleaseHold)
-            , MH.onMouseLeave (wrap ReleaseHold)
-            , MH.onTouchStart (wrap (StartHold eid))
-            , MH.onTouchEnd (wrap ReleaseHold)
-            , MH.onTouchCancel (wrap ReleaseHold)
-            ]
-            [ -- Button
-              MH.button_
-                [class_ $ btnClass variant size contents]
-                [renderBtnContents size contents]
-            , -- Progress fill overlay
+            [class_ "relative inline-flex isolate"]
+            [ -- Full-screen overlay to capture mouseup anywhere during hold.
+              -- Always rendered to keep stable DOM child indices (avoids Miso
+              -- virtual-DOM diffing issues that break CSS transitions).
               MH.div_
-                [ class_ $ "absolute inset-0 bg-white/30 rounded-md pointer-events-none"
-                    <> if isHolding then " w-full" else " w-0"
-                , MC.style_ $
-                    [("transition-property", "width")]
-                      <> [("transition-duration", "2s") | isHolding]
-                      <> [("transition-timing-function", "linear") | isHolding]
+                [ class_ $ "fixed inset-0" <> if isHolding then "" else " hidden"
+                , MH.onMouseUp (wrap ReleaseHold)
+                , MH.onMouseEnter (wrap ReleaseHold)
+                , MH.onTouchEnd (wrap ReleaseHold)
+                , MH.onTouchCancel (wrap ReleaseHold)
                 ]
                 []
+            , -- Button with progress animation
+              MH.div_
+                [ class_ "relative inline-flex overflow-hidden rounded-md"
+                , MH.onMouseDown (wrap (StartHold eid))
+                , MH.onMouseUp (wrap ReleaseHold)
+                , MH.onMouseLeave (wrap ReleaseHold)
+                , MH.onTouchStart (wrap (StartHold eid))
+                , MH.onTouchEnd (wrap ReleaseHold)
+                , MH.onTouchCancel (wrap ReleaseHold)
+                ]
+                [ -- Button
+                  MH.button_
+                    [class_ $ btnClass variant size contents]
+                    [renderBtnContents size contents]
+                , -- Progress fill overlay
+                  MH.div_
+                    [ class_ $ "absolute inset-0 bg-white/30 rounded-md pointer-events-none"
+                        <> if isHolding then " w-full" else " w-0"
+                    , MC.style_ $
+                        [("transition-property", "width")]
+                          <> [("transition-duration", "2s") | isHolding]
+                          <> [("transition-timing-function", "linear") | isHolding]
+                    ]
+                    []
+                ]
             ]
         ]
 
