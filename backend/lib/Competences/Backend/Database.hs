@@ -529,16 +529,19 @@ shouldTakeSnapshot pool currentGeneration = withResource pool $ \conn -> do
 -- Candidates in between are pruned if they can be reproduced by replaying commands from
 -- the previous kept snapshot. Non-reproducible snapshots are permanently protected.
 --
+-- Only loads document_data on-demand for actual pruning candidates, keeping memory usage
+-- bounded to at most 2 Documents at a time (anchor + candidate).
+--
 -- Returns the number of deleted snapshots.
 pruneSnapshots :: Pool Connection -> IO Int
 pruneSnapshots pool = withResource pool $ \conn -> do
-  -- Load all snapshots ordered by generation
+  -- Load only metadata — no document_data
   rows <-
     query_ conn [sql|
-      SELECT id, generation, document_data, created_at, protected
+      SELECT id, generation, created_at, protected
       FROM snapshots
       ORDER BY generation ASC
-    |] :: IO [(Int64, Int64, Value, UTCTime, Bool)]
+    |] :: IO [(Int64, Int64, UTCTime, Bool)]
   case rows of
     [] -> pure 0
     [_] -> pure 0
@@ -546,99 +549,96 @@ pruneSnapshots pool = withResource pool $ \conn -> do
     (oldest : middle@(_ : _)) -> do
       now <- getCurrentTime
       let candidates = init middle -- everything except newest (always kept)
-      -- Start walking from the oldest snapshot
-      let (_, oldestGen, oldestData, _, _) = oldest
-      case loadSnapshotDocument oldestData of
-        Left err -> do
-          putStrLn $ "Snapshot GC: failed to load oldest snapshot: " <> err
-          pure 0
-        Right oldestDoc -> do
-          deleted <- walkCandidates conn now oldestDoc oldestGen candidates
-          let remaining = length rows - deleted
-          when (deleted > 0) $
-            putStrLn $
-              "Snapshot GC: pruned " <> show deleted <> " snapshot(s), "
-                <> show remaining <> " remaining"
-          pure deleted
+      let (_, oldestGen, _, _) = oldest
+      deleted <- walkCandidates conn now Nothing oldestGen candidates
+      let remaining = length rows - deleted
+      when (deleted > 0) $
+        putStrLn $
+          "Snapshot GC: pruned " <> show deleted <> " snapshot(s), "
+            <> show remaining <> " remaining"
+      pure deleted
 
 -- | Walk candidate snapshots, verifying and pruning where possible.
--- Carries forward the last kept document and generation.
-walkCandidates :: Connection -> UTCTime -> Document -> Int64 -> [(Int64, Int64, Value, UTCTime, Bool)] -> IO Int
+-- Carries forward the last kept generation and lazily loads the anchor document
+-- only when needed for replay verification.
+--
+-- The @Maybe Document@ parameter is the cached anchor document. It is @Nothing@
+-- when the anchor has not been loaded yet (deferred until a prune candidate is found).
+walkCandidates :: Connection -> UTCTime -> Maybe Document -> Int64 -> [(Int64, Int64, UTCTime, Bool)] -> IO Int
 walkCandidates _conn _now _lastDoc _lastGen [] = pure 0
-walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, candidateData, createdAt, isProtected) : rest) = do
+walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, createdAt, isProtected) : rest) = do
   let age = now `diffUTCTime` createdAt
       commandGap = candidateGen - lastGen
   if isProtected
     then do
-      -- Protected: must keep, update carried state
-      case loadSnapshotDocument candidateData of
-        Left err -> do
-          putStrLn $ "Snapshot GC: failed to load protected snapshot at gen " <> show candidateGen <> ": " <> err
-          -- Can't continue walking since we lost the document chain
-          pure 0
-        Right candidateDoc ->
-          walkCandidates conn now candidateDoc candidateGen rest
+      -- Protected: must keep, update carried state (discard cached doc)
+      walkCandidates conn now Nothing candidateGen rest
     else if age < twoDays
       then do
-        -- Too young: always keep
-        case loadSnapshotDocument candidateData of
-          Left err -> do
-            putStrLn $ "Snapshot GC: failed to load young snapshot at gen " <> show candidateGen <> ": " <> err
-            pure 0
-          Right candidateDoc ->
-            walkCandidates conn now candidateDoc candidateGen rest
+        -- Too young: always keep (discard cached doc)
+        walkCandidates conn now Nothing candidateGen rest
       else if not (isPruneCandidate age commandGap)
         then do
-          -- Gap too large: keep to limit replay distance
-          case loadSnapshotDocument candidateData of
-            Left err -> do
-              putStrLn $ "Snapshot GC: failed to load snapshot at gen " <> show candidateGen <> ": " <> err
-              pure 0
-            Right candidateDoc ->
-              walkCandidates conn now candidateDoc candidateGen rest
+          -- Gap too large: keep to limit replay distance (discard cached doc)
+          walkCandidates conn now Nothing candidateGen rest
         else do
-          -- Candidate for pruning: verify reproducibility
-          cmds <-
-            query
-              conn
-              [sql|
-              SELECT user_id, command_data
-              FROM commands
-              WHERE generation > ? AND generation <= ?
-              ORDER BY generation ASC
-            |]
-              (lastGen, candidateGen) :: IO [(UUID, Value)]
-          let parsedCmds =
-                [ (Id uid, cmd)
-                | (uid, envelopeValue) <- cmds
-                , Success envelope <- [fromJSON envelopeValue]
-                , Right cmd <- [unwrapCommand envelope]
-                ]
-          case loadSnapshotDocument candidateData of
+          -- Candidate for pruning: need anchor document for replay
+          anchorResult <- case lastDoc of
+            Just doc -> pure (Right doc)
+            Nothing -> loadSnapshotDocumentById conn lastGen
+          case anchorResult of
             Left err -> do
-              putStrLn $ "Snapshot GC: failed to load candidate snapshot at gen " <> show candidateGen <> ": " <> err
-              pure 0
-            Right candidateDoc ->
-              case replayCommandsForGC lastDoc parsedCmds of
+              putStrLn $ "Snapshot GC: failed to load anchor snapshot at gen " <> show lastGen <> ": " <> err
+              -- Can't verify — skip this candidate and continue with it as anchor
+              walkCandidates conn now Nothing candidateGen rest
+            Right anchorDoc -> do
+              -- Load commands between anchor and candidate
+              cmds <-
+                query
+                  conn
+                  [sql|
+                  SELECT user_id, command_data
+                  FROM commands
+                  WHERE generation > ? AND generation <= ?
+                  ORDER BY generation ASC
+                |]
+                  (lastGen, candidateGen) :: IO [(UUID, Value)]
+              let parsedCmds =
+                    [ (Id uid, cmd)
+                    | (uid, envelopeValue) <- cmds
+                    , Success envelope <- [fromJSON envelopeValue]
+                    , Right cmd <- [unwrapCommand envelope]
+                    ]
+              -- Load the candidate's document for comparison
+              candidateResult <- loadSnapshotDocumentById conn candidateGen
+              case candidateResult of
                 Left err -> do
-                  putStrLn $
-                    "Snapshot GC WARNING: replay failed for gen " <> show candidateGen
-                      <> ": " <> T.unpack err <> " — marking as protected"
-                  _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
-                  walkCandidates conn now candidateDoc candidateGen rest
-                Right replayedDoc
-                  | replayedDoc == candidateDoc -> do
-                      -- Reproducible: safe to delete
-                      _ <- execute conn [sql|DELETE FROM snapshots WHERE id = ?|] (Only snapId)
-                      -- Don't update lastDoc/lastGen — we deleted this snapshot
-                      deletedRest <- walkCandidates conn now lastDoc lastGen rest
-                      pure (1 + deletedRest)
-                  | otherwise -> do
+                  putStrLn $ "Snapshot GC: failed to load candidate snapshot at gen " <> show candidateGen <> ": " <> err
+                  -- Can't verify — skip and continue
+                  walkCandidates conn now Nothing candidateGen rest
+                Right candidateDoc ->
+                  case replayCommandsForGC anchorDoc parsedCmds of
+                    Left err -> do
                       putStrLn $
-                        "Snapshot GC WARNING: document mismatch at gen " <> show candidateGen
-                          <> " — marking as protected"
+                        "Snapshot GC WARNING: replay failed for gen " <> show candidateGen
+                          <> ": " <> T.unpack err <> " — marking as protected"
                       _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
-                      walkCandidates conn now candidateDoc candidateGen rest
+                      -- Keep candidate doc as new anchor
+                      walkCandidates conn now (Just candidateDoc) candidateGen rest
+                    Right replayedDoc
+                      | replayedDoc == candidateDoc -> do
+                          -- Reproducible: safe to delete
+                          _ <- execute conn [sql|DELETE FROM snapshots WHERE id = ?|] (Only snapId)
+                          -- Don't update lastGen — reuse anchor doc for next candidate
+                          deletedRest <- walkCandidates conn now (Just anchorDoc) lastGen rest
+                          pure (1 + deletedRest)
+                      | otherwise -> do
+                          putStrLn $
+                            "Snapshot GC WARNING: document mismatch at gen " <> show candidateGen
+                              <> " — marking as protected"
+                          _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
+                          -- Keep candidate doc as new anchor
+                          walkCandidates conn now (Just candidateDoc) candidateGen rest
 
 -- | Age-based threshold: is the snapshot a candidate for pruning given its age and
 -- the command gap from the previous kept snapshot?
@@ -662,6 +662,19 @@ loadSnapshotDocument val =
       case unwrapSnapshot envelope of
         Left err -> Left $ "Failed to unwrap snapshot: " <> T.unpack err
         Right (doc, _cmds) -> Right doc
+
+-- | Load a single snapshot's document by generation, using a point query.
+-- Only fetches the document_data column for the given generation.
+loadSnapshotDocumentById :: Connection -> Int64 -> IO (Either String Document)
+loadSnapshotDocumentById conn gen = do
+  rows <-
+    query conn [sql|
+      SELECT document_data FROM snapshots WHERE generation = ?
+    |] (Only gen) :: IO [Only Value]
+  case rows of
+    [Only val] -> pure $ loadSnapshotDocument val
+    [] -> pure $ Left $ "No snapshot found at generation " <> show gen
+    _ -> pure $ Left $ "Multiple snapshots at generation " <> show gen
 
 -- | Replay a sequence of commands for GC verification.
 -- Returns the resulting document, or Left on first failure.
