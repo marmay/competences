@@ -396,7 +396,11 @@ viewerComponent r grid wm =
     model = ViewerModel emptyProjection Nothing defaultCellMode Map.empty
 
     update (ViewerProjectionChanged change) =
-      M.modify $ #projection .~ change.projection
+      M.modify $ \m' ->
+        let m'' = (#projection .~ change.projection) m'
+         in if not m''.projection.gridHasExamples
+              then (#cellMode .~ ShowDescriptions) m''
+              else m''
 
     update (OpenResourceModal clId) = do
       m <- M.get
