@@ -212,6 +212,9 @@ editorWrapperComponent r assignment =
                                (.tasks)
                                (entityPatchTransformedLens #tasks #tasks (.id) id)
                            )
+        `TE.addNamedField` ( C.translate' C.LblGroupSubmissionAllowed
+                           , TE.boolEditorField #groupSubmissionAllowed #groupSubmissionAllowed
+                           )
 
 -- | Iso for converting between AssignmentName and Text
 assignmentNameTextIso :: Iso' AssignmentName T.Text

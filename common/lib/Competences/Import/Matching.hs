@@ -382,6 +382,7 @@ makeNewAssignment parsed =
     , activityType = parsed.activityType
     , studentIds = Set.empty -- Will be set during import
     , tasks = [] -- Will be filled with task IDs after tasks are created
+    , groupSubmissionAllowed = False
     }
 
 -- | Update existing assignment with parsed data
@@ -395,6 +396,7 @@ updateAssignment existing parsed =
     , activityType = parsed.activityType
     , studentIds = existing.studentIds -- Preserve students
     , tasks = existing.tasks -- Will be updated with new task IDs after matching
+    , groupSubmissionAllowed = existing.groupSubmissionAllowed
     }
 
 -- | Check if two assignments are equal (for detecting changes)

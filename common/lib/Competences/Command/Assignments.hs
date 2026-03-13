@@ -42,6 +42,7 @@ data AssignmentPatch = AssignmentPatch
   , activityType :: !(Change ActivityType)
   , studentIds :: !(Change (Set UserId))
   , tasks :: !(Change [TaskId])
+  , groupSubmissionAllowed :: !(Change Bool)
   }
   deriving (Eq, Generic, Show)
 
@@ -72,6 +73,7 @@ instance Default AssignmentPatch where
       , activityType = Nothing
       , studentIds = Nothing
       , tasks = Nothing
+      , groupSubmissionAllowed = Nothing
       }
 
 -- | Apply a patch to an Assignment, checking for conflicts
@@ -84,6 +86,7 @@ applyAssignmentPatch assignment patch =
       >=> patchField' @"activityType" patch
       >=> patchField' @"studentIds" patch
       >=> patchField' @"tasks" patch
+      >=> patchField' @"groupSubmissionAllowed" patch
 
 -- | Validate that no lessons or evidences reference this assignment
 validateAssignmentNotReferenced :: Document -> AssignmentId -> Either Text ()

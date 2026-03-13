@@ -158,6 +158,7 @@ data Label
   | LblAssignmentDescription
   | LblAssignmentDate
   | LblAssignmentTasks
+  | LblGroupSubmissionAllowed
   | LblTaskCompletionAsOf
   | LblNoStudentsSelected
   | LblNoStudentSelected
@@ -419,6 +420,7 @@ data Label
     -- Submission preview
   | LblNoSubmissionSelected
   | LblMoreFiles !Int
+  | LblHoldToDelete
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -537,6 +539,7 @@ labels' =
   , LblAssignmentDescription
   , LblAssignmentDate
   , LblAssignmentTasks
+  , LblGroupSubmissionAllowed
   , LblTaskCompletionAsOf
   , LblNoStudentsSelected
   , LblNoStudentSelected
@@ -803,6 +806,7 @@ labels' =
     -- Submission preview
   , LblNoSubmissionSelected
   , LblMoreFiles 0
+  , LblHoldToDelete
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -937,6 +941,7 @@ defaultTranslation LblAssignmentName = "Name"
 defaultTranslation LblAssignmentDescription = "Beschreibung"
 defaultTranslation LblAssignmentDate = "Datum"
 defaultTranslation LblAssignmentTasks = "Aufgaben"
+defaultTranslation LblGroupSubmissionAllowed = "Gruppenabgabe erlaubt"
 defaultTranslation LblTaskCompletionAsOf = "Stand:"
 defaultTranslation LblNoStudentsSelected = "Keine Schüler ausgewählt"
 defaultTranslation LblNoStudentSelected = "Kein Schüler ausgewählt"
@@ -1215,6 +1220,7 @@ defaultTranslation LblSize = "Größe"
 -- Submission preview
 defaultTranslation LblNoSubmissionSelected = "Keine Abgabe ausgewählt"
 defaultTranslation (LblMoreFiles n) = ms (show n) <> " weitere Dateien"
+defaultTranslation LblHoldToDelete = "Gedrückt halten zum Löschen"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

@@ -48,6 +48,7 @@ data Assignment = Assignment
   , activityType :: !ActivityType
   , studentIds :: !(Set UserId)
   , tasks :: ![TaskId]
+  , groupSubmissionAllowed :: !Bool
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -64,6 +65,7 @@ instance FromJSON Assignment where
       <*> v .: "activityType"
       <*> v .: "studentIds"
       <*> v .: "tasks"
+      <*> v .:? "groupSubmissionAllowed" .!= False
 
 instance ToJSON Assignment
 #endif
@@ -96,4 +98,5 @@ mkAssignment aid aname date =
     , activityType = SchoolExercise
     , studentIds = mempty
     , tasks = []
+    , groupSubmissionAllowed = False
     }

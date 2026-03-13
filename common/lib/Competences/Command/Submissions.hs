@@ -72,6 +72,12 @@ validateKind (VoidSubmission reason) =
 -- | Validate that all owners are students assigned to this assignment.
 validateOwnership :: SubmissionOwnership -> UserId -> Assignment -> Document -> Either Text ()
 validateOwnership own actingUserId assignment d = do
+  -- Reject collaborative submissions when not allowed
+  case own of
+    CollaborativeSubmission _ ->
+      unless assignment.groupSubmissionAllowed $
+        Left "Submission: collaborative submissions not allowed for this assignment"
+    _ -> pure ()
   let owners = ownerIds own
   -- Acting user must be in ownership list
   unless (actingUserId `elem` owners) $

@@ -141,6 +141,7 @@ data SubCol = SubColKind | SubColDate | SubColDetails | SubColRemark | SubColAct
 -- | Projection: existing submissions for this assignment + user
 data SubmissionProjection = SubmissionProjection
   { submissions :: ![Submission]
+  , groupSubmissionAllowed :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -184,7 +185,7 @@ submissionModalComponent r assignmentId userId _wm =
     }
   where
     model = SubmissionModel
-      { projection = SubmissionProjection []
+      { projection = SubmissionProjection [] False
       , activeTab = TabDigital
       , files = []
       , locationText = ""
@@ -196,9 +197,11 @@ submissionModalComponent r assignmentId userId _wm =
 
     submissionProjection :: AssignmentId -> UserId -> Document -> Maybe User -> SubmissionProjection
     submissionProjection aid uid doc _mUser =
-      SubmissionProjection
-        { submissions = sortOn (Down . (.submittedAt)) $ Ix.toList $ doc.submissions Ix.@= aid Ix.@= uid
-        }
+      let mAssignment = Ix.getOne (doc.assignments Ix.@= aid)
+       in SubmissionProjection
+            { submissions = sortOn (Down . (.submittedAt)) $ Ix.toList $ doc.submissions Ix.@= aid Ix.@= uid
+            , groupSubmissionAllowed = maybe False (.groupSubmissionAllowed) mAssignment
+            }
 
     update (ProjectionChanged change) =
       M.modify $ \m -> m & #projection .~ change.projection
@@ -285,10 +288,12 @@ submissionModalComponent r assignmentId userId _wm =
               TabNonDigital -> Tabs.TabSpec (C.translate' C.LblDoneInNotebook) False
               TabVoid -> Tabs.TabSpec (C.translate' C.LblNichtGemacht) (hasNonVoidSubmission m)
           , tabContent = \case
-              TabDigital -> [viewDigitalForm m, viewCollaboratorSelector, viewRemarkAndSubmit m]
-              TabNonDigital -> [viewNonDigitalForm m, viewCollaboratorSelector, viewRemarkAndSubmit m]
+              TabDigital -> collabSection <> [viewDigitalForm m, viewRemarkAndSubmit m]
+              TabNonDigital -> collabSection <> [viewNonDigitalForm m, viewRemarkAndSubmit m]
               TabVoid -> [viewVoidForm m, viewRemarkAndSubmit m]
           }
+      where
+        collabSection = [viewCollaboratorSelector | m.projection.groupSubmissionAllowed]
 
     collaboratorConfig :: SS.SearchSelectConfig User UserId
     collaboratorConfig =
@@ -388,7 +393,7 @@ submissionModalComponent r assignmentId userId _wm =
         ]
     subCell holding s SubColActions =
       MH.div_ [class_ "px-3 py-2"]
-        [HoldButton.holdButton OnHoldDelete (HoldButton.isHoldingId holding s.id) s.id]
+        [HoldButton.holdButton OnHoldDelete holding s.id]
 
     kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
     kindBadge (NonDigitalSubmission _) = Badge.secondary (Badge.badgeText (C.translate' C.LblGemacht))

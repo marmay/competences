@@ -242,6 +242,7 @@ applyAssignmentPreview r doc preview = do
               , activityType = a.activityType
               , studentIds = Set.empty
               , tasks = taskIds
+              , groupSubmissionAllowed = False
               }
       modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
     Update old new -> do
@@ -321,6 +322,7 @@ buildAssignmentPatch old new taskIds =
     , activityType = if old.activityType == new.activityType then Nothing else Just (old.activityType, new.activityType)
     , studentIds = Nothing
     , tasks = if old.tasks == taskIds then Nothing else Just (old.tasks, taskIds)
+    , groupSubmissionAllowed = Nothing
     }
 
 buildTaskPatch :: Task -> Task -> [CompetenceLevelId] -> TaskPatch
