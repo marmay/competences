@@ -269,7 +269,7 @@ detailComponent r initialPlan =
                     ]
                 , Layout.hFlow Layout.gapT
                     [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
-                    , HoldButton.holdButton HoldDeleteMeso m.holdDeleteMeso m.mesoPlan.id
+                    , HoldButton.holdDeleteButtonSm HoldDeleteMeso m.holdDeleteMeso m.mesoPlan.id
                     ]
                 ]
             ]

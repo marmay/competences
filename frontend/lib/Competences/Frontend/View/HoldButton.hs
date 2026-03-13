@@ -11,21 +11,28 @@
 -- 1. Add @HoldAction id@ to your action type (wrapped in a constructor)
 -- 2. Add @HoldState id@ to your model (initialise with 'emptyHoldState')
 -- 3. Delegate in update: @HoldButton.handleHoldAction #holdField doDelete WrapCtor ha@
--- 4. Render: @HoldButton.holdButton WrapCtor holdState thisId@
+-- 4. Render: @HoldButton.holdDeleteButtonSm WrapCtor holdState thisId@
 module Competences.Frontend.View.HoldButton
   ( HoldAction (..)
   , HoldState (..)
   , emptyHoldState
   , handleHoldAction
   , holdButton
+  , holdDeleteButton
+  , holdDeleteButtonSm
   , isHoldingId
   )
 where
 
 import Competences.Frontend.Common.Translate qualified as C
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Control.Concurrent (threadDelay)
+import Data.Maybe (maybeToList)
+import Data.Text (Text)
+import Data.Text qualified as T
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html qualified as MH
@@ -97,7 +104,7 @@ handleHoldAction holdLens onExecute _wrap (ExecuteHold eid gen) = do
 handleHoldAction holdLens _onExecute _wrap HideHint =
   M.modify $ \m -> m & holdLens .~ (m ^. holdLens){showHint = False}
 
--- | Render a hold-to-delete button (trash icon with 2s fill animation).
+-- | Render a hold-to-activate button with configurable appearance.
 --
 -- During the hold, a full-screen transparent overlay captures mouseup
 -- anywhere on the page, so dragging outside the button and releasing
@@ -110,8 +117,11 @@ holdButton
   => (HoldAction id -> action)
   -> HoldState id
   -> id
+  -> Button.ButtonVariant
+  -> Button.ButtonSize
+  -> Button.ButtonContents
   -> M.View m action
-holdButton wrap hs eid =
+holdButton wrap hs eid variant size contents =
   let isHolding = isHoldingId hs eid
    in MH.div_
         [class_ "relative inline-flex"]
@@ -147,8 +157,8 @@ holdButton wrap hs eid =
             ]
             [ -- Button
               MH.button_
-                [class_ "btn-sm-icon-destructive"]
-                [Icon.iconS Icon.Small Icon.IcnDelete]
+                [class_ $ btnClass variant size contents]
+                [renderBtnContents size contents]
             , -- Progress fill overlay
               MH.div_
                 [ class_ $ "absolute inset-0 bg-white/30 rounded-md pointer-events-none"
@@ -161,3 +171,62 @@ holdButton wrap hs eid =
                 []
             ]
         ]
+
+-- | Small icon-only destructive hold button (for compact contexts: tables, flow views).
+holdDeleteButtonSm
+  :: (Eq id)
+  => (HoldAction id -> action)
+  -> HoldState id
+  -> id
+  -> M.View m action
+holdDeleteButtonSm wrap hs eid =
+  holdButton wrap hs eid Button.Destructive Button.Small (Button.IconOnly Icon.IcnDelete)
+
+-- | Regular destructive hold button with icon + "Delete" text (for form views).
+holdDeleteButton
+  :: (Eq id)
+  => (HoldAction id -> action)
+  -> HoldState id
+  -> id
+  -> M.View m action
+holdDeleteButton wrap hs eid =
+  holdButton wrap hs eid Button.Destructive Button.Regular
+    (Button.IconText Icon.IcnDelete (C.translate' C.LblDelete))
+
+-- | Build the Basecoat CSS class: @btn[-size][-icon][-variant]@
+btnClass :: Button.ButtonVariant -> Button.ButtonSize -> Button.ButtonContents -> Text
+btnClass v s c =
+  T.intercalate "-" $
+    ["btn"]
+      <> maybeToList (sizeClass s)
+      <> maybeToList (iconClass c)
+      <> maybeToList (variantClass v)
+  where
+    variantClass Button.Primary = Nothing
+    variantClass Button.Secondary = Just "secondary"
+    variantClass Button.Destructive = Just "destructive"
+    variantClass Button.Ghost = Just "ghost"
+    variantClass Button.Link = Just "link"
+    variantClass Button.Outline = Just "outline"
+
+    sizeClass Button.Small = Just "sm"
+    sizeClass Button.Regular = Nothing
+    sizeClass Button.Large = Just "lg"
+
+    iconClass (Button.IconOnly _) = Just "icon"
+    iconClass (Button.SizedIcon _ _) = Just "icon"
+    iconClass _ = Nothing
+
+renderBtnContents :: Button.ButtonSize -> Button.ButtonContents -> M.View m a
+renderBtnContents _s (Button.TextOnly t) = M.text t
+renderBtnContents s (Button.IconOnly i) = Icon.iconS (toIconSize s) i
+renderBtnContents _s (Button.SizedIcon sz i) = Icon.iconS sz i
+renderBtnContents s (Button.IconText i t) =
+  Layout.hFlow
+    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
+    [Icon.iconS (toIconSize s) i, MH.span_ [] [M.text t]]
+
+toIconSize :: Button.ButtonSize -> Icon.Size
+toIconSize Button.Small = Icon.Small
+toIconSize Button.Regular = Icon.Regular
+toIconSize Button.Large = Icon.Large

@@ -90,7 +90,7 @@ buttons s item =
     editButtons _ = []
     moveButtons NotMoving = [moveButton s a]
     moveButtons _ = []
-    deleteButtons Deletable = [deleteButton item]
+    deleteButtons Deletable = [deleteButton s item]
     deleteButtons _ = []
 
 -- | Render a row of buttons using appropriate layout
@@ -114,8 +114,9 @@ finishEditButton s a = Button.primary (Button.button (s, Icon.IcnApply, C.LblApp
 cancelEditButton s a = Button.destructive (Button.button (s, Icon.IcnCancel, C.LblCancel) (CancelEditing a :: Action a patch))
 moveButton s a = Button.secondary (Button.button (s, Icon.IcnReorder, C.LblMove) (StartMoving a :: Action a patch))
 
-deleteButton :: forall a patch f n. (Eq a) => EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
-deleteButton viewItem = HoldButton.holdButton HoldDelete viewItem.holdDeleteState viewItem.item
+deleteButton :: forall a patch f n. (Eq a) => Button.ButtonContentsStyle -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
+deleteButton Button.IconTextS viewItem = HoldButton.holdDeleteButton HoldDelete viewItem.holdDeleteState viewItem.item
+deleteButton _ viewItem = HoldButton.holdDeleteButtonSm HoldDelete viewItem.holdDeleteState viewItem.item
 cancelMoveButton s _ = Button.destructive (Button.button (s, Icon.IcnCancel, C.LblCancel) (CancelMoving :: Action a patch))
 moveBeforeButton s a = Button.secondary (Button.button (s, Icon.IcnArrowUp, C.LblInsertBefore) (FinishMoving (Before' a) :: Action a patch))
 moveAfterButton s a = Button.secondary (Button.button (s, Icon.IcnArrowDown, C.LblInsertAfter) (FinishMoving (After' a) :: Action a patch))

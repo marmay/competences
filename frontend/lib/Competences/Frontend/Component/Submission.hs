@@ -399,7 +399,7 @@ submissionModalComponent r assignmentId userId _wm =
     subCell holding s SubColActions =
       Layout.hFlow (Layout.gapS <> Layout.crossCenter)
         [ Button.ghostSm (Button.button Icon.IcnView (PeekSubmission s.id))
-        , HoldButton.holdButton OnHoldDelete holding s.id
+        , HoldButton.holdDeleteButtonSm OnHoldDelete holding s.id
         ]
 
     kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
