@@ -279,13 +279,12 @@ applyMigrationCmds userId doc (cmd : rest) =
     Left err -> die $ "Failed to apply migration command: " <> T.unpack err
     Right (doc', _) -> applyMigrationCmds userId doc' rest
 
--- | Periodic snapshot timer (every 15 minutes)
+-- | Periodic snapshot timer (runs on startup, then every 12 hours)
 -- Checks if snapshot should be taken based on time and command count
 snapshotTimer :: AppState -> MVar () -> IO ()
 snapshotTimer state _shutdown = go
   where
     go = do
-      threadDelay (15 * 60 * 1000000) -- 15 minutes
       -- Get current generation
       maxGen <- DB.getMaxGeneration state.dbPool
       -- Check if snapshot should be taken
@@ -296,6 +295,7 @@ snapshotTimer state _shutdown = go
         DB.saveSnapshot state.dbPool doc maxGen
       -- Run snapshot garbage collection
       _ <- DB.pruneSnapshots state.dbPool
+      threadDelay (12 * 60 * 60 * 1000000) -- 12 hours
       go
 
 -- | Extract database name from PostgreSQL connection string.
