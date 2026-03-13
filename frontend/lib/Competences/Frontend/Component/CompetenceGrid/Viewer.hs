@@ -823,7 +823,14 @@ printView grid pd proj =
             else
               let ms' = Map.findWithDefault NotTried clId spd.mastery
                   tasks = Map.findWithDefault [] clId spd.uncompletedTasks
-                  masteryLine = printMasteryIndicator ms'
+                  locked = levelInfo.locked
+                  masteryLine =
+                    if locked
+                      then
+                        MH.span_
+                          []
+                          [M.text "🔒 ", printMasteryIndicator ms']
+                      else printMasteryIndicator ms'
                   taskLines =
                     if null tasks
                       then []
@@ -832,8 +839,12 @@ printView grid pd proj =
                             [class_ "mt-0.5 text-stone-600"]
                             [ M.text $ M.ms $ T.intercalate ", " [ident | TaskIdentifier ident <- tasks] ]
                         ]
+                  tdClass =
+                    if locked
+                      then "border border-stone-300 px-2 py-1 align-top bg-stone-50"
+                      else "border border-stone-300 px-2 py-1 align-top"
                in MH.td_
-                    [class_ "border border-stone-300 px-2 py-1 align-top"]
+                    [class_ tdClass]
                     (masteryLine : taskLines)
 
 -- | Render mastery indicator for print: symbol + label (consistent with grid badges)
