@@ -21,7 +21,7 @@ import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
-import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes, taskDisplayName)
+import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskPurpose (..), TaskType (..), defaultTaskAttributes, taskDisplayName)
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
@@ -171,13 +171,22 @@ previewTaskView preview =
           M.div_
             [class_ "text-xs text-muted-foreground mt-1"]
             [M.text $ M.ms $ "Lösungen: " <> T.pack (show (length preview.solutionActions))]
-    , -- Competence matches
+    , -- Primary competence matches
       if null preview.competenceMatches
         then M.text ""
         else
           M.div_
             [class_ "mt-1 space-y-1"]
             (map competenceMatchView preview.competenceMatches)
+    , -- Secondary competence matches
+      if null preview.secondaryCompetenceMatches
+        then M.text ""
+        else
+          M.div_
+            [class_ "mt-1 space-y-1"]
+            ( M.span_ [class_ "text-xs text-muted-foreground"] [M.text "Sekundär:"]
+                : map competenceMatchView preview.secondaryCompetenceMatches
+            )
     ]
 
 taskTitle :: ImportAction Task -> Text
@@ -255,23 +264,25 @@ applyTaskAndGetId :: SyncContext -> Document -> TaskImportPreview -> IO (Id Task
 applyTaskAndGetId r doc preview = do
   let teachers = QUser.teachers doc
       mTeacherId = (.id) <$> listToMaybe teachers
-      matchedCompetences = mapMaybe (.matched) preview.competenceMatches
+      matchedPrimary = mapMaybe (.matched) preview.competenceMatches
+      matchedSecondary = mapMaybe (.matched) preview.secondaryCompetenceMatches
+      purpose = maybe defaultTaskAttributes.purpose id preview.parsedPurpose
 
   taskId <- case preview.taskAction of
     Create t -> do
       newId <- nextId r
       let taskAttrs =
             TaskAttributes
-              { primary = matchedCompetences
-              , secondary = []
-              , purpose = defaultTaskAttributes.purpose
+              { primary = matchedPrimary
+              , secondary = matchedSecondary
+              , purpose = purpose
               , displayInResources = defaultTaskAttributes.displayInResources
               }
           newTask =
             Task
               { id = newId
               , identifier = t.identifier
-              , title = ""
+              , title = t.title
               , content = t.content
               , taskType = SelfContained taskAttrs
               , attachments = []
@@ -280,7 +291,7 @@ applyTaskAndGetId r doc preview = do
       pure newId
     Update old new -> do
       modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id Lock)
-      let patch = buildTaskPatch old new matchedCompetences
+      let patch = buildTaskPatch old new matchedPrimary matchedSecondary preview.parsedPurpose
       modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
       pure old.id
     NoChange t -> pure t.id
@@ -325,16 +336,20 @@ buildAssignmentPatch old new taskIds =
     , groupSubmissionAllowed = Nothing
     }
 
-buildTaskPatch :: Task -> Task -> [CompetenceLevelId] -> TaskPatch
-buildTaskPatch old new matchedCompetences =
+buildTaskPatch :: Task -> Task -> [CompetenceLevelId] -> [CompetenceLevelId] -> Maybe TaskPurpose -> TaskPatch
+buildTaskPatch old new matchedPrimary matchedSecondary parsedPurpose =
   let oldPrimary = getTaskPrimary old
+      oldSecondary = getTaskSecondary old
+      oldPurpose = getTaskPurposeField old
    in TaskPatch
         { identifier = if old.identifier == new.identifier then Nothing else Just (old.identifier, new.identifier)
-        , title = Nothing
+        , title = if old.title == new.title then Nothing else Just (old.title, new.title)
         , content = if old.content == new.content then Nothing else Just (old.content, new.content)
-        , primary = if oldPrimary == matchedCompetences then Nothing else Just (oldPrimary, matchedCompetences)
-        , secondary = Nothing
-        , purpose = Nothing
+        , primary = if oldPrimary == matchedPrimary then Nothing else Just (oldPrimary, matchedPrimary)
+        , secondary = if oldSecondary == matchedSecondary then Nothing else Just (oldSecondary, matchedSecondary)
+        , purpose = case parsedPurpose of
+            Just p | oldPurpose /= Just p -> Just (maybe Practice id oldPurpose, p)
+            _ -> Nothing
         , displayInResources = Nothing
         , attachments = Nothing
         }
@@ -343,6 +358,16 @@ getTaskPrimary :: Task -> [CompetenceLevelId]
 getTaskPrimary task = case task.taskType of
   SelfContained attrs -> attrs.primary
   SubTask _ _ -> []
+
+getTaskSecondary :: Task -> [CompetenceLevelId]
+getTaskSecondary task = case task.taskType of
+  SelfContained attrs -> attrs.secondary
+  SubTask _ _ -> []
+
+getTaskPurposeField :: Task -> Maybe TaskPurpose
+getTaskPurposeField task = case task.taskType of
+  SelfContained attrs -> Just attrs.purpose
+  SubTask _ _ -> Nothing
 
 buildSolutionPatch :: Solution -> Solution -> SolutionPatch
 buildSolutionPatch old new =

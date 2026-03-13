@@ -231,10 +231,13 @@ matchSingleTask doc parsed =
 
       -- Match competences (search across all grids)
       competenceMatches = matchCompetenceRefs doc parsed.competenceRefs
+      secondaryCompetenceMatches = matchCompetenceRefs doc parsed.secondaryCompetenceRefs
    in TaskImportPreview
         { taskAction = taskAction
         , solutionActions = solutionActions
         , competenceMatches = competenceMatches
+        , secondaryCompetenceMatches = secondaryCompetenceMatches
+        , parsedPurpose = parsed.purpose
         }
 
 -- | Find task by identifier, checking both current and replacement identifiers
@@ -256,7 +259,7 @@ makeNewTask parsed =
   Task
     { id = Id UUID.nil
     , identifier = parsed.identifier
-    , title = ""
+    , title = parsed.title
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = SelfContained defaultTaskAttributes
     , attachments = []
@@ -268,7 +271,7 @@ updateTask existing parsed =
   Task
     { id = existing.id
     , identifier = parsed.identifier
-    , title = existing.title
+    , title = parsed.title
     , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
     , taskType = existing.taskType
     , attachments = existing.attachments
@@ -278,6 +281,7 @@ updateTask existing parsed =
 taskEquals :: Task -> Task -> Bool
 taskEquals a b =
   a.identifier == b.identifier
+    && a.title == b.title
     && a.content == b.content
 
 -- | Match solutions (simplified for now)

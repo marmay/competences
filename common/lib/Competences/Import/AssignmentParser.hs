@@ -42,7 +42,7 @@ where
 import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Competence (Level)
 import Competences.Document.Solution (SolutionType (..))
-import Competences.Document.Task (TaskIdentifier (..))
+import Competences.Document.Task (TaskIdentifier (..), TaskPurpose)
 import Competences.Import.ASTExtract
   ( blocksToText
   , bulletListItemTexts
@@ -55,6 +55,7 @@ import Competences.Import.Types
   , ParsedTask (..)
   , activityTypeFromGerman
   , levelFromGerman
+  , purposeFromGerman
   )
 import Competences.Markdown.AST (Block (..), Document (..))
 import Competences.Markdown.Parser (parseMarkdown)
@@ -97,25 +98,30 @@ parseAssignment (headingText, blocks) =
 
 -- | Split blocks into those before the first heading of the given level, and the rest
 splitAtHeading :: Int -> [Block] -> ([Block], [Block])
-splitAtHeading level = span (not . isHeadingOfLevel)
-  where
-    isHeadingOfLevel (Heading n _) = n == level
-    isHeadingOfLevel _ = False
+splitAtHeading level = span (not . isHeadingOfLevel level)
 
 -- | Extract a ParsedTask from a heading-3 section (within an assignment)
 parseAssignmentTask :: (Text, [Block]) -> ParsedTask
 parseAssignmentTask (headingText, blocks) =
-  let (ident, replaces) = parseReplacesClause headingText
+  let (identAndTitle, replaces) = parseReplacesClause headingText
+      (ident, title) = splitTitleFromHeading identAndTitle
+      -- Blocks before the first #### heading may contain metadata like "Zweck:"
+      (preBlocks, _) = span (not . isHeadingOfLevel 4) blocks
+      purpose = parsePurpose preBlocks
       sections = groupByHeading 4 blocks
       contentSection = findSection "Angabe" sections
       solutions = extractSolutions sections
-      competenceRefs = extractCompetences sections
+      competenceRefs = extractCompetences "Kompetenzen" sections
+      secondaryRefs = extractCompetences "Sekundäre Kompetenzen" sections
    in ParsedTask
         { identifier = TaskIdentifier ident
         , replacesIdentifier = TaskIdentifier <$> replaces
+        , title = title
+        , purpose = purpose
         , content = fromMaybe "" contentSection
         , solutions = solutions
         , competenceRefs = competenceRefs
+        , secondaryCompetenceRefs = secondaryRefs
         }
 
 -- | Find a section by name and return its content as text
@@ -164,10 +170,10 @@ extractSolutions = concatMap toSolution
       | name == "Komplettlösung" = [ParsedSolution Complete (blocksToText blocks)]
       | otherwise = []
 
--- | Extract competence references from #### Kompetenzen section
-extractCompetences :: [(Text, [Block])] -> [(Text, Text, Level)]
-extractCompetences sections =
-  case findSectionBlocks "Kompetenzen" sections of
+-- | Extract competence references from a named section
+extractCompetences :: Text -> [(Text, [Block])] -> [(Text, Text, Level)]
+extractCompetences sectionName sections =
+  case findSectionBlocks sectionName sections of
     Nothing -> []
     Just blocks -> parseCompetenceList blocks
 
@@ -199,3 +205,30 @@ parseCompetenceLine line =
             Just level -> Just (T.strip grid, T.strip desc, level)
             Nothing -> Nothing
         _ -> Nothing
+
+-- | Split title from heading text at em-dash separator
+splitTitleFromHeading :: Text -> (Text, Text)
+splitTitleFromHeading txt =
+  case T.breakOn " \x2014 " txt of
+    (before, after)
+      | T.null after -> (T.strip txt, "")
+      | otherwise -> (T.strip before, T.strip $ T.drop 3 after)
+
+-- | Check if a block is a heading of the given level
+isHeadingOfLevel :: Int -> Block -> Bool
+isHeadingOfLevel n (Heading level _) = level == n
+isHeadingOfLevel _ _ = False
+
+-- | Parse purpose from pre-section blocks (look for "Zweck:" line)
+parsePurpose :: [Block] -> Maybe TaskPurpose
+parsePurpose blocks =
+  let txt = blocksToText blocks
+      lines' = T.lines txt
+   in findPurposeLine lines'
+  where
+    findPurposeLine [] = Nothing
+    findPurposeLine (l : rest) =
+      case T.breakOn ":" l of
+        (k, v)
+          | T.strip k == "Zweck" -> purposeFromGerman (T.strip $ T.drop 1 v)
+          | otherwise -> findPurposeLine rest

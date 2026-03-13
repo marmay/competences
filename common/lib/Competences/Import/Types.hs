@@ -47,6 +47,8 @@ module Competences.Import.Types
   , socialFormToGerman
   , actionFormFromGerman
   , actionFormToGerman
+  , purposeToGerman
+  , purposeFromGerman
   )
 where
 
@@ -61,7 +63,7 @@ import Competences.Document.CompetenceGrid (CompetenceGrid)
 import Competences.Document.Lesson (ActionForm (..), Lesson, TeachingSocialForm (..))
 import Competences.Document.Resource (Resource)
 import Competences.Document.Solution (Solution, SolutionType (..))
-import Competences.Document.Task (Task, TaskIdentifier (..))
+import Competences.Document.Task (Task, TaskIdentifier (..), TaskPurpose (..))
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Time (Day)
@@ -101,12 +103,18 @@ data ParsedTask = ParsedTask
   -- ^ Task identifier (from # heading)
   , replacesIdentifier :: !(Maybe TaskIdentifier)
   -- ^ Original identifier if renaming (from "Ersetzt:" clause)
+  , title :: !Text
+  -- ^ Descriptive title (from heading after em-dash)
+  , purpose :: !(Maybe TaskPurpose)
+  -- ^ Task purpose (from "Zweck:" line); Nothing = use default
   , content :: !Text
   -- ^ Task content (from ## Angabe section)
   , solutions :: ![ParsedSolution]
   -- ^ Solutions (Hinweis, Ergebnis, Komplettlösung)
   , competenceRefs :: ![(Text, Text, Level)]
-  -- ^ Competence references (gridName, description, level) from ## Kompetenzen
+  -- ^ Primary competence references (gridName, description, level) from ## Kompetenzen
+  , secondaryCompetenceRefs :: ![(Text, Text, Level)]
+  -- ^ Secondary competence references from ## Sekundäre Kompetenzen
   }
   deriving (Eq, Show, Generic)
 
@@ -182,7 +190,11 @@ data TaskImportPreview = TaskImportPreview
   , solutionActions :: ![ImportAction Solution]
   -- ^ Actions for solutions
   , competenceMatches :: ![CompetenceMatch]
-  -- ^ Competence matching results
+  -- ^ Primary competence matching results
+  , secondaryCompetenceMatches :: ![CompetenceMatch]
+  -- ^ Secondary competence matching results
+  , parsedPurpose :: !(Maybe TaskPurpose)
+  -- ^ Purpose from parsed import data (Nothing = use default/preserve existing)
   }
   deriving (Eq, Show, Generic)
 
@@ -359,3 +371,21 @@ actionFormToGerman :: ActionForm -> Text
 actionFormToGerman Presenting = "Darbietend"
 actionFormToGerman Collaborating = "Zusammenwirkend"
 actionFormToGerman Assigning = "Aufgebend"
+
+-- ============================================================================
+-- Purpose Utilities
+-- ============================================================================
+
+-- | Convert TaskPurpose to German name
+purposeToGerman :: TaskPurpose -> Text
+purposeToGerman Practice = "Übung"
+purposeToGerman Assessment = "Beurteilung"
+
+-- | Parse German purpose name to TaskPurpose
+purposeFromGerman :: Text -> Maybe TaskPurpose
+purposeFromGerman "Übung" = Just Practice
+purposeFromGerman "Uebung" = Just Practice
+purposeFromGerman "Beurteilung" = Just Assessment
+purposeFromGerman "Practice" = Just Practice
+purposeFromGerman "Assessment" = Just Assessment
+purposeFromGerman _ = Nothing

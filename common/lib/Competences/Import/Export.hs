@@ -45,9 +45,10 @@ import Competences.Document.Task
   , TaskAttributesOverride (..)
   , TaskId
   , TaskIdentifier (..)
+  , TaskPurpose (..)
   , TaskType (..)
   )
-import Competences.Import.Types (actionFormToGerman, activityTypeToGerman, levelToGerman, socialFormToGerman)
+import Competences.Import.Types (actionFormToGerman, activityTypeToGerman, levelToGerman, purposeToGerman, socialFormToGerman)
 import Data.List (sortBy)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -155,12 +156,18 @@ lookupTask doc tid = Ix.getOne $ doc.tasks Ix.@= tid
 exportTaskAsSubsection :: Document -> Task -> Text
 exportTaskAsSubsection doc task =
   let TaskIdentifier ident = task.identifier
-      header = "### " <> ident <> "\n"
+      titleSuffix = if T.null task.title then "" else " \x2014 " <> task.title
+      header = "### " <> ident <> titleSuffix <> "\n"
+      purposeLine = case getTaskPurpose task of
+        Just Assessment -> "Zweck: " <> purposeToGerman Assessment <> "\n"
+        _ -> "" -- Practice is the default, omit it
       contentSection = case task.content of
         Just c | let raw = toRawText c, not (T.null (T.strip raw)) -> "\n#### Angabe\n" <> T.strip raw <> "\n"
         _ -> ""
-      -- Get competence references for this task
-      competenceSection = exportTaskCompetences doc task
+      -- Get primary and secondary competence references separately
+      (primaryIds, secondaryIds) = getTaskCompetenceIdsSplit task
+      primarySection = exportCompetenceSection "Kompetenzen" doc primaryIds
+      secondarySection = exportCompetenceSection "Sekundäre Kompetenzen" doc secondaryIds
       -- Get solutions for this task
       solutions = Ix.toList $ doc.solutions Ix.@= task.id
       solutionSections = T.concat $ map exportSolution solutions
@@ -168,27 +175,30 @@ exportTaskAsSubsection doc task =
         if null task.attachments
           then ""
           else "\n#### Anhänge\n" <> T.intercalate "\n" (map formatAttachment task.attachments) <> "\n"
-   in header <> contentSection <> competenceSection <> solutionSections <> attachmentSection
+   in header <> purposeLine <> contentSection <> primarySection <> secondarySection <> solutionSections <> attachmentSection
 
--- | Export competence references for a task
--- Note: This requires looking up the competence and grid from the stored IDs
-exportTaskCompetences :: Document -> Task -> Text
-exportTaskCompetences doc task =
-  let -- Get primary competences from task attributes
-      competenceIds = getTaskCompetenceIds task
-      refs = mapMaybe (formatCompetenceRef doc) competenceIds
+-- | Export a competence section with a given heading name
+exportCompetenceSection :: Text -> Document -> [CompetenceLevelId] -> Text
+exportCompetenceSection sectionName doc compIds =
+  let refs = mapMaybe (formatCompetenceRef doc) compIds
    in if null refs
         then ""
-        else "\n#### Kompetenzen\n" <> T.intercalate "\n" refs <> "\n"
+        else "\n#### " <> sectionName <> "\n" <> T.intercalate "\n" refs <> "\n"
 
--- | Get competence level IDs from a task
-getTaskCompetenceIds :: Task -> [CompetenceLevelId]
-getTaskCompetenceIds task = case task.taskType of
-  SelfContained attrs -> attrs.primary <> attrs.secondary
+-- | Get the purpose from a task's attributes
+getTaskPurpose :: Task -> Maybe TaskPurpose
+getTaskPurpose task = case task.taskType of
+  SelfContained attrs -> Just attrs.purpose
+  SubTask _ _ -> Nothing
+
+-- | Get primary and secondary competence level IDs from a task separately
+getTaskCompetenceIdsSplit :: Task -> ([CompetenceLevelId], [CompetenceLevelId])
+getTaskCompetenceIdsSplit task = case task.taskType of
+  SelfContained attrs -> (attrs.primary, attrs.secondary)
   SubTask _ override ->
-    -- For subtasks, we only export the override values (not inherited ones)
-    -- Since we don't have access to the group here, just export what we can
-    maybe [] id override.primary <> maybe [] id override.secondary
+    ( maybe [] id override.primary
+    , maybe [] id override.secondary
+    )
 
 -- | Format a competence reference as "GridName / Description / Level"
 formatCompetenceRef :: Document -> CompetenceLevelId -> Maybe Text
