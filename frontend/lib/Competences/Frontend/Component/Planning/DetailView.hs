@@ -11,7 +11,7 @@ import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
 import Competences.Document.LessonNotes (LessonNotes (..))
-import Competences.Document.MesoPlan (MesoPlan (..))
+import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
@@ -33,6 +33,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -57,6 +58,7 @@ data DetailModel = DetailModel
   , expandedPhases :: !(Set.Set LessonId)  -- Phases section per lesson
   , document :: !Document
   , reorderFrom :: !(Maybe LessonId)  -- Which lesson is being moved (reorder mode)
+  , holdDeleteMeso :: !(HoldButton.HoldState MesoPlanId)
   }
   deriving (Eq, Generic, Show)
 
@@ -72,6 +74,7 @@ data DetailAction
   | OpenMesoPlanEditorModal !MesoPlan
   | DeleteLesson !LessonId
   | DeleteMesoPlan
+  | HoldDeleteMeso !(HoldButton.HoldAction MesoPlanId)
   | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
   | OpenLessonImportModal
@@ -88,9 +91,10 @@ projectDetail
   -> Set.Set LessonId
   -> Set.Set LessonId
   -> Set.Set LessonId
+  -> HoldButton.HoldState MesoPlanId
   -> Document
   -> DetailModel
-projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases doc =
+projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases holdMeso doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -103,7 +107,7 @@ projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevEx
       expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
       expandedNotes' = Set.intersection prevExpandedNotes lessonIds
       expandedPhases' = Set.intersection prevExpandedPhases lessonIds
-   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing
+   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing holdMeso
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -121,7 +125,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing HoldButton.emptyHoldState
 
     emptyDocument =
       Document
@@ -148,7 +152,7 @@ detailComponent r initialPlan =
         , draftAssignments = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases m.holdDeleteMeso dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -212,6 +216,11 @@ detailComponent r initialPlan =
       m <- M.get
       M.io_ $ modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete m.mesoPlan.id)
 
+    update (HoldDeleteMeso ha) =
+      HoldButton.handleHoldAction #holdDeleteMeso doDelete HoldDeleteMeso ha
+      where
+        doDelete mpId = modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)
+
     update (PinLessonEvaluation lesson) = do
       m <- M.get
       M.io_ $ pinLessonEvaluator r m.mesoPlan.dateFrom lesson
@@ -260,7 +269,7 @@ detailComponent r initialPlan =
                     ]
                 , Layout.hFlow Layout.gapT
                     [ Button.ghostSm (Button.button Icon.IcnEdit (OpenMesoPlanEditorModal m.mesoPlan))
-                    , Button.destructiveSm (Button.button Icon.IcnDelete DeleteMesoPlan)
+                    , HoldButton.holdButton HoldDeleteMeso m.holdDeleteMeso m.mesoPlan.id
                     ]
                 ]
             ]

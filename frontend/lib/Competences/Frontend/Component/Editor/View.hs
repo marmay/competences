@@ -17,6 +17,7 @@ import Competences.Document (User)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.Types (Action (..), Model, Reorder' (..))
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
@@ -55,15 +56,16 @@ data EditorViewItem a patch f n = EditorViewItem
   , deleteState :: !DeleteState
   , moveState :: !MoveState
   , canApply :: !Bool
+  , holdDeleteState :: !(HoldButton.HoldState a)
   }
   deriving (Generic)
 
 type EditorView a patch f n = EditorViewData a patch f n -> M.View (Model a patch f) (Action a patch)
 
-compactButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
+compactButtons :: (Eq a) => EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 compactButtons = buttons Button.IconOnlyS
 
-extendedButtons :: EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
+extendedButtons :: (Eq a) => EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 extendedButtons = buttons Button.IconTextS
 
 data ViewButtonStyle
@@ -71,7 +73,7 @@ data ViewButtonStyle
   | Extended
   deriving (Eq, Show)
 
-buttons :: Button.ButtonContentsStyle -> EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
+buttons :: (Eq a) => Button.ButtonContentsStyle -> EditorViewItem a patch f n -> [M.View (Model a patch f) (Action a patch)]
 buttons s item =
   case (item.editState, item.moveState, item.deleteState) of
     (_, MoveSource, _) ->
@@ -88,7 +90,7 @@ buttons s item =
     editButtons _ = []
     moveButtons NotMoving = [moveButton s a]
     moveButtons _ = []
-    deleteButtons Deletable = [deleteButton s a]
+    deleteButtons Deletable = [deleteButton item]
     deleteButtons _ = []
 
 -- | Render a row of buttons using appropriate layout
@@ -100,7 +102,6 @@ buttonRow _ btns = Button.buttonGroup btns
 editButton
   , finishEditButton
   , cancelEditButton
-  , deleteButton
   , moveButton
   , cancelMoveButton
   , moveBeforeButton
@@ -111,8 +112,10 @@ editButton
 editButton s a = Button.secondary (Button.button (s, Icon.IcnEdit, C.LblEdit) (StartEditing a :: Action a patch))
 finishEditButton s a = Button.primary (Button.button (s, Icon.IcnApply, C.LblApply) (FinishEditing a :: Action a patch))
 cancelEditButton s a = Button.destructive (Button.button (s, Icon.IcnCancel, C.LblCancel) (CancelEditing a :: Action a patch))
-deleteButton s a = Button.destructive (Button.button (s, Icon.IcnDelete, C.LblDelete) (Delete a :: Action a patch))
 moveButton s a = Button.secondary (Button.button (s, Icon.IcnReorder, C.LblMove) (StartMoving a :: Action a patch))
+
+deleteButton :: forall a patch f n. (Eq a) => EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
+deleteButton viewItem = HoldButton.holdButton HoldDelete viewItem.holdDeleteState viewItem.item
 cancelMoveButton s _ = Button.destructive (Button.button (s, Icon.IcnCancel, C.LblCancel) (CancelMoving :: Action a patch))
 moveBeforeButton s a = Button.secondary (Button.button (s, Icon.IcnArrowUp, C.LblInsertBefore) (FinishMoving (Before' a) :: Action a patch))
 moveAfterButton s a = Button.secondary (Button.button (s, Icon.IcnArrowDown, C.LblInsertAfter) (FinishMoving (After' a) :: Action a patch))

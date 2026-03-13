@@ -31,6 +31,7 @@ import Competences.Frontend.Component.Editor.Editable
   , withModify
   , withReorder
   )
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.Component.Editor.EditorField
 import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.MarkdownEditor (isContentValid)
@@ -87,7 +88,7 @@ editorComponent e r =
     { M.subs = [subscribeDocument r UpdateDocument]
     }
   where
-    model = Model Nothing Map.empty Nothing Nothing Map.empty Map.empty
+    model = Model Nothing Map.empty Nothing Nothing Map.empty Map.empty HoldButton.emptyHoldState
 
     runCommand :: Maybe Command -> IO ()
     runCommand Nothing = pure ()
@@ -121,6 +122,10 @@ editorComponent e r =
         withReorder e.editable d reorderFrom' reorderAction
       M.modify (#reorderFrom .~ Nothing)
     update (Delete a) = M.io_ $ runCommand $ withDelete e.editable a
+    update (HoldDelete ha) =
+      HoldButton.handleHoldAction #holdDeleteState doDelete HoldDelete ha
+      where
+        doDelete a = runCommand $ withDelete e.editable a
     update (UpdatePatch original patched) =
       M.modify $ #patches %~ Map.insert original patched
     update (UpdateDocument (DocumentChange newDocument _)) = do
@@ -128,7 +133,7 @@ editorComponent e r =
       M.io_ $ M.focus refocusTargetString
 
     updateModel :: Document -> Model a patch f -> Model a patch f
-    updateModel d (Model _ patches reorderFrom _ _ contentStates) =
+    updateModel d (Model _ patches reorderFrom _ _ contentStates holdDelete) =
       let es = e.editable.get d
           myEdits = filter (\(_, u) -> u == Just (syncDocumentEnv r ^. #connectedUser % #id)) (toList es)
           patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe def (Map.lookup e' patches))) myEdits
@@ -136,7 +141,7 @@ editorComponent e r =
           users = Map.fromList $ map (\u -> (u ^. #id, u)) (IxSet.toList $ d ^. #users)
           -- Retain content states only for entities still being edited
           contentStates' = Map.restrictKeys contentStates (Map.keysSet patches')
-       in Model (Just es) patches' reorderFrom refocusTarget users contentStates'
+       in Model (Just es) patches' reorderFrom refocusTarget users contentStates' holdDelete
 
     view :: Model a patch f -> M.View (Model a patch f) (Action a patch)
     view m = case m.entries of
@@ -175,4 +180,4 @@ editorComponent e r =
                 zipWith (\(n, f) t -> (n, f.editor t item item')) e.fields (refocusTarget : repeat False)
             | otherwise = fmap (\(n, f) -> (n, f.viewer item)) e.fields
           canApply = all isContentValid (Map.findWithDefault Map.empty item m.contentStates)
-       in EditorViewItem {item, editState, moveState, deleteState, fieldData, canApply}
+       in EditorViewItem {item, editState, moveState, deleteState, fieldData, canApply, holdDeleteState = m.holdDeleteState}

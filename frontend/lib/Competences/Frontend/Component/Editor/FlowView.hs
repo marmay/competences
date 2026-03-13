@@ -8,7 +8,7 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Data.Tuple (Solo (..))
 import Optics.Core ((^.))
 
-editorFlowView :: EditorView a patch Solo n
+editorFlowView :: (Eq a) => EditorView a patch Solo n
 editorFlowView viewData =
   let (MkSolo item) = viewData ^. #items
    in Layout.hFlow

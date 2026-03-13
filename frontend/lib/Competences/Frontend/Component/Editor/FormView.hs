@@ -17,21 +17,21 @@ import qualified Competences.Frontend.View as V
 import qualified Competences.Frontend.Common as C
 import qualified Competences.Frontend.View.Button as Button
 
-editorFormView :: Foldable f => M.View (Model a patch f) (Action a patch) -> M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
+editorFormView :: (Eq a, Foldable f) => M.View (Model a patch f) (Action a patch) -> M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
 editorFormView onMissing title toText viewData =
   let maybeFirst = foldr (\x _ -> Just x) Nothing viewData.items
   in maybe onMissing (showForm title toText) maybeFirst
 
-editorFormView' :: Foldable f => M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
+editorFormView' :: (Eq a, Foldable f) => M.MisoString -> (n -> M.MisoString) -> EditorView a patch f n
 editorFormView' = editorFormView onMissing
   where onMissing = V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
 
-editorFormViewS :: M.MisoString -> (n -> M.MisoString) -> EditorView a patch Solo n
+editorFormViewS :: (Eq a) => M.MisoString -> (n -> M.MisoString) -> EditorView a patch Solo n
 editorFormViewS title toText viewData =
   let (MkSolo item) = viewData.items
    in showForm title toText item
 
-showForm :: M.MisoString -> (n -> M.MisoString) -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
+showForm :: (Eq a) => M.MisoString -> (n -> M.MisoString) -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
 showForm title toText item =
    V.form_
         title
@@ -40,12 +40,12 @@ showForm title toText item =
 
 -- | Inline editor form view - shows just the form fields without header/buttons
 -- Used for embedding editors in lists or other compact contexts
-editorFormViewInline :: Foldable f => (n -> M.MisoString) -> EditorView a patch f n
+editorFormViewInline :: (Eq a, Foldable f) => (n -> M.MisoString) -> EditorView a patch f n
 editorFormViewInline toText viewData =
   let maybeFirst = foldr (\x _ -> Just x) Nothing viewData.items
    in maybe V.empty (showFormInline toText) maybeFirst
 
-showFormInline :: (n -> M.MisoString) -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
+showFormInline :: (Eq a) => (n -> M.MisoString) -> EditorViewItem a patch f n -> M.View (Model a patch f) (Action a patch)
 showFormInline toText item =
   MH.div_
     [class_ "space-y-3"]

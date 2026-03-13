@@ -11,6 +11,7 @@ import Competences.Document.Id (Id)
 import Competences.Document.Order (Reorder (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState)
 import Competences.Frontend.SyncContext (DocumentChange)
+import Competences.Frontend.View.HoldButton (HoldAction, HoldState)
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Foldable (toList)
 import Data.Map qualified as Map
@@ -24,6 +25,7 @@ data Model a patch f = Model
   , refocusTarget :: !(Maybe a)
   , users :: !(Map.Map UserId User)
   , contentStates :: !(Map.Map a (Map.Map Text (ContentState RichContent)))
+  , holdDeleteState :: !(HoldState a)
   }
   deriving (Generic)
 
@@ -33,6 +35,7 @@ instance (Eq a, Eq patch, Functor f, Foldable f) => Eq (Model a patch f) where
       && a.patches == b.patches
       && a.reorderFrom == b.reorderFrom
       && a.contentStates == b.contentStates
+      && a.holdDeleteState == b.holdDeleteState
 
 data Action a patch
   = StartEditing !a
@@ -42,6 +45,7 @@ data Action a patch
   | CancelMoving
   | FinishMoving !(Reorder' a)
   | Delete !a
+  | HoldDelete !(HoldAction a)
   | UpdatePatch !a !patch
   | UpdateDocument !DocumentChange
   deriving (Eq, Show)

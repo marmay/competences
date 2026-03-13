@@ -15,7 +15,7 @@ data TableRowEditorColumn n
   | TableRowEditorActionColumn
 
 editorTableRowView
-  :: (Foldable f) => (n -> Table.TableColumnSpec) -> Table.TableColumnSpec -> EditorView a patch f n
+  :: (Eq a, Foldable f) => (n -> Table.TableColumnSpec) -> Table.TableColumnSpec -> EditorView a patch f n
 editorTableRowView specOf actionSpec viewData =
   Table.viewTable $
     Table.Table
@@ -29,6 +29,6 @@ editorTableRowView specOf actionSpec viewData =
           Table.tableRow $ map snd r.fieldData <> [Layout.hFlow Layout.gapS $ compactButtons r]
       }
 
-editorTableRowView' :: (Foldable f) => EditorView a patch f M.MisoString
+editorTableRowView' :: (Eq a, Foldable f) => EditorView a patch f M.MisoString
 editorTableRowView' =
   editorTableRowView (Table.TableColumnSpec Table.AutoSizedColumn) (Table.TableColumnSpec Table.TripleActionColumn "")
