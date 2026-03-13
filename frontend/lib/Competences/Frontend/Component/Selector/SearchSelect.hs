@@ -630,6 +630,7 @@ viewBelowInput cfg hasClearAll hasFilters showBox highlightIdx matches =
             [ class_
                 "absolute left-0 right-0 top-0 mt-1 z-50 bg-popover border border-border \
                 \rounded-md shadow-lg p-2 max-h-48 overflow-y-auto"
+            , M.onWithOptions M.BUBBLE M.preventDefault ("mousedown" :: MisoString) M.emptyDecoder (\_ _ref -> NoOp)
             ]
             ( [viewFilterHintRow cfg | hasFilters]
                 <> [viewSuggestions cfg highlightIdx matches | not (null matches)]
@@ -707,7 +708,9 @@ handleKeyDown m keyInfo =
     13 -> -- Enter
       case m.highlightIdx of
         Just _ -> AddHighlighted
-        Nothing -> AddAll
+        Nothing
+          | T.null m.searchQuery -> NoOp
+          | otherwise -> AddAll
     40 -> MoveHighlight 1 -- ArrowDown
     38 -> MoveHighlight (-1) -- ArrowUp
     8 -- Backspace

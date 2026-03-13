@@ -102,6 +102,7 @@ matchTerm ::
   a ->
   Term ->
   Bool
+matchTerm _ _ _ (TextTerm "*") = True
 matchTerm label _ item (TextTerm t) =
   T.toLower t `T.isInfixOf` T.toLower (label item)
 matchTerm _ metadata item (MetaTerm t) =
@@ -133,6 +134,7 @@ matchItemWithFilters label filters query item =
 
 -- | Match a single term using typed filters for MetaTerms.
 matchTermResolved :: (a -> Text) -> [Text -> Maybe (a -> Bool)] -> a -> Term -> Bool
+matchTermResolved _ _ _ (TextTerm "*") = True
 matchTermResolved label _ item (TextTerm t) =
   T.toLower t `T.isInfixOf` T.toLower (label item)
 matchTermResolved _ filters item (MetaTerm t) =
