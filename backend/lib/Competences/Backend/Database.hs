@@ -577,7 +577,7 @@ walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, createdAt, isPro
       then do
         -- Too young: always keep (discard cached doc)
         walkCandidates conn now Nothing candidateGen rest
-      else if not (isPruneCandidate age commandGap)
+      else if not (isPruneCandidate commandGap)
         then do
           -- Gap too large: keep to limit replay distance (discard cached doc)
           walkCandidates conn now Nothing candidateGen rest
@@ -640,18 +640,13 @@ walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, createdAt, isPro
                           -- Keep candidate doc as new anchor
                           walkCandidates conn now (Just candidateDoc) candidateGen rest
 
--- | Age-based threshold: is the snapshot a candidate for pruning given its age and
--- the command gap from the previous kept snapshot?
-isPruneCandidate :: NominalDiffTime -> Int64 -> Bool
-isPruneCandidate age commandGap
-  | age < fourteenDays = commandGap < 500 -- 2-14 days: prune if gap < 500
-  | otherwise = commandGap < 2000 -- > 14 days: prune if gap < 2000
+-- | Is the snapshot a candidate for pruning given the command gap from the
+-- previous kept snapshot?  We cap at 500 to limit replay distance on startup.
+isPruneCandidate :: Int64 -> Bool
+isPruneCandidate commandGap = commandGap < 500
 
 twoDays :: NominalDiffTime
 twoDays = 2 * 24 * 3600
-
-fourteenDays :: NominalDiffTime
-fourteenDays = 14 * 24 * 3600
 
 -- | Deserialize a snapshot's document_data JSON value through the versioned envelope.
 loadSnapshotDocument :: Value -> Either String Document
