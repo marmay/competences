@@ -11,6 +11,7 @@
 -- causing Miso to remount it → fresh file loading.
 module Competences.Frontend.Component.SubmissionPreview
   ( submissionPreviewPanel
+  , openSubmissionPeekModal
   , SubmissionPreviewModel
   , SubmissionPreviewAction
   )
@@ -32,12 +33,22 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext.WindowManager
+  ( ModalConfig (..)
+  , ModalId (..)
+  , ModalHeight (..)
+  , ModalWidth (..)
+  , WindowChrome (..)
+  , inlineComponent
+  , openFramedModal
+  )
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.List (sortOn)
+import Data.Text qualified as T
 import Data.Ord (Down (..))
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -246,3 +257,15 @@ submissionPreviewPanel r aId uId =
     [ ("submission-preview-" <> ms (show aId) <> "-" <> ms (show uId))
         M.+> submissionPreviewComponent r aId uId
     ]
+
+-- | Open a peek modal showing the full content of a single submission.
+openSubmissionPeekModal :: SyncContext -> SubmissionId -> IO ()
+openSubmissionPeekModal r sid = do
+  let cfg = ModalConfig
+        { chrome = WindowChrome (C.translate' C.LblSubmissions) Icon.IcnView
+        , modalId = ModalId ("submission-peek-" <> T.pack (show sid))
+        , width = ModalWide
+        , height = ModalAuto
+        , pinnable = Nothing
+        }
+  openFramedModal r.windowManager cfg (submissionDetailComponent r sid)

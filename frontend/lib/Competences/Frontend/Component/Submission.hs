@@ -31,6 +31,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.Component.FileUpload (fileUploadComponent)
+import Competences.Frontend.Component.SubmissionPreview qualified as SubmissionPreview
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
@@ -166,6 +167,7 @@ data SubmissionAction
   | SetRemarkText !MisoString
   | SubmitWork
   | DoSubmit !UTCTime
+  | PeekSubmission !SubmissionId
   | OnHoldDelete !(HoldButton.HoldAction SubmissionId)
   deriving (Eq, Show)
 
@@ -258,6 +260,9 @@ submissionModalComponent r assignmentId userId _wm =
             & #voidReason .~ ""
             & #remarkText .~ ""
             & #collaborators .~ []
+
+    update (PeekSubmission sid) =
+      M.io_ $ SubmissionPreview.openSubmissionPeekModal r sid
 
     update (OnHoldDelete ha) =
       HoldButton.handleHoldAction #holdingDelete doDelete OnHoldDelete ha
@@ -376,7 +381,7 @@ submissionModalComponent r assignmentId userId _wm =
     subColumnSpec SubColDate = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblDate)
     subColumnSpec SubColDetails = Table.TableColumnSpec Table.EqualWidthColumn (C.translate' C.LblDetails)
     subColumnSpec SubColRemark = Table.TableColumnSpec Table.AutoSizedColumn (C.translate' C.LblRemark)
-    subColumnSpec SubColActions = Table.TableColumnSpec Table.SingleActionColumn ""
+    subColumnSpec SubColActions = Table.TableColumnSpec Table.DoubleActionColumn ""
 
     subCell _holding s SubColKind =
       MH.div_ [class_ "px-3 py-2"] [kindBadge s.kind]
@@ -392,8 +397,10 @@ submissionModalComponent r assignmentId userId _wm =
             Just rmk -> MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms rmk]
         ]
     subCell holding s SubColActions =
-      MH.div_ [class_ "px-3 py-2"]
-        [HoldButton.holdButton OnHoldDelete holding s.id]
+      Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+        [ Button.ghostSm (Button.button Icon.IcnView (PeekSubmission s.id))
+        , HoldButton.holdButton OnHoldDelete holding s.id
+        ]
 
     kindBadge (DigitalSubmission _) = Badge.primary (Badge.badgeText (C.translate' C.LblAbgegeben))
     kindBadge (NonDigitalSubmission _) = Badge.secondary (Badge.badgeText (C.translate' C.LblGemacht))
