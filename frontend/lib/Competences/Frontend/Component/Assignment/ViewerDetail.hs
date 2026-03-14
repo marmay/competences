@@ -273,11 +273,14 @@ viewerComponent r user assignment wm =
           effectiveUserId = maybe currentUserId (.id) mUser
 
           -- Look up the current assignment from the document (in case it was edited)
-          updatedAssignment = maybe asmt id $ Ix.getOne (doc.assignments Ix.@= asmt.id)
+          updatedAssignment = maybe asmt id $
+            Ix.getOne (doc.assignments Ix.@= asmt.id)
+              <|> Ix.getOne (doc.draftAssignments Ix.@= asmt.id)
 
           -- Filter tasks for this assignment, sorted by identifier
           relevantTasks = Ix.toAscList (Proxy @TaskIdentifier) $
-            doc.tasks Ix.@+ updatedAssignment.tasks
+            Ix.union (doc.tasks Ix.@+ updatedAssignment.tasks)
+                     (doc.draftTasks Ix.@+ updatedAssignment.tasks)
 
           -- Build TaskWithSolutions for each task
           taskGroups = doc.taskGroups
