@@ -3,6 +3,8 @@ module Competences.Frontend.Component.PrintEngine.Measure
   , PageGrouping
   , groupIntoPages
   , measureTaskHeights
+  , measureFooterHeight
+  , adjustForFooter
   , contentHeightPx
   , nameFieldPx
   , firstPageHeaderPx
@@ -39,10 +41,19 @@ type PageGrouping = [PageGroup]
 -- from subsequent pages due to headers/name fields). @restAvail@ is used
 -- for all subsequent pages.
 --
+-- When @distributeLastPage@ is False, the last page uses @minGap@ instead
+-- of stretching the gap to fill the page.
+--
 -- Invariant: at least one task per page (handles tasks taller than a page).
-groupIntoPages :: Double -> Double -> Double -> [Double] -> PageGrouping
-groupIntoPages _ _ _ [] = []
-groupIntoPages firstPageAvail restAvail minGap heights = go True 0.0 [] (zip [0 ..] heights)
+groupIntoPages :: Double -> Double -> Double -> Bool -> [Double] -> PageGrouping
+groupIntoPages _ _ _ _ [] = []
+groupIntoPages firstPageAvail restAvail minGap distributeLastPage heights =
+  let pages = go True 0.0 [] (zip [0 ..] heights)
+   in if distributeLastPage
+        then pages
+        else case pages of
+          [] -> []
+          _ -> init pages <> [useMinGapForPage (last pages)]
   where
     go :: Bool -> Double -> [(Int, Double)] -> [(Int, Double)] -> PageGrouping
     go _ _ acc [] = [finishPage (currentAvail (null acc)) acc]
@@ -75,6 +86,12 @@ groupIntoPages firstPageAvail restAvail minGap heights = go True 0.0 [] (zip [0 
                     gaps = fromIntegral (n - 1)
                  in max minGap (remaining / gaps)
        in PageGroup {indices = idxs, gapPx = gap}
+
+    -- Replace the gap with minGap for a page (used for last page when not distributing)
+    useMinGapForPage :: PageGroup -> PageGroup
+    useMinGapForPage pg
+      | length pg.indices <= 1 = pg
+      | otherwise = pg {gapPx = minGap}
 
 -- | Available content height in CSS px for a given paper size and orientation.
 -- Subtracts top + bottom margins, then converts from mm to px at 96 DPI.
@@ -119,3 +136,37 @@ nameFieldPx fontSizePt = 4.0 * fontSizePt * 96.0 / 72.0
 -- Title (1.3em) + date (0.85em) + margin-bottom (0.5em) ≈ 4 lines.
 firstPageHeaderPx :: Double -> Double
 firstPageHeaderPx fontSizePt = 4.0 * fontSizePt * 96.0 / 72.0
+
+-- | Read the rendered height of the footer measurement container.
+-- Returns 0.0 if the element is not found.
+measureFooterHeight :: IO Double
+measureFooterHeight = do
+  doc <- jsg ("document" :: MisoString)
+  el <- doc # ("getElementById" :: MisoString) $ [toJSVal ("print-footer-measure" :: MisoString)]
+  elIsNull <- isNull el
+  if elIsNull
+    then pure 0.0
+    else do
+      rect <- el # ("getBoundingClientRect" :: MisoString) $ ([] :: [MisoString])
+      mh <- rect ! ("height" :: MisoString) >>= fromJSVal @Double
+      pure (maybe 0.0 id mh)
+
+-- | Adjust page grouping to reserve space on the last page for the custom footer.
+-- If the footer doesn't fit, tasks are moved to additional pages.
+adjustForFooter :: Double -> Double -> Double -> Double -> Bool -> PageGrouping -> [Double] -> PageGrouping
+adjustForFooter footerH firstAvail restAvail minGap distLast pages taskHeights
+  | footerH <= 0 = pages
+  | null pages = pages
+  | otherwise =
+      let initPages = init pages
+          lastPg = last pages
+          -- Available height on the last page minus footer and a gap
+          isOnlyPage = null initPages
+          pageAvail = (if isOnlyPage then firstAvail else restAvail) - footerH - minGap
+          -- Get heights for the last page's tasks
+          lastTaskHeights = [taskHeights !! i | i <- lastPg.indices, i < length taskHeights]
+          -- Re-group just the last page's tasks with reduced available
+          reGrouped = groupIntoPages pageAvail pageAvail minGap distLast lastTaskHeights
+          -- Re-map indices back to original
+          reMapped = map (\pg -> pg {indices = map (\localIdx -> lastPg.indices !! localIdx) pg.indices}) reGrouped
+       in initPages <> reMapped

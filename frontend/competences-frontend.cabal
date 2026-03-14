@@ -78,6 +78,7 @@ library
         Competences.Frontend.Component.PrintEngine.Types,
         Competences.Frontend.Component.PrintEngine.CSS,
         Competences.Frontend.Component.PrintEngine.Measure,
+        Competences.Frontend.Component.PrintEngine.Footer,
         Competences.Frontend.Component.PrintEngine.Modal,
         Competences.Frontend.Component.PrintEngine.Page,
         Competences.Frontend.Component.ExportButton,

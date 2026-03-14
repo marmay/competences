@@ -6,6 +6,7 @@ module Competences.Frontend.Component.PrintEngine.Modal
   , updatePrintModal
   , printModalView
   , measurementContainer
+  , footerMeasureContainer
   , needsRemeasure
   )
 where
@@ -17,6 +18,7 @@ import Data.Text (Text)
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
+import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping)
 import Competences.Frontend.Component.PrintEngine.Page qualified as Page
 import Competences.Frontend.Component.PrintEngine.Types
@@ -182,9 +184,11 @@ updatePrintModal (SetDistributeLastPage b) _total m =
 updatePrintModal (SetFontFamily ff) _total m =
   m {settings = m.settings {fontFamily = ff}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetCustomFooter mf) _total m =
-  m & #contentSettings .~ setCustomFooter mf m.contentSettings
+  (m & #contentSettings .~ setCustomFooter mf m.contentSettings)
+    {pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetPoints tid mp) _total m =
-  m & #contentSettings .~ modifyTaskSetting tid (setPoints mp) m.contentSettings
+  (m & #contentSettings .~ modifyTaskSetting tid (setPoints mp) m.contentSettings)
+    {pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (MeasuredPageGrouping pg) _total m =
   m {pageGrouping = pg, previewTaskIndex = 0}
 updatePrintModal PreviewNext total m =
@@ -282,6 +286,8 @@ needsRemeasure (ToggleGrid _) = True
 needsRemeasure (SetGridHeight _ _) = True
 needsRemeasure (ToggleInlineAnswer _) = True
 needsRemeasure (SetItemsPerRow _ _) = True
+needsRemeasure (SetCustomFooter _) = True
+needsRemeasure (SetPoints _ _) = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -797,13 +803,10 @@ continuousPreview renderTask title date model =
       totalPages = case model.pageGrouping of
         [] -> 1
         pgs -> length pgs
-      -- Custom footer placeholder for preview
+      -- Real custom footer in preview
       customFooterPreview = case cs.customFooter of
-        Just _ ->
-          Just $
-            M.div_
-              [class_ "mt-4 pt-2 border-t border-dashed border-stone-300 text-xs text-stone-400 text-center"]
-              [M.text $ C.translate' C.LblCustomFooter]
+        Just footer ->
+          Just (Footer.renderCustomFooter footer cs (map (.taskId) model.taskInfos))
         Nothing -> Nothing
       -- Task render callback
       renderFn idx = M.div_ [class_ "print-task"] [renderTask idx]
@@ -900,4 +903,30 @@ measurementContainer renderTask taskCount model =
         [ M.div_ [] [renderTask idx]
         | idx <- [0 .. taskCount - 1]
         ]
+
+-- | Off-screen measurement container for the custom footer.
+-- Renders the footer at the same width as the task measurement container
+-- so that getBoundingClientRect returns the correct height.
+footerMeasureContainer :: PrintModalModel -> M.View model action
+footerMeasureContainer model =
+  let cs = model.contentSettings
+      (wMm, _hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
+      margin = pageMarginMm model.settings.paperSize
+      mmToPx mm = mm * 96.0 / 25.4
+      contentWPx = mmToPx (wMm - 2.0 * margin)
+   in case cs.customFooter of
+        Nothing -> M.text ""
+        Just footer ->
+          M.div_
+            [ MC.style_
+                [ ("position", "absolute")
+                , ("left", "-9999px")
+                , ("top", "0")
+                , ("visibility", "hidden")
+                , ("width", Page.showPx contentWPx)
+                ]
+            , M.textProp "id" "print-footer-measure"
+            , class_ "page-print-content"
+            ]
+            [Footer.renderCustomFooter footer cs (map (.taskId) model.taskInfos)]
 
