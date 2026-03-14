@@ -440,15 +440,7 @@ evaluatorComponent r assignment =
     view' m =
       let allTaskIds = m.assignment.tasks
             <> [tid | tid <- Set.toList m.additionalTasks, tid `notElem` m.assignment.tasks]
-          -- Sort tasks by identifier for consistent display order
-          sortedTaskIds =
-            map snd $
-              Map.toAscList $
-                Map.fromList
-                  [ (tvd.identifier, tid)
-                  | tid <- allTaskIds
-                  , Just tvd <- [Map.lookup tid m.taskViewData]
-                  ]
+          sortedTaskIds = filter (\tid -> Map.member tid m.taskViewData) allTaskIds
           selectedSubmissions = m.submissions Ix.@+ Set.toList m.selectedStudents
           hasSubmissions = not (Ix.null selectedSubmissions)
           -- Left panel: task evaluation content

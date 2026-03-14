@@ -258,7 +258,7 @@ taskSearchConfig r origin =
     , metaFilters = []
     , viewTag = \t -> (Icon.IcnTask, M.ms $ taskDisplayName t)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectTasks
-    , selectionOrder = AutoOrder id
+    , selectionOrder = ManualReorder
     , tagLayout = TagsInline
     , onCreate = Just $ do
         taskId <- nextId r

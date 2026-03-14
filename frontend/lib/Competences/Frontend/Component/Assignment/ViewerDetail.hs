@@ -8,6 +8,8 @@ module Competences.Frontend.Component.Assignment.ViewerDetail
   )
 where
 
+import Control.Applicative ((<|>))
+import Data.Maybe (mapMaybe)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Assignment (..)
@@ -24,7 +26,6 @@ import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
   , TaskId
-  , TaskIdentifier (..)
   , getTaskAttributes
   , getTaskContent
   , taskDisplayName
@@ -112,7 +113,6 @@ import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Proxy (Proxy (..))
 import Control.Concurrent (threadDelay)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -277,10 +277,11 @@ viewerComponent r user assignment wm =
             Ix.getOne (doc.assignments Ix.@= asmt.id)
               <|> Ix.getOne (doc.draftAssignments Ix.@= asmt.id)
 
-          -- Filter tasks for this assignment, sorted by identifier
-          relevantTasks = Ix.toAscList (Proxy @TaskIdentifier) $
-            Ix.union (doc.tasks Ix.@+ updatedAssignment.tasks)
-                     (doc.draftTasks Ix.@+ updatedAssignment.tasks)
+          -- Look up tasks preserving assignment list order
+          relevantTasks = mapMaybe (\tid ->
+              Ix.getOne (doc.tasks Ix.@= tid)
+                <|> Ix.getOne (doc.draftTasks Ix.@= tid)
+            ) updatedAssignment.tasks
 
           -- Build TaskWithSolutions for each task
           taskGroups = doc.taskGroups
