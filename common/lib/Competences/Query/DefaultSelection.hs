@@ -19,13 +19,13 @@ import Data.Ord (Down (..))
 import Data.Proxy (Proxy (..))
 import Data.Time (Day)
 
--- | First HomeExercise on or after today; fallback: first assignment on or after today.
+-- | Last HomeExercise by date; fallback: last assignment by date.
 defaultAssignment :: Day -> Ix.IxSet AssignmentIxs Assignment -> Maybe Assignment
-defaultAssignment today assignments =
-  let future = Ix.toAscList (Proxy @Day) $ assignments Ix.@>= today
-   in case find (\a -> a.activityType == HomeExercise) future of
+defaultAssignment _today assignments =
+  let allDesc = Ix.toDescList (Proxy @Day) assignments
+   in case find (\a -> a.activityType == HomeExercise) allDesc of
         Just a -> Just a
-        Nothing -> listToMaybe future
+        Nothing -> listToMaybe allDesc
 
 -- | Last competence grid by Order.
 defaultCompetenceGrid :: Ix.IxSet CompetenceGridIxs CompetenceGrid -> Maybe CompetenceGrid

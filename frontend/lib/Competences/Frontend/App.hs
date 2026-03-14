@@ -93,7 +93,8 @@ mkApp ir initialUri =
 
     view :: Model -> M.View Model Action
     view m =
-      let currentPage = either (const CompetenceGrid) id $ M.route (m ^. #uri)
+      let fallbackPage = if isStudent m.connectedUser then ViewAssignments else CompetenceGrid
+          currentPage = either (const fallbackPage) id $ M.route (m ^. #uri)
           teacher = isTeacher m.connectedUser
           categories = if teacher then NavBar.teacherCategories else NavBar.studentCategories
           extras = if teacher then NavBar.teacherExtraCategories else []

@@ -62,7 +62,7 @@ enumSelectorComponent' defaultChoice choices style showValue parentLens =
         Button.buttonGroup (map (mkButton m.selected) choices')
       SelectDropdown ->
         M.select_
-          [ class_ "h-8 rounded-md border border-input bg-background px-2 text-sm"
+          [ class_ "w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
           , M.onChange (\v -> Select (lookupByLabel (fromMisoString v)))
           ]
           (map (mkOption m.selected) choices')
