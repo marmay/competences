@@ -2,6 +2,7 @@ module Competences.Frontend.Component.PrintEngine.Modal
   ( PrintModalModel (..)
   , PrintModalAction (..)
   , initPrintModalModel
+  , initFromLayout
   , updatePrintModal
   , printModalView
   , measurementContainer
@@ -13,7 +14,10 @@ module Competences.Frontend.Component.PrintEngine.Modal
   )
 where
 
+import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Layout (Layout (..), LayoutId)
 import Competences.Document.Solution (SolutionId, SolutionType (..))
+import Data.Text (Text)
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
@@ -60,8 +64,12 @@ import Text.Read (readMaybe)
 
 -- | Modal state
 data PrintModalModel = PrintModalModel
-  { settings :: !PrintSettings
+  { layoutId :: !LayoutId
+  , layoutAssignmentId :: !AssignmentId
+  , layoutCreatedAt :: !Text
+  , settings :: !PrintSettings
   , contentSettings :: !ContentSettings
+  , selectedPreset :: !ContentPreset
   , taskInfos :: ![TaskInfo]
   , activeTab :: !PrintTab
   , previewTaskIndex :: !Int
@@ -87,7 +95,8 @@ data PrintModalAction
   | MeasuredPageGrouping !PageGrouping
   | PreviewNext
   | PreviewPrev
-  | ConfirmPrint
+  | SaveLayout
+  | PrintAndSaveLayout
   | CancelPrint
   | SwitchTab !PrintTab
   | ApplyPreset !ContentPreset
@@ -100,10 +109,29 @@ data PrintModalAction
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
-initPrintModalModel :: [TaskInfo] -> PrintModalModel
-initPrintModalModel infos = PrintModalModel
-  { settings = defaultPrintSettings
+initPrintModalModel :: Layout -> [TaskInfo] -> PrintModalModel
+initPrintModalModel layout infos = PrintModalModel
+  { layoutId = layout.id
+  , layoutAssignmentId = layout.assignmentId
+  , layoutCreatedAt = layout.createdAt
+  , settings = defaultPrintSettings
   , contentSettings = applyPreset Aufgabenblatt infos
+  , selectedPreset = Aufgabenblatt
+  , taskInfos = infos
+  , activeTab = FormatTab
+  , previewTaskIndex = 0
+  , pageGrouping = []
+  }
+
+-- | Initialize modal from an existing Layout entity
+initFromLayout :: Layout -> [TaskInfo] -> PrintModalModel
+initFromLayout layout infos = PrintModalModel
+  { layoutId = layout.id
+  , layoutAssignmentId = layout.assignmentId
+  , layoutCreatedAt = layout.createdAt
+  , settings = layout.printSettings
+  , contentSettings = layout.contentSettings
+  , selectedPreset = layout.preset
   , taskInfos = infos
   , activeTab = FormatTab
   , previewTaskIndex = 0
@@ -149,12 +177,13 @@ updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
   m {previewTaskIndex = max 0 (m.previewTaskIndex - 1)}
-updatePrintModal ConfirmPrint _total m = m
+updatePrintModal SaveLayout _total m = m
+updatePrintModal PrintAndSaveLayout _total m = m
 updatePrintModal CancelPrint _total m = m
 updatePrintModal (SwitchTab tab) _total m =
   m {activeTab = tab}
 updatePrintModal (ApplyPreset preset) _total m =
-  m {contentSettings = applyPreset preset m.taskInfos, pageGrouping = [], previewTaskIndex = 0}
+  m {contentSettings = applyPreset preset m.taskInfos, selectedPreset = preset, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (ToggleDescription tid) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {showDescription = not tcs.showDescription}) m.contentSettings
     , pageGrouping = []
@@ -439,13 +468,14 @@ gridToggleRow tcs wrap tid =
             Nothing -> M.text ""
         ]
 
--- | Modal footer with cancel and print buttons
+-- | Modal footer with cancel, save, and print & save buttons
 modalFooter :: (PrintModalAction -> action) -> M.View model action
 modalFooter wrap =
   Layout.shrink0 $
     Layout.actionFooter
       [ Button.secondary (btn (Icon.IcnCancel, C.LblCancel) (Just (wrap CancelPrint)))
-      , Button.primary (btn (Icon.IcnPrint, C.LblPrint) (Just (wrap ConfirmPrint)))
+      , Button.secondary (btn (C.translate' C.LblSave) (Just (wrap SaveLayout)))
+      , Button.primary (btn (Icon.IcnPrint, C.LblPrint) (Just (wrap PrintAndSaveLayout)))
       ]
 
 -- | Paper size selector (A4 / A5)

@@ -26,6 +26,8 @@ module Competences.Document
   , module Competences.Document.Absence
   , module Competences.Document.Submission
   , module Competences.Document.CompetenceLevelExample
+  , module Competences.Document.Layout
+  , module Competences.Document.Layout.Settings
   )
 where
 
@@ -95,6 +97,19 @@ import Competences.Document.ParticipationRecord
   , ParticipationType (..)
   )
 import Competences.Document.Grade (Grade (..), grades, gradeToText)
+import Competences.Document.Layout (Layout (..), LayoutId, LayoutIxs)
+import Competences.Document.Layout.Settings
+  ( ContentPreset (..)
+  , ContentSettings (..)
+  , GridConfig (..)
+  , Orientation (..)
+  , PaperSize (..)
+  , PrintSettings (..)
+  , TaskContentSetting (..)
+  , TaskHeaderStyle (..)
+  , TaskLayout (..)
+  , defaultPrintSettings
+  )
 import Competences.Document.Lock (Lock (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource
@@ -140,6 +155,7 @@ data Document = Document
   , draftTaskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , draftAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceLevelExamples :: !(Ix.IxSet CompetenceLevelExampleIxs CompetenceLevelExample)
+  , layouts :: !(Ix.IxSet LayoutIxs Layout)
   }
   deriving (Eq, Generic, Show)
 
@@ -171,6 +187,7 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "draftTaskGroups" .!= [])
       <*> fmap Ix.fromList (v .:? "draftAssignments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceLevelExamples" .!= [])
+      <*> fmap Ix.fromList (v .:? "layouts" .!= [])
 
 instance ToJSON Document where
   toJSON d =
@@ -197,6 +214,7 @@ instance ToJSON Document where
       , "draftTaskGroups" .= Ix.toList d.draftTaskGroups
       , "draftAssignments" .= Ix.toList d.draftAssignments
       , "competenceLevelExamples" .= Ix.toList d.competenceLevelExamples
+      , "layouts" .= Ix.toList d.layouts
       ]
 #endif
 
@@ -225,6 +243,7 @@ emptyDocument =
     , draftTaskGroups = Ix.empty
     , draftAssignments = Ix.empty
     , competenceLevelExamples = Ix.empty
+    , layouts = Ix.empty
     }
 
 
@@ -249,6 +268,7 @@ projectDocument user doc
         & #draftTasks .~ Ix.empty -- Drafts are teacher-only
         & #draftTaskGroups .~ Ix.empty
         & #draftAssignments .~ Ix.empty
+        & #layouts .~ Ix.empty -- Layouts are teacher-only
         -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
   where
     -- Student can see locks on entities they have access to
@@ -274,6 +294,7 @@ projectDocument user doc
       ResourceLock _ -> True -- Resources are visible to all users
       CompetenceLevelExampleLock _ -> True -- Examples are visible to all users
       LessonNotesLock _ -> True -- Lesson notes are visible to all users
+      LayoutLock _ -> False -- Layouts are teacher-only
       MesoPlanLock _ -> False -- Planning is teacher-only
       LessonLock _ -> False
       ParticipationRecordLock prid ->

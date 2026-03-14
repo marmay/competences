@@ -25,6 +25,7 @@ module Competences.Command
   , module Competences.Command.Absences
   , module Competences.Command.Submissions
   , module Competences.Command.CompetenceLevelExamples
+  , module Competences.Command.Layouts
   )
 where
 
@@ -42,6 +43,7 @@ import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..)
 import Competences.Command.CompetenceGridGrades (CompetenceGridGradePatch (..), CompetenceGridGradesCommand (..), handleCompetenceGridGradesCommand)
 import Competences.Command.Competences (CompetenceGridPatch (..), CompetencePatch (..), LevelInfoPatch (..), CompetencesCommand (..), handleCompetencesCommand)
 import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..), handleEvidencesCommand)
+import Competences.Command.Layouts (LayoutsCommand (..), LayoutPatch (..), handleLayoutsCommand)
 import Competences.Command.Lessons (LessonsCommand (..), LessonPatch (..), handleLessonsCommand)
 import Competences.Command.LessonNotes (LessonNotesCommand (..), LessonNotesPatch (..), handleLessonNotesCommand)
 import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), handleMesoPlansCommand)
@@ -102,6 +104,7 @@ data Command
   | DraftTasks !DraftTasksCommand
   | DraftAssignments !DraftAssignmentsCommand
   | CompetenceLevelExamples !CompetenceLevelExamplesCommand
+  | Layouts !LayoutsCommand
   | Publish !PublishData
   | Migration !MigrationCommand
   deriving (Eq, Generic, Show)
@@ -141,6 +144,7 @@ handleCommand userId cmd d = case cmd of
   DraftTasks c -> handleDraftTasksCommand userId c d
   DraftAssignments c -> handleDraftAssignmentsCommand userId c d
   CompetenceLevelExamples c -> handleCompetenceLevelExamplesCommand userId c d
+  Layouts c -> handleLayoutsCommand userId c d
   Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d
 

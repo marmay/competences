@@ -1,11 +1,16 @@
 module Competences.Frontend.Component.PrintEngine.Types
-  ( PaperSize (..)
+  ( -- * Re-exports from common
+    PaperSize (..)
   , Orientation (..)
   , TaskLayout (..)
   , TaskHeaderStyle (..)
   , GridConfig (..)
   , PrintSettings (..)
   , defaultPrintSettings
+  , TaskContentSetting (..)
+  , ContentSettings (..)
+  , ContentPreset (..)
+    -- * Frontend-only utilities
   , pageSizeCSS
   , pageSizeMm
   , pageMarginMm
@@ -14,11 +19,8 @@ module Competences.Frontend.Component.PrintEngine.Types
   , expandTaskSequence
   , chunksOf
   , taskNumFromIdx
-    -- * Content settings
+    -- * Content settings (frontend-only)
   , PrintTab (..)
-  , TaskContentSetting (..)
-  , ContentSettings (..)
-  , ContentPreset (..)
   , TaskInfo (..)
   , defaultGridHeightMm
   , mkTaskInfos
@@ -29,78 +31,29 @@ module Competences.Frontend.Component.PrintEngine.Types
 where
 
 import Competences.Document.Id (Id)
+import Competences.Document.Layout.Settings
+  ( ContentPreset (..)
+  , ContentSettings (..)
+  , GridConfig (..)
+  , Orientation (..)
+  , PaperSize (..)
+  , PrintSettings (..)
+  , TaskContentSetting (..)
+  , TaskHeaderStyle (..)
+  , TaskLayout (..)
+  , defaultPrintSettings
+  )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionType (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier)
 import Competences.Markdown.AST qualified as MD
 import Competences.Markdown.Parser qualified as Markdown
 import Competences.TaskContent.RichContent (RichContent, toRawText)
-import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
-
--- | Supported paper sizes
-data PaperSize = A4 | A5
-  deriving (Eq, Show, Generic, Enum, Bounded)
-
--- | Page orientation
-data Orientation = Portrait | Landscape
-  deriving (Eq, Show, Generic, Enum, Bounded)
-
--- | How the task header (h2) is rendered
-data TaskHeaderStyle = HeaderNumber | HeaderTitle | HeaderBoth
-  deriving (Eq, Show, Generic, Enum, Bounded)
-
--- | How tasks are laid out on the page
-data TaskLayout
-  = -- | Tasks flow continuously, no forced page breaks
-    Continuous
-  | -- | Tasks arranged in a grid (rows x cols per page)
-    Grid !GridConfig
-  deriving (Eq, Show, Generic)
-
--- | Grid dimensions (rows and columns per page)
-data GridConfig = GridConfig
-  { rows :: !Int
-  , cols :: !Int
-  }
-  deriving (Eq, Show, Generic)
-
--- | Print configuration
-data PrintSettings = PrintSettings
-  { paperSize :: !PaperSize
-  , orientation :: !Orientation
-  , baseFontSize :: !Double
-  , taskLayout :: !TaskLayout
-  , groupedCopies :: !Int
-  , totalCopies :: !Int
-  , showTitle :: !Bool
-  , showHeader :: !Bool
-  , showFooter :: !Bool
-  , showNameField :: !Bool
-  , taskHeaderStyle :: !TaskHeaderStyle
-  }
-  deriving (Eq, Show, Generic)
-
--- | Default: A4 portrait, continuous layout, 1 copy each
-defaultPrintSettings :: PrintSettings
-defaultPrintSettings =
-  PrintSettings
-    { paperSize = A4
-    , orientation = Portrait
-    , baseFontSize = 10.0
-    , taskLayout = Continuous
-    , groupedCopies = 1
-    , totalCopies = 1
-    , showTitle = True
-    , showHeader = True
-    , showFooter = True
-    , showNameField = True
-    , taskHeaderStyle = HeaderBoth
-    }
 
 -- | CSS @page size value (e.g. "A5", "A4 landscape")
 pageSizeCSS :: PaperSize -> Orientation -> Text
@@ -163,36 +116,12 @@ taskNumFromIdx groupedCopies originalCount idx =
    in (idx `mod` (originalCount * gc)) `div` gc + 1
 
 -- ============================================================================
--- Content Settings (what to include per task in print output)
+-- Frontend-only types
 -- ============================================================================
 
 -- | Tab selection for the print modal sidebar
 data PrintTab = FormatTab | ContentsTab
   deriving (Eq, Show, Generic)
-
--- | Per-task content settings for print output
-data TaskContentSetting = TaskContentSetting
-  { showDescription :: !Bool
-  , visibleSolutions :: !(Set SolutionId)
-  , gridHeightMm :: !(Maybe Double)
-  , inlineAnswer :: !Bool
-  , itemsPerRow :: !Int
-  }
-  deriving (Eq, Show, Generic)
-
--- | Content settings: per-task map of what to include
-newtype ContentSettings = ContentSettings
-  { perTask :: Map TaskId TaskContentSetting
-  }
-  deriving (Eq, Show, Generic)
-
--- | Preset configurations for quick setup
-data ContentPreset
-  = Aufgabenblatt
-  | Arbeitsblatt
-  | Loesungsblatt
-  | Musteraufgaben
-  deriving (Eq, Show, Generic, Enum, Bounded)
 
 -- | Summary info about a task for modal UI rendering
 data TaskInfo = TaskInfo

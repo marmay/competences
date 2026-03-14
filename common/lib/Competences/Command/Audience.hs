@@ -115,6 +115,8 @@ commandAudience (Submissions (OnSubmissions ec)) = submissionAudience ec
 -- Draft entities: teacher-only
 commandAudience (DraftTasks _) = AudienceTeachers
 commandAudience (DraftAssignments _) = AudienceTeachers
+-- Layouts: teacher-only
+commandAudience (Layouts _) = AudienceTeachers
 -- Publish: affects all users (creates real entities visible to students)
 commandAudience (Publish _) = AudienceAll
 

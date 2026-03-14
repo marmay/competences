@@ -345,6 +345,7 @@ data Label
   | LblPresetArbeitsblatt
   | LblPresetLoesungsblatt
   | LblPresetMusteraufgaben
+  | LblNewLayout
   | LblPageSize
   | LblOrientation
   | LblPortrait
@@ -747,6 +748,7 @@ labels' =
   , LblPresetArbeitsblatt
   , LblPresetLoesungsblatt
   , LblPresetMusteraufgaben
+  , LblNewLayout
   , LblPageSize
   , LblOrientation
   , LblPortrait
@@ -1166,6 +1168,7 @@ defaultTranslation LblPresetAufgabenblatt = "Aufgabenblatt"
 defaultTranslation LblPresetArbeitsblatt = "Arbeitsblatt"
 defaultTranslation LblPresetLoesungsblatt = "Lösungsblatt"
 defaultTranslation LblPresetMusteraufgaben = "Musteraufgaben"
+defaultTranslation LblNewLayout = "+ Neues Layout"
 defaultTranslation LblPageSize = "Seitengröße"
 defaultTranslation LblOrientation = "Ausrichtung"
 defaultTranslation LblPortrait = "Hochformat"

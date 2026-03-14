@@ -11,6 +11,7 @@ import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceId)
 import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.CompetenceLevelExample (CompetenceLevelExampleId)
+import Competences.Document.Layout (LayoutId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGradeId)
 import Competences.Document.Evidence (EvidenceId)
 import Competences.Document.Lesson (LessonId)
@@ -50,6 +51,7 @@ data Lock
   | AbsenceLock !AbsenceId
   | SubmissionLock !SubmissionId
   | CompetenceLevelExampleLock !CompetenceLevelExampleId
+  | LayoutLock !LayoutId
   deriving (Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON

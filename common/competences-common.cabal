@@ -41,6 +41,7 @@ library
         Competences.Command.DraftTasks
         Competences.Command.Evidences
         Competences.Command.Interpret
+        Competences.Command.Layouts
         Competences.Command.Lessons
         Competences.Command.LessonNotes
         Competences.Command.MesoPlans
@@ -66,6 +67,8 @@ library
         Competences.Document.FileRef
         Competences.Document.Grade
         Competences.Document.Id
+        Competences.Document.Layout
+        Competences.Document.Layout.Settings
         Competences.Document.Lesson
         Competences.Document.LessonNotes
         Competences.Document.Lock

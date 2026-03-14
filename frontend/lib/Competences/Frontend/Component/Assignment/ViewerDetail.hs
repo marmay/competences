@@ -10,18 +10,25 @@ where
 
 import Control.Applicative ((<|>))
 import Data.Maybe (mapMaybe)
+import Competences.Command (Command (..))
+import Competences.Command.Layouts (LayoutsCommand (..))
+import Competences.Command.Common (EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Assignment (..)
   , Competence (..)
+  , ContentPreset (..)
   , Document (..)
+  , Layout (..)
   , Solution (..)
   , User (..)
   )
 import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Id (idToText)
+import Competences.Document.Id (Id (..), idToText)
 import Competences.Document.Competence (CompetenceIxs, LevelInfo (..))
-import Competences.Document.Evidence (Ability (..), Evidence (..), TaskRemark (..))
+import Competences.Document.Evidence (Ability (..), Evidence (..), TaskRemark (..)
+  )
+import Competences.Document.Layout (LayoutId)
 import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
@@ -46,6 +53,7 @@ import Competences.Frontend.Component.PrintEngine.Modal
   ( PrintModalAction (..)
   , PrintModalModel (..)
   , initPrintModalModel
+  , initFromLayout
   , measurementContainer
   , needsRemeasure
   , printModalView
@@ -87,9 +95,11 @@ import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
+  , modifySyncDocument
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Badge qualified as Badge
@@ -113,7 +123,9 @@ import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Control.Concurrent (threadDelay)
+import Data.Time (getCurrentTime, formatTime, defaultTimeLocale)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
@@ -123,6 +135,7 @@ import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
+import System.Random (randomIO)
 
 -- | Trigger browser print dialog.
 -- Safe to call after DOM has been patched (e.g., from onCreated sentinel).
@@ -131,6 +144,21 @@ triggerPrint = do
   window <- jsg ("window" :: MisoString)
   _ <- window # ("print" :: MisoString) $ ([] :: [MisoString])
   pure ()
+
+-- | Save a layout from the current modal state.
+-- Deletes the old layout and creates a new one with updated settings.
+saveLayoutFromModal :: SyncContext -> PrintModalModel -> IO ()
+saveLayoutFromModal syncCtx mm = do
+  modifySyncDocument syncCtx (Layouts (OnLayouts (Delete mm.layoutId)))
+  let layout = Layout
+        { id = mm.layoutId
+        , assignmentId = mm.layoutAssignmentId
+        , preset = mm.selectedPreset
+        , printSettings = mm.settings
+        , contentSettings = mm.contentSettings
+        , createdAt = mm.layoutCreatedAt
+        }
+  modifySyncDocument syncCtx (Layouts (OnLayouts (Create layout)))
 
 -- ============================================================================
 -- Status Helpers (delegate to Query module)
@@ -175,6 +203,8 @@ data ViewerProjection = ViewerProjection
   , taskRemarkMap :: !(Map TaskId (Set.Set TaskRemark))
     -- | Pre-computed submission summary for the effective user (students only)
   , submissionSummary :: !Submission.SubmissionSummary
+    -- | Saved print layouts for this assignment
+  , assignmentLayouts :: ![Layout]
   }
   deriving (Eq, Generic, Show)
 
@@ -192,6 +222,7 @@ emptyProjection role assignment = ViewerProjection
   , tasksWithCompetences = Set.empty
   , taskRemarkMap = Map.empty
   , submissionSummary = Submission.NoSubmissions
+  , assignmentLayouts = []
   }
 
 -- ============================================================================
@@ -243,10 +274,12 @@ data ViewerAction
   | TaskListAction !TRL.Action
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
-  | OpenPagePrintModal
+  | OpenPagePrintModal !(Maybe LayoutId)
+  | OpenNewLayoutModal !Layout
   | PagePrintMsg !PrintModalAction
   | ClearPagePrint
   | OpenSubmissionModal
+  | DeleteLayout !LayoutId
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -325,6 +358,9 @@ viewerComponent r user assignment wm =
           userSubmissions = Ix.toList $ doc.submissions Ix.@= updatedAssignment.id Ix.@= effectiveUserId
           subSummary = Submission.submissionSummary userSubmissions
 
+          -- Get saved layouts for this assignment
+          layouts = Ix.toList $ doc.layouts Ix.@= updatedAssignment.id
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -337,6 +373,7 @@ viewerComponent r user assignment wm =
             , tasksWithCompetences
             , taskRemarkMap
             , submissionSummary = subSummary
+            , assignmentLayouts = layouts
             }
 
     update (ProjectionChanged change) =
@@ -358,15 +395,51 @@ viewerComponent r user assignment wm =
                 else Set.insert taskId m.expandedTaskResources
          in m & #expandedTaskResources .~ newSet
 
-    update OpenPagePrintModal = do
+    update (OpenPagePrintModal mLayoutId) = do
+      m <- M.get
+      let infos = mkTaskInfos
+            [ (tws.task, tws.solutions, tws.taskContent)
+            | tws <- m.projection.tasksWithSolutions
+            ]
+      case mLayoutId of
+        -- Load existing layout
+        Just lid -> case filter (\l -> l.id == lid) m.projection.assignmentLayouts of
+          (layout : _) -> do
+            M.modify $ \m' ->
+              m' & #pagePrintModal .~ Just (initFromLayout layout infos)
+            M.io $ do
+              threadDelay 100000
+              heights <- measureTaskHeights
+              let s = layout.printSettings
+                  (firstAvail, restAvail) = decorationAdjustedHeights s
+                  gap = minGapPx s.baseFontSize
+              pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
+          [] -> pure () -- Layout not found, do nothing
+
+        -- Create new layout: generate ID + timestamp in IO, send Create, then open
+        Nothing -> M.io $ do
+          newId <- Id <$> randomIO
+          now <- T.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M" <$> getCurrentTime
+          let layout = Layout
+                { id = newId
+                , assignmentId = assignment.id
+                , preset = Aufgabenblatt
+                , printSettings = defaultPrintSettings
+                , contentSettings = ContentSettings { perTask = Map.empty }
+                , createdAt = now
+                }
+          modifySyncDocument r (Layouts (OnLayouts (Create layout)))
+          pure (OpenNewLayoutModal layout)
+
+    update (OpenNewLayoutModal layout) = do
       M.modify $ \m ->
         let infos = mkTaskInfos
               [ (tws.task, tws.solutions, tws.taskContent)
               | tws <- m.projection.tasksWithSolutions
               ]
-         in m & #pagePrintModal .~ Just (initPrintModalModel infos)
+         in m & #pagePrintModal .~ Just (initPrintModalModel layout infos)
       M.io $ do
-        threadDelay 100000 -- 100ms for DOM to render measurement container
+        threadDelay 100000
         heights <- measureTaskHeights
         let s = defaultPrintSettings
             (firstAvail, restAvail) = decorationAdjustedHeights s
@@ -376,21 +449,32 @@ viewerComponent r user assignment wm =
     update (PagePrintMsg CancelPrint) =
       M.modify $ \m -> m & #pagePrintModal .~ Nothing
 
-    update (PagePrintMsg ConfirmPrint) = do
-      M.modify $ \m ->
-        let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
-            cs = fmap (.contentSettings) m.pagePrintModal
-            pg = maybe [] (.pageGrouping) m.pagePrintModal
-         in m & #pagePrintModal .~ Nothing
-              & #pagePrintPending .~ Just settings
-              & #pagePrintPendingContent .~ cs
-              & #pagePrintPageGrouping .~ pg
-      -- Delay to let MathJax finish rendering formulas in the hidden div,
-      -- then trigger the browser print dialog and clean up afterwards.
-      M.io $ do
-        threadDelay 800000 -- 800ms for MathJax
-        triggerPrint
-        pure ClearPagePrint
+    update (PagePrintMsg SaveLayout) = do
+      m <- M.get
+      case m.pagePrintModal of
+        Nothing -> pure ()
+        Just mm -> do
+          M.io_ $ saveLayoutFromModal r mm
+          M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
+
+    update (PagePrintMsg PrintAndSaveLayout) = do
+      m <- M.get
+      case m.pagePrintModal of
+        Nothing -> pure ()
+        Just mm -> do
+          M.io_ $ saveLayoutFromModal r mm
+          let settings = mm.settings
+              cs = mm.contentSettings
+              pg = mm.pageGrouping
+          M.modify $ \m' ->
+            m' & #pagePrintModal .~ Nothing
+               & #pagePrintPending .~ Just settings
+               & #pagePrintPendingContent .~ Just cs
+               & #pagePrintPageGrouping .~ pg
+          M.io $ do
+            threadDelay 800000 -- 800ms for MathJax
+            triggerPrint
+            pure ClearPagePrint
 
     update (PagePrintMsg action) = do
       M.modify $ \m ->
@@ -418,6 +502,9 @@ viewerComponent r user assignment wm =
                           & #pagePrintPageGrouping .~ []
 
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
+
+    update (DeleteLayout lid) = M.io_ $
+      modifySyncDocument r (Layouts (OnLayouts (Delete lid)))
 
     update OpenSubmissionModal = M.io_ $
       Submission.openSubmissionModal r assignment.id user.id
@@ -483,7 +570,7 @@ viewerComponent r user assignment wm =
                               then [viewSubmissionStatusButton proj.submissionSummary]
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
-                            <> [ viewPagePrintButton ]
+                            <> [ viewPagePrintButton proj | proj.connectedUserRole == Teacher ]
                         ]
                     ]
                 , -- Date below title (muted, small)
@@ -586,9 +673,38 @@ viewerComponent r user assignment wm =
     -- Page Print
     -- ========================================================================
 
-    viewPagePrintButton :: M.View ViewerModel ViewerAction
-    viewPagePrintButton =
-      Button.ghostSm (Button.button Icon.IcnPrint OpenPagePrintModal)
+    viewPagePrintButton :: ViewerProjection -> M.View ViewerModel ViewerAction
+    viewPagePrintButton proj =
+      case proj.assignmentLayouts of
+        [] -> Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing))
+        layouts ->
+          HoverMenu.hoverMenu
+            (Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing)))
+            ( map layoutEntry layouts
+                <> [ HoverMenu.hoverMenuSeparator
+                   , HoverMenu.hoverMenuEntry False Icon.IcnPlus (C.translate' C.LblNewLayout) (OpenPagePrintModal Nothing)
+                   ]
+            )
+
+    layoutEntry :: Layout -> M.View ViewerModel ViewerAction
+    layoutEntry layout =
+      let presetLabel = presetName layout.preset
+          displayName = presetLabel <> " \x2014 " <> ms layout.createdAt
+       in M.div_
+            [class_ "flex items-center gap-1 px-1"]
+            [ M.div_
+                [ class_ "flex-1 cursor-pointer hover:bg-accent hover:text-accent-foreground px-2 py-1 rounded text-sm"
+                , M.onClick (OpenPagePrintModal (Just layout.id))
+                ]
+                [M.text displayName]
+            , Button.ghostSm (Button.button Icon.IcnDelete (DeleteLayout layout.id))
+            ]
+
+    presetName :: ContentPreset -> MisoString
+    presetName Aufgabenblatt = C.translate' C.LblPresetAufgabenblatt
+    presetName Arbeitsblatt = C.translate' C.LblPresetArbeitsblatt
+    presetName Loesungsblatt = C.translate' C.LblPresetLoesungsblatt
+    presetName Musteraufgaben = C.translate' C.LblPresetMusteraufgaben
 
     -- | Build the expanded task list from settings, filtering by content visibility
     expandedTasks :: PrintSettings -> ContentSettings -> ViewerProjection -> [TaskWithSolutions]

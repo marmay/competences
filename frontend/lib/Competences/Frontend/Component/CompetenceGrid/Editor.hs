@@ -110,6 +110,7 @@ editorComponent r grid =
         , draftTaskGroups = Ix.empty
         , draftAssignments = Ix.empty
         , competenceLevelExamples = Ix.empty
+        , layouts = Ix.empty
         }
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document
