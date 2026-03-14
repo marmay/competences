@@ -53,12 +53,14 @@ import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
 import Competences.Protocol (CommandId)
 import Control.Monad (forM_, when)
-import Data.Aeson (Value, encode, fromJSON, Result(..))
+import Data.Aeson (Value, eitherDecodeStrict, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy qualified as LBS
 import Data.Int (Int64)
 import Data.Pool (Pool, newPool, defaultPoolConfig, setNumStripes, destroyAllResources, withResource)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time (UTCTime, NominalDiffTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Data.UUID.V4 qualified as UUID
@@ -81,7 +83,7 @@ import System.Process (readProcessWithExitCode)
 
 -- | Expected database schema version
 expectedSchemaVersion :: Int
-expectedSchemaVersion = 3
+expectedSchemaVersion = 4
 
 -- | Initialize connection pool
 --
@@ -127,6 +129,10 @@ migrations =
   , ( 3
     , "Add protected flag for snapshot garbage collection"
     , "ALTER TABLE snapshots ADD COLUMN protected BOOLEAN NOT NULL DEFAULT FALSE;"
+    )
+  , ( 4
+    , "Convert snapshot document_data from JSONB to TEXT for byte-exact comparison"
+    , "ALTER TABLE snapshots ALTER COLUMN document_data TYPE TEXT USING document_data::text;"
     )
   ]
 
@@ -439,7 +445,7 @@ saveSnapshot :: Pool Connection -> Document -> Int64 -> IO ()
 saveSnapshot pool doc generation = withResource pool $ \conn -> do
   snapshotId <- UUID.nextRandom
   let envelope = wrapSnapshot doc
-  let envelopeJson = encode envelope
+  let envelopeText = decodeUtf8 (LBS.toStrict (encode envelope))
   _ <-
     execute
       conn
@@ -447,7 +453,7 @@ saveSnapshot pool doc generation = withResource pool $ \conn -> do
       INSERT INTO snapshots (snapshot_id, generation, document_data)
       VALUES (?, ?, ?)
     |]
-      (snapshotId, generation, envelopeJson)
+      (snapshotId, generation, envelopeText)
   -- Update metadata for snapshot tracking
   now <- getCurrentTime
   _ <-
@@ -486,12 +492,12 @@ loadLatestSnapshot pool = withResource pool $ \conn -> do
     |]
   case rows of
     [] -> pure Nothing
-    (generation, envelopeValue :: Value) : _ ->
-      case fromJSON envelopeValue of
-        Error err -> die $ "Failed to decode snapshot envelope from database: " <> err
-        Success envelope ->
+    (generation, envelopeText :: Text) : _ ->
+      case eitherDecodeStrict (encodeUtf8 envelopeText) of
+        Left err -> die $ "Failed to parse snapshot JSON: " <> err
+        Right envelope ->
           case unwrapSnapshot envelope of
-            Left err -> die $ "Failed to unwrap snapshot: " <> show err
+            Left err -> die $ "Failed to unwrap snapshot: " <> T.unpack err
             Right (doc, cmds) -> pure $ Just (doc, generation, cmds)
 
 -- | Check if a snapshot should be taken
@@ -609,36 +615,37 @@ walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, createdAt, isPro
                     , Success envelope <- [fromJSON envelopeValue]
                     , Right cmd <- [unwrapCommand envelope]
                     ]
-              -- Load the candidate's document for comparison
-              candidateResult <- loadSnapshotDocumentById conn candidateGen
-              case candidateResult of
+              -- Load the candidate's raw TEXT for byte-exact comparison
+              candidateTextResult <- loadSnapshotTextById conn candidateGen
+              case candidateTextResult of
                 Left err -> do
                   putStrLn $ "Snapshot GC: failed to load candidate snapshot at gen " <> show candidateGen <> ": " <> err
                   -- Can't verify — skip and continue
                   walkCandidates conn now Nothing candidateGen rest
-                Right candidateDoc ->
+                Right candidateText ->
                   case replayCommandsForGC anchorDoc parsedCmds of
                     Left err -> do
                       putStrLn $
                         "Snapshot GC WARNING: replay failed for gen " <> show candidateGen
                           <> ": " <> T.unpack err <> " — marking as protected"
                       _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
-                      -- Keep candidate doc as new anchor
-                      walkCandidates conn now (Just candidateDoc) candidateGen rest
-                    Right replayedDoc
-                      | replayedDoc == candidateDoc -> do
+                      walkCandidates conn now Nothing candidateGen rest
+                    Right replayedDoc -> do
+                      let replayedText = decodeUtf8 (LBS.toStrict (encode (wrapSnapshot replayedDoc)))
+                      if replayedText == candidateText
+                        then do
                           -- Reproducible: safe to delete
                           _ <- execute conn [sql|DELETE FROM snapshots WHERE id = ?|] (Only snapId)
                           -- Don't update lastGen — reuse anchor doc for next candidate
                           deletedRest <- walkCandidates conn now (Just anchorDoc) lastGen rest
                           pure (1 + deletedRest)
-                      | otherwise -> do
+                        else do
                           putStrLn $
                             "Snapshot GC WARNING: document mismatch at gen " <> show candidateGen
                               <> " — marking as protected"
                           _ <- execute conn [sql|UPDATE snapshots SET protected = TRUE WHERE id = ?|] (Only snapId)
-                          -- Keep candidate doc as new anchor
-                          walkCandidates conn now (Just candidateDoc) candidateGen rest
+                          -- No deserialized candidate doc available; next iteration loads lazily
+                          walkCandidates conn now Nothing candidateGen rest
 
 -- | Is the snapshot a candidate for pruning given the command gap from the
 -- previous kept snapshot?  We cap at 500 to limit replay distance on startup.
@@ -648,26 +655,34 @@ isPruneCandidate commandGap = commandGap < 500
 twoDays :: NominalDiffTime
 twoDays = 2 * 24 * 3600
 
--- | Deserialize a snapshot's document_data JSON value through the versioned envelope.
-loadSnapshotDocument :: Value -> Either String Document
-loadSnapshotDocument val =
-  case fromJSON val of
-    Error err -> Left $ "Failed to decode envelope: " <> err
-    Success envelope ->
-      case unwrapSnapshot envelope of
-        Left err -> Left $ "Failed to unwrap snapshot: " <> T.unpack err
-        Right (doc, _cmds) -> Right doc
-
 -- | Load a single snapshot's document by generation, using a point query.
--- Only fetches the document_data column for the given generation.
+-- Reads TEXT, parses JSON, unwraps envelope to Document.
 loadSnapshotDocumentById :: Connection -> Int64 -> IO (Either String Document)
 loadSnapshotDocumentById conn gen = do
   rows <-
     query conn [sql|
       SELECT document_data FROM snapshots WHERE generation = ?
-    |] (Only gen) :: IO [Only Value]
+    |] (Only gen) :: IO [Only Text]
   case rows of
-    [Only val] -> pure $ loadSnapshotDocument val
+    [Only t] ->
+      case eitherDecodeStrict (encodeUtf8 t) of
+        Left err -> pure $ Left $ "Failed to decode envelope: " <> err
+        Right envelope ->
+          case unwrapSnapshot envelope of
+            Left err -> pure $ Left $ "Failed to unwrap snapshot: " <> T.unpack err
+            Right (doc, _cmds) -> pure $ Right doc
+    [] -> pure $ Left $ "No snapshot found at generation " <> show gen
+    _ -> pure $ Left $ "Multiple snapshots at generation " <> show gen
+
+-- | Load a single snapshot's raw TEXT by generation, for byte-exact comparison.
+loadSnapshotTextById :: Connection -> Int64 -> IO (Either String Text)
+loadSnapshotTextById conn gen = do
+  rows <-
+    query conn [sql|
+      SELECT document_data FROM snapshots WHERE generation = ?
+    |] (Only gen) :: IO [Only Text]
+  case rows of
+    [Only t] -> pure (Right t)
     [] -> pure $ Left $ "No snapshot found at generation " <> show gen
     _ -> pure $ Left $ "Multiple snapshots at generation " <> show gen
 

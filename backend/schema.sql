@@ -29,7 +29,7 @@ CREATE TABLE snapshots (
   id BIGSERIAL PRIMARY KEY,
   snapshot_id UUID NOT NULL UNIQUE,
   generation BIGINT NOT NULL,
-  document_data JSONB NOT NULL,
+  document_data TEXT NOT NULL,
   protected BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   FOREIGN KEY (generation) REFERENCES commands(generation)
@@ -80,3 +80,5 @@ INSERT INTO schema_migrations (version, description)
 VALUES (2, 'Command audience tracking for incremental sync');
 INSERT INTO schema_migrations (version, description)
 VALUES (3, 'Add protected flag for snapshot garbage collection');
+INSERT INTO schema_migrations (version, description)
+VALUES (4, 'Convert snapshot document_data from JSONB to TEXT for byte-exact comparison');
