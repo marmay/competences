@@ -132,7 +132,16 @@ migrations =
     )
   , ( 4
     , "Convert snapshot document_data from JSONB to TEXT for byte-exact comparison"
-    , "ALTER TABLE snapshots ALTER COLUMN document_data TYPE TEXT USING document_data::text;"
+    , BS.intercalate "\n"
+        [ "ALTER TABLE snapshots ALTER COLUMN document_data TYPE TEXT USING document_data::text;"
+        , ""
+        , "INSERT INTO commands (command_id, user_id, command_data)"
+        , "VALUES ("
+        , "  gen_random_uuid(),"
+        , "  '00000000-0000-0000-0000-000000000000',"
+        , "  '{\"payload\":{\"contents\":{\"tag\":\"SortAssignmentTasksByIdentifier\"},\"tag\":\"Migration\"},\"userId\":\"00000000-0000-0000-0000-000000000000\",\"version\":1}'"
+        , ");"
+        ]
     )
   ]
 

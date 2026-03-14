@@ -49,10 +49,12 @@ import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
 import Competences.Document (Document (..), Lesson (..), User (..))
-import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (Office365Id (..), UserId, UserRole (..))
+import Competences.Document.Task (Task (..), TaskIdentifier (..))
+import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Text qualified as T
 #ifdef WITH_AESON
@@ -68,6 +70,7 @@ data MigrationCommand
   = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
   | InitIfEmpty
   | EnsureTeacherO365 !(Id User) !Text
+  | SortAssignmentTasksByIdentifier
   deriving (Eq, Generic, Show)
 
 instance Binary MigrationCommand
@@ -174,6 +177,18 @@ handleMigrationCommand (EnsureTeacherO365 newId email) d =
                   }
               d' = d & #users %~ Ix.insert user
            in Right (d', allUsers d')
+handleMigrationCommand SortAssignmentTasksByIdentifier d =
+  let lookupIdentifier taskSet tid =
+        case Ix.getOne (taskSet Ix.@= tid) of
+          Just t -> t.identifier
+          Nothing -> TaskIdentifier ""
+      sortTasks taskSet a =
+        a & #tasks %~ sortOn (lookupIdentifier taskSet)
+      d' =
+        d
+          & #assignments %~ Ix.fromList . map (sortTasks d.tasks) . Ix.toList
+          & #draftAssignments %~ Ix.fromList . map (sortTasks d.draftTasks) . Ix.toList
+   in Right (d', allUsers d')
 
 allUsers :: Document -> AffectedUsers
 allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users
