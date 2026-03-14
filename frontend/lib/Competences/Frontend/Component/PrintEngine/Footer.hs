@@ -12,6 +12,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , TaskContentSetting (..)
   , taskContentSetting
   )
+import Competences.Frontend.Component.RichContent (FormulaCache, renderMarkdownText)
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text qualified as T
 import Miso qualified as M
@@ -23,11 +24,11 @@ import Text.Read (readMaybe)
 -- | Render custom footer template with placeholder substitution.
 -- Takes the template text, content settings, and the list of task IDs
 -- (de-duplicated, in original order).
-renderCustomFooter :: T.Text -> ContentSettings -> [TaskId] -> M.View model action
-renderCustomFooter template cs taskIds =
+renderCustomFooter :: FormulaCache -> T.Text -> ContentSettings -> [TaskId] -> M.View model action
+renderCustomFooter fc template cs taskIds =
   let taskPoints = collectTaskPoints cs taskIds
       totalPts = sum (map snd taskPoints)
-      rendered = substituteTemplate totalPts taskPoints template
+      rendered = substituteTemplate fc totalPts taskPoints template
    in M.div_
         [class_ "mt-4 print-custom-footer"]
         rendered
@@ -48,9 +49,10 @@ showPoints p
   | p == fromIntegral (round p :: Int) = T.pack (show (round p :: Int))
   | otherwise = T.pack (show p)
 
--- | Substitute template placeholders with rendered HTML views
-substituteTemplate :: Double -> [(Int, Double)] -> T.Text -> [M.View model action]
-substituteTemplate totalPts taskPoints tmpl = go tmpl
+-- | Substitute template placeholders with rendered HTML views.
+-- Text between placeholders is rendered as markdown (supports bold, italic, etc.).
+substituteTemplate :: FormulaCache -> Double -> [(Int, Double)] -> T.Text -> [M.View model action]
+substituteTemplate fc totalPts taskPoints tmpl = go tmpl
   where
     go t
       | T.null t = []
@@ -69,7 +71,11 @@ substituteTemplate totalPts taskPoints tmpl = go tmpl
           let (before, after) = T.breakOn "{{" t
            in if T.null before
                 then [M.text (ms (T.take 2 after))] <> go (T.drop 2 after) -- skip unrecognized {{
-                else [M.text (ms before)] <> go after
+                else [renderTextChunk before] <> go after
+    renderTextChunk txt =
+      M.div_
+        [class_ "prose prose-sm max-w-none"]
+        [renderMarkdownText fc txt]
 
 -- | Render a horizontal points table
 renderPointsTable :: [(Int, Double)] -> Double -> M.View model action

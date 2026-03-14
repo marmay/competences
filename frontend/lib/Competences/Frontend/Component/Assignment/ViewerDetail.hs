@@ -267,6 +267,7 @@ data ViewerModel = ViewerModel
   , pagePrintPendingContent :: !(Maybe ContentSettings)
   , pagePrintPageGrouping :: !PageGrouping
   , layoutHoldState :: !(HoldButton.HoldState LayoutId)
+  , footerDraftGen :: !Int
   }
   deriving (Eq, Generic, Show)
 
@@ -281,6 +282,8 @@ data ViewerAction
   | ClearPagePrint
   | OpenSubmissionModal
   | LayoutHoldAction !(HoldButton.HoldAction LayoutId)
+  | DebouncedRemeasure !Int
+  | NoOp
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -299,6 +302,7 @@ viewerComponent r user assignment wm =
       , pagePrintPendingContent = Nothing
       , pagePrintPageGrouping = []
       , layoutHoldState = HoldButton.emptyHoldState
+      , footerDraftGen = 0
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -486,6 +490,12 @@ viewerComponent r user assignment wm =
             triggerPrint
             pure ClearPagePrint
 
+    update (DebouncedRemeasure gen) = do
+      m <- M.get
+      if m.footerDraftGen == gen
+        then update (PagePrintMsg RemeasurePages)
+        else pure () -- stale, a newer keystroke superseded this
+
     update (PagePrintMsg action) = do
       M.modify $ \m ->
         let expanded = case m.pagePrintModal of
@@ -494,8 +504,21 @@ viewerComponent r user assignment wm =
             total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
       if needsRemeasure action
-        then do
-          -- Read updated settings from model before spawning IO
+        then doRemeasure
+        else case action of
+          SetCustomFooter _ -> scheduleDebouncedRemeasure
+          SetPoints _ _ -> scheduleDebouncedRemeasure
+          _ -> pure ()
+      where
+        scheduleDebouncedRemeasure = do
+          M.modify $ \m -> m & #footerDraftGen .~ (m.footerDraftGen + 1)
+          m <- M.get
+          let gen = m.footerDraftGen
+          M.io $ do
+            threadDelay 500000 -- 500ms debounce
+            pure (DebouncedRemeasure gen)
+
+        doRemeasure = do
           m <- M.get
           let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
               cs' = maybe defaultContentSettings (.contentSettings) m.pagePrintModal
@@ -508,7 +531,6 @@ viewerComponent r user assignment wm =
             let baseGrouping = groupIntoPages firstAvail restAvail gap settings.distributeLastPage heights
                 finalGrouping = adjustForFooter footerH firstAvail restAvail gap settings.distributeLastPage baseGrouping heights
             pure (PagePrintMsg (MeasuredPageGrouping finalGrouping))
-        else pure ()
 
     update ClearPagePrint =
       M.modify $ \m -> m & #pagePrintPending .~ Nothing
@@ -525,6 +547,8 @@ viewerComponent r user assignment wm =
 
     update OpenSubmissionModal = M.io_ $
       Submission.openSubmissionModal r assignment.id user.id
+
+    update NoOp = pure ()
 
     view' m =
       M.div_
@@ -544,6 +568,7 @@ viewerComponent r user assignment wm =
                in M.div_
                     []
                     [ printModalView
+                        r.formulaCache
                         renderFn
                         expandedCount
                         (assignmentNameToText m.projection.currentAssignment.name)
@@ -556,7 +581,7 @@ viewerComponent r user assignment wm =
                           M.div_
                             []
                             [ measurementContainer renderFn expandedCount modalModel
-                            , footerMeasureContainer modalModel
+                            , footerMeasureContainer r.formulaCache modalModel
                             ]
                         _ -> M.text ""
                     ]
@@ -697,7 +722,7 @@ viewerComponent r user assignment wm =
         [] -> Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing))
         layouts ->
           HoverMenu.hoverMenuRight
-            (Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing)))
+            (Button.ghostSm (Button.button Icon.IcnPrint NoOp))
             ( map (layoutEntry m) layouts
                 <> [ HoverMenu.hoverMenuSeparator
                    , HoverMenu.hoverMenuEntry False Icon.IcnPlus (C.translate' C.LblNewLayout) (OpenPagePrintModal Nothing)
@@ -791,7 +816,7 @@ viewerComponent r user assignment wm =
                         Just tws -> printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-task"] tws
                       taskIds = map (.task.id) (nubByTaskId expanded)
                       customFooterView = case cs.customFooter of
-                        Just footer -> Just (Footer.renderCustomFooter footer cs taskIds)
+                        Just footer -> Just (Footer.renderCustomFooter r.formulaCache footer cs taskIds)
                         Nothing -> Nothing
                    in zipWith (Page.renderContinuousPage settings cs title date totalPages renderFn customFooterView) [0 ..] pageGrp
               | otherwise ->
@@ -800,7 +825,7 @@ viewerComponent r user assignment wm =
                   | (_i, tws) <- zip [0 :: Int ..] expanded
                   ]
                   <> case cs.customFooter of
-                       Just footer -> [Footer.renderCustomFooter footer cs (map (.task.id) (nubByTaskId expanded))]
+                       Just footer -> [Footer.renderCustomFooter r.formulaCache footer cs (map (.task.id) (nubByTaskId expanded))]
                        Nothing -> []
             Grid gc ->
               -- Group into pages, each page in a .print-page grid div

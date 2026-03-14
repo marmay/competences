@@ -5,10 +5,12 @@ module Competences.Frontend.Component.PrintEngine.Types
   , TaskLayout (..)
   , TaskHeaderStyle (..)
   , GridConfig (..)
+  , FontFamily (..)
   , PrintSettings (..)
   , defaultPrintSettings
   , TaskContentSetting (..)
   , ContentSettings (..)
+  , defaultContentSettings
   , ContentPreset (..)
     -- * Frontend-only utilities
   , pageSizeCSS
@@ -34,6 +36,7 @@ import Competences.Document.Id (Id)
 import Competences.Document.Layout.Settings
   ( ContentPreset (..)
   , ContentSettings (..)
+  , FontFamily (..)
   , GridConfig (..)
   , Orientation (..)
   , PaperSize (..)
@@ -41,6 +44,7 @@ import Competences.Document.Layout.Settings
   , TaskContentSetting (..)
   , TaskHeaderStyle (..)
   , TaskLayout (..)
+  , defaultContentSettings
   , defaultPrintSettings
   )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionType (..))
@@ -174,7 +178,19 @@ hasLetterListBlock _ = False
 applyPreset :: ContentPreset -> [TaskInfo] -> ContentSettings
 applyPreset preset infos = ContentSettings
   { perTask = Map.fromList $ map (\ti -> (ti.taskId, presetForTask preset ti)) infos
+  , showTitle = presetShowTitle preset
+  , showNameField = presetShowNameField preset
+  , customFooter = Nothing
   }
+
+presetShowTitle :: ContentPreset -> Bool
+presetShowTitle _ = True
+
+presetShowNameField :: ContentPreset -> Bool
+presetShowNameField Aufgabenblatt = True
+presetShowNameField Arbeitsblatt = True
+presetShowNameField Loesungsblatt = False
+presetShowNameField Musteraufgaben = False
 
 presetForTask :: ContentPreset -> TaskInfo -> TaskContentSetting
 presetForTask Aufgabenblatt ti = TaskContentSetting
@@ -183,6 +199,7 @@ presetForTask Aufgabenblatt ti = TaskContentSetting
   , gridHeightMm = Nothing
   , inlineAnswer = False
   , itemsPerRow = 1
+  , points = Nothing
   }
 presetForTask Arbeitsblatt ti = TaskContentSetting
   { showDescription = True
@@ -190,6 +207,7 @@ presetForTask Arbeitsblatt ti = TaskContentSetting
   , gridHeightMm = Just defaultGridHeightMm
   , inlineAnswer = False
   , itemsPerRow = 1
+  , points = Nothing
   }
 presetForTask Loesungsblatt ti = TaskContentSetting
   { showDescription = False
@@ -197,6 +215,7 @@ presetForTask Loesungsblatt ti = TaskContentSetting
   , gridHeightMm = Nothing
   , inlineAnswer = False
   , itemsPerRow = 1
+  , points = Nothing
   }
 presetForTask Musteraufgaben ti =
   let completeIds = solutionsOfType Complete ti
@@ -209,6 +228,7 @@ presetForTask Musteraufgaben ti =
         , gridHeightMm = Nothing
         , inlineAnswer = False
         , itemsPerRow = 1
+        , points = Nothing
         }
 
 solutionsOfType :: SolutionType -> TaskInfo -> Set (Id Solution)
@@ -233,5 +253,6 @@ taskContentSetting cs tid = case Map.lookup tid cs.perTask of
     , gridHeightMm = Nothing
     , inlineAnswer = False
     , itemsPerRow = 1
+    , points = Nothing
     }
   Just tcs -> tcs

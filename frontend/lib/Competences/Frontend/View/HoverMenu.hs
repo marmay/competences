@@ -4,6 +4,7 @@
 -- panel when the user hovers over a trigger element.
 module Competences.Frontend.View.HoverMenu
   ( hoverMenu
+  , hoverMenuRight
   , hoverMenuEntry
   , hoverMenuSeparator
   , hoverMenuHeading
@@ -13,6 +14,7 @@ where
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
+import Data.Text (Text)
 import Miso (View)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -24,13 +26,20 @@ import Miso.String (MisoString)
 -- below. Uses @pt-1@ padding (not margin) so the hover zone is contiguous
 -- between trigger and dropdown panel.
 hoverMenu :: View m a -> [View m a] -> View m a
-hoverMenu trigger items =
+hoverMenu = hoverMenuWith "left-0"
+
+-- | Like 'hoverMenu' but the dropdown aligns to the right edge of the trigger.
+hoverMenuRight :: View m a -> [View m a] -> View m a
+hoverMenuRight = hoverMenuWith "right-0"
+
+hoverMenuWith :: Text -> View m a -> [View m a] -> View m a
+hoverMenuWith align trigger items =
   MH.div_
     [class_ "group/menu relative"]
     [ trigger
     , MH.div_
-        [ class_
-            "absolute left-0 top-full pt-1 z-50 \
+        [ class_ $
+            "absolute " <> align <> " top-full pt-1 z-50 \
             \hidden group-hover/menu:block"
         ]
         [ MH.div_

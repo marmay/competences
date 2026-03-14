@@ -373,9 +373,7 @@ data Label
   | LblDistributeLastPage
   | LblFontFamily
   | LblFontDefault
-  | LblFontSerif
-  | LblFontSansSerif
-  | LblFontMono
+  | LblFontIwona
   | LblCustomFooter
   | LblCustomFooterPlaceholder
   | LblPoints
@@ -786,9 +784,7 @@ labels' =
   , LblDistributeLastPage
   , LblFontFamily
   , LblFontDefault
-  , LblFontSerif
-  , LblFontSansSerif
-  , LblFontMono
+  , LblFontIwona
   , LblCustomFooter
   , LblCustomFooterPlaceholder
   , LblPoints
@@ -1217,9 +1213,7 @@ defaultTranslation LblDuplexLayout = "Duplexdruck"
 defaultTranslation LblDistributeLastPage = "Letzte Seite verteilen"
 defaultTranslation LblFontFamily = "Schriftart"
 defaultTranslation LblFontDefault = "Standard"
-defaultTranslation LblFontSerif = "Serif"
-defaultTranslation LblFontSansSerif = "Sans"
-defaultTranslation LblFontMono = "Mono"
+defaultTranslation LblFontIwona = "Iwona"
 defaultTranslation LblCustomFooter = "Fußzeile (letzte Seite)"
 defaultTranslation LblCustomFooterPlaceholder = "{{points table}}, {{signature}}, {{point distribution:90% Sehr gut:...}}"
 defaultTranslation LblPoints = "Punkte"

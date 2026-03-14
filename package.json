@@ -5,7 +5,9 @@
   "private": true,
   "devDependencies": {
     "@mathjax/mathjax-newcm-font": "^4.1.1",
+    "@tailwindcss/cli": "^4.2.1",
     "basecoat-css": "latest",
-    "mathjax": "^4.1.1"
+    "mathjax": "^4.1.1",
+    "tailwindcss": "^4.2.1"
   }
 }

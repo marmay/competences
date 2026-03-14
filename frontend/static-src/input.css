@@ -86,6 +86,37 @@
   font-display: swap;
 }
 
+/* --- Iwona (GUST Font License) ---
+   Clean sans-serif optimized for print. From CTAN/GUST e-foundry. */
+@font-face {
+  font-family: 'Iwona';
+  src: url('/static/fonts/Iwona-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Iwona';
+  src: url('/static/fonts/Iwona-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Iwona';
+  src: url('/static/fonts/Iwona-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Iwona';
+  src: url('/static/fonts/Iwona-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 
 /*
  * Override Basecoat's theme mappings with @theme inline.

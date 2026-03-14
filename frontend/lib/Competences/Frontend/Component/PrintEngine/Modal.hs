@@ -21,6 +21,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping)
+import Competences.Frontend.Component.RichContent (FormulaCache)
 import Competences.Frontend.Component.PrintEngine.Page qualified as Page
 import Competences.Frontend.Component.PrintEngine.Types
   ( ContentPreset (..)
@@ -49,6 +50,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Tabs qualified as Tabs
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Frontend.View.WindowFrame (modalFrame)
 import Data.Function ((&))
@@ -76,6 +78,8 @@ data PrintModalModel = PrintModalModel
   , activeTab :: !PrintTab
   , previewTaskIndex :: !Int
   , pageGrouping :: !PageGrouping
+  , footerDraft :: !(Maybe Text)
+  -- ^ Immediate draft for the footer textarea; applied to contentSettings on debounce
   }
   deriving (Eq, Show, Generic)
 
@@ -113,6 +117,7 @@ data PrintModalAction
   | SetGridHeight !TaskId !Double
   | ToggleInlineAnswer !TaskId
   | SetItemsPerRow !TaskId !Int
+  | RemeasurePages
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
@@ -128,6 +133,7 @@ initPrintModalModel layout infos = PrintModalModel
   , activeTab = FormatTab
   , previewTaskIndex = 0
   , pageGrouping = []
+  , footerDraft = Nothing
   }
 
 -- | Initialize modal from an existing Layout entity
@@ -143,6 +149,7 @@ initFromLayout layout infos = PrintModalModel
   , activeTab = FormatTab
   , previewTaskIndex = 0
   , pageGrouping = []
+  , footerDraft = layout.contentSettings.customFooter
   }
 
 -- | Pure update for the modal model.
@@ -185,13 +192,16 @@ updatePrintModal (SetDistributeLastPage b) _total m =
 updatePrintModal (SetFontFamily ff) _total m =
   m {settings = m.settings {fontFamily = ff}, pageGrouping = [], previewTaskIndex = 0}
 updatePrintModal (SetCustomFooter mf) _total m =
-  (m & #contentSettings .~ setCustomFooter mf m.contentSettings)
-    {pageGrouping = [], previewTaskIndex = 0}
+  m {footerDraft = mf}
 updatePrintModal (SetPoints tid mp) _total m =
-  (m & #contentSettings .~ modifyTaskSetting tid (setPoints mp) m.contentSettings)
-    {pageGrouping = [], previewTaskIndex = 0}
+  m & #contentSettings .~ modifyTaskSetting tid (setPoints mp) m.contentSettings
+updatePrintModal RemeasurePages _total m =
+  m { pageGrouping = []
+    , contentSettings = setCustomFooter m.footerDraft m.contentSettings
+    }
 updatePrintModal (MeasuredPageGrouping pg) _total m =
-  m {pageGrouping = pg, previewTaskIndex = 0}
+  let maxIdx = max 0 (length pg - 1)
+   in m {pageGrouping = pg, previewTaskIndex = min m.previewTaskIndex maxIdx}
 updatePrintModal PreviewNext total m =
   m {previewTaskIndex = min (total - 1) (m.previewTaskIndex + 1)}
 updatePrintModal PreviewPrev _total m =
@@ -202,7 +212,8 @@ updatePrintModal CancelPrint _total m = m
 updatePrintModal (SwitchTab tab) _total m =
   m {activeTab = tab}
 updatePrintModal (ApplyPreset preset) _total m =
-  m {contentSettings = applyPreset preset m.taskInfos, selectedPreset = preset, pageGrouping = [], previewTaskIndex = 0}
+  let cs = applyPreset preset m.taskInfos
+   in m {contentSettings = cs, selectedPreset = preset, pageGrouping = [], previewTaskIndex = 0, footerDraft = cs.customFooter}
 updatePrintModal (ToggleDescription tid) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {showDescription = not tcs.showDescription}) m.contentSettings
     , pageGrouping = []
@@ -287,8 +298,9 @@ needsRemeasure (ToggleGrid _) = True
 needsRemeasure (SetGridHeight _ _) = True
 needsRemeasure (ToggleInlineAnswer _) = True
 needsRemeasure (SetItemsPerRow _ _) = True
-needsRemeasure (SetCustomFooter _) = True
-needsRemeasure (SetPoints _ _) = True
+needsRemeasure (SetCustomFooter _) = False
+needsRemeasure (SetPoints _ _) = False
+needsRemeasure RemeasurePages = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -313,24 +325,25 @@ btn c a = Button.ButtonConfig
 
 -- | Render the print preview modal.
 printModalView
-  :: (Int -> M.View model action)
+  :: FormulaCache
+  -> (Int -> M.View model action)
   -> Int
   -> MisoString
   -> MisoString
   -> PrintModalModel
   -> (PrintModalAction -> action)
   -> M.View model action
-printModalView renderTask totalTasks title date model wrap =
+printModalView fc renderTask totalTasks title date model wrap =
   modalFrame modalConfig (wrap CancelPrint)
     [ Layout.vFlow Layout.hFull
-        [ modalBody renderTask totalTasks title date model wrap
+        [ modalBody fc renderTask totalTasks title date model wrap
         , modalFooter wrap
         ]
     , printStyleView model.settings model.contentSettings
     ]
   where
     modalConfig = ModalConfig
-      { chrome = WindowChrome (C.translate' C.LblPrintPreview) Icon.IcnPrint
+      { chrome = WindowChrome ("Layout \x2014 " <> title) Icon.IcnPrint
       , modalId = ModalId "print-preview"
       , width = ModalWide
       , height = ModalFull
@@ -339,68 +352,81 @@ printModalView renderTask totalTasks title date model wrap =
 
 -- | Modal body: sidebar with selectors + preview pane
 modalBody
-  :: (Int -> M.View model action)
+  :: FormulaCache
+  -> (Int -> M.View model action)
   -> Int
   -> MisoString
   -> MisoString
   -> PrintModalModel
   -> (PrintModalAction -> action)
   -> M.View model action
-modalBody renderTask totalTasks title date model wrap =
+modalBody fc renderTask totalTasks title date model wrap =
   Layout.hFlow
     Layout.hFull
     [ -- Left sidebar
       M.div_
-        [class_ "w-1/3 border-r border-border p-4 overflow-y-auto overflow-x-hidden"]
-        [ Layout.vFlow
-            Layout.gapM
-            ( tabSwitcher model.activeTab wrap
-              : case model.activeTab of
-                  FormatTab -> formatTabContent model wrap
-                  ContentsTab -> contentsTabContent model wrap
-            )
+        [class_ "w-1/3 border-r border-border"]
+        [ Tabs.cardWithTabs Tabs.Tabs
+            { tabs = [FormatTab, ContentsTab]
+            , activeTab = model.activeTab
+            , onSelect = wrap . SwitchTab
+            , tabSpec = \case
+                FormatTab -> Tabs.TabSpec (C.translate' C.LblFormat) False
+                ContentsTab -> Tabs.TabSpec (C.translate' C.LblContents) False
+            , tabContent = \case
+                FormatTab -> [scrollableTabBody (formatTabContent model wrap)]
+                ContentsTab -> [scrollableTabBody (contentsTabContent model wrap)]
+            }
         ]
-    , -- Right: preview pane with navigation
+    , -- Right: preview pane with navigation pinned at bottom
       M.div_
-        [class_ "w-2/3 p-6 bg-muted/30 overflow-hidden"]
-        [ Layout.vFlow
-            (Layout.gapM <> Layout.crossCenter <> Layout.mainCenter)
-            [ previewPane renderTask title date model
-            , previewNavigation totalTasks model wrap
+        [class_ "w-2/3 p-4 bg-muted/30 overflow-hidden flex flex-col"]
+        [ M.div_
+            [class_ "flex-1 min-h-0 flex items-center justify-center"]
+            [previewPane fc renderTask title date model]
+        , M.div_
+            [class_ "flex-shrink-0 relative flex justify-center py-2"]
+            [ previewNavigation totalTasks model wrap
+            , M.div_
+                [class_ "absolute right-0 top-1/2 -translate-y-1/2"]
+                [Button.ghostSm (btn ("\x21BB" :: MisoString) (Just (wrap RemeasurePages)))]
             ]
         ]
     ]
     & Layout.addClass "flex-1 min-h-0 overflow-hidden"
 
--- | Tab switcher at top of sidebar
-tabSwitcher :: PrintTab -> (PrintModalAction -> action) -> M.View model action
-tabSwitcher current wrap =
-  Button.buttonGroup
-    [ Button.toggleSm (current == FormatTab) (btn (C.translate' C.LblFormat) (Just (wrap (SwitchTab FormatTab))))
-    , Button.toggleSm (current == ContentsTab) (btn (C.translate' C.LblContents) (Just (wrap (SwitchTab ContentsTab))))
+-- | Scrollable wrapper for tab content. Constrains height so the tab
+-- header stays pinned while the body scrolls.
+scrollableTabBody :: [M.View model action] -> M.View model action
+scrollableTabBody content =
+  M.div_
+    [ class_ "overflow-y-auto space-y-4"
+    , MC.style_ [("max-height", "calc(90vh - 13rem)")]
+    ]
+    content
+
+-- | Group a label with its control (label above, control below)
+field :: MisoString -> M.View model action -> M.View model action
+field lbl ctrl =
+  M.div_
+    [class_ "flex flex-col gap-1"]
+    [ Typography.fieldLabel lbl
+    , ctrl
     ]
 
 -- | Format tab content: layout controls only (no content decisions)
 formatTabContent :: PrintModalModel -> (PrintModalAction -> action) -> [M.View model action]
 formatTabContent model wrap =
-  [ Typography.fieldLabel (C.translate' C.LblPageSize)
-  , paperSizeSelector model.settings.paperSize wrap
-  , Typography.fieldLabel (C.translate' C.LblOrientation)
-  , orientationSelector model.settings.orientation wrap
-  , Typography.fieldLabel (C.translate' C.LblLayout)
-  , layoutSelector model.settings.taskLayout wrap
-  , Typography.fieldLabel (C.translate' C.LblTaskHeaderStyle)
-  , taskHeaderStyleSelector model.settings.taskHeaderStyle wrap
+  [ field (C.translate' C.LblPageSize) (paperSizeSelector model.settings.paperSize wrap)
+  , field (C.translate' C.LblOrientation) (orientationSelector model.settings.orientation wrap)
+  , field (C.translate' C.LblLayout) (layoutSelector model.settings.taskLayout wrap)
+  , field (C.translate' C.LblTaskHeaderStyle) (taskHeaderStyleSelector model.settings.taskHeaderStyle wrap)
   ]
   <> gridSizeControls model.settings wrap
-  <> [ Typography.fieldLabel (C.translate' C.LblFontSize)
-     , fontSizeInput model.settings.baseFontSize wrap
-     , Typography.fieldLabel (C.translate' C.LblFontFamily)
-     , fontFamilySelector model.settings.fontFamily wrap
-     , Typography.fieldLabel (C.translate' C.LblGroupedCopies)
-     , copiesInput model.settings.groupedCopies (\n -> wrap (SetGroupedCopies n))
-     , Typography.fieldLabel (C.translate' C.LblTotalCopies)
-     , copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n))
+  <> [ field (C.translate' C.LblFontSize) (fontSizeInput model.settings.baseFontSize wrap)
+     , field (C.translate' C.LblFontFamily) (fontFamilySelector model.settings.fontFamily wrap)
+     , field (C.translate' C.LblGroupedCopies) (copiesInput model.settings.groupedCopies (\n -> wrap (SetGroupedCopies n)))
+     , field (C.translate' C.LblTotalCopies) (copiesInput model.settings.totalCopies (\n -> wrap (SetTotalCopies n)))
      ]
   <> continuousOptions model.settings wrap
 
@@ -410,7 +436,7 @@ contentsTabContent model wrap =
   [ presetButtons model wrap
   , checkboxToggle (C.translate' C.LblShowTitle) model.contentSettings.showTitle (\b -> wrap (SetShowTitle b))
   , checkboxToggle (C.translate' C.LblShowNameField) model.contentSettings.showNameField (\b -> wrap (SetShowNameField b))
-  , customFooterInput model.contentSettings.customFooter wrap
+  , customFooterInput model.footerDraft wrap
   ]
   <> concatMap (taskSection model.contentSettings wrap) model.taskInfos
 
@@ -551,9 +577,7 @@ fontFamilySelector current wrap =
 
 fontFamilyLabel :: FontFamily -> MisoString
 fontFamilyLabel DefaultFont = C.translate' C.LblFontDefault
-fontFamilyLabel SerifFont = C.translate' C.LblFontSerif
-fontFamilyLabel SansSerifFont = C.translate' C.LblFontSansSerif
-fontFamilyLabel MonoFont = C.translate' C.LblFontMono
+fontFamilyLabel IwonaFont = C.translate' C.LblFontIwona
 
 -- | Custom footer textarea input
 customFooterInput :: Maybe Text -> (PrintModalAction -> action) -> M.View model action
@@ -637,10 +661,8 @@ gridSizeControls :: PrintSettings -> (PrintModalAction -> action) -> [M.View mod
 gridSizeControls settings wrap = case settings.taskLayout of
   Continuous -> []
   Grid gc ->
-    [ Typography.fieldLabel (C.translate' C.LblRows)
-    , gridNumberInput gc.rows (\n -> wrap (SetGridRows n))
-    , Typography.fieldLabel (C.translate' C.LblColumns)
-    , gridNumberInput gc.cols (\n -> wrap (SetGridCols n))
+    [ field (C.translate' C.LblRows) (gridNumberInput gc.rows (\n -> wrap (SetGridRows n)))
+    , field (C.translate' C.LblColumns) (gridNumberInput gc.cols (\n -> wrap (SetGridCols n)))
     ]
 
 -- | Continuous-only options: header, footer, duplex, distribute last page toggles
@@ -773,16 +795,16 @@ parseFontSize v = case readMaybe (fromMisoString v) of
   Nothing -> 11.0
 
 -- | Preview pane: renders based on layout mode
-previewPane :: (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
-previewPane renderTask title date model = case model.settings.taskLayout of
-  Continuous -> continuousPreview renderTask title date model
+previewPane :: FormulaCache -> (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
+previewPane fc renderTask title date model = case model.settings.taskLayout of
+  Continuous -> continuousPreview fc renderTask title date model
   Grid gc -> gridPreview renderTask model gc
 
 -- | Continuous preview: renders all tasks for the current page using
 -- the shared Page.renderContinuousPage (mm-based), wrapped in a CSS
 -- scale transform to fit the preview pane.
-continuousPreview :: (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
-continuousPreview renderTask title date model =
+continuousPreview :: FormulaCache -> (Int -> M.View model action) -> MisoString -> MisoString -> PrintModalModel -> M.View model action
+continuousPreview fc renderTask title date model =
   let settings = model.settings
       cs = model.contentSettings
       (wMm, hMm) = pageSizeMm settings.paperSize settings.orientation
@@ -790,9 +812,12 @@ continuousPreview renderTask title date model =
       mmToPx mm = mm * 96.0 / 25.4
       pageWPx = mmToPx wMm
       pageHPx = mmToPx hMm
-      -- Scale to fit available preview width (~440px considering modal padding)
-      previewMaxW = 440.0 :: Double
-      scaleFactor = previewMaxW / pageWPx
+      -- Scale to fit available space (both width and height constrained)
+      previewMaxW = 600.0 :: Double
+      previewMaxH = 700.0 :: Double
+      scaleW = previewMaxW / pageWPx
+      scaleH = previewMaxH / pageHPx
+      scaleFactor = min scaleW scaleH
       scaledW = pageWPx * scaleFactor
       scaledH = pageHPx * scaleFactor
       -- Get current page group (or synthesize one for unmeasured state)
@@ -807,7 +832,7 @@ continuousPreview renderTask title date model =
       -- Real custom footer in preview
       customFooterPreview = case cs.customFooter of
         Just footer ->
-          Just (Footer.renderCustomFooter footer cs (map (.taskId) model.taskInfos))
+          Just (Footer.renderCustomFooter fc footer cs (map (.taskId) model.taskInfos))
         Nothing -> Nothing
       -- Task render callback
       renderFn idx = M.div_ [class_ "print-task"] [renderTask idx]
@@ -849,8 +874,11 @@ gridPreview renderTask model gc =
       mmToPx mm = mm * 96.0 / 25.4
       pageWPx = mmToPx wMm
       pageHPx = mmToPx hMm
-      previewMaxW = 440.0 :: Double
-      scaleFactor = previewMaxW / pageWPx
+      previewMaxW = 600.0 :: Double
+      previewMaxH = 700.0 :: Double
+      scaleW = previewMaxW / pageWPx
+      scaleH = previewMaxH / pageHPx
+      scaleFactor = min scaleW scaleH
       scaledW = pageWPx * scaleFactor
       scaledH = pageHPx * scaleFactor
       cpp = cellsPerPage gc
@@ -908,8 +936,8 @@ measurementContainer renderTask taskCount model =
 -- | Off-screen measurement container for the custom footer.
 -- Renders the footer at the same width as the task measurement container
 -- so that getBoundingClientRect returns the correct height.
-footerMeasureContainer :: PrintModalModel -> M.View model action
-footerMeasureContainer model =
+footerMeasureContainer :: FormulaCache -> PrintModalModel -> M.View model action
+footerMeasureContainer fc model =
   let cs = model.contentSettings
       (wMm, _hMm) = pageSizeMm model.settings.paperSize model.settings.orientation
       margin = pageMarginMm model.settings.paperSize
@@ -929,5 +957,5 @@ footerMeasureContainer model =
             , M.textProp "id" "print-footer-measure"
             , class_ "page-print-content"
             ]
-            [Footer.renderCustomFooter footer cs (map (.taskId) model.taskInfos)]
+            [Footer.renderCustomFooter fc footer cs (map (.taskId) model.taskInfos)]
 

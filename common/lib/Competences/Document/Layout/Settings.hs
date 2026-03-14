@@ -7,21 +7,24 @@ module Competences.Document.Layout.Settings
   , TaskHeaderStyle (..)
   , TaskLayout (..)
   , GridConfig (..)
+  , FontFamily (..)
   , PrintSettings (..)
   , defaultPrintSettings
     -- * Content settings
   , TaskContentSetting (..)
   , ContentSettings (..)
+  , defaultContentSettings
   , ContentPreset (..)
   )
 where
 
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.:?), (.!=), withObject)
 #endif
 import Data.Binary (Binary)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
+import Data.Text (Text)
 import Competences.Document.Id (Id)
 import Competences.Document.Solution (Solution)
 import Competences.Document.Task (TaskId)
@@ -94,7 +97,19 @@ instance FromJSON GridConfig
 instance ToJSON GridConfig
 #endif
 
--- | Print configuration
+-- | Font family for print output
+data FontFamily = DefaultFont | IwonaFont
+  deriving (Eq, Ord, Show, Generic, Enum, Bounded)
+
+instance Binary FontFamily
+
+#ifdef WITH_AESON
+instance FromJSON FontFamily
+
+instance ToJSON FontFamily
+#endif
+
+-- | Print configuration (layout-only concerns)
 data PrintSettings = PrintSettings
   { paperSize :: !PaperSize
   , orientation :: !Orientation
@@ -102,18 +117,51 @@ data PrintSettings = PrintSettings
   , taskLayout :: !TaskLayout
   , groupedCopies :: !Int
   , totalCopies :: !Int
-  , showTitle :: !Bool
   , showHeader :: !Bool
   , showFooter :: !Bool
-  , showNameField :: !Bool
   , taskHeaderStyle :: !TaskHeaderStyle
+  , duplexLayout :: !Bool
+  , distributeLastPage :: !Bool
+  , fontFamily :: !FontFamily
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Binary PrintSettings
 
 #ifdef WITH_AESON
-instance FromJSON PrintSettings
+-- | Custom FromJSON: consumes and discards old showTitle/showNameField keys,
+-- uses defaults for new fields.
+instance FromJSON PrintSettings where
+  parseJSON = withObject "PrintSettings" $ \v -> do
+    ps <- v .: "paperSize"
+    orient <- v .: "orientation"
+    bfs <- v .: "baseFontSize"
+    tl <- v .: "taskLayout"
+    gc <- v .: "groupedCopies"
+    tc <- v .: "totalCopies"
+    -- Consume old fields silently (backward compat)
+    _ <- v .:? "showTitle" .!= (True :: Bool)
+    _ <- v .:? "showNameField" .!= (True :: Bool)
+    sh <- v .: "showHeader"
+    sf <- v .: "showFooter"
+    ths <- v .: "taskHeaderStyle"
+    dl <- v .:? "duplexLayout" .!= False
+    dlp <- v .:? "distributeLastPage" .!= True
+    ff <- v .:? "fontFamily" .!= DefaultFont
+    pure PrintSettings
+      { paperSize = ps
+      , orientation = orient
+      , baseFontSize = bfs
+      , taskLayout = tl
+      , groupedCopies = gc
+      , totalCopies = tc
+      , showHeader = sh
+      , showFooter = sf
+      , taskHeaderStyle = ths
+      , duplexLayout = dl
+      , distributeLastPage = dlp
+      , fontFamily = ff
+      }
 
 instance ToJSON PrintSettings
 #endif
@@ -128,11 +176,12 @@ defaultPrintSettings =
     , taskLayout = Continuous
     , groupedCopies = 1
     , totalCopies = 1
-    , showTitle = True
     , showHeader = True
     , showFooter = True
-    , showNameField = True
     , taskHeaderStyle = HeaderBoth
+    , duplexLayout = False
+    , distributeLastPage = True
+    , fontFamily = DefaultFont
     }
 
 -- | Per-task content settings for print output
@@ -142,30 +191,72 @@ data TaskContentSetting = TaskContentSetting
   , gridHeightMm :: !(Maybe Double)
   , inlineAnswer :: !Bool
   , itemsPerRow :: !Int
+  , points :: !(Maybe Double)
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Binary TaskContentSetting
 
 #ifdef WITH_AESON
-instance FromJSON TaskContentSetting
+-- | Custom FromJSON: points defaults to Nothing for backward compat
+instance FromJSON TaskContentSetting where
+  parseJSON = withObject "TaskContentSetting" $ \v -> do
+    sd <- v .: "showDescription"
+    vs <- v .: "visibleSolutions"
+    ghm <- v .: "gridHeightMm"
+    ia <- v .: "inlineAnswer"
+    ipr <- v .: "itemsPerRow"
+    pts <- v .:? "points" .!= Nothing
+    pure TaskContentSetting
+      { showDescription = sd
+      , visibleSolutions = vs
+      , gridHeightMm = ghm
+      , inlineAnswer = ia
+      , itemsPerRow = ipr
+      , points = pts
+      }
 
 instance ToJSON TaskContentSetting
 #endif
 
--- | Content settings: per-task map of what to include
-newtype ContentSettings = ContentSettings
-  { perTask :: Map TaskId TaskContentSetting
+-- | Content settings: per-task map + global content options
+data ContentSettings = ContentSettings
+  { perTask :: !(Map TaskId TaskContentSetting)
+  , showTitle :: !Bool
+  , showNameField :: !Bool
+  , customFooter :: !(Maybe Text)
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Binary ContentSettings
 
 #ifdef WITH_AESON
-instance FromJSON ContentSettings
+-- | Custom FromJSON: old JSON is {"perTask": {...}}, new fields use defaults
+instance FromJSON ContentSettings where
+  parseJSON = withObject "ContentSettings" $ \v -> do
+    pt <- v .: "perTask"
+    st <- v .:? "showTitle" .!= True
+    snf <- v .:? "showNameField" .!= True
+    cf <- v .:? "customFooter" .!= Nothing
+    pure ContentSettings
+      { perTask = pt
+      , showTitle = st
+      , showNameField = snf
+      , customFooter = cf
+      }
 
 instance ToJSON ContentSettings
 #endif
+
+-- | Default content settings
+defaultContentSettings :: ContentSettings
+defaultContentSettings =
+  ContentSettings
+    { perTask = mempty
+    , showTitle = True
+    , showNameField = True
+    , customFooter = Nothing
+    }
 
 -- | Preset configurations for quick setup
 data ContentPreset
