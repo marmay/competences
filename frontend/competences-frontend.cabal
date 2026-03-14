@@ -79,6 +79,7 @@ library
         Competences.Frontend.Component.PrintEngine.CSS,
         Competences.Frontend.Component.PrintEngine.Measure,
         Competences.Frontend.Component.PrintEngine.Modal,
+        Competences.Frontend.Component.PrintEngine.Page,
         Competences.Frontend.Component.ExportButton,
         Competences.Frontend.Component.EvidenceEditor,
         Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor,

@@ -41,8 +41,7 @@ import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Measure
-  ( PageGroup (..)
-  , PageGrouping
+  ( PageGrouping
   , contentHeightPx
   , groupIntoPages
   , measureTaskHeights
@@ -58,11 +57,8 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , needsRemeasure
   , printModalView
   , updatePrintModal
-  , renderFirstPageHeader
-  , renderCompactHeader
-  , renderPageFooter
-  , renderNameField
   )
+import Competences.Frontend.Component.PrintEngine.Page qualified as Page
 import Competences.Frontend.Component.PrintEngine.Types
   ( ContentSettings (..)
   , PrintSettings (..)
@@ -71,12 +67,11 @@ import Competences.Frontend.Component.PrintEngine.Types
   , TaskLayout (..)
   , cellsPerPage
   , chunksOf
+  , defaultContentSettings
   , defaultPrintSettings
   , expandTaskSequence
   , isTaskVisible
   , mkTaskInfos
-  , pageMarginMm
-  , pageSizeMm
   , taskContentSetting
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
@@ -136,6 +131,7 @@ import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Optics.Core ((&), (.~))
 import System.Random (randomIO)
+import Text.Read (readMaybe)
 
 -- | Trigger browser print dialog.
 -- Safe to call after DOM has been patched (e.g., from onCreated sentinel).
@@ -411,9 +407,10 @@ viewerComponent r user assignment wm =
               threadDelay 100000
               heights <- measureTaskHeights
               let s = layout.printSettings
-                  (firstAvail, restAvail) = decorationAdjustedHeights s
+                  cs' = layout.contentSettings
+                  (firstAvail, restAvail) = decorationAdjustedHeights s cs'
                   gap = minGapPx s.baseFontSize
-              pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
+              pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap s.distributeLastPage heights)))
           [] -> pure () -- Layout not found, do nothing
 
         -- Create new layout: generate ID + timestamp in IO, send Create, then open
@@ -425,7 +422,7 @@ viewerComponent r user assignment wm =
                 , assignmentId = assignment.id
                 , preset = Aufgabenblatt
                 , printSettings = defaultPrintSettings
-                , contentSettings = ContentSettings { perTask = Map.empty }
+                , contentSettings = defaultContentSettings
                 , createdAt = now
                 }
           modifySyncDocument r (Layouts (OnLayouts (Create layout)))
@@ -442,9 +439,10 @@ viewerComponent r user assignment wm =
         threadDelay 100000
         heights <- measureTaskHeights
         let s = defaultPrintSettings
-            (firstAvail, restAvail) = decorationAdjustedHeights s
+            cs' = defaultContentSettings
+            (firstAvail, restAvail) = decorationAdjustedHeights s cs'
             gap = minGapPx s.baseFontSize
-        pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
+        pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap s.distributeLastPage heights)))
 
     update (PagePrintMsg CancelPrint) =
       M.modify $ \m -> m & #pagePrintModal .~ Nothing
@@ -488,12 +486,13 @@ viewerComponent r user assignment wm =
           -- Read updated settings from model before spawning IO
           m <- M.get
           let settings = maybe defaultPrintSettings (.settings) m.pagePrintModal
-              (firstAvail, restAvail) = decorationAdjustedHeights settings
+              cs' = maybe defaultContentSettings (.contentSettings) m.pagePrintModal
+              (firstAvail, restAvail) = decorationAdjustedHeights settings cs'
               gap = minGapPx settings.baseFontSize
           M.io $ do
             threadDelay 100000 -- 100ms for DOM to re-render
             heights <- measureTaskHeights
-            pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap heights)))
+            pure (PagePrintMsg (MeasuredPageGrouping (groupIntoPages firstAvail restAvail gap settings.distributeLastPage heights)))
         else pure ()
 
     update ClearPagePrint =
@@ -678,7 +677,7 @@ viewerComponent r user assignment wm =
       case proj.assignmentLayouts of
         [] -> Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing))
         layouts ->
-          HoverMenu.hoverMenu
+          HoverMenu.hoverMenuRight
             (Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing)))
             ( map layoutEntry layouts
                 <> [ HoverMenu.hoverMenuSeparator
@@ -721,11 +720,11 @@ viewerComponent r user assignment wm =
     -- The compact header and footer live in the page margin area.
     -- The first-page title and name field are in the content area,
     -- so they reduce available height on the first page.
-    decorationAdjustedHeights :: PrintSettings -> (Double, Double)
-    decorationAdjustedHeights s =
+    decorationAdjustedHeights :: PrintSettings -> ContentSettings -> (Double, Double)
+    decorationAdjustedHeights s cs =
       let baseAvail = contentHeightPx s.paperSize s.orientation
-          headerH = if s.showTitle then firstPageHeaderPx s.baseFontSize else 0
-          nameH = if s.showNameField then nameFieldPx s.baseFontSize else 0
+          headerH = if cs.showTitle then firstPageHeaderPx s.baseFontSize else 0
+          nameH = if cs.showNameField then nameFieldPx s.baseFontSize else 0
           firstAvail = baseAvail - headerH - nameH
        in (firstAvail, baseAvail)
 
@@ -743,19 +742,18 @@ viewerComponent r user assignment wm =
     viewPagePrintContent :: Maybe PrintSettings -> Maybe ContentSettings -> PageGrouping -> ViewerProjection -> M.View ViewerModel ViewerAction
     viewPagePrintContent mSettings mCS pageGrp proj =
       let settings = maybe defaultPrintSettings id mSettings
-          cs = maybe defaultEmptyContentSettings id mCS
+          cs = maybe defaultContentSettings id mCS
           expanded = expandedTasks settings cs proj
           taskNumMap = originalTaskNumbers proj.tasksWithSolutions
        in M.div_
             []
-            [ maybe (M.text "") printStyleView mSettings
+            [ case mSettings of
+                Nothing -> M.text ""
+                Just s -> printStyleView s cs
             , M.div_
                 [class_ "hidden page-print-content"]
                 (renderExpandedForPrint settings cs taskNumMap pageGrp expanded)
             ]
-
-    defaultEmptyContentSettings :: ContentSettings
-    defaultEmptyContentSettings = ContentSettings { perTask = Map.empty }
 
     -- | Render expanded tasks for print, choosing continuous or grid layout
     renderExpandedForPrint :: PrintSettings -> ContentSettings -> Map TaskId Int -> PageGrouping -> [TaskWithSolutions] -> [M.View ViewerModel ViewerAction]
@@ -768,78 +766,188 @@ viewerComponent r user assignment wm =
                   let totalPages = length pageGrp
                       title = assignmentNameToText assignment.name
                       date = C.formatDay assignment.assignmentDate
-                   in zipWith (renderContinuousPage settings cs taskNumMap title date totalPages expanded) [0 ..] pageGrp
+                      renderFn idx = case safeIndex expanded idx of
+                        Nothing -> M.text ""
+                        Just tws -> printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-task"] tws
+                      customFooterView = case cs.customFooter of
+                        Just footer -> Just (renderCustomFooter footer cs expanded)
+                        Nothing -> Nothing
+                   in zipWith (Page.renderContinuousPage settings cs title date totalPages renderFn customFooterView) [0 ..] pageGrp
               | otherwise ->
                   -- Fallback: each task in a .print-task div, no forced page breaks
                   [ printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-task", MC.style_ [("margin-bottom", "1.5em")]] tws
                   | (_i, tws) <- zip [0 :: Int ..] expanded
                   ]
+                  <> case cs.customFooter of
+                       Just footer -> [renderCustomFooter footer cs expanded]
+                       Nothing -> []
             Grid gc ->
               -- Group into pages, each page in a .print-page grid div
               let cpp = cellsPerPage gc
-                  indexed = zip [0 :: Int ..] expanded
-                  pages = chunksOf cpp indexed
-                  renderPage indexedTasks =
-                    let cells =
-                          [ printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-cell"] tws
-                          | (_i, tws) <- indexedTasks
-                          ]
-                          <> replicate (cpp - length indexedTasks) emptyGridCell
-                     in M.div_ [class_ "print-page"] cells
-               in map renderPage pages
+                  allIndices = [0 .. length expanded - 1]
+                  pages = chunksOf cpp allIndices
+                  renderFn idx = case safeIndex expanded idx of
+                    Nothing -> M.div_ [class_ "print-cell"] []
+                    Just tws -> printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-cell"] tws
+               in map (\pageIdxs -> Page.renderGridPage settings.paperSize settings.orientation gc renderFn pageIdxs) pages
 
-    -- | Render a page of continuous tasks grouped by measurement,
-    -- with the computed gap between tasks for even spacing.
-    -- Uses 3-section layout: margin-top (header), content-area (name + tasks),
-    -- margin-bottom (footer). Header/footer sit in the page margin area.
-    renderContinuousPage :: PrintSettings -> ContentSettings -> Map TaskId Int -> MisoString -> MisoString -> Int -> [TaskWithSolutions] -> Int -> PageGroup -> M.View ViewerModel ViewerAction
-    renderContinuousPage settings cs taskNumMap title date totalPages expanded pageIdx pg =
-      let style = settings.taskHeaderStyle
-          isFirst = pageIdx == 0
-          (_pw, ph) = pageSizeMm settings.paperSize settings.orientation
-          margin = pageMarginMm settings.paperSize
-          showMm d = ms (show d <> "mm")
-          marginStyle = MC.style_ [("height", showMm margin)]
-          pageStyle = MC.style_
-            [ ("height", showMm ph)
-            , ("padding-left", showMm margin)
-            , ("padding-right", showMm margin)
-            ]
-          marginTopContent
-            | isFirst && settings.showTitle = []
-            | not settings.showHeader = []
-            | otherwise = [renderCompactHeader title date]
-          firstPageTitleView
-            | settings.showTitle && isFirst = [renderFirstPageHeader title date]
-            | otherwise = []
-          nameView
-            | settings.showNameField && isFirst = [renderNameField]
-            | otherwise = []
-          marginBottomContent
-            | settings.showFooter = [renderPageFooter (pageIdx + 1) totalPages]
-            | otherwise = []
+    -- | Render custom footer template with placeholder substitution
+    renderCustomFooter :: T.Text -> ContentSettings -> [TaskWithSolutions] -> M.View ViewerModel ViewerAction
+    renderCustomFooter template cs expanded =
+      let taskPoints = collectTaskPoints cs expanded
+          totalPts = sum (map snd taskPoints)
+          rendered = substituteTemplate totalPts taskPoints template
        in M.div_
-            [class_ "print-page", pageStyle]
-            [ -- Top margin area: header at bottom edge
-              M.div_ [class_ "print-margin-top", marginStyle] marginTopContent
-            , -- Content area: title (first page), name field, tasks
-              M.div_
-                [class_ "print-content-area"]
-                ( firstPageTitleView
-                    <> nameView
-                    <> [ M.div_
-                           [ class_ "flex flex-col"
-                           , MC.style_ [("gap", ms (showPx pg.gapPx))]
-                           ]
-                           [ printTaskView style cs (taskNumFor taskNumMap tws) [class_ "print-task"] tws
-                           | idx <- pg.indices
-                           , Just tws <- [safeIndex expanded idx]
-                           ]
-                       ]
-                )
-            , -- Bottom margin area: footer at top edge
-              M.div_ [class_ "print-margin-bottom", marginStyle] marginBottomContent
+            [class_ "mt-4 print-custom-footer"]
+            rendered
+
+    -- | Collect per-task points from visible tasks
+    collectTaskPoints :: ContentSettings -> [TaskWithSolutions] -> [(Int, Double)]
+    collectTaskPoints cs expanded =
+      let visible = nubByTaskId expanded
+       in [ (i, p)
+          | (i, tws) <- zip [1 ..] visible
+          , let tcs = taskContentSetting cs tws.task.id
+          , Just p <- [tcs.points]
+          ]
+
+    -- | Remove duplicate tasks (from expandTaskSequence copies)
+    nubByTaskId :: [TaskWithSolutions] -> [TaskWithSolutions]
+    nubByTaskId = go Set.empty
+      where
+        go _ [] = []
+        go seen (tws : rest)
+          | Set.member tws.task.id seen = go seen rest
+          | otherwise = tws : go (Set.insert tws.task.id seen) rest
+
+    -- | Substitute template placeholders with rendered HTML views
+    substituteTemplate :: Double -> [(Int, Double)] -> T.Text -> [M.View ViewerModel ViewerAction]
+    substituteTemplate totalPts taskPoints tmpl = go tmpl
+      where
+        go t
+          | T.null t = []
+          | Just rest <- T.stripPrefix "{{points table}}" t =
+              renderPointsTable taskPoints totalPts : go rest
+          | Just rest <- T.stripPrefix "{{signature}}" t =
+              renderSignatureLine : go rest
+          | "{{point distribution:" `T.isPrefixOf` t =
+              let afterPrefix = T.drop (T.length "{{point distribution:") t
+               in case T.breakOn "}}" afterPrefix of
+                    (params, rest')
+                      | not (T.null rest') ->
+                          renderPointDistribution totalPts params : go (T.drop 2 rest')
+                    _ -> [M.text (ms t)] -- malformed, render as-is
+          | otherwise =
+              let (before, after) = T.breakOn "{{" t
+               in if T.null before
+                    then [M.text (ms (T.take 2 after))] <> go (T.drop 2 after) -- skip unrecognized {{
+                    else [M.text (ms before)] <> go after
+
+    -- | Render a horizontal points table
+    renderPointsTable :: [(Int, Double)] -> Double -> M.View ViewerModel ViewerAction
+    renderPointsTable taskPoints totalPts =
+      M.nodeHtml "table"
+        [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
+        [ M.nodeHtml "tr" [class_ "border-b border-stone-400"]
+            ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                  [M.text $ C.translate' C.LblTaskWord]
+              ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                     [M.text $ ms (show n)]
+                 | (n, _) <- taskPoints
+                 ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
+                     [M.text "Gesamt"]
+                 ]
+            )
+        , M.nodeHtml "tr" [class_ "border-b border-stone-400"]
+            ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                  [M.text "Erreicht"]
+              ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                     [M.text "\xA0"]
+                 | _ <- taskPoints
+                 ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center"]
+                     [M.text "\xA0"]
+                 ]
+            )
+        , M.nodeHtml "tr" []
+            ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                  [M.text "Von"]
+              ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                     [M.text $ ms (showPoints p)]
+                 | (_, p) <- taskPoints
+                 ]
+              <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
+                     [M.text $ ms (showPoints totalPts)]
+                 ]
+            )
+        ]
+
+    -- | Render a grade threshold table from inline parameters
+    renderPointDistribution :: Double -> T.Text -> M.View ViewerModel ViewerAction
+    renderPointDistribution totalPts params =
+      let entries = parseGradeEntries params
+          computed = computeGradeThresholds totalPts entries
+       in M.nodeHtml "table"
+            [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
+            [ M.nodeHtml "tr" [class_ "border-b border-stone-400"]
+                [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                    [M.text "Note"]
+                , M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium"]
+                    [M.text "Ab Punkten"]
+                ]
+            , M.nodeHtml "tbody" []
+                [ M.nodeHtml "tr" [class_ "border-b border-stone-200"]
+                    [ M.nodeHtml "td" [class_ "px-2 py-0.5 border-r border-stone-300"]
+                        [M.text $ ms grade]
+                    , M.nodeHtml "td" [class_ "px-2 py-0.5 text-center"]
+                        [M.text $ ms threshold]
+                    ]
+                | (grade, threshold) <- computed
+                ]
             ]
+
+    -- | Parse colon-separated grade entries like "90% Sehr gut:80% Gut:- Nicht genügend"
+    parseGradeEntries :: T.Text -> [(Maybe Double, T.Text)]
+    parseGradeEntries = map parseEntry . T.splitOn ":"
+      where
+        parseEntry entry =
+          let trimmed = T.strip entry
+           in case T.breakOn " " trimmed of
+                (pct, name)
+                  | "%" `T.isSuffixOf` pct ->
+                      case readMaybeT (T.dropEnd 1 pct) of
+                        Just p -> (Just (p / 100.0), T.strip name)
+                        Nothing -> (Nothing, trimmed)
+                  | pct == "-" -> (Nothing, T.strip name)
+                  | otherwise -> (Nothing, trimmed)
+
+    readMaybeT :: T.Text -> Maybe Double
+    readMaybeT = readMaybe . T.unpack
+
+    -- | Compute point thresholds from percentages and total points
+    computeGradeThresholds :: Double -> [(Maybe Double, T.Text)] -> [(T.Text, T.Text)]
+    computeGradeThresholds totalPts = map $ \(mPct, grade) ->
+      case mPct of
+        Just pct ->
+          let pts = pct * totalPts
+              rounded = fromIntegral (ceiling pts :: Int) :: Double
+           in (grade, showPoints rounded)
+        Nothing -> (grade, "-")
+
+    -- | Render a signature line
+    renderSignatureLine :: M.View ViewerModel ViewerAction
+    renderSignatureLine =
+      M.div_
+        [class_ "mt-4 text-sm"]
+        [ M.text "Unterschrift Erziehungsberechtigte/r: "
+        , M.span_
+            [MC.style_ [("display", "inline-block"), ("border-bottom", "1px solid #333"), ("width", "50%"), ("vertical-align", "bottom")]]
+            [M.text "\xA0"]
+        ]
 
     safeIndex :: [a] -> Int -> Maybe a
     safeIndex xs i
@@ -847,9 +955,6 @@ viewerComponent r user assignment wm =
       | otherwise = case drop i xs of
           [] -> Nothing
           (x : _) -> Just x
-
-    emptyGridCell :: M.View ViewerModel ViewerAction
-    emptyGridCell = M.div_ [class_ "print-cell"] []
 
     -- | Render a task for print: title h2 + optional description + solutions + grid,
     -- wrapped in a div with the given attributes. Visual styling
@@ -861,16 +966,27 @@ viewerComponent r user assignment wm =
           tcs = taskContentSetting cs tws.task.id
           prefix = C.translate' C.LblTaskWord
           numText = ms (show taskNum) <> "."
+          pointsSpan = case tcs.points of
+            Nothing -> []
+            Just p ->
+              [ M.span_
+                  [class_ "print-task-points"]
+                  [ M.span_
+                      [MC.style_ [("display", "inline-block"), ("border-bottom", "1px solid #999"), ("width", "3em"), ("vertical-align", "bottom")]]
+                      [M.text "\xA0"]
+                  , M.text $ " / " <> ms (showPoints p) <> " " <> C.translate' C.LblPoints
+                  ]
+              ]
           header = case style of
             HeaderNumber ->
-              [M.h2_ [] [M.text (prefix <> numText)]]
+              [M.h2_ [] ([M.text (prefix <> numText)] <> pointsSpan)]
             HeaderTitle ->
-              [M.h2_ [] [M.text $ ms displayName]]
+              [M.h2_ [] ([M.text $ ms displayName] <> pointsSpan)]
             HeaderBoth ->
               [M.h2_ []
-                [ M.strong_ [] [M.text (prefix <> numText)]
+                ([ M.strong_ [] [M.text (prefix <> numText)]
                 , M.text (" " <> ms displayName)
-                ]]
+                ] <> pointsSpan)]
           descriptionView
             | tcs.showDescription =
                 [ M.div_
@@ -936,7 +1052,10 @@ viewerComponent r user assignment wm =
     taskNumFor :: Map TaskId Int -> TaskWithSolutions -> Int
     taskNumFor numMap tws = Map.findWithDefault 0 tws.task.id numMap
 
-    showPx :: Double -> MisoString
-    showPx d = ms (show (round d :: Int)) <> "px"
+    -- | Format points for display: show as integer if whole, otherwise one decimal
+    showPoints :: Double -> T.Text
+    showPoints p
+      | p == fromIntegral (round p :: Int) = T.pack (show (round p :: Int))
+      | otherwise = T.pack (show p)
 
     assignmentNameToText (AssignmentName t) = ms t
