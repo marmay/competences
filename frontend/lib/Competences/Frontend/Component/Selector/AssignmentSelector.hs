@@ -244,12 +244,12 @@ assignmentSelectorComponent r initialSelection parentLens =
             if T.null query
               then sorted
               else filter (\a -> query `T.isInfixOf` T.toLower (unAssignmentName a.name)) sorted
-          -- Check if assignment is not graded (no evidence linked)
-          isNotGraded a = case Map.lookup a.id proj.statusMap of
-            Just NotGraded -> True
-            _ -> False  -- NeedsWork and Completed are both "graded"
+          -- Check if assignment is not completed (includes NotGraded, NeedsWork, and drafts)
+          isNotCompleted a = case Map.lookup a.id proj.statusMap of
+            Just Completed -> False
+            _ -> True  -- NotGraded, NeedsWork, and drafts (not in statusMap)
        in case (proj.focusedUser, m.assignmentFilter) of
-            (Just _, NotGradedOnly) -> filter isNotGraded textFiltered
+            (Just _, NotGradedOnly) -> filter isNotCompleted textFiltered
             (Just _, OpenOnly) -> filter (\a -> Set.member a.id proj.openSet) textFiltered
             _ -> textFiltered
 

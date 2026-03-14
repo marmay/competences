@@ -26,7 +26,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
-import Data.Time (utctDay)
+import Data.Time (Day, fromGregorian, utctDay)
 
 -- | Lookup an assignment by primary key.
 getAssignment :: Document -> AssignmentId -> Maybe Assignment
@@ -94,7 +94,16 @@ isAssignmentOpen doc userId assignmentId =
             es -> Just (last es).date
        in case latestEvidenceDay of
             Nothing -> True -- No evidence date to compare against
-            Just d -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
+            Just d
+              | d < submissionTrackingCutoff -> False -- Legacy data: assume already corrected
+              | otherwise -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
+
+-- | Cutoff date for submission tracking.
+-- Before this date, submissions weren't tracked, so NeedsWork assignments
+-- with evidence before this date are assumed to have been corrected offline.
+-- TODO: Remove before next school year (2026/27)
+submissionTrackingCutoff :: Day
+submissionTrackingCutoff = fromGregorian 2026 3 1
 
 -- | Status label for display (German)
 statusLabel :: AssignmentStatus -> Text
