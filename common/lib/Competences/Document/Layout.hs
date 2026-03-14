@@ -7,6 +7,7 @@ module Competences.Document.Layout
   )
 where
 
+import Competences.Common.BinaryOrphans ()
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id)
@@ -20,7 +21,7 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
-import Data.Text (Text)
+import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 
 -- | Layout ID
@@ -36,7 +37,7 @@ data Layout = Layout
   , preset :: !ContentPreset
   , printSettings :: !PrintSettings
   , contentSettings :: !ContentSettings
-  , createdAt :: !Text
+  , createdAt :: !UTCTime
   }
   deriving (Eq, Generic, Ord, Show)
 

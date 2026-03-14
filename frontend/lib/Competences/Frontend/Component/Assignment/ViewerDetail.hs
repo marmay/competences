@@ -98,6 +98,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -122,9 +123,8 @@ import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import Control.Concurrent (threadDelay)
-import Data.Time (getCurrentTime, formatTime, defaultTimeLocale)
+import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.CSS qualified as MC
@@ -266,6 +266,7 @@ data ViewerModel = ViewerModel
   , pagePrintPending :: !(Maybe PrintSettings)
   , pagePrintPendingContent :: !(Maybe ContentSettings)
   , pagePrintPageGrouping :: !PageGrouping
+  , layoutHoldState :: !(HoldButton.HoldState LayoutId)
   }
   deriving (Eq, Generic, Show)
 
@@ -279,7 +280,7 @@ data ViewerAction
   | PagePrintMsg !PrintModalAction
   | ClearPagePrint
   | OpenSubmissionModal
-  | DeleteLayout !LayoutId
+  | LayoutHoldAction !(HoldButton.HoldAction LayoutId)
   deriving (Eq, Show)
 
 -- | The viewer component using subscribeWithProjection pattern
@@ -297,6 +298,7 @@ viewerComponent r user assignment wm =
       , pagePrintPending = Nothing
       , pagePrintPendingContent = Nothing
       , pagePrintPageGrouping = []
+      , layoutHoldState = HoldButton.emptyHoldState
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -423,7 +425,7 @@ viewerComponent r user assignment wm =
         -- Create new layout: generate ID + timestamp in IO, send Create, then open
         Nothing -> M.io $ do
           newId <- Id <$> randomIO
-          now <- T.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M" <$> getCurrentTime
+          now <- getCurrentTime
           let layout = Layout
                 { id = newId
                 , assignmentId = assignment.id
@@ -515,8 +517,11 @@ viewerComponent r user assignment wm =
 
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
-    update (DeleteLayout lid) = M.io_ $
-      modifySyncDocument r (Layouts (OnLayouts (Delete lid)))
+    update (LayoutHoldAction ha) =
+      HoldButton.handleHoldAction #layoutHoldState
+        (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid))))
+        LayoutHoldAction
+        ha
 
     update OpenSubmissionModal = M.io_ $
       Submission.openSubmissionModal r assignment.id user.id
@@ -583,7 +588,7 @@ viewerComponent r user assignment wm =
                               then [viewSubmissionStatusButton proj.submissionSummary]
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
-                            <> [ viewPagePrintButton proj | proj.connectedUserRole == Teacher ]
+                            <> [ viewPagePrintButton m | proj.connectedUserRole == Teacher ]
                         ]
                     ]
                 , -- Date below title (muted, small)
@@ -686,31 +691,32 @@ viewerComponent r user assignment wm =
     -- Page Print
     -- ========================================================================
 
-    viewPagePrintButton :: ViewerProjection -> M.View ViewerModel ViewerAction
-    viewPagePrintButton proj =
-      case proj.assignmentLayouts of
+    viewPagePrintButton :: ViewerModel -> M.View ViewerModel ViewerAction
+    viewPagePrintButton m =
+      case m.projection.assignmentLayouts of
         [] -> Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing))
         layouts ->
           HoverMenu.hoverMenuRight
             (Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing)))
-            ( map layoutEntry layouts
+            ( map (layoutEntry m) layouts
                 <> [ HoverMenu.hoverMenuSeparator
                    , HoverMenu.hoverMenuEntry False Icon.IcnPlus (C.translate' C.LblNewLayout) (OpenPagePrintModal Nothing)
                    ]
             )
 
-    layoutEntry :: Layout -> M.View ViewerModel ViewerAction
-    layoutEntry layout =
+    layoutEntry :: ViewerModel -> Layout -> M.View ViewerModel ViewerAction
+    layoutEntry m layout =
       let presetLabel = presetName layout.preset
-          displayName = presetLabel <> " \x2014 " <> ms layout.createdAt
        in M.div_
             [class_ "flex items-center gap-1 px-1"]
             [ M.div_
                 [ class_ "flex-1 cursor-pointer hover:bg-accent hover:text-accent-foreground px-2 py-1 rounded text-sm"
                 , M.onClick (OpenPagePrintModal (Just layout.id))
                 ]
-                [M.text displayName]
-            , Button.ghostSm (Button.button Icon.IcnDelete (DeleteLayout layout.id))
+                [ M.div_ [] [M.text presetLabel]
+                , M.div_ [class_ "text-xs text-muted-foreground"] [M.text $ C.formatDateTime layout.createdAt]
+                ]
+            , HoldButton.holdDeleteButtonSm LayoutHoldAction m.layoutHoldState layout.id
             ]
 
     presetName :: ContentPreset -> MisoString

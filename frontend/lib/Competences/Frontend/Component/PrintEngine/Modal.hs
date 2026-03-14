@@ -15,6 +15,7 @@ import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Layout (Layout (..), LayoutId)
 import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
@@ -67,7 +68,7 @@ import Text.Read (readMaybe)
 data PrintModalModel = PrintModalModel
   { layoutId :: !LayoutId
   , layoutAssignmentId :: !AssignmentId
-  , layoutCreatedAt :: !Text
+  , layoutCreatedAt :: !UTCTime
   , settings :: !PrintSettings
   , contentSettings :: !ContentSettings
   , selectedPreset :: !ContentPreset
