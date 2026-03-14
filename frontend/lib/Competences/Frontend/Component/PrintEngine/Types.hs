@@ -232,6 +232,13 @@ hasLetterListBlock (MD.OrderedList _ items) = any (any hasLetterListBlock) items
 hasLetterListBlock (MD.BulletList items) = any (any hasLetterListBlock) items
 hasLetterListBlock (MD.Admonition _ _ blocks) = any hasLetterListBlock blocks
 hasLetterListBlock (MD.NotesGrid c1 c2 c3 c4) = any hasLetterListBlock (c1 ++ c2 ++ c3 ++ c4)
+hasLetterListBlock (MD.ClozeBlock body opts) =
+  any hasLetterListBlock body || case opts of
+    MD.ClozeNoOptions -> False
+    MD.ClozeWordBank bs -> any hasLetterListBlock bs
+    MD.ClozePerBlankOptions groups -> any (any hasLetterListBlock) groups
+hasLetterListBlock (MD.ChoiceBlock _ items) = any (any hasLetterListBlock) items
+hasLetterListBlock (MD.MappingBlock l r) = any (any hasLetterListBlock) l || any (any hasLetterListBlock) r
 hasLetterListBlock _ = False
 
 -- | Apply a preset to produce content settings for the given tasks

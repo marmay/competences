@@ -1,6 +1,6 @@
 module Test.Markdown.ParserTest (parserTests) where
 
-import Competences.Markdown.AST (AdmonitionType (..), Block (..), Document (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (AdmonitionType (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), Inline (..), ThumbSize (..))
 import Competences.Markdown.Parser (parseMarkdown)
 import Data.Text qualified as T
 import Test.Tasty
@@ -27,6 +27,8 @@ parserTests =
     , testGroup "Line breaks" lineBreakTests
     , testGroup "Admonitions" admonitionTests
     , testGroup "Notes grid" notesGridTests
+    , testGroup "Cloze blanks" clozeBlankTests
+    , testGroup "Task blocks" taskBlockTests
     , testGroup "Backward compatibility" backwardCompatTests
     ]
 
@@ -387,6 +389,151 @@ notesGridTests =
             ]
         )
         "```btc:notes-grid\n```geometry\ndefPoint A 0 0\n```\n---\nCell 2\n```"
+  ]
+
+clozeBlankTests :: [TestTree]
+clozeBlankTests =
+  [ testCase "bare cloze blank" $
+      assertParse
+        "bare blank"
+        (Document [Paragraph [Plain "Answer: ", ClozeBlank Nothing]])
+        "Answer: ___"
+  , testCase "cloze blank with integer width" $
+      assertParse
+        "2cm blank"
+        (Document [Paragraph [Plain "Answer: ", ClozeBlank (Just 20)]])
+        "Answer: ___2___"
+  , testCase "cloze blank with half-cm width" $
+      assertParse
+        "1.5cm blank"
+        (Document [Paragraph [Plain "Answer: ", ClozeBlank (Just 15)]])
+        "Answer: ___1.5___"
+  , testCase "cloze blank mid-sentence" $
+      assertParse
+        "mid-sentence"
+        (Document [Paragraph [Plain "The ", ClozeBlank Nothing, Plain " is blue."]])
+        "The ___ is blue."
+  , testCase "multiple cloze blanks" $
+      assertParse
+        "multi blank"
+        (Document [Paragraph [Plain "A: ", ClozeBlank Nothing, Plain ", B: ", ClozeBlank (Just 30)]])
+        "A: ___, B: ___3___"
+  , testCase "single underscore is plain text" $
+      assertParse
+        "single underscore"
+        (Document [Paragraph [Plain "hello", Plain "_", Plain "world"]])
+        "hello_world"
+  , testCase "double underscore is plain text" $
+      assertParse
+        "double underscore"
+        (Document [Paragraph [Plain "hello", Plain "_", Plain "_", Plain "world"]])
+        "hello__world"
+  ]
+
+taskBlockTests :: [TestTree]
+taskBlockTests =
+  [ testCase "cloze free input" $
+      assertParse
+        "cloze free"
+        (Document [ClozeBlock [Paragraph [Plain "Answer: ", ClozeBlank Nothing]] ClozeNoOptions])
+        "```task:cloze\nAnswer: ___\n```"
+  , testCase "cloze with shared word bank (bullet list)" $
+      assertParse
+        "cloze word bank"
+        ( Document
+            [ ClozeBlock
+                [Paragraph [Plain "The capital is ", ClozeBlank Nothing, Plain "."]]
+                ( ClozeWordBank
+                    [BulletList [[Paragraph [Plain "Wien"]], [Paragraph [Plain "Graz"]], [Paragraph [Plain "Linz"]]]]
+                )
+            ]
+        )
+        "```task:cloze\nThe capital is ___.\n---\n- Wien\n- Graz\n- Linz\n```"
+  , testCase "cloze with lettered options" $
+      assertParse
+        "cloze lettered"
+        ( Document
+            [ ClozeBlock
+                [Paragraph [Plain "The capital is ", ClozeBlank Nothing, Plain "."]]
+                ( ClozeWordBank
+                    [LetterList [[Paragraph [Plain "Wien"]], [Paragraph [Plain "Graz"]], [Paragraph [Plain "Linz"]]]]
+                )
+            ]
+        )
+        "```task:cloze\nThe capital is ___.\n---\na. Wien\nb. Graz\nc. Linz\n```"
+  , testCase "cloze with per-blank options" $
+      assertParse
+        "cloze per-blank"
+        ( Document
+            [ ClozeBlock
+                [Paragraph [Plain "A is ", ClozeBlank Nothing, Plain ". B is ", ClozeBlank Nothing, Plain "."]]
+                ( ClozePerBlankOptions
+                    [ [BulletList [[Paragraph [Plain "x"]], [Paragraph [Plain "y"]]]]
+                    , [BulletList [[Paragraph [Plain "m"]], [Paragraph [Plain "n"]]]]
+                    ]
+                )
+            ]
+        )
+        "```task:cloze\nA is ___. B is ___.\n---\n- x\n- y\n---\n- m\n- n\n```"
+  , testCase "singlechoice with 3 items" $
+      assertParse
+        "singlechoice"
+        ( Document
+            [ ChoiceBlock
+                SingleChoice
+                [ [Paragraph [Plain "First option"]]
+                , [Paragraph [Plain "Second option"]]
+                , [Paragraph [Plain "Third option"]]
+                ]
+            ]
+        )
+        "```task:singlechoice\nFirst option\n---\nSecond option\n---\nThird option\n```"
+  , testCase "multiplechoice with math" $
+      assertParse
+        "multiplechoice"
+        ( Document
+            [ ChoiceBlock
+                MultipleChoice
+                [ [Paragraph [MathInline "x = 2"]]
+                , [Paragraph [MathInline "x = -2"]]
+                ]
+            ]
+        )
+        "```task:multiplechoice\n$x = 2$\n---\n$x = -2$\n```"
+  , testCase "mapping with two sides" $
+      assertParse
+        "mapping"
+        ( Document
+            [ MappingBlock
+                [ [Paragraph [MathInline "x^2"]]
+                , [Paragraph [MathInline "\\sqrt{x}"]]
+                ]
+                [ [Paragraph [Plain "quadratische Funktion"]]
+                , [Paragraph [Plain "Wurzelfunktion"]]
+                ]
+            ]
+        )
+        "```task:mapping\n$x^2$\n---\n$\\sqrt{x}$\n+++\nquadratische Funktion\n---\nWurzelfunktion\n```"
+  , testCase "mapping with unbalanced sides" $
+      assertParse
+        "mapping unbalanced"
+        ( Document
+            [ MappingBlock
+                [ [Paragraph [Plain "A"]]
+                , [Paragraph [Plain "B"]]
+                , [Paragraph [Plain "C"]]
+                ]
+                [ [Paragraph [Plain "X"]]
+                , [Paragraph [Plain "Y"]]
+                ]
+            ]
+        )
+        "```task:mapping\nA\n---\nB\n---\nC\n+++\nX\n---\nY\n```"
+  , testCase "unknown task format falls back to code block" $
+      assertParse
+        "unknown format"
+        (Document [FencedCodeBlock (Just "task:unknown") "some content"])
+        "```task:unknown\nsome content\n```"
   ]
 
 -- | Tests for backward compatibility with existing TaskContent markup

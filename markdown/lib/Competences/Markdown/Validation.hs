@@ -69,6 +69,22 @@ validateBlocks !n = \case
     let innerErrors = concatMap (validateBlocks n) [c1, c2, c3, c4]
         nextN = n + sum (map countGeometryBlocks [c1, c2, c3, c4])
      in innerErrors ++ validateBlocks nextN rest
+  MD.ClozeBlock body opts : rest ->
+    let bodyErrors = validateBlocks n body
+        optBlocks = case opts of
+          MD.ClozeNoOptions -> []
+          MD.ClozeWordBank bs -> bs
+          MD.ClozePerBlankOptions groups -> concat groups
+        optErrors = validateBlocks (n + countGeometryBlocks body) optBlocks
+        nextN = n + countGeometryBlocks body + countGeometryBlocks optBlocks
+     in bodyErrors ++ optErrors ++ validateBlocks nextN rest
+  MD.ChoiceBlock _ items : rest ->
+    let (errors, nextN) = validateItems n items
+     in errors ++ validateBlocks nextN rest
+  MD.MappingBlock leftItems rightItems : rest ->
+    let (leftErrors, midN) = validateItems n leftItems
+        (rightErrors, nextN) = validateItems midN rightItems
+     in leftErrors ++ rightErrors ++ validateBlocks nextN rest
   _ : rest -> validateBlocks n rest
 
 -- | Validate list items (each item is [Block]).
@@ -96,6 +112,16 @@ countGeometryBlocks = \case
     sum (map countGeometryBlocks items) + countGeometryBlocks rest
   MD.NotesGrid c1 c2 c3 c4 : rest ->
     sum (map countGeometryBlocks [c1, c2, c3, c4]) + countGeometryBlocks rest
+  MD.ClozeBlock body opts : rest ->
+    let optBlocks = case opts of
+          MD.ClozeNoOptions -> []
+          MD.ClozeWordBank bs -> bs
+          MD.ClozePerBlankOptions groups -> concat groups
+     in countGeometryBlocks body + countGeometryBlocks optBlocks + countGeometryBlocks rest
+  MD.ChoiceBlock _ items : rest ->
+    sum (map countGeometryBlocks items) + countGeometryBlocks rest
+  MD.MappingBlock leftItems rightItems : rest ->
+    sum (map countGeometryBlocks leftItems) + sum (map countGeometryBlocks rightItems) + countGeometryBlocks rest
   _ : rest -> countGeometryBlocks rest
 
 -- | Validate a single geometry block: check version, then parse body.

@@ -25,6 +25,8 @@ module Competences.Markdown.AST
   , Inline (..)
   , AdmonitionType (..)
   , ThumbSize (..)
+  , ClozeOptions (..)
+  , ChoiceType (..)
   , Url
   )
 where
@@ -61,6 +63,26 @@ data Block
   | -- | BTC notes grid (2×2): four cells of block-level content.
     --   Cells: top-left, top-right, bottom-left, bottom-right.
     NotesGrid ![Block] ![Block] ![Block] ![Block]
+  | -- | Cloze block: body text with blanks, plus optional word bank / per-blank options
+    ClozeBlock ![Block] !ClozeOptions
+  | -- | Choice block: single or multiple choice, list of option items
+    ChoiceBlock !ChoiceType ![[Block]]
+  | -- | Mapping block: left items and right items to be matched
+    MappingBlock ![[Block]] ![[Block]]
+  deriving (Eq, Show)
+
+-- | Options for a cloze block
+data ClozeOptions
+  = -- | No word bank — free input
+    ClozeNoOptions
+  | -- | Shared word bank (parsed list block(s)) for all blanks
+    ClozeWordBank ![Block]
+  | -- | One list-block group per blank (separated by ---)
+    ClozePerBlankOptions ![[Block]]
+  deriving (Eq, Show)
+
+-- | Type of choice block
+data ChoiceType = SingleChoice | MultipleChoice
   deriving (Eq, Show)
 
 -- | Admonition types for math content callouts
@@ -97,6 +119,8 @@ data Inline
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)
     HardLineBreak
+  | -- | Cloze blank: optional width in millimeters (e.g. 15 for 1.5cm, 20 for 2cm)
+    ClozeBlank !(Maybe Int)
   deriving (Eq, Show)
 
 -- | Thumbnail size for file embeds

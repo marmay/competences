@@ -15,7 +15,7 @@ module Competences.Import.ASTExtract
   )
 where
 
-import Competences.Markdown.AST (Block (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (Block (..), ChoiceType (..), ClozeOptions (..), Inline (..), ThumbSize (..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -51,6 +51,11 @@ inlinesToText = T.concat . map go
       FileEmbed _ inlines _ _ -> inlinesToText inlines
       SoftLineBreak -> " "
       HardLineBreak -> "\n"
+      ClozeBlank Nothing -> "___"
+      ClozeBlank (Just mm) ->
+        let cm = mm `div` 10
+            frac = mm `mod` 10
+         in "___" <> T.pack (show cm) <> (if frac > 0 then "." <> T.pack (show frac) else "") <> "___"
 
 -- | Serialize blocks back to markdown text (for content fields stored as Text).
 blocksToText :: [Block] -> Text
@@ -84,6 +89,31 @@ blockToText = \case
       <> blocksToText c3 <> "\n---\n"
       <> blocksToText c4
       <> "\n```"
+  ClozeBlock body opts ->
+    "```task:cloze\n"
+      <> blocksToText body
+      <> clozeOptionsToText opts
+      <> "\n```"
+  ChoiceBlock choiceType items ->
+    let tag = case choiceType of
+          SingleChoice -> "task:singlechoice"
+          MultipleChoice -> "task:multiplechoice"
+     in "```" <> tag <> "\n"
+          <> T.intercalate "\n---\n" (map blocksToText items)
+          <> "\n```"
+  MappingBlock leftItems rightItems ->
+    "```task:mapping\n"
+      <> T.intercalate "\n---\n" (map blocksToText leftItems)
+      <> "\n+++\n"
+      <> T.intercalate "\n---\n" (map blocksToText rightItems)
+      <> "\n```"
+
+-- | Serialize cloze options back to markdown.
+clozeOptionsToText :: ClozeOptions -> Text
+clozeOptionsToText ClozeNoOptions = ""
+clozeOptionsToText (ClozeWordBank blocks) = "\n---\n" <> blocksToText blocks
+clozeOptionsToText (ClozePerBlankOptions groups) =
+  T.concat $ map (\bs -> "\n---\n" <> blocksToText bs) groups
 
 -- | Serialize inlines back to markdown (preserves formatting).
 inlinesToMarkdown :: [Inline] -> Text
@@ -106,6 +136,11 @@ inlinesToMarkdown = T.concat . map go
           <> maybe "" thumbSizeAttr mThumb
       SoftLineBreak -> "\n"
       HardLineBreak -> "\\\n"
+      ClozeBlank Nothing -> "___"
+      ClozeBlank (Just mm) ->
+        let cm = mm `div` 10
+            frac = mm `mod` 10
+         in "___" <> T.pack (show cm) <> (if frac > 0 then "." <> T.pack (show frac) else "") <> "___"
 
 -- | Serialize a ThumbSize back to its markdown attribute syntax.
 thumbSizeAttr :: ThumbSize -> Text

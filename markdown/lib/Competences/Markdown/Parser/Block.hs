@@ -39,6 +39,7 @@ blockP =
     [ thematicBreakP
     , headingP
     , notesGridP
+    , taskBlockP
     , fencedCodeBlockP
     , mathBlockP
     , letterListP
@@ -157,6 +158,82 @@ notesGridP = try $ do
 
     splitOn :: (a -> Bool) -> [a] -> [[a]]
     splitOn p = unfoldr $ \xs ->
+      case xs of
+        [] -> Nothing
+        _ -> let (seg, rest) = break p xs
+              in Just (seg, drop 1 rest)
+
+    parseCell :: Text -> [Block]
+    parseCell t =
+      let trimmed = T.strip t
+       in if T.null trimmed
+            then []
+            else case parseMaybe documentP trimmed of
+              Just (Document blocks) -> blocks
+              Nothing -> [Paragraph [Plain trimmed]]
+
+-- | Task format block: ```task:cloze, ```task:singlechoice, etc.
+-- Unknown task:* formats fall back to FencedCodeBlock.
+taskBlockP :: Parser Block
+taskBlockP = try $ do
+  (fenceChar, fenceLen) <- backtickFence
+  _ <- hspace
+  _ <- string "task:"
+  format <- takeWhile1P (Just "task format") (\c -> c /= '\n' && c /= '`' && c /= ' ')
+  _ <- takeWhileP Nothing (\c -> c /= '\n' && c /= '`')
+  _ <- newline
+  bodyLines <- nestedFencedBodyP fenceChar fenceLen
+  case format of
+    "cloze" -> parseClozeBody bodyLines
+    "singlechoice" -> parseChoiceBody SingleChoice bodyLines
+    "multiplechoice" -> parseChoiceBody MultipleChoice bodyLines
+    "mapping" -> parseMappingBody bodyLines
+    _ -> pure $ FencedCodeBlock (Just ("task:" <> format)) (T.intercalate "\n" bodyLines)
+  where
+    parseClozeBody bodyLines =
+      let segments = splitOnSeparator isDashSeparator bodyLines
+       in case segments of
+            [] -> pure $ ClozeBlock [] ClozeNoOptions
+            [textSeg] ->
+              pure $ ClozeBlock (parseCell (T.intercalate "\n" textSeg)) ClozeNoOptions
+            (textSeg : optionSegs) ->
+              let textBlocks = parseCell (T.intercalate "\n" textSeg)
+                  options = case optionSegs of
+                    [oneGroup] -> ClozeWordBank (parseCell (T.intercalate "\n" oneGroup))
+                    multiple -> ClozePerBlankOptions
+                      (map (\seg -> parseCell (T.intercalate "\n" seg)) multiple)
+               in pure $ ClozeBlock textBlocks options
+
+    parseChoiceBody choiceType bodyLines =
+      let segments = splitOnSeparator isDashSeparator bodyLines
+          items = map (\seg -> parseCell (T.intercalate "\n" seg)) segments
+       in pure $ ChoiceBlock choiceType items
+
+    parseMappingBody bodyLines =
+      let halves = splitOnSeparator isPlusSeparator bodyLines
+       in case halves of
+            [leftLines, rightLines] ->
+              let leftItems = map (\seg -> parseCell (T.intercalate "\n" seg))
+                    (splitOnSeparator isDashSeparator leftLines)
+                  rightItems = map (\seg -> parseCell (T.intercalate "\n" seg))
+                    (splitOnSeparator isDashSeparator rightLines)
+               in pure $ MappingBlock leftItems rightItems
+            _ ->
+              -- Malformed: treat as code block
+              pure $ FencedCodeBlock (Just "task:mapping") (T.intercalate "\n" bodyLines)
+
+    isDashSeparator :: Text -> Bool
+    isDashSeparator line =
+      let stripped = T.strip line
+       in T.length stripped >= 3 && T.all (== '-') stripped
+
+    isPlusSeparator :: Text -> Bool
+    isPlusSeparator line =
+      let stripped = T.strip line
+       in T.length stripped >= 3 && T.all (== '+') stripped
+
+    splitOnSeparator :: (Text -> Bool) -> [Text] -> [[Text]]
+    splitOnSeparator p = unfoldr $ \xs ->
       case xs of
         [] -> Nothing
         _ -> let (seg, rest) = break p xs

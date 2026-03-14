@@ -14,6 +14,7 @@ where
 
 import Competences.Markdown.AST
 import Control.Monad (void)
+import Data.Char qualified
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void (Void)
@@ -37,6 +38,7 @@ inlineP =
     , codeSpanP
     , mathInlineParenP
     , mathInlineP
+    , clozeBlankP
     , fileEmbedP
     , linkP
     , plainP
@@ -54,6 +56,7 @@ lineInlinesP = some lineInlineP
         , codeSpanP
         , mathInlineParenP
         , mathInlineP
+        , clozeBlankP
         , fileEmbedP
         , linkP
         , plainP
@@ -131,6 +134,7 @@ inlineInStrongP =
     [ emphP
     , codeSpanP
     , mathInlineP
+    , clozeBlankP
     , fileEmbedP
     , linkP
     , plainInDelimP "*"
@@ -143,6 +147,7 @@ inlineInEmphP =
     [ strongP
     , codeSpanP
     , mathInlineP
+    , clozeBlankP
     , fileEmbedP
     , linkP
     , plainInDelimP "*"
@@ -234,6 +239,7 @@ linkInlineP =
     , emphP
     , codeSpanP
     , mathInlineP
+    , clozeBlankP
     , fileEmbedP
     , plainInDelimP "]"
     ]
@@ -246,6 +252,25 @@ plainInDelimP extra = Plain <$> takeWhile1P (Just "text") isPlainInDelim
       c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '!' && c /= '\\' && c /= '\n'
         && not (T.any (== c) extra)
 
+-- | Cloze blank: ___ or ___N___ where N is a decimal (cm, half-cm steps)
+-- Stored as millimeters: ___2___ → Just 20, ___1.5___ → Just 15
+clozeBlankP :: Parser Inline
+clozeBlankP = do
+  _ <- try (string "___")
+  -- Try to parse a width number followed by ___
+  mWidth <- optional $ try $ do
+    intPart <- takeWhile1P (Just "digit") (\c -> c >= '0' && c <= '9')
+    fracPart <- optional $ try $ do
+      _ <- char '.'
+      d <- satisfy (\c -> c >= '0' && c <= '9')
+      pure d
+    _ <- string "___"
+    let mm = read (T.unpack intPart) * 10
+    pure $ case fracPart of
+      Nothing -> mm
+      Just d -> mm + (Data.Char.ord d - Data.Char.ord '0')
+  pure $ ClozeBlank mWidth
+
 -- | Plain text (everything that's not a special marker)
 plainP :: Parser Inline
 plainP = Plain <$> (plainChunk <|> singleSpecial)
@@ -255,7 +280,9 @@ plainP = Plain <$> (plainChunk <|> singleSpecial)
     -- Consume a single special character that didn't match any other parser
     singleSpecial = do
       notFollowedBy (void newline)
+      notFollowedBy (void $ string "___")
       T.singleton <$> anySingle
 
     isPlainChar c =
       c /= '*' && c /= '$' && c /= '`' && c /= '[' && c /= '!' && c /= '\\' && c /= '\n'
+        && c /= '_'

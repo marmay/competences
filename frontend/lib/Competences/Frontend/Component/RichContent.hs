@@ -81,6 +81,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.CSS qualified as MC
 import Miso.Html qualified as M
 import Miso.String (ms)
 import Numeric (showHex)
@@ -253,6 +254,16 @@ extractFromBlock = \case
       ++ concatMap extractFromBlock blocks
   MD.NotesGrid c1 c2 c3 c4 ->
     concatMap extractFromBlock (c1 ++ c2 ++ c3 ++ c4)
+  MD.ClozeBlock body opts ->
+    concatMap extractFromBlock body ++ case opts of
+      MD.ClozeNoOptions -> []
+      MD.ClozeWordBank bs -> concatMap extractFromBlock bs
+      MD.ClozePerBlankOptions groups -> concatMap (concatMap extractFromBlock) groups
+  MD.ChoiceBlock _ items ->
+    concatMap (concatMap extractFromBlock) items
+  MD.MappingBlock leftItems rightItems ->
+    concatMap (concatMap extractFromBlock) leftItems
+      ++ concatMap (concatMap extractFromBlock) rightItems
   where
     resolveColor c =
       let hex = resolveStrokeColor c
@@ -269,6 +280,7 @@ extractFromInline = \case
   MD.FileEmbed _ inlines _ _ -> concatMap extractFromInline inlines
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []
+  MD.ClozeBlank _ -> []
 
 -- ============================================================================
 -- Rendering
@@ -317,6 +329,14 @@ renderBlock resolver symbols = \case
     renderAdmonition resolver symbols adType mTitle bodyBlocks
   MD.NotesGrid c1 c2 c3 c4 ->
     renderNotesGrid resolver symbols c1 c2 c3 c4
+  MD.ClozeBlock body opts ->
+    renderClozeBlock resolver symbols body opts
+  MD.ChoiceBlock MD.SingleChoice items ->
+    renderChoiceBlock resolver symbols "rounded-full" items
+  MD.ChoiceBlock MD.MultipleChoice items ->
+    renderChoiceBlock resolver symbols "rounded-sm" items
+  MD.MappingBlock leftItems rightItems ->
+    renderMappingBlock resolver symbols leftItems rightItems
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
@@ -374,6 +394,121 @@ renderNotesGrid resolver symbols c1 c2 c3 c4 =
     cell cls blocks =
       M.div_ [class_ cls] $ map (renderBlock resolver symbols) blocks
 
+-- | Render a cloze block: body text (with blanks), then optional word bank below
+renderClozeBlock
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [MD.Block]
+  -> MD.ClozeOptions
+  -> M.View RichContentModel RichContentAction
+renderClozeBlock resolver symbols body opts =
+  M.div_
+    [class_ "space-y-3"]
+    $ map (renderBlock resolver symbols) body
+      ++ case opts of
+        MD.ClozeNoOptions -> []
+        MD.ClozeWordBank bs ->
+          [ M.div_
+              [class_ "mt-3 p-3 bg-stone-50 border border-stone-200 rounded-md"]
+              (map (renderBlock resolver symbols) bs)
+          ]
+        MD.ClozePerBlankOptions groups ->
+          [ M.div_
+              [class_ "mt-3 flex flex-wrap gap-3"]
+              [ M.div_
+                  [class_ "p-3 bg-stone-50 border border-stone-200 rounded-md"]
+                  (map (renderBlock resolver symbols) grp)
+              | grp <- groups
+              ]
+          ]
+
+-- | Render a choice block (single or multiple choice) with indicator icons
+renderChoiceBlock
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> Text -- ^ CSS border-radius class: "rounded-full" for radio, "rounded-sm" for checkbox
+  -> [[MD.Block]]
+  -> M.View RichContentModel RichContentAction
+renderChoiceBlock resolver symbols radiusCls items =
+  M.div_
+    [class_ "space-y-1"]
+    [ M.div_
+        [class_ "flex items-start gap-2 py-1"]
+        [ M.div_
+            [ class_ ("mt-1.5 w-4 h-4 border-2 border-stone-400 flex-shrink-0 " <> radiusCls)
+            ]
+            []
+        , M.div_
+            [class_ "flex-1 min-w-0"]
+            (map (renderBlock resolver symbols) item)
+        ]
+    | item <- items
+    ]
+
+-- | Render a mapping block: two columns.
+-- Left items have content + numbered label on the right (separated by vertical line).
+-- Right items have a 1cm grid blank on the left (separated by vertical line) + content.
+renderMappingBlock
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [[MD.Block]]
+  -> [[MD.Block]]
+  -> M.View RichContentModel RichContentAction
+renderMappingBlock resolver symbols leftItems rightItems =
+  M.div_
+    [class_ "grid grid-cols-2 gap-4"]
+    [ M.div_
+        [class_ "space-y-2"]
+        (zipWith (renderMappingLeft resolver symbols) [1 ..] leftItems)
+    , M.div_
+        [class_ "space-y-2"]
+        (map (renderMappingRight resolver symbols) rightItems)
+    ]
+
+-- | Left mapping item: content | number
+renderMappingLeft
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> Int
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderMappingLeft resolver symbols n item =
+  M.div_
+    [class_ "flex border border-stone-300 rounded-md overflow-hidden"]
+    [ M.div_
+        [class_ "flex-1 p-3"]
+        (map (renderBlock resolver symbols) item)
+    , M.div_
+        [class_ "flex items-center justify-center w-8 border-l border-stone-300 bg-stone-50 font-medium text-stone-600"]
+        [M.text (ms (show n))]
+    ]
+
+-- | Right mapping item: grid blank | content
+renderMappingRight
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderMappingRight resolver symbols item =
+  M.div_
+    [class_ "flex border border-stone-300 rounded-md overflow-hidden"]
+    [ M.div_
+        [ class_ "border-r border-stone-300"
+        , MC.style_
+            [ ("width", "10mm")
+            , ("min-height", "100%")
+            , ("background-image", "linear-gradient(to right, #ccc 1px, transparent 1px), linear-gradient(to bottom, #ccc 1px, transparent 1px)")
+            , ("background-size", "5mm 5mm")
+            , ("print-color-adjust", "exact")
+            , ("-webkit-print-color-adjust", "exact")
+            ]
+        ]
+        []
+    , M.div_
+        [class_ "flex-1 p-3"]
+        (map (renderBlock resolver symbols) item)
+    ]
+
 -- | German display label for each admonition type
 admonitionLabel :: MD.AdmonitionType -> Text
 admonitionLabel = \case
@@ -411,6 +546,22 @@ renderInline resolver symbols = \case
           Just size -> M.div_ [class_ (thumbClasses size)] [fileView]
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
+  MD.ClozeBlank mWidth ->
+    let widthMm = maybe 30 id mWidth -- default 30mm = 3cm
+     in M.span_
+          [ MC.style_
+              [ ("display", "inline-block")
+              , ("width", ms (show widthMm) <> "mm")
+              , ("height", "10mm")
+              , ("vertical-align", "-3mm") -- align with descent
+              , ("margin", "0 1mm")
+              , ("background-image", "linear-gradient(to right, #ccc 1px, transparent 1px), linear-gradient(to bottom, #ccc 1px, transparent 1px)")
+              , ("background-size", "5mm 5mm")
+              , ("print-color-adjust", "exact")
+              , ("-webkit-print-color-adjust", "exact")
+              ]
+          ]
+          []
 
 -- | CSS classes for thumbnail sizing
 thumbClasses :: MD.ThumbSize -> Text
@@ -545,6 +696,15 @@ referencedFileHashes attachments (MD.Document blocks) =
         maybe [] id mTitle ++ concatMap blockInlines bs
       MD.NotesGrid c1 c2 c3 c4 ->
         concatMap blockInlines (c1 ++ c2 ++ c3 ++ c4)
+      MD.ClozeBlock body opts ->
+        concatMap blockInlines body ++ case opts of
+          MD.ClozeNoOptions -> []
+          MD.ClozeWordBank bs -> concatMap blockInlines bs
+          MD.ClozePerBlankOptions groups -> concatMap (concatMap blockInlines) groups
+      MD.ChoiceBlock _ items ->
+        concatMap (concatMap blockInlines) items
+      MD.MappingBlock l r ->
+        concatMap (concatMap blockInlines) l ++ concatMap (concatMap blockInlines) r
       _ -> []
 
     extractRefsFromInline :: MD.Inline -> [SHA256Hash]
