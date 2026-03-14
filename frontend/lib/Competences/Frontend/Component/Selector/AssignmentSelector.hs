@@ -35,7 +35,7 @@ import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus)
+import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus, isAssignmentOpen)
 import Data.Default (Default)
 import Data.List (find, sortOn)
 import Data.Maybe (isJust)
@@ -57,11 +57,13 @@ data SelectorProjection = SelectorProjection
   , statusMap :: !(Map.Map AssignmentId AssignmentStatus)
     -- | IDs of draft assignments (for showing Draft badge)
   , draftIds :: !(Set.Set AssignmentId)
+    -- | IDs of "open" assignments (student still needs to act)
+  , openSet :: !(Set.Set AssignmentId)
   }
   deriving (Eq, Generic, Show)
 
 emptyProjection :: SelectorProjection
-emptyProjection = SelectorProjection Ix.empty Nothing Map.empty Set.empty
+emptyProjection = SelectorProjection Ix.empty Nothing Map.empty Set.empty Set.empty
 
 -- | Projection function - pre-computes all assignment statuses
 -- Filters assignments by focused user if set (shows only assignments assigned to that user)
@@ -83,14 +85,23 @@ selectorProjection doc mUser =
           | a <- Ix.toList assignments
           , not (Set.member a.id draftIds')  -- Only real assignments have status
           ]
+      openSet' = case mUser of
+        Nothing -> Set.empty
+        Just user -> Set.fromList
+          [ a.id
+          | a <- Ix.toList assignments
+          , not (Set.member a.id draftIds')
+          , isAssignmentOpen doc user.id a.id
+          ]
    in SelectorProjection
         { assignments
         , focusedUser = mUser
         , statusMap
         , draftIds = draftIds'
+        , openSet = openSet'
         }
 
-data AssignmentFilter = AllAssignments | NotGradedOnly
+data AssignmentFilter = AllAssignments | NotGradedOnly | OpenOnly
   deriving (Eq, Show)
 
 data Model = Model
@@ -129,7 +140,7 @@ assignmentSelectorComponent r initialSelection parentLens =
       , selectedAssignment = Nothing
       , newAssignment = Nothing
       , searchQuery = ""
-      , assignmentFilter = NotGradedOnly
+      , assignmentFilter = OpenOnly
       , isDropdownOpen = False
       }
 
@@ -209,9 +220,9 @@ assignmentSelectorComponent r initialSelection parentLens =
             <> [ inlineComponent
                    "assignment-status-filter"
                    ( ES.enumSelectorComponent'
-                       NotGradedOnly
-                       [AllAssignments, NotGradedOnly]
-                       ES.ButtonsCompact
+                       OpenOnly
+                       [OpenOnly, AllAssignments, NotGradedOnly]
+                       ES.SelectDropdown
                        translateAssignmentFilter
                        #assignmentFilter
                    )
@@ -223,6 +234,7 @@ assignmentSelectorComponent r initialSelection parentLens =
 
     translateAssignmentFilter AllAssignments = C.translate' C.LblFilterAllAssignments
     translateAssignmentFilter NotGradedOnly = C.translate' C.LblFilterNotGraded
+    translateAssignmentFilter OpenOnly = C.translate' C.LblFilterOpenAssignments
 
     filteredAssignments m =
       let proj = m.projection
@@ -238,6 +250,7 @@ assignmentSelectorComponent r initialSelection parentLens =
             _ -> False  -- NeedsWork and Completed are both "graded"
        in case (proj.focusedUser, m.assignmentFilter) of
             (Just _, NotGradedOnly) -> filter isNotGraded textFiltered
+            (Just _, OpenOnly) -> filter (\a -> Set.member a.id proj.openSet) textFiltered
             _ -> textFiltered
 
     unAssignmentName (AssignmentName t) = t

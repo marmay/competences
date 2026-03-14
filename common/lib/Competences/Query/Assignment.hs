@@ -11,12 +11,14 @@ module Competences.Query.Assignment
   , assignmentStatus
   , accumulatedObservations
   , isAssignmentCompleted
+  , isAssignmentOpen
   , statusLabel
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment, AssignmentId, AssignmentIxs, Document (..))
+import Competences.Document.Submission (Submission (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
@@ -24,6 +26,7 @@ import Competences.Query.Evidence qualified as QEvidence
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
+import Data.Time (utctDay)
 
 -- | Lookup an assignment by primary key.
 getAssignment :: Document -> AssignmentId -> Maybe Assignment
@@ -69,6 +72,29 @@ accumulatedObservations doc userId assignmentId =
 -- | Convenience predicate for filtering
 isAssignmentCompleted :: Document -> UserId -> AssignmentId -> Bool
 isAssignmentCompleted doc userId aId = assignmentStatus doc userId aId == Completed
+
+-- | Is an assignment "open" for a user?
+-- An assignment is open when the student still needs to act:
+-- - Completed → False (nothing to do)
+-- - NotGraded + no submissions → True (student hasn't submitted)
+-- - NotGraded + has submissions → False (ball is with the teacher)
+-- - NeedsWork + no submission after latest evidence → True (student needs to fix)
+-- - NeedsWork + has submission on/after latest evidence → False (ball is with the teacher)
+isAssignmentOpen :: Document -> UserId -> AssignmentId -> Bool
+isAssignmentOpen doc userId assignmentId =
+  case assignmentStatus doc userId assignmentId of
+    Completed -> False
+    NotGraded ->
+      Ix.null (doc.submissions Ix.@= assignmentId Ix.@= userId)
+    NeedsWork ->
+      let submissions = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
+          linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) (QEvidence.userEvidencesAsc doc userId)
+          latestEvidenceDay = case linkedEvidences of
+            [] -> Nothing
+            es -> Just (last es).date
+       in case latestEvidenceDay of
+            Nothing -> True -- No evidence date to compare against
+            Just d -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
 
 -- | Status label for display (German)
 statusLabel :: AssignmentStatus -> Text

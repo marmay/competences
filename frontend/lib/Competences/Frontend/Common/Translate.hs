@@ -137,6 +137,7 @@ data Label
   | LblFilterAssignments
   | LblFilterAllAssignments
   | LblFilterNotGraded
+  | LblFilterOpenAssignments
   | LblTaskIdentifier
   | LblTaskTitle
   | LblTaskContent
@@ -368,6 +369,16 @@ data Label
   | LblHeaderTitle
   | LblHeaderBoth
   | LblTaskWord
+  | LblDuplexLayout
+  | LblDistributeLastPage
+  | LblFontFamily
+  | LblFontDefault
+  | LblFontSerif
+  | LblFontSansSerif
+  | LblFontMono
+  | LblCustomFooter
+  | LblCustomFooterPlaceholder
+  | LblPoints
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -771,6 +782,16 @@ labels' =
   , LblHeaderTitle
   , LblHeaderBoth
   , LblTaskWord
+  , LblDuplexLayout
+  , LblDistributeLastPage
+  , LblFontFamily
+  , LblFontDefault
+  , LblFontSerif
+  , LblFontSansSerif
+  , LblFontMono
+  , LblCustomFooter
+  , LblCustomFooterPlaceholder
+  , LblPoints
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -943,6 +964,7 @@ defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
 defaultTranslation LblFilterAssignments = "Nach Name filtern..."
 defaultTranslation LblFilterAllAssignments = "Alle"
 defaultTranslation LblFilterNotGraded = "Nicht korrigiert"
+defaultTranslation LblFilterOpenAssignments = "Offen"
 defaultTranslation LblTaskIdentifier = "Bezeichnung"
 defaultTranslation LblTaskTitle = "Titel"
 defaultTranslation LblTaskContent = "Inhalt"
@@ -1191,6 +1213,16 @@ defaultTranslation LblHeaderNumber = "Nummer"
 defaultTranslation LblHeaderTitle = "Titel"
 defaultTranslation LblHeaderBoth = "Beides"
 defaultTranslation LblTaskWord = "Aufgabe "
+defaultTranslation LblDuplexLayout = "Duplexdruck"
+defaultTranslation LblDistributeLastPage = "Letzte Seite verteilen"
+defaultTranslation LblFontFamily = "Schriftart"
+defaultTranslation LblFontDefault = "Standard"
+defaultTranslation LblFontSerif = "Serif"
+defaultTranslation LblFontSansSerif = "Sans"
+defaultTranslation LblFontMono = "Mono"
+defaultTranslation LblCustomFooter = "Fußzeile (letzte Seite)"
+defaultTranslation LblCustomFooterPlaceholder = "{{points table}}, {{signature}}, {{point distribution:90% Sehr gut:...}}"
+defaultTranslation LblPoints = "Punkte"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
