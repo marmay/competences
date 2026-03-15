@@ -14,7 +14,7 @@ module Competences.Frontend.Component.Assignment.ImportModal
   )
 where
 
-import Competences.Command (AssignmentPatch (..), ModifyCommand (..), SolutionPatch (..), TaskPatch (..))
+import Competences.Command (AssignmentPatch (..), Command, ModifyCommand (..), SolutionPatch (..), TaskPatch (..))
 import Competences.Command qualified as Cmd
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
@@ -23,6 +23,7 @@ import Competences.Document.Id (Id (..))
 import Competences.Document.Solution (Solution (..))
 import Competences.Document.Task (Task (..), TaskAttributes (..), TaskIdentifier (..), TaskPurpose (..), TaskType (..), defaultTaskAttributes, taskDisplayName)
 import Competences.Document.User (User (..))
+import Competences.Frontend.Component.Draft (retargetForDraft)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
@@ -237,7 +238,8 @@ applyAssignmentImport r wm doc previews = do
 
 applyAssignmentPreview :: SyncContext -> Document -> AssignmentImportPreview -> IO ()
 applyAssignmentPreview r doc preview = do
-  taskIds <- mapM (applyTaskAndGetId r doc) preview.taskPreviews
+  let cmd = if preview.isDraft then retargetForDraft else id :: Command -> Command
+  taskIds <- mapM (applyTaskAndGetId r doc cmd) preview.taskPreviews
 
   case preview.assignmentAction of
     Create a -> do
@@ -253,15 +255,15 @@ applyAssignmentPreview r doc preview = do
               , tasks = taskIds
               , groupSubmissionAllowed = False
               }
-      modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
+      modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
     Update old new -> do
-      modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id Lock)
+      modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id Lock)
       let patch = buildAssignmentPatch old new taskIds
-      modifySyncDocument r (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
+      modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()
 
-applyTaskAndGetId :: SyncContext -> Document -> TaskImportPreview -> IO (Id Task)
-applyTaskAndGetId r doc preview = do
+applyTaskAndGetId :: SyncContext -> Document -> (Command -> Command) -> TaskImportPreview -> IO (Id Task)
+applyTaskAndGetId r doc cmd preview = do
   let teachers = QUser.teachers doc
       mTeacherId = (.id) <$> listToMaybe teachers
       matchedPrimary = mapMaybe (.matched) preview.competenceMatches
@@ -287,20 +289,20 @@ applyTaskAndGetId r doc preview = do
               , taskType = SelfContained taskAttrs
               , attachments = []
               }
-      modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
+      modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
       pure newId
     Update old new -> do
-      modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id Lock)
+      modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id Lock)
       let patch = buildTaskPatch old new matchedPrimary matchedSecondary preview.parsedPurpose
-      modifySyncDocument r (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
+      modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
       pure old.id
     NoChange t -> pure t.id
 
-  mapM_ (applySolutionAction r taskId mTeacherId) preview.solutionActions
+  mapM_ (applySolutionAction r cmd taskId mTeacherId) preview.solutionActions
   pure taskId
 
-applySolutionAction :: SyncContext -> Id Task -> Maybe (Id User) -> ImportAction Solution -> IO ()
-applySolutionAction r taskId mTeacherId action = case action of
+applySolutionAction :: SyncContext -> (Command -> Command) -> Id Task -> Maybe (Id User) -> ImportAction Solution -> IO ()
+applySolutionAction r cmd taskId mTeacherId action = case action of
   Create s -> case mTeacherId of
     Just teacherId -> do
       newId <- nextId r
@@ -312,12 +314,12 @@ applySolutionAction r taskId mTeacherId action = case action of
               , solutionType = s.solutionType
               , content = s.content
               }
-      modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Create newSolution)
+      modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Create newSolution)
     Nothing -> pure ()
   Update old new -> do
-    modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id Lock)
+    modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id Lock)
     let patch = buildSolutionPatch old new
-    modifySyncDocument r (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (Release patch))
+    modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()
 
 -- ============================================================================

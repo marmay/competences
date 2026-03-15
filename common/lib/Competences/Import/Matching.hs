@@ -206,11 +206,15 @@ competenceEquals a b =
 matchTaskImport :: Document -> [ParsedTask] -> [TaskImportPreview]
 matchTaskImport doc = map (matchSingleTask doc)
 
--- | Match a single parsed task
+-- | Match a single parsed task (always searches published tasks)
 matchSingleTask :: Document -> ParsedTask -> TaskImportPreview
-matchSingleTask doc parsed =
-  let -- Try to find existing task by identifier
-      existingTask = findTaskByIdentifier doc parsed.identifier parsed.replacesIdentifier
+matchSingleTask doc = matchSingleTaskForDraft doc False
+
+-- | Match a single parsed task, searching the correct collection based on isDraft
+matchSingleTaskForDraft :: Document -> Bool -> ParsedTask -> TaskImportPreview
+matchSingleTaskForDraft doc isDraft parsed =
+  let -- Try to find existing task by identifier in the correct collection
+      existingTask = findTaskByIdentifier doc isDraft parsed.identifier parsed.replacesIdentifier
 
       taskAction = case existingTask of
         Nothing -> Create (makeNewTask parsed)
@@ -240,13 +244,15 @@ matchSingleTask doc parsed =
         , parsedPurpose = parsed.purpose
         }
 
--- | Find task by identifier, checking both current and replacement identifiers
-findTaskByIdentifier :: Document -> TaskIdentifier -> Maybe TaskIdentifier -> Maybe Task
-findTaskByIdentifier doc ident mReplaces =
-  let byReplaces = case mReplaces of
-        Just origIdent -> Ix.getOne $ doc.tasks Ix.@= origIdent
+-- | Find task by identifier, checking both current and replacement identifiers.
+-- When isDraft, searches draft tasks; otherwise searches published tasks.
+findTaskByIdentifier :: Document -> Bool -> TaskIdentifier -> Maybe TaskIdentifier -> Maybe Task
+findTaskByIdentifier doc isDraft ident mReplaces =
+  let collection = if isDraft then doc.draftTasks else doc.tasks
+      byReplaces = case mReplaces of
+        Just origIdent -> Ix.getOne $ collection Ix.@= origIdent
         Nothing -> Nothing
-      byIdent = Ix.getOne $ doc.tasks Ix.@= ident
+      byIdent = Ix.getOne $ collection Ix.@= ident
    in byReplaces <|> byIdent
   where
     (<|>) :: Maybe a -> Maybe a -> Maybe a
@@ -340,8 +346,8 @@ matchAssignmentImport doc = map (matchSingleAssignment doc)
 -- | Match a single parsed assignment
 matchSingleAssignment :: Document -> ParsedAssignment -> AssignmentImportPreview
 matchSingleAssignment doc parsed =
-  let -- Try to find existing assignment by name
-      existingAssignment = findAssignmentByName doc parsed.name parsed.replacesName
+  let -- Try to find existing assignment by name (in correct collection)
+      existingAssignment = findAssignmentByName doc parsed.isDraft parsed.name parsed.replacesName
 
       assignmentAction = case existingAssignment of
         Nothing -> Create (makeNewAssignment parsed)
@@ -351,24 +357,27 @@ matchSingleAssignment doc parsed =
                 then NoChange existing
                 else Update existing updated
 
-      -- Match embedded tasks
-      taskPreviews = map (matchSingleTask doc) parsed.tasks
+      -- Match embedded tasks (in correct collection)
+      taskPreviews = map (matchSingleTaskForDraft doc parsed.isDraft) parsed.tasks
    in AssignmentImportPreview
         { assignmentAction = assignmentAction
         , taskPreviews = taskPreviews
+        , isDraft = parsed.isDraft
         }
 
 -- | Find assignment by name, checking both current and replacement names
-findAssignmentByName :: Document -> Text -> Maybe Text -> Maybe Assignment
-findAssignmentByName doc name mReplaces =
-  let byReplaces = case mReplaces of
+-- When isDraft, searches draft assignments; otherwise searches published.
+findAssignmentByName :: Document -> Bool -> Text -> Maybe Text -> Maybe Assignment
+findAssignmentByName doc isDraft name mReplaces =
+  let collection = if isDraft then doc.draftAssignments else doc.assignments
+      byReplaces = case mReplaces of
         Just origName ->
           find (\a -> let AssignmentName n = a.name in normalizeText n == normalizeText origName) $
-            Ix.toList doc.assignments
+            Ix.toList collection
         Nothing -> Nothing
       byName =
         find (\a -> let AssignmentName n = a.name in normalizeText n == normalizeText name) $
-          Ix.toList doc.assignments
+          Ix.toList collection
    in byReplaces <|> byName
   where
     (<|>) :: Maybe a -> Maybe a -> Maybe a

@@ -125,11 +125,12 @@ exportLevel levels lvl =
 -- #### Hinweis
 -- Hint solution...
 -- @
-exportAssignment :: Document -> Assignment -> Text
-exportAssignment doc assignment =
+exportAssignment :: Bool -> Document -> Assignment -> Text
+exportAssignment isDraft doc assignment =
   let AssignmentName name = assignment.name
       header = "# " <> name <> "\n"
       descSection = "\n## Beschreibung\n" <> T.strip (toRawText assignment.description) <> "\n"
+      statusLine = if isDraft then "Status: Entwurf\n" else ""
       metaSection =
         "\n## Angaben\n"
           <> "Date: "
@@ -138,6 +139,7 @@ exportAssignment doc assignment =
           <> "Type: "
           <> activityTypeToGerman assignment.activityType
           <> "\n"
+          <> statusLine
       tasks = mapMaybe (lookupTask doc) assignment.tasks
       taskSections = T.intercalate "\n" $ map (exportTaskAsSubsection doc) tasks
    in header <> descSection <> metaSection <> "\n" <> taskSections
@@ -146,9 +148,12 @@ exportAssignment doc assignment =
 formatDay :: Day -> Text
 formatDay = T.pack . formatTime defaultTimeLocale "%Y-%m-%d"
 
--- | Look up a task by ID
+-- | Look up a task by ID, searching both published and draft collections
 lookupTask :: Document -> TaskId -> Maybe Task
-lookupTask doc tid = Ix.getOne $ doc.tasks Ix.@= tid
+lookupTask doc tid =
+  case Ix.getOne $ doc.tasks Ix.@= tid of
+    Just t -> Just t
+    Nothing -> Ix.getOne $ doc.draftTasks Ix.@= tid
 
 -- | Export a task as a subsection (### level) within an assignment
 exportTaskAsSubsection :: Document -> Task -> Text

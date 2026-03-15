@@ -27,6 +27,7 @@ import Competences.Document
   , ordered
   )
 import Competences.Document.ActivityType (activityReliability)
+import Competences.Document.Assignment (Assignment (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Evidence
   ( Evidence (..)
@@ -340,10 +341,18 @@ viewerComponent r grid wm =
             , taskPurpose = (getTaskAttributes taskGroups task).purpose
             , solutions = Ix.toList $ doc.solutions Ix.@= task.id
             }
-          taskSortKey :: TaskWithSolutions -> (Down TaskPurpose, T.Text)
+          -- Find the latest assignment date for a given task
+          lastAssigned :: TaskId -> Maybe Day
+          lastAssigned tid =
+            case Ix.toDescList (Proxy @Day) (doc.assignments Ix.@= tid) of
+              (a : _) -> Just a.assignmentDate
+              [] -> Nothing
+          -- Sort: Assessment first, then assigned (most recent first), then unassigned alphabetically
+          taskSortKey :: TaskWithSolutions -> (Down TaskPurpose, Down (Maybe Day), T.Text)
           taskSortKey tws =
             let TaskIdentifier ident = tws.task.identifier
-             in (Down tws.taskPurpose, ident)
+                mDay = lastAssigned tws.task.id
+             in (Down tws.taskPurpose, Down mDay, ident)
           groupByCompetenceLevel :: [TaskWithSolutions] -> Map CompetenceLevelId [TaskWithSolutions]
           groupByCompetenceLevel tasks =
             Map.map (sortOn taskSortKey) $ foldr insertTask Map.empty tasks

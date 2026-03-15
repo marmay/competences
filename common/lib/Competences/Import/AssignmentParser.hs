@@ -85,7 +85,7 @@ parseAssignment (headingText, blocks) =
       sections = groupByHeading 2 sectionBlocks
       description = fromMaybe "" $ findSection "Beschreibung" sections
       angaben = fromMaybe "" $ findSection "Angaben" sections
-      (date, actType) = parseAngaben angaben
+      (date, actType, isDraft) = parseAngaben angaben
       tasks = map parseAssignmentTask (groupByHeading 3 taskBlocks)
    in ParsedAssignment
         { name = name
@@ -93,6 +93,7 @@ parseAssignment (headingText, blocks) =
         , description = description
         , assignmentDate = date
         , activityType = actType
+        , isDraft = isDraft
         , tasks = tasks
         }
 
@@ -131,19 +132,23 @@ findSection name sections =
     ((_, blocks) : _) -> Just (blocksToText blocks)
     [] -> Nothing
 
--- | Parse the ## Angaben section to extract date and type
-parseAngaben :: Text -> (Day, ActivityType)
+-- | Parse the ## Angaben section to extract date, type, and draft status
+parseAngaben :: Text -> (Day, ActivityType, Bool)
 parseAngaben content =
   let lines' = T.lines content
       dateStr = findKeyValue "Date" lines'
       typeStr = findKeyValue "Type" lines'
+      statusStr = findKeyValue "Status" lines'
       date = case dateStr >>= parseDate of
         Just d -> d
         Nothing -> defaultDate
       actType = case typeStr >>= activityTypeFromGerman of
         Just t -> t
         Nothing -> SchoolExercise -- Default
-   in (date, actType)
+      isDraft = case statusStr of
+        Just s -> T.strip s == "Entwurf"
+        Nothing -> False
+   in (date, actType, isDraft)
   where
     defaultDate = read "2000-01-01" -- Fallback date
 

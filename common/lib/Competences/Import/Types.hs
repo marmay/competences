@@ -144,6 +144,8 @@ data ParsedAssignment = ParsedAssignment
   -- ^ Date of the assignment (from ## Angaben section)
   , activityType :: !ActivityType
   -- ^ Type of activity (from ## Angaben section)
+  , isDraft :: !Bool
+  -- ^ Whether this is a draft assignment (from "Status: Entwurf" in ## Angaben)
   , tasks :: ![ParsedTask]
   -- ^ Embedded task definitions (from ### headings)
   }
@@ -217,6 +219,8 @@ data AssignmentImportPreview = AssignmentImportPreview
   -- ^ Action for the assignment itself
   , taskPreviews :: ![TaskImportPreview]
   -- ^ Actions for each embedded task
+  , isDraft :: !Bool
+  -- ^ Whether to import as draft
   }
   deriving (Eq, Show, Generic)
 

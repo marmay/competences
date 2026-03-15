@@ -77,7 +77,8 @@ instance Binary Assignment
 -- - AssignmentId (primary key lookup)
 -- - UserId (query assignments for a specific student)
 -- - Day (filter by date range)
-type AssignmentIxs = '[AssignmentId, UserId, Day]
+-- - TaskId (find assignments containing a specific task)
+type AssignmentIxs = '[AssignmentId, UserId, Day, TaskId]
 
 -- | Make an assignment indexable
 instance Indexable AssignmentIxs Assignment where
@@ -86,6 +87,7 @@ instance Indexable AssignmentIxs Assignment where
       (ixFun (\a -> [a.id]))
       (ixFun (\a -> Set.toList a.studentIds))
       (ixFun (\a -> [a.assignmentDate]))
+      (ixFun (\a -> a.tasks))
 
 -- | Helper to create an assignment with default values
 mkAssignment :: AssignmentId -> AssignmentName -> Day -> Assignment

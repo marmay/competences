@@ -150,7 +150,7 @@ editorWrapperComponent r assignment =
             ( [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
               , inlineComponent
                   ("export-btn-" <> M.ms (show assignment.id))
-                  (exportButtonComponent (\m' -> exportAssignment m'.document assignment))
+                  (exportButtonComponent (\m' -> exportAssignment (m.origin == Draft) m'.document assignment))
               ]
               <> [ Button.primary $ Button.button (Icon.IcnApply, C.LblPublishAssignment) PublishAssignment
                  | m.origin == Draft
