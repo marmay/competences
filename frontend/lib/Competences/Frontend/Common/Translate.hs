@@ -14,12 +14,14 @@ module Competences.Frontend.Common.Translate
   , setCurrentLanguage
   , translate
   , translate'
+  , translateVoidReason
   , trim
   )
 where
 
 import Competences.Document (Level (..))
 import Competences.Document.Evidence (Ability (..), ActivityType (..), SocialForm (..), TaskRemark (..), abilities, socialForms, taskRemarks)
+import Competences.Document.Submission (VoidReason (..))
 import Competences.Document.Lesson (ActionForm (..), TeachingSocialForm (..))
 import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationType (..))
 import Competences.Document.Solution (SolutionType (..), solutionTypes)
@@ -418,6 +420,11 @@ data Label
   | LblLocation
   | LblRemark
   | LblVoidReason
+  | LblVoidSick
+  | LblVoidTooEasy
+  | LblVoidTooHard
+  | LblVoidNoLongerRelevant
+  | LblVoidOther
   | LblIndividualSubmission
   | LblCollaborativeSubmission
   | LblAbgegebenUndGemacht
@@ -831,6 +838,11 @@ labels' =
   , LblLocation
   , LblRemark
   , LblVoidReason
+  , LblVoidSick
+  , LblVoidTooEasy
+  , LblVoidTooHard
+  , LblVoidNoLongerRelevant
+  , LblVoidOther
   , LblIndividualSubmission
   , LblCollaborativeSubmission
   , LblAbgegebenUndGemacht
@@ -1272,6 +1284,11 @@ defaultTranslation LblDoneInNotebook = "Im Heft erledigt"
 defaultTranslation LblLocation = "Ort (optional)"
 defaultTranslation LblRemark = "Anmerkung (optional)"
 defaultTranslation LblVoidReason = "Begründung"
+defaultTranslation LblVoidSick = "Krank"
+defaultTranslation LblVoidTooEasy = "Zu leicht"
+defaultTranslation LblVoidTooHard = "Zu schwer"
+defaultTranslation LblVoidNoLongerRelevant = "Nicht mehr relevant"
+defaultTranslation LblVoidOther = "Anderer Grund"
 defaultTranslation LblIndividualSubmission = "Einzelarbeit"
 defaultTranslation LblCollaborativeSubmission = "Gemeinsame Abgabe mit"
 defaultTranslation LblAbgegebenUndGemacht = "Abgegeben & Gemacht"
@@ -1329,6 +1346,13 @@ translate' :: Label -> MisoString
 translate' k = unsafePerformIO $ do
   l <- readIORef currentLanguage
   translate l k
+
+translateVoidReason :: VoidReason -> MisoString
+translateVoidReason VoidSick = translate' LblVoidSick
+translateVoidReason VoidTooEasy = translate' LblVoidTooEasy
+translateVoidReason VoidTooHard = translate' LblVoidTooHard
+translateVoidReason VoidNoLongerRelevant = translate' LblVoidNoLongerRelevant
+translateVoidReason (VoidOther t) = translate' LblVoidOther <> ": " <> ms t
 
 formatDay :: Day -> MisoString
 formatDay d = ms $ formatTime defaultTimeLocale "%d.%m.%Y" d

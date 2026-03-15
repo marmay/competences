@@ -105,7 +105,7 @@ submissionExtra sub = case sub.kind of
       Nothing -> M.text ""
       Just loc -> MH.span_ [class_ "text-muted-foreground truncate max-w-32"] [M.text $ ms loc]
   VoidSubmission reason ->
-    MH.span_ [class_ "text-muted-foreground truncate max-w-32 italic"] [M.text $ ms reason]
+    MH.span_ [class_ "text-muted-foreground truncate max-w-32 italic"] [M.text $ C.translateVoidReason reason]
 
 -- ===========================================================================
 -- Container component (holds selectedId, mounts children)
@@ -281,7 +281,7 @@ viewSubmissionContent r sub = case sub.kind of
       [ Badge.outline (Badge.badgeText (C.translate' C.LblNichtGemacht))
       , MH.div_
           [class_ "mt-2 text-muted-foreground italic"]
-          [M.text $ ms reason]
+          [M.text $ C.translateVoidReason reason]
       , viewRemark sub
       ]
 

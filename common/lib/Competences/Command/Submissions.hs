@@ -11,7 +11,7 @@ import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..
 import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
 import Competences.Document.User (UserId)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
@@ -66,8 +66,9 @@ validateKind :: SubmissionKind -> Either Text ()
 validateKind (DigitalSubmission files) =
   when (null files) $ Left "Submission: at least one file required for digital submission"
 validateKind (NonDigitalSubmission _) = Right ()
-validateKind (VoidSubmission reason) =
-  when (T.null (T.strip reason)) $ Left "Submission: void submission requires a non-empty reason"
+validateKind (VoidSubmission reason) = case reason of
+  VoidOther t -> when (T.null (T.strip t)) $ Left "Submission: VoidOther requires a non-empty reason"
+  _ -> Right ()
 
 -- | Validate that all owners are students assigned to this assignment.
 validateOwnership :: SubmissionOwnership -> UserId -> Assignment -> Document -> Either Text ()

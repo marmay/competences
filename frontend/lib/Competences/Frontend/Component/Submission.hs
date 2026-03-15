@@ -21,7 +21,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.FileRef (FileRef (..))
-import Competences.Document.Submission (SubmissionId, SubmissionKind (..), SubmissionOwnership (..))
+import Competences.Document.Submission (SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), simpleVoidReasons)
 import Competences.Frontend.Component.Selector.Common (selectorLens)
 import Competences.Frontend.Component.Selector.SearchSelect qualified as SS
 import Competences.Document.User (UserId)
@@ -152,7 +152,8 @@ data SubmissionModel = SubmissionModel
   , activeTab :: !KindTab
   , files :: ![FileRef]
   , locationText :: !MisoString
-  , voidReason :: !MisoString
+  , voidReasonChoice :: !VoidReason
+  , voidOtherText :: !MisoString
   , remarkText :: !MisoString
   , holdingDelete :: !(HoldButton.HoldState SubmissionId)
   , collaborators :: ![User]
@@ -163,7 +164,8 @@ data SubmissionAction
   = ProjectionChanged !(ProjectedChange SubmissionProjection)
   | SetActiveTab !KindTab
   | SetLocationText !MisoString
-  | SetVoidReason !MisoString
+  | SetVoidReasonChoice !VoidReason
+  | SetVoidOtherText !MisoString
   | SetRemarkText !MisoString
   | SubmitWork
   | DoSubmit !UTCTime
@@ -191,7 +193,8 @@ submissionModalComponent r assignmentId userId _wm =
       , activeTab = TabDigital
       , files = []
       , locationText = ""
-      , voidReason = ""
+      , voidReasonChoice = VoidSick
+      , voidOtherText = ""
       , remarkText = ""
       , holdingDelete = HoldButton.emptyHoldState
       , collaborators = []
@@ -214,8 +217,11 @@ submissionModalComponent r assignmentId userId _wm =
     update (SetLocationText t) =
       M.modify $ \m -> m & #locationText .~ t
 
-    update (SetVoidReason t) =
-      M.modify $ \m -> m & #voidReason .~ t
+    update (SetVoidReasonChoice r') =
+      M.modify $ \m -> m & #voidReasonChoice .~ r'
+
+    update (SetVoidOtherText t) =
+      M.modify $ \m -> m & #voidOtherText .~ t
 
     update (SetRemarkText t) =
       M.modify $ \m -> m & #remarkText .~ t
@@ -234,9 +240,11 @@ submissionModalComponent r assignmentId userId _wm =
             TabNonDigital ->
               let loc = T.pack (fromMisoString m.locationText)
                in Just (NonDigitalSubmission (if T.null loc then Nothing else Just loc))
-            TabVoid ->
-              let reason = T.strip (T.pack (fromMisoString m.voidReason))
-               in if T.null reason then Nothing else Just (VoidSubmission reason)
+            TabVoid -> case m.voidReasonChoice of
+              VoidOther _ ->
+                let t = T.strip (T.pack (fromMisoString m.voidOtherText))
+                 in if T.null t then Nothing else Just (VoidSubmission (VoidOther t))
+              other -> Just (VoidSubmission other)
       case mKind of
         Nothing -> pure ()  -- Validation failed, do nothing
         Just kind -> do
@@ -257,7 +265,8 @@ submissionModalComponent r assignmentId userId _wm =
           M.modify $ \m' -> m'
             & #files .~ []
             & #locationText .~ ""
-            & #voidReason .~ ""
+            & #voidReasonChoice .~ VoidSick
+            & #voidOtherText .~ ""
             & #remarkText .~ ""
             & #collaborators .~ []
 
@@ -345,13 +354,33 @@ submissionModalComponent r assignmentId userId _wm =
       Input.textInput' (C.translate' C.LblLocation) _m.locationText SetLocationText
 
     viewVoidForm _m =
-      Input.textInput' (C.translate' C.LblVoidReason) _m.voidReason SetVoidReason
+      Layout.vFlow
+        Layout.gapS
+        [ MH.div_
+            [class_ "flex flex-wrap gap-2"]
+            (map (viewVoidReasonButton _m.voidReasonChoice) (simpleVoidReasons <> [VoidOther ""]))
+        , case _m.voidReasonChoice of
+            VoidOther _ ->
+              Input.textInput' (C.translate' C.LblVoidReason) _m.voidOtherText SetVoidOtherText
+            _ -> M.text ""
+        ]
+
+    viewVoidReasonButton activeChoice reason =
+      let isActive = case (activeChoice, reason) of
+            (VoidOther _, VoidOther _) -> True
+            _ -> activeChoice == reason
+          lbl = C.translateVoidReason reason
+       in if isActive
+            then Button.primarySm (Button.button lbl (SetVoidReasonChoice reason))
+            else Button.outlineSm (Button.button lbl (SetVoidReasonChoice reason))
 
     viewSubmitButton m =
       let canSubmit = case m.activeTab of
             TabDigital -> not (null m.files)
             TabNonDigital -> True
-            TabVoid -> not (T.null (T.strip (T.pack (fromMisoString m.voidReason))))
+            TabVoid -> case m.voidReasonChoice of
+              VoidOther _ -> not (T.null (T.strip (T.pack (fromMisoString m.voidOtherText))))
+              _ -> True
        in if canSubmit
             then Button.primary (Button.button (C.translate' C.LblAbgabe) SubmitWork)
             else Button.primary (Button.button (C.translate' C.LblAbgabe) Button.Disabled)
@@ -416,4 +445,4 @@ submissionModalComponent r assignmentId userId _wm =
         Nothing -> M.text ""
         Just loc -> MH.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
     viewKindDetails (VoidSubmission reason) =
-      MH.span_ [class_ "text-sm text-muted-foreground italic"] [M.text $ ms reason]
+      MH.span_ [class_ "text-sm text-muted-foreground italic"] [M.text $ C.translateVoidReason reason]
