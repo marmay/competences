@@ -2,6 +2,7 @@ module Competences.Frontend.View.StackedBar
   ( BarSegment (..)
   , StackedBarConfig (..)
   , stackedBar
+  , stackedBarOnly
   )
 where
 
@@ -36,13 +37,7 @@ stackedBar config =
     [class_ "mt-1"]
     [ Layout.vFlow
         Layout.gapT
-        [ -- Stacked horizontal bar
-          MH.div_
-            [class_ "h-3 rounded overflow-hidden bg-stone-100"]
-            [ Layout.hFlow
-                Layout.hFull
-                (map renderSegment config.segments)
-            ]
+        [ barView config
         , -- Count labels below
           MH.div_
             [class_ "text-xs"]
@@ -51,6 +46,36 @@ stackedBar config =
                   (map renderIndicator config.segments)
             ]
         ]
+    ]
+  where
+    renderIndicator seg =
+      let isZero = seg.count == 0
+          opacityClass = if isZero then " opacity-30" else ""
+          textColorClass = if isZero then "text-stone-400" else "text-stone-600"
+          tip = if isZero then NoTooltip else seg.tooltip
+       in withTooltip tip $
+            MH.div_
+              [class_ opacityClass]
+              [ Layout.addClass "gap-0.5" $
+                  Layout.hFlow
+                    (Layout.hFull <> Layout.crossCenter)
+                    [ MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> seg.colorClass] []
+                    , MH.span_ [class_ textColorClass] [M.text $ M.ms $ show seg.count]
+                    ]
+              ]
+
+-- | Render just the stacked horizontal bar without legend
+stackedBarOnly :: StackedBarConfig m action -> M.View m action
+stackedBarOnly = barView
+
+-- | Internal: the bar itself
+barView :: StackedBarConfig m action -> M.View m action
+barView config =
+  MH.div_
+    [class_ "h-3 rounded overflow-hidden bg-stone-100"]
+    [ Layout.hFlow
+        Layout.hFull
+        (map renderSegment config.segments)
     ]
   where
     percentage count =
@@ -68,19 +93,3 @@ stackedBar config =
                 ]
                 []
             else M.text ""
-
-    renderIndicator seg =
-      let isZero = seg.count == 0
-          opacityClass = if isZero then " opacity-30" else ""
-          textColorClass = if isZero then "text-stone-400" else "text-stone-600"
-          tip = if isZero then NoTooltip else seg.tooltip
-       in withTooltip tip $
-            MH.div_
-              [class_ opacityClass]
-              [ Layout.addClass "gap-0.5" $
-                  Layout.hFlow
-                    (Layout.hFull <> Layout.crossCenter)
-                    [ MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> seg.colorClass] []
-                    , MH.span_ [class_ textColorClass] [M.text $ M.ms $ show seg.count]
-                    ]
-              ]

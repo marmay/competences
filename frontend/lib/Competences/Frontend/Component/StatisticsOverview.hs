@@ -11,8 +11,9 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, SyncDocumentEnv (..), subscribeDocument, syncDocumentEnv)
 import Competences.Frontend.View.Color (bgClass')
 import Competences.Frontend.View.Color.AssignmentCompletion (assignmentCompletionPalette)
+import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.StackedBar (BarSegment (..), StackedBarConfig (..), stackedBar)
+import Competences.Frontend.View.StackedBar (BarSegment (..), StackedBarConfig (..), stackedBarOnly)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Tooltip (Tooltip (..))
 import Competences.Frontend.View.Typography qualified as Typography
@@ -25,6 +26,7 @@ import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.String (MisoString, ms)
 
 -- | Statistics Overview Component Model
 newtype Model = Model
@@ -66,6 +68,7 @@ statisticsOverviewComponent docRef =
             , Layout.vFlow
                 Layout.gapS
                 (map (studentRow m) sortedStudents)
+            , categoryLegend
             ]
         ]
       where
@@ -77,47 +80,91 @@ maxAssignments m =
   let totals = map (sum . Map.elems) (Map.elems m.byUserStats)
    in if null totals then 0 else maximum totals
 
--- | Render a single student row with name + stacked bar
+-- | Category definitions shared by bars, hover details, and legend
+categories :: [(AssignmentCompletionCategory, MisoString)]
+categories =
+  [ (AsgCompleted, C.translate' C.LblAsgCompleted)
+  , (AsgCorrectedNotDone, C.translate' C.LblAsgCorrectedNotDone)
+  , (AsgSubmittedNotCorrected, C.translate' C.LblAsgSubmittedNotCorrected)
+  , (AsgVoid, C.translate' C.LblAsgVoid)
+  , (AsgNotSubmitted, C.translate' C.LblAsgNotSubmitted)
+  , (AsgOverdue, C.translate' C.LblAsgOverdue)
+  ]
+
+-- | Render a single student row: name + bar + hover details trigger
 studentRow :: Model -> User -> M.View Model Action
 studentRow m user =
   MH.div_
-    [class_ "flex gap-3 py-1"]
+    [class_ "flex gap-3 py-1 items-center"]
     [ MH.div_
         [class_ "w-32 shrink-0 truncate text-sm font-medium text-foreground"]
-        [M.text $ M.ms user.name]
+        [M.text $ ms user.name]
     , MH.div_
         [class_ "flex-1 min-w-0"]
         [ case m.byUserStats Map.!? user of
             Just stats -> renderBar (maxAssignments m) stats
             Nothing -> M.text ""
         ]
+    , case m.byUserStats Map.!? user of
+        Just stats -> detailsHover stats
+        Nothing -> M.text ""
     ]
 
--- | Render a stacked bar for a user's assignment completion stats
+-- | Render just the stacked bar (no legend)
 renderBar :: Int -> Map.Map AssignmentCompletionCategory Int -> M.View Model Action
 renderBar maxTotal stats =
-  stackedBar $
+  stackedBarOnly $
     StackedBarConfig
       { total = maxTotal
       , segments = map toSegment categories
       }
   where
-    categories =
-      [ (AsgCompleted, C.translate' C.LblAsgCompleted)
-      , (AsgCorrectedNotDone, C.translate' C.LblAsgCorrectedNotDone)
-      , (AsgSubmittedNotCorrected, C.translate' C.LblAsgSubmittedNotCorrected)
-      , (AsgVoid, C.translate' C.LblAsgVoid)
-      , (AsgNotSubmitted, C.translate' C.LblAsgNotSubmitted)
-      , (AsgOverdue, C.translate' C.LblAsgOverdue)
-      ]
-
-    toSegment (cat, lbl) =
+    toSegment (cat, _lbl) =
       let count = Map.findWithDefault 0 cat stats
        in BarSegment
             { count = count
             , colorClass = bgClass' (assignmentCompletionPalette cat)
-            , tooltip = if count == 0 then NoTooltip else PlainTooltip lbl
+            , tooltip = NoTooltip
             }
+
+-- | Hover menu showing per-category counts for one student
+detailsHover :: Map.Map AssignmentCompletionCategory Int -> M.View Model Action
+detailsHover stats =
+  let total = sum (Map.elems stats)
+      trigger =
+        MH.div_
+          [class_ "text-xs text-muted-foreground tabular-nums cursor-default"]
+          [M.text $ ms (show total)]
+   in HoverMenu.hoverMenuRight trigger $
+        map detailEntry categories
+  where
+    detailEntry (cat, lbl) =
+      let count = Map.findWithDefault 0 cat stats
+       in MH.div_
+            [class_ "flex items-center gap-2 px-3 py-1 text-sm"]
+            [ MH.div_ [class_ $ "w-2.5 h-2.5 rounded-sm " <> bgClass' (assignmentCompletionPalette cat)] []
+            , MH.span_ [class_ "flex-1 text-popover-foreground"] [M.text lbl]
+            , MH.span_
+                [class_ $ "tabular-nums font-medium " <> if count > 0 then "text-popover-foreground" else "text-muted-foreground"]
+                [M.text $ ms $ show count]
+            ]
+
+-- | Shared legend at the bottom explaining all category colors
+categoryLegend :: M.View Model Action
+categoryLegend =
+  MH.div_
+    [class_ "pt-4 border-t border-border"]
+    [ MH.div_
+        [class_ "flex flex-wrap gap-x-4 gap-y-1"]
+        (map legendItem categories)
+    ]
+  where
+    legendItem (cat, lbl) =
+      MH.div_
+        [class_ "flex items-center gap-1.5 text-xs text-muted-foreground"]
+        [ MH.div_ [class_ $ "w-2.5 h-2.5 rounded-sm " <> bgClass' (assignmentCompletionPalette cat)] []
+        , MH.span_ [] [M.text lbl]
+        ]
 
 computeStats :: Day -> Document -> Model
 computeStats today document =
