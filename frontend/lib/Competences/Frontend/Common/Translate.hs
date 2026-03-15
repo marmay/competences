@@ -446,6 +446,7 @@ data Label
   | LblAsgCompleted
   | LblAsgCorrectedNotDone
   | LblAsgSubmittedNotCorrected
+  | LblAsgVoid
   | LblAsgNotSubmitted
   deriving (Eq, Ord, Show)
 
@@ -856,6 +857,7 @@ labels' =
   , LblAsgCompleted
   , LblAsgCorrectedNotDone
   , LblAsgSubmittedNotCorrected
+  , LblAsgVoid
   , LblAsgNotSubmitted
   ]
     <> map LblSocialForm socialForms
@@ -1295,6 +1297,7 @@ defaultTranslation LblShowExamples = "Beispiele"
 defaultTranslation LblAsgCompleted = "Erledigt"
 defaultTranslation LblAsgCorrectedNotDone = "Korrigiert, nicht erledigt"
 defaultTranslation LblAsgSubmittedNotCorrected = "Abgegeben, nicht korrigiert"
+defaultTranslation LblAsgVoid = "Nicht gemacht"
 defaultTranslation LblAsgNotSubmitted = "Nicht abgegeben"
 
 currentLanguage :: IORef Language

@@ -22,12 +22,14 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentId, AssignmentIxs, Document (..))
-import Competences.Document.Submission (Submission (..))
+import Competences.Document.Submission (Submission (..), SubmissionKind (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
+import Data.List (maximumBy)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian, utctDay)
@@ -121,6 +123,8 @@ data AssignmentCompletionCategory
     AsgCorrectedNotDone
   | -- | Has submission(s) but no evidence
     AsgSubmittedNotCorrected
+  | -- | All submissions are VoidSubmission (student opted out)
+    AsgVoid
   | -- | No submission and no evidence
     AsgNotSubmitted
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -138,8 +142,17 @@ assignmentCompletionCategory doc userId assignmentId =
             else AsgCompleted
         else
           if hasSubmissions
-            then AsgSubmittedNotCorrected
+            then
+              let subs = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
+                  latest = maximumBy (comparing (.submittedAt)) subs
+               in if isVoidSubmission latest then AsgVoid else AsgSubmittedNotCorrected
             else AsgNotSubmitted
+
+-- | Check if a submission is a VoidSubmission.
+isVoidSubmission :: Submission -> Bool
+isVoidSubmission s = case s.kind of
+  VoidSubmission _ -> True
+  _ -> False
 
 -- | Count assignments per completion category for a user.
 userAssignmentCompletionStats :: Document -> UserId -> Map AssignmentCompletionCategory Int

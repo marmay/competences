@@ -103,6 +103,7 @@ renderBar maxTotal stats =
       [ (AsgCompleted, C.translate' C.LblAsgCompleted)
       , (AsgCorrectedNotDone, C.translate' C.LblAsgCorrectedNotDone)
       , (AsgSubmittedNotCorrected, C.translate' C.LblAsgSubmittedNotCorrected)
+      , (AsgVoid, C.translate' C.LblAsgVoid)
       , (AsgNotSubmitted, C.translate' C.LblAsgNotSubmitted)
       ]
 

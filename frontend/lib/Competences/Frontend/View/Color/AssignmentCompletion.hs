@@ -15,4 +15,5 @@ assignmentCompletionPalette :: AssignmentCompletionCategory -> PaletteName
 assignmentCompletionPalette AsgCompleted = PaletteName "asg-completed"
 assignmentCompletionPalette AsgCorrectedNotDone = PaletteName "asg-corrected"
 assignmentCompletionPalette AsgSubmittedNotCorrected = PaletteName "asg-submitted"
+assignmentCompletionPalette AsgVoid = PaletteName "asg-void"
 assignmentCompletionPalette AsgNotSubmitted = PaletteName "asg-missing"
