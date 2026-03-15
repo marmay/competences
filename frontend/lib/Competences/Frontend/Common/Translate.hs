@@ -448,6 +448,7 @@ data Label
   | LblAsgSubmittedNotCorrected
   | LblAsgVoid
   | LblAsgNotSubmitted
+  | LblAsgOverdue
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -859,6 +860,7 @@ labels' =
   , LblAsgSubmittedNotCorrected
   , LblAsgVoid
   , LblAsgNotSubmitted
+  , LblAsgOverdue
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1299,6 +1301,7 @@ defaultTranslation LblAsgCorrectedNotDone = "Korrigiert, nicht erledigt"
 defaultTranslation LblAsgSubmittedNotCorrected = "Abgegeben, nicht korrigiert"
 defaultTranslation LblAsgVoid = "Nicht gemacht"
 defaultTranslation LblAsgNotSubmitted = "Nicht abgegeben"
+defaultTranslation LblAsgOverdue = "Überfällig"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

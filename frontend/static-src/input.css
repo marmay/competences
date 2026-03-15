@@ -42,8 +42,8 @@
 @source inline("bg-completion-{open,progress,done,assessed,failed}");
 @source inline("text-completion-{open,progress,done,assessed,failed}");
 @source inline("text-completion-{open,progress,done,assessed,failed}-accent");
-@source inline("bg-asg-{completed,corrected,submitted,void,missing}");
-@source inline("text-asg-{completed,corrected,submitted,void,missing}-accent");
+@source inline("bg-asg-{completed,corrected,submitted,void,pending,overdue}");
+@source inline("text-asg-{completed,corrected,submitted,void,pending,overdue}-accent");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -211,8 +211,10 @@
   --color-asg-submitted-accent: var(--asg-submitted-accent);
   --color-asg-void: var(--asg-void);
   --color-asg-void-accent: var(--asg-void-accent);
-  --color-asg-missing: var(--asg-missing);
-  --color-asg-missing-accent: var(--asg-missing-accent);
+  --color-asg-pending: var(--asg-pending);
+  --color-asg-pending-accent: var(--asg-pending-accent);
+  --color-asg-overdue: var(--asg-overdue);
+  --color-asg-overdue-accent: var(--asg-overdue-accent);
 
   /* Completion status palettes: Accent (icons) */
   --color-completion-open: var(--completion-open);
@@ -405,13 +407,17 @@
   --asg-submitted: oklch(0.823 0.111 230);        /* sky-300 */
   --asg-submitted-accent: oklch(0.541 0.195 231); /* sky-600 */
 
-  /* Void (stone) - student opted out */
-  --asg-void: oklch(0.869 0.005 264);             /* stone-300 */
-  --asg-void-accent: oklch(0.444 0.011 264);      /* stone-600 */
+  /* Void (orange) - student opted out */
+  --asg-void: oklch(0.901 0.118 84);              /* orange-200 */
+  --asg-void-accent: oklch(0.495 0.130 49);       /* orange-800 */
 
-  /* Not submitted (red) - no submission, no evidence */
-  --asg-missing: oklch(0.885 0.062 18);           /* red-200 */
-  --asg-missing-accent: oklch(0.577 0.245 27);    /* red-600 */
+  /* Pending (yellow) - not submitted yet, assigned recently */
+  --asg-pending: oklch(0.905 0.182 98);            /* yellow-200 */
+  --asg-pending-accent: oklch(0.476 0.114 61);     /* yellow-800 */
+
+  /* Overdue (red) - not submitted, assigned more than 2 weeks ago */
+  --asg-overdue: oklch(0.885 0.062 18);            /* red-200 */
+  --asg-overdue-accent: oklch(0.577 0.245 27);     /* red-600 */
 }
 
 /* Dark mode */

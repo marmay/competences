@@ -8,7 +8,7 @@ where
 
 import Competences.Document (Document (..), User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, SyncDocumentEnv (..), subscribeDocument, syncDocumentEnv)
 import Competences.Frontend.View.Color (bgClass')
 import Competences.Frontend.View.Color.AssignmentCompletion (assignmentCompletionPalette)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -19,6 +19,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Assignment (AssignmentCompletionCategory (..), userAssignmentCompletionStats)
 import Competences.Query.User qualified as QUser
 import Data.List (sortBy)
+import Data.Time (Day)
 import Data.Map.Strict qualified as Map
 import Data.Ord (comparing)
 import GHC.Generics (Generic)
@@ -50,9 +51,11 @@ statisticsOverviewComponent docRef =
   where
     model = emptyModel
 
+    today = (syncDocumentEnv docRef).currentDay
+
     update :: Action -> M.Effect p Model Action
     update (UpdateDocument (DocumentChange doc _)) =
-      M.modify $ const $ computeStats doc
+      M.modify $ const $ computeStats today doc
 
     view :: Model -> M.View Model Action
     view m =
@@ -105,6 +108,7 @@ renderBar maxTotal stats =
       , (AsgSubmittedNotCorrected, C.translate' C.LblAsgSubmittedNotCorrected)
       , (AsgVoid, C.translate' C.LblAsgVoid)
       , (AsgNotSubmitted, C.translate' C.LblAsgNotSubmitted)
+      , (AsgOverdue, C.translate' C.LblAsgOverdue)
       ]
 
     toSegment (cat, lbl) =
@@ -115,10 +119,10 @@ renderBar maxTotal stats =
             , tooltip = if count == 0 then NoTooltip else PlainTooltip lbl
             }
 
-computeStats :: Document -> Model
-computeStats document =
+computeStats :: Day -> Document -> Model
+computeStats today document =
   let students = QUser.students document
       byUserStats =
         Map.fromList $
-          map (\user -> (user, userAssignmentCompletionStats document user.id)) students
+          map (\user -> (user, userAssignmentCompletionStats today document user.id)) students
    in Model {byUserStats}

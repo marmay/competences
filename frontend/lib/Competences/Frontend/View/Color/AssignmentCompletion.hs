@@ -16,4 +16,6 @@ assignmentCompletionPalette AsgCompleted = PaletteName "asg-completed"
 assignmentCompletionPalette AsgCorrectedNotDone = PaletteName "asg-corrected"
 assignmentCompletionPalette AsgSubmittedNotCorrected = PaletteName "asg-submitted"
 assignmentCompletionPalette AsgVoid = PaletteName "asg-void"
-assignmentCompletionPalette AsgNotSubmitted = PaletteName "asg-missing"
+assignmentCompletionPalette AsgNotSubmitted = PaletteName "asg-pending"
+assignmentCompletionPalette AsgOverdue = PaletteName "asg-overdue"
+

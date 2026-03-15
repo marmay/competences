@@ -32,7 +32,7 @@ import Data.Map.Strict qualified as Map
 import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import Data.Time (Day, fromGregorian, utctDay)
+import Data.Time (Day, diffDays, fromGregorian, utctDay)
 
 -- | Lookup an assignment by primary key.
 getAssignment :: Document -> AssignmentId -> Maybe Assignment
@@ -125,13 +125,16 @@ data AssignmentCompletionCategory
     AsgSubmittedNotCorrected
   | -- | All submissions are VoidSubmission (student opted out)
     AsgVoid
-  | -- | No submission and no evidence
+  | -- | No submission and no evidence, assigned less than 2 weeks ago
     AsgNotSubmitted
+  | -- | No submission and no evidence, assigned more than 2 weeks ago
+    AsgOverdue
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 -- | Classify an assignment for a user into a completion category.
-assignmentCompletionCategory :: Document -> UserId -> AssignmentId -> AssignmentCompletionCategory
-assignmentCompletionCategory doc userId assignmentId =
+-- Requires today's date to distinguish overdue (>2 weeks) from not-yet-submitted.
+assignmentCompletionCategory :: Day -> Document -> UserId -> AssignmentId -> AssignmentCompletionCategory
+assignmentCompletionCategory today doc userId assignmentId =
   let accumulated = accumulatedObservations doc userId assignmentId
       hasEvidence = not (Map.null accumulated)
       hasSubmissions = not $ Ix.null (doc.submissions Ix.@= assignmentId Ix.@= userId)
@@ -146,7 +149,12 @@ assignmentCompletionCategory doc userId assignmentId =
               let subs = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
                   latest = maximumBy (comparing (.submittedAt)) subs
                in if isVoidSubmission latest then AsgVoid else AsgSubmittedNotCorrected
-            else AsgNotSubmitted
+            else
+              let mAssignment = getAssignment doc assignmentId
+                  isOverdue = case mAssignment of
+                    Just a -> diffDays today a.assignmentDate > 14
+                    Nothing -> False
+               in if isOverdue then AsgOverdue else AsgNotSubmitted
 
 -- | Check if a submission is a VoidSubmission.
 isVoidSubmission :: Submission -> Bool
@@ -155,8 +163,8 @@ isVoidSubmission s = case s.kind of
   _ -> False
 
 -- | Count assignments per completion category for a user.
-userAssignmentCompletionStats :: Document -> UserId -> Map AssignmentCompletionCategory Int
-userAssignmentCompletionStats doc userId =
+userAssignmentCompletionStats :: Day -> Document -> UserId -> Map AssignmentCompletionCategory Int
+userAssignmentCompletionStats today doc userId =
   let assignments = Ix.toList (userAssignments doc userId)
-      categories = map (\a -> assignmentCompletionCategory doc userId a.id) assignments
+      categories = map (\a -> assignmentCompletionCategory today doc userId a.id) assignments
    in foldl' (\m c -> Map.insertWith (+) c 1 m) Map.empty categories
