@@ -485,10 +485,9 @@ evaluatorComponent r assignment =
                  in Layout.hFlow
                       (Layout.gapM <> Layout.hFull)
                       [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
-                      , Layout.scrollContent $
-                          Layout.addClass "w-1/2" $
-                            inlineComponent key
-                              (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
+                      , Layout.addClass "w-1/2 flex-1 min-h-0 flex flex-col" $
+                          inlineComponent key
+                            (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
                       ]
               Nothing -> leftContent
 

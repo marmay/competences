@@ -144,20 +144,21 @@ submissionPreviewComponent r aId uId =
 
     view' m =
       Layout.vFlow
-        Layout.gapM
+        (Layout.gapM <> Layout.hFull)
         [ -- Header: title + custom select
-          MH.div_
-            [class_ "flex items-center justify-between gap-3"]
-            [ Typography.h4 (C.translate' C.LblSubmissions)
-            , inlineComponent
-                "sub-select"
-                (customSelectComponent r selectConfig selectBinding)
-            ]
+          Layout.shrink0 $
+            MH.div_
+              [class_ "flex items-center justify-between gap-3"]
+              [ Typography.h4 (C.translate' C.LblSubmissions)
+              , inlineComponent
+                  "sub-select"
+                  (customSelectComponent r selectConfig selectBinding)
+              ]
         , -- Preview: keyed by selectedId so it remounts on selection change
-          case m.selectedId of
+          Layout.grow $ case m.selectedId of
             Nothing ->
               MH.div_
-                [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm"]
+                [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm h-full"]
                 [M.text $ C.translate' C.LblNoSubmissionSelected]
             Just sid ->
               inlineComponent
@@ -226,12 +227,12 @@ submissionDetailComponent r sid =
     view' m = case m.submission of
       Nothing ->
         MH.div_
-          [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm"]
+          [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm h-full"]
           [M.text $ C.translate' C.LblNoSubmissionSelected]
       Just sub ->
-        Layout.vFlow Layout.gapS
-          [ viewOwnershipHeader sub m.ownerNames
-          , viewSubmissionContent r sub
+        Layout.vFlow (Layout.gapS <> Layout.hFull)
+          [ Layout.shrink0 (viewOwnershipHeader sub m.ownerNames)
+          , Layout.grow (viewSubmissionContent r sub)
           ]
 
 -- ---------------------------------------------------------------------------
