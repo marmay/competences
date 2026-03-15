@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -41,7 +41,7 @@ import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Time (Day, UTCTime (..), defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
@@ -89,8 +89,12 @@ data EvaluatorModel = EvaluatorModel
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
   , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
-  -- Students selected for Evidence creation
-  , selectedStudents :: !(Set.Set UserId)
+  -- The student whose submissions are shown in the selector
+  , clickedStudent :: !(Maybe UserId)
+  -- Currently selected submission (bound from submission selector)
+  , activeSubmission :: !(Maybe SubmissionId)
+  -- Group members the teacher has manually deselected
+  , deselectedStudents :: !(Set.Set UserId)
   -- Social form for the evaluation (Individual or Group)
   , selectedSocialForm :: !SocialForm
   -- Tasks excluded from evaluation (toggled off by teacher)
@@ -119,8 +123,6 @@ data EvaluatorModel = EvaluatorModel
   , startFromEmpty :: !Bool
   -- All submissions for this assignment (any student), indexed by user
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
-  -- Currently selected/opened submission
-  , selectedSubmission :: !(Maybe SubmissionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -140,9 +142,18 @@ data EvaluatorAction
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
   | ToggleStartFromEmpty -- Toggle "start from empty" session preference
-  | SelectSubmission !SubmissionId -- Select a submission in the viewer
-  | DeselectSubmission -- Clear selected submission
   deriving (Eq, Show)
+
+-- | Derive the effective set of students from the active submission ownership,
+-- minus any manually deselected group members.
+activeStudents :: EvaluatorModel -> Set.Set UserId
+activeStudents m = case m.activeSubmission of
+  Nothing -> maybe Set.empty Set.singleton m.clickedStudent
+  Just sid -> case Ix.getOne (m.submissions Ix.@= sid) of
+    Nothing -> maybe Set.empty Set.singleton m.clickedStudent
+    Just sub ->
+      let owners = Set.fromList (ownerIds sub.ownership)
+       in owners `Set.difference` m.deselectedStudents
 
 -- | The evaluator component with its own state management
 evaluatorComponent :: SyncContext -> Assignment -> M.Component p EvaluatorModel EvaluatorAction
@@ -160,7 +171,9 @@ evaluatorComponent r assignment =
         , competenceLevelInfos = Map.empty
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
-        , selectedStudents = Set.empty
+        , clickedStudent = Nothing
+        , activeSubmission = Nothing
+        , deselectedStudents = Set.empty
         , selectedSocialForm = Individual
         , excludedTasks = Set.empty
         , evaluationDate = assignment.assignmentDate
@@ -175,7 +188,6 @@ evaluatorComponent r assignment =
         , selectorGeneration = 0
         , startFromEmpty = False
         , submissions = Ix.empty
-        , selectedSubmission = Nothing
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -211,27 +223,41 @@ evaluatorComponent r assignment =
            }
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
-      let newSelected =
-            if Set.member userId m.selectedStudents
-              then Set.delete userId m.selectedStudents
-              else Set.insert userId m.selectedStudents
-          newSocialForm = if Set.size newSelected == 1 then Individual else Group
-          goingFromEmpty = Set.null m.selectedStudents && not (Set.null newSelected)
-       in m{ selectedStudents = newSelected
-           , selectedSocialForm = newSocialForm
-           , editingEvidence = Nothing
-           , selectedSubmission = Nothing
-           , taskObservations = Map.empty
-           , aggregatedResults = Map.empty
-           , aggregationStale = False
-           , taskRemarks = Map.empty
-           , additionalTasks = Set.empty
-           , selectorGeneration = m.selectorGeneration + 1
-           , excludedTasks =
-               if goingFromEmpty && m.startFromEmpty
-                 then Set.fromList m.assignment.tasks
-                 else m.excludedTasks
-           }
+      let currentActive = activeStudents m
+       in if Set.member userId currentActive && m.clickedStudent /= Just userId
+            then
+              -- Group member (not the clicked student): toggle deselection
+              m{ deselectedStudents =
+                   if Set.member userId m.deselectedStudents
+                     then Set.delete userId m.deselectedStudents
+                     else Set.insert userId m.deselectedStudents
+               , selectedSocialForm =
+                   let newActive = activeStudents (m{ deselectedStudents =
+                         if Set.member userId m.deselectedStudents
+                           then Set.delete userId m.deselectedStudents
+                           else Set.insert userId m.deselectedStudents })
+                    in if Set.size newActive == 1 then Individual else Group
+               }
+            else if Just userId == m.clickedStudent
+              then m  -- Re-clicking the primary student: no-op
+              else
+                -- New student clicked: reset everything
+                let wasEmpty = m.clickedStudent == Nothing
+                 in m{ clickedStudent = Just userId
+                     , activeSubmission = Nothing
+                     , deselectedStudents = Set.empty
+                     , editingEvidence = Nothing
+                     , taskObservations = Map.empty
+                     , aggregatedResults = Map.empty
+                     , aggregationStale = False
+                     , taskRemarks = Map.empty
+                     , additionalTasks = Set.empty
+                     , selectorGeneration = m.selectorGeneration + 1
+                     , excludedTasks =
+                         if wasEmpty && m.startFromEmpty
+                           then Set.fromList m.assignment.tasks
+                           else m.excludedTasks
+                     }
 
     update (SetSocialForm sf) = M.modify $ \m ->
       m{selectedSocialForm = sf}
@@ -253,16 +279,19 @@ evaluatorComponent r assignment =
 
     update CreateEvidences = do
       m <- M.get
+      let students = activeStudents m
       M.io_ $ do
-        -- Create one Evidence per selected student (may produce multiple commands each)
-        evidenceCommands <- mapM (createEvidenceForStudent m) (Set.toList m.selectedStudents)
+        -- Create one Evidence per active student (may produce multiple commands each)
+        evidenceCommands <- mapM (createEvidenceForStudent m) (Set.toList students)
         -- Send all commands in order (Lock must precede Release)
         mapM_ (modifySyncDocument r) (concat evidenceCommands)
       -- Reset all evaluation state after creating evidences
       M.modify $ \m' -> m'
         { taskObservations = Map.empty
         , aggregatedResults = Map.empty
-        , selectedStudents = Set.empty
+        , clickedStudent = Nothing
+        , activeSubmission = Nothing
+        , deselectedStudents = Set.empty
         , editingEvidence = Nothing
         , aggregationStale = False
         , taskRemarks = Map.empty
@@ -362,16 +391,6 @@ evaluatorComponent r assignment =
     update ToggleStartFromEmpty = M.modify $ \m ->
       m{startFromEmpty = not m.startFromEmpty}
 
-    update (SelectSubmission sid) = M.modify $ \m ->
-      case Ix.getOne (m.submissions Ix.@= sid) of
-        Just s -> m{ selectedSubmission = Just sid
-                   , evaluationDate = utctDay s.submittedAt
-                   }
-        Nothing -> m
-
-    update DeselectSubmission = M.modify $ \m ->
-      m{selectedSubmission = Nothing}
-
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
     -- otherwise create a new one.
@@ -441,8 +460,6 @@ evaluatorComponent r assignment =
       let allTaskIds = m.assignment.tasks
             <> [tid | tid <- Set.toList m.additionalTasks, tid `notElem` m.assignment.tasks]
           sortedTaskIds = filter (\tid -> Map.member tid m.taskViewData) allTaskIds
-          selectedSubmissions = m.submissions Ix.@+ Set.toList m.selectedStudents
-          hasSubmissions = not (Ix.null selectedSubmissions)
           -- Left panel: task evaluation content
           taskContent =
             Layout.vFlow
@@ -461,24 +478,24 @@ evaluatorComponent r assignment =
               ]
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
-            else
-              if hasSubmissions && not (Set.null m.selectedStudents)
-                then
-                  let selectedUserId = case Set.toList m.selectedStudents of
-                        (uid : _) -> uid
-                        [] -> error "impossible: selectedStudents is not empty"
-                   in Layout.hFlow
-                        (Layout.gapM <> Layout.hFull)
-                        [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
-                        , Layout.scrollContent $
-                            Layout.addClass "w-1/2" $
-                              SubPreview.submissionPreviewPanel r m.assignment.id selectedUserId
-                        ]
-                else leftContent
+            else case m.clickedStudent of
+              Just uid ->
+                let key = "sub-sel-" <> ms (show uid)
+                    binding = selectorTransformedLens id id #activeSubmission
+                 in Layout.hFlow
+                      (Layout.gapM <> Layout.hFull)
+                      [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
+                      , Layout.scrollContent $
+                          Layout.addClass "w-1/2" $
+                            inlineComponent key
+                              (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
+                      ]
+              Nothing -> leftContent
 
     viewStudentSelection m =
       let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList m.assignment.studentIds
-          selectedCount = Set.size m.selectedStudents
+          active = activeStudents m
+          selectedCount = Set.size active
           dateValue = ms $ formatTime defaultTimeLocale "%Y-%m-%d" m.evaluationDate
        in M.div_
             [class_ "mb-6 p-4 bg-muted/50 rounded border border-border"]
@@ -515,13 +532,14 @@ evaluatorComponent r assignment =
             | hasOpenSubmission = Button.toButtonContents (Icon.IcnImport, ms student.name)
             | hasEvidence = Button.toButtonContents (Icon.IcnApply, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
-      in Button.toggleSm (student.id `Set.member` m.selectedStudents) $ Button.button contents (ToggleStudentSelection student.id)
+      in Button.toggleSm (student.id `Set.member` activeStudents m) $ Button.button contents (ToggleStudentSelection student.id)
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
+          active = activeStudents m
           studentsWithEvidence =
             [ uid
-            | uid <- Set.toList m.selectedStudents
+            | uid <- Set.toList active
             , Map.member uid dateEvMap
             ]
           lookupName uid = case Ix.getOne (m.users Ix.@= uid) of
@@ -583,7 +601,7 @@ evaluatorComponent r assignment =
     viewTaskSection m taskId =
       let isExcluded = Set.member taskId m.excludedTasks
           isExtra = Set.member taskId m.additionalTasks
-          selectedList = Set.toList m.selectedStudents
+          selectedList = Set.toList (activeStudents m)
           extraBadge =
             if isExtra
               then [Badge.outline (Badge.badgeLabel C.LblExtraTask)]
@@ -625,7 +643,7 @@ evaluatorComponent r assignment =
             Disclosure.contents titleView isExpanded bodyView []
 
     viewTaskRemarkButtons m taskId =
-      if null m.selectedStudents
+      if Set.null (activeStudents m)
         then M.text ""
         else
           let currentRemarks = Map.findWithDefault Set.empty taskId m.taskRemarks
@@ -642,7 +660,7 @@ evaluatorComponent r assignment =
         (Button.button (C.LblTaskRemark remark) (ToggleTaskRemark taskId remark))
 
     viewStudentEvaluations m taskId =
-      if null m.selectedStudents
+      if Set.null (activeStudents m)
         then M.div_ [class_ "mt-4"] [Typography.muted $ C.translate' C.LblPleaseSelectStudents]
         else Eval.viewTaskCompetences m.taskViewData m.competenceLevelInfos m.taskObservations taskId SetTaskObservationForAll
 
@@ -701,10 +719,11 @@ evaluatorComponent r assignment =
           ]
 
     viewCreateEvidencesButton m =
-      let selectedCount = Set.size m.selectedStudents
+      let active = activeStudents m
+          selectedCount = Set.size active
           isDisabled = selectedCount == 0 || m.aggregationStale
           dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
-          hasExisting = any (`Map.member` dateEvMap) (Set.toList m.selectedStudents)
+          hasExisting = any (`Map.member` dateEvMap) (Set.toList active)
           actionLabel = C.translate' $ if hasExisting then C.LblSaveEvidences else C.LblCreateEvidencesAction
           buttonText = actionLabel <> " (" <> C.translate' (C.LblStudentsSelected selectedCount) <> ")"
        in MH.div_ [class_ "mt-6"]

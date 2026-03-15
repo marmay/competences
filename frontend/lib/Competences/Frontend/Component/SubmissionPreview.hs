@@ -11,6 +11,7 @@
 -- causing Miso to remount it → fresh file loading.
 module Competences.Frontend.Component.SubmissionPreview
   ( submissionPreviewPanel
+  , submissionSelectorComponent
   , openSubmissionPeekModal
   , SubmissionPreviewModel
   , SubmissionPreviewAction
@@ -23,7 +24,7 @@ import Competences.Document.Submission (Submission (..), SubmissionId, Submissio
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
-import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
+import Competences.Frontend.Component.Selector.Common (SelectorTransformedLens, mkSelectorBinding, selectorTransformedLens)
 import Competences.Frontend.Component.Selector.CustomSelect
   ( CustomSelectConfig (..)
   , customSelectComponent
@@ -156,6 +157,19 @@ submissionPreviewComponent r aId uId =
                 ("sub-preview-" <> ms (show sid))
                 (submissionDetailComponent r sid)
         ]
+
+-- | Binding-aware version of the submission preview component.
+-- The selectedId is bound to the parent via the provided lens, so the parent
+-- can observe which submission is currently selected.
+submissionSelectorComponent
+  :: (Eq p)
+  => SyncContext -> AssignmentId -> UserId
+  -> SelectorTransformedLens p Maybe SubmissionId f t
+  -> M.Component p SubmissionPreviewModel SubmissionPreviewAction
+submissionSelectorComponent r aId uId binding =
+  (submissionPreviewComponent r aId uId)
+    { M.bindings = [mkSelectorBinding binding #selectedId]
+    }
 
 -- ===========================================================================
 -- Detail component (preview for a single submission)
