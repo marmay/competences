@@ -42,6 +42,8 @@
 @source inline("bg-completion-{open,progress,done,assessed,failed}");
 @source inline("text-completion-{open,progress,done,assessed,failed}");
 @source inline("text-completion-{open,progress,done,assessed,failed}-accent");
+@source inline("bg-asg-{completed,corrected,submitted,missing}");
+@source inline("text-asg-{completed,corrected,submitted,missing}-accent");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -199,6 +201,16 @@
   --color-grade-danger: var(--grade-danger);
   --color-grade-danger-accent: var(--grade-danger-accent);
   --color-grade-danger-alt: var(--grade-danger-alt);
+
+  /* Assignment completion palettes: Base (bg), Accent (text) */
+  --color-asg-completed: var(--asg-completed);
+  --color-asg-completed-accent: var(--asg-completed-accent);
+  --color-asg-corrected: var(--asg-corrected);
+  --color-asg-corrected-accent: var(--asg-corrected-accent);
+  --color-asg-submitted: var(--asg-submitted);
+  --color-asg-submitted-accent: var(--asg-submitted-accent);
+  --color-asg-missing: var(--asg-missing);
+  --color-asg-missing-accent: var(--asg-missing-accent);
 
   /* Completion status palettes: Accent (icons) */
   --color-completion-open: var(--completion-open);
@@ -373,6 +385,27 @@
   /* Failed (red) - not achieved */
   --completion-failed: oklch(0.885 0.062 18);  /* red-300 */
   --completion-failed-accent: oklch(0.577 0.245 27);  /* red-500 */
+
+  /* Assignment completion colors - for statistics stacked bars
+   * Each palette has:
+   *   --asg-{name}: base color (background)
+   *   --asg-{name}-accent: contrast text color
+   */
+  /* Completed (green) - has evidence, no NotYet */
+  --asg-completed: oklch(0.871 0.119 142);       /* green-200 */
+  --asg-completed-accent: oklch(0.365 0.110 142); /* green-800 */
+
+  /* Corrected but not done (yellow) - has evidence, NotYet remains */
+  --asg-corrected: oklch(0.945 0.129 101);        /* yellow-200 */
+  --asg-corrected-accent: oklch(0.476 0.114 61);  /* yellow-800 */
+
+  /* Submitted, not corrected (sky) - has submissions but no evidence */
+  --asg-submitted: oklch(0.823 0.111 230);        /* sky-300 */
+  --asg-submitted-accent: oklch(0.541 0.195 231); /* sky-600 */
+
+  /* Not submitted (red) - no submission, no evidence */
+  --asg-missing: oklch(0.885 0.062 18);           /* red-200 */
+  --asg-missing-accent: oklch(0.577 0.245 27);    /* red-600 */
 }
 
 /* Dark mode */

@@ -8,18 +8,15 @@ import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Color (bgClass')
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
-import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
+import Competences.Frontend.View.StackedBar (BarSegment (..), StackedBarConfig (..), stackedBar)
+import Competences.Frontend.View.Tooltip (Tooltip (..))
 import Competences.Query.Mastery (MasteryStatus (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Competences.Frontend.View.Layout qualified as Layout
 import Miso qualified as M
-import Miso.CSS qualified as MC
-import Miso.Html qualified as MH
+import Miso.String (MisoString)
 
 -- | Configuration for the mastery display component
 data MasteryDisplayConfig = MasteryDisplayConfig
@@ -31,37 +28,23 @@ data MasteryDisplayConfig = MasteryDisplayConfig
 -- | Get background class for a mastery status.
 -- Uses mastery palette colors, with stone-300 fallback for NotTried.
 masteryBgClass :: MasteryStatus -> Text
-masteryBgClass status = fromMaybe "bg-stone-300" (bgClass' <$> masteryPalette status)
+masteryBgClass status = maybe "bg-stone-300" bgClass' (masteryPalette status)
 
 -- | Render mastery distribution as horizontal stacked bars with tooltips.
 -- Always shows all 6 indicators (dimmed when count is 0) for consistent navigation.
 masteryDisplay :: MasteryDisplayConfig -> M.View m action
 masteryDisplay config =
-  MH.div_
-    [class_ "mt-1"]
-    [ Layout.vFlow
-        Layout.gapT
-        [ -- Stacked horizontal bar (only segments with count > 0)
-          MH.div_
-            [class_ "h-3 rounded overflow-hidden bg-stone-100"]
-            [ Layout.hFlow
-                Layout.hFull
-                (map renderSegment segments)
-            ]
-        , -- Count labels below - always show all 6, with CSS tooltips
-          MH.div_
-            [class_ "text-xs"]
-            [ Layout.addClass "gap-x-2" $
-                Layout.hFlow'
-                  (map renderIndicator segments)
-            ]
-        ]
-    ]
+  stackedBar $
+    StackedBarConfig
+      { total = config.totalStudents
+      , segments = map toSegment statusLabels
+      }
   where
     getCount status = Map.findWithDefault 0 status config.stats
     getStudents status = Map.findWithDefault [] status config.students
 
-    segments =
+    statusLabels :: [(MasteryStatus, MisoString)]
+    statusLabels =
       [ (StreakTwoAssessed, C.translate' C.LblMasteryStreakTwoAssessed)
       , (StreakTwoPlus, C.translate' C.LblMasteryStreakTwoPlus)
       , (OneSuccess, C.translate' C.LblMasteryOneSuccess)
@@ -70,51 +53,17 @@ masteryDisplay config =
       , (NotTried, C.translate' C.LblMasteryNotTried)
       ]
 
-    percentage count =
-      if config.totalStudents > 0
-        then (fromIntegral count * 100.0 / fromIntegral config.totalStudents) :: Double
-        else 0.0
-
-    -- Render bar segment (only if count > 0, otherwise skip to keep bar compact)
-    renderSegment (status, _label) =
-      let count = getCount status
-          pct = percentage count
-          colorClass = masteryBgClass status
-       in if count > 0
-            then
-              MH.div_
-                [ class_ $ colorClass <> " h-full"
-                , MC.style_ [("width", M.ms $ show pct <> "%")]
-                ]
-                []
-            else M.text ""
-
-    -- Render count indicator with CSS tooltip showing student names
-    renderIndicator (status, label) =
+    toSegment :: (MasteryStatus, MisoString) -> BarSegment m action
+    toSegment (status, lbl) =
       let count = getCount status
           studentList = getStudents status
-          isZero = count == 0
-          -- Dim both the color box and text when count is 0
-          opacityClass = if isZero then " opacity-30" else ""
-          textColorClass = if isZero then "text-stone-400" else "text-stone-600"
-          colorClass = masteryBgClass status
-          -- Build tooltip content: label on first line, student names on second
           studentNames = T.intercalate ", " $ map (.name) studentList
-          tooltipContent = label <> "\n" <> M.ms studentNames
-          -- Only show tooltip if there are students (no point showing empty tooltip)
-          tip =
-            if isZero
-              then NoTooltip
-              else RichTooltip (M.text tooltipContent)
-       in withTooltip tip $
-            MH.div_
-              [class_ opacityClass]
-              [ Layout.addClass "gap-0.5" $
-                  Layout.hFlow
-                    (Layout.hFull <> Layout.crossCenter)
-                    [ -- Colored square
-                    MH.div_ [class_ $ "w-2 h-2 rounded-sm " <> colorClass] []
-                  , -- Count
-                    MH.span_ [class_ textColorClass] [M.text $ M.ms $ show count]
-                  ]
-              ]
+          tooltipContent = lbl <> "\n" <> M.ms studentNames
+       in BarSegment
+            { count = count
+            , colorClass = masteryBgClass status
+            , tooltip =
+                if count == 0
+                  then NoTooltip
+                  else RichTooltip (M.text tooltipContent)
+            }

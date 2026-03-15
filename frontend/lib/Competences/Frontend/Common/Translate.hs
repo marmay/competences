@@ -442,6 +442,11 @@ data Label
   | LblExamplesCount !Int
   | LblShowDescriptions
   | LblShowExamples
+    -- Assignment completion statistics
+  | LblAsgCompleted
+  | LblAsgCorrectedNotDone
+  | LblAsgSubmittedNotCorrected
+  | LblAsgNotSubmitted
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -848,6 +853,10 @@ labels' =
   , LblExamplesCount 0
   , LblShowDescriptions
   , LblShowExamples
+  , LblAsgCompleted
+  , LblAsgCorrectedNotDone
+  , LblAsgSubmittedNotCorrected
+  , LblAsgNotSubmitted
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1283,6 +1292,10 @@ defaultTranslation LblNoContent = "Kein Inhalt"
 defaultTranslation (LblExamplesCount n) = "Beispiele (" <> ms (show n) <> ")"
 defaultTranslation LblShowDescriptions = "Beschreibungen"
 defaultTranslation LblShowExamples = "Beispiele"
+defaultTranslation LblAsgCompleted = "Erledigt"
+defaultTranslation LblAsgCorrectedNotDone = "Korrigiert, nicht erledigt"
+defaultTranslation LblAsgSubmittedNotCorrected = "Abgegeben, nicht korrigiert"
+defaultTranslation LblAsgNotSubmitted = "Nicht abgegeben"
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage

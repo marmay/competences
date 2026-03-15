@@ -1,5 +1,3 @@
-{-# LANGUAGE IncoherentInstances #-}
-
 module Competences.Frontend.Component.StatisticsOverview
   ( statisticsOverviewComponent
   , Model (..)
@@ -8,49 +6,28 @@ module Competences.Frontend.Component.StatisticsOverview
   )
 where
 
-import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
-import Competences.Document.Evidence
-  ( Ability (..)
-  , ActivityType (..)
-  , Evidence (..)
-  , Observation (..)
-  )
-import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.View.Color (bgClass')
+import Competences.Frontend.View.Color.AssignmentCompletion (assignmentCompletionPalette)
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Table qualified as Table
-import Competences.Frontend.View.Text (text_)
-import Competences.Frontend.View.Color (bgClass', textClass')
-import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.StackedBar (BarSegment (..), StackedBarConfig (..), stackedBar)
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Tooltip (Tooltip (..))
 import Competences.Frontend.View.Typography qualified as Typography
-import Miso.Html qualified as MH
+import Competences.Query.Assignment (AssignmentCompletionCategory (..), userAssignmentCompletionStats)
+import Competences.Query.User qualified as QUser
 import Data.List (sortBy)
-import Data.Map qualified as Map
+import Data.Map.Strict qualified as Map
 import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
 
 -- | Statistics Overview Component Model
--- For teacher view showing all students' statistics
-data Model = Model
-  { byUserStats :: Map.Map User UserStatistics
-  , maximumHomeExerciseTasks :: !Int
-  , maximumSchoolExerciseTasks :: !Int
-  }
-  deriving (Eq, Generic, Show)
-
-data UserStatistics = UserStatistics
-  { homeExerciseTasks :: !Int
-  , schoolExerciseTasks :: !Int
-  , totalTasks :: !Int
-  , selfReliantEvidences :: !Int
-  , selfReliantWithSillyMistakesEvidences :: !Int
-  , withSupportEvidences :: !Int
-  , notYetEvidences :: !Int
+newtype Model = Model
+  { byUserStats :: Map.Map User (Map.Map AssignmentCompletionCategory Int)
   }
   deriving (Eq, Generic, Show)
 
@@ -61,24 +38,7 @@ data Action
 
 -- | Empty model for statistics overview
 emptyModel :: Model
-emptyModel =
-  Model
-    { byUserStats = Map.empty
-    , maximumHomeExerciseTasks = 0
-    , maximumSchoolExerciseTasks = 0
-    }
-
-data StatColumn
-  = ColName
-  | ColHomeExercises
-  | ColSchoolExercises
-  | ColTotalExercises
-  | ColSelfReliant
-  | ColSelfReliantWithSillyMistakes
-  | ColWithSupport
-  | ColNotYet
-  | ColTotalObservations
-  deriving (Eq, Ord, Show)
+emptyModel = Model {byUserStats = Map.empty}
 
 -- | Statistics Overview Component
 statisticsOverviewComponent :: SyncContext -> M.Component p Model Action
@@ -99,115 +59,65 @@ statisticsOverviewComponent docRef =
       MH.div_
         [class_ "h-full min-h-0 overflow-y-auto"]
         [ Layout.vFlow'
-            [Typography.h2 (C.translate' C.LblStatisticsOverview), table]
+            [ Typography.h2 (C.translate' C.LblStatisticsOverview)
+            , Layout.vFlow
+                Layout.gapS
+                (map (studentRow m) sortedStudents)
+            ]
         ]
       where
-        table =
-          Table.viewTable $
-            Table.defTable
-              { Table.columns =
-                  [ ColName
-                  , ColHomeExercises
-                  , ColSchoolExercises
-                  , ColTotalExercises
-                  , ColSelfReliant
-                  , ColSelfReliantWithSillyMistakes
-                  , ColWithSupport
-                  , ColNotYet
-                  , ColTotalObservations
-                  ]
-              , Table.rows = sortBy (comparing (.name)) $ Map.keys m.byUserStats
-              , Table.columnSpec = \c -> Table.TableColumnSpec {Table.width = Table.AutoSizedColumn, Table.title = columnLabel c}
-              , Table.rowContents = \cs u ->
-                  case m.byUserStats Map.!? u of
-                    (Just userData) -> Table.tableRow $ map (cellContents m u userData) cs
-                    Nothing -> Table.tableRow $ map (const $ text_ "?") cs
-              }
+        sortedStudents = sortBy (comparing (.name)) $ Map.keys m.byUserStats
 
-columnLabel :: StatColumn -> M.MisoString
-columnLabel ColName = C.translate' C.LblUserName
-columnLabel ColHomeExercises = C.translate' (C.LblActivityTypeDescription HomeExercise)
-columnLabel ColSchoolExercises = C.translate' (C.LblActivityTypeDescription SchoolExercise)
-columnLabel ColTotalExercises = C.translate' C.LblTotalExercises
-columnLabel ColSelfReliant = C.translate' (C.LblAbility SelfReliant)
-columnLabel ColSelfReliantWithSillyMistakes = C.translate' (C.LblAbility SelfReliantWithSillyMistakes)
-columnLabel ColWithSupport = C.translate' (C.LblAbility WithSupport)
-columnLabel ColNotYet = C.translate' (C.LblAbility NotYet)
-columnLabel ColTotalObservations = C.translate' C.LblTotalObservations
+-- | Derive max assignment count across all students (for bar scaling)
+maxAssignments :: Model -> Int
+maxAssignments m =
+  let totals = map (sum . Map.elems) (Map.elems m.byUserStats)
+   in if null totals then 0 else maximum totals
 
-cellContents :: Model -> User -> UserStatistics -> StatColumn -> M.View m a
-cellContents _ u _ ColName = text_ $ M.ms u.name
-cellContents m _ d ColHomeExercises =
-  valueWithWarning d.homeExerciseTasks m.maximumHomeExerciseTasks
-cellContents m _ d ColSchoolExercises =
-  valueWithWarning d.schoolExerciseTasks m.maximumSchoolExerciseTasks
-cellContents m _ d ColTotalExercises =
-  valueWithWarning d.totalTasks (m.maximumHomeExerciseTasks + m.maximumSchoolExerciseTasks)
-cellContents _ _ d ColSelfReliant =
-  abilityCell SelfReliant d.selfReliantEvidences
-cellContents _ _ d ColSelfReliantWithSillyMistakes =
-  abilityCell SelfReliantWithSillyMistakes d.selfReliantWithSillyMistakesEvidences
-cellContents _ _ d ColWithSupport =
-  abilityCell WithSupport d.withSupportEvidences
-cellContents _ _ d ColNotYet =
-  abilityCell NotYet d.notYetEvidences
-cellContents _ _ d ColTotalObservations =
-  text_
-    ( M.ms $
-        show $
-          d.selfReliantEvidences
-            + d.selfReliantWithSillyMistakesEvidences
-            + d.withSupportEvidences
-            + d.notYetEvidences
-    )
-
--- | Render ability count with colored background
-abilityCell :: Ability -> Int -> M.View m a
-abilityCell ability count =
-  let p = abilityPalette ability
-   in MH.span_
-        [class_ $ bgClass' p <> " " <> textClass' p <> " px-2 rounded"]
-        [M.text $ M.ms $ show count]
-
--- | Render a value with a warning icon if it's below 50% of maximum
-valueWithWarning :: Int -> Int -> M.View m a
-valueWithWarning value maximumValue =
-  let needsWarning = maximumValue > 0 && fromIntegral value < (fromIntegral maximumValue * 0.5 :: Double)
-   in MH.span_
-        [class_ "inline-flex items-center gap-1"]
-        [ M.text $ M.ms $ show value
-        , if needsWarning
-            then Icon.iconVS Icon.Destructive Icon.Small Icon.IcnWarning
-            else M.text ""
+-- | Render a single student row with name + stacked bar
+studentRow :: Model -> User -> M.View Model Action
+studentRow m user =
+  MH.div_
+    [class_ "flex gap-3 py-1"]
+    [ MH.div_
+        [class_ "w-32 shrink-0 truncate text-sm font-medium text-foreground"]
+        [M.text $ M.ms user.name]
+    , MH.div_
+        [class_ "flex-1 min-w-0"]
+        [ case m.byUserStats Map.!? user of
+            Just stats -> renderBar (maxAssignments m) stats
+            Nothing -> M.text ""
         ]
+    ]
+
+-- | Render a stacked bar for a user's assignment completion stats
+renderBar :: Int -> Map.Map AssignmentCompletionCategory Int -> M.View Model Action
+renderBar maxTotal stats =
+  stackedBar $
+    StackedBarConfig
+      { total = maxTotal
+      , segments = map toSegment categories
+      }
+  where
+    categories =
+      [ (AsgCompleted, C.translate' C.LblAsgCompleted)
+      , (AsgCorrectedNotDone, C.translate' C.LblAsgCorrectedNotDone)
+      , (AsgSubmittedNotCorrected, C.translate' C.LblAsgSubmittedNotCorrected)
+      , (AsgNotSubmitted, C.translate' C.LblAsgNotSubmitted)
+      ]
+
+    toSegment (cat, lbl) =
+      let count = Map.findWithDefault 0 cat stats
+       in BarSegment
+            { count = count
+            , colorClass = bgClass' (assignmentCompletionPalette cat)
+            , tooltip = if count == 0 then NoTooltip else PlainTooltip lbl
+            }
 
 computeStats :: Document -> Model
 computeStats document =
-  let byUserStats =
+  let students = QUser.students document
+      byUserStats =
         Map.fromList $
-          map (\user -> (user, computeUserStats document user)) (QUser.students document)
-      maximumHomeExerciseTasks = maximum $ map (.homeExerciseTasks) $ Map.elems byUserStats
-      maximumSchoolExerciseTasks = maximum $ map (.schoolExerciseTasks) $ Map.elems byUserStats
-   in Model {byUserStats, maximumHomeExerciseTasks, maximumSchoolExerciseTasks}
-
-computeUserStats :: Document -> User -> UserStatistics
-computeUserStats document user =
-  let evidences = Ix.toList $ document.evidences Ix.@= user.id
-      observations = concatMap (Ix.toList . (.observations)) evidences
-      homeExerciseTasks = length $ filter (\evidence -> evidence.activityType == HomeExercise) evidences
-      schoolExerciseTasks = length $ filter (\evidence -> evidence.activityType == SchoolExercise) evidences
-      totalTasks = homeExerciseTasks + schoolExerciseTasks
-      selfReliantEvidences = length $ filter (\observation -> observation.ability == SelfReliant) observations
-      selfReliantWithSillyMistakesEvidences =
-        length $ filter (\observation -> observation.ability == SelfReliantWithSillyMistakes) observations
-      withSupportEvidences = length $ filter (\observation -> observation.ability == WithSupport) observations
-      notYetEvidences = length $ filter (\observation -> observation.ability == NotYet) observations
-   in UserStatistics
-        { homeExerciseTasks
-        , schoolExerciseTasks
-        , totalTasks
-        , selfReliantEvidences
-        , selfReliantWithSillyMistakesEvidences
-        , withSupportEvidences
-        , notYetEvidences
-        }
+          map (\user -> (user, userAssignmentCompletionStats document user.id)) students
+   in Model {byUserStats}
