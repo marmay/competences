@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionOwnership (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -526,13 +526,22 @@ evaluatorComponent r assignment =
       Button.toggle (m.selectedSocialForm == sf) (Button.button (C.LblSocialForm sf) (SetSocialForm sf))
 
     viewStudentButton m student =
-      let hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
+      let active = activeStudents m
+          isActive = Set.member student.id active
+          isClicked = m.clickedStudent == Just student.id
+          -- Disable non-active, non-clicked students when a collaborative submission is active
+          isDisabled = case m.activeSubmission >>= \sid -> Ix.getOne (m.submissions Ix.@= sid) of
+            Just sub -> case sub.ownership of
+              CollaborativeSubmission _ -> not isActive && not isClicked
+              IndividualSubmission _ -> False
+            Nothing -> False
+          hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
           hasOpenSubmission = any (SubViewer.isSubmissionOpen m.assignmentEvidences) $ Ix.toList (m.submissions Ix.@= student.id)
           contents
             | hasOpenSubmission = Button.toButtonContents (Icon.IcnImport, ms student.name)
             | hasEvidence = Button.toButtonContents (Icon.IcnApply, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
-      in Button.toggleSm (student.id `Set.member` activeStudents m) $ Button.button contents (ToggleStudentSelection student.id)
+      in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
