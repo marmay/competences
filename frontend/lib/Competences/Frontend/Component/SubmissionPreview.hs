@@ -20,7 +20,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (AssignmentId, Document (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..))
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
@@ -83,7 +83,14 @@ detailedSubmission sub =
     [ kindToBadge sub.kind
     , MH.span_ [] [M.text $ C.formatDateTime sub.submittedAt]
     , submissionExtra sub
+    , ownershipBadge sub.ownership
     ]
+
+-- | Small badge showing ownership type in dropdown items.
+ownershipBadge :: SubmissionOwnership -> M.View m a
+ownershipBadge (IndividualSubmission _) = M.text ""
+ownershipBadge (CollaborativeSubmission uids) =
+  Badge.secondary (Badge.badgeText $ ms (show (length uids)) <> " " <> C.translate' C.LblStudents)
 
 -- | Extra info column in dropdown items (file count, location, reason).
 submissionExtra :: Submission -> M.View m a
@@ -177,15 +184,24 @@ submissionSelectorComponent r aId uId binding =
 
 data DetailProjection = DetailProjection
   { projSubmission :: !(Maybe Submission)
+  , ownerNames :: ![T.Text]
   }
   deriving (Eq, Show, Generic)
 
 detailProjection :: SubmissionId -> Document -> Maybe User -> DetailProjection
 detailProjection sid doc _mUser =
-  DetailProjection {projSubmission = Ix.getOne (doc.submissions Ix.@= sid)}
+  let mSub = Ix.getOne (doc.submissions Ix.@= sid)
+      names = case mSub of
+        Nothing -> []
+        Just sub ->
+          [ maybe (T.pack (show uid)) (.name) (Ix.getOne (doc.users Ix.@= uid))
+          | uid <- ownerIds sub.ownership
+          ]
+   in DetailProjection {projSubmission = mSub, ownerNames = names}
 
 data DetailModel = DetailModel
   { submission :: !(Maybe Submission)
+  , ownerNames :: ![T.Text]
   }
   deriving (Eq, Show, Generic)
 
@@ -201,23 +217,44 @@ submissionDetailComponent r sid =
     { M.subs = [subscribeWithProjection r (detailProjection sid) DetailProjectionChanged]
     }
   where
-    model = DetailModel {submission = Nothing}
+    model = DetailModel {submission = Nothing, ownerNames = []}
 
-    update (DetailProjectionChanged pc) = do
-      m <- M.get
-      let newSub = pc.projection.projSubmission
-      M.put (m & #submission .~ newSub :: DetailModel)
+    update (DetailProjectionChanged pc) = M.modify $ \m ->
+      m & #submission .~ pc.projection.projSubmission
+        & #ownerNames .~ pc.projection.ownerNames
 
     view' m = case m.submission of
       Nothing ->
         MH.div_
           [class_ "flex items-center justify-center p-8 text-muted-foreground text-sm"]
           [M.text $ C.translate' C.LblNoSubmissionSelected]
-      Just sub -> viewSubmissionContent r sub
+      Just sub ->
+        Layout.vFlow Layout.gapS
+          [ viewOwnershipHeader sub m.ownerNames
+          , viewSubmissionContent r sub
+          ]
 
 -- ---------------------------------------------------------------------------
 -- Preview Views
 -- ---------------------------------------------------------------------------
+
+-- | Show ownership context: individual vs collaborative with co-participant names.
+viewOwnershipHeader :: Submission -> [T.Text] -> M.View m a
+viewOwnershipHeader sub names = case sub.ownership of
+  CollaborativeSubmission _ ->
+    MH.div_
+      [class_ "flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-md text-sm"]
+      [ Icon.iconS Icon.Small Icon.IcnSocialFormGroup
+      , MH.span_ [class_ "font-medium text-sky-800"]
+          [M.text $ C.translate' C.LblCollaborativeSubmission <> " " <> ms (T.intercalate ", " names)]
+      ]
+  IndividualSubmission _ ->
+    MH.div_
+      [class_ "flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-md text-sm"]
+      [ Icon.iconS Icon.Small Icon.IcnSocialFormIndividual
+      , MH.span_ [class_ "text-stone-600"]
+          [M.text $ C.translate' C.LblIndividualSubmission <> ": " <> ms (T.intercalate ", " names)]
+      ]
 
 viewSubmissionContent :: SyncContext -> Submission -> M.View m DetailAction
 viewSubmissionContent r sub = case sub.kind of
