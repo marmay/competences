@@ -13,18 +13,22 @@ module Competences.Query.Assignment
   , isAssignmentCompleted
   , isAssignmentOpen
   , statusLabel
+    -- * Completion categories (for statistics)
+  , AssignmentCompletionCategory (..)
+  , assignmentCompletionCategory
+  , userAssignmentCompletionStats
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment, AssignmentId, AssignmentIxs, Document (..))
+import Competences.Document (Assignment (..), AssignmentId, AssignmentIxs, Document (..))
 import Competences.Document.Submission (Submission (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
-import Competences.Query.Evidence qualified as QEvidence
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian, utctDay)
 
@@ -61,10 +65,7 @@ assignmentStatus doc userId assignmentId =
 -- override earlier ones for the same competence level.
 accumulatedObservations :: Document -> UserId -> AssignmentId -> Map CompetenceLevelId Ability
 accumulatedObservations doc userId assignmentId =
-  let -- Get evidences sorted by date (ascending, so later dates come last and override)
-      sortedEvidences = QEvidence.userEvidencesAsc doc userId
-      linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) sortedEvidences
-      -- Accumulate observations: later evidences override earlier for same competence level
+  let linkedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= assignmentId Ix.@= userId
       accumulateObs acc ev =
         foldl' (\m obs -> Map.insert obs.competenceLevelId obs.ability m) acc (Ix.toList ev.observations)
    in foldl' accumulateObs Map.empty linkedEvidences
@@ -88,7 +89,7 @@ isAssignmentOpen doc userId assignmentId =
       Ix.null (doc.submissions Ix.@= assignmentId Ix.@= userId)
     NeedsWork ->
       let submissions = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
-          linkedEvidences = filter (\e -> e.assignmentId == Just assignmentId) (QEvidence.userEvidencesAsc doc userId)
+          linkedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= assignmentId Ix.@= userId
           latestEvidenceDay = case linkedEvidences of
             [] -> Nothing
             es -> Just (last es).date
@@ -110,3 +111,39 @@ statusLabel :: AssignmentStatus -> Text
 statusLabel NotGraded = "Nicht korrigiert"
 statusLabel NeedsWork = "Zu verbessern"
 statusLabel Completed = "Erledigt"
+
+-- | Assignment completion categories for statistics views.
+-- These form a partition: every assignment falls into exactly one category.
+data AssignmentCompletionCategory
+  = -- | Has evidence, no NotYet in accumulated observations (includes WithSupport)
+    AsgCompleted
+  | -- | Has evidence, but NotYet remains in accumulated observations
+    AsgCorrectedNotDone
+  | -- | Has submission(s) but no evidence
+    AsgSubmittedNotCorrected
+  | -- | No submission and no evidence
+    AsgNotSubmitted
+  deriving (Eq, Ord, Show, Bounded, Enum)
+
+-- | Classify an assignment for a user into a completion category.
+assignmentCompletionCategory :: Document -> UserId -> AssignmentId -> AssignmentCompletionCategory
+assignmentCompletionCategory doc userId assignmentId =
+  let accumulated = accumulatedObservations doc userId assignmentId
+      hasEvidence = not (Map.null accumulated)
+      hasSubmissions = not $ Ix.null (doc.submissions Ix.@= assignmentId Ix.@= userId)
+   in if hasEvidence
+        then
+          if any (== NotYet) (Map.elems accumulated)
+            then AsgCorrectedNotDone
+            else AsgCompleted
+        else
+          if hasSubmissions
+            then AsgSubmittedNotCorrected
+            else AsgNotSubmitted
+
+-- | Count assignments per completion category for a user.
+userAssignmentCompletionStats :: Document -> UserId -> Map AssignmentCompletionCategory Int
+userAssignmentCompletionStats doc userId =
+  let assignments = Ix.toList (userAssignments doc userId)
+      categories = map (\a -> assignmentCompletionCategory doc userId a.id) assignments
+   in foldl' (\m c -> Map.insertWith (+) c 1 m) Map.empty categories
