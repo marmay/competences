@@ -36,7 +36,7 @@ import Competences.Command.DraftAssignments (DraftAssignmentsCommand (..), handl
 import Competences.Command.DraftTasks (DraftTasksCommand (..), handleDraftTasksCommand)
 import Competences.Command.Publish (PublishData (..), handlePublish)
 import Competences.Command.Resources (ResourcePatch (..), ResourcesCommand (..), handleResourcesCommand)
-import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
+import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult, requireTeacher)
 import Competences.Command.Solutions (SolutionPatch (..), SolutionsCommand (..), handleSolutionsCommand)
 import Competences.Command.Submissions (SubmissionPatch (..), SubmissionsCommand (..), handleSubmissionsCommand)
 import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..), CompetenceAssessmentsCommand (..), handleCompetenceAssessmentsCommand)
@@ -126,27 +126,32 @@ handleCommand userId cmd d = case cmd of
     -- Replace entire document, all users affected
     let allUserIds = map (.id) $ Ix.toList $ newDoc ^. #users
      in Right (newDoc, AffectedUsers allUserIds)
-  Competences c -> handleCompetencesCommand userId c d
-  Users c -> handleUsersCommand userId c d
-  Evidences c -> handleEvidencesCommand userId c d
-  Tasks c -> handleTasksCommand userId c d
-  Assignments c -> handleAssignmentsCommand userId c d
-  CompetenceAssessments c -> handleCompetenceAssessmentsCommand userId c d
-  CompetenceGridGrades c -> handleCompetenceGridGradesCommand userId c d
-  Solutions c -> handleSolutionsCommand userId c d
-  Resources c -> handleResourcesCommand userId c d
-  MesoPlans c -> handleMesoPlansCommand userId c d
-  Lessons c -> handleLessonsCommand userId c d
-  LessonNotes c -> handleLessonNotesCommand userId c d
-  ParticipationRecords c -> handleParticipationRecordsCommand userId c d
-  Absences c -> handleAbsencesCommand userId c d
+  -- Teacher-only commands: require the acting user to be a teacher
+  Competences c -> teacherOnly $ handleCompetencesCommand userId c d
+  Users c -> teacherOnly $ handleUsersCommand userId c d
+  Evidences c -> teacherOnly $ handleEvidencesCommand userId c d
+  Tasks c -> teacherOnly $ handleTasksCommand userId c d
+  Assignments c -> teacherOnly $ handleAssignmentsCommand userId c d
+  CompetenceAssessments c -> teacherOnly $ handleCompetenceAssessmentsCommand userId c d
+  CompetenceGridGrades c -> teacherOnly $ handleCompetenceGridGradesCommand userId c d
+  Solutions c -> teacherOnly $ handleSolutionsCommand userId c d
+  Resources c -> teacherOnly $ handleResourcesCommand userId c d
+  MesoPlans c -> teacherOnly $ handleMesoPlansCommand userId c d
+  Lessons c -> teacherOnly $ handleLessonsCommand userId c d
+  LessonNotes c -> teacherOnly $ handleLessonNotesCommand userId c d
+  ParticipationRecords c -> teacherOnly $ handleParticipationRecordsCommand userId c d
+  Absences c -> teacherOnly $ handleAbsencesCommand userId c d
+  DraftTasks c -> teacherOnly $ handleDraftTasksCommand userId c d
+  DraftAssignments c -> teacherOnly $ handleDraftAssignmentsCommand userId c d
+  CompetenceLevelExamples c -> teacherOnly $ handleCompetenceLevelExamplesCommand userId c d
+  Layouts c -> teacherOnly $ handleLayoutsCommand userId c d
+  -- Student commands: submissions have their own role checks (requires Student)
   Submissions c -> handleSubmissionsCommand userId c d
-  DraftTasks c -> handleDraftTasksCommand userId c d
-  DraftAssignments c -> handleDraftAssignmentsCommand userId c d
-  CompetenceLevelExamples c -> handleCompetenceLevelExamplesCommand userId c d
-  Layouts c -> handleLayoutsCommand userId c d
+  -- System commands: no user role check needed
   Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d
+  where
+    teacherOnly result = requireTeacher userId d >> result
 
 -- | Handle migration commands (system-level, userId not used)
 handleMigrationCommand :: MigrationCommand -> Document -> UpdateResult

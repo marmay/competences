@@ -9,10 +9,12 @@ module Competences.Command.Common
   , patchField
   , patchField'
   , inContext
+  , requireTeacher
   )
 where
 
-import Competences.Document (Document)
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document (Document (..), User (..), UserRole (..))
 import Competences.Document.Id (Id)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
@@ -98,3 +100,11 @@ patchField' = patchField (pack $ symbolVal (Proxy @name)) (labelOptic @name) (la
 -- | Add entity type context to error messages
 inContext :: Text -> a -> (a -> Either Text a) -> Either Text a
 inContext entityType entity cmd = first (\err -> entityType <> ": " <> err) $ cmd entity
+
+-- | Require that the acting user is a teacher.
+-- Returns Left if the user is not found or is not a teacher.
+requireTeacher :: UserId -> Document -> Either Text ()
+requireTeacher userId doc =
+  case Ix.getOne (doc.users Ix.@= userId) of
+    Nothing -> Left "User not found"
+    Just u -> when (u.role /= Teacher) $ Left "Only teachers can perform this action"
