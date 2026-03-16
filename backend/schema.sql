@@ -28,14 +28,13 @@ CREATE INDEX idx_commands_user_id ON commands(user_id);
 CREATE TABLE snapshots (
   id BIGSERIAL PRIMARY KEY,
   snapshot_id UUID NOT NULL UNIQUE,
-  generation BIGINT NOT NULL,
+  generation BIGINT NOT NULL UNIQUE,
   document_data TEXT NOT NULL,
   protected BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   FOREIGN KEY (generation) REFERENCES commands(generation)
 );
 
-CREATE INDEX idx_snapshots_generation ON snapshots(generation DESC);
 CREATE INDEX idx_snapshots_created_at ON snapshots(created_at DESC);
 
 -- Metadata for snapshot timing
@@ -82,3 +81,5 @@ INSERT INTO schema_migrations (version, description)
 VALUES (3, 'Add protected flag for snapshot garbage collection');
 INSERT INTO schema_migrations (version, description)
 VALUES (4, 'Convert snapshot document_data from JSONB to TEXT for byte-exact comparison');
+INSERT INTO schema_migrations (version, description)
+VALUES (5, 'Add UNIQUE constraint on snapshots.generation to prevent duplicates');

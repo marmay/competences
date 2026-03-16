@@ -82,7 +82,7 @@ import System.Process (readProcessWithExitCode)
 
 -- | Expected database schema version
 expectedSchemaVersion :: Int
-expectedSchemaVersion = 4
+expectedSchemaVersion = 5
 
 -- | Initialize connection pool
 --
@@ -140,6 +140,17 @@ migrations =
         , "  '00000000-0000-0000-0000-000000000000',"
         , "  '{\"payload\":{\"contents\":{\"tag\":\"SortAssignmentTasksByIdentifier\"},\"tag\":\"Migration\"},\"userId\":\"00000000-0000-0000-0000-000000000000\",\"version\":1}'"
         , ");"
+        ]
+    )
+  , ( 5
+    , "Add UNIQUE constraint on snapshots.generation to prevent duplicates"
+    , BS.intercalate "\n"
+        [ "DELETE FROM snapshots WHERE id NOT IN ("
+        , "  SELECT MAX(id) FROM snapshots GROUP BY generation"
+        , ");"
+        , ""
+        , "DROP INDEX IF EXISTS idx_snapshots_generation;"
+        , "ALTER TABLE snapshots ADD CONSTRAINT snapshots_generation_unique UNIQUE (generation);"
         ]
     )
   ]
@@ -413,40 +424,44 @@ lookupCommandGeneration pool cmdId = withResource pool $ \conn -> do
 -- | Save a snapshot of the document at a specific generation
 --
 -- The document is wrapped in a versioned envelope before storage.
+-- Uses ON CONFLICT DO NOTHING to silently skip if a snapshot already exists
+-- at this generation (prevents duplicates from recovery + graceful shutdown).
 saveSnapshot :: Pool Connection -> Document -> Int64 -> IO ()
 saveSnapshot pool doc generation = withResource pool $ \conn -> do
   snapshotId <- UUID.nextRandom
   let envelope = wrapSnapshot doc
   let envelopeText = decodeUtf8 (LBS.toStrict (encode envelope))
-  _ <-
+  rowsAffected <-
     execute
       conn
       [sql|
       INSERT INTO snapshots (snapshot_id, generation, document_data)
       VALUES (?, ?, ?)
+      ON CONFLICT (generation) DO NOTHING
     |]
       (snapshotId, generation, envelopeText)
-  -- Update metadata for snapshot tracking
-  now <- getCurrentTime
-  _ <-
-    execute
-      conn
-      [sql|
-      UPDATE metadata
-      SET value = ?, updated_at = ?
-      WHERE key = 'last_snapshot_generation'
-    |]
-      (show generation :: String, now)
-  _ <-
-    execute
-      conn
-      [sql|
-      UPDATE metadata
-      SET value = ?, updated_at = ?
-      WHERE key = 'last_snapshot_time'
-    |]
-      (show now :: String, now)
-  pure ()
+  -- Only update metadata if the snapshot was actually inserted
+  when (rowsAffected > 0) $ do
+    now <- getCurrentTime
+    _ <-
+      execute
+        conn
+        [sql|
+        UPDATE metadata
+        SET value = ?, updated_at = ?
+        WHERE key = 'last_snapshot_generation'
+      |]
+        (show generation :: String, now)
+    _ <-
+      execute
+        conn
+        [sql|
+        UPDATE metadata
+        SET value = ?, updated_at = ?
+        WHERE key = 'last_snapshot_time'
+      |]
+        (show now :: String, now)
+    pure ()
 
 -- | Load the latest snapshot and its generation
 --
