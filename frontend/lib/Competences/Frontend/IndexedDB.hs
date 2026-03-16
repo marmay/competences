@@ -11,6 +11,7 @@ module Competences.Frontend.IndexedDB
   , storeCheckpoint
   , loadCheckpoint
   , clearCheckpoint
+  , computeDocumentChecksum
   )
 where
 
@@ -23,7 +24,8 @@ import Data.Text (Text)
 import Competences.Frontend.BinaryFFI (arrayBufferToByteString, byteStringToUint8Array)
 import Data.Binary qualified as Bin
 import Data.ByteString.Lazy qualified as BL
-import Miso.DSL (JSVal, ToJSVal (..))
+import Data.Text qualified as T
+import Miso.DSL (JSVal, ToJSVal (..), fromJSVal)
 
 -- | Handle to the IndexedDB database.
 newtype IndexedDB = IndexedDB JSVal
@@ -34,6 +36,22 @@ data CheckpointData = CheckpointData
   , commandId :: !CommandId
   , checksum :: !Text
   }
+
+-- Compute SHA-256 hash of a Uint8Array using Web Crypto API.
+-- Returns lowercase hex string.
+foreign import javascript safe
+  "await crypto.subtle.digest('SHA-256', $1).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''))"
+  js_sha256 :: JSVal -> IO JSVal
+
+-- | Compute a SHA-256 checksum of a document's Binary encoding.
+-- Matches the backend's 'computeDocumentChecksum' (crypton SHA-256 of Binary.encode).
+computeDocumentChecksum :: Document -> IO Text
+computeDocumentChecksum doc = do
+  let bytes = BL.toStrict (Bin.encode doc)
+  uint8 <- byteStringToUint8Array bytes
+  hashVal <- js_sha256 uint8
+  mText <- fromJSVal hashVal
+  pure $ maybe T.empty id mText
 
 -- Open (or create) the 'competences-checkpoints' database with object store.
 -- Version 1 creates the 'checkpoints' object store.
@@ -64,16 +82,24 @@ foreign import javascript unsafe "$1 == null"
 openDatabase :: IO IndexedDB
 openDatabase = IndexedDB <$> js_openDatabase
 
+-- | Current checkpoint encoding version. Bump when the Binary encoding changes.
+-- Old checkpoints with a different version (or no version prefix) will fail
+-- decodeOrFail and be automatically deleted.
+checkpointVersion :: Int
+checkpointVersion = 2
+
 -- | Store checkpoint data in IndexedDB.
 -- Key: "checkpoint:<userId>" to account for impersonation.
+-- Encodes with a version prefix for forward compatibility.
 storeCheckpoint :: IndexedDB -> Text -> CheckpointData -> IO ()
 storeCheckpoint (IndexedDB db) key cpData = do
-  let bytes = BL.toStrict $ Bin.encode (cpData.document, cpData.commandId, cpData.checksum)
+  let bytes = BL.toStrict $ Bin.encode (checkpointVersion, cpData.document, cpData.commandId, cpData.checksum)
   uint8 <- byteStringToUint8Array bytes
   jsKey <- toJSVal key
   js_put db jsKey uint8
 
 -- | Load checkpoint data from IndexedDB. Returns Nothing if not found.
+-- Rejects and deletes entries with wrong version or corrupted data.
 loadCheckpoint :: IndexedDB -> Text -> IO (Maybe CheckpointData)
 loadCheckpoint (IndexedDB db) key = do
   jsKey <- toJSVal key
@@ -88,12 +114,17 @@ loadCheckpoint (IndexedDB db) key = do
           -- Corrupted or incompatible binary data — remove stale entry
           js_delete db jsKey
           pure Nothing
-        Right (_, _, (doc, cmdId, checksum)) ->
-          pure $ Just CheckpointData
-            { document = doc
-            , commandId = cmdId
-            , checksum = checksum
-            }
+        Right (_, _, (version :: Int, doc, cmdId, checksum))
+          | version /= checkpointVersion -> do
+              -- Old checkpoint version — remove stale entry
+              js_delete db jsKey
+              pure Nothing
+          | otherwise ->
+              pure $ Just CheckpointData
+                { document = doc
+                , commandId = cmdId
+                , checksum = checksum
+                }
 
 -- | Clear a stored checkpoint from IndexedDB.
 clearCheckpoint :: IndexedDB -> Text -> IO ()
@@ -114,6 +145,9 @@ data CheckpointData = CheckpointData
   }
 
 -- | Non-WASM stubs.
+computeDocumentChecksum :: Document -> IO Text
+computeDocumentChecksum _ = pure ""
+
 openDatabase :: IO IndexedDB
 openDatabase = pure IndexedDB
 

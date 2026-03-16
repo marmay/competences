@@ -16,7 +16,7 @@ import Competences.Document (Document, User (..), UserId)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.Id (idToText)
 import Competences.Frontend.BuildInfo (frontendVersion)
-import Competences.Frontend.IndexedDB (CheckpointData (..), IndexedDB, loadCheckpoint, storeCheckpoint)
+import Competences.Frontend.IndexedDB (CheckpointData (..), IndexedDB, computeDocumentChecksum, loadCheckpoint, storeCheckpoint)
 import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.FileCache qualified as FC
 import Competences.Frontend.SyncContext
@@ -113,21 +113,16 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
     handleMessage :: ServerMessage -> IO ()
     handleMessage msg = case msg of
       CommandUpdate cmdId cmds mChecksum -> do
-        -- Apply each command
+        -- Apply each command with its original userId
         mapM_ (applyRemoteCommand ref) cmds
         -- Update currentCommandId
         writeIORef ref.currentCommandId (Just cmdId)
         -- If checksum present, validate and store checkpoint
-        forM_ mChecksum $ \checksum -> do
+        forM_ mChecksum $ \checksum ->
           forM_ mIdb $ \idb -> do
-            syncDoc <- readSyncDocument ref
             let key = checkpointKey ref.env.connectedUser.id
-            storeCheckpoint idb key CheckpointData
-              { document = syncDoc.remoteDocument
-              , commandId = cmdId
-              , checksum = checksum
-              }
-            logInfo $ M.ms ("Checkpoint stored in IndexedDB" :: String)
+            _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+            pure ()
         -- Send ACK
         sendAck (Just cmdId) ws
 
@@ -163,11 +158,12 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
         completeUploadPermission ref (Left reason)
 
       SnapshotUpdate cmdId doc mChecksum -> do
-        -- Unexpected full snapshot during operation - handle as resync
-        logWarn $ M.ms ("Unexpected SnapshotUpdate during operation, resyncing" :: String)
+        -- Full snapshot (resync or mismatch recovery)
+        logInfo $ M.ms ("Received SnapshotUpdate, resyncing" :: String)
         setSyncDocument ref doc
         writeIORef ref.currentCommandId (Just cmdId)
-        forM_ mChecksum $ \checksum -> do
+        -- Snapshot comes directly from server — store checkpoint without validation
+        forM_ mChecksum $ \checksum ->
           forM_ mIdb $ \idb -> do
             let key = checkpointKey ref.env.connectedUser.id
             storeCheckpoint idb key CheckpointData
@@ -178,6 +174,27 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
         sendAck (Just cmdId) ws
 
       other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
+
+-- | Validate checksum and store checkpoint only if it matches.
+-- Returns True if stored, False on mismatch.
+validateAndStoreCheckpoint :: IndexedDB -> Text -> Text -> CommandId -> SyncContext -> WebSocket -> IO Bool
+validateAndStoreCheckpoint idb key serverChecksum cmdId ref ws = do
+  syncDoc <- readSyncDocument ref
+  localChecksum <- computeDocumentChecksum syncDoc.remoteDocument
+  if localChecksum == serverChecksum
+    then do
+      storeCheckpoint idb key CheckpointData
+        { document = syncDoc.remoteDocument
+        , commandId = cmdId
+        , checksum = serverChecksum
+        }
+      logInfo $ M.ms ("Checkpoint stored (checksum verified)" :: String)
+      pure True
+    else do
+      logWarn $ M.ms ("Checksum mismatch — NOT storing checkpoint, requesting full resync" :: String)
+      -- Request full document reload from server
+      ws.send (SubscribeFrom Nothing)
+      pure False
 
 -- | Compute the IndexedDB key for a user's checkpoint.
 checkpointKey :: UserId -> Text
@@ -250,15 +267,11 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
           logWarn $ M.ms ("Got incremental sync without checkpoint, commands may be lost" :: String)
           mapM_ (applyRemoteCommand ref) cmds
       writeIORef ref.currentCommandId (Just cmdId)
-      -- Store checkpoint if checksum present
+      -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->
         forM_ mIdb $ \idb -> do
-          syncDoc <- readSyncDocument ref
-          storeCheckpoint idb key CheckpointData
-            { document = syncDoc.remoteDocument
-            , commandId = cmdId
-            , checksum = checksum
-            }
+          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+          pure ()
 
   -- Send ACK
   currentCmdId <- readIORef ref.currentCommandId
@@ -318,14 +331,11 @@ mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
       setServerInfo ref srvInfo
       mapM_ (applyRemoteCommand ref) cmds
       writeIORef ref.currentCommandId (Just cmdId)
+      -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->
         forM_ mIdb $ \idb -> do
-          syncDoc <- readSyncDocument ref
-          storeCheckpoint idb key CheckpointData
-            { document = syncDoc.remoteDocument
-            , commandId = cmdId
-            , checksum = checksum
-            }
+          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+          pure ()
 
   -- Send ACK
   currentCmdId <- readIORef ref.currentCommandId
