@@ -326,8 +326,8 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
 -- For students: includes 'all', and 'teachers_and_recipients'/'recipients'
 -- only if the user is a specific recipient.
 --
--- Returns (CommandId, generation, Command) tuples ordered by generation.
-loadCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO [(CommandId, Int64, Command)]
+-- Returns (CommandId, generation, UserId, Command) tuples ordered by generation.
+loadCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO [(CommandId, Int64, UserId, Command)]
 loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
   rows <- case role of
     Teacher ->
@@ -359,7 +359,7 @@ loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
         (userId.unId, sinceGen) ::
         IO [(UUID, Int64, Value)]
   pure
-    [ (Id cmdId, gen, cmd)
+    [ (Id cmdId, gen, envelope.userId, cmd)
     | (cmdId, gen, envelopeValue) <- rows
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]
@@ -369,7 +369,7 @@ loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
 --
 -- Used to prime the CommandLog on startup. Returns entries in ascending
 -- generation order (oldest first).
-loadRecentCommands :: Pool Connection -> Int -> IO [(CommandId, Int64, Command, CommandAudience)]
+loadRecentCommands :: Pool Connection -> Int -> IO [(CommandId, Int64, UserId, Command, CommandAudience)]
 loadRecentCommands pool n = withResource pool $ \conn -> do
   -- Load the last N commands (subquery for DESC, outer for ASC)
   rows <-
@@ -396,7 +396,7 @@ loadRecentCommands pool n = withResource pool $ \conn -> do
             IO [Only UUID]
         let recipients = [Id uid | Only uid <- recipientRows]
             audience = audienceFromText audText recipients
-        pure (Id cmdId, gen, cmd, audience)
+        pure (Id cmdId, gen, envelope.userId, cmd, audience)
     | (cmdId, gen, envelopeValue, audText) <- rows
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]

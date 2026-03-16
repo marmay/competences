@@ -81,7 +81,7 @@ waitForAuth ws = do
 -- Returns (document, commandId, maybeChecksum).
 data SyncResult
   = SyncSnapshot !CommandId !Document !(Maybe Text)
-  | SyncIncremental !CommandId ![Command] !(Maybe Text)
+  | SyncIncremental !CommandId ![(UserId, Command)] !(Maybe Text)
 
 waitForSync :: WebSocket -> IO SyncResult
 waitForSync ws = do
@@ -114,7 +114,7 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
     handleMessage msg = case msg of
       CommandUpdate cmdId cmds mChecksum -> do
         -- Apply each command with its original userId
-        mapM_ (applyRemoteCommand ref) cmds
+        mapM_ (uncurry (applyRemoteCommand ref)) cmds
         -- Update currentCommandId
         writeIORef ref.currentCommandId (Just cmdId)
         -- If checksum present, validate and store checkpoint
@@ -261,11 +261,11 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
       case mCpData of
         Just cpData -> do
           setSyncDocument ref cpData.document
-          mapM_ (applyRemoteCommand ref) cmds
+          mapM_ (uncurry (applyRemoteCommand ref)) cmds
         Nothing -> do
           -- Should not happen: got incremental without checkpoint
           logWarn $ M.ms ("Got incremental sync without checkpoint, commands may be lost" :: String)
-          mapM_ (applyRemoteCommand ref) cmds
+          mapM_ (uncurry (applyRemoteCommand ref)) cmds
       writeIORef ref.currentCommandId (Just cmdId)
       -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->
@@ -329,7 +329,7 @@ mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
 
     SyncIncremental cmdId cmds mChecksum -> do
       setServerInfo ref srvInfo
-      mapM_ (applyRemoteCommand ref) cmds
+      mapM_ (uncurry (applyRemoteCommand ref)) cmds
       writeIORef ref.currentCommandId (Just cmdId)
       -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->

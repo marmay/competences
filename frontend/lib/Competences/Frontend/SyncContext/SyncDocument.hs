@@ -354,9 +354,10 @@ nextId :: (MonadUnliftIO m) => SyncContext -> m (Id a)
 nextId r = modifyMVar r.randomGen (pure . swap . random)
 
 -- | Apply a command from the server (echo or broadcast)
--- Updates remoteDocument and replays localChanges on top of it
-applyRemoteCommand :: SyncContext -> Command -> IO ()
-applyRemoteCommand d cmd = do
+-- Updates remoteDocument and replays localChanges on top of it.
+-- The userId is the original issuer of the command (from the server protocol).
+applyRemoteCommand :: SyncContext -> UserId -> Command -> IO ()
+applyRemoteCommand d cmdUserId cmd = do
   -- Check if this is an echo of our pending command
   pending <- getPending d.env.commandSender
   let isEcho = pending == Just cmd
@@ -369,8 +370,8 @@ applyRemoteCommand d cmd = do
     else getAllPending d.env.commandSender
 
   modifyMVar_ d.syncDocument $ \syncDoc -> do
-    -- Apply command to remoteDocument
-    remoteDoc' <- case handleCommand d.env.connectedUser.id cmd syncDoc.remoteDocument of
+    -- Apply command to remoteDocument using the original issuer's userId
+    remoteDoc' <- case handleCommand cmdUserId cmd syncDoc.remoteDocument of
       Left err -> do
         -- This shouldn't happen - server validated the command
         logError $ M.ms $ "Server sent invalid command: " <> show err

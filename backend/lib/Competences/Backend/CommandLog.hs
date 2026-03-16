@@ -31,6 +31,7 @@ import Database.PostgreSQL.Simple (Connection)
 data CommandEntry = CommandEntry
   { commandId :: !CommandId
   , generation :: !Int64
+  , userId :: !UserId
   , command :: !Command
   , audience :: !CommandAudience
   , recipients :: ![UserId]
@@ -65,15 +66,16 @@ newCommandLog pool currentGen = do
         [ CommandEntry
             { commandId = cmdId
             , generation = gen
+            , userId = uid
             , command = cmd
             , audience = aud
             , recipients = audienceRecipients aud
             }
-        | (cmdId, gen, cmd, aud) <- recentCmds
+        | (cmdId, gen, uid, cmd, aud) <- recentCmds
         ]
       latestCmdId = case recentCmds of
         [] -> Nothing
-        _ -> let (cmdId, _, _, _) = last recentCmds in Just cmdId
+        _ -> let (cmdId, _, _, _, _) = last recentCmds in Just cmdId
   entriesVar <- newTVarIO entries
   genVar <- newTVarIO currentGen
   cmdIdVar <- newTVarIO latestCmdId
@@ -99,8 +101,8 @@ appendCommand cl entry = atomically $ do
 --
 -- First tries the in-memory cache. If the generation is older than the cache,
 -- falls back to the database.
--- Returns list of (CommandId, Command) and the new generation position.
-readCommandsSince :: CommandLog -> UserRole -> UserId -> Int64 -> IO (Int64, [(CommandId, Command)])
+-- Returns list of (CommandId, UserId, Command) and the new generation position.
+readCommandsSince :: CommandLog -> UserRole -> UserId -> Int64 -> IO (Int64, [(CommandId, UserId, Command)])
 readCommandsSince cl role uid sinceGen = do
   -- Try to read from cache first
   (entries', latestGen) <- atomically $ do
@@ -119,13 +121,13 @@ readCommandsSince cl role uid sinceGen = do
       dbCmds <- DB.loadCommandsForUser cl.dbPool role uid sinceGen
       case dbCmds of
         [] -> pure (sinceGen, [])
-        _ -> let (_lastCmdId, lastGen, _) = last dbCmds
-              in pure (lastGen, [(cid, cmd) | (cid, _gen, cmd) <- dbCmds])
+        _ -> let (_lastCmdId, lastGen, _, _) = last dbCmds
+              in pure (lastGen, [(cid, cmdUid, cmd) | (cid, _gen, cmdUid, cmd) <- dbCmds])
     else do
       -- Filter from cache
       let relevant = Seq.filter (\e -> e.generation > sinceGen) entries'
           filtered = Seq.filter (isVisibleTo role uid) relevant
-          cmds = [(e.commandId, e.command) | e <- toList filtered]
+          cmds = [(e.commandId, e.userId, e.command) | e <- toList filtered]
       pure (latestGen, cmds)
 
 -- | Look up the generation number for a given CommandId in the cache.

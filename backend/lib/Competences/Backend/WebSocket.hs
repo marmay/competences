@@ -186,7 +186,7 @@ performSync state user conn mCommandId = case mCommandId of
           else do
             -- Load commands for this user since the given generation
             cmdsWithId <- DB.loadCommandsForUser state.dbPool user.role user.id gen
-            let cmds = [(cid, cmd) | (cid, _gen, cmd) <- cmdsWithId]
+            let cmds = [(cid, cmdUid, cmd) | (cid, _gen, cmdUid, cmd) <- cmdsWithId]
             case cmds of
               [] -> do
                 -- No new commands, send snapshot (edge case: client is up to date)
@@ -198,14 +198,14 @@ performSync state user conn mCommandId = case mCommandId of
                 WS.sendBinaryData conn (Bin.encode $ CommandUpdate cmdId [] mChecksum)
                 pure (Just currentGen)
               _ -> do
-                let lastCmdId = fst (last cmds)
-                    commands = map snd cmds
+                let lastCmdId = (\(c, _, _) -> c) (last cmds)
+                    userCommands = [(cmdUid, cmd) | (_cid, cmdUid, cmd) <- cmds]
                 -- Compute checksum if enough commands
                 doc <- getDocument state
                 let projectedDoc = projectDocument user doc
                     mChecksum = computeChecksum count projectedDoc
-                putStrLn $ "Incremental sync: sending " <> show (length commands) <> " commands to " <> T.unpack user.name
-                WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId commands mChecksum)
+                putStrLn $ "Incremental sync: sending " <> show (length userCommands) <> " commands to " <> T.unpack user.name
+                WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands mChecksum)
                 currentGen <- readTVarIO state.currentGeneration
                 pure (Just currentGen)
 
@@ -252,14 +252,14 @@ senderThread cl ackSignal user positionRef conn state = do
       writeIORef positionRef newPos
 
       unless (null cmds) $ do
-        let lastCmdId = fst (last cmds)
-            commands = map snd cmds
+        let lastCmdId = (\(c, _, _) -> c) (last cmds)
+            userCommands = [(cmdUid, cmd) | (_cid, cmdUid, cmd) <- cmds]
         -- Optionally compute checksum
         doc <- getDocument state
         let projectedDoc = projectDocument user doc
-            cmdCount = length commands
+            cmdCount = length userCommands
             mChecksum = computeChecksum cmdCount projectedDoc
-        result <- try $ WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId commands mChecksum)
+        result <- try $ WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands mChecksum)
         case result of
           Left (_ :: SomeException) -> pure ()  -- Connection dead, thread will be killed
           Right () -> do

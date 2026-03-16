@@ -102,7 +102,8 @@ data ServerMessage
     SnapshotUpdate !CommandId !Document !(Maybe Text)
   | -- | Batch of commands up to a version, with optional checksum.
     -- The CommandId is the ID of the last command in the batch.
-    CommandUpdate !CommandId ![Command] !(Maybe Text)
+    -- Each command is paired with the userId that originally issued it.
+    CommandUpdate !CommandId ![(UserId, Command)] !(Maybe Text)
   | -- | Command rejected by server during validation.
     -- Contains the full rejected command for robust matching and cleanup.
     CommandRejected !Command !Text

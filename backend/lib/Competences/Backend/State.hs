@@ -134,6 +134,7 @@ updateDocument state uid cmd = do
           entry = CommandEntry
             { commandId = cmdId
             , generation = generation
+            , userId = uid
             , command = cmd
             , audience = audience
             , recipients = audienceRecipients audience ++ affectedUsers
