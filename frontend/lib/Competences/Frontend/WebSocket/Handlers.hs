@@ -125,14 +125,15 @@ operationLoop ref mIdb ws = do
         mapM_ (uncurry (applyRemoteCommand ref)) cmds
         -- Update currentCommandId
         writeIORef ref.currentCommandId (Just cmdId)
-        case mChecksum of
-          Just checksum -> do
-            -- Server checkpoint: validate and store, reset counter
-            forM_ mIdb $ \idb -> do
+        checksumOk <- case mChecksum of
+          Just checksum -> case mIdb of
+            Nothing -> pure True
+            Just idb -> do
               let key = checkpointKey ref.env.connectedUser.id
-              matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
-              when matched $ writeIORef counterRef 0
-          Nothing ->
+              ok <- validateAndStoreCheckpoint idb key checksum cmdId ref
+              when ok $ writeIORef counterRef 0
+              pure ok
+          Nothing -> do
             -- Live update: track for periodic client-side checkpoint
             unless (null cmds) $ do
               count <- readIORef counterRef
@@ -141,8 +142,9 @@ operationLoop ref mIdb ws = do
               when (newCount >= checkpointInterval) $ forM_ mIdb $ \idb -> do
                 storeLocalCheckpoint idb cmdId ref
                 writeIORef counterRef 0
-        -- Send ACK
-        sendAck (Just cmdId) ws
+            pure True
+        -- Single ACK: resync request on mismatch, normal ACK otherwise
+        sendAck (if checksumOk then Just cmdId else Nothing) ws
 
       CommandRejected cmd err -> do
         logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
@@ -209,8 +211,9 @@ storeLocalCheckpoint idb cmdId ref = do
 
 -- | Validate checksum and store checkpoint only if it matches.
 -- Returns True if stored, False on mismatch.
-validateAndStoreCheckpoint :: IndexedDB -> Text -> Text -> CommandId -> SyncContext -> WebSocket -> IO Bool
-validateAndStoreCheckpoint idb key serverChecksum cmdId ref ws = do
+-- On mismatch, the caller is responsible for requesting a resync.
+validateAndStoreCheckpoint :: IndexedDB -> Text -> Text -> CommandId -> SyncContext -> IO Bool
+validateAndStoreCheckpoint idb key serverChecksum cmdId ref = do
   syncDoc <- readSyncDocument ref
   localChecksum <- computeDocumentChecksum syncDoc.remoteDocument
   if localChecksum == serverChecksum
@@ -223,9 +226,7 @@ validateAndStoreCheckpoint idb key serverChecksum cmdId ref ws = do
       logInfo $ M.ms ("Checkpoint stored (checksum verified)" :: String)
       pure True
     else do
-      logWarn $ M.ms ("Checksum mismatch — NOT storing checkpoint, requesting full resync" :: String)
-      -- Request full document reload from server
-      ws.send (SubscribeFrom Nothing)
+      logWarn $ M.ms ("Checksum mismatch — NOT storing checkpoint" :: String)
       pure False
 
 -- | Compute the IndexedDB key for a user's checkpoint.
@@ -302,7 +303,7 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
       -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->
         forM_ mIdb $ \idb -> do
-          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref
           pure ()
 
   -- Send ACK
@@ -366,7 +367,7 @@ mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
       -- Validate and store checkpoint if checksum present
       forM_ mChecksum $ \checksum ->
         forM_ mIdb $ \idb -> do
-          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref
           pure ()
 
   -- Send ACK

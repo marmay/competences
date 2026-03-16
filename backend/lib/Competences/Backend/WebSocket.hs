@@ -31,15 +31,17 @@ import Control.Concurrent.STM
   , flushTQueue
   , newEmptyTMVarIO
   , newTQueueIO
+  , newTVarIO
   , modifyTVar'
   , putTMVar
   , readTQueue
   , readTVar
   , readTVarIO
   , takeTMVar
+  , writeTVar
   )
 import Control.Exception (SomeException, finally, try)
-import Control.Monad (forever)
+import Control.Monad (forever, void, when)
 import Data.Binary (decodeOrFail)
 import Data.Binary qualified as Bin
 import Data.ByteString.Lazy qualified as BL
@@ -145,17 +147,18 @@ handleClient state uid user conn = do
 
               -- Create sender thread state
               ackSignal <- newEmptyTMVarIO
+              resyncFlag <- newTVarIO False
 
               -- Signal sender to start (initial ACK)
               atomically $ putTMVar ackSignal ()
 
               -- Fork sender thread
               senderTid <- forkIO $
-                senderThread clientQueue ackSignal user state.document conn
+                senderThread clientQueue ackSignal resyncFlag user state conn
 
               -- Enter receive loop, cleanup on disconnect
               flip finally (cleanup uid connId senderTid) $
-                receiveLoop state uid user conn ackSignal
+                receiveLoop state uid user conn ackSignal resyncFlag
   where
     cleanup :: UserId -> ConnectionId -> ThreadId -> IO ()
     cleanup userId cid senderTid = do
@@ -243,8 +246,12 @@ sendSnapshot state user conn = do
 --
 -- Key STM property: reads queue items AND document TVar in a single atomically block,
 -- so the document state is always consistent with the commands sent.
-senderThread :: TQueue CP.ClientQueueItem -> TMVar () -> User -> TVar Document -> WS.Connection -> IO ()
-senderThread queue ackSignal user docVar conn = do
+--
+-- When the client requests a resync (SubscribeFrom Nothing), the resync flag is set.
+-- After receiving the ACK, the sender flushes the queue (items are superseded by the
+-- snapshot), sends a fresh SnapshotUpdate, and waits for the client to ACK it.
+senderThread :: TQueue CP.ClientQueueItem -> TMVar () -> TVar Bool -> User -> AppState -> WS.Connection -> IO ()
+senderThread queue ackSignal resyncFlag user state conn = do
   -- Wait for initial ACK before starting
   atomically $ takeTMVar ackSignal
   go
@@ -254,7 +261,7 @@ senderThread queue ackSignal user docVar conn = do
       (items, doc) <- atomically $ do
         first <- readTQueue queue -- blocks until item available
         rest <- flushTQueue queue -- grab any additional items
-        d <- readTVar docVar
+        d <- readTVar state.document
         pure (first : rest, d)
 
       let lastCmdId = (last items).commandId
@@ -268,28 +275,51 @@ senderThread queue ackSignal user docVar conn = do
       case result of
         Left (_ :: SomeException) -> pure () -- Connection dead, thread will be killed
         Right () -> do
-          -- Wait for client ACK
-          atomically $ takeTMVar ackSignal
-          go
+          -- Wait for client ACK and atomically check resync flag
+          needsResync <- atomically $ do
+            takeTMVar ackSignal
+            r <- readTVar resyncFlag
+            when r $ do
+              writeTVar resyncFlag False
+              -- Discard queued items — they're superseded by the snapshot
+              void $ flushTQueue queue
+            pure r
+          if needsResync
+            then do
+              putStrLn $ "Resync requested for " <> T.unpack user.name <> ", sending snapshot"
+              mGen <- sendSnapshot state user conn
+              case mGen of
+                Nothing -> pure () -- Failed to send snapshot, connection likely dead
+                Just _ -> do
+                  -- Wait for client to ACK the snapshot
+                  atomically $ takeTMVar ackSignal
+                  go
+            else go
 
 -- | Main receive loop after sync is complete.
-receiveLoop :: AppState -> UserId -> User -> WS.Connection -> TMVar () -> IO ()
-receiveLoop state uid user conn ackSignal = forever $ do
+receiveLoop :: AppState -> UserId -> User -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
+receiveLoop state uid user conn ackSignal resyncFlag = forever $ do
   msg <- WS.receiveData conn
   case decodeOrFail msg of
     Left (_, _, err) ->
       putStrLn $ "Invalid message format from " <> show uid <> ": " <> err <> ", ignoring"
     Right (_, _, clientMsg) ->
-      handleClientMessage state uid user clientMsg conn ackSignal
+      handleClientMessage state uid user clientMsg conn ackSignal resyncFlag
 
 -- | Handle individual client messages during operation.
-handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> TMVar () -> IO ()
-handleClientMessage state uid user clientMsg conn ackSignal = case clientMsg of
+handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
+handleClientMessage state uid user clientMsg conn ackSignal resyncFlag = case clientMsg of
   Authenticate {} ->
     putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
 
-  SubscribeFrom _mCmdId -> do
-    -- This is an ACK from the client. Signal sender thread to proceed.
+  SubscribeFrom mCmdId -> do
+    -- Distinguish resync (Nothing) from normal ACK (Just cmdId)
+    case mCmdId of
+      Nothing -> do
+        putStrLn $ "Client " <> show uid <> " requested resync"
+        atomically $ writeTVar resyncFlag True
+      Just _ -> pure ()
+    -- Signal sender thread to proceed in both cases
     _ <- try @SomeException $ atomically $ putTMVar ackSignal ()
     pure ()
 
