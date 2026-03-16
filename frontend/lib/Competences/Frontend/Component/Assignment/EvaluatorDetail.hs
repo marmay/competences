@@ -123,6 +123,8 @@ data EvaluatorModel = EvaluatorModel
   , startFromEmpty :: !Bool
   -- All submissions for this assignment (any student), indexed by user
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
+  -- Whether the submission panel is shown (auto-set when clicking a student with submissions)
+  , showSubmissions :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -142,6 +144,7 @@ data EvaluatorAction
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
   | ToggleStartFromEmpty -- Toggle "start from empty" session preference
+  | DismissSubmissions -- Close the submission panel
   deriving (Eq, Show)
 
 -- | Derive the effective set of students from the active submission ownership,
@@ -188,6 +191,7 @@ evaluatorComponent r assignment =
         , selectorGeneration = 0
         , startFromEmpty = False
         , submissions = Ix.empty
+        , showSubmissions = False
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -257,6 +261,7 @@ evaluatorComponent r assignment =
                          if wasEmpty && m.startFromEmpty
                            then Set.fromList m.assignment.tasks
                            else m.excludedTasks
+                     , showSubmissions = not (Ix.null (m.submissions Ix.@= userId))
                      }
 
     update (SetSocialForm sf) = M.modify $ \m ->
@@ -297,6 +302,7 @@ evaluatorComponent r assignment =
         , taskRemarks = Map.empty
         , additionalTasks = Set.empty
         , selectorGeneration = m'.selectorGeneration + 1
+        , showSubmissions = False
         }
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
@@ -391,6 +397,9 @@ evaluatorComponent r assignment =
     update ToggleStartFromEmpty = M.modify $ \m ->
       m{startFromEmpty = not m.startFromEmpty}
 
+    update DismissSubmissions = M.modify $ \m ->
+      m{showSubmissions = False, activeSubmission = Nothing}
+
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
     -- otherwise create a new one.
@@ -479,17 +488,21 @@ evaluatorComponent r assignment =
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else case m.clickedStudent of
-              Just uid ->
+              Just uid | m.showSubmissions ->
                 let key = "sub-sel-" <> ms (show uid)
                     binding = selectorTransformedLens id id #activeSubmission
                  in Layout.hFlow
                       (Layout.gapM <> Layout.hFull)
                       [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
                       , Layout.addClass "w-1/2 flex-1 min-h-0 flex flex-col" $
-                          inlineComponent key
-                            (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
+                          MH.div_ [class_ "h-full flex flex-col"]
+                            [ MH.div_ [class_ "flex justify-end"]
+                                [Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)]
+                            , inlineComponent key
+                                (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
+                            ]
                       ]
-              Nothing -> leftContent
+              _ -> leftContent
 
     viewStudentSelection m =
       let students = Ix.toAscList (Proxy @T.Text) $ m.users Ix.@+ Set.toList m.assignment.studentIds
@@ -534,11 +547,13 @@ evaluatorComponent r assignment =
               CollaborativeSubmission _ -> not isActive && not isClicked
               IndividualSubmission _ -> False
             Nothing -> False
-          hasEvidence = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
-          hasOpenSubmission = any (SubViewer.isSubmissionOpen m.assignmentEvidences) $ Ix.toList (m.submissions Ix.@= student.id)
+          hasEvidenceOnDate = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
+          hasAnyEvidence = any (\ev -> ev.userId == Just student.id) m.assignmentEvidences
+          hasOpenSubmission = any (SubViewer.isSubmissionOpen student.id m.assignmentEvidences) $ Ix.toList (m.submissions Ix.@= student.id)
           contents
             | hasOpenSubmission = Button.toButtonContents (Icon.IcnImport, ms student.name)
-            | hasEvidence = Button.toButtonContents (Icon.IcnApply, ms student.name)
+            | hasEvidenceOnDate = Button.toButtonContents (Icon.IcnApply, ms student.name)
+            | hasAnyEvidence = Button.toButtonContents (Icon.IcnEvidence, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
 
