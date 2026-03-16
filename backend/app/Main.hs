@@ -1,7 +1,7 @@
 module Main where
 
 import Competences.Backend.CAS (newCAS)
-import Competences.Backend.CommandLog (newCommandLog)
+import Competences.Backend.CommandProcessor (startProcessor)
 import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
@@ -14,7 +14,7 @@ import Competences.Document.Id (Id (..))
 import Competences.Document.User qualified
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
-import Control.Concurrent.STM (atomically, readTVar, writeTVar)
+import Control.Concurrent.STM (atomically, newTVarIO, readTVar)
 import Control.Exception (finally)
 import Control.Monad (foldM, unless, when)
 import Data.ByteString (ByteString)
@@ -189,12 +189,15 @@ main = do
   -- Derive instance ID from database name in connection string
   let instId = extractDbName (BS.unpack opts.dbConnString)
 
-  -- Initialize command log (shared broadcast cache)
-  cmdLog <- newCommandLog pool latestGen
+  -- Create shared TVars for document and generation
+  docVar <- newTVarIO doc'
+  genVar <- newTVarIO latestGen
+
+  -- Start command processor (needs the TVars)
+  proc <- startProcessor docVar genVar pool
 
   -- Initialize application state
-  state <- initAppState pool cas instId latestGen cmdLog
-  atomically $ writeTVar state.document doc'
+  state <- initAppState docVar genVar pool cas instId proc
 
   -- Log startup
   DB.logStartup pool instanceId latestGen (opts.ensureTeacherO365 /= Nothing) Nothing

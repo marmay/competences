@@ -52,7 +52,8 @@ import Competences.Protocol
   , ServerMessage (..)
   )
 import Control.Exception (SomeException, catch, finally, throwIO)
-import Control.Monad (forever, forM_)
+import Control.Monad (forever, forM_, unless, when)
+import Data.IORef (IORef, newIORef)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Miso qualified as M
@@ -96,33 +97,50 @@ waitForSync ws = do
 sendAck :: Maybe CommandId -> WebSocket -> IO ()
 sendAck mCmdId ws = ws.send (SubscribeFrom mCmdId)
 
+-- | Number of commands between periodic client-side checkpoints.
+checkpointInterval :: Int
+checkpointInterval = 50
+
 -- | Operation loop - runs until disconnect.
 -- Handles CommandUpdate, CommandRejected, file messages.
+-- Tracks command count for periodic checkpoint storage.
 operationLoop :: SyncContext -> Maybe IndexedDB -> WebSocket -> IO ()
-operationLoop ref mIdb ws = loop `catch` handleDisconnect
+operationLoop ref mIdb ws = do
+  counterRef <- newIORef (0 :: Int)
+  loop counterRef `catch` handleDisconnect
   where
     handleDisconnect :: DisconnectedException -> IO ()
     handleDisconnect _ = pure ()
 
-    loop :: IO ()
-    loop = forever $ do
+    loop :: IORef Int -> IO ()
+    loop counterRef = forever $ do
       msg <- ws.receive
-      handleMessage msg `catch` \(e :: SomeException) ->
+      handleMessage counterRef msg `catch` \(e :: SomeException) ->
         logWarn $ M.ms $ "Error handling message: " <> show e
 
-    handleMessage :: ServerMessage -> IO ()
-    handleMessage msg = case msg of
+    handleMessage :: IORef Int -> ServerMessage -> IO ()
+    handleMessage counterRef msg = case msg of
       CommandUpdate cmdId cmds mChecksum -> do
         -- Apply each command with its original userId
         mapM_ (uncurry (applyRemoteCommand ref)) cmds
         -- Update currentCommandId
         writeIORef ref.currentCommandId (Just cmdId)
-        -- If checksum present, validate and store checkpoint
-        forM_ mChecksum $ \checksum ->
-          forM_ mIdb $ \idb -> do
-            let key = checkpointKey ref.env.connectedUser.id
-            _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
-            pure ()
+        case mChecksum of
+          Just checksum -> do
+            -- Server checkpoint: validate and store, reset counter
+            forM_ mIdb $ \idb -> do
+              let key = checkpointKey ref.env.connectedUser.id
+              matched <- validateAndStoreCheckpoint idb key checksum cmdId ref ws
+              when matched $ writeIORef counterRef 0
+          Nothing ->
+            -- Live update: track for periodic client-side checkpoint
+            unless (null cmds) $ do
+              count <- readIORef counterRef
+              let newCount = count + length cmds
+              writeIORef counterRef newCount
+              when (newCount >= checkpointInterval) $ forM_ mIdb $ \idb -> do
+                storeLocalCheckpoint idb cmdId ref
+                writeIORef counterRef 0
         -- Send ACK
         sendAck (Just cmdId) ws
 
@@ -174,6 +192,20 @@ operationLoop ref mIdb ws = loop `catch` handleDisconnect
         sendAck (Just cmdId) ws
 
       other -> logWarn $ M.ms $ "Unexpected message during operation: " <> show other
+
+-- | Store a local checkpoint without server checksum validation.
+-- Used for periodic client-side checkpointing between server checkpoints.
+storeLocalCheckpoint :: IndexedDB -> CommandId -> SyncContext -> IO ()
+storeLocalCheckpoint idb cmdId ref = do
+  syncDoc <- readSyncDocument ref
+  checksum <- computeDocumentChecksum syncDoc.remoteDocument
+  let key = checkpointKey ref.env.connectedUser.id
+  storeCheckpoint idb key CheckpointData
+    { document = syncDoc.remoteDocument
+    , commandId = cmdId
+    , checksum = checksum
+    }
+  logInfo $ M.ms ("Periodic checkpoint stored" :: String)
 
 -- | Validate checksum and store checkpoint only if it matches.
 -- Returns True if stored, False on mismatch.

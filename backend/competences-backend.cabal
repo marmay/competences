@@ -26,7 +26,7 @@ library
         Competences.Backend.BuildInfo
         Competences.Backend.CAS
         Competences.Backend.Checkpoint
-        Competences.Backend.CommandLog
+        Competences.Backend.CommandProcessor
         Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Envelope

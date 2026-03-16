@@ -9,15 +9,12 @@ import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
 import Competences.Backend.BuildInfo (backendVersion)
 import Competences.Backend.CAS qualified as CAS
 import Competences.Backend.Checkpoint (computeDocumentChecksum)
-import Competences.Backend.CommandLog qualified as CL
+import Competences.Backend.CommandProcessor (ConnectionId (..))
+import Competences.Backend.CommandProcessor qualified as CP
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.State
   ( AppState (..)
-  , ConnectionId
   , getDocument
-  , registerClient
-  , unregisterClient
-  , updateDocument
   )
 import Competences.Command (Command (..))
 import Competences.Common.IxSet qualified as Ix
@@ -26,21 +23,30 @@ import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (CommandId, ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Concurrent (ThreadId, forkIO, killThread)
-import Control.Concurrent.STM (atomically, readTVarIO, TMVar, newEmptyTMVarIO, putTMVar, takeTMVar)
+import Control.Concurrent.STM
+  ( TQueue
+  , TVar
+  , TMVar
+  , atomically
+  , flushTQueue
+  , newEmptyTMVarIO
+  , newTQueueIO
+  , modifyTVar'
+  , putTMVar
+  , readTQueue
+  , readTVar
+  , readTVarIO
+  , takeTMVar
+  )
 import Control.Exception (SomeException, finally, try)
-import Control.Monad (forever, unless)
+import Control.Monad (forever)
 import Data.Binary (decodeOrFail)
 import Data.Binary qualified as Bin
 import Data.ByteString.Lazy qualified as BL
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Network.WebSockets qualified as WS
-
--- | Number of commands at which we send a checksum for checkpoint storage.
-checksumInterval :: Int
-checksumInterval = 50
 
 -- | Maximum commands for incremental sync before falling back to snapshot.
 maxIncrementalCommands :: Int
@@ -121,35 +127,41 @@ handleClient state uid user conn = do
       syncResult <- performSync state user conn mCommandId
       case syncResult of
         Nothing -> putStrLn $ "Sync failed for " <> show uid <> ", disconnecting"
-        Just syncedGen -> do
+        Just _syncedGen -> do
           -- Wait for ACK from client
           mAck <- waitForSubscribe conn
           case mAck of
             Nothing -> putStrLn $ "Client " <> show uid <> " did not ACK sync, disconnecting"
             Just _ackCmdId -> do
-              -- Register client AFTER handshake
-              connId <- registerClient state uid user conn
+              -- Allocate a unique connection ID
+              connId <- atomically $ do
+                cid <- readTVar state.nextConnectionId
+                modifyTVar' state.nextConnectionId (+ 1)
+                pure (ConnectionId cid)
+
+              -- Create per-client queue and register with processor
+              clientQueue <- newTQueueIO
+              CP.registerClient state.processor connId user.role uid clientQueue
 
               -- Create sender thread state
               ackSignal <- newEmptyTMVarIO
-              positionRef <- newIORef syncedGen
 
               -- Signal sender to start (initial ACK)
               atomically $ putTMVar ackSignal ()
 
               -- Fork sender thread
               senderTid <- forkIO $
-                senderThread state.commandLog ackSignal user positionRef conn state
+                senderThread clientQueue ackSignal user state.document conn
 
               -- Enter receive loop, cleanup on disconnect
               flip finally (cleanup uid connId senderTid) $
-                receiveLoop state uid user conn ackSignal positionRef
+                receiveLoop state uid user conn ackSignal
   where
     cleanup :: UserId -> ConnectionId -> ThreadId -> IO ()
     cleanup userId cid senderTid = do
       putStrLn $ "Client disconnected: " <> show userId <> " (" <> show cid <> ")"
       killThread senderTid
-      unregisterClient state userId cid
+      CP.unregisterClient state.processor cid
 
 -- | Wait for a SubscribeFrom message from the client.
 -- Returns Nothing if client sends something unexpected or disconnects.
@@ -163,6 +175,7 @@ waitForSubscribe conn = do
       _ -> pure Nothing
 
 -- | Perform initial sync: send SnapshotUpdate or CommandUpdate.
+-- Always includes a checksum for checkpoint storage.
 -- Returns the generation we synced up to, or Nothing on failure.
 performSync :: AppState -> User -> WS.Connection -> Maybe CommandId -> IO (Maybe Int64)
 performSync state user conn mCommandId = case mCommandId of
@@ -171,7 +184,7 @@ performSync state user conn mCommandId = case mCommandId of
     sendSnapshot state user conn
   Just cmdId -> do
     -- Returning client: try incremental
-    mGen <- CL.lookupCommandGeneration state.commandLog cmdId
+    mGen <- DB.lookupCommandGeneration state.dbPool cmdId
     case mGen of
       Nothing -> do
         putStrLn $ "CommandId not found, sending full snapshot for " <> T.unpack user.name
@@ -189,23 +202,22 @@ performSync state user conn mCommandId = case mCommandId of
             let cmds = [(cid, cmdUid, cmd) | (cid, _gen, cmdUid, cmd) <- cmdsWithId]
             case cmds of
               [] -> do
-                -- No new commands, send snapshot (edge case: client is up to date)
-                -- We still need to send something. Use the same cmdId.
+                -- No new commands, send current state with checksum
                 currentGen <- readTVarIO state.currentGeneration
                 doc <- getDocument state
                 let projectedDoc = projectDocument user doc
-                    mChecksum = computeChecksum count projectedDoc
-                WS.sendBinaryData conn (Bin.encode $ CommandUpdate cmdId [] mChecksum)
+                    checksum = Just (computeDocumentChecksum projectedDoc)
+                WS.sendBinaryData conn (Bin.encode $ CommandUpdate cmdId [] checksum)
                 pure (Just currentGen)
               _ -> do
                 let lastCmdId = (\(c, _, _) -> c) (last cmds)
                     userCommands = [(cmdUid, cmd) | (_cid, cmdUid, cmd) <- cmds]
-                -- Compute checksum if enough commands
+                -- Always compute checksum for sync
                 doc <- getDocument state
                 let projectedDoc = projectDocument user doc
-                    mChecksum = computeChecksum count projectedDoc
+                    checksum = Just (computeDocumentChecksum projectedDoc)
                 putStrLn $ "Incremental sync: sending " <> show (length userCommands) <> " commands to " <> T.unpack user.name
-                WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands mChecksum)
+                WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands checksum)
                 currentGen <- readTVarIO state.currentGeneration
                 pure (Just currentGen)
 
@@ -216,11 +228,10 @@ sendSnapshot state user conn = do
   let projectedDoc = projectDocument user doc
       checksum = computeDocumentChecksum projectedDoc
   currentGen <- readTVarIO state.currentGeneration
-  mLatestCmdId <- CL.getLatestCommandId state.commandLog
+  mLatestCmdId <- DB.getLatestCommandId state.dbPool
   case mLatestCmdId of
     Nothing -> do
-      -- Empty database case - we need a CommandId.
-      -- This should not happen in practice since startup always creates commands.
+      -- Empty database case
       putStrLn $ "Warning: no commands in database, cannot send snapshot to " <> T.unpack user.name
       pure Nothing
     Just latestCmdId -> do
@@ -228,73 +239,57 @@ sendSnapshot state user conn = do
       WS.sendBinaryData conn (Bin.encode $ SnapshotUpdate latestCmdId projectedDoc (Just checksum))
       pure (Just currentGen)
 
--- | Compute a checksum if command count is at a checkpoint interval boundary.
-computeChecksum :: Int -> Document -> Maybe Text
-computeChecksum count doc
-  | count > 0 && count `mod` checksumInterval == 0 = Just (computeDocumentChecksum doc)
-  | otherwise = Nothing
-
--- | Sender thread: reads from CommandLog, sends CommandUpdate, waits for ACK.
-senderThread :: CL.CommandLog -> TMVar () -> User -> IORef Int64 -> WS.Connection -> AppState -> IO ()
-senderThread cl ackSignal user positionRef conn state = do
+-- | Sender thread: reads from per-client TQueue, sends CommandUpdate, waits for ACK.
+--
+-- Key STM property: reads queue items AND document TVar in a single atomically block,
+-- so the document state is always consistent with the commands sent.
+senderThread :: TQueue CP.ClientQueueItem -> TMVar () -> User -> TVar Document -> WS.Connection -> IO ()
+senderThread queue ackSignal user docVar conn = do
   -- Wait for initial ACK before starting
   atomically $ takeTMVar ackSignal
   go
   where
     go = do
-      pos <- readIORef positionRef
+      -- Atomic read: batch of commands + consistent document snapshot
+      (items, doc) <- atomically $ do
+        first <- readTQueue queue -- blocks until item available
+        rest <- flushTQueue queue -- grab any additional items
+        d <- readTVar docVar
+        pure (first : rest, d)
 
-      -- Block until new commands exist past our position
-      atomically $ CL.waitForNewCommands cl pos
+      let lastCmdId = (last items).commandId
+          userCommands = [(item.userId, item.command) | item <- items]
+          mChecksum =
+            if any (.checkpoint) items
+              then Just (computeDocumentChecksum (projectDocument user doc))
+              else Nothing
 
-      -- Read and filter commands for this user
-      (newPos, cmds) <- CL.readCommandsSince cl user.role user.id pos
-      writeIORef positionRef newPos
-
-      unless (null cmds) $ do
-        let lastCmdId = (\(c, _, _) -> c) (last cmds)
-            userCommands = [(cmdUid, cmd) | (_cid, cmdUid, cmd) <- cmds]
-        -- Optionally compute checksum
-        doc <- getDocument state
-        let projectedDoc = projectDocument user doc
-            cmdCount = length userCommands
-            mChecksum = computeChecksum cmdCount projectedDoc
-        result <- try $ WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands mChecksum)
-        case result of
-          Left (_ :: SomeException) -> pure ()  -- Connection dead, thread will be killed
-          Right () -> do
-            -- Wait for client ACK
-            atomically $ takeTMVar ackSignal
-
-      go
+      result <- try $ WS.sendBinaryData conn (Bin.encode $ CommandUpdate lastCmdId userCommands mChecksum)
+      case result of
+        Left (_ :: SomeException) -> pure () -- Connection dead, thread will be killed
+        Right () -> do
+          -- Wait for client ACK
+          atomically $ takeTMVar ackSignal
+          go
 
 -- | Main receive loop after sync is complete.
-receiveLoop :: AppState -> UserId -> User -> WS.Connection -> TMVar () -> IORef Int64 -> IO ()
-receiveLoop state uid user conn ackSignal positionRef = forever $ do
+receiveLoop :: AppState -> UserId -> User -> WS.Connection -> TMVar () -> IO ()
+receiveLoop state uid user conn ackSignal = forever $ do
   msg <- WS.receiveData conn
   case decodeOrFail msg of
     Left (_, _, err) ->
       putStrLn $ "Invalid message format from " <> show uid <> ": " <> err <> ", ignoring"
     Right (_, _, clientMsg) ->
-      handleClientMessage state uid user clientMsg conn ackSignal positionRef
+      handleClientMessage state uid user clientMsg conn ackSignal
 
 -- | Handle individual client messages during operation.
-handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> TMVar () -> IORef Int64 -> IO ()
-handleClientMessage state uid user clientMsg conn ackSignal positionRef = case clientMsg of
+handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> TMVar () -> IO ()
+handleClientMessage state uid user clientMsg conn ackSignal = case clientMsg of
   Authenticate {} ->
     putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
 
-  SubscribeFrom mCmdId -> do
-    -- This is an ACK from the client
-    case mCmdId of
-      Just cmdId -> do
-        -- Look up generation and update position
-        mGen <- CL.lookupCommandGeneration state.commandLog cmdId
-        case mGen of
-          Just gen -> writeIORef positionRef gen
-          Nothing -> pure ()  -- Unknown cmdId, keep current position
-      Nothing -> pure ()  -- Full resync requested - handled elsewhere
-    -- Signal sender thread to proceed
+  SubscribeFrom _mCmdId -> do
+    -- This is an ACK from the client. Signal sender thread to proceed.
     _ <- try @SomeException $ atomically $ putTMVar ackSignal ()
     pure ()
 
@@ -305,14 +300,14 @@ handleClientMessage state uid user clientMsg conn ackSignal positionRef = case c
         putStrLn $ "Command rejected: user " <> show uid <> " is not authorized"
         WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Not authorized for this command")
       else do
-        result <- updateDocument state uid cmd
+        result <- CP.submitCommand state.processor uid cmd
         case result of
           Left err -> do
             putStrLn $ "Command rejected: " <> T.unpack err
             WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd err)
-          Right (_, _, _cmdId, _gen) ->
-            -- Command applied and appended to CommandLog.
-            -- Sender threads will pick it up and deliver to clients.
+          Right _cmdId ->
+            -- Command applied. Processor pushes to client queues.
+            -- SenderThread will deliver to this and all other affected clients.
             putStrLn "Command applied successfully"
 
   KeepAlive ->
