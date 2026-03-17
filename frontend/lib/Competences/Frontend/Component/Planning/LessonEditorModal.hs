@@ -398,14 +398,14 @@ lessonEditorModal r lesson' lessonNotesIds wm =
           titleView = Disclosure.titleText $ M.ms $ if Text.null phase.title then "(Phase " <> Text.pack (show (idx + 1)) <> ")" else phase.title
           actions = case listReorderButtons m.phaseReorderState idx of
             ShowReorderStart ->
-              [ Disclosure.Action Icon.IcnReorder (PhaseReorder (StartListReorder idx))
-              , Disclosure.DestructiveAction Icon.IcnDelete (DeletePhase idx)
+              [ Disclosure.action Icon.IcnReorder (PhaseReorder (StartListReorder idx))
+              , Disclosure.destructiveAction Icon.IcnDelete (DeletePhase idx)
               ]
             ShowReorderCancel ->
-              [Disclosure.DestructiveAction Icon.IcnCancel (PhaseReorder CancelListReorder)]
+              [Disclosure.destructiveAction Icon.IcnCancel (PhaseReorder CancelListReorder)]
             ShowReorderTargets fromIdx thisIdx ->
-              [ Disclosure.Action Icon.IcnArrowUp (PhaseReorder (ListReorderTo fromIdx thisIdx))
-              , Disclosure.Action Icon.IcnArrowDown (PhaseReorder (ListReorderTo fromIdx (thisIdx + 1)))
+              [ Disclosure.action Icon.IcnArrowUp (PhaseReorder (ListReorderTo fromIdx thisIdx))
+              , Disclosure.action Icon.IcnArrowDown (PhaseReorder (ListReorderTo fromIdx (thisIdx + 1)))
               ]
        in Disclosure.disclosure (TogglePhaseEdit idx) $
             Disclosure.contents titleView isExpanded (viewPhaseEditor idx phase) actions

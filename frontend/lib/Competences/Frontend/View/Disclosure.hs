@@ -13,8 +13,8 @@
 -- -- With actions
 -- Disclosure.disclosure toggleAction $
 --   Disclosure.contents (Disclosure.titleText "Title") isExpanded bodyView
---     [ Action Icon.IcnEdit editAction
---     , DestructiveAction Icon.IcnDelete deleteAction
+--     [ Disclosure.action Icon.IcnEdit editAction
+--     , Disclosure.destructiveAction Icon.IcnDelete deleteAction
 --     ]
 --
 -- -- With icon and title
@@ -36,8 +36,13 @@
 module Competences.Frontend.View.Disclosure
   ( -- * Core types
     DisclosureStyle (..)
-  , DisclosureAction (..)
+  , DisclosureAction
   , DisclosureContents (..)
+
+    -- * Action constructors
+  , action
+  , destructiveAction
+  , holdDestructiveAction
 
     -- * Content construction
   , contents
@@ -64,6 +69,7 @@ where
 
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color (PaletteColor (..), PaletteName, bgClass)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -84,20 +90,15 @@ data DisclosureStyle
     DisclosureNested
   deriving (Eq, Show)
 
--- | Action buttons in the disclosure header.
-data DisclosureAction a
-  = -- | Ghost button (subtle, for secondary actions)
-    Action !Icon.Icon !a
-  | -- | Destructive button (red, for delete actions)
-    DestructiveAction !Icon.Icon !a
-  deriving (Eq, Show)
+-- | Action buttons in the disclosure header (opaque – use smart constructors).
+newtype DisclosureAction m a = DisclosureAction (M.View m a)
 
 -- | Disclosure configuration with content.
 -- The title is a full View, allowing arbitrary content (icons, badges, etc.)
 data DisclosureContents m a = DisclosureContents
   { title :: !(M.View m a)
   , body :: !(Maybe (M.View m a))
-  , actions :: ![DisclosureAction a]
+  , actions :: ![DisclosureAction m a]
   }
 
 -- ============================================================================
@@ -120,7 +121,7 @@ contents
   -- ^ Whether the disclosure is expanded
   -> M.View m a
   -- ^ Body content (lazily evaluated)
-  -> [DisclosureAction a]
+  -> [DisclosureAction m a]
   -- ^ Header actions
   -> DisclosureContents m a
 contents titleView expanded bodyView actions' =
@@ -129,6 +130,22 @@ contents titleView expanded bodyView actions' =
     , body = if expanded then Just bodyView else Nothing
     , actions = actions'
     }
+
+-- ============================================================================
+-- Action Constructors
+-- ============================================================================
+
+-- | Ghost button action (subtle, for secondary actions).
+action :: Icon.Icon -> a -> DisclosureAction m a
+action icon act = DisclosureAction $ Button.ghostSm (Button.ButtonConfig (Button.IconOnly icon) (Just act))
+
+-- | Destructive button action (red, for delete actions).
+destructiveAction :: Icon.Icon -> a -> DisclosureAction m a
+destructiveAction icon act = DisclosureAction $ Button.destructiveSm (Button.ButtonConfig (Button.IconOnly icon) (Just act))
+
+-- | Hold-to-delete action (press and hold 2s to confirm).
+holdDestructiveAction :: (Eq id) => (HoldButton.HoldAction id -> a) -> HoldButton.HoldState id -> id -> DisclosureAction m a
+holdDestructiveAction wrap hs eid = DisclosureAction $ HoldButton.holdDeleteButtonSm wrap hs eid
 
 -- ============================================================================
 -- Title Helpers
@@ -329,13 +346,8 @@ disclosureImpl style headerColor toggleAction dc =
       DisclosureNested -> "pl-6 pr-2 py-1.5 border-t border-muted"
 
 -- | Render an action button.
--- Note: We need to use an explicit type application or specify the action type
--- to avoid overlapping instances with Button.ToAction.
-renderAction :: forall m a. DisclosureAction a -> M.View m a
-renderAction (Action icon act) =
-  Button.ghostSm (Button.ButtonConfig (Button.IconOnly icon) (Just act))
-renderAction (DestructiveAction icon act) =
-  Button.destructiveSm (Button.ButtonConfig (Button.IconOnly icon) (Just act))
+renderAction :: DisclosureAction m a -> M.View m a
+renderAction (DisclosureAction v) = v
 
 -- ============================================================================
 -- Low-level Helpers

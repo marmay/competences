@@ -170,7 +170,7 @@ taskSolutionsListComponent r taskId =
                       [renderRichText r.formulaCache sol.content]
        in Disclosure.disclosure (ToggleSolution sol.id) $
             Disclosure.contents titleView isExpanded bodyView
-              [Disclosure.DestructiveAction Icon.IcnDelete (DeleteSolution sol.id) | isOwner]
+              [Disclosure.destructiveAction Icon.IcnDelete (DeleteSolution sol.id) | isOwner]
 
     solutionTypeLabel :: SolutionType -> M.MisoString
     solutionTypeLabel = C.translate' . C.LblSolutionType

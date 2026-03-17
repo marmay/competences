@@ -165,7 +165,7 @@ viewLessonNoteGroup r m group =
         MH.div_
           [class_ "space-y-2"]
           (map (viewAnnotatedItem r m) group.items)
-      openAction = Disclosure.Action Icon.IcnOpenModal (OpenLessonNotes ln)
+      openAction = Disclosure.action Icon.IcnOpenModal (OpenLessonNotes ln)
    in Disclosure.innerDisclosure (ToggleLessonNoteGroup ln.id) $
         Disclosure.contents titleView isExpanded bodyView [openAction]
 

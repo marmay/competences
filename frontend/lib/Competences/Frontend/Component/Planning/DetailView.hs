@@ -59,6 +59,7 @@ data DetailModel = DetailModel
   , document :: !Document
   , reorderFrom :: !(Maybe LessonId)  -- Which lesson is being moved (reorder mode)
   , holdDeleteMeso :: !(HoldButton.HoldState MesoPlanId)
+  , holdDeleteLesson :: !(HoldButton.HoldState LessonId)
   }
   deriving (Eq, Generic, Show)
 
@@ -72,8 +73,7 @@ data DetailAction
   | TogglePhasesExpanded !LessonId
   | OpenLessonEditorModal !Lesson
   | OpenMesoPlanEditorModal !MesoPlan
-  | DeleteLesson !LessonId
-  | DeleteMesoPlan
+  | HoldDeleteLesson !(HoldButton.HoldAction LessonId)
   | HoldDeleteMeso !(HoldButton.HoldAction MesoPlanId)
   | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
@@ -92,9 +92,10 @@ projectDetail
   -> Set.Set LessonId
   -> Set.Set LessonId
   -> HoldButton.HoldState MesoPlanId
+  -> HoldButton.HoldState LessonId
   -> Document
   -> DetailModel
-projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases holdMeso doc =
+projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases holdMeso holdLesson doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -107,7 +108,7 @@ projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevEx
       expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
       expandedNotes' = Set.intersection prevExpandedNotes lessonIds
       expandedPhases' = Set.intersection prevExpandedPhases lessonIds
-   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing holdMeso
+   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing holdMeso holdLesson
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -125,7 +126,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing HoldButton.emptyHoldState
+    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing HoldButton.emptyHoldState HoldButton.emptyHoldState
 
     emptyDocument =
       Document
@@ -154,7 +155,7 @@ detailComponent r initialPlan =
         , layouts = Ix.empty
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases m.holdDeleteMeso dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases m.holdDeleteMeso m.holdDeleteLesson dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -211,17 +212,15 @@ detailComponent r initialPlan =
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       openMesoPlanEditor r plan
 
-    update (DeleteLesson lessonId) = M.io_ $
-      modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
-
-    update DeleteMesoPlan = do
-      m <- M.get
-      M.io_ $ modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete m.mesoPlan.id)
-
     update (HoldDeleteMeso ha) =
       HoldButton.handleHoldAction #holdDeleteMeso doDelete HoldDeleteMeso ha
       where
         doDelete mpId = modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)
+
+    update (HoldDeleteLesson ha) =
+      HoldButton.handleHoldAction #holdDeleteLesson doDelete HoldDeleteLesson ha
+      where
+        doDelete lessonId = modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
 
     update (PinLessonEvaluation lesson) = do
       m <- M.get
@@ -291,21 +290,21 @@ detailComponent r initialPlan =
           titleView = Disclosure.titleText $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
           actions = case m.reorderFrom of
             Nothing ->
-              -- Normal mode: Export, Pin, Edit, Reorder, Delete
-              [ Disclosure.Action Icon.IcnExport (ExportLesson lesson)
-              , Disclosure.Action Icon.IcnPin (PinLessonEvaluation lesson)
-              , Disclosure.Action Icon.IcnEdit (OpenLessonEditorModal lesson)
-              , Disclosure.Action Icon.IcnReorder (StartReorder lesson.id)
-              , Disclosure.DestructiveAction Icon.IcnDelete (DeleteLesson lesson.id)
+              -- Normal mode: Export, Pin, Edit, Reorder, Hold-to-Delete
+              [ Disclosure.action Icon.IcnExport (ExportLesson lesson)
+              , Disclosure.action Icon.IcnPin (PinLessonEvaluation lesson)
+              , Disclosure.action Icon.IcnEdit (OpenLessonEditorModal lesson)
+              , Disclosure.action Icon.IcnReorder (StartReorder lesson.id)
+              , Disclosure.holdDestructiveAction HoldDeleteLesson m.holdDeleteLesson lesson.id
               ]
             Just fromId
               | fromId == lesson.id ->
                   -- Source lesson: Cancel
-                  [Disclosure.DestructiveAction Icon.IcnCancel CancelReorder]
+                  [Disclosure.destructiveAction Icon.IcnCancel CancelReorder]
               | otherwise ->
                   -- Target lesson: Before/After
-                  [ Disclosure.Action Icon.IcnArrowUp (ReorderTo (Before lesson.id))
-                  , Disclosure.Action Icon.IcnArrowDown (ReorderTo (After lesson.id))
+                  [ Disclosure.action Icon.IcnArrowUp (ReorderTo (Before lesson.id))
+                  , Disclosure.action Icon.IcnArrowDown (ReorderTo (After lesson.id))
                   ]
        in Disclosure.disclosure (ToggleLessonExpansion lesson.id) $
             Disclosure.contents titleView isExpanded (viewExpandedLesson m lesson) actions
