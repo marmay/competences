@@ -156,41 +156,41 @@ initFromLayout layout infos = PrintModalModel
 -- 'total' is the number of navigable items (expanded tasks for continuous, pages for grid).
 updatePrintModal :: PrintModalAction -> Int -> PrintModalModel -> PrintModalModel
 updatePrintModal (SetPaperSize ps) _total m =
-  m {settings = m.settings {paperSize = ps}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {paperSize = ps}, pageGrouping = []}
 updatePrintModal (SetOrientation o) _total m =
-  m {settings = m.settings {orientation = o}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {orientation = o}, pageGrouping = []}
 updatePrintModal (SetFontSize fs) _total m =
-  m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {baseFontSize = max 6.0 (min 20.0 fs)}, pageGrouping = []}
 updatePrintModal (SetTaskLayout tl) _total m =
-  m {settings = m.settings {taskLayout = tl}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {taskLayout = tl}, pageGrouping = []}
 updatePrintModal (SetGridRows r) _total m =
   let gc = currentGridConfig m.settings
       gc' = gc {rows = clampGrid r}
-   in m {settings = m.settings {taskLayout = Grid gc'}, previewTaskIndex = 0}
+   in m {settings = m.settings {taskLayout = Grid gc'}, pageGrouping = []}
 updatePrintModal (SetGridCols c) _total m =
   let gc = currentGridConfig m.settings
       gc' = gc {cols = clampGrid c}
-   in m {settings = m.settings {taskLayout = Grid gc'}, previewTaskIndex = 0}
+   in m {settings = m.settings {taskLayout = Grid gc'}, pageGrouping = []}
 updatePrintModal (SetGroupedCopies n) _total m =
-  m {settings = m.settings {groupedCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {groupedCopies = clampCopies n}, pageGrouping = []}
 updatePrintModal (SetTotalCopies n) _total m =
-  m {settings = m.settings {totalCopies = clampCopies n}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {totalCopies = clampCopies n}, pageGrouping = []}
 updatePrintModal (SetShowTitle b) _total m =
-  (m & #contentSettings .~ m.contentSettings {showTitle = b}) {pageGrouping = [], previewTaskIndex = 0}
+  (m & #contentSettings .~ m.contentSettings {showTitle = b}) {pageGrouping = []}
 updatePrintModal (SetShowHeader b) _total m =
   m {settings = m.settings {showHeader = b}}
 updatePrintModal (SetShowFooter b) _total m =
   m {settings = m.settings {showFooter = b}}
 updatePrintModal (SetShowNameField b) _total m =
-  (m & #contentSettings .~ m.contentSettings {showNameField = b}) {pageGrouping = [], previewTaskIndex = 0}
+  (m & #contentSettings .~ m.contentSettings {showNameField = b}) {pageGrouping = []}
 updatePrintModal (SetTaskHeaderStyle s) _total m =
   m {settings = m.settings {taskHeaderStyle = s}}
 updatePrintModal (SetDuplexLayout b) _total m =
   m {settings = m.settings {duplexLayout = b}}
 updatePrintModal (SetDistributeLastPage b) _total m =
-  m {settings = m.settings {distributeLastPage = b}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {distributeLastPage = b}, pageGrouping = []}
 updatePrintModal (SetFontFamily ff) _total m =
-  m {settings = m.settings {fontFamily = ff}, pageGrouping = [], previewTaskIndex = 0}
+  m {settings = m.settings {fontFamily = ff}, pageGrouping = []}
 updatePrintModal (SetCustomFooter mf) _total m =
   m {footerDraft = mf}
 updatePrintModal (SetPoints tid mp) _total m =
@@ -213,36 +213,30 @@ updatePrintModal (SwitchTab tab) _total m =
   m {activeTab = tab}
 updatePrintModal (ApplyPreset preset) _total m =
   let cs = applyPreset preset m.taskInfos
-   in m {contentSettings = cs, selectedPreset = preset, pageGrouping = [], previewTaskIndex = 0, footerDraft = cs.customFooter}
+   in m {contentSettings = cs, selectedPreset = preset, pageGrouping = [], footerDraft = cs.customFooter}
 updatePrintModal (ToggleDescription tid) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {showDescription = not tcs.showDescription}) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 updatePrintModal (ToggleSolution tid sid) _total m =
   m { contentSettings = modifyTaskSetting tid (toggleSolution sid) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 updatePrintModal (ToggleGrid tid) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {gridHeightMm = case tcs.gridHeightMm of Nothing -> Just defaultGridHeightMm; Just _ -> Nothing}) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 updatePrintModal (SetGridHeight tid h) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {gridHeightMm = Just (max 5.0 (min 200.0 h))}) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 updatePrintModal (ToggleInlineAnswer tid) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {inlineAnswer = not tcs.inlineAnswer}) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 updatePrintModal (SetItemsPerRow tid n) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {itemsPerRow = max 1 (min 4 n)}) m.contentSettings
     , pageGrouping = []
-    , previewTaskIndex = 0
     }
 
 -- | Modify a task's content setting in the map
@@ -287,6 +281,8 @@ needsRemeasure (SetFontSize _) = True
 needsRemeasure (SetGroupedCopies _) = True
 needsRemeasure (SetTotalCopies _) = True
 needsRemeasure (SetTaskLayout _) = True
+needsRemeasure (SetGridRows _) = True
+needsRemeasure (SetGridCols _) = True
 needsRemeasure (SetShowTitle _) = True
 needsRemeasure (SetShowNameField _) = True
 needsRemeasure (SetFontFamily _) = True
