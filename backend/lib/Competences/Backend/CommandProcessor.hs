@@ -21,8 +21,9 @@ module Competences.Backend.CommandProcessor
 where
 
 import Competences.Backend.Database qualified as DB
-import Competences.Command (Command, handleCommand)
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), ModifyCommand (..), handleCommand)
 import Competences.Command.Audience (CommandAudience (..), commandAudience)
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), UserRole (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
@@ -50,6 +51,7 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Pool (Pool)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.UUID.V4 qualified as UUID
 import Database.PostgreSQL.Simple (Connection)
@@ -167,7 +169,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
                 then
                   let newCount = cs.commandCounter + 1
                       isCheckpoint = newCount >= checksumInterval
-                  in Just (cs.queue, newCount, isCheckpoint)
+                  in Just (cs.queue, newCount, isCheckpoint, cs.clientUserId)
                 else Nothing
             )
             clients
@@ -182,15 +184,17 @@ processorLoop inputQ docVar genVar pool clientsRef = go
             pure Nothing
           Right (doc', _affected) -> do
             writeTVar docVar doc'
-            -- Push to all affected client queues in the same transaction
+            let cmdsFor = clientCommands doc cmd
+                pushItem q ck c = writeTQueue q ClientQueueItem
+                  { commandId = cmdId, userId = uid, command = c, checkpoint = ck }
+            -- Push per-client commands; checkpoint flag goes on the last item
             mapM_
-              (\(_connId, (q, _count, isCheckpoint)) ->
-                writeTQueue q ClientQueueItem
-                  { commandId = cmdId
-                  , userId = uid
-                  , command = cmd
-                  , checkpoint = isCheckpoint
-                  }
+              (\(_connId, (q, _count, isCheckpoint, clientUid)) ->
+                case cmdsFor clientUid of
+                  [single] -> pushItem q isCheckpoint single
+                  cmds -> do
+                    mapM_ (pushItem q False) (init cmds)
+                    pushItem q isCheckpoint (last cmds)
               )
               (Map.toList clientActions)
             putTMVar responseVar (Right cmdId)
@@ -202,7 +206,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
         Just () -> do
           -- Update command counters for clients that received the command
           let updateCounter connId cs = case Map.lookup connId clientActions of
-                Just (_, newCount, isCheckpoint) ->
+                Just (_, newCount, isCheckpoint, _) ->
                   cs { commandCounter = if isCheckpoint then 0 else newCount }
                 Nothing -> cs
           modifyIORef' clientsRef (Map.mapWithKey updateCounter)
@@ -230,3 +234,22 @@ isVisibleTo Student uid aud = case aud of
   AudienceTeachers -> False
   AudienceTeachersAnd recips -> uid `elem` recips
   AudienceOnly recips -> uid `elem` recips
+
+-- | Compute the command list a specific client should receive.
+-- When assignment studentIds change, newly added students get a supplementary
+-- Create before the Modify (so the entity exists when the patch applies),
+-- and removed students get a Delete after (to clean up the now-invisible entity).
+clientCommands :: Document -> Command -> UserId -> [Command]
+clientCommands oldDoc cmd@(Assignments (OnAssignments (Modify aid (Release patch)))) =
+  case patch.studentIds of
+    Just (oldIds, newIds)
+      | oldIds /= newIds
+      , Just preAssignment <- Ix.getOne (oldDoc.assignments Ix.@= aid) ->
+          let added = Set.difference newIds oldIds
+              removed = Set.difference oldIds newIds
+           in \clientUid ->
+                [Assignments (OnAssignments (Create preAssignment)) | clientUid `Set.member` added]
+                  ++ [cmd]
+                  ++ [Assignments (OnAssignments (Delete aid)) | clientUid `Set.member` removed]
+    _ -> const [cmd]
+clientCommands _ cmd = const [cmd]
