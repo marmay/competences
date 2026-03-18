@@ -13,6 +13,7 @@ import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
 import Competences.Document.LessonNotes (LessonNotes (..))
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
+import Competences.Query.Assignment (getAssignmentOrAssignmentDraft)
 import Competences.Query.Lesson qualified as QLesson
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
@@ -30,6 +31,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -38,6 +40,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.Maybe (isNothing)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
@@ -385,17 +388,20 @@ detailComponent r initialPlan =
             ]
 
     viewAssignmentSummary doc aId =
-      case Ix.getOne (doc.assignments Ix.@= aId) of
-        Nothing -> MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text "(Unknown assignment)"]
-        Just a ->
-          let AssignmentName nameText = a.name
-           in MH.div_
-                [class_ "text-sm p-1 rounded hover:bg-muted/30"]
-                [ Layout.hFlow
-                    (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
-                    [ M.text $ M.ms nameText
-                    , Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a))
+      let mPublished = Ix.getOne (doc.assignments Ix.@= aId)
+       in case getAssignmentOrAssignmentDraft doc aId of
+            Nothing -> MH.div_ [class_ "text-sm text-muted-foreground italic"] [M.text "(Unknown assignment)"]
+            Just a ->
+              let isDraft = isNothing mPublished
+                  AssignmentName nameText = a.name
+               in MH.div_
+                    [class_ "text-sm p-1 rounded hover:bg-muted/30"]
+                    [ Layout.hFlow
+                        (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
+                        ( [ M.text $ M.ms nameText ]
+                          <> [ Badge.secondary (Badge.badgeText (C.translate' C.LblDraft)) | isDraft ]
+                          <> [ Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a)) ]
+                        )
                     ]
-                ]
 
 

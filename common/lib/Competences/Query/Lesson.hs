@@ -15,6 +15,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Evidence (..), Lesson (..), LessonId, MesoPlan, MesoPlanId, Order)
+import Competences.Query.Assignment (getAssignmentOrAssignmentDraft)
 import Competences.Document.Task (TaskId)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
@@ -34,10 +35,10 @@ mesoPlanLessons :: Document -> MesoPlanId -> [Lesson]
 mesoPlanLessons doc planId =
   Ix.toAscList (Proxy @Order) $ doc.lessons Ix.@= planId
 
--- | All assignments linked to a lesson.
+-- | All assignments linked to a lesson (published or draft).
 lessonAssignments :: Document -> Lesson -> [Assignment]
 lessonAssignments doc lesson =
-  mapMaybe (\aid -> Ix.getOne (doc.assignments Ix.@= aid)) lesson.assignments
+  mapMaybe (getAssignmentOrAssignmentDraft doc) lesson.assignments
 
 -- | All evidences collected during a lesson.
 lessonEvidences :: Document -> LessonId -> [Evidence]

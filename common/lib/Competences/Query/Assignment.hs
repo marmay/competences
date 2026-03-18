@@ -4,6 +4,7 @@
 module Competences.Query.Assignment
   ( -- * Single-entity lookup
     getAssignment
+  , getAssignmentOrAssignmentDraft
     -- * User-scoped queries
   , userAssignments
     -- * Status queries
@@ -20,6 +21,7 @@ module Competences.Query.Assignment
   )
 where
 
+import Control.Applicative ((<|>))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentId, AssignmentIxs, Document (..))
 import Competences.Document.Submission (Submission (..), SubmissionKind (..))
@@ -37,6 +39,12 @@ import Data.Time (Day, diffDays, fromGregorian, utctDay)
 -- | Lookup an assignment by primary key.
 getAssignment :: Document -> AssignmentId -> Maybe Assignment
 getAssignment doc assignmentId = Ix.getOne $ doc.assignments Ix.@= assignmentId
+
+-- | Lookup an assignment in published or draft collections.
+getAssignmentOrAssignmentDraft :: Document -> AssignmentId -> Maybe Assignment
+getAssignmentOrAssignmentDraft doc assignmentId =
+  Ix.getOne (doc.assignments Ix.@= assignmentId)
+    <|> Ix.getOne (doc.draftAssignments Ix.@= assignmentId)
 
 -- | All assignments for a user (as IxSet for further filtering).
 userAssignments :: Document -> UserId -> Ix.IxSet AssignmentIxs Assignment

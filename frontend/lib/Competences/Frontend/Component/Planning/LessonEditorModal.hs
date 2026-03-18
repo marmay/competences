@@ -347,7 +347,7 @@ lessonEditorModal r lesson' lessonNotesIds wm =
               "lesson-editor-assignment-selector"
               assignmentSearchConfig
               m.selectedAssignments
-              (selectorTransformedLens (.id) id #selectedAssignments)
+              (selectorTransformedLens (.assignment.id) id #selectedAssignments)
           )
 
     lessonNotesSection syncCtx m =
@@ -455,19 +455,36 @@ lessonEditorModal r lesson' lessonNotesIds wm =
 -- Assignment search config
 -- ============================================================================
 
-assignmentSearchConfig :: SearchSelectConfig Assignment AssignmentId
+-- | An assignment tagged with whether it's a draft or published.
+data TaggedAssignment = TaggedAssignment
+  { assignment :: !Assignment
+  , isDraft :: !Bool
+  }
+  deriving (Eq, Show)
+
+assignmentSearchConfig :: SearchSelectConfig TaggedAssignment AssignmentId
 assignmentSearchConfig =
   SearchSelectConfig
     { projectItems = \doc ->
-        sortOn (.assignmentDate) $ filter eligible $ Ix.toList doc.assignments
-    , itemId = (.id)
-    , itemLabel = \a -> unName a.name <> " (" <> Text.pack (show $ C.formatDay a.assignmentDate) <> ")"
+        let published = map (\a -> TaggedAssignment a False) $ filter eligible $ Ix.toList doc.assignments
+            drafts = map (\a -> TaggedAssignment a True) $ filter eligible $ Ix.toList doc.draftAssignments
+         in sortOn (\ta -> ta.assignment.assignmentDate) (published <> drafts)
+    , itemId = (.assignment.id)
+    , itemLabel = \ta ->
+        let a = ta.assignment
+         in unName a.name
+              <> " (" <> Text.pack (show $ C.formatDay a.assignmentDate) <> ")"
+              <> if ta.isDraft then " (" <> M.fromMisoString (C.translate' C.LblDraft) <> ")" else ""
     , metaFilters =
-        [ keywordsFilter ["hü", "hausübung"] (\a -> a.activityType == HomeExercise)
-        , keywordsFilter ["sü", "schulübung"] (\a -> a.activityType == SchoolExercise)
+        [ keywordsFilter ["hü", "hausübung"] (\ta -> ta.assignment.activityType == HomeExercise)
+        , keywordsFilter ["sü", "schulübung"] (\ta -> ta.assignment.activityType == SchoolExercise)
+        , keywordsFilter ["entwurf", "draft"] (.isDraft)
         , MetaFilter {hint = "@datum", parser = dateFilter}
         ]
-    , viewTag = \a -> (Icon.IcnAssignment, M.ms $ unName a.name)
+    , viewTag = \ta ->
+        let label = M.ms (unName ta.assignment.name)
+                      <> if ta.isDraft then " (" <> C.translate' C.LblDraft <> ")" else ""
+         in (Icon.IcnAssignment, label)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectAssignments
     , selectionOrder = AutoOrder id
     , tagLayout = TagsInline
@@ -478,10 +495,10 @@ assignmentSearchConfig =
     unName (AssignmentName t) = t
 
     -- @06.03 → matches assignments with that date substring
-    dateFilter :: Text -> Maybe (Assignment -> Bool)
+    dateFilter :: Text -> Maybe (TaggedAssignment -> Bool)
     dateFilter t
       | Text.any (\c -> c == '.' || (c >= '0' && c <= '9')) t && Text.length t >= 2 =
-          Just (\a -> Text.toLower t `Text.isInfixOf` Text.toLower (Text.pack $ show $ C.formatDay a.assignmentDate))
+          Just (\ta -> Text.toLower t `Text.isInfixOf` Text.toLower (Text.pack $ show $ C.formatDay ta.assignment.assignmentDate))
       | otherwise = Nothing
 
 -- ============================================================================
