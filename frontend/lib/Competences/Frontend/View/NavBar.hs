@@ -102,7 +102,10 @@ studentCategories =
 -- | Extra categories shown only in the burger menu (teacher only).
 teacherExtraCategories :: [(MisoString, [NavEntry])]
 teacherExtraCategories =
-  [ ("Statistik", [NavEntry Icon.IcnProgress (C.translate' C.LblStatisticsOverview) StatisticsOverview])
+  [ ("Statistik",
+      [ NavEntry Icon.IcnProgress (C.translate' C.LblStatisticsOverview) StatisticsOverview
+      , NavEntry Icon.IcnSocialFormIndividual (C.translate' C.LblParticipationTimeline) ParticipationTimeline
+      ])
   , ("Benutzer", [NavEntry Icon.IcnView (C.translate' C.LblManageUsers) ManageUsers])
   ]
 

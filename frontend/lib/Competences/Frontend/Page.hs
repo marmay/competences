@@ -17,6 +17,7 @@ data Page
   | ViewAssignments
   | ManageAssignments
   | StatisticsOverview
+  | ParticipationTimeline
   | ManageUsers
   deriving (Eq, Show)
 
@@ -33,6 +34,7 @@ instance M.Router Page where
         , M.path "assignments" $> ViewAssignments
         , M.path "manage-assignments" $> ManageAssignments
         , M.path "statistics-overview" $> StatisticsOverview
+        , M.path "participation-timeline" $> ParticipationTimeline
         , M.path "users" $> ManageUsers
         ]
   fromRoute CompetenceGrid = [M.toPath "app", M.toPath "grid"]
@@ -44,6 +46,7 @@ instance M.Router Page where
   fromRoute ViewAssignments = [M.toPath "app", M.toPath "assignments"]
   fromRoute ManageAssignments = [M.toPath "app", M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "app", M.toPath "statistics-overview"]
+  fromRoute ParticipationTimeline = [M.toPath "app", M.toPath "participation-timeline"]
   fromRoute ManageUsers = [M.toPath "app", M.toPath "users"]
 
 instance M.ToKey Page where

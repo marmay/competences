@@ -115,6 +115,7 @@ data Label
   | LblStatistics
   | LblAnalytics
   | LblStatisticsOverview
+  | LblParticipationTimeline
   | LblStatisticsIndividual
   | LblTotalExercises
   | LblTotalObservations
@@ -961,6 +962,7 @@ defaultTranslation LblCompetenceGrid = "Kompetenzraster"
 defaultTranslation LblStatistics = "Statistik"
 defaultTranslation LblAnalytics = "Analytics"
 defaultTranslation LblStatisticsOverview = "Statistik-Überblick"
+defaultTranslation LblParticipationTimeline = "Mitarbeit-Chronologie"
 defaultTranslation LblStatisticsIndividual = "Meine Statistik"
 defaultTranslation LblTotalExercises = "Gesamtanzahl Übungen"
 defaultTranslation LblTotalObservations = "Gesamtanzahl Beobachtungen"

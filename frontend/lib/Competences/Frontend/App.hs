@@ -16,6 +16,7 @@ import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
 import Competences.Frontend.Component.LessonNotes (LessonNotesMode (..), lessonNotesComponent)
 import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
+import Competences.Frontend.Component.ParticipationTimeline (participationTimelineComponent)
 import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
 import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
 import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
@@ -133,6 +134,7 @@ mkApp ir initialUri =
         ViewAssignments -> viewAssignments
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
+        ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
 
     competenceGrid = mounted CompetenceGrid $ competenceGridComponent ir defaultGridMode availableGridModes
@@ -154,6 +156,7 @@ mkApp ir initialUri =
     viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
     manageAssignments = mounted ManageAssignments $ assignmentComponent ir model.connectedUser
     statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
+    participationTimeline = mounted ParticipationTimeline $ participationTimelineComponent ir
     manageUsers = mounted ManageUsers $ userListEditorComponent ir
 
     mounted key = inlineComponentAttrs (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
