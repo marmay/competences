@@ -64,22 +64,30 @@ substituteTemplate fc totalPts taskPoints tmpl = go tmpl
           renderSignatureLine : go rest
       | Just rest <- T.stripPrefix "{{grade}}" t =
           renderGradeField : go rest
-      | "{{point distribution:" `T.isPrefixOf` t =
-          let afterPrefix = T.drop (T.length "{{point distribution:") t
-           in case T.breakOn "}}" afterPrefix of
-                (params, rest')
-                  | not (T.null rest') ->
-                      renderPointDistribution totalPts params : go (T.drop 2 rest')
-                _ -> [M.text (ms t)] -- malformed, render as-is
+      | Just (val, rest') <- parameterized "{{vspace:" t =
+          renderVSpace val : go rest'
+      | Just (params, rest') <- parameterized "{{point distribution:" t =
+          renderPointDistribution totalPts params : go rest'
       | otherwise =
           let (before, after) = T.breakOn "{{" t
            in if T.null before
                 then [M.text (ms (T.take 2 after))] <> go (T.drop 2 after) -- skip unrecognized {{
                 else [renderTextChunk before] <> go after
+    -- | Parse a parameterized placeholder like @{{prefix:VALUE}}@,
+    -- returning the value and the text after the closing @}}@.
+    parameterized :: T.Text -> T.Text -> Maybe (T.Text, T.Text)
+    parameterized prefix s = do
+      afterPrefix <- T.stripPrefix prefix s
+      let (val, rest') = T.breakOn "}}" afterPrefix
+      if T.null rest' then Nothing else Just (val, T.drop 2 rest')
     renderTextChunk txt =
       M.div_
         [class_ "prose prose-sm max-w-none"]
         [renderMarkdownText fc txt]
+
+-- | Render a vertical space div with the given CSS length value.
+renderVSpace :: T.Text -> M.View model action
+renderVSpace val = M.div_ [MC.style_ [("height", ms val)]] []
 
 -- | Render a horizontal points table.
 -- When 'klFehler' is True, an extra "Kl. Fehler" row is appended.

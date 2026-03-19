@@ -46,6 +46,7 @@ blockP =
     , orderedListP
     , bulletListP
     , admonitionP
+    , vspaceP
     , paragraphP
     ]
 
@@ -441,6 +442,15 @@ parseAdmonitionType t = case T.toLower (T.strip t) of
   "example" -> Example
   "beispiel" -> Example
   _ -> Remark -- fallback
+
+-- | Vertical space: {{vspace:VALUE}}
+vspaceP :: Parser Block
+vspaceP = try $ do
+  _ <- string "{{vspace:"
+  val <- takeWhile1P (Just "vspace value") (/= '}')
+  _ <- string "}}"
+  _ <- optional eol
+  pure (VSpace val)
 
 -- | Paragraph: inline content terminated by blank line or eof
 paragraphP :: Parser Block

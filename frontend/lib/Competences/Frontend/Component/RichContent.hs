@@ -264,6 +264,7 @@ extractFromBlock = \case
   MD.MappingBlock leftItems rightItems ->
     concatMap (concatMap extractFromBlock) leftItems
       ++ concatMap (concatMap extractFromBlock) rightItems
+  MD.VSpace _ -> []
   where
     resolveColor c =
       let hex = resolveStrokeColor c
@@ -337,6 +338,8 @@ renderBlock resolver symbols = \case
     renderChoiceBlock resolver symbols "rounded-sm" items
   MD.MappingBlock leftItems rightItems ->
     renderMappingBlock resolver symbols leftItems rightItems
+  MD.VSpace val ->
+    M.div_ [MC.style_ [("height", ms val)]] []
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)

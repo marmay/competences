@@ -107,6 +107,7 @@ blockToText = \case
       <> "\n+++\n"
       <> T.intercalate "\n---\n" (map blocksToText rightItems)
       <> "\n```"
+  VSpace val -> "{{vspace:" <> val <> "}}"
 
 -- | Serialize cloze options back to markdown.
 clozeOptionsToText :: ClozeOptions -> Text

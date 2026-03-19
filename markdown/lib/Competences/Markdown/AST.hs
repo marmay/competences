@@ -69,6 +69,8 @@ data Block
     ChoiceBlock !ChoiceType ![[Block]]
   | -- | Mapping block: left items and right items to be matched
     MappingBlock ![[Block]] ![[Block]]
+  | -- | Vertical space with CSS length value (e.g. "2em", "10mm")
+    VSpace !Text
   deriving (Eq, Show)
 
 -- | Options for a cloze block
