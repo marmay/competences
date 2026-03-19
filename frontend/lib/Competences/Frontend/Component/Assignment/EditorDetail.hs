@@ -4,7 +4,6 @@ module Competences.Frontend.Component.Assignment.EditorDetail
   )
 where
 
-import Control.Applicative ((<|>))
 import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..), TasksCommand (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
@@ -45,6 +44,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
+import Competences.Query.Task (getTaskOrDraft)
 import Data.List (sortOn)
 import Data.Proxy (Proxy (..))
 import Data.Map qualified as Map
@@ -130,18 +130,15 @@ editorWrapperComponent r assignment =
               Published -> Ix.getOne (doc.assignments Ix.@= assignment.id)
               Draft -> Ix.getOne (doc.draftAssignments Ix.@= assignment.id)
             taskIds = maybe [] (.tasks) mAssignment
-            lookupTask tid =
-              Ix.getOne (doc.tasks Ix.@= tid)
-                <|> Ix.getOne (doc.draftTasks Ix.@= tid)
             infos =
               [ RenumberTaskInfo
                   { taskId = t.id
                   , identifier = t.identifier
                   , title = t.title
-                  , isMultiAssignment = False
+                  , isMultiAssignment = Ix.size (doc.assignments Ix.@= tid) + Ix.size (doc.draftAssignments Ix.@= tid) > 1
                   }
               | tid <- taskIds
-              , Just t <- [lookupTask tid]
+              , Just t <- [getTaskOrDraft doc tid]
               ]
         openRenumberModal r infos
 

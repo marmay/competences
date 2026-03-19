@@ -24,6 +24,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
+import Competences.Query.Task (getTaskOrDraft)
 import Competences.Document.Id (Id)
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence
@@ -43,7 +44,6 @@ import Competences.Document.Task
   ( Task (..)
   , TaskAttributes (..)
   , TaskAttributesOverride (..)
-  , TaskId
   , TaskIdentifier (..)
   , TaskPurpose (..)
   , TaskType (..)
@@ -140,20 +140,13 @@ exportAssignment isDraft doc assignment =
           <> activityTypeToGerman assignment.activityType
           <> "\n"
           <> statusLine
-      tasks = mapMaybe (lookupTask doc) assignment.tasks
+      tasks = mapMaybe (getTaskOrDraft doc) assignment.tasks
       taskSections = T.intercalate "\n" $ map (exportTaskAsSubsection doc) tasks
    in header <> descSection <> metaSection <> "\n" <> taskSections
 
 -- | Format a Day as ISO date string
 formatDay :: Day -> Text
 formatDay = T.pack . formatTime defaultTimeLocale "%Y-%m-%d"
-
--- | Look up a task by ID, searching both published and draft collections
-lookupTask :: Document -> TaskId -> Maybe Task
-lookupTask doc tid =
-  case Ix.getOne $ doc.tasks Ix.@= tid of
-    Just t -> Just t
-    Nothing -> Ix.getOne $ doc.draftTasks Ix.@= tid
 
 -- | Export a task as a subsection (### level) within an assignment
 exportTaskAsSubsection :: Document -> Task -> Text

@@ -10,6 +10,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Monad (when)
+import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (mapMaybe)
 import Competences.Command (Command (..))
@@ -323,10 +324,7 @@ viewerComponent r user assignment wm =
               <|> Ix.getOne (doc.draftAssignments Ix.@= asmt.id)
 
           -- Look up tasks preserving assignment list order
-          relevantTasks = mapMaybe (\tid ->
-              Ix.getOne (doc.tasks Ix.@= tid)
-                <|> Ix.getOne (doc.draftTasks Ix.@= tid)
-            ) updatedAssignment.tasks
+          relevantTasks = mapMaybe (getTaskOrDraft doc) updatedAssignment.tasks
 
           -- Build TaskWithSolutions for each task
           taskGroups = doc.taskGroups
