@@ -47,6 +47,7 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button (ButtonDisabled (..))
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability qualified as Color
+import Competences.Frontend.View.Color.Participation qualified as PColor
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table
@@ -263,7 +264,7 @@ lessonEvaluatorComponent r lessonId =
           isActive = case mRecord of
             Just pr -> pr.level == pLevel
             Nothing -> False
-          icn = participationIcon pType pLevel
+          icn = PColor.participationLevelIcon pType pLevel
           tooltipText = C.translate' (C.LblParticipationLevel pType pLevel)
           action = if isAbsent then Button.button icn Disabled else Button.button icn (ToggleParticipation userId pType pLevel)
        in Tooltip.withTooltip (Tooltip.PlainTooltip tooltipText) $
@@ -280,10 +281,3 @@ lessonEvaluatorComponent r lessonId =
       Tooltip.withTooltip' (Tooltip.PlainTooltip <$> b.resultView.tooltipContent) $
         Badge.badge (Color.abilityPalette b.ability) (Badge.badgeText b.resultView.badgeText)
 
-    -- \| Icon for participation button based on type and level
-    participationIcon :: ParticipationType -> ParticipationLevel -> Icon.Icon
-    participationIcon pType pLevel = case (pType, pLevel) of
-      (PoorWorkEthic, ParticipationLevel1) -> Icon.IcnMinus
-      (PoorWorkEthic, ParticipationLevel2) -> Icon.IcnMinusMinus
-      (_, ParticipationLevel1) -> Icon.IcnPlus
-      (_, ParticipationLevel2) -> Icon.IcnPlusPlus

@@ -44,6 +44,7 @@
 @source inline("text-completion-{open,progress,done,assessed,failed}-accent");
 @source inline("bg-asg-{completed,corrected,submitted,void,pending,overdue}");
 @source inline("text-asg-{completed,corrected,submitted,void,pending,overdue}-accent");
+@source inline("text-participation-{positive,negative}{,-accent}");
 @source inline("bg-{green,amber,red}-{500,600,700}");
 @source inline("text-{green,amber,red}-{500,600,700}");
 @source inline("bg-{gray,green,blue,yellow,orange,emerald,teal,rose}-{50,100,200,300,400,500,600,700,800,900}");
@@ -227,6 +228,12 @@
   --color-completion-assessed-accent: var(--completion-assessed-accent);
   --color-completion-failed: var(--completion-failed);
   --color-completion-failed-accent: var(--completion-failed-accent);
+
+  /* Participation observation palettes: Base (Level1 icons), Accent (Level2 icons) */
+  --color-participation-positive: var(--participation-positive);
+  --color-participation-positive-accent: var(--participation-positive-accent);
+  --color-participation-negative: var(--participation-negative);
+  --color-participation-negative-accent: var(--participation-negative-accent);
 }
 
 /*
@@ -390,6 +397,15 @@
   --completion-failed: oklch(0.885 0.062 18);  /* red-300 */
   --completion-failed-accent: oklch(0.577 0.245 27);  /* red-500 */
 
+  /* Participation observation colors - icon shades
+   *   --participation-{name}: lighter shade (Level1 icons)
+   *   --participation-{name}-accent: darker shade (Level2 icons)
+   */
+  --participation-positive: oklch(0.723 0.153 152);         /* green-500 */
+  --participation-positive-accent: oklch(0.527 0.154 150);  /* green-700 */
+  --participation-negative: oklch(0.704 0.191 22);          /* red-400 */
+  --participation-negative-accent: oklch(0.577 0.245 27);   /* red-600 */
+
   /* Assignment completion colors - for statistics stacked bars
    * Each palette has:
    *   --asg-{name}: base color (background)
@@ -470,6 +486,12 @@
   --ability-danger: oklch(0.450 0.200 27);  /* red-800 (dark bg) */
   --ability-danger-accent: oklch(0.885 0.062 18);  /* red-200 (light text) */
   --ability-danger-alt: oklch(0.380 0.170 27);  /* darker red (stripe) */
+
+  /* Participation observation colors - dark mode */
+  --participation-positive: oklch(0.723 0.153 152);         /* green-500 (stays vivid) */
+  --participation-positive-accent: oklch(0.871 0.119 142);  /* green-200 (lighter for dark bg) */
+  --participation-negative: oklch(0.704 0.191 22);          /* red-400 (stays vivid) */
+  --participation-negative-accent: oklch(0.885 0.062 18);   /* red-200 (lighter for dark bg) */
 }
 
 /* Claude theme - warm orange accent */

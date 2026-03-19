@@ -8,40 +8,55 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..))
+import Competences.Document.Absence (Absence (..))
 import Competences.Document.Lesson (Lesson (..), LessonId)
-import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationRecord (..), ParticipationType (..))
+import Competences.Document.ParticipationRecord (ParticipationLevel (..), ParticipationRecord (..), ParticipationType (..), allParticipationTypes)
+import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext, subscribeDocument)
+import Competences.Frontend.View.Color (PaletteColor (..), textClass)
+import Competences.Frontend.View.Color.Participation qualified as Color
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.User qualified as QUser
-import Data.List (sortBy)
+import Data.List (partition, sortOn)
+import Data.Maybe (isJust)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (mapMaybe)
-import Data.Ord (Down (..), comparing)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 
--- | A single timeline entry for one participation record
-data TimelineEntry = TimelineEntry
-  { day :: !(Maybe Day)
-  , participationType :: !ParticipationType
-  , level :: !ParticipationLevel
-  , remark :: !(Maybe Text)
-  , lessonTitle :: !Text
+-- ---------------------------------------------------------------------------
+-- Model
+-- ---------------------------------------------------------------------------
+
+-- | A column in the participation table, representing one lesson.
+data LessonColumn = LessonColumn
+  { lessonId :: !LessonId
+  , date :: !(Maybe Day)
+  , title :: !Text
   }
   deriving (Eq, Show)
 
--- | Model: per-student list of timeline entries sorted by day
-newtype Model = Model
-  { byUser :: Map.Map User [TimelineEntry]
+-- | A single cell entry (level + optional remark).
+data CellEntry = CellEntry
+  { level :: !ParticipationLevel
+  , remark :: !(Maybe Text)
+  }
+  deriving (Eq, Show)
+
+-- | The participation timeline model: students x lessons table.
+data Model = Model
+  { students :: ![User]
+  , lessons :: ![LessonColumn]
+  , records :: !(Map.Map (UserId, LessonId, ParticipationType) CellEntry)
+  , absences :: !(Set.Set (UserId, LessonId))
   }
   deriving (Eq, Generic, Show)
 
@@ -50,7 +65,11 @@ data Action
   deriving (Eq, Show)
 
 emptyModel :: Model
-emptyModel = Model {byUser = Map.empty}
+emptyModel = Model {students = [], lessons = [], records = Map.empty, absences = Set.empty}
+
+-- ---------------------------------------------------------------------------
+-- Component
+-- ---------------------------------------------------------------------------
 
 participationTimelineComponent :: SyncContext -> M.Component p Model Action
 participationTimelineComponent docRef =
@@ -69,106 +88,180 @@ participationTimelineComponent docRef =
     view m =
       MH.div_
         [class_ "h-full min-h-0 overflow-y-auto"]
-        [ Layout.vFlow'
+        [ MH.div_
+            [class_ "space-y-4 p-4"]
             [ Typography.h2 (C.translate' C.LblParticipationTimeline)
-            , Layout.vFlow
-                Layout.gapS
-                (map (studentRow m) sortedStudents)
+            , if null m.lessons
+                then MH.div_ [class_ "text-muted-foreground text-sm"] [M.text "—"]
+                else tableView m
             ]
         ]
-      where
-        sortedStudents = sortBy (comparing (.name)) $ Map.keys m.byUser
 
--- | Build the timeline model from a document
+-- ---------------------------------------------------------------------------
+-- Compute timeline
+-- ---------------------------------------------------------------------------
+
 computeTimeline :: Document -> Model
 computeTimeline doc =
-  let lessonInfo :: Map.Map LessonId (Maybe Day, Text)
-      lessonInfo =
-        Map.fromList $
-          map (\l -> (l.id, (l.date, l.title))) $
-            Ix.toList doc.lessons
+  let -- Build triple-key map of all participation records
+      allRecords = Ix.toList doc.participationRecords
+      recordMap =
+        Map.fromList
+          [ ((pr.userId, pr.lessonId, pr.participationType), CellEntry pr.level pr.remark)
+          | pr <- allRecords
+          ]
 
-      students = QUser.students doc
+      -- Build absence set
+      allAbsences = Ix.toList doc.absences
+      absenceSet = Set.fromList [(a.userId, a.lessonId) | a <- allAbsences]
 
-      buildEntries :: User -> [TimelineEntry]
-      buildEntries user =
-        let records = Ix.toList $ doc.participationRecords Ix.@= user.id
-            toEntry pr = case Map.lookup pr.lessonId lessonInfo of
-              Just (mDay, title) ->
-                Just $
-                  TimelineEntry
-                    { day = mDay
-                    , participationType = pr.participationType
-                    , level = pr.level
-                    , remark = pr.remark
-                    , lessonTitle = title
-                    }
-              Nothing -> Nothing
-            entries = mapMaybe toEntry records
-         in sortBy (comparing dayKey) entries
+      -- Determine which lessons are referenced (by records or absences)
+      referencedIds =
+        Set.fromList [pr.lessonId | pr <- allRecords]
+          <> Set.fromList [a.lessonId | a <- allAbsences]
 
-      dayKey :: TimelineEntry -> (Down Bool, Maybe Day)
-      dayKey e = case e.day of
-        Just d -> (Down True, Just d)
-        Nothing -> (Down False, Nothing)
+      -- Build lesson columns: only lessons with records or absences (IxSet @+ for indexed lookup)
+      lessonsWithRecords =
+        Ix.toList $ doc.lessons Ix.@+ Set.toList referencedIds
 
-      byUser =
-        Map.fromList $
-          map (\user -> (user, buildEntries user)) students
-   in Model {byUser}
+      -- Sort: dated ascending by date, then undated by Order
+      (dated, undated) = partition (isJust . (.date)) lessonsWithRecords
 
--- | Render a single student row
-studentRow :: Model -> User -> M.View Model Action
-studentRow m user =
+      datedSorted = sortOn (.date) dated
+      undatedSorted = sortOn (.order) undated
+
+      lessonCols =
+        map toLessonColumn datedSorted
+          <> map toLessonColumn undatedSorted
+
+      students = QUser.studentsSortedByName doc
+   in Model {students, lessons = lessonCols, records = recordMap, absences = absenceSet}
+  where
+    toLessonColumn l = LessonColumn {lessonId = l.id, date = l.date, title = l.title}
+
+-- ---------------------------------------------------------------------------
+-- Table view
+-- ---------------------------------------------------------------------------
+
+tableView :: Model -> M.View Model Action
+tableView m =
   MH.div_
-    [class_ "flex gap-3 py-1 items-center"]
-    [ MH.div_
-        [class_ "w-32 shrink-0 truncate text-sm font-medium text-foreground"]
-        [M.text $ ms user.name]
-    , MH.div_
-        [class_ "flex flex-wrap gap-1"]
-        (case m.byUser Map.!? user of
-          Just entries -> map entryView entries
-          Nothing -> [])
+    [class_ "overflow-x-auto rounded-lg border"]
+    [ MH.table_
+        [class_ "border-collapse text-sm"]
+        [ headerRow m
+        , MH.tbody_ [] (map (studentRow m) m.students)
+        ]
     ]
 
--- | Render a single icon-pair for a timeline entry
-entryView :: TimelineEntry -> M.View Model Action
-entryView e =
-  withTooltip (PlainTooltip (entryTooltipText e)) $
-    MH.span_
-      [class_ $ "inline-flex items-center" <> destructiveClass e.participationType]
-      [ Icon.iconS Icon.Small (typeIcon e.participationType)
-      , Icon.iconS Icon.Small (levelIcon e.participationType e.level)
-      ]
+-- | Header row: sticky student column + one th per lesson
+headerRow :: Model -> M.View Model Action
+headerRow m =
+  MH.thead_
+    []
+    [ MH.tr_
+        []
+        ( stickyHeaderTh
+            : map lessonHeaderTh m.lessons
+        )
+    ]
+  where
+    stickyHeaderTh =
+      MH.th_
+        [ class_ "sticky left-0 z-10 bg-muted/80 border-r border-b px-3 py-2 text-left font-medium text-muted-foreground"
+        ]
+        [M.text ""]
 
--- | CSS class for destructive (PoorWorkEthic) entries
-destructiveClass :: ParticipationType -> Text
-destructiveClass PoorWorkEthic = " text-destructive"
-destructiveClass _ = ""
+    lessonHeaderTh lc =
+      MH.th_
+        [ class_ "border-b px-2 py-2 text-center font-medium text-muted-foreground whitespace-nowrap"
+        , MP.title_ (ms lc.title)
+        ]
+        [M.text $ dateLabel lc.date]
 
--- | Icon for the participation type
-typeIcon :: ParticipationType -> Icon.Icon
-typeIcon Participation = Icon.IcnSocialFormIndividual
-typeIcon Collaboration = Icon.IcnSocialFormGroup
-typeIcon PoorWorkEthic = Icon.IcnTask
+    dateLabel :: Maybe Day -> MisoString
+    dateLabel (Just d) = C.formatDayShort d
+    dateLabel Nothing = "?"
 
--- | Icon for the level within a participation type
-levelIcon :: ParticipationType -> ParticipationLevel -> Icon.Icon
-levelIcon PoorWorkEthic ParticipationLevel1 = Icon.IcnMinus
-levelIcon PoorWorkEthic ParticipationLevel2 = Icon.IcnMinusMinus
-levelIcon _ ParticipationLevel1 = Icon.IcnPlus
-levelIcon _ ParticipationLevel2 = Icon.IcnPlusPlus
+-- | Row for a single student: one <tr> with the student name cell + per-lesson cells.
+-- Each cell contains 3 vertically stacked slots (one per ParticipationType).
+studentRow :: Model -> User -> M.View Model Action
+studentRow m user =
+  MH.tr_
+    [class_ "border-b last:border-b-0 hover:bg-muted/30"]
+    ( stickyStudentTd
+        : map (lessonCell m user) m.lessons
+    )
+  where
+    stickyStudentTd =
+      MH.td_
+        [class_ "sticky left-0 z-10 bg-card border-r px-3 py-1 whitespace-nowrap"]
+        [ MH.div_
+            [class_ "flex items-center justify-between gap-2"]
+            [ MH.span_ [class_ "font-medium text-foreground"] [M.text $ ms user.name]
+            , MH.div_
+                [class_ "flex flex-col items-end text-muted-foreground"]
+                (map legendIcon allParticipationTypes)
+            ]
+        ]
 
--- | Build tooltip text: "DD.MM. Lesson: Type Level (remark)"
-entryTooltipText :: TimelineEntry -> MisoString
-entryTooltipText e =
-  let dayPart = case e.day of
+    legendIcon pt =
+      MH.span_ [class_ "h-4 w-4 flex items-center justify-center"]
+        [Icon.iconS Icon.Small (Color.participationTypeIcon pt)]
+
+-- | A single cell: if absent, show sick icon spanning all 3 slots;
+-- otherwise show 3 participation type slots.
+lessonCell :: Model -> User -> LessonColumn -> M.View Model Action
+lessonCell m user lc
+  | Set.member (user.id, lc.lessonId) m.absences =
+      MH.td_
+        [class_ "px-1 py-0.5 align-top"]
+        [ MH.div_
+            [class_ "flex flex-col items-center justify-center h-12 text-muted-foreground"]
+            [Icon.iconS Icon.Small Icon.IcnSick]
+        ]
+  | otherwise =
+      MH.td_
+        [class_ "px-1 py-0.5 align-top"]
+        [ MH.div_
+            [class_ "flex flex-col items-center gap-0"]
+            (map (slotView m user lc) allParticipationTypes)
+        ]
+
+-- | A single slot within a cell: either a colored level icon or an empty spacer
+slotView :: Model -> User -> LessonColumn -> ParticipationType -> M.View Model Action
+slotView m user lc pt =
+  case Map.lookup (user.id, lc.lessonId, pt) m.records of
+    Just ce ->
+      MH.span_
+        [ class_ $ "h-4 w-4 flex items-center justify-center " <> entryColorClass pt ce.level
+        , MP.title_ (cellTooltipText lc pt ce)
+        ]
+        [Icon.iconS Icon.Small (Color.participationLevelIcon pt ce.level)]
+    Nothing ->
+      MH.span_ [class_ "h-4 w-4"] []
+
+-- ---------------------------------------------------------------------------
+-- Color palette mapping
+-- ---------------------------------------------------------------------------
+
+entryColorClass :: ParticipationType -> ParticipationLevel -> Text
+entryColorClass pType ParticipationLevel1 = textClass Base (Color.participationPalette pType)
+entryColorClass pType ParticipationLevel2 = textClass Accent (Color.participationPalette pType)
+
+-- ---------------------------------------------------------------------------
+-- Tooltips
+-- ---------------------------------------------------------------------------
+
+-- | Build tooltip text for a cell entry: "DD.MM. Lesson: Type Level (remark)"
+cellTooltipText :: LessonColumn -> ParticipationType -> CellEntry -> MisoString
+cellTooltipText lc pt ce =
+  let dayPart = case lc.date of
         Just d -> C.formatDayShort d <> " "
         Nothing -> ""
-      typePart = C.translate' (C.LblParticipationType e.participationType)
-      levelPart = C.translate' (C.LblParticipationLevel e.participationType e.level)
-      remarkPart = case e.remark of
+      typePart = C.translate' (C.LblParticipationType pt)
+      levelPart = C.translate' (C.LblParticipationLevel pt ce.level)
+      remarkPart = case ce.remark of
         Just r | r /= "" -> " (" <> ms r <> ")"
         _ -> ""
-   in dayPart <> ms e.lessonTitle <> ": " <> typePart <> " " <> levelPart <> remarkPart
+   in dayPart <> ms lc.title <> ": " <> typePart <> " " <> levelPart <> remarkPart
