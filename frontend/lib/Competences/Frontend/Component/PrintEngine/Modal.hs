@@ -21,7 +21,7 @@ import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
-import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping)
+import Competences.Frontend.Component.PrintEngine.Measure (PageGroup (..), PageGrouping, emptyPageGroup)
 import Competences.Frontend.Component.RichContent (FormulaCache)
 import Competences.Frontend.Component.PrintEngine.Page qualified as Page
 import Competences.Frontend.Component.PrintEngine.Types
@@ -895,7 +895,7 @@ continuousPreview fc renderTask title date model =
       currentPage = case model.pageGrouping of
         [] -> PageGroup {indices = [model.previewTaskIndex], gapPx = 0}
         pgs -> case drop model.previewTaskIndex pgs of
-          [] -> PageGroup {indices = [], gapPx = 0}
+          [] -> emptyPageGroup
           (pg : _) -> pg
       totalPages = case model.pageGrouping of
         [] -> 1

@@ -85,7 +85,8 @@ renderContinuousPage settings cs title date totalPages renderTask mCustomFooter 
         | settings.showFooter = [renderPageFooter (pageIdx + 1) totalPages]
         | otherwise = []
       footerView = case mCustomFooter of
-        Just v | isLastPage -> [v]
+        Just v | isLastPage ->
+          [M.div_ [MC.style_ [("margin-top", "auto")]] [v]]
         _ -> []
    in M.div_
         [class_ "print-page", pageStyle]
@@ -94,12 +95,16 @@ renderContinuousPage settings cs title date totalPages renderTask mCustomFooter 
             [class_ "print-content-area"]
             ( firstPageTitleView
                 <> nameView
-                <> [ M.div_
-                       [ class_ "flex flex-col"
-                       , MC.style_ [("gap", showPx pg.gapPx)]
-                       ]
-                       [renderTask idx | idx <- pg.indices]
-                   ]
+                <> ( if null pg.indices
+                       then []
+                       else
+                         [ M.div_
+                             [ class_ "flex flex-col"
+                             , MC.style_ [("gap", showPx pg.gapPx)]
+                             ]
+                             [renderTask idx | idx <- pg.indices]
+                         ]
+                   )
                 <> footerView
             )
         , M.div_ [class_ "print-margin-bottom", marginStyle] marginBottomContent

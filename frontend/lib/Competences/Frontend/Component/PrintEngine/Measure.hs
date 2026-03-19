@@ -1,6 +1,7 @@
 module Competences.Frontend.Component.PrintEngine.Measure
   ( PageGroup (..)
   , PageGrouping
+  , emptyPageGroup
   , groupIntoPages
   , measureTaskHeights
   , measureFooterHeight
@@ -26,6 +27,10 @@ data PageGroup = PageGroup
   , gapPx :: !Double
   }
   deriving (Eq, Show)
+
+-- | A page group with no tasks (used for footer-only pages).
+emptyPageGroup :: PageGroup
+emptyPageGroup = PageGroup {indices = [], gapPx = 0}
 
 -- | Each element describes one page: which tasks and how to space them.
 type PageGrouping = [PageGroup]
@@ -156,7 +161,7 @@ measureFooterHeight = do
 adjustForFooter :: Double -> Double -> Double -> Double -> Bool -> PageGrouping -> [Double] -> PageGrouping
 adjustForFooter footerH firstAvail restAvail minGap distLast pages taskHeights
   | footerH <= 0 = pages
-  | null pages = pages
+  | null pages = [emptyPageGroup]
   | otherwise =
       let initPages = init pages
           lastPg = last pages
@@ -164,9 +169,18 @@ adjustForFooter footerH firstAvail restAvail minGap distLast pages taskHeights
           isOnlyPage = null initPages
           pageAvail = (if isOnlyPage then firstAvail else restAvail) - footerH - minGap
           -- Get heights for the last page's tasks
-          lastTaskHeights = [taskHeights !! i | i <- lastPg.indices, i < length taskHeights]
+          lenTH = length taskHeights
+          lastTaskHeights = [taskHeights !! i | i <- lastPg.indices, i < lenTH]
           -- Re-group just the last page's tasks with reduced available
           reGrouped = groupIntoPages pageAvail pageAvail minGap distLast lastTaskHeights
           -- Re-map indices back to original
           reMapped = map (\pg -> pg {indices = map (\localIdx -> lastPg.indices !! localIdx) pg.indices}) reGrouped
-       in initPages <> reMapped
+          -- Check if footer fits on the last re-grouped page
+          result = initPages <> reMapped
+          finalPg = last reMapped
+          finalTaskH = sum [taskHeights !! i | i <- finalPg.indices, i < lenTH]
+          finalIsFirstPage = isOnlyPage && case reMapped of [_] -> True; _ -> False
+          fitsOnLastPage = finalTaskH + footerH + minGap <= (if finalIsFirstPage then firstAvail else restAvail)
+       in if fitsOnLastPage || null finalPg.indices
+            then result
+            else result <> [emptyPageGroup]
