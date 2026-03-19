@@ -86,11 +86,11 @@ substituteTemplate fc totalPts taskPoints tmpl = go tmpl
 renderPointsTable :: Bool -> [(Int, Double)] -> Double -> M.View model action
 renderPointsTable klFehler taskPoints totalPts =
   let blankRow borderBottom label =
-        M.nodeHtml "tr" [class_ $ if borderBottom then "border-b border-stone-400" else ""]
-          ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+        M.nodeHtml "tr" [class_ $ if borderBottom then "border-b border-black" else ""]
+          ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-black"]
                 [M.text label]
             ]
-            <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+            <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-black"]
                    [M.text "\xA0"]
                | _ <- taskPoints
                ]
@@ -99,13 +99,13 @@ renderPointsTable klFehler taskPoints totalPts =
                ]
           )
    in M.nodeHtml "table"
-        [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
+        [class_ "text-xs border-collapse mx-auto mt-2 border border-black"]
         ( [ -- Row 1: Task headers
-            M.nodeHtml "tr" [class_ "border-b border-stone-400"]
-              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+            M.nodeHtml "tr" [class_ "border-b border-black"]
+              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-black"]
                     [M.text $ C.translate' C.LblTaskWord]
                 ]
-                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-black"]
                        [M.text $ ms (show n)]
                    | (n, _) <- taskPoints
                    ]
@@ -114,11 +114,11 @@ renderPointsTable klFehler taskPoints totalPts =
                    ]
               )
           , -- Row 2: Punkte (max points per task)
-            M.nodeHtml "tr" [class_ "border-b border-stone-400"]
-              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+            M.nodeHtml "tr" [class_ "border-b border-black"]
+              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-black"]
                     [M.text "Punkte"]
                 ]
-                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-black"]
                        [M.text $ ms (showPoints p)]
                    | (_, p) <- taskPoints
                    ]
@@ -138,16 +138,16 @@ renderPointDistribution totalPts params =
   let entries = parseGradeEntries params
       computed = computeGradeThresholds totalPts entries
    in M.nodeHtml "table"
-        [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
-        [ M.nodeHtml "tr" [class_ "border-b border-stone-400"]
-            [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+        [class_ "text-xs border-collapse mx-auto mt-2 border border-black"]
+        [ M.nodeHtml "tr" [class_ "border-b border-black"]
+            [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-black"]
                 [M.text "Note"]
             , M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium"]
                 [M.text "Ab Punkten"]
             ]
         , M.nodeHtml "tbody" []
-            [ M.nodeHtml "tr" [class_ "border-b border-stone-200"]
-                [ M.nodeHtml "td" [class_ "px-2 py-0.5 border-r border-stone-300"]
+            [ M.nodeHtml "tr" [class_ "border-b border-black"]
+                [ M.nodeHtml "td" [class_ "px-2 py-0.5 border-r border-black"]
                     [M.text $ ms grade]
                 , M.nodeHtml "td" [class_ "px-2 py-0.5 text-center"]
                     [M.text $ ms threshold]
@@ -189,7 +189,7 @@ labeledLine :: T.Text -> M.View model action
 labeledLine label =
   M.div_ [class_ "flex-1 text-center text-xs"]
     [ M.div_
-        [MC.style_ [("border-bottom", "1px solid #333"), ("min-width", "8em")]]
+        [class_ "border-b border-black", MC.style_ [("min-width", "8em")]]
         [M.text "\xA0"]
     , M.div_ [] [M.text (ms label)]
     ]
