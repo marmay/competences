@@ -9,9 +9,10 @@ import Competences.Command (Command, handleCommand)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
-import Data.Aeson (FromJSON (..), Result (..), Value, fromJSON, withObject, (.:))
+import Data.Aeson (FromJSON (..), Result (..), Value, eitherDecodeStrict, fromJSON, withObject, (.:))
 import Data.Int (Int64)
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text qualified as T
 import Data.Time (Day, UTCTime (..))
 import Data.UUID.Types qualified as UUID
@@ -78,13 +79,13 @@ loadSnapshotBefore conn cutoff = do
         LIMIT 1
       |]
       (Only cutoff) ::
-      IO [(Int64, Value)]
+      IO [(Int64, Text)]
   case rows of
     [] -> pure Nothing
-    (generation, envelopeValue) : _ ->
-      case fromJSON envelopeValue of
-        Error err -> die $ "Failed to decode snapshot envelope: " <> err
-        Success envelope ->
+    (generation, envelopeText) : _ ->
+      case eitherDecodeStrict (encodeUtf8 envelopeText) of
+        Left err -> die $ "Failed to decode snapshot envelope: " <> err
+        Right envelope ->
           case unwrapSnapshot envelope of
             Left err -> die $ "Failed to unwrap snapshot: " <> T.unpack err
             Right doc -> pure $ Just (doc, generation)
