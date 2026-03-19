@@ -183,4 +183,4 @@ adjustForFooter footerH firstAvail restAvail minGap distLast pages taskHeights
           fitsOnLastPage = finalTaskH + footerH + minGap <= (if finalIsFirstPage then firstAvail else restAvail)
        in if fitsOnLastPage || null finalPg.indices
             then result
-            else result <> [emptyPageGroup]
+            else pages <> [emptyPageGroup]
