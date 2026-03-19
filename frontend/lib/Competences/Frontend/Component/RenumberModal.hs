@@ -115,6 +115,14 @@ computeEntries infos =
       -- Count tasks that couldn't be parsed
       skipped = length [() | (_, Nothing) <- parsed]
 
+      -- Pre-count totals per prefix for zero-padding width
+      prefixTotals =
+        Map.fromListWith (+) [(prefix, 1 :: Int) | (_, Just (prefix, _)) <- parsed]
+
+      padNum total n =
+        let width = max 2 (length (show total))
+         in T.justifyRight width '0' (T.pack (show n))
+
       -- Build a counter per prefix: assign sequential numbers
       -- We go through tasks in order, incrementing a per-prefix counter
       (revEntries, _) = foldl step ([], Map.empty :: Map.Map Text Int) parsed
@@ -124,7 +132,8 @@ computeEntries infos =
         Just (prefix, _oldNum) ->
           let count = Map.findWithDefault 0 prefix counters + 1
               counters' = Map.insert prefix count counters
-              newIdent = TaskIdentifier (prefix <> "." <> T.pack (show count))
+              total = Map.findWithDefault 0 prefix prefixTotals
+              newIdent = TaskIdentifier (prefix <> "." <> padNum total count)
               TaskIdentifier identText = info.identifier
               displayName =
                 if T.null info.title
