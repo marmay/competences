@@ -81,6 +81,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , defaultPrintSettings
   , expandTaskSequence
   , isTaskVisible
+  , TaskInfo (..)
   , mkTaskInfos
   , taskContentSetting
   )
@@ -140,7 +141,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (.~), (%~))
 import System.Random (randomIO)
 
 
@@ -391,8 +392,16 @@ viewerComponent r user assignment wm =
         let newTasks = change.projection.tasksWithSolutions
             -- Re-initialize task list state with new tasks, keeping expanded state
             newTaskListState = initialState TasksExpanded change.projection.taskStatuses newTasks
+            -- Build fresh TaskInfos map for updating modal order
+            freshMap = Map.fromList
+              [(ti.taskId, ti) | ti <- taskInfosFromTws newTasks]
+            -- Update modal taskInfos preserving user's custom order
+            updateModal modal = modal
+              { taskInfos = mapMaybe (\ti -> Map.lookup ti.taskId freshMap) modal.taskInfos
+              }
          in m & #projection .~ change.projection
               & #taskListState .~ newTaskListState
+              & #pagePrintModal %~ fmap updateModal
 
     update (TaskListAction action) =
       M.modify $ \m -> m & #taskListState .~ updateTaskResourceList action m.taskListState
@@ -407,10 +416,7 @@ viewerComponent r user assignment wm =
 
     update (OpenPagePrintModal mLayoutId) = do
       m <- M.get
-      let infos = mkTaskInfos
-            [ (tws.task, tws.solutions, tws.taskContent)
-            | tws <- m.projection.tasksWithSolutions
-            ]
+      let infos = taskInfosFromTws m.projection.tasksWithSolutions
       case mLayoutId of
         -- Load existing layout
         Just lid -> case filter (\l -> l.id == lid) m.projection.assignmentLayouts of
@@ -447,10 +453,7 @@ viewerComponent r user assignment wm =
 
     update (OpenNewLayoutModal layout) = do
       M.modify $ \m ->
-        let infos = mkTaskInfos
-              [ (tws.task, tws.solutions, tws.taskContent)
-              | tws <- m.projection.tasksWithSolutions
-              ]
+        let infos = taskInfosFromTws m.projection.tasksWithSolutions
          in m & #pagePrintModal .~ Just (initPrintModalModel layout infos)
       M.io $ do
         threadDelay 100000
@@ -1022,5 +1025,8 @@ viewerComponent r user assignment wm =
     -- | Look up the original task number from the map
     taskNumFor :: Map TaskId Int -> TaskWithSolutions -> Int
     taskNumFor numMap tws = Map.findWithDefault 0 tws.task.id numMap
+
+    taskInfosFromTws :: [TaskWithSolutions] -> [TaskInfo]
+    taskInfosFromTws = mkTaskInfos . map (\tws -> (tws.task, tws.solutions, tws.taskContent))
 
     assignmentNameToText (AssignmentName t) = ms t
