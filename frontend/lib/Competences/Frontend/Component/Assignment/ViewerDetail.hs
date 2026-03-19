@@ -8,7 +8,6 @@ module Competences.Frontend.Component.Assignment.ViewerDetail
   )
 where
 
-import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
@@ -44,6 +43,7 @@ import Competences.Document.Task
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure
@@ -213,6 +213,8 @@ data ViewerProjection = ViewerProjection
   , submissionSummary :: !Submission.SubmissionSummary
     -- | Saved print layouts for this assignment
   , assignmentLayouts :: ![Layout]
+    -- | Whether this assignment is a draft or published
+  , origin :: !EntityOrigin
   }
   deriving (Eq, Generic, Show)
 
@@ -231,6 +233,7 @@ emptyProjection role assignment = ViewerProjection
   , taskRemarkMap = Map.empty
   , submissionSummary = Submission.NoSubmissions
   , assignmentLayouts = []
+  , origin = Published
   }
 
 -- ============================================================================
@@ -320,9 +323,13 @@ viewerComponent r user assignment wm =
           effectiveUserId = maybe currentUserId (.id) mUser
 
           -- Look up the current assignment from the document (in case it was edited)
-          updatedAssignment = maybe asmt id $
-            Ix.getOne (doc.assignments Ix.@= asmt.id)
-              <|> Ix.getOne (doc.draftAssignments Ix.@= asmt.id)
+          -- Also determine origin from which collection it was found in
+          (updatedAssignment, asmtOrigin) =
+            case Ix.getOne (doc.assignments Ix.@= asmt.id) of
+              Just published -> (published, Published)
+              Nothing -> case Ix.getOne (doc.draftAssignments Ix.@= asmt.id) of
+                Just draft -> (draft, Draft)
+                Nothing -> (asmt, Published)
 
           -- Look up tasks preserving assignment list order
           relevantTasks = mapMaybe (getTaskOrDraft doc) updatedAssignment.tasks
@@ -385,6 +392,7 @@ viewerComponent r user assignment wm =
             , taskRemarkMap
             , submissionSummary = subSummary
             , assignmentLayouts = layouts
+            , origin = asmtOrigin
             }
 
     update (ProjectionChanged change) =
@@ -537,7 +545,7 @@ viewerComponent r user assignment wm =
                 , isMultiAssignment = False
                 }
               infos = mapMaybe (\tid -> mkInfo tid <$> Map.lookup tid twsMap) taskOrder
-          openRenumberModal r infos
+          openRenumberModal r (wrapForOrigin m.projection.origin) infos
 
     update (DebouncedRemeasure gen) = do
       m <- M.get

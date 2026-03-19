@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Draft
   ( EntityOrigin (..)
   , isDraft
   , retargetForDraft
+  , wrapForOrigin
   )
 where
 
@@ -28,3 +29,8 @@ retargetForDraft (Tasks (OnTaskGroups cmd)) = DraftTasks (OnDraftTaskGroups cmd)
 retargetForDraft (Tasks (OnSubTasks cmd)) = DraftTasks (OnDraftSubTasks cmd)
 retargetForDraft (Assignments (OnAssignments cmd)) = DraftAssignments (OnDraftAssignments cmd)
 retargetForDraft cmd = cmd
+
+-- | Get the appropriate command wrapper for an entity origin
+wrapForOrigin :: EntityOrigin -> Command -> Command
+wrapForOrigin Published = id
+wrapForOrigin Draft = retargetForDraft

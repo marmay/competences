@@ -20,7 +20,7 @@ import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentif
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
-import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft, wrapForOrigin)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
@@ -140,7 +140,7 @@ editorWrapperComponent r assignment =
               | tid <- taskIds
               , Just t <- [getTaskOrDraft doc tid]
               ]
-        openRenumberModal r infos
+        openRenumberModal r (wrapForOrigin m.origin) infos
 
     update PublishAssignment = do
       m <- M.get

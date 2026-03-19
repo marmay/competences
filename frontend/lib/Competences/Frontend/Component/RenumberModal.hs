@@ -157,8 +157,8 @@ computeEntries infos =
 -- ============================================================================
 
 -- | Open the renumber modal via WindowManager
-openRenumberModal :: SyncContext -> [RenumberTaskInfo] -> IO ()
-openRenumberModal r infos =
+openRenumberModal :: SyncContext -> (Command -> Command) -> [RenumberTaskInfo] -> IO ()
+openRenumberModal r wrapCmd infos =
   let cfg =
         ModalConfig
           { chrome = WindowChrome (C.translate' C.LblRenumberTasks) Icon.IcnReorder
@@ -167,14 +167,14 @@ openRenumberModal r infos =
           , height = ModalAuto
           , pinnable = Nothing
           }
-   in openFramedModalWith r.windowManager cfg (renumberModalComponent r infos)
+   in openFramedModalWith r.windowManager cfg (renumberModalComponent r wrapCmd infos)
 
 -- ============================================================================
 -- Modal component
 -- ============================================================================
 
-renumberModalComponent :: SyncContext -> [RenumberTaskInfo] -> WindowMode -> M.Component p RenumberModel RenumberAction
-renumberModalComponent r infos wm =
+renumberModalComponent :: SyncContext -> (Command -> Command) -> [RenumberTaskInfo] -> WindowMode -> M.Component p RenumberModel RenumberAction
+renumberModalComponent r wrapCmd infos wm =
   M.component initialModel update view'
   where
     (initialEntries, skipped) = computeEntries infos
@@ -204,9 +204,9 @@ renumberModalComponent r infos wm =
       M.io_ $ do
         mapM_
           ( \e -> do
-              modifySyncDocument r $ Tasks (OnTasks (Modify e.taskId Cmd.Lock))
+              modifySyncDocument r $ wrapCmd $ Tasks (OnTasks (Modify e.taskId Cmd.Lock))
               let patch = def & #identifier .~ Just (e.oldIdentifier, e.newIdentifier) :: TaskPatch
-              modifySyncDocument r $ Tasks (OnTasks (Modify e.taskId (Cmd.Release patch)))
+              modifySyncDocument r $ wrapCmd $ Tasks (OnTasks (Modify e.taskId (Cmd.Release patch)))
           )
           toRename
         closeWindow wm
