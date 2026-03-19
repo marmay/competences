@@ -43,7 +43,7 @@ import Competences.Document.Task
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure
@@ -494,12 +494,12 @@ viewerComponent r user assignment wm =
               let assignId = m.projection.currentAssignment.id
                   origOrder = m.projection.currentAssignment.tasks
                   mm' = updatePrintModal ToggleReorderMode 0 mm
-              M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId Cmd.Lock)))
+              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId Cmd.Lock))
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (mm' & #originalTaskOrder .~ origOrder)
             else do
               -- Exiting reorder mode: release assignment with new task order
-              releaseReorderedTasks mm m.projection.currentAssignment.id
+              releaseReorderedTasks m.projection.origin mm m.projection.currentAssignment.id
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (updatePrintModal ToggleReorderMode 0 mm)
 
@@ -507,7 +507,7 @@ viewerComponent r user assignment wm =
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
-        Just mm -> when mm.reorderMode $ cancelReorder m.projection.currentAssignment.id
+        Just mm -> when mm.reorderMode $ cancelReorder m.projection.origin m.projection.currentAssignment.id
       M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
     update (PagePrintMsg SaveLayout) = do
@@ -515,7 +515,7 @@ viewerComponent r user assignment wm =
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
-          releaseIfReordering mm m.projection.currentAssignment.id
+          releaseIfReordering m.projection.origin mm m.projection.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
@@ -524,7 +524,7 @@ viewerComponent r user assignment wm =
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
-          releaseIfReordering mm m.projection.currentAssignment.id
+          releaseIfReordering m.projection.origin mm m.projection.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           let settings = mm.settings
               cs = mm.contentSettings
@@ -616,21 +616,25 @@ viewerComponent r user assignment wm =
 
     update NoOp = pure ()
 
+    -- | Release an assignment lock with the given patch, routed by origin
+    releaseAssignment origin assignId patch =
+      M.io_ $ modifySyncDocument r $ wrapForOrigin origin $ Assignments (OnAssignments (Modify assignId (Cmd.Release patch)))
+
     -- | Release the assignment lock, including task reorder if changed
-    releaseReorderedTasks mm assignId = do
+    releaseReorderedTasks origin mm assignId = do
       let origOrder = mm.originalTaskOrder
           newOrder = reorderedTaskIds mm
           tasksChange = if origOrder == newOrder then Nothing else Just (origOrder, newOrder)
           patch = def & #tasks .~ tasksChange :: AssignmentPatch
-      M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId (Cmd.Release patch))))
+      releaseAssignment origin assignId patch
 
     -- | Release the lock only if reorder mode was active
-    releaseIfReordering mm assignId =
-      when mm.reorderMode $ releaseReorderedTasks mm assignId
+    releaseIfReordering origin mm assignId =
+      when mm.reorderMode $ releaseReorderedTasks origin mm assignId
 
     -- | Release the lock discarding any task reorder
-    cancelReorder assignId =
-      M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId (Cmd.Release (def :: AssignmentPatch)))))
+    cancelReorder origin assignId =
+      releaseAssignment origin assignId (def :: AssignmentPatch)
 
     view' m =
       M.div_
