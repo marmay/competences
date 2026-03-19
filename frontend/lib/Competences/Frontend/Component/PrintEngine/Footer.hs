@@ -56,8 +56,10 @@ substituteTemplate fc totalPts taskPoints tmpl = go tmpl
   where
     go t
       | T.null t = []
+      | Just rest <- T.stripPrefix "{{points table:kl fehler}}" t =
+          renderPointsTable True taskPoints totalPts : go rest
       | Just rest <- T.stripPrefix "{{points table}}" t =
-          renderPointsTable taskPoints totalPts : go rest
+          renderPointsTable False taskPoints totalPts : go rest
       | Just rest <- T.stripPrefix "{{signature}}" t =
           renderSignatureLine : go rest
       | Just rest <- T.stripPrefix "{{grade}}" t =
@@ -79,48 +81,56 @@ substituteTemplate fc totalPts taskPoints tmpl = go tmpl
         [class_ "prose prose-sm max-w-none"]
         [renderMarkdownText fc txt]
 
--- | Render a horizontal points table
-renderPointsTable :: [(Int, Double)] -> Double -> M.View model action
-renderPointsTable taskPoints totalPts =
-  M.nodeHtml "table"
-    [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
-    [ M.nodeHtml "tr" [class_ "border-b border-stone-400"]
-        ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
-              [M.text $ C.translate' C.LblTaskWord]
+-- | Render a horizontal points table.
+-- When 'klFehler' is True, an extra "Kl. Fehler" row is appended.
+renderPointsTable :: Bool -> [(Int, Double)] -> Double -> M.View model action
+renderPointsTable klFehler taskPoints totalPts =
+  let blankRow borderBottom label =
+        M.nodeHtml "tr" [class_ $ if borderBottom then "border-b border-stone-400" else ""]
+          ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                [M.text label]
+            ]
+            <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                   [M.text "\xA0"]
+               | _ <- taskPoints
+               ]
+            <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center"]
+                   [M.text "\xA0"]
+               ]
+          )
+   in M.nodeHtml "table"
+        [class_ "text-xs border-collapse mx-auto mt-2", MC.style_ [("border", "1px solid #999")]]
+        ( [ -- Row 1: Task headers
+            M.nodeHtml "tr" [class_ "border-b border-stone-400"]
+              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                    [M.text $ C.translate' C.LblTaskWord]
+                ]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                       [M.text $ ms (show n)]
+                   | (n, _) <- taskPoints
+                   ]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
+                       [M.text "Gesamt"]
+                   ]
+              )
+          , -- Row 2: Punkte (max points per task)
+            M.nodeHtml "tr" [class_ "border-b border-stone-400"]
+              ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
+                    [M.text "Punkte"]
+                ]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
+                       [M.text $ ms (showPoints p)]
+                   | (_, p) <- taskPoints
+                   ]
+                <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
+                       [M.text $ ms (showPoints totalPts)]
+                   ]
+              )
+          , -- Row 3: Erreicht (blank, to be filled in)
+            blankRow klFehler "Erreicht"
           ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
-                 [M.text $ ms (show n)]
-             | (n, _) <- taskPoints
-             ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
-                 [M.text "Gesamt"]
-             ]
+          <> [blankRow False "Kl. Fehler" | klFehler]
         )
-    , M.nodeHtml "tr" [class_ "border-b border-stone-400"]
-        ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
-              [M.text "Erreicht"]
-          ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
-                 [M.text "\xA0"]
-             | _ <- taskPoints
-             ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center"]
-                 [M.text "\xA0"]
-             ]
-        )
-    , M.nodeHtml "tr" []
-        ( [ M.nodeHtml "td" [class_ "px-2 py-0.5 font-medium border-r border-stone-300"]
-              [M.text "Von"]
-          ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center border-r border-stone-300"]
-                 [M.text $ ms (showPoints p)]
-             | (_, p) <- taskPoints
-             ]
-          <> [ M.nodeHtml "td" [class_ "px-2 py-0.5 text-center font-medium"]
-                 [M.text $ ms (showPoints totalPts)]
-             ]
-        )
-    ]
 
 -- | Render a grade threshold table from inline parameters
 renderPointDistribution :: Double -> T.Text -> M.View model action
