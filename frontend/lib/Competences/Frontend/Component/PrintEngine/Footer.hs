@@ -60,6 +60,8 @@ substituteTemplate fc totalPts taskPoints tmpl = go tmpl
           renderPointsTable taskPoints totalPts : go rest
       | Just rest <- T.stripPrefix "{{signature}}" t =
           renderSignatureLine : go rest
+      | Just rest <- T.stripPrefix "{{grade}}" t =
+          renderGradeField : go rest
       | "{{point distribution:" `T.isPrefixOf` t =
           let afterPrefix = T.drop (T.length "{{point distribution:") t
            in case T.breakOn "}}" afterPrefix of
@@ -171,6 +173,24 @@ computeGradeThresholds totalPts = map $ \(mPct, grade) ->
           rounded = fromIntegral (ceiling pts :: Int) :: Double
        in (grade, showPoints rounded)
     Nothing -> (grade, "-")
+
+-- | Render a labeled line: a horizontal rule with a label centered below
+labeledLine :: T.Text -> M.View model action
+labeledLine label =
+  M.div_ [class_ "flex-1 text-center text-xs"]
+    [ M.div_
+        [MC.style_ [("border-bottom", "1px solid #333"), ("min-width", "8em")]]
+        [M.text "\xA0"]
+    , M.div_ [] [M.text (ms label)]
+    ]
+
+-- | Render grade field: two side-by-side labeled lines for points and grade
+renderGradeField :: M.View model action
+renderGradeField =
+  M.div_ [class_ "mt-4 flex justify-between gap-8"]
+    [ labeledLine "Erreichte Punkte"
+    , labeledLine "Note"
+    ]
 
 -- | Render a signature line
 renderSignatureLine :: M.View model action
