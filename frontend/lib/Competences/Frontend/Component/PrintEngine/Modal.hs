@@ -8,6 +8,7 @@ module Competences.Frontend.Component.PrintEngine.Modal
   , measurementContainer
   , footerMeasureContainer
   , needsRemeasure
+  , reorderedTaskIds
   )
 where
 
@@ -80,6 +81,10 @@ data PrintModalModel = PrintModalModel
   , pageGrouping :: !PageGrouping
   , footerDraft :: !(Maybe Text)
   -- ^ Immediate draft for the footer textarea; applied to contentSettings on debounce
+  , reorderMode :: !Bool
+  -- ^ Whether task reorder mode is active
+  , originalTaskOrder :: ![TaskId]
+  -- ^ Assignment task order when reorder mode was entered
   }
   deriving (Eq, Show, Generic)
 
@@ -118,6 +123,9 @@ data PrintModalAction
   | ToggleInlineAnswer !TaskId
   | SetItemsPerRow !TaskId !Int
   | RemeasurePages
+  | ToggleReorderMode
+  | MoveTaskUp !TaskId
+  | MoveTaskDown !TaskId
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
@@ -134,6 +142,8 @@ initPrintModalModel layout infos = PrintModalModel
   , previewTaskIndex = 0
   , pageGrouping = []
   , footerDraft = Nothing
+  , reorderMode = False
+  , originalTaskOrder = []
   }
 
 -- | Initialize modal from an existing Layout entity
@@ -150,6 +160,8 @@ initFromLayout layout infos = PrintModalModel
   , previewTaskIndex = 0
   , pageGrouping = []
   , footerDraft = layout.contentSettings.customFooter
+  , reorderMode = False
+  , originalTaskOrder = []
   }
 
 -- | Pure update for the modal model.
@@ -238,6 +250,12 @@ updatePrintModal (SetItemsPerRow tid n) _total m =
   m { contentSettings = modifyTaskSetting tid (\tcs -> tcs {itemsPerRow = max 1 (min 4 n)}) m.contentSettings
     , pageGrouping = []
     }
+updatePrintModal ToggleReorderMode _total m =
+  m {reorderMode = not m.reorderMode}
+updatePrintModal (MoveTaskUp tid) _total m =
+  m {taskInfos = swapWithPrev (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
+updatePrintModal (MoveTaskDown tid) _total m =
+  m {taskInfos = swapWithNext (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
 
 -- | Modify a task's content setting in the map
 modifyTaskSetting :: TaskId -> (TaskContentSetting -> TaskContentSetting) -> ContentSettings -> ContentSettings
@@ -297,6 +315,9 @@ needsRemeasure (SetItemsPerRow _ _) = True
 needsRemeasure (SetCustomFooter _) = False
 needsRemeasure (SetPoints _ _) = False
 needsRemeasure RemeasurePages = True
+needsRemeasure ToggleReorderMode = False
+needsRemeasure (MoveTaskUp _) = True
+needsRemeasure (MoveTaskDown _) = True
 needsRemeasure _ = False
 
 -- | Extract grid config from settings, defaulting to 1x1
@@ -310,6 +331,26 @@ clampGrid = max 1 . min 4
 
 clampCopies :: Int -> Int
 clampCopies = max 1 . min 10
+
+-- | Swap the element matching the predicate with its predecessor
+swapWithPrev :: (a -> Bool) -> [a] -> [a]
+swapWithPrev _ [] = []
+swapWithPrev _ [x] = [x]
+swapWithPrev p (x : y : rest)
+  | p y = y : x : rest
+  | otherwise = x : swapWithPrev p (y : rest)
+
+-- | Swap the element matching the predicate with its successor
+swapWithNext :: (a -> Bool) -> [a] -> [a]
+swapWithNext _ [] = []
+swapWithNext _ [x] = [x]
+swapWithNext p (x : y : rest)
+  | p x = y : x : rest
+  | otherwise = x : swapWithNext p (y : rest)
+
+-- | Extract task IDs in the current order from the modal
+reorderedTaskIds :: PrintModalModel -> [TaskId]
+reorderedTaskIds m = map (.taskId) m.taskInfos
 
 -- | Construct a ButtonConfig without going through ToAction
 -- (avoids overlapping instances when action is polymorphic)
@@ -433,8 +474,11 @@ contentsTabContent model wrap =
   , checkboxToggle (C.translate' C.LblShowTitle) model.contentSettings.showTitle (\b -> wrap (SetShowTitle b))
   , checkboxToggle (C.translate' C.LblShowNameField) model.contentSettings.showNameField (\b -> wrap (SetShowNameField b))
   , customFooterInput model.footerDraft wrap
+  , reorderButton model.reorderMode wrap
   ]
-  <> concatMap (taskSection model.contentSettings wrap) model.taskInfos
+  <> concatMap (\(idx, ti) -> taskSection model.reorderMode idx taskCount model.contentSettings wrap ti) (zip [0 ..] model.taskInfos)
+  where
+    taskCount = length model.taskInfos
 
 -- | Preset buttons in a 2x2 grid
 presetButtons :: PrintModalModel -> (PrintModalAction -> action) -> M.View model action
@@ -447,6 +491,11 @@ presetButtons _model wrap =
     , presetButton C.LblPresetMusteraufgaben Musteraufgaben wrap
     ]
 
+-- | Reorder toggle button
+reorderButton :: Bool -> (PrintModalAction -> action) -> M.View model action
+reorderButton active wrap =
+  Button.toggleSm active (btn (Icon.IcnReorder, C.translate' C.LblReorder) (Just (wrap ToggleReorderMode)))
+
 presetButton :: C.Label -> ContentPreset -> (PrintModalAction -> action) -> M.View model action
 presetButton lbl preset wrap =
   M.button_
@@ -456,17 +505,24 @@ presetButton lbl preset wrap =
     [M.text (C.translate' lbl)]
 
 -- | Per-task section with toggles
-taskSection :: ContentSettings -> (PrintModalAction -> action) -> TaskInfo -> [M.View model action]
-taskSection cs wrap ti =
+taskSection :: Bool -> Int -> Int -> ContentSettings -> (PrintModalAction -> action) -> TaskInfo -> [M.View model action]
+taskSection reorderActive idx total cs wrap ti =
   let tcs = taskContentSetting cs ti.taskId
       TaskIdentifier ident = ti.identifier
       displayName = let base = if T.null ident then "(Unbenannt)" else ident
                      in if T.null ti.title then base else base <> " \x2014 " <> ti.title
-   in [ -- Section header with task identifier
+      reorderButtons
+        | not reorderActive = []
+        | otherwise =
+            [ Button.ghostSm (btn Icon.IcnArrowUp (if idx > 0 then Just (wrap (MoveTaskUp ti.taskId)) else Nothing))
+            , Button.ghostSm (btn Icon.IcnArrowDown (if idx < total - 1 then Just (wrap (MoveTaskDown ti.taskId)) else Nothing))
+            ]
+   in [ -- Section header with task identifier and optional reorder buttons
         M.div_
-          [class_ "mt-3 pt-2 border-t border-border"]
-          [ Typography.muted (ms displayName)
-          ]
+          [class_ "mt-3 pt-2 border-t border-border flex items-center gap-2"]
+          ( [Typography.muted (ms displayName)]
+              <> reorderButtons
+          )
       , -- Description toggle
         checkboxToggle (C.translate' C.LblDescriptionToggle) tcs.showDescription (\_ -> wrap (ToggleDescription ti.taskId))
       ]

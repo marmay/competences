@@ -9,10 +9,14 @@ module Competences.Frontend.Component.Assignment.ViewerDetail
 where
 
 import Control.Applicative ((<|>))
+import Control.Monad (when)
+import Data.Default (def)
 import Data.Maybe (mapMaybe)
 import Competences.Command (Command (..))
-import Competences.Command.Layouts (LayoutsCommand (..))
+import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Common (EntityCommand (..))
+import Competences.Command.Common qualified as Cmd (ModifyCommand (..))
+import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Assignment (..)
@@ -60,6 +64,7 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , measurementContainer
   , needsRemeasure
   , printModalView
+  , reorderedTaskIds
   , updatePrintModal
   )
 import Competences.Frontend.Component.PrintEngine.Page qualified as Page
@@ -460,14 +465,39 @@ viewerComponent r user assignment wm =
             finalGrouping = adjustForFooter footerH firstAvail restAvail gap s.distributeLastPage baseGrouping heights
         pure (PagePrintMsg (MeasuredPageGrouping finalGrouping))
 
-    update (PagePrintMsg CancelPrint) =
-      M.modify $ \m -> m & #pagePrintModal .~ Nothing
+    update (PagePrintMsg ToggleReorderMode) = do
+      m <- M.get
+      case m.pagePrintModal of
+        Nothing -> pure ()
+        Just mm ->
+          if not mm.reorderMode
+            then do
+              -- Entering reorder mode: lock assignment, store original order
+              let assignId = m.projection.currentAssignment.id
+                  origOrder = m.projection.currentAssignment.tasks
+                  mm' = updatePrintModal ToggleReorderMode 0 mm
+              M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId Cmd.Lock)))
+              M.modify $ \m' ->
+                m' & #pagePrintModal .~ Just (mm' & #originalTaskOrder .~ origOrder)
+            else do
+              -- Exiting reorder mode: release assignment with new task order
+              releaseReorderedTasks mm m.projection.currentAssignment.id
+              M.modify $ \m' ->
+                m' & #pagePrintModal .~ Just (updatePrintModal ToggleReorderMode 0 mm)
+
+    update (PagePrintMsg CancelPrint) = do
+      m <- M.get
+      case m.pagePrintModal of
+        Nothing -> pure ()
+        Just mm -> when mm.reorderMode $ cancelReorder m.projection.currentAssignment.id
+      M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
     update (PagePrintMsg SaveLayout) = do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
+          releaseIfReordering mm m.projection.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
@@ -476,6 +506,7 @@ viewerComponent r user assignment wm =
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
+          releaseIfReordering mm m.projection.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           let settings = mm.settings
               cs = mm.contentSettings
@@ -500,7 +531,7 @@ viewerComponent r user assignment wm =
       M.modify $ \m ->
         let expanded = case m.pagePrintModal of
               Nothing -> m.projection.tasksWithSolutions
-              Just mm -> expandedTasks mm.settings mm.contentSettings m.projection
+              Just mm -> expandedTasks (Just (reorderedTaskIds mm)) mm.settings mm.contentSettings m.projection
             total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
       if needsRemeasure action
@@ -550,6 +581,22 @@ viewerComponent r user assignment wm =
 
     update NoOp = pure ()
 
+    -- | Release the assignment lock, including task reorder if changed
+    releaseReorderedTasks mm assignId = do
+      let origOrder = mm.originalTaskOrder
+          newOrder = reorderedTaskIds mm
+          tasksChange = if origOrder == newOrder then Nothing else Just (origOrder, newOrder)
+          patch = def & #tasks .~ tasksChange :: AssignmentPatch
+      M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId (Cmd.Release patch))))
+
+    -- | Release the lock only if reorder mode was active
+    releaseIfReordering mm assignId =
+      when mm.reorderMode $ releaseReorderedTasks mm assignId
+
+    -- | Release the lock discarding any task reorder
+    cancelReorder assignId =
+      M.io_ $ modifySyncDocument r (Assignments (OnAssignments (Modify assignId (Cmd.Release (def :: AssignmentPatch)))))
+
     view' m =
       M.div_
         []
@@ -561,9 +608,11 @@ viewerComponent r user assignment wm =
           case m.pagePrintModal of
             Nothing -> M.text ""
             Just modalModel ->
-              let expanded = expandedTasks modalModel.settings modalModel.contentSettings m.projection
+              let taskOrder = reorderedTaskIds modalModel
+                  reordered = reorderTasks taskOrder m.projection.tasksWithSolutions
+                  expanded = expandedTasks (Just taskOrder) modalModel.settings modalModel.contentSettings m.projection
                   expandedCount = length expanded
-                  taskNumMap = originalTaskNumbers m.projection.tasksWithSolutions
+                  taskNumMap = originalTaskNumbers reordered
                   renderFn = renderExpandedTaskForPrint modalModel.settings modalModel.contentSettings taskNumMap expanded
                in M.div_
                     []
@@ -750,11 +799,19 @@ viewerComponent r user assignment wm =
     presetName Loesungsblatt = C.translate' C.LblPresetLoesungsblatt
     presetName Musteraufgaben = C.translate' C.LblPresetMusteraufgaben
 
-    -- | Build the expanded task list from settings, filtering by content visibility
-    expandedTasks :: PrintSettings -> ContentSettings -> ViewerProjection -> [TaskWithSolutions]
-    expandedTasks settings cs proj =
-      let visible = filter (\tws -> isTaskVisible cs tws.task.id) proj.tasksWithSolutions
+    -- | Build the expanded task list from settings, filtering by content visibility.
+    -- When a reorder list is provided, tasks are rearranged accordingly.
+    expandedTasks :: Maybe [TaskId] -> PrintSettings -> ContentSettings -> ViewerProjection -> [TaskWithSolutions]
+    expandedTasks mReorder settings cs proj =
+      let base = maybe id reorderTasks mReorder proj.tasksWithSolutions
+          visible = filter (\tws -> isTaskVisible cs tws.task.id) base
        in expandTaskSequence settings.groupedCopies settings.totalCopies visible
+
+    -- | Reorder tasks according to a list of TaskIds
+    reorderTasks :: [TaskId] -> [TaskWithSolutions] -> [TaskWithSolutions]
+    reorderTasks order twss =
+      let twsMap = Map.fromList [(tws.task.id, tws) | tws <- twss]
+       in mapMaybe (`Map.lookup` twsMap) order
 
     -- | Minimum gap between tasks in CSS px, corresponding to 1.5em at the given font size.
     -- 1pt = 96/72 CSS px, so 1.5em at Xpt = 1.5 * X * 96/72.
@@ -788,7 +845,7 @@ viewerComponent r user assignment wm =
     viewPagePrintContent mSettings mCS pageGrp proj =
       let settings = maybe defaultPrintSettings id mSettings
           cs = maybe defaultContentSettings id mCS
-          expanded = expandedTasks settings cs proj
+          expanded = expandedTasks Nothing settings cs proj
           taskNumMap = originalTaskNumbers proj.tasksWithSolutions
        in M.div_
             []

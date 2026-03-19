@@ -380,6 +380,7 @@ data Label
   | LblCustomFooter
   | LblCustomFooterPlaceholder
   | LblPoints
+  | LblReorder
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -803,6 +804,7 @@ labels' =
   , LblCustomFooter
   , LblCustomFooterPlaceholder
   , LblPoints
+  , LblReorder
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -1244,6 +1246,7 @@ defaultTranslation LblFontIwona = "Iwona"
 defaultTranslation LblCustomFooter = "Fußzeile (letzte Seite)"
 defaultTranslation LblCustomFooterPlaceholder = "{{points table}}, {{signature}}, {{point distribution:90% Sehr gut:...}}"
 defaultTranslation LblPoints = "Punkte"
+defaultTranslation LblReorder = "Reihenfolge"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
