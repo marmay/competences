@@ -381,6 +381,10 @@ data Label
   | LblCustomFooterPlaceholder
   | LblPoints
   | LblReorder
+  | LblRenumberTasks
+  | LblRenumberPrefix !Text !Int
+  | LblRenumberSkipped !Int
+  | LblRenumberSummary !Int
     -- Lesson Notes
   | LblLessonNotesEntries
   | LblFilterLessonNotes
@@ -805,6 +809,10 @@ labels' =
   , LblCustomFooterPlaceholder
   , LblPoints
   , LblReorder
+  , LblRenumberTasks
+  , LblRenumberPrefix "" 0
+  , LblRenumberSkipped 0
+  , LblRenumberSummary 0
     -- Lesson Notes
   , LblLessonNotesEntries
   , LblFilterLessonNotes
@@ -1247,6 +1255,10 @@ defaultTranslation LblCustomFooter = "Fußzeile (letzte Seite)"
 defaultTranslation LblCustomFooterPlaceholder = "{{points table}}, {{signature}}, {{point distribution:90% Sehr gut:...}}"
 defaultTranslation LblPoints = "Punkte"
 defaultTranslation LblReorder = "Reihenfolge"
+defaultTranslation LblRenumberTasks = "Nummerierung"
+defaultTranslation (LblRenumberPrefix prefix n) = "Präfix «" <> ms prefix <> "» (" <> ms (show n) <> ")"
+defaultTranslation (LblRenumberSkipped n) = ms (show n) <> " Aufgabe(n) ohne Präfix übersprungen"
+defaultTranslation (LblRenumberSummary n) = ms (show n) <> " Aufgabe(n) werden umbenannt"
 -- Lesson Notes
 defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
 defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."

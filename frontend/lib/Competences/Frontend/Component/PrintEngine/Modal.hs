@@ -126,6 +126,7 @@ data PrintModalAction
   | ToggleReorderMode
   | MoveTaskUp !TaskId
   | MoveTaskDown !TaskId
+  | OpenRenumberModal
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
@@ -256,6 +257,7 @@ updatePrintModal (MoveTaskUp tid) _total m =
   m {taskInfos = swapWithPrev (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
 updatePrintModal (MoveTaskDown tid) _total m =
   m {taskInfos = swapWithNext (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
+updatePrintModal OpenRenumberModal _total m = m
 
 -- | Modify a task's content setting in the map
 modifyTaskSetting :: TaskId -> (TaskContentSetting -> TaskContentSetting) -> ContentSettings -> ContentSettings
@@ -318,7 +320,18 @@ needsRemeasure RemeasurePages = True
 needsRemeasure ToggleReorderMode = False
 needsRemeasure (MoveTaskUp _) = True
 needsRemeasure (MoveTaskDown _) = True
-needsRemeasure _ = False
+needsRemeasure OpenRenumberModal = False
+needsRemeasure (SetShowHeader _) = False
+needsRemeasure (SetShowFooter _) = False
+needsRemeasure (SetTaskHeaderStyle _) = False
+needsRemeasure (SetDuplexLayout _) = False
+needsRemeasure (MeasuredPageGrouping _) = False
+needsRemeasure PreviewNext = False
+needsRemeasure PreviewPrev = False
+needsRemeasure SaveLayout = False
+needsRemeasure PrintAndSaveLayout = False
+needsRemeasure CancelPrint = False
+needsRemeasure (SwitchTab _) = False
 
 -- | Extract grid config from settings, defaulting to 1x1
 currentGridConfig :: PrintSettings -> GridConfig
@@ -475,6 +488,7 @@ contentsTabContent model wrap =
   , checkboxToggle (C.translate' C.LblShowNameField) model.contentSettings.showNameField (\b -> wrap (SetShowNameField b))
   , customFooterInput model.footerDraft wrap
   , reorderButton model.reorderMode wrap
+  , renumberButton wrap
   ]
   <> concatMap (\(idx, ti) -> taskSection model.reorderMode idx taskCount model.contentSettings wrap ti) (zip [0 ..] model.taskInfos)
   where
@@ -495,6 +509,11 @@ presetButtons _model wrap =
 reorderButton :: Bool -> (PrintModalAction -> action) -> M.View model action
 reorderButton active wrap =
   Button.toggleSm active (btn (Icon.IcnReorder, C.translate' C.LblReorder) (Just (wrap ToggleReorderMode)))
+
+-- | Renumber tasks button
+renumberButton :: (PrintModalAction -> action) -> M.View model action
+renumberButton wrap =
+  Button.ghostSm (btn (Icon.IcnReorder, C.translate' C.LblRenumberTasks) (Just (wrap OpenRenumberModal)))
 
 presetButton :: C.Label -> ContentPreset -> (PrintModalAction -> action) -> M.View model action
 presetButton lbl preset wrap =

@@ -83,6 +83,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , mkTaskInfos
   , taskContentSetting
   )
+import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.TaskResource
@@ -520,6 +521,22 @@ viewerComponent r user assignment wm =
             threadDelay 800000 -- 800ms for MathJax
             triggerPrint
             pure ClearPagePrint
+
+    update (PagePrintMsg OpenRenumberModal) = do
+      m <- M.get
+      case m.pagePrintModal of
+        Nothing -> pure ()
+        Just mm -> M.io_ $ do
+          let taskOrder = reorderedTaskIds mm
+              twsMap = Map.fromList [(tws.task.id, tws) | tws <- m.projection.tasksWithSolutions]
+              mkInfo tid tws = RenumberTaskInfo
+                { taskId = tid
+                , identifier = tws.task.identifier
+                , title = tws.task.title
+                , isMultiAssignment = False
+                }
+              infos = mapMaybe (\tid -> mkInfo tid <$> Map.lookup tid twsMap) taskOrder
+          openRenumberModal r infos
 
     update (DebouncedRemeasure gen) = do
       m <- M.get

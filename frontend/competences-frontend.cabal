@@ -75,6 +75,7 @@ library
         Competences.Frontend.Component.Editor.TableView,
         Competences.Frontend.Component.Editor.Types,
         Competences.Frontend.Component.Editor.View,
+        Competences.Frontend.Component.RenumberModal,
         Competences.Frontend.Component.PrintEngine.Types,
         Competences.Frontend.Component.PrintEngine.CSS,
         Competences.Frontend.Component.PrintEngine.Measure,

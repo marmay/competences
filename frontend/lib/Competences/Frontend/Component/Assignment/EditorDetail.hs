@@ -4,6 +4,7 @@ module Competences.Frontend.Component.Assignment.EditorDetail
   )
 where
 
+import Control.Applicative ((<|>))
 import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..), TasksCommand (..))
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
@@ -27,6 +28,7 @@ import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
 import Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd (openTaskEditorModal)
+import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -67,6 +69,7 @@ data EditorAction
   = DocumentUpdated !DocumentChange
   | PinEvaluation
   | PublishAssignment
+  | OpenRenumberModal
   deriving (Eq, Show)
 
 -- | Pin the assignment evaluator as a persistent dialog.
@@ -119,6 +122,29 @@ editorWrapperComponent r assignment =
 
     update PinEvaluation = M.io_ $ pinAssignmentEvaluator r assignment
 
+    update OpenRenumberModal = do
+      m <- M.get
+      M.io_ $ do
+        let doc = m.document
+            mAssignment = case m.origin of
+              Published -> Ix.getOne (doc.assignments Ix.@= assignment.id)
+              Draft -> Ix.getOne (doc.draftAssignments Ix.@= assignment.id)
+            taskIds = maybe [] (.tasks) mAssignment
+            lookupTask tid =
+              Ix.getOne (doc.tasks Ix.@= tid)
+                <|> Ix.getOne (doc.draftTasks Ix.@= tid)
+            infos =
+              [ RenumberTaskInfo
+                  { taskId = t.id
+                  , identifier = t.identifier
+                  , title = t.title
+                  , isMultiAssignment = False
+                  }
+              | tid <- taskIds
+              , Just t <- [lookupTask tid]
+              ]
+        openRenumberModal r infos
+
     update PublishAssignment = do
       m <- M.get
       M.io_ $ do
@@ -147,7 +173,8 @@ editorWrapperComponent r assignment =
             (TE.editorComponent (assignmentEditor m.origin) r)
         , MH.div_
             [class_ "flex justify-end gap-2"]
-            ( [ Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
+            ( [ Button.outline $ Button.button (Icon.IcnReorder, C.LblRenumberTasks) OpenRenumberModal
+              , Button.outline $ Button.button (Icon.IcnApply, C.LblEvaluateAssignment) PinEvaluation
               , inlineComponent
                   ("export-btn-" <> M.ms (show assignment.id))
                   (exportButtonComponent (\m' -> exportAssignment (m.origin == Draft) m'.document assignment))
