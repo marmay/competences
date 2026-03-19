@@ -8,6 +8,7 @@ import Competences.Command (Command (..))
 import Competences.Command.Common (EntityCommand (..))
 import Competences.Command.Common qualified as Cmd (ModifyCommand (..))
 import Competences.Command.Tasks (TaskPatch (..), TasksCommand (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
@@ -54,6 +55,7 @@ data RenumberTaskInfo = RenumberTaskInfo
   , identifier :: !TaskIdentifier
   , title :: !Text
   , isMultiAssignment :: !Bool
+  , origin :: !EntityOrigin
   }
 
 -- ============================================================================
@@ -68,6 +70,7 @@ data RenumberEntry = RenumberEntry
   , prefix :: !Text
   , isMultiAssignment :: !Bool
   , included :: !Bool
+  , origin :: !EntityOrigin
   }
   deriving (Eq, Generic, Show)
 
@@ -148,6 +151,7 @@ computeEntries infos =
                   , prefix = prefix
                   , isMultiAssignment = info.isMultiAssignment
                   , included = not info.isMultiAssignment
+                  , origin = info.origin
                   }
            in (entry : acc, counters')
    in (reverse revEntries, skipped)
@@ -157,8 +161,8 @@ computeEntries infos =
 -- ============================================================================
 
 -- | Open the renumber modal via WindowManager
-openRenumberModal :: SyncContext -> (Command -> Command) -> [RenumberTaskInfo] -> IO ()
-openRenumberModal r wrapCmd infos =
+openRenumberModal :: SyncContext -> [RenumberTaskInfo] -> IO ()
+openRenumberModal r infos =
   let cfg =
         ModalConfig
           { chrome = WindowChrome (C.translate' C.LblRenumberTasks) Icon.IcnReorder
@@ -167,14 +171,14 @@ openRenumberModal r wrapCmd infos =
           , height = ModalAuto
           , pinnable = Nothing
           }
-   in openFramedModalWith r.windowManager cfg (renumberModalComponent r wrapCmd infos)
+   in openFramedModalWith r.windowManager cfg (renumberModalComponent r infos)
 
 -- ============================================================================
 -- Modal component
 -- ============================================================================
 
-renumberModalComponent :: SyncContext -> (Command -> Command) -> [RenumberTaskInfo] -> WindowMode -> M.Component p RenumberModel RenumberAction
-renumberModalComponent r wrapCmd infos wm =
+renumberModalComponent :: SyncContext -> [RenumberTaskInfo] -> WindowMode -> M.Component p RenumberModel RenumberAction
+renumberModalComponent r infos wm =
   M.component initialModel update view'
   where
     (initialEntries, skipped) = computeEntries infos
@@ -204,9 +208,9 @@ renumberModalComponent r wrapCmd infos wm =
       M.io_ $ do
         mapM_
           ( \e -> do
-              modifySyncDocument r $ wrapCmd $ Tasks (OnTasks (Modify e.taskId Cmd.Lock))
+              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId Cmd.Lock))
               let patch = def & #identifier .~ Just (e.oldIdentifier, e.newIdentifier) :: TaskPatch
-              modifySyncDocument r $ wrapCmd $ Tasks (OnTasks (Modify e.taskId (Cmd.Release patch)))
+              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (Cmd.Release patch)))
           )
           toRename
         closeWindow wm

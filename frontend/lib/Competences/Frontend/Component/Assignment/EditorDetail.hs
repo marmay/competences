@@ -20,7 +20,7 @@ import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentif
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
-import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft, wrapForOrigin)
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.ExportButton (exportButtonComponent)
@@ -46,6 +46,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Import.Export (exportAssignment)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.List (sortOn)
+import Data.Maybe (isJust)
 import Data.Proxy (Proxy (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -136,11 +137,12 @@ editorWrapperComponent r assignment =
                   , identifier = t.identifier
                   , title = t.title
                   , isMultiAssignment = Ix.size (doc.assignments Ix.@= tid) + Ix.size (doc.draftAssignments Ix.@= tid) > 1
+                  , origin = if isJust (Ix.getOne (doc.draftTasks Ix.@= tid)) then Draft else Published
                   }
               | tid <- taskIds
               , Just t <- [getTaskOrDraft doc tid]
               ]
-        openRenumberModal r (wrapForOrigin m.origin) infos
+        openRenumberModal r infos
 
     update PublishAssignment = do
       m <- M.get

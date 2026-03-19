@@ -11,7 +11,7 @@ where
 import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (isJust, mapMaybe)
 import Competences.Command (Command (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Common (EntityCommand (..))
@@ -43,7 +43,7 @@ import Competences.Document.Task
   )
 import Competences.Document.User (UserId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.PrintEngine.CSS (printStyleView)
 import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure
@@ -215,6 +215,8 @@ data ViewerProjection = ViewerProjection
   , assignmentLayouts :: ![Layout]
     -- | Whether this assignment is a draft or published
   , origin :: !EntityOrigin
+    -- | Set of task IDs that live in the draft collection (for per-task command wrapping)
+  , draftTaskIds :: !(Set.Set TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -234,6 +236,7 @@ emptyProjection role assignment = ViewerProjection
   , submissionSummary = Submission.NoSubmissions
   , assignmentLayouts = []
   , origin = Published
+  , draftTaskIds = Set.empty
   }
 
 -- ============================================================================
@@ -379,6 +382,10 @@ viewerComponent r user assignment wm =
           -- Get saved layouts for this assignment
           layouts = Ix.toList $ doc.layouts Ix.@= updatedAssignment.id
 
+          -- Compute which tasks are in draft collection
+          draftTids = Set.fromList
+            [ t.id | t <- relevantTasks, isJust (Ix.getOne (doc.draftTasks Ix.@= t.id)) ]
+
        in ViewerProjection
             { tasksWithSolutions
             , accumulatedObs = accumulated
@@ -393,6 +400,7 @@ viewerComponent r user assignment wm =
             , submissionSummary = subSummary
             , assignmentLayouts = layouts
             , origin = asmtOrigin
+            , draftTaskIds = draftTids
             }
 
     update (ProjectionChanged change) =
@@ -543,9 +551,10 @@ viewerComponent r user assignment wm =
                 , identifier = tws.task.identifier
                 , title = tws.task.title
                 , isMultiAssignment = False
+                , origin = if Set.member tid m.projection.draftTaskIds then Draft else Published
                 }
               infos = mapMaybe (\tid -> mkInfo tid <$> Map.lookup tid twsMap) taskOrder
-          openRenumberModal r (wrapForOrigin m.projection.origin) infos
+          openRenumberModal r infos
 
     update (DebouncedRemeasure gen) = do
       m <- M.get
