@@ -194,12 +194,16 @@ labeledLine label =
     , M.div_ [] [M.text (ms label)]
     ]
 
--- | Render grade field: two side-by-side labeled lines for points and grade
+-- | Render grade field: two side-by-side labeled lines for points and grade.
+-- Points line is ~1/3 the width of grade line, with ~10% spacing around and between.
 renderGradeField :: M.View model action
 renderGradeField =
-  M.div_ [class_ "mt-4 flex justify-between gap-8"]
-    [ labeledLine "Erreichte Punkte"
-    , labeledLine "Note"
+  M.div_
+    [ class_ "mt-4 flex"
+    , MC.style_ [("padding-left", "10%"), ("padding-right", "10%"), ("gap", "10%")]
+    ]
+    [ M.div_ [MC.style_ [("flex", "1")]] [labeledLine "Erreichte Punkte"]
+    , M.div_ [MC.style_ [("flex", "3")]] [labeledLine "Note"]
     ]
 
 -- | Render a signature line using label-under-line format, right-aligned
