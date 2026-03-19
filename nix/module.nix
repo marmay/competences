@@ -6,6 +6,49 @@ with lib;
 let
   cfg = config.services.competences;
 
+  maintenancePage = pkgs.writeTextDir "maintenance.html" ''
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta http-equiv="refresh" content="10">
+      <title>Vorübergehend nicht erreichbar</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif;
+               min-height: 100vh; display: flex; flex-direction: column;
+               background: #fafaf9; color: #1c1917; }
+        .bar { background: #d97706; height: 6px; flex-shrink: 0; }
+        .content { flex: 1; display: flex; justify-content: center;
+                   align-items: center; padding: 2rem; }
+        .card { background: white; border-radius: 12px; padding: 2.5rem;
+                max-width: 28rem; text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        h1 { font-size: 1.25rem; margin-bottom: .75rem; }
+        p { color: #57534e; line-height: 1.6; margin-bottom: .5rem; }
+        .en { color: #a8a29e; font-size: .9rem; margin-top: 1rem; }
+        .hint { font-size: .8rem; color: #a8a29e; margin-top: 1.25rem; }
+      </style>
+    </head>
+    <body>
+      <div class="bar"></div>
+      <div class="content">
+        <div class="card">
+          <h1>Vorübergehend nicht erreichbar</h1>
+          <p>Die Anwendung wird gerade aktualisiert und ist in
+             wenigen Augenblicken wieder verfügbar.</p>
+          <p class="en">Temporarily unavailable &mdash; the application
+             is being updated and will be back shortly.</p>
+          <p class="hint">Diese Seite wird automatisch neu geladen.
+             / This page will refresh automatically.</p>
+        </div>
+      </div>
+      <div class="bar"></div>
+    </body>
+    </html>
+  '';
+
   # Try to get competences flake from inputs (common in flake-based configs)
   competencesFlake = args.inputs.competences or null;
   system = pkgs.system;
@@ -324,7 +367,14 @@ in {
               proxy_set_header X-Real-IP $remote_addr;
               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
               proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_intercept_errors on;
+              error_page 502 503 504 /maintenance.html;
             '';
+          };
+
+          locations."= /maintenance.html" = {
+            root = "${maintenancePage}";
+            extraConfig = "internal;";
           };
         }
       ) (attrNames cfg.instances));
