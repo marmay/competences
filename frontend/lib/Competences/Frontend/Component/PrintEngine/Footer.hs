@@ -192,13 +192,8 @@ renderGradeField =
     , labeledLine "Note"
     ]
 
--- | Render a signature line
+-- | Render a signature line using label-under-line format, right-aligned
 renderSignatureLine :: M.View model action
 renderSignatureLine =
-  M.div_
-    [class_ "mt-4 text-sm"]
-    [ M.text "Unterschrift Erziehungsberechtigte/r: "
-    , M.span_
-        [MC.style_ [("display", "inline-block"), ("border-bottom", "1px solid #333"), ("width", "50%"), ("vertical-align", "bottom")]]
-        [M.text "\xA0"]
-    ]
+  M.div_ [class_ "mt-4 max-w-xs ml-auto"]
+    [labeledLine "Unterschrift Erziehungsberechtigte/r"]
