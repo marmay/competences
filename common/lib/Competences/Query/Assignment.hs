@@ -14,6 +14,9 @@ module Competences.Query.Assignment
   , isAssignmentCompleted
   , isAssignmentOpen
   , statusLabel
+    -- * Teacher-level queries
+  , hasOpenSubmissions
+  , hasUnreviewedSubmission
     -- * Completion categories (for statistics)
   , AssignmentCompletionCategory (..)
   , assignmentCompletionCategory
@@ -24,13 +27,14 @@ where
 import Control.Applicative ((<|>))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentId, AssignmentIxs, Document (..))
-import Competences.Document.Submission (Submission (..), SubmissionKind (..))
+import Competences.Document.Submission (Submission (..), SubmissionKind (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..))
 import Competences.Document.User (UserId)
 import Data.List (maximumBy)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
@@ -108,6 +112,27 @@ isAssignmentOpen doc userId assignmentId =
             Just d
               | d < submissionTrackingCutoff -> False -- Legacy data: assume already corrected
               | otherwise -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
+
+-- | Does an assignment have any unreviewed student submissions?
+hasOpenSubmissions :: Document -> AssignmentId -> Bool
+hasOpenSubmissions doc assignmentId =
+  let subs = Ix.toList (doc.submissions Ix.@= assignmentId)
+      userIds = Set.toList $ Set.fromList $ concatMap (ownerIds . (.ownership)) subs
+   in any (hasUnreviewedSubmission doc assignmentId) userIds
+
+-- | Does a specific user have an unreviewed submission for an assignment?
+hasUnreviewedSubmission :: Document -> AssignmentId -> UserId -> Bool
+hasUnreviewedSubmission doc assignmentId userId =
+  let userSubs = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
+      linkedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= assignmentId Ix.@= userId
+   in case userSubs of
+        [] -> False
+        _ -> case linkedEvidences of
+          [] -> True -- Submissions but no evidence → unreviewed
+          evs ->
+            let latestDay = (last evs).date
+             in latestDay >= submissionTrackingCutoff
+                  && any (\s -> utctDay s.submittedAt >= latestDay) userSubs
 
 -- | Cutoff date for submission tracking.
 -- Before this date, submissions weren't tracked, so NeedsWork assignments

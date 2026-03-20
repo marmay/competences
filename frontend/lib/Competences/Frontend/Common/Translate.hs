@@ -141,6 +141,7 @@ data Label
   | LblFilterAllAssignments
   | LblFilterNotGraded
   | LblFilterOpenAssignments
+  | LblFilterHasOpenSubmissions
   | LblTaskIdentifier
   | LblTaskTitle
   | LblTaskContent
@@ -560,6 +561,7 @@ labels' =
   , LblFilterAssignments
   , LblFilterAllAssignments
   , LblFilterNotGraded
+  , LblFilterHasOpenSubmissions
   , LblTaskIdentifier
   , LblTaskTitle
   , LblTaskContent
@@ -998,6 +1000,7 @@ defaultTranslation LblFilterAssignments = "Nach Name filtern..."
 defaultTranslation LblFilterAllAssignments = "Alle"
 defaultTranslation LblFilterNotGraded = "Nicht korrigiert"
 defaultTranslation LblFilterOpenAssignments = "Offen"
+defaultTranslation LblFilterHasOpenSubmissions = "Offene Abgaben"
 defaultTranslation LblTaskIdentifier = "Bezeichnung"
 defaultTranslation LblTaskTitle = "Titel"
 defaultTranslation LblTaskContent = "Inhalt"

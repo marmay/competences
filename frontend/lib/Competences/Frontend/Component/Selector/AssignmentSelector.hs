@@ -35,7 +35,7 @@ import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.SelectorList qualified as SelectorList
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus, isAssignmentOpen)
+import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus, hasOpenSubmissions, isAssignmentOpen)
 import Data.Default (Default)
 import Data.List (find, sortOn)
 import Data.Maybe (isJust)
@@ -59,11 +59,13 @@ data SelectorProjection = SelectorProjection
   , draftIds :: !(Set.Set AssignmentId)
     -- | IDs of "open" assignments (student still needs to act)
   , openSet :: !(Set.Set AssignmentId)
+    -- | IDs of assignments with any unreviewed submissions (teacher-level)
+  , openSubmissionsSet :: !(Set.Set AssignmentId)
   }
   deriving (Eq, Generic, Show)
 
 emptyProjection :: SelectorProjection
-emptyProjection = SelectorProjection Ix.empty Nothing Map.empty Set.empty Set.empty
+emptyProjection = SelectorProjection Ix.empty Nothing Map.empty Set.empty Set.empty Set.empty
 
 -- | Projection function - pre-computes all assignment statuses
 -- Filters assignments by focused user if set (shows only assignments assigned to that user)
@@ -93,15 +95,22 @@ selectorProjection doc mUser =
           , not (Set.member a.id draftIds')
           , isAssignmentOpen doc user.id a.id
           ]
+      openSubmissionsSet' = Set.fromList
+          [ a.id
+          | a <- Ix.toList allAssignments
+          , not (Set.member a.id draftIds')
+          , hasOpenSubmissions doc a.id
+          ]
    in SelectorProjection
         { assignments
         , focusedUser = mUser
         , statusMap
         , draftIds = draftIds'
         , openSet = openSet'
+        , openSubmissionsSet = openSubmissionsSet'
         }
 
-data AssignmentFilter = AllAssignments | NotGradedOnly | OpenOnly
+data AssignmentFilter = AllAssignments | NotGradedOnly | OpenOnly | HasOpenSubmissions
   deriving (Eq, Show)
 
 data Model = Model
@@ -140,7 +149,7 @@ assignmentSelectorComponent r initialSelection parentLens =
       , selectedAssignment = Nothing
       , newAssignment = Nothing
       , searchQuery = ""
-      , assignmentFilter = OpenOnly
+      , assignmentFilter = HasOpenSubmissions
       , isDropdownOpen = False
       }
 
@@ -220,13 +229,15 @@ assignmentSelectorComponent r initialSelection parentLens =
             <> [ inlineComponent
                    "assignment-status-filter"
                    ( ES.enumSelectorComponent'
-                       OpenOnly
-                       [OpenOnly, AllAssignments, NotGradedOnly]
+                       HasOpenSubmissions
+                       ( [HasOpenSubmissions, AllAssignments]
+                           <> [OpenOnly | isJust m.projection.focusedUser]
+                           <> [NotGradedOnly | isJust m.projection.focusedUser]
+                       )
                        ES.SelectDropdown
                        translateAssignmentFilter
                        #assignmentFilter
                    )
-               | isJust m.projection.focusedUser
                ]
             <> [ SelectorList.selectorList (map (viewAssignment m) (filteredAssignments m))
                ]
@@ -235,6 +246,7 @@ assignmentSelectorComponent r initialSelection parentLens =
     translateAssignmentFilter AllAssignments = C.translate' C.LblFilterAllAssignments
     translateAssignmentFilter NotGradedOnly = C.translate' C.LblFilterNotGraded
     translateAssignmentFilter OpenOnly = C.translate' C.LblFilterOpenAssignments
+    translateAssignmentFilter HasOpenSubmissions = C.translate' C.LblFilterHasOpenSubmissions
 
     filteredAssignments m =
       let proj = m.projection
@@ -249,6 +261,7 @@ assignmentSelectorComponent r initialSelection parentLens =
             Just Completed -> False
             _ -> True  -- NotGraded, NeedsWork, and drafts (not in statusMap)
        in case (proj.focusedUser, m.assignmentFilter) of
+            (_, HasOpenSubmissions) -> filter (\a -> Set.member a.id proj.openSubmissionsSet) textFiltered
             (Just _, NotGradedOnly) -> filter isNotCompleted textFiltered
             (Just _, OpenOnly) -> filter (\a -> Set.member a.id proj.openSet) textFiltered
             _ -> textFiltered
