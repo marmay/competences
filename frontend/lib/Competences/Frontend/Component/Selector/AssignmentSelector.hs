@@ -149,7 +149,7 @@ assignmentSelectorComponent r initialSelection parentLens =
       , selectedAssignment = Nothing
       , newAssignment = Nothing
       , searchQuery = ""
-      , assignmentFilter = HasOpenSubmissions
+      , assignmentFilter = defaultFilter
       , isDropdownOpen = False
       }
 
@@ -206,6 +206,7 @@ assignmentSelectorComponent r initialSelection parentLens =
             & #newAssignment .~ new'
 
     connectedUser = (syncDocumentEnv r).connectedUser
+    defaultFilter = if isTeacher connectedUser then HasOpenSubmissions else OpenOnly
 
     view' m =
       M.div_
@@ -229,10 +230,14 @@ assignmentSelectorComponent r initialSelection parentLens =
             <> [ inlineComponent
                    "assignment-status-filter"
                    ( ES.enumSelectorComponent'
-                       HasOpenSubmissions
-                       ( [HasOpenSubmissions, AllAssignments]
-                           <> [OpenOnly | isJust m.projection.focusedUser]
-                           <> [NotGradedOnly | isJust m.projection.focusedUser]
+                       defaultFilter
+                       ( if isTeacher connectedUser
+                           then
+                             [HasOpenSubmissions, AllAssignments]
+                               <> [OpenOnly | isJust m.projection.focusedUser]
+                               <> [NotGradedOnly | isJust m.projection.focusedUser]
+                           else
+                             [OpenOnly, AllAssignments, NotGradedOnly]
                        )
                        ES.SelectDropdown
                        translateAssignmentFilter
