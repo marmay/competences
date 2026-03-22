@@ -38,6 +38,13 @@ This is a quick-start guide. **Read the detailed documentation when needed:**
 
 **Always read relevant docs before making significant changes to avoid common pitfalls.**
 
+## Working Style
+
+When multiple reasonable approaches exist, present them with trade-offs rather than silently choosing.
+Flag simplifying assumptions explicitly so they can be reviewed.
+The human is not always right — actively look for simpler or more effective approaches and push back constructively.
+When uncertain whether something needs human input, err toward asking.
+
 ## Project Overview
 
 This is a competences tracking application written in Haskell, using a multi-package Cabal project structure. It consists of:
@@ -162,7 +169,7 @@ The project uses GHC2024 with these additional extensions:
 
 ## IxSet-typed Patterns
 
-The codebase uses `ixset-typed` for efficient indexed data storage. Follow these patterns for performance:
+The codebase uses `ixset-typed` for efficient indexed data storage. **Key principle: remain in IxSet domain as long as possible.** Convert to list only at the final rendering step. Models should store `IxSet`, not pre-converted lists.
 
 ### Filtering by Index
 
@@ -237,130 +244,72 @@ listToMaybe $ Ix.toDescList (Proxy @Day) $ xs Ix.@= userId Ix.@= gridId
 
 ## UI and View Patterns
 
-**See [docs/UI-REFACTORING-PROGRESS.md](docs/UI-REFACTORING-PROGRESS.md) for complete details.**
-
-The frontend uses Basecoat-inspired design patterns with Tailwind CSS. All View modules follow consistent styling and component patterns.
+The frontend uses Basecoat-inspired design patterns with Tailwind CSS v4.
 
 ### Core Principles
 
-1. **Direct CSS classes** via `class_` helper instead of TailwindCls enum
+1. **Direct CSS classes** via `class_` / `classes` helpers (not TailwindCls enum)
 2. **Basecoat color palette**: sky (primary), stone (neutral), red (destructive)
-3. **Builder pattern** for component configuration (`with*` functions)
-4. **Semantic components** with clear purpose and consistent API
+3. **Builder pattern** for component configuration (`with*` functions on Button, Input, etc.)
 
-### View Module Organization
+### View Primitives
 
-**Core Components** (`Competences.Frontend.View.*`):
-- `Typography` - Headings, paragraphs, text utilities (h1-h4, paragraph, lead, small, muted, code, kbd)
-- `Badge` - Status indicators with variants (Primary, Secondary, Destructive, Outline)
-- `Card` - Content containers (card, cardWithHeader, cardWithFooter, cardFull)
-- `Button` - Interactive buttons with Basecoat styling and builder pattern
-- `Input` - Form inputs with configuration builders (text, password, email, number, date, textarea)
+View modules live in `Competences.Frontend.View.*`. Import the re-export module for convenience:
+```haskell
+import Competences.Frontend.View qualified as V
+```
 
-**Layout & Structure**:
-- `Layout` - FlowLayout foundation + higher-level primitives (pageLayout, splitView, formLayout, section)
-- `Form` - Form layout helpers + Input re-exports for convenience
-- `Table` - Data tables with Basecoat styling (rounded borders, hover states)
-- `Modal` - Overlay dialogs with backdrop and proper layering
-
-**Utilities**:
-- `DesignTokens` - Basecoat constants (spacing, colors, radii, typography)
-- `Tailwind` - Enhanced with `class_` and `classes` helpers for direct CSS
-
-### Common Usage Patterns
+Key modules: `Typography`, `Button` (builder pattern), `Input` (builder pattern), `Card`, `Table`, `Layout`, `Badge`, `WindowFrame` (modals/panels), `Color` + `Color/*` (domain-specific color mappings), `Text` (inline text helpers).
 
 ```haskell
--- Import pattern for View modules
-import Competences.Frontend.View qualified as V
-import Competences.Frontend.View.Button as Button
-import Competences.Frontend.View.Input as Input
-
--- Using Typography
-V.h2 "Section Title"
-V.paragraph "Description text..."
-
--- Using Buttons with builder pattern
+-- Buttons use builder pattern
 Button.button Button.Primary
   & Button.withClick MyAction
   & Button.render "Click Me"
 
--- Using Inputs with configuration
+-- Inputs use builder pattern
 Input.textInput
   & Input.withPlaceholder "Enter name..."
   & Input.withValue model.name
   & Input.withOnInput SetName
   & Input.renderInput
 
--- Using Cards
-V.cardWithHeader "Card Title" (Just "Description")
-  [ V.paragraph "Card content..."
-  , V.paragraph "More content..."
-  ]
-
--- Using Tables
-V.viewTable $ V.defTable
-  & #columns .~ myColumns
-  & #rows .~ myRows
-  & #columnSpec .~ myColumnSpec
-  & #rowContents .~ myRowRenderer
-
--- Using direct CSS classes
+-- Direct CSS classes
 M.div_ [V.class_ "flex gap-4 items-center bg-stone-50 p-4 rounded-lg"] [...]
 ```
 
-### Basecoat UI Integration
-
-This project integrates [Basecoat UI](https://basecoatui.com/) - a framework-agnostic component library built on Tailwind CSS v4.
-
-**Architecture**:
-- **CSS**: Imported via `basecoat-css` npm package in `input.css`, built into single `output.css`
-- **Integration**: Single CSS file loaded via backend HTML generation in `backend/lib/Competences/Backend/HTTP.hs`
-- **JavaScript**: Basecoat JS files are not used. Only CSS-based patterns are used currently.
-
 ### CSS Build System
 
-**Production CSS**: Generated via Tailwind v4 CLI (`@tailwindcss/cli`), served from `/static/output.css`
-- **Source**: `frontend/static-src/input.css` (`@import "tailwindcss"; @import "basecoat-css";` + theme variables)
-- **Output**: `static/output.css` (~192KB minified, includes Basecoat components + Tailwind utilities)
-- **Build**: `npm run build:css` (integrated into `deploy_frontend.sh`)
-- **Safelist**: `@source inline()` directives in `input.css` with brace expansion for dynamic class names
+CSS is built from `frontend/static-src/input.css` → `static/output.css` via Tailwind v4 CLI (`npm run build:css`, integrated into `deploy_frontend.sh`). The input file imports `tailwindcss` and `basecoat-css`, plus theme overrides. `@source inline()` directives safelist dynamic class names that Tailwind can't detect in Haskell source.
 
-**Why safelist?** Tailwind's content scanner can't detect dynamically constructed class names in Haskell code (via `class_` helper), so we use `@source inline()` to ensure all needed classes are available.
+### WindowManagement
 
-### Migration Guide
+Modals and pinned panels are managed by the **WindowManager** (`SyncContext.WindowManager`). Components open windows via `openModal`/`pinDialog`; the WindowManager handles stacking, backdrop, and lifecycle. `View.WindowFrame` provides the rendering primitives (`modalFrame`, `modalDialog`, `windowTitleBar`).
 
-When updating components to use new View patterns:
+### Selector Pattern
 
-1. **Replace old imports**:
-   ```haskell
-   -- Old
-   import Competences.Frontend.View.Colors qualified as C
-   import Competences.Frontend.View.Text qualified as V
+The **SelectorDetail** component (`Component.SelectorDetail`) is a reusable left-right layout: selector on the left, detail view on the right. Used by `TaskEditor`, `AssignmentSelector`, `CompetenceGridSelector`, and others. It takes a `SelectorDetailConfig` with mode switching support.
 
-   -- New
-   import Competences.Frontend.View.Typography qualified as Typography
-   import Competences.Frontend.View.Button as Button
-   ```
+### Unidirectional Data Flow
 
-2. **Replace TailwindCls enum usage**:
-   ```haskell
-   -- Old
-   M.div_ [T.tailwind [T.Flex, T.Gap4, T.ItemsCenter]] [...]
+Data flows up the component tree. Components subscribe to projected state from SyncContext and emit commands upward. Models contain only what the view needs — project from the Document, don't store redundant copies.
 
-   -- New
-   M.div_ [V.class_ "flex gap-4 items-center"] [...]
-   ```
+## Module Structure Principles
 
-3. **Use View primitives**:
-   ```haskell
-   -- Old
-   M.h2_ [T.tailwind [T.Text2xl, T.FontBold]] [M.text "Title"]
+- Don't bundle multiple stateful components in one module
+- Tabs belong in separate modules
+- Folder structure for navigability: `Component/Foo.hs` (wrapper) + `Component/Foo/` (subcomponents)
+- Models must be minimal: project onto exactly what the view needs
 
-   -- New
-   Typography.h2 "Title"
-   ```
+## Command Handler Conventions
 
-4. **Test thoroughly** - View changes affect rendering, verify UI looks correct
+Commands follow a standard pattern via `mkEntityCommandContext` (in `Command.Interpret`):
+1. Define a `Patch` type for modifications
+2. Define command constructors (`Create | Delete | Modify patch`)
+3. Implement `applyPatch :: entity -> patch -> Either Text entity`
+4. Wire up via `mkEntityCommandContext` with lens, ID accessor, lock, patch applier, and affected-users function
+
+Complex entities (Tasks, DraftTasks, Lessons) extend this pattern with custom cascading and validation logic. `AffectedUsers` helpers are currently scattered per-module (see `docs/TODO.md` for unification plan).
 
 ## Essential Patterns
 
@@ -451,33 +400,16 @@ The task system allows teachers to create and manage learning tasks with compete
 - `OnSubTasks` - Create/Delete/Modify subtasks (uses parent TaskGroupLock)
 
 **Frontend Components**:
-- `SelfContainedTaskEditor` - Edit standalone tasks (route: `/tasks`)
-  - Three fields: identifier (TaskIdentifier → Text), content (Maybe Text → Text), purpose (enum)
-  - Lens conversions handle newtype and nested structure transformations
+- `TaskEditor` - Unified editor for tasks and task groups (route: `/tasks`)
+  - Uses `SelectorDetail` pattern: left panel selects task/group, right panel shows detail view
   - Teacher-only feature, accessible via navigation menu
-
-**Key Patterns**:
-```haskell
--- Create a task
-let task = Task
-      { id = taskId
-      , identifier = TaskIdentifier "Book-1.2.3"
-      , content = Just "Solve equations..."
-      , taskType = SelfContained defaultTaskAttributes
-      }
-modifySyncDocument r $ Tasks (OnTasks (Create task))
-
--- Edit task purpose (nested in TaskType → SelfContained → TaskAttributes)
--- Uses custom lens to extract/update purpose from nested structure
-purposeViewLens :: Lens' Task TaskPurpose
-```
 
 **Gradual Migration**:
 - Evidence now has `tasks :: [TaskId]` field
 - Old text-based tasks preserved in `oldTasks :: Maybe Text`
 - Allows smooth transition from free-text to structured tasks
 
-See [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) and [docs/TASKS-IMPLEMENTATION-PLAN.md](docs/TASKS-IMPLEMENTATION-PLAN.md) for complete design and implementation details.
+See [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) for design details.
 
 ## Authentication Flow
 
@@ -570,27 +502,6 @@ sudo nixos-rebuild switch \
   --build-host localhost
 ```
 
-## Next Steps and Current Work
+## Current TODOs
 
-### Immediate (Before Production)
-
-1. ✅ **Versioning envelope (COMPLETED)**
-2. **Test full deployment workflow** - Complete testing checklist in [docs/DATABASE.md](docs/DATABASE.md)
-
-### Short Term
-
-3. **Snapshot garbage collection** - Implement retention policy
-4. **Monitoring and observability** - Structured logging, metrics
-5. **Backup and disaster recovery** - Automated PostgreSQL backups
-
-### Medium Term
-
-6. **Student command authorization** - Currently all commands require Teacher role
-7. **Property-based testing** - QuickCheck properties for `AffectedUsers` and projection correctness
-8. **Performance optimization** - Profile queries, benchmark snapshots
-
-### Long Term
-
-9. **Command replay optimization** - Incremental snapshots or diffs
-10. **Multi-tenancy** - Multiple documents in single backend (if managing 10+ classes)
-11. **Analytics and reporting** - Student progress, teacher dashboards
+See [docs/TODO.md](docs/TODO.md) for the current task list.
