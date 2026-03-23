@@ -312,15 +312,15 @@ renderBlock resolver symbols = \case
           [M.code_ [] [M.text (ms body)]]
   MD.OrderedList _start items ->
     M.ol_
-      [class_ "list-decimal ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
+      [class_ "list-decimal ml-6 space-y-1 marker:font-medium marker:text-stone-600"]
       $ map (renderListItem resolver symbols) items
   MD.BulletList items ->
     M.ul_
-      [class_ "list-disc ml-6 space-y-2"]
+      [class_ "list-disc ml-6 space-y-1"]
       $ map (renderListItem resolver symbols) items
   MD.LetterList items ->
     M.ol_
-      [class_ "list-[lower-alpha] ml-6 space-y-2 marker:font-medium marker:text-stone-600"]
+      [class_ "list-[lower-alpha] ml-6 space-y-1 marker:font-medium marker:text-stone-600"]
       $ map (renderListItem resolver symbols) items
   MD.MathBlock latex ->
     mathImgRef symbols (hashLatex Block latex) latex Block
@@ -434,9 +434,9 @@ renderChoiceBlock
   -> M.View RichContentModel RichContentAction
 renderChoiceBlock resolver symbols radiusCls items =
   M.div_
-    [class_ "space-y-1"]
+    []
     [ M.div_
-        [class_ "flex items-baseline gap-2 py-1"]
+        [class_ "flex items-baseline gap-2 py-0.5"]
         [ M.div_
             [class_ "relative flex-shrink-0 leading-none"]
             -- Phantom ☐ sizes the box and anchors the baseline; the styled
@@ -465,12 +465,12 @@ renderMappingBlock
   -> M.View RichContentModel RichContentAction
 renderMappingBlock resolver symbols leftItems rightItems =
   M.div_
-    [class_ "grid grid-cols-2 gap-4"]
+    [class_ "grid grid-cols-2 gap-3"]
     [ M.div_
-        [class_ "space-y-2"]
+        [class_ "space-y-1"]
         (zipWith (renderMappingLeft resolver symbols) [1 ..] leftItems)
     , M.div_
-        [class_ "space-y-2"]
+        [class_ "space-y-1"]
         (map (renderMappingRight resolver symbols) rightItems)
     ]
 
