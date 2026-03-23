@@ -332,10 +332,8 @@ renderBlock resolver symbols = \case
     renderNotesGrid resolver symbols c1 c2 c3 c4
   MD.ClozeBlock body opts ->
     renderClozeBlock resolver symbols body opts
-  MD.ChoiceBlock MD.SingleChoice items ->
-    renderChoiceBlock resolver symbols "rounded-full" items
-  MD.ChoiceBlock MD.MultipleChoice items ->
-    renderChoiceBlock resolver symbols "rounded-sm" items
+  MD.ChoiceBlock choiceType items ->
+    renderChoiceBlock resolver symbols choiceType items
   MD.MappingBlock leftItems rightItems ->
     renderMappingBlock resolver symbols leftItems rightItems
   MD.VSpace val ->
@@ -433,17 +431,13 @@ renderClozeChip resolver symbols style idx item =
     $ label ++ [content]
   where
     label = case style of
-      ClozeNumbered start ->
-        [ M.div_
-            [class_ "flex items-center justify-center w-8 border-r border-stone-300 bg-stone-50 font-medium text-stone-600"]
-            [M.text (ms (show (start + idx)))]
-        ]
-      ClozeLettered ->
-        [ M.div_
-            [class_ "flex items-center justify-center w-8 border-r border-stone-300 bg-stone-50 font-medium text-stone-600"]
-            [M.text (ms [toEnum (fromEnum 'a' + idx) :: Char])]
-        ]
+      ClozeNumbered start -> [labelCell (ms (show (start + idx)))]
+      ClozeLettered -> [labelCell (ms [toEnum (fromEnum 'a' + idx) :: Char])]
       ClozePlain -> []
+    labelCell txt =
+      M.div_
+        [class_ "flex items-center justify-center w-8 border-r border-stone-300 bg-stone-50 font-medium text-stone-600"]
+        [M.text txt]
     content =
       M.div_
         [class_ "px-3 py-1"]
@@ -491,10 +485,10 @@ renderClozeBlock resolver symbols body opts =
 renderChoiceBlock
   :: FileResolver
   -> Map SymbolId FormulaResult
-  -> Text -- ^ CSS border-radius class: "rounded-full" for radio, "rounded-sm" for checkbox
+  -> MD.ChoiceType
   -> [[MD.Block]]
   -> M.View RichContentModel RichContentAction
-renderChoiceBlock resolver symbols radiusCls items =
+renderChoiceBlock resolver symbols choiceType items =
   M.div_
     []
     [ M.div_
@@ -505,7 +499,7 @@ renderChoiceBlock resolver symbols radiusCls items =
             -- border is overlaid via absolute positioning.
             [ M.span_ [class_ "invisible"] [M.text "\x2610"]
             , M.span_
-                [ class_ ("absolute inset-0 border-2 border-stone-400 " <> radiusCls)
+                [ class_ ("absolute inset-0 border-2 border-stone-400 " <> choiceRadiusCls)
                 ]
                 []
             ]
@@ -515,6 +509,10 @@ renderChoiceBlock resolver symbols radiusCls items =
         ]
     | item <- items
     ]
+  where
+    choiceRadiusCls = case choiceType of
+      MD.SingleChoice -> "rounded-full"
+      MD.MultipleChoice -> "rounded-sm"
 
 -- | Render a mapping block: two columns.
 -- Left items have content + numbered label on the right (separated by vertical line).
