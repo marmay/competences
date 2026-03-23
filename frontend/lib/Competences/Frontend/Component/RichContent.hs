@@ -397,6 +397,69 @@ renderNotesGrid resolver symbols c1 c2 c3 c4 =
     cell cls blocks =
       M.div_ [class_ cls] $ map (renderBlock resolver symbols) blocks
 
+-- | Style for cloze suggestion chip labels
+data ClozeListStyle = ClozeNumbered !Int | ClozeLettered | ClozePlain
+
+-- | Try to extract list items from a single-element block list
+extractListItems :: [MD.Block] -> Maybe (ClozeListStyle, [[MD.Block]])
+extractListItems [MD.OrderedList start items] = Just (ClozeNumbered start, items)
+extractListItems [MD.LetterList items] = Just (ClozeLettered, items)
+extractListItems [MD.BulletList items] = Just (ClozePlain, items)
+extractListItems _ = Nothing
+
+-- | Render cloze suggestion items as inline chips in a flex-wrap container
+renderClozeChips
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> ClozeListStyle
+  -> [[MD.Block]]
+  -> M.View RichContentModel RichContentAction
+renderClozeChips resolver symbols style items =
+  M.div_
+    [class_ "mt-3 flex flex-wrap gap-2"]
+    (zipWith (renderClozeChip resolver symbols style) [0 ..] items)
+
+-- | Render a single cloze chip
+renderClozeChip
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> ClozeListStyle
+  -> Int
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderClozeChip resolver symbols style idx item =
+  M.div_
+    [class_ "flex border border-stone-300 rounded-md overflow-hidden"]
+    $ label ++ [content]
+  where
+    label = case style of
+      ClozeNumbered start ->
+        [ M.div_
+            [class_ "flex items-center justify-center w-8 border-r border-stone-300 bg-stone-50 font-medium text-stone-600"]
+            [M.text (ms (show (start + idx)))]
+        ]
+      ClozeLettered ->
+        [ M.div_
+            [class_ "flex items-center justify-center w-8 border-r border-stone-300 bg-stone-50 font-medium text-stone-600"]
+            [M.text (ms [toEnum (fromEnum 'a' + idx) :: Char])]
+        ]
+      ClozePlain -> []
+    content =
+      M.div_
+        [class_ "px-3 py-1"]
+        (map (renderBlock resolver symbols) item)
+
+-- | Render cloze suggestions as a gray box (fallback for non-list content)
+renderClozeBox
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [MD.Block]
+  -> M.View RichContentModel RichContentAction
+renderClozeBox resolver symbols bs =
+  M.div_
+    [class_ "mt-3 p-3 bg-stone-50 border border-stone-200 rounded-md"]
+    (map (renderBlock resolver symbols) bs)
+
 -- | Render a cloze block: body text (with blanks), then optional word bank below
 renderClozeBlock
   :: FileResolver
@@ -411,16 +474,15 @@ renderClozeBlock resolver symbols body opts =
       ++ case opts of
         MD.ClozeNoOptions -> []
         MD.ClozeWordBank bs ->
-          [ M.div_
-              [class_ "mt-3 p-3 bg-stone-50 border border-stone-200 rounded-md"]
-              (map (renderBlock resolver symbols) bs)
-          ]
+          case extractListItems bs of
+            Just (style, items) -> [renderClozeChips resolver symbols style items]
+            Nothing -> [renderClozeBox resolver symbols bs]
         MD.ClozePerBlankOptions groups ->
           [ M.div_
-              [class_ "mt-3 flex flex-wrap gap-3"]
-              [ M.div_
-                  [class_ "p-3 bg-stone-50 border border-stone-200 rounded-md"]
-                  (map (renderBlock resolver symbols) grp)
+              [class_ "mt-3 space-y-3"]
+              [ case extractListItems grp of
+                  Just (style, items) -> renderClozeChips resolver symbols style items
+                  Nothing -> renderClozeBox resolver symbols grp
               | grp <- groups
               ]
           ]
