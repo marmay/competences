@@ -169,7 +169,7 @@ fileGalleryComponent r files =
       | null m.imageFiles && null m.nonImageFiles =
           MH.span_ [] []
       | null m.imageFiles =
-          viewFileList m.nonImageFiles
+          viewFileTable m
       | otherwise =
           MH.div_
             [class_ "flex flex-col w-full h-full"]
@@ -386,26 +386,3 @@ viewNonImageFileRow downloading ref =
                 [Icon.iconS Icon.Small Icon.IcnImport]
         ]
 
--- ---------------------------------------------------------------------------
--- File List (non-image only, no toggle)
--- ---------------------------------------------------------------------------
-
-viewFileList :: [FileRef] -> M.View m a
-viewFileList files =
-  MH.div_
-    [class_ "p-3"]
-    [ Layout.vFlow
-        Layout.gapS
-        (map viewFileListItem files)
-    ]
-
-viewFileListItem :: FileRef -> M.View m a
-viewFileListItem ref =
-  Layout.hFlow
-    (Layout.gapS <> Layout.crossCenter)
-    [ Icon.iconS Icon.Small Icon.IcnImport
-    , MH.span_ [class_ "text-sm font-medium truncate flex-1"] [M.text $ ms ref.fileName]
-    , MH.span_
-        [class_ "text-sm text-muted-foreground flex-shrink-0"]
-        [M.text $ ms $ "(" <> showFileSize ref.fileSize <> ")"]
-    ]
