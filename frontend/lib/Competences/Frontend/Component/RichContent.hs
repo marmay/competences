@@ -553,7 +553,7 @@ renderInline resolver symbols = \case
       Left err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
       Right fileView ->
         case mThumb of
-          Nothing -> fileView
+          Nothing -> M.div_ [class_ "flex justify-center"] [fileView]
           Just size -> M.div_ [class_ (thumbClasses size)] [fileView]
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []

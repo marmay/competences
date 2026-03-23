@@ -92,7 +92,7 @@ filePreviewComponent syncCtx ref =
         [ MH.img_
             [ MP.src_ (ms url)
             , MP.alt_ (ms fr.fileName)
-            , class_ "max-h-64 rounded-md cursor-pointer hover:opacity-90 transition-opacity"
+            , class_ "max-w-full rounded-md cursor-pointer hover:opacity-90 transition-opacity"
             , MP.title_ "Klicken zum Vergrößern"
             , MH.onClick ToggleEnlarged
             ]
