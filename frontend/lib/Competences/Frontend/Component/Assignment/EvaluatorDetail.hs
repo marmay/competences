@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -489,19 +489,33 @@ evaluatorComponent r assignment =
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else case m.clickedStudent of
               Just uid | m.showSubmissions ->
-                let key = "sub-sel-" <> ms (show uid)
-                    binding = selectorTransformedLens id id #activeSubmission
-                 in Layout.hFlow
-                      (Layout.gapM <> Layout.hFull)
-                      [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
-                      , Layout.addClass "w-1/2 flex-1 min-h-0 flex flex-col" $
-                          MH.div_ [class_ "h-full flex flex-col"]
-                            [ MH.div_ [class_ "flex justify-end"]
-                                [Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)]
-                            , inlineComponent key
-                                (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
-                            ]
-                      ]
+                let studentSubs = Ix.toList (m.submissions Ix.@= uid)
+                    hasDigital = any (\s -> case s.kind of DigitalSubmission _ -> True; _ -> False) studentSubs
+                 in if hasDigital
+                      then
+                        -- Full split view for digital submissions
+                        let key = "sub-sel-" <> ms (show uid)
+                            binding = selectorTransformedLens id id #activeSubmission
+                         in Layout.hFlow
+                              (Layout.gapM <> Layout.hFull)
+                              [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
+                              , Layout.addClass "w-1/2 flex-1 min-h-0 flex flex-col" $
+                                  MH.div_ [class_ "h-full flex flex-col"]
+                                    [ MH.div_ [class_ "flex justify-end"]
+                                        [Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)]
+                                    , inlineComponent key
+                                        (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
+                                    ]
+                              ]
+                      else
+                        -- Compact inline banner for void/non-digital submissions
+                        Layout.vFlow
+                          mempty
+                          [ viewStudentSelection m
+                          , viewOverwriteBanner m
+                          , viewCompactSubmissionBanner m studentSubs
+                          , taskContent
+                          ]
               _ -> leftContent
 
     viewStudentSelection m =
@@ -561,6 +575,35 @@ evaluatorComponent r assignment =
             | hasAnyEvidence = Button.toButtonContents (Icon.IcnEvidence, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
+
+    viewCompactSubmissionBanner :: EvaluatorModel -> [Submission] -> M.View EvaluatorModel EvaluatorAction
+    viewCompactSubmissionBanner _m subs =
+      let bannerItems = map submissionBannerItem subs
+       in M.div_ [class_ "my-4 space-y-2"] bannerItems
+      where
+        submissionBannerItem sub = case sub.kind of
+          VoidSubmission reason ->
+            M.div_ [class_ "flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"]
+              [ Icon.icon [] Icon.IcnCancel
+              , Badge.destructive (Badge.badgeLabel C.LblNichtGemacht)
+              , M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ voidReasonText reason]
+              , Layout.flowSpring
+              , Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)
+              ]
+          NonDigitalSubmission mLocation ->
+            M.div_ [class_ "flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"]
+              [ Icon.icon [] Icon.IcnLessonNotes
+              , Badge.outline (Badge.badgeLabel C.LblGemacht)
+              , case mLocation of
+                  Just loc -> M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]
+                  Nothing -> M.text ""
+              , Layout.flowSpring
+              , Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)
+              ]
+          DigitalSubmission _ -> M.text ""  -- Shouldn't happen in this branch
+
+        voidReasonText :: VoidReason -> MisoString
+        voidReasonText = C.translateVoidReason
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
