@@ -132,18 +132,25 @@ classifierExamples =
               ]
          in masteryAt BasicLevel timeline @?= StreakTwoPlus
     , -- StreakTwoAssessed (++2) examples
-      testCase "two SelfReliant (Individual + Exam) -> StreakTwoAssessed" $
+      -- Individual and Assessment must come from *separate* evidences.
+      testCase "Individual + Exam on separate evidences -> StreakTwoAssessed" $
+        let timeline =
+              [ [obsExam BasicLevel SelfReliant Group]
+              , [obs BasicLevel SelfReliant Individual]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+    , testCase "Individual + Conversation on separate evidences -> StreakTwoAssessed" $
+        let timeline =
+              [ [obsConv BasicLevel SelfReliant Group]
+              , [obs BasicLevel SelfReliant Individual]
+              ]
+         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+    , testCase "Individual + Exam on same evidence -> StreakTwoPlus (not ++2)" $
         let timeline =
               [ [obsExam BasicLevel SelfReliant Individual]
               , [obs BasicLevel SelfReliant Group]
               ]
-         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
-    , testCase "two SelfReliant (Individual + Conversation) -> StreakTwoAssessed" $
-        let timeline =
-              [ [obsConv BasicLevel SelfReliant Individual]
-              , [obs BasicLevel SelfReliant Group]
-              ]
-         in masteryAt BasicLevel timeline @?= StreakTwoAssessed
+         in masteryAt BasicLevel timeline @?= StreakTwoPlus
     , testCase "two SelfReliant (Individual, all SchoolExercise) -> StreakTwoPlus (not ++2)" $
         let timeline =
               [ [obs BasicLevel SelfReliant Individual]
@@ -160,6 +167,12 @@ classifierExamples =
         let timeline =
               [ [obsExam BasicLevel SelfReliant Group]
               , [obs BasicLevel SelfReliant Group]
+              ]
+         in masteryAt BasicLevel timeline @?= OneSuccess
+    , testCase "two Exam Group SelfReliant -> OneSuccess (not ++2, no Individual)" $
+        let timeline =
+              [ [obsExam BasicLevel SelfReliant Group]
+              , [obsExam BasicLevel SelfReliant Group]
               ]
          in masteryAt BasicLevel timeline @?= OneSuccess
     , testCase "surrounding observations preserve monotonicity" $

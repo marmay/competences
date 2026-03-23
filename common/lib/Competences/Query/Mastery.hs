@@ -205,7 +205,8 @@ classifyAllLevels timeline =
 -- positive classification but never condemns.
 --
 -- For StreakTwoPlus, at least one contributing evidence must have SocialForm Individual.
--- For StreakTwoAssessed (++2), additionally requires at least one Exam/Conversation.
+-- For StreakTwoAssessed (++2), additionally requires at least one Exam/Conversation
+-- from a *separate* evidence (Individual and Assessment must come from distinct evidences).
 classifyMasteryConstrained :: [AbilityBounds] -> MasteryStatus
 classifyMasteryConstrained bounds =
   fst $ classifyWithReasoning (zip [(0 :: Int) ..] bounds)
@@ -227,10 +228,17 @@ classifyWithReasoning tagged
       (MasteryNotYet, [vetoTag])
   -- Positive check: count streak from noLowerThan values
   | otherwise =
-      let (streakLen, hasIndiv, hasAssessed, streakTags) = countConstrainedStreakT tagged
+      let (streakLen, nIndiv, nAssessed, nBoth, streakTags) = countConstrainedStreakT tagged
+          hasIndiv = nIndiv > (0 :: Int)
+          -- Individual and Assessment must each be present AND come from
+          -- distinct evidences. nIndiv + nAssessed - nBoth counts distinct
+          -- "slots" via inclusion-exclusion.
+          hasDistinctIndivAndAssessed =
+            nIndiv > (0 :: Int) && nAssessed > (0 :: Int)
+              && nIndiv + nAssessed - nBoth >= 2
        in case () of
             _
-              | (streakLen :: Int) >= 2, hasIndiv, hasAssessed -> (StreakTwoAssessed, streakTags)
+              | (streakLen :: Int) >= 2, hasDistinctIndivAndAssessed -> (StreakTwoAssessed, streakTags)
               | streakLen >= 2, hasIndiv -> (StreakTwoPlus, streakTags)
               | streakLen >= 1 -> (OneSuccess, streakTags)
               | otherwise -> classifyRemainingT tagged
@@ -246,21 +254,31 @@ classifyWithReasoning tagged
       Just SelfReliantWithSillyMistakes -> Nothing
       _ -> findLatestDirectCeilingT rest
 
-    -- Tagged variant of countConstrainedStreak: also collects tags
-    countConstrainedStreakT = go 0 False False []
+    -- Tagged variant of countConstrainedStreak: also collects tags.
+    -- Returns (streakLen, nIndiv, nAssessed, nBoth, tags) where:
+    --   nIndiv  = count of streak evidences with Individual social form
+    --   nAssessed = count of streak evidences with Assessment activity (Exam/Conversation)
+    --   nBoth   = count of streak evidences with both Individual AND Assessment
+    countConstrainedStreakT = go 0 0 0 0 []
       where
-        go !n !indiv !assessed !tags [] = (n, indiv, assessed, tags)
-        go !n !indiv !assessed !tags ((tag, b) : rest) = case abilityFloor b of
+        go !n !nI !nA !nIA !tags [] = (n, nI, nA, nIA, tags)
+        go !n !nI !nA !nIA !tags ((tag, b) : rest) = case abilityFloor b of
           Just SelfReliant ->
-            go (n + 1) (indiv || boundsHasIndividual b) (assessed || boundsHasAssessmentActivity b) (tag : tags) rest
-          Just SelfReliantWithSillyMistakes -> go n indiv assessed tags rest -- skip, don't break
+            let i = boundsHasIndividual b
+                a = boundsHasAssessmentActivity b
+             in go (n + 1)
+                  (nI + fromEnum i)
+                  (nA + fromEnum a)
+                  (nIA + fromEnum (i && a))
+                  (tag : tags) rest
+          Just SelfReliantWithSillyMistakes -> go n nI nA nIA tags rest -- skip, don't break
           Nothing -> case b of
             FromBelow c
-              | c == WithSupport || c == NotYet -> (n, indiv, assessed, tag : tags) -- breaks streak, include breaker
-            _ -> go n indiv assessed tags rest
+              | c == WithSupport || c == NotYet -> (n, nI, nA, nIA, tag : tags) -- breaks streak, include breaker
+            _ -> go n nI nA nIA tags rest
           _ -> case b of
-            FromBoth {} -> (n, indiv, assessed, tag : tags) -- direct negative: breaks streak, include breaker
-            _ -> go n indiv assessed tags rest
+            FromBoth {} -> (n, nI, nA, nIA, tag : tags) -- direct negative: breaks streak, include breaker
+            _ -> go n nI nA nIA tags rest
 
     -- Tagged variant of classifyRemaining
     classifyRemainingT :: [(a, AbilityBounds)] -> (MasteryStatus, [a])
