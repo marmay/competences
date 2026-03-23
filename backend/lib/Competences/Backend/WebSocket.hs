@@ -130,11 +130,29 @@ handleClient state uid user conn = do
       case syncResult of
         Nothing -> putStrLn $ "Sync failed for " <> show uid <> ", disconnecting"
         Just _syncedGen -> do
-          -- Wait for ACK from client
-          mAck <- waitForSubscribe conn
-          case mAck of
-            Nothing -> putStrLn $ "Client " <> show uid <> " did not ACK sync, disconnecting"
-            Just _ackCmdId -> do
+          -- Wait for ACK, handling resync requests (max 3 attempts)
+          let waitForConfirmedAck (0 :: Int) = do
+                putStrLn $ "Client " <> show uid <> " exceeded max resync attempts, disconnecting"
+                pure False
+              waitForConfirmedAck attemptsLeft = do
+                mAck <- waitForSubscribe conn
+                case mAck of
+                  Nothing -> do
+                    putStrLn $ "Client " <> show uid <> " did not ACK sync, disconnecting"
+                    pure False
+                  Just Nothing -> do
+                    -- Client requested resync (checksum mismatch)
+                    putStrLn $ "Client " <> show uid <> " requested resync after initial sync"
+                    resyncResult <- sendSnapshot state user conn
+                    case resyncResult of
+                      Nothing -> do
+                        putStrLn $ "Resync failed for " <> show uid
+                        pure False
+                      Just _ -> waitForConfirmedAck (attemptsLeft - 1)
+                  Just (Just _cmdId) ->
+                    pure True -- Normal ACK, proceed
+          confirmed <- waitForConfirmedAck (3 :: Int)
+          when confirmed $ do
               -- Allocate a unique connection ID
               connId <- atomically $ do
                 cid <- readTVar state.nextConnectionId

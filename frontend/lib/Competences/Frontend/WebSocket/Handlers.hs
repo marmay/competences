@@ -52,7 +52,7 @@ import Competences.Protocol
   , ServerMessage (..)
   )
 import Control.Exception (SomeException, catch, finally, throwIO)
-import Control.Monad (forever, forM_, unless, when)
+import Control.Monad (forever, forM_, unless, void, when)
 import Data.IORef (IORef, newIORef)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -233,6 +233,20 @@ validateAndStoreCheckpoint idb key serverChecksum cmdId ref = do
 checkpointKey :: UserId -> Text
 checkpointKey uid = "checkpoint:" <> idToText uid
 
+-- | Validate sync checksum and send ACK. Returns True if checksum matched (or absent).
+-- Sends a resync request (SubscribeFrom Nothing) on mismatch.
+validateSyncAndAck :: Maybe IndexedDB -> Text -> Maybe Text -> CommandId -> SyncContext -> WebSocket -> IO Bool
+validateSyncAndAck mIdb key mChecksum cmdId ref ws = do
+  checksumOk <- case mChecksum of
+    Just checksum -> case mIdb of
+      Nothing -> pure True
+      Just idb -> validateAndStoreCheckpoint idb key checksum cmdId ref
+    Nothing -> pure True
+  unless checksumOk $
+    logWarn $ M.ms ("Sync checksum mismatch — requesting resync" :: String)
+  sendAck (if checksumOk then Just cmdId else Nothing) ws
+  pure checksumOk
+
 -- ============================================================================
 -- COMPOSED HANDLERS
 -- ============================================================================
@@ -275,7 +289,7 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
   ref <- mkSyncDocument env
   setServerInfo ref srvInfo
 
-  -- Process sync result
+  -- Process sync result and send ACK
   case syncResult of
     SyncSnapshot cmdId doc mChecksum -> do
       setSyncDocument ref doc
@@ -288,6 +302,7 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
             , commandId = cmdId
             , checksum = checksum
             }
+      sendAck (Just cmdId) ws
 
     SyncIncremental cmdId cmds mChecksum -> do
       -- Apply commands on top of checkpoint document
@@ -300,15 +315,8 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
           logWarn $ M.ms ("Got incremental sync without checkpoint, commands may be lost" :: String)
           mapM_ (uncurry (applyRemoteCommand ref)) cmds
       writeIORef ref.currentCommandId (Just cmdId)
-      -- Validate and store checkpoint if checksum present
-      forM_ mChecksum $ \checksum ->
-        forM_ mIdb $ \idb -> do
-          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref
-          pure ()
-
-  -- Send ACK
-  currentCmdId <- readIORef ref.currentCommandId
-  sendAck currentCmdId ws
+      -- Validate checksum and send ACK — request resync on mismatch
+      void $ validateSyncAndAck mIdb key mChecksum cmdId ref ws
 
   -- Fork the Miso application
   logInfo $ M.ms $ "Starting app for user: " <> T.unpack user.name
@@ -346,7 +354,7 @@ mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
 
   let key = checkpointKey ref.env.connectedUser.id
 
-  -- Process sync result
+  -- Process sync result and send ACK
   case syncResult of
     SyncSnapshot cmdId doc mChecksum -> do
       setSyncDocument ref doc
@@ -359,20 +367,14 @@ mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
             , commandId = cmdId
             , checksum = checksum
             }
+      sendAck (Just cmdId) ws
 
     SyncIncremental cmdId cmds mChecksum -> do
       setServerInfo ref srvInfo
       mapM_ (uncurry (applyRemoteCommand ref)) cmds
       writeIORef ref.currentCommandId (Just cmdId)
-      -- Validate and store checkpoint if checksum present
-      forM_ mChecksum $ \checksum ->
-        forM_ mIdb $ \idb -> do
-          _matched <- validateAndStoreCheckpoint idb key checksum cmdId ref
-          pure ()
-
-  -- Send ACK
-  currentCmdId <- readIORef ref.currentCommandId
-  sendAck currentCmdId ws
+      -- Validate checksum and send ACK — request resync on mismatch
+      void $ validateSyncAndAck mIdb key mChecksum cmdId ref ws
 
   logInfo "Reconnected and synchronized"
 
