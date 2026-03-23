@@ -436,11 +436,17 @@ renderChoiceBlock resolver symbols radiusCls items =
   M.div_
     [class_ "space-y-1"]
     [ M.div_
-        [class_ "flex items-start gap-2 py-1"]
+        [class_ "flex items-baseline gap-2 py-1"]
         [ M.div_
-            [ class_ ("mt-1.5 w-4 h-4 border-2 border-stone-400 flex-shrink-0 " <> radiusCls)
+            [class_ "relative flex-shrink-0 leading-none"]
+            -- Phantom ☐ sizes the box and anchors the baseline; the styled
+            -- border is overlaid via absolute positioning.
+            [ M.span_ [class_ "invisible"] [M.text "\x2610"]
+            , M.span_
+                [ class_ ("absolute inset-0 border-2 border-stone-400 " <> radiusCls)
+                ]
+                []
             ]
-            []
         , M.div_
             [class_ "flex-1 min-w-0"]
             (map (renderBlock resolver symbols) item)
