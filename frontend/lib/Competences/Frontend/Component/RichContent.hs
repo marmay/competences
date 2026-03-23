@@ -545,9 +545,9 @@ renderMappingLeft
   -> M.View RichContentModel RichContentAction
 renderMappingLeft resolver symbols n item =
   M.div_
-    [class_ "flex border border-stone-300 rounded-md overflow-hidden"]
+    [class_ "flex border border-stone-300 rounded-md overflow-hidden", MC.style_ [("min-height", "10mm")]]
     [ M.div_
-        [class_ "flex-1 p-3"]
+        [class_ "flex-1 px-3 flex flex-col justify-center"]
         (map (renderBlock resolver symbols) item)
     , M.div_
         [class_ "flex items-center justify-center w-8 border-l border-stone-300 bg-stone-50 font-medium text-stone-600"]
@@ -562,7 +562,7 @@ renderMappingRight
   -> M.View RichContentModel RichContentAction
 renderMappingRight resolver symbols item =
   M.div_
-    [class_ "flex border border-stone-300 rounded-md overflow-hidden"]
+    [class_ "flex border border-stone-300 rounded-md overflow-hidden", MC.style_ [("min-height", "10mm")]]
     [ M.div_
         [ class_ "border-r border-stone-300"
         , MC.style_
@@ -578,7 +578,7 @@ renderMappingRight resolver symbols item =
         ]
         []
     , M.div_
-        [class_ "flex-1 p-3"]
+        [class_ "flex-1 px-3 flex flex-col justify-center"]
         (map (renderBlock resolver symbols) item)
     ]
 
