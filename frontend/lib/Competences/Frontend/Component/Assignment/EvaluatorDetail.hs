@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionOwnership (..), ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -549,10 +549,15 @@ evaluatorComponent r assignment =
             Nothing -> False
           hasEvidenceOnDate = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
           hasAnyEvidence = any (\ev -> ev.userId == Just student.id) m.assignmentEvidences
-          hasOpenSubmission = any (SubViewer.isSubmissionOpen student.id m.assignmentEvidences) $ Ix.toList (m.submissions Ix.@= student.id)
+          studentSubs = Ix.toList (m.submissions Ix.@= student.id)
+          hasOpenDigital = any (SubViewer.isSubmissionOpen student.id m.assignmentEvidences) studentSubs
+          hasVoid = any (\s -> case s.kind of VoidSubmission _ -> True; _ -> False) studentSubs
+          hasNonDigital = any (\s -> case s.kind of NonDigitalSubmission _ -> True; _ -> False) studentSubs
           contents
-            | hasOpenSubmission = Button.toButtonContents (Icon.IcnImport, ms student.name)
+            | hasOpenDigital = Button.toButtonContents (Icon.IcnImport, ms student.name)
             | hasEvidenceOnDate = Button.toButtonContents (Icon.IcnApply, ms student.name)
+            | hasVoid = Button.toButtonContents (Icon.IcnCancel, ms student.name)
+            | hasNonDigital = Button.toButtonContents (Icon.IcnLessonNotes, ms student.name)
             | hasAnyEvidence = Button.toButtonContents (Icon.IcnEvidence, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
