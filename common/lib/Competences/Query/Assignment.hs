@@ -17,6 +17,7 @@ module Competences.Query.Assignment
     -- * Teacher-level queries
   , hasOpenSubmissions
   , hasUnreviewedSubmission
+  , isDigitalSubmission
     -- * Completion categories (for statistics)
   , AssignmentCompletionCategory (..)
   , assignmentCompletionCategory
@@ -113,17 +114,18 @@ isAssignmentOpen doc userId assignmentId =
               | d < submissionTrackingCutoff -> False -- Legacy data: assume already corrected
               | otherwise -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
 
--- | Does an assignment have any unreviewed student submissions?
+-- | Does an assignment have any unreviewed digital student submissions?
+-- Only DigitalSubmission counts; void and non-digital don't need teacher review.
 hasOpenSubmissions :: Document -> AssignmentId -> Bool
 hasOpenSubmissions doc assignmentId =
-  let subs = Ix.toList (doc.submissions Ix.@= assignmentId)
+  let subs = filter isDigitalSubmission $ Ix.toList (doc.submissions Ix.@= assignmentId)
       userIds = Set.toList $ Set.fromList $ concatMap (ownerIds . (.ownership)) subs
    in any (hasUnreviewedSubmission doc assignmentId) userIds
 
--- | Does a specific user have an unreviewed submission for an assignment?
+-- | Does a specific user have an unreviewed digital submission for an assignment?
 hasUnreviewedSubmission :: Document -> AssignmentId -> UserId -> Bool
 hasUnreviewedSubmission doc assignmentId userId =
-  let userSubs = Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
+  let userSubs = filter isDigitalSubmission $ Ix.toList (doc.submissions Ix.@= assignmentId Ix.@= userId)
       linkedEvidences = Ix.toAscList (Proxy @Day) $ doc.evidences Ix.@= assignmentId Ix.@= userId
    in case userSubs of
         [] -> False
@@ -133,6 +135,12 @@ hasUnreviewedSubmission doc assignmentId userId =
             let latestDay = (last evs).date
              in latestDay >= submissionTrackingCutoff
                   && any (\s -> utctDay s.submittedAt >= latestDay) userSubs
+
+-- | Check if a submission is a DigitalSubmission (has uploaded files).
+isDigitalSubmission :: Submission -> Bool
+isDigitalSubmission s = case s.kind of
+  DigitalSubmission _ -> True
+  _ -> False
 
 -- | Cutoff date for submission tracking.
 -- Before this date, submissions weren't tracked, so NeedsWork assignments
