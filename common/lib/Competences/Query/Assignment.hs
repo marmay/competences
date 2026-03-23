@@ -18,6 +18,8 @@ module Competences.Query.Assignment
   , hasOpenSubmissions
   , hasUnreviewedSubmission
   , isDigitalSubmission
+  , isVoidSubmission
+  , isNonDigitalSubmission
     -- * Completion categories (for statistics)
   , AssignmentCompletionCategory (..)
   , assignmentCompletionCategory
@@ -201,6 +203,12 @@ assignmentCompletionCategory today doc userId assignmentId =
 isVoidSubmission :: Submission -> Bool
 isVoidSubmission s = case s.kind of
   VoidSubmission _ -> True
+  _ -> False
+
+-- | Check if a submission is a NonDigitalSubmission.
+isNonDigitalSubmission :: Submission -> Bool
+isNonDigitalSubmission s = case s.kind of
+  NonDigitalSubmission _ -> True
   _ -> False
 
 -- | Count assignments per completion category for a user.

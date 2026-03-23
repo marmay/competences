@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -33,6 +33,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Query.Assignment (isDigitalSubmission, isVoidSubmission, isNonDigitalSubmission)
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Competences.Frontend.Component.SubmissionPreview qualified as SubPreview
 import Competences.Frontend.View.SubmissionViewer qualified as SubViewer
@@ -478,20 +479,29 @@ evaluatorComponent r assignment =
               , viewAggregationSection m
               , viewCreateEvidencesButton m
               ]
+          -- Compact banner for non-digital submissions (empty list otherwise)
+          compactBanner = case m.clickedStudent of
+            Just uid | m.showSubmissions ->
+              let studentSubs = Ix.toList (m.submissions Ix.@= uid)
+               in if any isDigitalSubmission studentSubs
+                    then []
+                    else [viewCompactSubmissionBanner studentSubs]
+            _ -> []
           leftContent =
             Layout.vFlow
               mempty
-              [ viewStudentSelection m
-              , viewOverwriteBanner m
-              , taskContent
-              ]
+              ( [ viewStudentSelection m
+                , viewOverwriteBanner m
+                ]
+                ++ compactBanner
+                ++ [taskContent]
+              )
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else case m.clickedStudent of
               Just uid | m.showSubmissions ->
                 let studentSubs = Ix.toList (m.submissions Ix.@= uid)
-                    hasDigital = any (\s -> case s.kind of DigitalSubmission _ -> True; _ -> False) studentSubs
-                 in if hasDigital
+                 in if any isDigitalSubmission studentSubs
                       then
                         -- Full split view for digital submissions
                         let key = "sub-sel-" <> ms (show uid)
@@ -507,15 +517,7 @@ evaluatorComponent r assignment =
                                         (SubPreview.submissionSelectorComponent r m.assignment.id uid binding)
                                     ]
                               ]
-                      else
-                        -- Compact inline banner for void/non-digital submissions
-                        Layout.vFlow
-                          mempty
-                          [ viewStudentSelection m
-                          , viewOverwriteBanner m
-                          , viewCompactSubmissionBanner m studentSubs
-                          , taskContent
-                          ]
+                      else leftContent
               _ -> leftContent
 
     viewStudentSelection m =
@@ -565,8 +567,8 @@ evaluatorComponent r assignment =
           hasAnyEvidence = any (\ev -> ev.userId == Just student.id) m.assignmentEvidences
           studentSubs = Ix.toList (m.submissions Ix.@= student.id)
           hasOpenDigital = any (SubViewer.isSubmissionOpen student.id m.assignmentEvidences) studentSubs
-          hasVoid = any (\s -> case s.kind of VoidSubmission _ -> True; _ -> False) studentSubs
-          hasNonDigital = any (\s -> case s.kind of NonDigitalSubmission _ -> True; _ -> False) studentSubs
+          hasVoid = any isVoidSubmission studentSubs
+          hasNonDigital = any isNonDigitalSubmission studentSubs
           contents
             | hasOpenDigital = Button.toButtonContents (Icon.IcnImport, ms student.name)
             | hasEvidenceOnDate = Button.toButtonContents (Icon.IcnApply, ms student.name)
@@ -576,22 +578,23 @@ evaluatorComponent r assignment =
             | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
 
-    viewCompactSubmissionBanner :: EvaluatorModel -> [Submission] -> M.View EvaluatorModel EvaluatorAction
-    viewCompactSubmissionBanner _m subs =
-      let bannerItems = map submissionBannerItem subs
-       in M.div_ [class_ "my-4 space-y-2"] bannerItems
+    viewCompactSubmissionBanner :: [Submission] -> M.View EvaluatorModel EvaluatorAction
+    viewCompactSubmissionBanner subs =
+      M.div_ [class_ "my-4 space-y-2"] (map submissionBannerItem subs)
       where
+        bannerClasses = "flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"
+
         submissionBannerItem sub = case sub.kind of
           VoidSubmission reason ->
-            M.div_ [class_ "flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"]
+            M.div_ [class_ bannerClasses]
               [ Icon.icon [] Icon.IcnCancel
               , Badge.destructive (Badge.badgeLabel C.LblNichtGemacht)
-              , M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ voidReasonText reason]
+              , M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ C.translateVoidReason reason]
               , Layout.flowSpring
               , Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)
               ]
           NonDigitalSubmission mLocation ->
-            M.div_ [class_ "flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"]
+            M.div_ [class_ bannerClasses]
               [ Icon.icon [] Icon.IcnLessonNotes
               , Badge.outline (Badge.badgeLabel C.LblGemacht)
               , case mLocation of
@@ -601,9 +604,6 @@ evaluatorComponent r assignment =
               , Button.ghostSm (Button.button Icon.IcnCancel DismissSubmissions)
               ]
           DigitalSubmission _ -> M.text ""  -- Shouldn't happen in this branch
-
-        voidReasonText :: VoidReason -> MisoString
-        voidReasonText = C.translateVoidReason
 
     viewOverwriteBanner m =
       let dateEvMap = evidencesForDate m.evaluationDate m.assignmentEvidences
