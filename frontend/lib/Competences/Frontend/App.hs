@@ -112,7 +112,7 @@ mkApp ir initialUri =
                           (map (NavBar.navCategoryView teacher navigate currentPage) categories)
                           (focusedUserView ir)
                           ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
-                              [ aboutButtonView ir
+                              [ M.div_ [class_ "hidden md:block"] [aboutButtonView ir]
                               , connectionStatusView ir
                               ]
                           )

@@ -72,6 +72,9 @@
 @source inline("group/nav group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-hover/nav:delay-300");
 @source inline("w-7 h-7 -translate-x-1/2 left-1/2 border-primary-foreground");
 
+/* Responsive nav bar: hide category icons and about button on mobile */
+@source inline("hidden md:block md:flex md:items-center md:gap-2 text-base md:text-lg");
+
 /* --- Plus Jakarta Sans (variable, OFL-1.1) ---
    Tall x-height, pairs well with icons. Weights 200–800. */
 @font-face {
