@@ -40,7 +40,7 @@ mainPage burgerBtn title categoryIcons focusedUserView connectionStatus content 
             [ Layout.hFlow
                 (Layout.hFull <> Layout.crossCenter <> Layout.gapM)
                 [ burgerBtn
-                , MH.h1_ [class_ "text-base md:text-lg font-bold min-w-0"] [M.text title]
+                , MH.h1_ [class_ "text-base lg:text-lg font-bold min-w-0"] [M.text title]
                 , MH.div_ [class_ "hidden md:block flex-grow"] [] -- spring, hidden on mobile
                 , MH.div_ [class_ "hidden md:flex md:items-center md:gap-2"] categoryIcons
                 , Layout.flowSpring

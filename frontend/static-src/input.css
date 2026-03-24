@@ -73,7 +73,7 @@
 @source inline("w-7 h-7 -translate-x-1/2 left-1/2 border-primary-foreground");
 
 /* Responsive nav bar: hide category icons and about button on mobile */
-@source inline("hidden lg:block lg:flex lg:items-center lg:gap-2 text-base lg:text-lg");
+@source inline("hidden md:block md:flex md:items-center md:gap-2 text-base lg:text-lg");
 
 /* Collapsible sidebar: responsive inline/overlay behavior */
 @source inline("lg:hidden lg:relative lg:z-auto lg:bg-transparent lg:p-0 lg:pr-4 lg:h-full bg-black/20 bg-card translate-x-1/2");
