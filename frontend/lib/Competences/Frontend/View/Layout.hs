@@ -303,13 +303,11 @@ sideMenu side main =
 
 -- | Collapsible side menu with responsive behavior.
 --
--- **Desktop (md+):** Sidebar is inline in flex layout (280px). When collapsed,
+-- **Desktop (lg+):** Sidebar is inline in flex layout (280px). When collapsed,
 -- sidebar is hidden and main content fills the width.
 --
--- **Mobile (<md):** Sidebar is a fixed overlay from the left edge with a
--- semi-transparent backdrop. Selecting an item auto-closes the overlay via
--- a CSS @pointer-events@ trick: the sidebar panel has @onClick toggleAction@
--- but desktop suppresses it with @md:pointer-events-none@.
+-- **Mobile (<lg):** Sidebar is inline with a semi-transparent backdrop overlay.
+-- Tapping the backdrop closes the sidebar.
 collapsibleSideMenu
   :: Bool -- ^ Whether sidebar is open
   -> a -- ^ Toggle action (open\/close)
@@ -340,34 +338,29 @@ collapsibleSideMenu isOpen toggleAction side main =
   where
     expandButton =
       M.div_
-        [class_ "flex-shrink-0 flex items-start pt-2 print-hide"]
+        [class_ "flex-shrink-0 h-full border-r border-border print-hide relative"]
         [ M.div_
-            [ class_ "p-1 rounded-md cursor-pointer hover:bg-muted text-muted-foreground"
-            , M.onClick toggleAction
+            [class_ "absolute bottom-2 right-0 translate-x-1/2 z-10"]
+            [ M.div_
+                [ class_ "p-1 rounded-full border border-border bg-card cursor-pointer hover:bg-muted text-muted-foreground"
+                , M.onClick toggleAction
+                ]
+                [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowRight]
             ]
-            [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowRight]
         ]
 
     sidebarPanel =
-      -- On mobile: onClick fires toggleAction (auto-close on selection).
-      -- On desktop: md:pointer-events-none suppresses auto-close on the wrapper,
-      -- but pointer-events-auto on the inner div re-enables actual content clicks.
       M.div_
-        [ class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4 print-hide md:pointer-events-none"
-        , M.onClick toggleAction
-        ]
-        [ M.div_
-            [class_ "pointer-events-auto h-full flex flex-col"]
-            [ collapseButton
-            , M.div_ [class_ "flex-1 min-h-0"] [side]
-            ]
+        [class_ "w-[280px] min-h-0 flex-shrink-0 flex flex-col border-r border-border print-hide fixed inset-y-0 left-0 z-50 bg-card p-2 lg:relative lg:z-auto lg:bg-transparent lg:p-0 lg:pr-4 lg:h-full"]
+        [ M.div_ [class_ "flex-1 min-h-0"] [side]
+        , collapseButton
         ]
 
     collapseButton =
       M.div_
-        [class_ "flex justify-end pb-1"]
+        [class_ "absolute bottom-2 right-0 translate-x-1/2 z-10"]
         [ M.div_
-            [ class_ "p-1 rounded-md cursor-pointer hover:bg-muted text-muted-foreground"
+            [ class_ "p-1 rounded-full border border-border bg-card cursor-pointer hover:bg-muted text-muted-foreground"
             , M.onClick toggleAction
             ]
             [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowLeft]
@@ -375,7 +368,7 @@ collapsibleSideMenu isOpen toggleAction side main =
 
     mobileBackdrop =
       M.div_
-        [ class_ "fixed inset-0 z-40 bg-black/20 md:hidden"
+        [ class_ "fixed inset-0 z-40 bg-black/20 lg:hidden"
         , M.onClick toggleAction
         ]
         []
