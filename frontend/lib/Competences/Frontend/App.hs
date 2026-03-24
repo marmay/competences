@@ -107,7 +107,7 @@ mkApp ir initialUri =
                 [class_ "flex-1 min-w-0 flex flex-col"]
                 ( [ impersonationBanner env m | env.impersonating ]
                     ++ [ V.mainPage
-                          (NavBar.burgerMenuView navigate currentPage categories extras)
+                          (V.inlineComponent "burger-menu" (NavBar.burgerMenuComponent currentPage categories extras))
                           (C.translate' C.LblPageTitle)
                           (map (NavBar.navCategoryView teacher navigate currentPage) categories)
                           (focusedUserView ir)

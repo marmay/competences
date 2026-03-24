@@ -9,7 +9,7 @@ module Competences.Frontend.View.NavBar
   , studentCategories
   , teacherExtraCategories
   , navCategoryView
-  , burgerMenuView
+  , burgerMenuComponent
   )
 where
 
@@ -20,9 +20,11 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
+import GHC.Generics (Generic)
 import Miso (View)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.Router qualified as M
 import Miso.String (MisoString)
 
 -- | A navigation category with an icon, label, description, main page, and sub-entries.
@@ -169,20 +171,78 @@ tooltipEntry navigate currentPage entry =
     (currentPage == entry.entryPage)
     (Button.ButtonConfig (Button.IconText entry.entryIcon entry.entryLabel) (Just (navigate entry.entryPage)))
 
--- | Burger menu as a CSS-only hover dropdown (replaces overlay sidebar).
-burgerMenuView :: (Page -> a) -> Page -> [NavCategory] -> [(MisoString, [NavEntry])] -> View m a
-burgerMenuView navigate currentPage cats extras =
-  HoverMenu.hoverMenu
-    burgerTrigger
-    (intercalate [HoverMenu.hoverMenuSeparator] allGroups)
+-- ============================================================================
+-- BURGER MENU COMPONENT
+-- ============================================================================
+
+-- | Burger menu model (click-toggle state).
+data BurgerModel = BurgerModel
+  { isOpen :: !Bool
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Burger menu actions.
+data BurgerAction
+  = ToggleBurger
+  | NavigateTo !Page
+  deriving (Eq, Show)
+
+-- | Burger menu as a click-toggle Miso Component.
+--
+-- Replaces the old CSS-only hover dropdown which doesn't work on touch devices.
+-- Click the burger icon to open, click a menu entry or the backdrop to close.
+burgerMenuComponent
+  :: Page
+  -> [NavCategory]
+  -> [(MisoString, [NavEntry])]
+  -> M.Component p BurgerModel BurgerAction
+burgerMenuComponent currentPage cats extras =
+  M.component model update view'
   where
+    model = BurgerModel False
+
+    update ToggleBurger = M.modify $ \m -> m{isOpen = not m.isOpen}
+    update (NavigateTo page) = do
+      M.modify $ \_ -> BurgerModel False
+      M.io_ $ M.pushURI (M.toURI page)
+
+    view' m =
+      MH.div_
+        [class_ "relative"]
+        [ burgerTrigger
+        , if m.isOpen
+            then burgerDropdown
+            else M.text ""
+        ]
+
     burgerTrigger =
       MH.div_
-        [class_ "p-1 rounded-md hover:bg-white/10 text-primary-foreground cursor-pointer"]
+        [ class_ "p-1 rounded-md hover:bg-white/10 text-primary-foreground cursor-pointer"
+        , MH.onClick ToggleBurger
+        ]
         [Icon.iconS Icon.XLarge Icon.IcnMenu]
+
+    burgerDropdown =
+      MH.div_
+        []
+        [ -- Backdrop: fixed overlay to catch clicks outside the menu
+          MH.div_
+            [ class_ "fixed inset-0 z-40"
+            , MH.onClick ToggleBurger
+            ]
+            []
+        , -- Dropdown panel
+          MH.div_
+            [class_ "absolute left-0 top-full pt-1 z-50"]
+            [ MH.div_
+                [class_ "min-w-48 bg-popover text-popover-foreground border border-border rounded-md shadow-lg py-1"]
+                (intercalate [HoverMenu.hoverMenuSeparator] allGroups)
+            ]
+        ]
+
     allGroups =
-      map (renderBurgerCategory navigate currentPage) cats
-        <> map (renderExtraCategory navigate currentPage) extras
+      map (renderBurgerCategory NavigateTo currentPage) cats
+        <> map (renderExtraCategory NavigateTo currentPage) extras
 
 -- | Render a category in the burger menu (heading + main entry + sub-entries).
 renderBurgerCategory :: (Page -> a) -> Page -> NavCategory -> [View m a]
