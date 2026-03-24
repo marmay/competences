@@ -323,11 +323,11 @@ collapsibleSideMenu isOpen toggleAction side main =
         ( [ -- Expand button (visible when sidebar is collapsed)
             if not isOpen
               then expandButton
-              else M.text ""
+              else empty
           , -- Sidebar panel
             if isOpen
               then sidebarPanel
-              else M.text ""
+              else empty
           , -- Main content
             M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4 print-no-pl"] [main]
           ]
@@ -335,7 +335,7 @@ collapsibleSideMenu isOpen toggleAction side main =
     , -- Mobile backdrop (only rendered when open, hidden on desktop)
       if isOpen
         then mobileBackdrop
-        else M.text ""
+        else empty
     ]
   where
     expandButton =
