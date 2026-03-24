@@ -20,8 +20,10 @@ import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Frontend.View.Tailwind (class_)
 import Data.List.NonEmpty (NonEmpty)
 import Miso qualified as M
+import Miso.Html qualified as MH
 
 -- ============================================================================
 -- MAIN COMPONENT
@@ -54,11 +56,24 @@ competenceGridComponent r initialMode availableModes =
                   else CompetenceGridSelectorViewOnlyStyle
            in competenceGridSelectorComponent r style (Just QDefault.defaultCompetenceGrid) sel
       , SD.detailView = \mode grid ->
-          case mode of
-            GridView -> viewerDetailView r grid
-            GridEdit -> editorDetailView r grid
-            GridAssessment -> assessmentDetailView r grid
-            GridGrading -> gradingDetailView r grid
+          MH.div_
+            [class_ "h-full w-full"]
+            [ MH.div_ [class_ "portrait-hide h-full w-full"]
+                [ case mode of
+                    GridView -> viewerDetailView r grid
+                    GridEdit -> editorDetailView r grid
+                    GridAssessment -> assessmentDetailView r grid
+                    GridGrading -> gradingDetailView r grid
+                ]
+            , MH.div_
+                [class_ "hidden portrait-show items-center justify-center h-full w-full"]
+                [ MH.div_
+                    [class_ "flex flex-col items-center gap-4 text-muted-foreground"]
+                    [ Icon.iconS Icon.XLarge Icon.IcnCompetenceGrid
+                    , MH.span_ [class_ "text-sm text-center max-w-64"] [M.text (C.translate' C.LblRotateDevice)]
+                    ]
+                ]
+            ]
       , SD.modeLabel = \case
           GridView -> C.translate' C.LblView
           GridEdit -> C.translate' C.LblEdit

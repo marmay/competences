@@ -78,6 +78,9 @@
 /* Collapsible sidebar: responsive inline/overlay behavior */
 @source inline("md:pointer-events-none pointer-events-auto md:hidden bg-black/20");
 
+/* Competence grid: portrait orientation prompt */
+@source inline("portrait-hide portrait-show");
+
 /* --- Plus Jakarta Sans (variable, OFL-1.1) ---
    Tall x-height, pairs well with icons. Weights 200–800. */
 @font-face {
@@ -542,6 +545,12 @@
   img.math-formula {
     font-size: 0.9em;
   }
+}
+
+/* Portrait orientation on small screens: hide/show content */
+@media (orientation: portrait) and (max-width: 1024px) {
+  .portrait-hide { display: none !important; }
+  .portrait-show { display: flex !important; }
 }
 
 /* Print layout: flatten containers so print-only content flows naturally */

@@ -463,6 +463,8 @@ data Label
   | LblAsgVoid
   | LblAsgNotSubmitted
   | LblAsgOverdue
+    -- Mobile
+  | LblRotateDevice
   deriving (Eq, Ord, Show)
 
 labels' :: [Label]
@@ -886,6 +888,7 @@ labels' =
   , LblAsgVoid
   , LblAsgNotSubmitted
   , LblAsgOverdue
+  , LblRotateDevice
   ]
     <> map LblSocialForm socialForms
     <> map LblAbility abilities
@@ -1339,6 +1342,7 @@ defaultTranslation LblAsgSubmittedNotCorrected = "Abgegeben, nicht korrigiert"
 defaultTranslation LblAsgVoid = "Nicht gemacht"
 defaultTranslation LblAsgNotSubmitted = "Nicht abgegeben"
 defaultTranslation LblAsgOverdue = "Überfällig"
+defaultTranslation LblRotateDevice = "Bitte drehe dein Gerät ins Querformat, um das Kompetenzraster zu sehen."
 
 currentLanguage :: IORef Language
 currentLanguage = unsafePerformIO $ newIORef defaultLanguage
