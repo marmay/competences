@@ -17,12 +17,13 @@ import Miso qualified as M
 -- | Model for the resource editor page
 data Model = Model
   { selected :: !(Maybe Resource)
+  , sidebarOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the resource editor page
 data Action
-  = NoOp
+  = ToggleSidebar
   deriving (Eq, Show)
 
 -- | Resource editor page component
@@ -30,12 +31,14 @@ resourceEditorComponent :: SyncContext -> M.Component p Model Action
 resourceEditorComponent r =
   M.component model update view'
   where
-    model = Model Nothing
+    model = Model Nothing True
 
-    update NoOp = pure ()
+    update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
     view' m =
-      Layout.sideMenu
+      Layout.collapsibleSideMenu
+        m.sidebarOpen
+        ToggleSidebar
         (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r #selected)
         (detailView m.selected)
 

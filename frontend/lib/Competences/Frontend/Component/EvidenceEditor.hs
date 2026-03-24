@@ -63,12 +63,14 @@ data EvidenceEditorModel = EvidenceEditorModel
   { selectedEvidence :: !(Maybe Evidence)
   , bulkEditorActive :: !Bool
   , activeMode :: !EvidenceMode
+  , sidebarOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
 -- | Action for the evidence editor component
 data EvidenceEditorAction
   = SwitchMode !EvidenceMode
+  | ToggleSidebar
   deriving (Eq, Show)
 
 -- | Evidence editor component with support for bulk editing
@@ -82,8 +84,9 @@ evidenceEditorComponent r canEdit =
       defaultMode = if canEdit then EvidenceEdit else EvidenceView
    in M.component model update (mainView r style canEdit defaultMode)
   where
-    model = EvidenceEditorModel Nothing False (if canEdit then EvidenceEdit else EvidenceView)
+    model = EvidenceEditorModel Nothing False (if canEdit then EvidenceEdit else EvidenceView) True
     update (SwitchMode mode) = M.modify $ #activeMode .~ mode
+    update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
 -- | Main view with selector on left and detail/bulk editor on right
 mainView
@@ -94,7 +97,9 @@ mainView
   -> EvidenceEditorModel
   -> M.View EvidenceEditorModel EvidenceEditorAction
 mainView r style canEdit defaultMode m =
-  V.sideMenu
+  V.collapsibleSideMenu
+    m.sidebarOpen
+    ToggleSidebar
     ( V.inlineComponentAttrs
         "evidence-selector"
         [class_ "h-full"]

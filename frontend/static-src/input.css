@@ -75,6 +75,9 @@
 /* Responsive nav bar: hide category icons and about button on mobile */
 @source inline("hidden md:block md:flex md:items-center md:gap-2 text-base md:text-lg");
 
+/* Collapsible sidebar: responsive inline/overlay behavior */
+@source inline("md:pointer-events-none pointer-events-auto md:hidden bg-black/20");
+
 /* --- Plus Jakarta Sans (variable, OFL-1.1) ---
    Tall x-height, pairs well with icons. Weights 200–800. */
 @font-face {

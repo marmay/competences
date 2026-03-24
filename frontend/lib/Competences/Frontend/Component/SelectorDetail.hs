@@ -53,13 +53,17 @@ data Model a mode = Model
   -- ^ Currently selected item
   , activeMode :: !mode
   -- ^ Currently active detail view mode
+  , sidebarOpen :: !Bool
+  -- ^ Whether the sidebar is currently visible
   }
   deriving (Eq, Generic, Show)
 
 -- | Actions for selector-detail components
-newtype Action mode
+data Action mode
   = SwitchMode mode
   -- ^ Switch to a different detail view mode
+  | ToggleSidebar
+  -- ^ Toggle sidebar visibility
   deriving (Eq, Show)
 
 -- | Create a selector-detail component
@@ -108,10 +112,13 @@ selectorDetailComponent config =
 
     update :: Action mode -> M.Effect p (Model a mode) (Action mode)
     update (SwitchMode mode) = M.modify (#activeMode .~ mode)
+    update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
     view :: Model a mode -> M.View (Model a mode) (Action mode)
     view m =
-      V.sideMenu
+      V.collapsibleSideMenu
+        m.sidebarOpen
+        ToggleSidebar
         ( V.inlineComponentAttrs
             config.selectorId
             [class_ "h-full"]
@@ -154,4 +161,5 @@ emptyModel defaultMode =
   Model
     { selected = Nothing
     , activeMode = defaultMode
+    , sidebarOpen = True
     }

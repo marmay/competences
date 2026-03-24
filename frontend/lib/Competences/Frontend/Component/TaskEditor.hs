@@ -20,12 +20,13 @@ import Miso qualified as M
 -- | Model for the unified task editor
 data Model = Model
   { selected :: !(Maybe TaskOrGroup)
+  , sidebarOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
--- | Action for the unified task editor (minimal - selection is handled via bindings)
+-- | Action for the unified task editor
 data Action
-  = NoOp
+  = ToggleSidebar
   deriving (Eq, Show)
 
 -- | Unified task editor component
@@ -34,12 +35,14 @@ taskEditorComponent :: SyncContext -> M.Component p Model Action
 taskEditorComponent r =
   M.component model update view'
   where
-    model = Model Nothing
+    model = Model Nothing True
 
-    update NoOp = pure ()
+    update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
     view' m =
-      Layout.sideMenu
+      Layout.collapsibleSideMenu
+        m.sidebarOpen
+        ToggleSidebar
         (inlineComponentAttrs "task-or-group-selector" [class_ "h-full"] $ taskOrGroupSelectorComponent r #selected)
         (detailView m.selected)
 

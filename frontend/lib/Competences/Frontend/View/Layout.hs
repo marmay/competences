@@ -58,9 +58,11 @@ module Competences.Frontend.View.Layout
   , centeredContent
   , centeredPlaceholder
   , sideMenu
+  , collapsibleSideMenu
   )
 where
 
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_, classes)
 import Data.Text qualified as T
 import Miso (Attribute (..), NS (..), View (..))
@@ -298,6 +300,85 @@ sideMenu side main =
         , M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4 print-no-pl"] [main]
         ]
     ]
+
+-- | Collapsible side menu with responsive behavior.
+--
+-- **Desktop (md+):** Sidebar is inline in flex layout (280px). When collapsed,
+-- sidebar is hidden and main content fills the width.
+--
+-- **Mobile (<md):** Sidebar is a fixed overlay from the left edge with a
+-- semi-transparent backdrop. Selecting an item auto-closes the overlay via
+-- a CSS @pointer-events@ trick: the sidebar panel has @onClick toggleAction@
+-- but desktop suppresses it with @md:pointer-events-none@.
+collapsibleSideMenu
+  :: Bool -- ^ Whether sidebar is open
+  -> a -- ^ Toggle action (open\/close)
+  -> M.View m a -- ^ Sidebar content
+  -> M.View m a -- ^ Main content
+  -> M.View m a
+collapsibleSideMenu isOpen toggleAction side main =
+  M.div_
+    [class_ "flex-1 h-full relative"]
+    [ hFlow hFull
+        ( [ -- Expand button (visible when sidebar is collapsed)
+            if not isOpen
+              then expandButton
+              else M.text ""
+          , -- Sidebar panel
+            if isOpen
+              then sidebarPanel
+              else M.text ""
+          , -- Main content
+            M.div_ [class_ "h-full min-h-0 flex-grow overflow-y-auto pl-4 print-no-pl"] [main]
+          ]
+        )
+    , -- Mobile backdrop (only rendered when open, hidden on desktop)
+      if isOpen
+        then mobileBackdrop
+        else M.text ""
+    ]
+  where
+    expandButton =
+      M.div_
+        [class_ "flex-shrink-0 flex items-start pt-2 print-hide"]
+        [ M.div_
+            [ class_ "p-1 rounded-md cursor-pointer hover:bg-muted text-muted-foreground"
+            , M.onClick toggleAction
+            ]
+            [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowRight]
+        ]
+
+    sidebarPanel =
+      -- On mobile: onClick fires toggleAction (auto-close on selection).
+      -- On desktop: md:pointer-events-none suppresses auto-close on the wrapper,
+      -- but pointer-events-auto on the inner div re-enables actual content clicks.
+      M.div_
+        [ class_ "w-[280px] h-full min-h-0 flex-shrink-0 flex flex-col border-r border-border pr-4 print-hide md:pointer-events-none"
+        , M.onClick toggleAction
+        ]
+        [ M.div_
+            [class_ "pointer-events-auto h-full flex flex-col"]
+            [ collapseButton
+            , M.div_ [class_ "flex-1 min-h-0"] [side]
+            ]
+        ]
+
+    collapseButton =
+      M.div_
+        [class_ "flex justify-end pb-1"]
+        [ M.div_
+            [ class_ "p-1 rounded-md cursor-pointer hover:bg-muted text-muted-foreground"
+            , M.onClick toggleAction
+            ]
+            [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowLeft]
+        ]
+
+    mobileBackdrop =
+      M.div_
+        [ class_ "fixed inset-0 z-40 bg-black/20 md:hidden"
+        , M.onClick toggleAction
+        ]
+        []
 
 -- ============================================================================
 -- HIGHER-LEVEL LAYOUT PRIMITIVES
