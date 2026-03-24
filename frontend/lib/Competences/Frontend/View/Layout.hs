@@ -336,34 +336,26 @@ collapsibleSideMenu isOpen toggleAction side main =
         else empty
     ]
   where
-    expandButton =
-      M.div_
-        [class_ "flex-shrink-0 h-full border-r border-border print-hide relative"]
-        [ M.div_
-            [class_ "absolute bottom-2 right-0 translate-x-1/2 z-10"]
-            [ M.div_
-                [ class_ "p-1 rounded-full border border-border bg-card cursor-pointer hover:bg-muted text-muted-foreground"
-                , M.onClick toggleAction
-                ]
-                [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowRight]
-            ]
-        ]
-
-    sidebarPanel =
-      M.div_
-        [class_ "w-[280px] min-h-0 flex-shrink-0 flex flex-col border-r border-border print-hide fixed inset-y-0 left-0 z-50 bg-card p-2 lg:relative lg:z-auto lg:bg-transparent lg:p-0 lg:pr-4 lg:h-full"]
-        [ M.div_ [class_ "flex-1 min-h-0"] [side]
-        , collapseButton
-        ]
-
-    collapseButton =
+    togglePill icon =
       M.div_
         [class_ "absolute bottom-2 right-0 translate-x-1/2 z-10"]
         [ M.div_
             [ class_ "p-1 rounded-full border border-border bg-card cursor-pointer hover:bg-muted text-muted-foreground"
             , M.onClick toggleAction
             ]
-            [Icon.iconS Icon.Small Icon.IcnExpandShrinkArrowLeft]
+            [Icon.iconS Icon.Small icon]
+        ]
+
+    expandButton =
+      M.div_
+        [class_ "flex-shrink-0 h-full border-r border-border print-hide relative"]
+        [togglePill Icon.IcnExpandShrinkArrowRight]
+
+    sidebarPanel =
+      M.div_
+        [class_ "w-[280px] min-h-0 flex-shrink-0 flex flex-col border-r border-border print-hide fixed inset-y-0 left-0 z-50 bg-card p-2 lg:relative lg:z-auto lg:bg-transparent lg:p-0 lg:pr-4 lg:h-full"]
+        [ M.div_ [class_ "flex-1 min-h-0"] [side]
+        , togglePill Icon.IcnExpandShrinkArrowLeft
         ]
 
     mobileBackdrop =
