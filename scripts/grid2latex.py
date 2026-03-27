@@ -99,7 +99,7 @@ def escape_latex(text):
     return text
 
 
-def render_latex(title, competences, standalone=False):
+def render_latex(title, competences, standalone=False, printLevels=True):
     """Render competences as a LaTeX nested itemize list."""
     parts = []
 
@@ -114,12 +114,13 @@ def render_latex(title, competences, standalone=False):
 
     for comp in competences:
         parts.append(r"  \item " + escape_latex(comp["description"]))
-        levels = [(k, comp[k]) for k in ("W", "M", "F") if comp[k]]
-        if levels:
-            parts.append(r"  \begin{itemize}")
-            for key, text in levels:
-                parts.append(r"    \item[(" + key + r")] " + escape_latex(text))
-            parts.append(r"  \end{itemize}")
+        if printLevels:
+            levels = [(k, comp[k]) for k in ("W", "M", "F") if comp[k]]
+            if levels:
+                parts.append(r"  \begin{itemize}")
+                for key, text in levels:
+                    parts.append(r"    \item[(" + key + r")] " + escape_latex(text))
+                    parts.append(r"  \end{itemize}")
 
     parts.append(r"\end{itemize}")
 
@@ -145,6 +146,11 @@ def main():
         action="store_true",
         help="Wrap table in a full LaTeX document",
     )
+    parser.add_argument(
+        "--nolevels",
+        action="store_true",
+        help="Do not print level descriptions",
+    )
     args = parser.parse_args()
 
     lines = args.file.readlines()
@@ -154,7 +160,7 @@ def main():
         print("No competences found in input.", file=sys.stderr)
         sys.exit(1)
 
-    print(render_latex(title, competences, standalone=args.standalone))
+    print(render_latex(title, competences, standalone=args.standalone, printLevels = not(args.nolevels)))
 
 
 if __name__ == "__main__":
