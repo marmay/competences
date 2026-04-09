@@ -18,6 +18,7 @@ module Competences.Frontend.Component.RichContent
     renderRichText
   , documentView
   , renderRichTextWithFiles
+  , renderRichTextWithResolver
   , documentViewWithFiles
 
     -- * Component
@@ -32,6 +33,7 @@ module Competences.Frontend.Component.RichContent
   , noFiles
   , mkFileResolver
   , resolveFileRef
+  , resolveFileView
 
     -- * Types (re-exported)
   , FormulaCache
@@ -131,6 +133,15 @@ mkFileResolver syncCtx attachments url =
         inlineComponent
           ("file-preview-" <> M.ms (show fileRef.hash))
           (filePreviewComponent syncCtx fileRef)
+
+-- | Resolve a file URL to a rendered view (polymorphic in parent type).
+-- Use this when you need file views outside the RichContent component tree
+-- (e.g., FloatTop images in print rendering).
+-- Note: can't delegate to mkFileResolver because FileResolver fixes the type params.
+resolveFileView :: SyncContext -> [FileRef] -> Text -> Maybe (M.View p a)
+resolveFileView syncCtx attachments url = do
+  fileRef <- resolveFileRef attachments url
+  pure $ inlineComponent ("file-preview-" <> M.ms (show fileRef.hash)) (filePreviewComponent syncCtx fileRef)
 
 -- | Resolve a file URL (file:name or fileIdx:N) to a FileRef from attachments.
 resolveFileRef :: [FileRef] -> Text -> Maybe FileRef
@@ -745,6 +756,20 @@ renderRichTextWithFiles :: FormulaCache -> SyncContext -> [FileRef] -> RichConte
 renderRichTextWithFiles fc syncCtx attachments rc =
   case Markdown.parseMarkdown (toRawText rc) of
     Right doc -> documentViewWithFiles fc syncCtx attachments doc
+    Left _err ->
+      M.pre_
+        [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]
+        [M.text (ms (toRawText rc))]
+
+-- | Render rich content with a custom file resolver (for print-specific behavior).
+renderRichTextWithResolver :: FormulaCache -> FileResolver -> RichContent -> M.View p a
+renderRichTextWithResolver fc resolver rc =
+  case Markdown.parseMarkdown (toRawText rc) of
+    Right doc ->
+      let key = hashDocument doc
+       in inlineComponent
+            ("rich-" <> M.ms key)
+            (richContentComponent fc resolver [] key doc)
     Left _err ->
       M.pre_
         [class_ "text-red-600 bg-red-50 font-mono text-sm p-2 rounded border border-red-200"]

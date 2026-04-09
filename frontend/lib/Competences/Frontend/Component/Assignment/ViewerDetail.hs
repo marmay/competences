@@ -71,6 +71,8 @@ import Competences.Frontend.Component.PrintEngine.Modal
 import Competences.Frontend.Component.PrintEngine.Page qualified as Page
 import Competences.Frontend.Component.PrintEngine.Types
   ( ContentSettings (..)
+  , ImagePrintSetting (..)
+  , PrintImagePosition (..)
   , PrintSettings (..)
   , TaskContentSetting (..)
   , TaskHeaderStyle (..)
@@ -78,6 +80,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , cellsPerPage
   , chunksOf
   , defaultContentSettings
+  , defaultImagePrintSetting
   , defaultPrintSettings
   , expandTaskSequence
   , isTaskVisible
@@ -87,7 +90,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.Component.RichContent (mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.TaskResource
   ( TaskResourceList
   , TaskWithSolutions (..)
@@ -980,6 +983,32 @@ viewerComponent r user assignment wm =
                 ([ M.strong_ [] [M.text (prefix <> numText)]
                 , M.text (" " <> ms displayName)
                 ] <> pointsSpan)]
+
+          -- Per-image print settings
+          imgSettings = tcs.imageSettings
+          imgSetting url = Map.findWithDefault defaultImagePrintSetting url imgSettings
+
+          -- Base file resolver
+          baseResolver = mkFileResolver r tws.task.attachments
+
+          -- Print-aware resolver: suppresses FloatTop images, wraps others with print styles
+          printResolver url =
+            let ips = imgSetting url
+             in if ips.position == PrintFloatTop
+                  then Right $ M.div_ [MC.style_ [("display", "none")]] []
+                  else case baseResolver url of
+                    Left err -> Left err
+                    Right fileView -> Right $ wrapImageForPrint ips fileView
+
+          -- FloatTop images: rendered as floated-right divs before the header
+          floatTopUrls = [url | (url, ips) <- Map.toList imgSettings, ips.position == PrintFloatTop]
+          floatTopViews =
+            [ case resolveFileView r tws.task.attachments url of
+                Nothing -> M.text ""
+                Just fileView -> wrapImageForPrint (imgSetting url) fileView
+            | url <- floatTopUrls
+            ]
+
           descriptionView
             | tcs.showDescription =
                 [ M.div_
@@ -987,7 +1016,7 @@ viewerComponent r user assignment wm =
                         <> printColumnsClass tcs.itemsPerRow
                         <> if tcs.inlineAnswer then " print-inline-answer" else ""
                     ]
-                    [renderRichTextWithFiles r.formulaCache r tws.task.attachments content]
+                    [renderRichTextWithResolver r.formulaCache printResolver content]
                 | Just content <- [tws.taskContent]
                 ]
             | otherwise = []
@@ -1001,7 +1030,21 @@ viewerComponent r user assignment wm =
             Nothing -> []
        in M.div_
             attrs
-            (header <> descriptionView <> solutionViews <> gridView)
+            (floatTopViews <> header <> descriptionView <> solutionViews <> gridView)
+
+    -- | Wrap an image with print layout styles based on its ImagePrintSetting.
+    wrapImageForPrint :: ImagePrintSetting -> M.View p a -> M.View p a
+    wrapImageForPrint ips fileView =
+      let sizeStyle = [("max-width", ms (show ips.sizePct) <> "%")]
+          backdropStyle =
+            if ips.backdrop
+              then [("background", "white"), ("padding", "2mm"), ("print-color-adjust", "exact"), ("-webkit-print-color-adjust", "exact")]
+              else []
+          (posClass, floatStyle) = case ips.position of
+            PrintFloatRight -> ("print-image-float-right", [("float", "right"), ("margin-left", "0.5em"), ("margin-bottom", "0.3em")])
+            PrintFloatTop -> ("", [("float", "right"), ("clear", "right"), ("margin-left", "0.5em"), ("margin-bottom", "0.3em")])
+            PrintInline -> ("", [("margin", "0 auto")])
+       in M.div_ [class_ posClass, MC.style_ (sizeStyle <> backdropStyle <> floatStyle)] [fileView]
 
     -- | Render a solution for print: type label (h2-sized) + rich text content
     printSolutionView :: Solution -> M.View ViewerModel ViewerAction

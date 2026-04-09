@@ -12,6 +12,9 @@ module Competences.Frontend.Component.PrintEngine.Types
   , ContentSettings (..)
   , defaultContentSettings
   , ContentPreset (..)
+  , PrintImagePosition (..)
+  , ImagePrintSetting (..)
+  , defaultImagePrintSetting
     -- * Frontend-only utilities
   , pageSizeCSS
   , pageSizeMm
@@ -38,13 +41,16 @@ import Competences.Document.Layout.Settings
   , ContentSettings (..)
   , FontFamily (..)
   , GridConfig (..)
+  , ImagePrintSetting (..)
   , Orientation (..)
   , PaperSize (..)
+  , PrintImagePosition (..)
   , PrintSettings (..)
   , TaskContentSetting (..)
   , TaskHeaderStyle (..)
   , TaskLayout (..)
   , defaultContentSettings
+  , defaultImagePrintSetting
   , defaultPrintSettings
   )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionType (..))
@@ -134,6 +140,7 @@ data TaskInfo = TaskInfo
   , title :: !Text
   , solutionInfos :: ![(SolutionId, SolutionType)]
   , hasLetterList :: !Bool
+  , embedUrls :: ![Text]
   }
   deriving (Eq, Show, Generic)
 
@@ -144,20 +151,25 @@ defaultGridHeightMm = 40.0
 -- | Build TaskInfo list from tasks with solutions and content
 mkTaskInfos :: [(Task, [Solution], Maybe RichContent)] -> [TaskInfo]
 mkTaskInfos = map $ \(task, sols, mContent) ->
-  TaskInfo
-    { taskId = task.id
-    , identifier = task.identifier
-    , title = task.title
-    , solutionInfos = map (\s -> (s.id, s.solutionType)) sols
-    , hasLetterList = containsLetterList mContent
-    }
+  let (letterList, urls) = analyzeContent mContent
+   in TaskInfo
+        { taskId = task.id
+        , identifier = task.identifier
+        , title = task.title
+        , solutionInfos = map (\s -> (s.id, s.solutionType)) sols
+        , hasLetterList = letterList
+        , embedUrls = urls
+        }
 
--- | Check whether rich content contains a LetterList block
-containsLetterList :: Maybe RichContent -> Bool
-containsLetterList Nothing = False
-containsLetterList (Just rc) = case Markdown.parseMarkdown (toRawText rc) of
-  Left _ -> False
-  Right (MD.Document blocks) -> any hasLetterListBlock blocks
+-- | Parse content once and extract both hasLetterList and embedUrls in a single pass.
+analyzeContent :: Maybe RichContent -> (Bool, [Text])
+analyzeContent Nothing = (False, [])
+analyzeContent (Just rc) = case Markdown.parseMarkdown (toRawText rc) of
+  Left _ -> (False, [])
+  Right (MD.Document blocks) ->
+    ( any hasLetterListBlock blocks
+    , concatMap collectUrlsFromBlock blocks
+    )
 
 hasLetterListBlock :: MD.Block -> Bool
 hasLetterListBlock (MD.LetterList _) = True
@@ -173,6 +185,36 @@ hasLetterListBlock (MD.ClozeBlock body opts) =
 hasLetterListBlock (MD.ChoiceBlock _ items) = any (any hasLetterListBlock) items
 hasLetterListBlock (MD.MappingBlock l r) = any (any hasLetterListBlock) l || any (any hasLetterListBlock) r
 hasLetterListBlock _ = False
+
+collectUrlsFromBlock :: MD.Block -> [Text]
+collectUrlsFromBlock = \case
+  MD.Paragraph inlines -> concatMap collectUrlsFromInline inlines
+  MD.Heading _ inlines -> concatMap collectUrlsFromInline inlines
+  MD.OrderedList _ items -> concatMap (concatMap collectUrlsFromBlock) items
+  MD.BulletList items -> concatMap (concatMap collectUrlsFromBlock) items
+  MD.LetterList items -> concatMap (concatMap collectUrlsFromBlock) items
+  MD.Admonition _ mTitle bs ->
+    maybe [] (concatMap collectUrlsFromInline) mTitle
+      ++ concatMap collectUrlsFromBlock bs
+  MD.NotesGrid c1 c2 c3 c4 -> concatMap collectUrlsFromBlock (c1 ++ c2 ++ c3 ++ c4)
+  MD.ClozeBlock body opts ->
+    concatMap collectUrlsFromBlock body ++ case opts of
+      MD.ClozeNoOptions -> []
+      MD.ClozeWordBank bs -> concatMap collectUrlsFromBlock bs
+      MD.ClozePerBlankOptions groups -> concatMap (concatMap collectUrlsFromBlock) groups
+  MD.ChoiceBlock _ items -> concatMap (concatMap collectUrlsFromBlock) items
+  MD.MappingBlock l r ->
+    concatMap (concatMap collectUrlsFromBlock) l
+      ++ concatMap (concatMap collectUrlsFromBlock) r
+  _ -> []
+
+collectUrlsFromInline :: MD.Inline -> [Text]
+collectUrlsFromInline = \case
+  MD.FileEmbed url _ _ _ -> [url]
+  MD.Emph inlines -> concatMap collectUrlsFromInline inlines
+  MD.Strong inlines -> concatMap collectUrlsFromInline inlines
+  MD.Link _ inlines _ -> concatMap collectUrlsFromInline inlines
+  _ -> []
 
 -- | Apply a preset to produce content settings for the given tasks
 applyPreset :: ContentPreset -> [TaskInfo] -> ContentSettings
@@ -200,6 +242,7 @@ presetForTask Aufgabenblatt ti = TaskContentSetting
   , inlineAnswer = False
   , itemsPerRow = 1
   , points = Nothing
+  , imageSettings = Map.empty
   }
 presetForTask Arbeitsblatt ti = TaskContentSetting
   { showDescription = True
@@ -208,6 +251,7 @@ presetForTask Arbeitsblatt ti = TaskContentSetting
   , inlineAnswer = False
   , itemsPerRow = 1
   , points = Nothing
+  , imageSettings = Map.empty
   }
 presetForTask Loesungsblatt ti = TaskContentSetting
   { showDescription = False
@@ -216,6 +260,7 @@ presetForTask Loesungsblatt ti = TaskContentSetting
   , inlineAnswer = False
   , itemsPerRow = 1
   , points = Nothing
+  , imageSettings = Map.empty
   }
 presetForTask Musteraufgaben ti =
   let completeIds = solutionsOfType Complete ti
@@ -229,6 +274,7 @@ presetForTask Musteraufgaben ti =
         , inlineAnswer = False
         , itemsPerRow = 1
         , points = Nothing
+        , imageSettings = Map.empty
         }
 
 solutionsOfType :: SolutionType -> TaskInfo -> Set (Id Solution)
@@ -254,5 +300,6 @@ taskContentSetting cs tid = case Map.lookup tid cs.perTask of
     , inlineAnswer = False
     , itemsPerRow = 1
     , points = Nothing
+    , imageSettings = Map.empty
     }
   Just tcs -> tcs

@@ -79,6 +79,10 @@ sharedCSS settings =
         , ".page-print-content .print-inline-answer ol li::after { content: \"\"; flex: 1; height: 10mm; min-width: 20mm; background-image: url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'><defs><pattern id='g' patternUnits='userSpaceOnUse' width='5mm' height='5mm' x='2.5mm' y='2.5mm'><line x1='2.5mm' y1='0' x2='2.5mm' y2='5mm' stroke='%23ccc' stroke-width='0.1mm'/><line x1='0' y1='2.5mm' x2='5mm' y2='2.5mm' stroke='%23ccc' stroke-width='0.1mm'/></pattern></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>\"); background-size: round(down, 100%, 5mm) 100%; background-position: right top; border: 0.1mm solid #ccc; border-left: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; image-rendering: crisp-edges; margin-left: 0.5em; }"
         , -- Points display
           ".page-print-content .print-task-points { float: right; font-size: 0.85em; color: #666; font-weight: normal; }"
+        , -- Per-image print layout: override flex parent when it contains a floated image
+          ".page-print-content .flex:has(> .print-image-float-right) { display: block !important; }"
+        , -- Contain floats within print tasks
+          ".page-print-content .print-task { overflow: hidden; }"
         ]
 
 -- | Continuous mode: zero-margin @page, explicit page dimensions and structural margins.

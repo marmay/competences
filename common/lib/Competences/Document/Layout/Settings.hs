@@ -15,11 +15,16 @@ module Competences.Document.Layout.Settings
   , ContentSettings (..)
   , defaultContentSettings
   , ContentPreset (..)
+    -- * Per-image print settings
+  , PrintImagePosition (..)
+  , ImagePrintSetting (..)
+  , defaultImagePrintSetting
   )
 where
 
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.:?), (.!=), withObject)
+import Data.Map.Strict qualified as Map
 #endif
 import Data.Binary (Binary)
 import Data.Map.Strict (Map)
@@ -184,6 +189,44 @@ defaultPrintSettings =
     , fontFamily = DefaultFont
     }
 
+-- | Position of an image in print output
+data PrintImagePosition
+  = PrintInline -- ^ Centered in content flow (default, same as screen)
+  | PrintFloatRight -- ^ Float right at image's position in markdown
+  | PrintFloatTop -- ^ Float right, extracted to top of task (before header)
+  deriving (Eq, Ord, Show, Generic, Enum, Bounded)
+
+instance Binary PrintImagePosition
+
+#ifdef WITH_AESON
+instance FromJSON PrintImagePosition
+instance ToJSON PrintImagePosition
+#endif
+
+-- | Per-image print settings
+data ImagePrintSetting = ImagePrintSetting
+  { sizePct :: !Int -- ^ 10..100, step 5. Controls max-width percentage.
+  , position :: !PrintImagePosition -- ^ Where the image renders
+  , backdrop :: !Bool -- ^ White background behind image (for transparent SVGs)
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance Binary ImagePrintSetting
+
+#ifdef WITH_AESON
+instance FromJSON ImagePrintSetting
+instance ToJSON ImagePrintSetting
+#endif
+
+-- | Default: inline, full size, no backdrop
+defaultImagePrintSetting :: ImagePrintSetting
+defaultImagePrintSetting =
+  ImagePrintSetting
+    { sizePct = 100
+    , position = PrintInline
+    , backdrop = False
+    }
+
 -- | Per-task content settings for print output
 data TaskContentSetting = TaskContentSetting
   { showDescription :: !Bool
@@ -192,13 +235,14 @@ data TaskContentSetting = TaskContentSetting
   , inlineAnswer :: !Bool
   , itemsPerRow :: !Int
   , points :: !(Maybe Double)
+  , imageSettings :: !(Map Text ImagePrintSetting)
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Binary TaskContentSetting
 
 #ifdef WITH_AESON
--- | Custom FromJSON: points defaults to Nothing for backward compat
+-- | Custom FromJSON: backward compat for points and imageSettings
 instance FromJSON TaskContentSetting where
   parseJSON = withObject "TaskContentSetting" $ \v -> do
     sd <- v .: "showDescription"
@@ -207,6 +251,7 @@ instance FromJSON TaskContentSetting where
     ia <- v .: "inlineAnswer"
     ipr <- v .: "itemsPerRow"
     pts <- v .:? "points" .!= Nothing
+    ims <- v .:? "imageSettings" .!= Map.empty
     pure TaskContentSetting
       { showDescription = sd
       , visibleSolutions = vs
@@ -214,6 +259,7 @@ instance FromJSON TaskContentSetting where
       , inlineAnswer = ia
       , itemsPerRow = ipr
       , points = pts
+      , imageSettings = ims
       }
 
 instance ToJSON TaskContentSetting

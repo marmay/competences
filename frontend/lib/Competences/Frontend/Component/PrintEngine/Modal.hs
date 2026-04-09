@@ -29,8 +29,10 @@ import Competences.Frontend.Component.PrintEngine.Types
   , ContentSettings (..)
   , FontFamily (..)
   , GridConfig (..)
+  , ImagePrintSetting (..)
   , Orientation (..)
   , PaperSize (..)
+  , PrintImagePosition (..)
   , PrintSettings (..)
   , PrintTab (..)
   , TaskContentSetting (..)
@@ -40,6 +42,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   , applyPreset
   , cellsPerPage
   , defaultGridHeightMm
+  , defaultImagePrintSetting
   , defaultPrintSettings
   , pageSizeMm
   , pageMarginMm
@@ -127,6 +130,9 @@ data PrintModalAction
   | MoveTaskUp !TaskId
   | MoveTaskDown !TaskId
   | OpenRenumberModal
+  | SetImageSize !TaskId !Text !Int
+  | SetImagePosition !TaskId !Text !PrintImagePosition
+  | ToggleImageBackdrop !TaskId !Text
   deriving (Eq, Show)
 
 -- | Initialize modal with task infos, applying Aufgabenblatt preset
@@ -258,12 +264,27 @@ updatePrintModal (MoveTaskUp tid) _total m =
 updatePrintModal (MoveTaskDown tid) _total m =
   m {taskInfos = swapWithNext (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
 updatePrintModal OpenRenumberModal _total m = m
+updatePrintModal (SetImageSize tid url pct) _total m =
+  m & #contentSettings .~ modifyImageSetting tid url (#sizePct .~ max 10 (min 100 pct)) m.contentSettings
+    & #pageGrouping .~ []
+updatePrintModal (SetImagePosition tid url pos) _total m =
+  m & #contentSettings .~ modifyImageSetting tid url (#position .~ pos) m.contentSettings
+    & #pageGrouping .~ []
+updatePrintModal (ToggleImageBackdrop tid url) _total m =
+  m & #contentSettings .~ modifyImageSetting tid url (\ips -> ips & #backdrop .~ not ips.backdrop) m.contentSettings
 
 -- | Modify a task's content setting in the map
 modifyTaskSetting :: TaskId -> (TaskContentSetting -> TaskContentSetting) -> ContentSettings -> ContentSettings
 modifyTaskSetting tid f cs =
   let current = taskContentSetting cs tid
    in cs {perTask = Map.insert tid (f current) cs.perTask}
+
+-- | Modify a single image's setting within a task
+modifyImageSetting :: TaskId -> Text -> (ImagePrintSetting -> ImagePrintSetting) -> ContentSettings -> ContentSettings
+modifyImageSetting tid url f =
+  modifyTaskSetting tid $ \tcs ->
+    let current = Map.findWithDefault defaultImagePrintSetting url tcs.imageSettings
+     in tcs {imageSettings = Map.insert url (f current) tcs.imageSettings}
 
 -- | Set custom footer on ContentSettings (avoids ambiguous field update)
 setCustomFooter :: Maybe Text -> ContentSettings -> ContentSettings
@@ -283,6 +304,7 @@ setPoints mp tcs = TaskContentSetting
   , inlineAnswer = tcs.inlineAnswer
   , itemsPerRow = tcs.itemsPerRow
   , points = mp
+  , imageSettings = tcs.imageSettings
   }
 
 -- | Toggle a solution in/out of the visible set
@@ -332,6 +354,9 @@ needsRemeasure SaveLayout = False
 needsRemeasure PrintAndSaveLayout = False
 needsRemeasure CancelPrint = False
 needsRemeasure (SwitchTab _) = False
+needsRemeasure (SetImageSize _ _ _) = True
+needsRemeasure (SetImagePosition _ _ _) = True
+needsRemeasure (ToggleImageBackdrop _ _) = True
 
 -- | Extract grid config from settings, defaulting to 1x1
 currentGridConfig :: PrintSettings -> GridConfig
@@ -564,6 +589,8 @@ taskSection reorderActive idx total cs wrap ti =
       <> [ gridToggleRow tcs wrap ti.taskId ]
       -- Points input
       <> [ pointsInput tcs wrap ti.taskId ]
+      -- Per-image print controls
+      <> concatMap (imageSettingRow tcs wrap ti.taskId) ti.embedUrls
 
 -- | Toggle for a specific solution
 solutionToggle :: ContentSettings -> (PrintModalAction -> action) -> TaskId -> SolutionId -> SolutionType -> M.View model action
@@ -631,6 +658,52 @@ pointsInput tcs wrap tid =
         , class_ "input w-16 h-6 text-xs px-1"
         ]
     ]
+
+-- | Per-image print settings: size slider, position dropdown, backdrop toggle
+imageSettingRow :: TaskContentSetting -> (PrintModalAction -> action) -> TaskId -> Text -> [M.View model action]
+imageSettingRow tcs wrap tid url =
+  let ips = Map.findWithDefault defaultImagePrintSetting url tcs.imageSettings
+      displayName = T.takeWhileEnd (/= ':') url
+   in [ M.div_
+          [class_ "ml-4 mt-1 space-y-1 border-l-2 border-border pl-2"]
+          [ M.div_
+              [class_ "text-xs font-medium text-muted-foreground truncate"]
+              [M.text (ms displayName)]
+          , M.div_
+              [class_ "flex items-center gap-2"]
+              [ M.span_ [class_ "text-xs text-muted-foreground w-10"] [M.text (ms (show ips.sizePct <> "%"))]
+              , M.input_
+                  [ MP.type_ "range"
+                  , MP.value_ (ms (show ips.sizePct))
+                  , M.onInput (\v -> wrap (SetImageSize tid url (parseIntOr ips.sizePct v)))
+                  , M.textProp "min" "10"
+                  , M.textProp "max" "100"
+                  , M.textProp "step" "5"
+                  , class_ "flex-1 h-4"
+                  ]
+              ]
+          , M.div_
+              [class_ "flex items-center gap-2"]
+              [ M.select_
+                  [ M.onChange (\v -> wrap (SetImagePosition tid url (parsePosition v)))
+                  , class_ "input h-6 text-xs px-1"
+                  ]
+                  [ M.option_ (posAttrs "inline" PrintInline ips.position) [M.text "Zentriert"]
+                  , M.option_ (posAttrs "floatRight" PrintFloatRight ips.position) [M.text "Rechts"]
+                  , M.option_ (posAttrs "floatTop" PrintFloatTop ips.position) [M.text "Oben rechts"]
+                  ]
+              , checkboxToggle "Hintergrund" ips.backdrop (\_ -> wrap (ToggleImageBackdrop tid url))
+              ]
+          ]
+      ]
+  where
+    posAttrs val pos current = [MP.value_ val, MP.selected_ (current == pos)]
+
+parsePosition :: MisoString -> PrintImagePosition
+parsePosition v = case fromMisoString v :: [Char] of
+  "floatRight" -> PrintFloatRight
+  "floatTop" -> PrintFloatTop
+  _ -> PrintInline
 
 -- | Parse an optional double from input (empty string = Nothing)
 parseOptionalDouble :: MisoString -> Maybe Double
