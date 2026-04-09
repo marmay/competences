@@ -3,7 +3,7 @@
 -- Description : Inline-level markdown parsers
 --
 -- Parses inline elements: plain text, emphasis, strong, code spans,
--- inline math, links, file embeds (with optional @{thumb=…}@ attribute),
+-- inline math, links, file embeds (with optional style attributes),
 -- and line breaks.
 module Competences.Markdown.Parser.Inline
   ( inlinesP
@@ -14,6 +14,8 @@ where
 
 import Competences.Markdown.AST
 import Control.Monad (void)
+import Data.Either (lefts, rights)
+import Data.Maybe (fromMaybe)
 import Data.Char qualified
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -196,22 +198,47 @@ fileEmbedP = do
     pure t
   hspace
   _ <- char ')'
-  mThumb <- optional thumbAttrP
-  pure $ FileEmbed url' content title mThumb
+  (imgSize, imgPos) <- imageStyleAttrP
+  pure $ FileEmbed url' content title imgSize imgPos
 
--- | Parse {thumb=small|medium|large} attribute
-thumbAttrP :: Parser ThumbSize
-thumbAttrP = do
-  _ <- char '{'
-  hspace
-  _ <- string "thumb="
-  size <-
-    (ThumbSmall <$ string "small")
-      <|> (ThumbMedium <$ string "medium")
-      <|> (ThumbLarge <$ string "large")
-  hspace
-  _ <- char '}'
-  pure size
+-- | Parse optional {attr ...} block for image size and position.
+-- Attributes are space-separated, order-independent.
+-- Defaults: ExactSize, Centered.
+imageStyleAttrP :: Parser (ImageSize, ImagePosition)
+imageStyleAttrP = do
+  mAttrs <- optional $ do
+    _ <- char '{'
+    hspace
+    attrs <- many (singleAttrP <* hspace)
+    _ <- char '}'
+    pure attrs
+  let attrs = concat mAttrs
+      size = lastMay (lefts attrs)
+      pos = lastMay (rights attrs)
+  pure (fromMaybe ExactSize size, fromMaybe Centered pos)
+  where
+    lastMay [] = Nothing
+    lastMay xs = Just (last xs)
+
+-- | Parse a single image attribute (size or position).
+singleAttrP :: Parser (Either ImageSize ImagePosition)
+singleAttrP =
+  (Left <$> sizeAttrP) <|> (Right <$> posAttrP)
+  where
+    sizeAttrP =
+      (ExactSize <$ string "exact")
+        <|> do
+          _ <- string "thumb="
+          Thumb
+            <$> ( (ThumbSmall <$ string "small")
+                    <|> (ThumbMedium <$ string "medium")
+                    <|> (ThumbLarge <$ string "large")
+                )
+    posAttrP =
+      (Centered <$ string "center")
+        <|> do
+          _ <- string "float="
+          (FloatLeft <$ string "left") <|> (FloatRight <$ string "right")
 
 -- | Link: [text](url) or [text](url "title")
 linkP :: Parser Inline

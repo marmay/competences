@@ -278,7 +278,7 @@ extractFromInline = \case
   MD.Code _ -> []
   MD.MathInline latex -> [(Inline, latex, Nothing)]
   MD.Link _ inlines _ -> concatMap extractFromInline inlines
-  MD.FileEmbed _ inlines _ _ -> concatMap extractFromInline inlines
+  MD.FileEmbed _ inlines _ _ _ -> concatMap extractFromInline inlines
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []
   MD.ClozeBlank _ -> []
@@ -608,13 +608,18 @@ renderInline resolver symbols = \case
       , class_ "text-sky-600 hover:text-sky-700 underline"
       ]
       $ map (renderInline resolver symbols) inlines
-  MD.FileEmbed url _caption _title mThumb ->
+  MD.FileEmbed url _caption _title imgSize imgPos ->
     case resolver url of
       Left err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
       Right fileView ->
-        case mThumb of
-          Nothing -> M.div_ [class_ "flex justify-center"] [fileView]
-          Just size -> M.div_ [class_ (thumbClasses size)] [fileView]
+        let sizeClass = case imgSize of
+              MD.ExactSize -> "embed-exact"
+              MD.Thumb size -> thumbClasses size
+            posClass = case imgPos of
+              MD.Centered -> "flex justify-center"
+              MD.FloatLeft -> "embed-float-left"
+              MD.FloatRight -> "embed-float-right"
+         in M.div_ [class_ (posClass <> " " <> sizeClass)] [fileView]
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
   MD.ClozeBlank mWidth ->
@@ -782,7 +787,7 @@ referencedFileHashes attachments (MD.Document blocks) =
 
     extractRefsFromInline :: MD.Inline -> [SHA256Hash]
     extractRefsFromInline = \case
-      MD.FileEmbed url _ _ _ ->
+      MD.FileEmbed url _ _ _ _ ->
         case resolveFileRef attachments url of
           Just fr -> [fr.hash]
           Nothing -> []

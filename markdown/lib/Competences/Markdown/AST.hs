@@ -10,7 +10,7 @@
 -- * Inline code (@`...`@)
 -- * Inline math (@$...$@) and display math (@$$...$$@)
 -- * Links (@[text](url)@ and @[text](url "title")@)
--- * File embeds (@![caption](file:name)@) with optional thumb attribute (@{thumb=small|medium|large}@)
+-- * File embeds (@![caption](file:name)@) with optional style attributes (@{thumb=small|exact} {float=left|right|center}@)
 -- * Fenced code blocks (with optional info string)
 -- * Ordered lists (@1. 2. 3.@)
 -- * Bullet lists (@- item@, @* item@, @+ item@)
@@ -25,6 +25,8 @@ module Competences.Markdown.AST
   , Inline (..)
   , AdmonitionType (..)
   , ThumbSize (..)
+  , ImageSize (..)
+  , ImagePosition (..)
   , ClozeOptions (..)
   , ChoiceType (..)
   , Url
@@ -115,8 +117,8 @@ data Inline
   | -- | Link [content](url) or [content](url "title")
     Link !Url ![Inline] !(Maybe Text)
   | -- | File embed ![caption](file:name) or ![caption](fileIdx:N)
-    --   Optional thumb size: ![caption](file:name){thumb=small}
-    FileEmbed !Url ![Inline] !(Maybe Text) !(Maybe ThumbSize)
+    --   Optional style attributes: ![caption](file:name){thumb=small float=right}
+    FileEmbed !Url ![Inline] !(Maybe Text) !ImageSize !ImagePosition
   | -- | Soft line break (single newline within paragraph)
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)
@@ -127,6 +129,14 @@ data Inline
 
 -- | Thumbnail size for file embeds
 data ThumbSize = ThumbSmall | ThumbMedium | ThumbLarge
+  deriving (Eq, Show, Generic)
+
+-- | Image sizing mode
+data ImageSize = Thumb !ThumbSize | ExactSize
+  deriving (Eq, Show, Generic)
+
+-- | Image positioning mode
+data ImagePosition = FloatLeft | FloatRight | Centered
   deriving (Eq, Show, Generic)
 
 -- | URL type alias

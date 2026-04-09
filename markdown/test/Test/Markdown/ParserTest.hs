@@ -1,6 +1,6 @@
 module Test.Markdown.ParserTest (parserTests) where
 
-import Competences.Markdown.AST (AdmonitionType (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (AdmonitionType (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), ImagePosition (..), ImageSize (..), Inline (..), ThumbSize (..))
 import Competences.Markdown.Parser (parseMarkdown)
 import Data.Text qualified as T
 import Test.Tasty
@@ -159,25 +159,25 @@ fencedCodeTests =
 
 fileEmbedTests :: [TestTree]
 fileEmbedTests =
-  [ testCase "basic file embed" $
+  [ testCase "basic file embed (defaults: exact + centered)" $
       assertParse
         "file embed"
-        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing Nothing]])
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing ExactSize Centered]])
         "![alt](file:photo.jpg)"
   , testCase "file embed by index" $
       assertParse
         "fileIdx"
-        (Document [Paragraph [FileEmbed "fileIdx:0" [] Nothing Nothing]])
+        (Document [Paragraph [FileEmbed "fileIdx:0" [] Nothing ExactSize Centered]])
         "![](fileIdx:0)"
   , testCase "file embed with title" $
       assertParse
         "file+title"
-        (Document [Paragraph [FileEmbed "file:x.png" [Plain "cap"] (Just "title") Nothing]])
+        (Document [Paragraph [FileEmbed "file:x.png" [Plain "cap"] (Just "title") ExactSize Centered]])
         "![cap](file:x.png \"title\")"
   , testCase "file embed with nested inline" $
       assertParse
         "file+bold"
-        (Document [Paragraph [FileEmbed "file:y.jpg" [Strong [Plain "bold"]] Nothing Nothing]])
+        (Document [Paragraph [FileEmbed "file:y.jpg" [Strong [Plain "bold"]] Nothing ExactSize Centered]])
         "![**bold**](file:y.jpg)"
   , testCase "exclamation mark without bracket is plain text" $
       assertParse
@@ -187,18 +187,53 @@ fileEmbedTests =
   , testCase "file embed with thumb=small" $
       assertParse
         "thumb small"
-        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Just ThumbSmall)]])
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Thumb ThumbSmall) Centered]])
         "![alt](file:photo.jpg){thumb=small}"
   , testCase "file embed with thumb=medium" $
       assertParse
         "thumb medium"
-        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Just ThumbMedium)]])
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "alt"] Nothing (Thumb ThumbMedium) Centered]])
         "![alt](file:photo.jpg){thumb=medium}"
   , testCase "file embed with title and thumb=large" $
       assertParse
         "thumb+title"
-        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "cap"] (Just "title") (Just ThumbLarge)]])
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "cap"] (Just "title") (Thumb ThumbLarge) Centered]])
         "![cap](file:photo.jpg \"title\"){thumb=large}"
+  , testCase "file embed with {exact}" $
+      assertParse
+        "exact"
+        (Document [Paragraph [FileEmbed "file:circuit.svg" [Plain "diagram"] Nothing ExactSize Centered]])
+        "![diagram](file:circuit.svg){exact}"
+  , testCase "file embed with {float=left}" $
+      assertParse
+        "float left"
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "fig"] Nothing ExactSize FloatLeft]])
+        "![fig](file:photo.jpg){float=left}"
+  , testCase "file embed with {float=right}" $
+      assertParse
+        "float right"
+        (Document [Paragraph [FileEmbed "file:photo.jpg" [Plain "fig"] Nothing ExactSize FloatRight]])
+        "![fig](file:photo.jpg){float=right}"
+  , testCase "file embed with {center}" $
+      assertParse
+        "center"
+        (Document [Paragraph [FileEmbed "file:graph.svg" [Plain "result"] Nothing ExactSize Centered]])
+        "![result](file:graph.svg){center}"
+  , testCase "file embed with {exact float=right}" $
+      assertParse
+        "exact+float"
+        (Document [Paragraph [FileEmbed "file:x.svg" [Plain "img"] Nothing ExactSize FloatRight]])
+        "![img](file:x.svg){exact float=right}"
+  , testCase "file embed with {thumb=small float=left}" $
+      assertParse
+        "thumb+float"
+        (Document [Paragraph [FileEmbed "file:x.jpg" [Plain "img"] Nothing (Thumb ThumbSmall) FloatLeft]])
+        "![img](file:x.jpg){thumb=small float=left}"
+  , testCase "file embed with reversed attribute order {float=right thumb=large}" $
+      assertParse
+        "reversed order"
+        (Document [Paragraph [FileEmbed "file:x.jpg" [Plain "img"] Nothing (Thumb ThumbLarge) FloatRight]])
+        "![img](file:x.jpg){float=right thumb=large}"
   ]
 
 linkTests :: [TestTree]

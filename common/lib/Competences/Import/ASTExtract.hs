@@ -15,7 +15,7 @@ module Competences.Import.ASTExtract
   )
 where
 
-import Competences.Markdown.AST (Block (..), ChoiceType (..), ClozeOptions (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (Block (..), ChoiceType (..), ClozeOptions (..), ImagePosition (..), ImageSize (..), Inline (..), ThumbSize (..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -48,7 +48,7 @@ inlinesToText = T.concat . map go
       Code t -> t
       MathInline t -> "$" <> t <> "$"
       Link _ inlines _ -> inlinesToText inlines
-      FileEmbed _ inlines _ _ -> inlinesToText inlines
+      FileEmbed _ inlines _ _ _ -> inlinesToText inlines
       SoftLineBreak -> " "
       HardLineBreak -> "\n"
       ClozeBlank Nothing -> "___"
@@ -130,11 +130,11 @@ inlinesToMarkdown = T.concat . map go
         "[" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
-      FileEmbed url inlines mTitle mThumb ->
+      FileEmbed url inlines mTitle imgSize imgPos ->
         "![" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
-          <> maybe "" thumbSizeAttr mThumb
+          <> imageStyleAttr imgSize imgPos
       SoftLineBreak -> "\n"
       HardLineBreak -> "\\\n"
       ClozeBlank Nothing -> "___"
@@ -143,11 +143,20 @@ inlinesToMarkdown = T.concat . map go
             frac = mm `mod` 10
          in "___" <> T.pack (show cm) <> (if frac > 0 then "." <> T.pack (show frac) else "") <> "___"
 
--- | Serialize a ThumbSize back to its markdown attribute syntax.
-thumbSizeAttr :: ThumbSize -> Text
-thumbSizeAttr ThumbSmall = "{thumb=small}"
-thumbSizeAttr ThumbMedium = "{thumb=medium}"
-thumbSizeAttr ThumbLarge = "{thumb=large}"
+-- | Serialize image style attributes back to markdown syntax.
+-- Omits the block entirely when both values are defaults (ExactSize + Centered).
+imageStyleAttr :: ImageSize -> ImagePosition -> Text
+imageStyleAttr ExactSize Centered = ""
+imageStyleAttr size pos =
+  "{" <> T.intercalate " " (filter (not . T.null) [sizeAttr size, posAttr pos]) <> "}"
+  where
+    sizeAttr ExactSize = "exact"
+    sizeAttr (Thumb ThumbSmall) = "thumb=small"
+    sizeAttr (Thumb ThumbMedium) = "thumb=medium"
+    sizeAttr (Thumb ThumbLarge) = "thumb=large"
+    posAttr Centered = ""
+    posAttr FloatLeft = "float=left"
+    posAttr FloatRight = "float=right"
 
 -- | Extract plain text from each item in a BulletList's @[[Block]]@.
 bulletListItemTexts :: [[Block]] -> [Text]
