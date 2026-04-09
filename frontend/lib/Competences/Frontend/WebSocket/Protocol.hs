@@ -129,7 +129,7 @@ withWebSocket url initial continuation = do
             Right a' -> reconnectLoop 0 (Just a')
 
     backoff attempt = when (attempt > 0) $ do
-      let delaySeconds = min 30 ((2 :: Int) ^ attempt)
+      let delaySeconds = min 30 (2 ^ min attempt 5 :: Int)
       when (attempt >= 5) $
         logWarn "Connection failed repeatedly. Try refreshing the page."
       logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."

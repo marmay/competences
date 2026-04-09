@@ -1030,7 +1030,7 @@ viewerComponent r user assignment wm =
             Nothing -> []
        in M.div_
             attrs
-            (floatTopViews <> header <> descriptionView <> solutionViews <> gridView)
+            (header <> floatTopViews <> descriptionView <> solutionViews <> gridView)
 
     -- | Wrap an image with print layout styles based on its ImagePrintSetting.
     wrapImageForPrint :: ImagePrintSetting -> M.View p a -> M.View p a
