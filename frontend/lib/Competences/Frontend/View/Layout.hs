@@ -360,7 +360,7 @@ collapsibleSideMenu isOpen toggleAction side main =
 
     mobileBackdrop =
       M.div_
-        [ class_ "fixed inset-0 z-40 bg-black/20 lg:hidden"
+        [ class_ "fixed inset-0 z-40 bg-black/20 lg:hidden print-hide"
         , M.onClick toggleAction
         ]
         []
