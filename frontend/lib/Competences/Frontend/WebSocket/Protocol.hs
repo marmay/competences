@@ -10,7 +10,7 @@ module Competences.Frontend.WebSocket.Protocol
   )
 where
 
-import Competences.Frontend.Logging (logInfo)
+import Competences.Frontend.Logging (logInfo, logWarn)
 import Competences.Frontend.WebSocket
   ( WebSocketCallbacks (..)
   , connectWebSocketRaw
@@ -22,6 +22,7 @@ import Control.Concurrent.STM (atomically, newTQueueIO, readTQueue, writeTQueue)
 import Control.Exception (Exception, SomeException, catch, fromException, throwIO, try)
 import Control.Monad (when)
 import Data.Text (Text)
+import GHC.Clock (getMonotonicTime)
 import GHC.Conc (threadDelay)
 import Miso qualified as M
 
@@ -117,15 +118,20 @@ withWebSocket url initial continuation = do
       case connectResult of
         Left () -> reconnectLoop (attempt + 1) mState
         Right ws' -> do
+          startTime <- getMonotonicTime
           handlerResult <- case mState of
             Nothing -> tryHandler (initial ws')
             Just a -> tryHandler (continuation a ws')
+          elapsed <- subtract startTime <$> getMonotonicTime
+          let stableSession = elapsed >= 30
           case handlerResult of
-            Left _ -> reconnectLoop (attempt + 1) mState
+            Left _ -> reconnectLoop (if stableSession then 1 else attempt + 1) mState
             Right a' -> reconnectLoop 0 (Just a')
 
     backoff attempt = when (attempt > 0) $ do
-      let delaySeconds = min 15 ((2 :: Int) ^ attempt)
+      let delaySeconds = min 30 ((2 :: Int) ^ attempt)
+      when (attempt >= 5) $
+        logWarn "Connection failed repeatedly. Try refreshing the page."
       logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
       threadDelay (delaySeconds * 1000000)
 

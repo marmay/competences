@@ -41,7 +41,6 @@ import Competences.Frontend.WebSocket.CommandSender
   )
 import Competences.Frontend.WebSocket.Protocol
   ( AuthenticationException (..)
-  , DisconnectedException (..)
   , WebSocket (..)
   )
 import Competences.Protocol
@@ -104,14 +103,13 @@ checkpointInterval = 50
 -- | Operation loop - runs until disconnect.
 -- Handles CommandUpdate, CommandRejected, file messages.
 -- Tracks command count for periodic checkpoint storage.
+-- Throws DisconnectedException when the connection drops,
+-- allowing the caller to handle reconnection with backoff.
 operationLoop :: SyncContext -> Maybe IndexedDB -> WebSocket -> IO ()
 operationLoop ref mIdb ws = do
   counterRef <- newIORef (0 :: Int)
-  loop counterRef `catch` handleDisconnect
+  loop counterRef
   where
-    handleDisconnect :: DisconnectedException -> IO ()
-    handleDisconnect _ = pure ()
-
     loop :: IORef Int -> IO ()
     loop counterRef = forever $ do
       msg <- ws.receive
