@@ -15,10 +15,8 @@ module Competences.Import.ASTExtract
   )
 where
 
-import Competences.Markdown.AST (BackdropContext (..), Block (..), ChoiceType (..), ClozeOptions (..), ImagePosition (..), ImageSize (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (Block (..), ChoiceType (..), ClozeOptions (..), ImageSize (..), Inline (..), ThumbSize (..))
 import Data.Maybe (fromMaybe)
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 
@@ -50,7 +48,7 @@ inlinesToText = T.concat . map go
       Code t -> t
       MathInline t -> "$" <> t <> "$"
       Link _ inlines _ -> inlinesToText inlines
-      FileEmbed _ inlines _ _ _ _ -> inlinesToText inlines
+      FileEmbed _ inlines _ _ -> inlinesToText inlines
       SoftLineBreak -> " "
       HardLineBreak -> "\n"
       ClozeBlank Nothing -> "___"
@@ -132,11 +130,11 @@ inlinesToMarkdown = T.concat . map go
         "[" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
-      FileEmbed url inlines mTitle imgSize imgPos backdrop ->
+      FileEmbed url inlines mTitle imgSize ->
         "![" <> inlinesToMarkdown inlines <> "](" <> url
           <> maybe "" (\title -> " \"" <> title <> "\"") mTitle
           <> ")"
-          <> imageStyleAttr imgSize imgPos backdrop
+          <> imageSizeAttr imgSize
       SoftLineBreak -> "\n"
       HardLineBreak -> "\\\n"
       ClozeBlank Nothing -> "___"
@@ -145,28 +143,13 @@ inlinesToMarkdown = T.concat . map go
             frac = mm `mod` 10
          in "___" <> T.pack (show cm) <> (if frac > 0 then "." <> T.pack (show frac) else "") <> "___"
 
--- | Serialize image style attributes back to markdown syntax.
--- Omits the block entirely when all values are defaults.
-imageStyleAttr :: ImageSize -> ImagePosition -> Set BackdropContext -> Text
-imageStyleAttr ExactSize Centered bd | Set.null bd = ""
-imageStyleAttr size pos bd =
-  "{" <> T.intercalate " " (filter (not . T.null) [sizeAttr size, posAttr pos, backdropAttr bd]) <> "}"
-  where
-    sizeAttr ExactSize = "exact"
-    sizeAttr (Thumb ThumbSmall) = "thumb=small"
-    sizeAttr (Thumb ThumbMedium) = "thumb=medium"
-    sizeAttr (Thumb ThumbLarge) = "thumb=large"
-    posAttr Centered = ""
-    posAttr FloatLeft = "float=left"
-    posAttr FloatRight = "float=right"
-    allContexts = Set.fromList [BackdropPrint, BackdropThumb, BackdropFull]
-    backdropAttr s
-      | Set.null s = ""
-      | s == allContexts = "backdrop"
-      | otherwise = "backdrop=" <> T.intercalate "," (map ctxName (Set.toAscList s))
-    ctxName BackdropFull = "full"
-    ctxName BackdropPrint = "print"
-    ctxName BackdropThumb = "thumb"
+-- | Serialize image size attribute back to markdown syntax.
+-- Omits the block for the default (ExactSize).
+imageSizeAttr :: ImageSize -> Text
+imageSizeAttr ExactSize = ""
+imageSizeAttr (Thumb ThumbSmall) = "{thumb=small}"
+imageSizeAttr (Thumb ThumbMedium) = "{thumb=medium}"
+imageSizeAttr (Thumb ThumbLarge) = "{thumb=large}"
 
 -- | Extract plain text from each item in a BulletList's @[[Block]]@.
 bulletListItemTexts :: [[Block]] -> [Text]

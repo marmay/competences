@@ -10,7 +10,7 @@
 -- * Inline code (@`...`@)
 -- * Inline math (@$...$@) and display math (@$$...$$@)
 -- * Links (@[text](url)@ and @[text](url "title")@)
--- * File embeds (@![caption](file:name)@) with optional style attributes (@{thumb=small|exact} {float=left|right|center}@)
+-- * File embeds (@![caption](file:name)@) with optional size attribute (@{thumb=small|medium|large}@ or @{exact}@)
 -- * Fenced code blocks (with optional info string)
 -- * Ordered lists (@1. 2. 3.@)
 -- * Bullet lists (@- item@, @* item@, @+ item@)
@@ -26,15 +26,12 @@ module Competences.Markdown.AST
   , AdmonitionType (..)
   , ThumbSize (..)
   , ImageSize (..)
-  , ImagePosition (..)
-  , BackdropContext (..)
   , ClozeOptions (..)
   , ChoiceType (..)
   , Url
   )
 where
 
-import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -119,8 +116,8 @@ data Inline
   | -- | Link [content](url) or [content](url "title")
     Link !Url ![Inline] !(Maybe Text)
   | -- | File embed ![caption](file:name) or ![caption](fileIdx:N)
-    --   Optional style attributes: ![caption](file:name){thumb=small float=right backdrop=print}
-    FileEmbed !Url ![Inline] !(Maybe Text) !ImageSize !ImagePosition !(Set BackdropContext)
+    --   Optional size: ![caption](file:name){thumb=small} or {exact}
+    FileEmbed !Url ![Inline] !(Maybe Text) !ImageSize
   | -- | Soft line break (single newline within paragraph)
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)
@@ -137,13 +134,6 @@ data ThumbSize = ThumbSmall | ThumbMedium | ThumbLarge
 data ImageSize = Thumb !ThumbSize | ExactSize
   deriving (Eq, Show, Generic)
 
--- | Image positioning mode
-data ImagePosition = FloatLeft | FloatRight | Centered
-  deriving (Eq, Show, Generic)
-
--- | Backdrop context — where to show a white background behind the image
-data BackdropContext = BackdropPrint | BackdropThumb | BackdropFull
-  deriving (Eq, Ord, Show, Generic)
 
 -- | URL type alias
 type Url = Text

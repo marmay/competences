@@ -52,7 +52,7 @@
 @source inline("border-{gray,green,blue,yellow,orange}-{50,100,200,300,400,500,600,700,800,900}");
 @source inline("bg-{red,blue,green,orange,purple}-{100,600}");
 @source inline("max-w-[20%] max-w-[60%] max-w-[90%]");
-@source inline("embed-exact embed-float-left embed-float-right embed-backdrop-print");
+@source inline("embed-exact embed-float-right");
 
 /* Print engine classes (page-print modal) */
 @source inline("print-task print-page print-cell page-print-content");
@@ -553,25 +553,15 @@
   height: auto;
 }
 
-.embed-float-left {
-  float: left;
-  margin: 0 1em 0.5em 0;
-  max-width: 40%;
-}
-
+/* Float right — used only by print renderer for floated images */
 .embed-float-right {
   float: right;
   margin: 0 0 0.5em 1em;
-  max-width: 40%;
 }
 
-.embed-float-left img,
 .embed-float-right img {
   max-width: 100%;
 }
-
-/* Backdrop: white background behind images in specific contexts */
-.embed-backdrop-print { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 
 /* Portrait orientation on small screens: hide/show content */
 @media (orientation: portrait) and (max-width: 1024px) {
@@ -617,11 +607,6 @@
   /* In print engine cells, cap exact-size images at container width */
   .page-print-content .embed-exact img {
     max-width: 100% !important;
-  }
-
-  /* White backdrop behind images when printing */
-  .embed-backdrop-print {
-    background: white !important;
   }
 
   /* Competence grid print table */
