@@ -27,12 +27,14 @@ module Competences.Markdown.AST
   , ThumbSize (..)
   , ImageSize (..)
   , ImagePosition (..)
+  , BackdropContext (..)
   , ClozeOptions (..)
   , ChoiceType (..)
   , Url
   )
 where
 
+import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -117,8 +119,8 @@ data Inline
   | -- | Link [content](url) or [content](url "title")
     Link !Url ![Inline] !(Maybe Text)
   | -- | File embed ![caption](file:name) or ![caption](fileIdx:N)
-    --   Optional style attributes: ![caption](file:name){thumb=small float=right}
-    FileEmbed !Url ![Inline] !(Maybe Text) !ImageSize !ImagePosition
+    --   Optional style attributes: ![caption](file:name){thumb=small float=right backdrop=print}
+    FileEmbed !Url ![Inline] !(Maybe Text) !ImageSize !ImagePosition !(Set BackdropContext)
   | -- | Soft line break (single newline within paragraph)
     SoftLineBreak
   | -- | Hard line break (trailing \\ or two spaces before newline)
@@ -138,6 +140,10 @@ data ImageSize = Thumb !ThumbSize | ExactSize
 -- | Image positioning mode
 data ImagePosition = FloatLeft | FloatRight | Centered
   deriving (Eq, Show, Generic)
+
+-- | Backdrop context — where to show a white background behind the image
+data BackdropContext = BackdropPrint | BackdropThumb | BackdropFull
+  deriving (Eq, Ord, Show, Generic)
 
 -- | URL type alias
 type Url = Text

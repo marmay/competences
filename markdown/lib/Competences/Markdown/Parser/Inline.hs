@@ -14,8 +14,9 @@ where
 
 import Competences.Markdown.AST
 import Control.Monad (void)
-import Data.Either (lefts, rights)
 import Data.Maybe (fromMaybe)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Char qualified
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -198,13 +199,16 @@ fileEmbedP = do
     pure t
   hspace
   _ <- char ')'
-  (imgSize, imgPos) <- imageStyleAttrP
-  pure $ FileEmbed url' content title imgSize imgPos
+  (imgSize, imgPos, backdrop) <- imageStyleAttrP
+  pure $ FileEmbed url' content title imgSize imgPos backdrop
 
--- | Parse optional {attr ...} block for image size and position.
+-- | Accumulated image attributes during parsing.
+data ImageAttr = AttrSize !ImageSize | AttrPos !ImagePosition | AttrBackdrop !(Set BackdropContext)
+
+-- | Parse optional {attr ...} block for image style attributes.
 -- Attributes are space-separated, order-independent.
--- Defaults: ExactSize, Centered.
-imageStyleAttrP :: Parser (ImageSize, ImagePosition)
+-- Defaults: ExactSize, Centered, empty backdrop.
+imageStyleAttrP :: Parser (ImageSize, ImagePosition, Set BackdropContext)
 imageStyleAttrP = do
   mAttrs <- optional $ do
     _ <- char '{'
@@ -213,17 +217,20 @@ imageStyleAttrP = do
     _ <- char '}'
     pure attrs
   let attrs = concat mAttrs
-      size = lastMay (lefts attrs)
-      pos = lastMay (rights attrs)
-  pure (fromMaybe ExactSize size, fromMaybe Centered pos)
+      size = lastMay [s | AttrSize s <- attrs]
+      pos = lastMay [p | AttrPos p <- attrs]
+      bd = mconcat [b | AttrBackdrop b <- attrs]
+  pure (fromMaybe ExactSize size, fromMaybe Centered pos, bd)
   where
     lastMay [] = Nothing
     lastMay xs = Just (last xs)
 
--- | Parse a single image attribute (size or position).
-singleAttrP :: Parser (Either ImageSize ImagePosition)
+-- | Parse a single image attribute (size, position, or backdrop).
+singleAttrP :: Parser ImageAttr
 singleAttrP =
-  (Left <$> sizeAttrP) <|> (Right <$> posAttrP)
+  (AttrSize <$> sizeAttrP)
+    <|> (AttrPos <$> posAttrP)
+    <|> (AttrBackdrop <$> backdropAttrP)
   where
     sizeAttrP =
       (ExactSize <$ string "exact")
@@ -239,6 +246,22 @@ singleAttrP =
         <|> do
           _ <- string "float="
           (FloatLeft <$ string "left") <|> (FloatRight <$ string "right")
+    backdropAttrP = do
+      _ <- string "backdrop"
+      ctxs <-
+        optional $
+          char '=' *> do
+            (allContexts <$ string "always") <|> contextListP
+      pure $ fromMaybe allContexts ctxs
+    contextListP = do
+      first <- contextP
+      rest <- many (char ',' *> contextP)
+      pure $ Set.fromList (first : rest)
+    contextP =
+      (BackdropPrint <$ string "print")
+        <|> (BackdropThumb <$ string "thumb")
+        <|> (BackdropFull <$ string "full")
+    allContexts = Set.fromList [BackdropPrint, BackdropThumb, BackdropFull]
 
 -- | Link: [text](url) or [text](url "title")
 linkP :: Parser Inline

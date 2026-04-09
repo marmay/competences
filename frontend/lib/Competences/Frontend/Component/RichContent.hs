@@ -76,6 +76,7 @@ import Data.Char (ord)
 import Data.List (find)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -110,27 +111,26 @@ data RichContentAction
 -- File resolution
 -- ============================================================================
 
--- | A file resolver maps a file embed URL to either an error message
--- or a rendered view. When no file context is available, the resolver
--- always returns 'Left'.
-type FileResolver = Text -> Either Text (M.View RichContentModel RichContentAction)
+-- | A file resolver maps a file embed URL and backdrop settings to either
+-- an error message or a rendered view.
+type FileResolver = Text -> Set MD.BackdropContext -> Either Text (M.View RichContentModel RichContentAction)
 
 -- | A resolver that always fails -- for use when no file context is available.
 -- Returns the URL unchanged so it can be shown as bracketed text.
 noFiles :: FileResolver
-noFiles url = Left url
+noFiles url _backdrop = Left url
 
 -- | Build a resolver from a 'SyncContext' and list of attachments.
 -- Successfully resolved files are rendered as 'filePreviewComponent' views.
 mkFileResolver :: SyncContext -> [FileRef] -> FileResolver
-mkFileResolver syncCtx attachments url =
+mkFileResolver syncCtx attachments url backdrop =
   case resolveFileRef attachments url of
     Nothing -> Left $ "Datei nicht gefunden: " <> url
     Just fileRef ->
       Right $
         inlineComponent
           ("file-preview-" <> M.ms (show fileRef.hash))
-          (filePreviewComponent syncCtx fileRef)
+          (filePreviewComponent syncCtx fileRef backdrop)
 
 -- | Resolve a file URL (file:name or fileIdx:N) to a FileRef from attachments.
 resolveFileRef :: [FileRef] -> Text -> Maybe FileRef
@@ -278,7 +278,7 @@ extractFromInline = \case
   MD.Code _ -> []
   MD.MathInline latex -> [(Inline, latex, Nothing)]
   MD.Link _ inlines _ -> concatMap extractFromInline inlines
-  MD.FileEmbed _ inlines _ _ _ -> concatMap extractFromInline inlines
+  MD.FileEmbed _ inlines _ _ _ _ -> concatMap extractFromInline inlines
   MD.SoftLineBreak -> []
   MD.HardLineBreak -> []
   MD.ClozeBlank _ -> []
@@ -608,8 +608,8 @@ renderInline resolver symbols = \case
       , class_ "text-sky-600 hover:text-sky-700 underline"
       ]
       $ map (renderInline resolver symbols) inlines
-  MD.FileEmbed url _caption _title imgSize imgPos ->
-    case resolver url of
+  MD.FileEmbed url _caption _title imgSize imgPos backdrop ->
+    case resolver url backdrop of
       Left err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
       Right fileView ->
         let sizeClass = case imgSize of
@@ -619,7 +619,10 @@ renderInline resolver symbols = \case
               MD.Centered -> "flex justify-center"
               MD.FloatLeft -> "embed-float-left"
               MD.FloatRight -> "embed-float-right"
-         in M.div_ [class_ (posClass <> " " <> sizeClass)] [fileView]
+            bdClass
+              | Set.member MD.BackdropPrint backdrop = " embed-backdrop-print"
+              | otherwise = ""
+         in M.div_ [class_ (posClass <> " " <> sizeClass <> bdClass)] [fileView]
   MD.SoftLineBreak -> M.text " "
   MD.HardLineBreak -> M.br_ []
   MD.ClozeBlank mWidth ->
@@ -787,7 +790,7 @@ referencedFileHashes attachments (MD.Document blocks) =
 
     extractRefsFromInline :: MD.Inline -> [SHA256Hash]
     extractRefsFromInline = \case
-      MD.FileEmbed url _ _ _ _ ->
+      MD.FileEmbed url _ _ _ _ _ ->
         case resolveFileRef attachments url of
           Just fr -> [fr.hash]
           Nothing -> []

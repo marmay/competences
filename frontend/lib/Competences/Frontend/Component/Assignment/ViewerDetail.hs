@@ -1023,7 +1023,6 @@ viewerComponent r user assignment wm =
             , ("height", ms (show heightMm) <> "mm")
             , ("background-image", "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'><defs><pattern id='g' patternUnits='userSpaceOnUse' width='5mm' height='5mm' x='2.5mm' y='2.5mm'><line x1='2.5mm' y1='0' x2='2.5mm' y2='5mm' stroke='%23ccc' stroke-width='0.1mm'/><line x1='0' y1='2.5mm' x2='5mm' y2='2.5mm' stroke='%23ccc' stroke-width='0.1mm'/></pattern></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>\")")
             , ("background-size", "100% 100%")
-            , ("border", "0.1mm solid #ccc")
             , ("margin-top", "0.5em")
             , ("print-color-adjust", "exact")
             , ("-webkit-print-color-adjust", "exact")

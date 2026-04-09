@@ -17,6 +17,9 @@ import Competences.Frontend.FileCache (fileToDataUrl)
 import Competences.Frontend.SyncContext.SyncDocument (SyncContext, downloadFile)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Markdown.AST (BackdropContext (..))
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -41,8 +44,9 @@ data FilePreviewAction
   deriving (Eq, Show)
 
 -- | A self-contained Miso component for previewing a single file.
-filePreviewComponent :: SyncContext -> FileRef -> M.Component p FilePreviewModel FilePreviewAction
-filePreviewComponent syncCtx ref =
+-- The backdrop set controls where a white background is shown behind the image.
+filePreviewComponent :: SyncContext -> FileRef -> Set BackdropContext -> M.Component p FilePreviewModel FilePreviewAction
+filePreviewComponent syncCtx ref backdrop =
   (M.component model update view)
     { M.initialAction = Just LoadFile
     }
@@ -87,8 +91,16 @@ filePreviewComponent syncCtx ref =
             [M.text $ ms $ "Datei nicht gefunden: " <> fr.fileName]
         ]
 
+    thumbBdClass
+      | Set.member BackdropThumb backdrop = " bg-white"
+      | otherwise = ""
+
+    fullBdClass
+      | Set.member BackdropFull backdrop = " bg-white"
+      | otherwise = ""
+
     viewImage url fr isEnlarged =
-      MH.div_ [class_ "relative inline-block group"]
+      MH.div_ [class_ $ "relative inline-block group" <> thumbBdClass]
         [ MH.img_
             [ MP.src_ (ms url)
             , MP.alt_ (ms fr.fileName)
@@ -116,7 +128,7 @@ filePreviewComponent syncCtx ref =
         [ MH.img_
             [ MP.src_ (ms url)
             , MP.alt_ (ms fr.fileName)
-            , class_ "max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            , class_ $ "max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" <> fullBdClass
             ]
         , MH.a_
             [ MP.href_ (ms url)
