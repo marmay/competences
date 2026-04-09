@@ -206,7 +206,7 @@ assignmentSelectorComponent r initialSelection parentLens =
             & #newAssignment .~ new'
 
     connectedUser = (syncDocumentEnv r).connectedUser
-    defaultFilter = if isTeacher connectedUser then HasOpenSubmissions else OpenOnly
+    defaultFilter = if isTeacher connectedUser then AllAssignments else OpenOnly
 
     view' m =
       M.div_
@@ -233,7 +233,7 @@ assignmentSelectorComponent r initialSelection parentLens =
                        defaultFilter
                        ( if isTeacher connectedUser
                            then
-                             [HasOpenSubmissions, AllAssignments]
+                             [AllAssignments, HasOpenSubmissions]
                                <> [OpenOnly | isJust m.projection.focusedUser]
                                <> [NotGradedOnly | isJust m.projection.focusedUser]
                            else
