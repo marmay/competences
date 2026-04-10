@@ -125,7 +125,7 @@ withWebSocket url initial continuation = do
           elapsed <- subtract startTime <$> getMonotonicTime
           let stableSession = elapsed >= 30
           case handlerResult of
-            Left _ -> reconnectLoop (if stableSession then 1 else attempt + 1) mState
+            Left _ -> reconnectLoop (if stableSession then 0 else attempt + 1) mState
             Right a' -> reconnectLoop 0 (Just a')
 
     backoff attempt = when (attempt > 0) $ do
