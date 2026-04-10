@@ -135,7 +135,8 @@ withWebSocket url initial continuation = do
       logInfo $ M.ms $ "Reconnecting in " <> show delaySeconds <> "s..."
       threadDelay (delaySeconds * 1000000)
 
-    tryConnect = (Right <$> connectBlocking url) `catch` \(_ :: DisconnectedException) ->
+    tryConnect = (Right <$> connectBlocking url) `catch` \(e :: SomeException) -> do
+      logInfo $ M.ms $ "Connection attempt failed: " <> show e
       pure (Left ())
 
     -- Catch all exceptions except AuthenticationException (which is fatal)
