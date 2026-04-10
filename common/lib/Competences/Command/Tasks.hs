@@ -28,6 +28,7 @@ import Competences.Document.Task
   , TaskPurpose
   , taskGroupId
   )
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
@@ -282,8 +283,8 @@ deleteTaskGroupCascading groupId doc = do
   pure (doc'', group)
 
 -- | Handle a Tasks context command
-handleTasksCommand :: UserId -> TasksCommand -> Document -> UpdateResult
-handleTasksCommand userId cmd d = case cmd of
+handleTasksCommand :: UserId -> SessionId -> TasksCommand -> Document -> UpdateResult
+handleTasksCommand userId sid cmd d = case cmd of
   OnTasks c -> case c of
     Create task -> do
       -- Verify it's a SelfContained task
@@ -297,7 +298,7 @@ handleTasksCommand userId cmd d = case cmd of
         SubTask _ _ -> Left "Use OnSubTasks to create SubTasks"
         SelfContained _ -> do
           d' <- taskContext.create task d
-          d'' <- doLock userId (TaskLock task.id) d'
+          d'' <- doLock userId sid (TaskLock task.id) d'
           pure (d'', taskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences
@@ -311,7 +312,7 @@ handleTasksCommand userId cmd d = case cmd of
           pure (d', taskContext.affectedUsers task' d)
     Modify taskId modCmd -> case modCmd of
       Lock -> do
-        d' <- doLock userId (TaskLock taskId) d
+        d' <- doLock userId sid (TaskLock taskId) d
         task <- taskContext.fetch taskId d'
         -- Verify it's SelfContained
         case task.taskType of
@@ -334,7 +335,7 @@ handleTasksCommand userId cmd d = case cmd of
       (,taskGroupContext.affectedUsers group d) <$> taskGroupContext.create group d
     CreateAndLock group -> do
       d' <- taskGroupContext.create group d
-      d'' <- doLock userId (TaskGroupLock group.id) d'
+      d'' <- doLock userId sid (TaskGroupLock group.id) d'
       pure (d'', taskGroupContext.affectedUsers group d)
     Delete groupId -> do
       -- Cascading delete: delete all SubTasks, then delete the group
@@ -342,7 +343,7 @@ handleTasksCommand userId cmd d = case cmd of
       pure (d', taskGroupContext.affectedUsers group' d)
     Modify groupId modCmd -> case modCmd of
       Lock -> do
-        d' <- doLock userId (TaskGroupLock groupId) d
+        d' <- doLock userId sid (TaskGroupLock groupId) d
         group <- taskGroupContext.fetch groupId d'
         pure (d', taskGroupContext.affectedUsers group d)
       Release patch -> do
@@ -370,7 +371,7 @@ handleTasksCommand userId cmd d = case cmd of
           -- Verify TaskGroup exists
           validateSubTaskReferencesGroup d task
           d' <- subTaskContext.create task d
-          d'' <- doLock userId (TaskLock task.id) d'
+          d'' <- doLock userId sid (TaskLock task.id) d'
           pure (d'', subTaskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences
@@ -390,7 +391,7 @@ handleTasksCommand userId cmd d = case cmd of
         SelfContained _ -> Left "Cannot modify SelfContained tasks via OnSubTasks (use OnTasks instead)"
         SubTask _groupId _ -> case modCmd of
           Lock -> do
-            d' <- doLock userId (TaskLock taskId) d
+            d' <- doLock userId sid (TaskLock taskId) d
             pure (d', subTaskContext.affectedUsers taskCurrent d)
           Release patch -> do
             -- Lock check: TaskLock must be held by this user

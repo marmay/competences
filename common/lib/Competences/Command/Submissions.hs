@@ -12,6 +12,7 @@ import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
@@ -107,8 +108,8 @@ validateVoidConstraint _ _ _ = Right ()
 
 -- | Handle a Submissions command.
 -- Custom handler because submissions have student-only authorization.
-handleSubmissionsCommand :: UserId -> SubmissionsCommand -> Document -> UpdateResult
-handleSubmissionsCommand userId (OnSubmissions cmd) d = do
+handleSubmissionsCommand :: UserId -> SessionId -> SubmissionsCommand -> Document -> UpdateResult
+handleSubmissionsCommand userId sid (OnSubmissions cmd) d = do
   -- Teachers cannot create submissions
   case Ix.getOne (d.users Ix.@= userId) of
     Nothing -> Left "Submission: user not found"
@@ -139,37 +140,37 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
-      d'' <- doLock userId (SubmissionLock s.id) d'
+      d'' <- doLock userId sid (SubmissionLock s.id) d'
       Right (d'', affectedUsersFor s d)
 
-    Delete sid -> do
-      s <- fetchSubmission sid d
+    Delete submissionId -> do
+      s <- fetchSubmission submissionId d
       unless (isOwner userId s) $
         Left "Submission: can only delete your own submission"
       let d' = d & #submissions %~ Ix.delete s
       Right (d', affectedUsersFor s d)
 
-    Modify sid Lock -> do
-      s <- fetchSubmission sid d
+    Modify submissionId Lock -> do
+      s <- fetchSubmission submissionId d
       unless (isOwner userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doLock userId (SubmissionLock sid) d
+      d' <- doLock userId sid (SubmissionLock submissionId) d
       Right (d', affectedUsersFor s d)
 
-    Modify sid (Release patch) -> do
-      s <- fetchSubmission sid d
+    Modify submissionId (Release patch) -> do
+      s <- fetchSubmission submissionId d
       unless (isOwner userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doRelease userId (SubmissionLock sid) d
+      d' <- doRelease userId (SubmissionLock submissionId) d
       s' <- applySubmissionPatch s patch
       validateKind s'.kind
-      let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx sid
+      let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx submissionId
       Right (d'', affectedUsersFor s d <> affectedUsersFor s' d)
 
 -- | Fetch a submission by ID, or fail
 fetchSubmission :: SubmissionId -> Document -> Either Text Submission
-fetchSubmission sid d =
-  case Ix.getOne (d.submissions Ix.@= sid) of
+fetchSubmission submissionId d =
+  case Ix.getOne (d.submissions Ix.@= submissionId) of
     Nothing -> Left "Submission: not found"
     Just s -> Right s
 

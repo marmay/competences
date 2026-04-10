@@ -11,6 +11,7 @@ import Competences.Document
   ( Document (..)
   , FileRef (..)
   , Lock (..)
+  , LockHolder (..)
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
@@ -58,7 +59,7 @@ editorDetailView r resource =
       TE.editable
         ( \d ->
             fmap
-              (\res -> (res, (d ^. #locks) Map.!? ResourceLock res.id))
+              (\res -> (res, fmap (.userId) $ (d ^. #locks) Map.!? ResourceLock res.id))
               (Ix.getOne $ d.resources Ix.@= resource.id)
         )
         & (#modify ?~ (\res modify -> Resources $ OnResources (EC.Modify res.id modify)))

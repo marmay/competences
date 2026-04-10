@@ -10,8 +10,9 @@ module Competences.Command.Interpret
 where
 
 import Competences.Command.Common (AffectedUsers, EntityCommand (..), ModifyCommand (..), UpdateResult)
-import Competences.Document (Document (..), Lock)
+import Competences.Document (Document (..), Lock, LockHolder (..))
 import Competences.Document.Id (Id)
+import Competences.Document.Session (SessionId)
 import Competences.Document.Order (OrderableSet, reordered, reordered')
 import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
@@ -108,39 +109,39 @@ mkEntityCommandContext l idOf lock applyPatch affectedUsers =
         }
 
 -- | Lock an entity
-doLock :: UserId -> Lock -> Document -> Either Text Document
-doLock uid l d =
+doLock :: UserId -> SessionId -> Lock -> Document -> Either Text Document
+doLock uid sid l d =
   case (d ^. #locks) Map.!? l of
-    (Just _) -> Left "entity is already locked!"
-    Nothing -> pure (d & (#locks %~ Map.insert l uid))
+    Just _ -> Left "entity is already locked!"
+    Nothing -> pure (d & (#locks %~ Map.insert l (LockHolder uid sid)))
 
 -- | Release a lock on an entity
 doRelease :: UserId -> Lock -> Document -> Either Text Document
 doRelease uid l d =
   case (d ^. #locks) Map.!? l of
-    (Just uid') -> do
-      when (uid /= uid') $
+    Just holder -> do
+      when (holder.userId /= uid) $
         Left "entity is locked by another user!"
       pure (d & (#locks %~ Map.delete l))
     Nothing -> Left "entity is not locked!"
 
 -- | Interpret an entity command using the provided context
 interpretEntityCommand
-  :: (Eq a) => EntityCommandContext a patch -> UserId -> EntityCommand a patch -> Document -> UpdateResult
-interpretEntityCommand ctx _ (Create a) d =
+  :: (Eq a) => EntityCommandContext a patch -> UserId -> SessionId -> EntityCommand a patch -> Document -> UpdateResult
+interpretEntityCommand ctx _ _sid (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
-interpretEntityCommand ctx uid (CreateAndLock a) d = do
+interpretEntityCommand ctx uid sid (CreateAndLock a) d = do
   d' <- ctx.create a d
-  d'' <- doLock uid (ctx.lock (ctx.getId a)) d'
+  d'' <- doLock uid sid (ctx.lock (ctx.getId a)) d'
   pure (d'', ctx.affectedUsers a d)
-interpretEntityCommand ctx _ (Delete i) d = do
+interpretEntityCommand ctx _ _sid (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx uid (Modify i Lock) d = do
-  d' <- doLock uid (ctx.lock i) d
+interpretEntityCommand ctx uid sid (Modify i Lock) d = do
+  d' <- doLock uid sid (ctx.lock i) d
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx uid (Modify i (Release patch)) d = do
+interpretEntityCommand ctx uid _sid (Modify i (Release patch)) d = do
   d' <- doRelease uid (ctx.lock i) d
   aCurrent <- ctx.fetch i d'
   aModified <- ctx.applyPatch aCurrent patch

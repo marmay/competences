@@ -7,7 +7,7 @@ import Competences.Command (Command (..), EntityCommand (..), TaskPatch (..), Ta
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), Task (..), TaskType (..), User)
+import Competences.Document (Document (..), Lock (..), LockHolder (..), Task (..), TaskType (..), User)
 import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task (TaskAttributes (..), TaskId, TaskIdentifier (..), TaskPurpose (..))
@@ -106,7 +106,7 @@ taskDetailView r origin task =
                 let mTask = case origin of
                       Published -> Ix.getOne $ d.tasks Ix.@= task.id
                       Draft -> Ix.getOne $ d.draftTasks Ix.@= task.id
-                 in fmap (\c -> (c, (d ^. #locks) Map.!? TaskLock c.id)) mTask
+                 in fmap (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? TaskLock c.id)) mTask
               SubTask _ _ -> Nothing -- Not editable in this editor
         )
         & (#modify ?~ (\t modify -> wrap $ Tasks $ OnTasks (Modify t.id modify)))

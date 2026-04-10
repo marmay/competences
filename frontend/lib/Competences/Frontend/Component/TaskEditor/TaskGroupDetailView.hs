@@ -7,7 +7,7 @@ import Competences.Command (Command (..), EntityCommand (..), SubTaskPatch (..),
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), emptyDocument)
+import Competences.Document (Document (..), Lock (..), LockHolder (..), Task (..), TaskGroup (..), TaskType (..), emptyDocument)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Task
   ( TaskAttributes (..)
@@ -134,7 +134,7 @@ taskGroupEditorComponent r origin group =
             let mGroup = case origin of
                   Published -> Ix.getOne $ d.taskGroups Ix.@= group.id
                   Draft -> Ix.getOne $ d.draftTaskGroups Ix.@= group.id
-             in fmap (\g -> (g, (d ^. #locks) Map.!? TaskGroupLock g.id)) mGroup
+             in fmap (\g -> (g, fmap (.userId) $ (d ^. #locks) Map.!? TaskGroupLock g.id)) mGroup
         )
         & (#modify ?~ (\g modify -> wrap $ Tasks $ OnTaskGroups (Modify g.id modify)))
         & (#delete ?~ (\g -> wrap $ Tasks $ OnTaskGroups (Delete g.id)))
@@ -272,7 +272,7 @@ taskGroupEditorComponent r origin group =
             let mTask = case origin of
                   Published -> Ix.getOne $ d.tasks Ix.@= taskId
                   Draft -> Ix.getOne $ d.draftTasks Ix.@= taskId
-             in fmap (\t -> (t, (d ^. #locks) Map.!? TaskLock t.id)) mTask
+             in fmap (\t -> (t, fmap (.userId) $ (d ^. #locks) Map.!? TaskLock t.id)) mTask
         )
         & (#modify ?~ (\t modify -> wrap $ Tasks $ OnSubTasks (Modify t.id modify)))
         & (#delete ?~ (\t -> wrap $ Tasks $ OnSubTasks (Delete t.id)))

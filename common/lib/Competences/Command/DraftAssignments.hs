@@ -11,6 +11,7 @@ import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), Updat
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Assignment (Assignment (..))
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId, UserRole (..))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -36,10 +37,10 @@ allTeachers :: Document -> AffectedUsers
 allTeachers d = AffectedUsers $ map (.id) $ filter (\u -> u.role == Teacher) $ IxSet.toList $ d ^. #users
 
 -- | Handle a DraftAssignments context command
-handleDraftAssignmentsCommand :: UserId -> DraftAssignmentsCommand -> Document -> UpdateResult
-handleDraftAssignmentsCommand userId (OnDraftAssignments c) d =
+handleDraftAssignmentsCommand :: UserId -> SessionId -> DraftAssignmentsCommand -> Document -> UpdateResult
+handleDraftAssignmentsCommand userId sid (OnDraftAssignments c) d =
   -- No referential integrity checks for draft assignments (they can be freely deleted)
-  interpretEntityCommand draftAssignmentContext userId c d
+  interpretEntityCommand draftAssignmentContext userId sid c d
   where
     draftAssignmentContext =
       mkEntityCommandContext

@@ -54,6 +54,7 @@ import Competences.Document (Document (..), Lesson (..), User (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (Office365Id (..), UserId, UserRole (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Data.List (sortOn)
@@ -120,33 +121,33 @@ instance ToJSON Command
 #endif
 
 -- | Handle a command and return the updated document with affected users
-handleCommand :: UserId -> Command -> Document -> UpdateResult
-handleCommand userId cmd d = case cmd of
+handleCommand :: UserId -> SessionId -> Command -> Document -> UpdateResult
+handleCommand userId sid cmd d = case cmd of
   SetDocument newDoc ->
     -- Replace entire document, all users affected
     let allUserIds = map (.id) $ Ix.toList $ newDoc ^. #users
      in Right (newDoc, AffectedUsers allUserIds)
   -- Teacher-only commands: require the acting user to be a teacher
-  Competences c -> teacherOnly $ handleCompetencesCommand userId c d
-  Users c -> teacherOnly $ handleUsersCommand userId c d
-  Evidences c -> teacherOnly $ handleEvidencesCommand userId c d
-  Tasks c -> teacherOnly $ handleTasksCommand userId c d
-  Assignments c -> teacherOnly $ handleAssignmentsCommand userId c d
-  CompetenceAssessments c -> teacherOnly $ handleCompetenceAssessmentsCommand userId c d
-  CompetenceGridGrades c -> teacherOnly $ handleCompetenceGridGradesCommand userId c d
-  Solutions c -> teacherOnly $ handleSolutionsCommand userId c d
-  Resources c -> teacherOnly $ handleResourcesCommand userId c d
-  MesoPlans c -> teacherOnly $ handleMesoPlansCommand userId c d
-  Lessons c -> teacherOnly $ handleLessonsCommand userId c d
-  LessonNotes c -> teacherOnly $ handleLessonNotesCommand userId c d
-  ParticipationRecords c -> teacherOnly $ handleParticipationRecordsCommand userId c d
-  Absences c -> teacherOnly $ handleAbsencesCommand userId c d
-  DraftTasks c -> teacherOnly $ handleDraftTasksCommand userId c d
-  DraftAssignments c -> teacherOnly $ handleDraftAssignmentsCommand userId c d
-  CompetenceLevelExamples c -> teacherOnly $ handleCompetenceLevelExamplesCommand userId c d
-  Layouts c -> teacherOnly $ handleLayoutsCommand userId c d
+  Competences c -> teacherOnly $ handleCompetencesCommand userId sid c d
+  Users c -> teacherOnly $ handleUsersCommand userId sid c d
+  Evidences c -> teacherOnly $ handleEvidencesCommand userId sid c d
+  Tasks c -> teacherOnly $ handleTasksCommand userId sid c d
+  Assignments c -> teacherOnly $ handleAssignmentsCommand userId sid c d
+  CompetenceAssessments c -> teacherOnly $ handleCompetenceAssessmentsCommand userId sid c d
+  CompetenceGridGrades c -> teacherOnly $ handleCompetenceGridGradesCommand userId sid c d
+  Solutions c -> teacherOnly $ handleSolutionsCommand userId sid c d
+  Resources c -> teacherOnly $ handleResourcesCommand userId sid c d
+  MesoPlans c -> teacherOnly $ handleMesoPlansCommand userId sid c d
+  Lessons c -> teacherOnly $ handleLessonsCommand userId sid c d
+  LessonNotes c -> teacherOnly $ handleLessonNotesCommand userId sid c d
+  ParticipationRecords c -> teacherOnly $ handleParticipationRecordsCommand userId sid c d
+  Absences c -> teacherOnly $ handleAbsencesCommand userId sid c d
+  DraftTasks c -> teacherOnly $ handleDraftTasksCommand userId sid c d
+  DraftAssignments c -> teacherOnly $ handleDraftAssignmentsCommand userId sid c d
+  CompetenceLevelExamples c -> teacherOnly $ handleCompetenceLevelExamplesCommand userId sid c d
+  Layouts c -> teacherOnly $ handleLayoutsCommand userId sid c d
   -- Student commands: submissions have their own role checks (requires Student)
-  Submissions c -> handleSubmissionsCommand userId c d
+  Submissions c -> handleSubmissionsCommand userId sid c d
   -- System commands: no user role check needed
   Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d

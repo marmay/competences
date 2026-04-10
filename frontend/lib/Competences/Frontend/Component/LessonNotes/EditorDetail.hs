@@ -12,6 +12,7 @@ import Competences.Document
   ( Document (..)
   , LessonNotes (..)
   , Lock (..)
+  , LockHolder (..)
   , Resource (..)
   , Task (..)
   )
@@ -50,7 +51,7 @@ editorDetailView r ln =
       TE.editable
         ( \d ->
             fmap
-              (\ln' -> (ln', (d ^. #locks) Map.!? LessonNotesLock ln'.id))
+              (\ln' -> (ln', fmap (.userId) $ (d ^. #locks) Map.!? LessonNotesLock ln'.id))
               (Ix.getOne $ d.lessonNotes Ix.@= ln.id)
         )
         & (#modify ?~ (\ln' modify -> Cmd.LessonNotes $ OnLessonNotes (EC.Modify ln'.id modify)))

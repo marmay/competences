@@ -73,6 +73,7 @@ library
         Competences.Document.LessonNotes
         Competences.Document.Lock
         Competences.Document.MesoPlan
+        Competences.Document.Session
         Competences.Document.Order
         Competences.Document.ParticipationRecord
         Competences.Document.Resource

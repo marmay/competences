@@ -2,9 +2,11 @@
 
 module Competences.Document.Lock
   ( Lock (..)
+  , LockHolder (..)
   )
 where
 
+import Competences.Document.Session (SessionId)
 import Competences.Document.Absence (AbsenceId)
 import Competences.Document.Assessment (CompetenceAssessmentId)
 import Competences.Document.Assignment (AssignmentId)
@@ -61,3 +63,18 @@ instance ToJSON Lock
 #endif
 
 instance Binary Lock
+
+-- | Who holds a lock: the user and their session.
+data LockHolder = LockHolder
+  { userId :: !UserId
+  , sessionId :: !SessionId
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+#ifdef WITH_AESON
+instance FromJSON LockHolder
+
+instance ToJSON LockHolder
+#endif
+
+instance Binary LockHolder

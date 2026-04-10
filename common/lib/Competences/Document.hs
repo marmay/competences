@@ -110,7 +110,7 @@ import Competences.Document.Layout.Settings
   , TaskLayout (..)
   , defaultPrintSettings
   )
-import Competences.Document.Lock (Lock (..))
+import Competences.Document.Lock (Lock (..), LockHolder (..))
 import Competences.Document.Order (Order, orderAt, orderMax, orderMin, ordered)
 import Competences.Document.Resource
   ( Resource (..)
@@ -137,7 +137,7 @@ data Document = Document
   , competences :: !(Ix.IxSet CompetenceIxs Competence)
   , evidences :: !(Ix.IxSet EvidenceIxs Evidence)
   , resources :: !(Ix.IxSet ResourceIxs Resource)
-  , locks :: !(M.Map Lock UserId)
+  , locks :: !(M.Map Lock LockHolder)
   , users :: !(Ix.IxSet UserIxs User)
   , tasks :: !(Ix.IxSet TaskIxs Task)
   , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)

@@ -11,6 +11,7 @@ import Competences.Document
   ( Assignment (..)
   , Document (..)
   , Lock (..)
+  , LockHolder (..)
   , User (..)
   , emptyDocument
   )
@@ -195,7 +196,7 @@ editorWrapperComponent r assignment =
                 let mAssignment = case origin' of
                       Published -> Ix.getOne $ d.assignments Ix.@= assignment.id
                       Draft -> Ix.getOne $ d.draftAssignments Ix.@= assignment.id
-                 in fmap (\c -> (c, (d ^. #locks) Map.!? AssignmentLock c.id)) mAssignment
+                 in fmap (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? AssignmentLock c.id)) mAssignment
             )
             & (#modify ?~ (\a modify -> wrap $ Assignments $ OnAssignments (Modify a.id modify)))
             & (#delete ?~ (\a -> wrap $ Assignments $ OnAssignments (Delete a.id)))

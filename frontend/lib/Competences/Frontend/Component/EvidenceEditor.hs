@@ -16,6 +16,7 @@ import Competences.Document
   , Evidence (..)
   , LevelInfo (..)
   , Lock (..)
+  , LockHolder (..)
   , User (..)
   , emptyDocument
   )
@@ -256,7 +257,7 @@ evidenceEditorDetailView r evidence =
       TE.editable
         ( \d -> do
             fmap
-              (\c -> (c, (d ^. #locks) Map.!? EvidenceLock c.id))
+              (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? EvidenceLock c.id))
               (Ix.getOne $ d.evidences Ix.@= evidence.id)
         )
         & (#modify ?~ (\e modify -> Evidences $ OnEvidences (Modify e.id modify)))

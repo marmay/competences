@@ -13,6 +13,7 @@ import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Resource (Resource (..), ResourceContent, ResourceIdentifier)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -81,14 +82,14 @@ applyResourcePatch resource patch =
       >=> validateResource
 
 -- | Handle a Resources context command
-handleResourcesCommand :: UserId -> ResourcesCommand -> Document -> UpdateResult
-handleResourcesCommand userId (OnResources c) d =
+handleResourcesCommand :: UserId -> SessionId -> ResourcesCommand -> Document -> UpdateResult
+handleResourcesCommand userId sid (OnResources c) d =
   case c of
     -- Validate new resources before creating
-    Create r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext userId c d
-    CreateAndLock _r -> interpretEntityCommand resourceContext userId c d
+    Create r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext userId sid c d
+    CreateAndLock _r -> interpretEntityCommand resourceContext userId sid c d
     -- Other operations use applyPatch which already validates
-    _ -> interpretEntityCommand resourceContext userId c d
+    _ -> interpretEntityCommand resourceContext userId sid c d
   where
     resourceContext =
       mkEntityCommandContext

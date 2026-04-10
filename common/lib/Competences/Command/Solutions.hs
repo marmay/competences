@@ -11,6 +11,7 @@ import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, Up
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Solution (Solution (..), SolutionType)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -67,9 +68,9 @@ applySolutionPatch solution patch =
       >=> patchField' @"content" patch
 
 -- | Handle a Solutions context command
-handleSolutionsCommand :: UserId -> SolutionsCommand -> Document -> UpdateResult
-handleSolutionsCommand userId (OnSolutions c) =
-  interpretEntityCommand solutionContext userId c
+handleSolutionsCommand :: UserId -> SessionId -> SolutionsCommand -> Document -> UpdateResult
+handleSolutionsCommand userId sid (OnSolutions c) =
+  interpretEntityCommand solutionContext userId sid c
   where
     solutionContext =
       mkEntityCommandContext

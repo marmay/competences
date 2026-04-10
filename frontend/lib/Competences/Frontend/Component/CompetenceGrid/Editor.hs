@@ -12,6 +12,7 @@ import Competences.Document
   , Level (..)
   , LevelInfo (..)
   , Lock (..)
+  , LockHolder (..)
   , Order
   , orderMax
   )
@@ -148,7 +149,7 @@ editorComponent r grid =
       TE.editable
         ( \d -> do
             grid' <- Ix.getOne $ (d ^. #competenceGrids) Ix.@= grid.id
-            pure (grid', (d ^. #locks) Map.!? CompetenceGridLock grid'.id)
+            pure (grid', fmap (.userId) $ (d ^. #locks) Map.!? CompetenceGridLock grid'.id)
         )
         & (#modify ?~ (\c m -> Competences $ OnCompetenceGrids (Modify c.id m)))
         & (#delete ?~ (\c -> Competences $ OnCompetenceGrids (Delete c.id)))
@@ -171,7 +172,7 @@ editorComponent r grid =
       TE.editable
         ( \d ->
             map
-              (\c -> (c, (d ^. #locks) Map.!? CompetenceLock c.id))
+              (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? CompetenceLock c.id))
               (Ix.toAscList (Proxy @Order) ((d ^. #competences) Ix.@= grid.id))
         )
         & (#modify ?~ (\c m -> Competences $ OnCompetences (Modify c.id m)))

@@ -19,6 +19,7 @@ import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Competence (Competence (..), Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -148,12 +149,12 @@ applyCompetencePatch competence patch =
       c & #levels .~ Map.filter (\info -> not (T.null info.description)) c.levels
 
 -- | Handle a Competences context command
-handleCompetencesCommand :: UserId -> CompetencesCommand -> Document -> UpdateResult
-handleCompetencesCommand userId cmd d = case cmd of
+handleCompetencesCommand :: UserId -> SessionId -> CompetencesCommand -> Document -> UpdateResult
+handleCompetencesCommand userId sid cmd d = case cmd of
   OnCompetenceGrids c ->
-    interpretEntityCommand competenceGridContext userId c d
+    interpretEntityCommand competenceGridContext userId sid c d
   OnCompetences c ->
-    interpretEntityCommand competenceContext userId c d
+    interpretEntityCommand competenceContext userId sid c d
   ReorderCompetence p t -> do
     case reorder p t d.competences (.competenceGridId) of
       Left err -> Left $ explainReorderError err

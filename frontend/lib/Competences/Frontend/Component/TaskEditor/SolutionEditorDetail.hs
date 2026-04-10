@@ -10,6 +10,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Document (..)
   , Lock (..)
+  , LockHolder (..)
   , Solution (..)
   )
 import Competences.Document.Task (TaskId, taskDisplayName)
@@ -41,7 +42,7 @@ editorDetailView r solution =
       TE.editable
         ( \d ->
             fmap
-              (\s -> (s, (d ^. #locks) Map.!? SolutionLock s.id))
+              (\s -> (s, fmap (.userId) $ (d ^. #locks) Map.!? SolutionLock s.id))
               (Ix.getOne $ d.solutions Ix.@= solution.id)
         )
         & (#modify ?~ (\s modify -> Solutions $ OnSolutions (Modify s.id modify)))
@@ -123,7 +124,7 @@ solutionInlineEditor r solution =
       TE.editable
         ( \d ->
             fmap
-              (\s -> (s, (d ^. #locks) Map.!? SolutionLock s.id))
+              (\s -> (s, fmap (.userId) $ (d ^. #locks) Map.!? SolutionLock s.id))
               (Ix.getOne $ d.solutions Ix.@= solution.id)
         )
         & (#modify ?~ (\s modify -> Solutions $ OnSolutions (Modify s.id modify)))

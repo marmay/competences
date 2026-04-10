@@ -17,6 +17,7 @@ import Competences.Command.Lessons (deleteLessonChildren)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lesson (..), Lock (..), User (..))
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (foldM, (>=>))
 #ifdef WITH_AESON
@@ -84,13 +85,13 @@ deleteMesoPlanCascading planId doc = do
   pure (doc''', plan)
 
 -- | Handle a MesoPlans context command
-handleMesoPlansCommand :: UserId -> MesoPlansCommand -> Document -> UpdateResult
-handleMesoPlansCommand userId cmd d = case cmd of
+handleMesoPlansCommand :: UserId -> SessionId -> MesoPlansCommand -> Document -> UpdateResult
+handleMesoPlansCommand userId sid cmd d = case cmd of
   OnMesoPlans c -> case c of
     Delete planId -> do
       (d', plan) <- deleteMesoPlanCascading planId d
       pure (d', mesoPlanContext.affectedUsers plan d)
-    _ -> interpretEntityCommand mesoPlanContext userId c d
+    _ -> interpretEntityCommand mesoPlanContext userId sid c d
   where
     mesoPlanContext =
       mkEntityCommandContext
