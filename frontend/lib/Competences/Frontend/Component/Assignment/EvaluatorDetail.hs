@@ -92,6 +92,8 @@ data EvaluatorModel = EvaluatorModel
   , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
   -- The student whose submissions are shown in the selector
   , clickedStudent :: !(Maybe UserId)
+  -- Manually selected students (used when no submission is active)
+  , selectedStudents :: !(Set.Set UserId)
   -- Currently selected submission (bound from submission selector)
   , activeSubmission :: !(Maybe SubmissionId)
   -- Group members the teacher has manually deselected
@@ -148,13 +150,14 @@ data EvaluatorAction
   | DismissSubmissions -- Close the submission panel
   deriving (Eq, Show)
 
--- | Derive the effective set of students from the active submission ownership,
--- minus any manually deselected group members.
+-- | Derive the effective set of students.
+-- Without an active submission: manually selected students.
+-- With an active submission: submission owners minus deselected.
 activeStudents :: EvaluatorModel -> Set.Set UserId
 activeStudents m = case m.activeSubmission of
-  Nothing -> maybe Set.empty Set.singleton m.clickedStudent
+  Nothing -> m.selectedStudents
   Just sid -> case Ix.getOne (m.submissions Ix.@= sid) of
-    Nothing -> maybe Set.empty Set.singleton m.clickedStudent
+    Nothing -> m.selectedStudents
     Just sub ->
       let owners = Set.fromList (ownerIds sub.ownership)
        in owners `Set.difference` m.deselectedStudents
@@ -176,6 +179,7 @@ evaluatorComponent r assignment =
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , clickedStudent = Nothing
+        , selectedStudents = Set.empty
         , activeSubmission = Nothing
         , deselectedStudents = Set.empty
         , selectedSocialForm = Individual
@@ -228,42 +232,50 @@ evaluatorComponent r assignment =
            }
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
-      let currentActive = activeStudents m
-       in if Set.member userId currentActive && m.clickedStudent /= Just userId
-            then
-              -- Group member (not the clicked student): toggle deselection
-              m{ deselectedStudents =
-                   if Set.member userId m.deselectedStudents
-                     then Set.delete userId m.deselectedStudents
-                     else Set.insert userId m.deselectedStudents
-               , selectedSocialForm =
-                   let newActive = activeStudents (m{ deselectedStudents =
-                         if Set.member userId m.deselectedStudents
-                           then Set.delete userId m.deselectedStudents
-                           else Set.insert userId m.deselectedStudents })
-                    in if Set.size newActive == 1 then Individual else Group
+      case m.activeSubmission of
+        Just _ ->
+          -- Submission active: toggle group member deselection (existing behavior)
+          let currentActive = activeStudents m
+           in if Set.member userId currentActive && m.clickedStudent /= Just userId
+                then
+                  let newDeselected =
+                        if Set.member userId m.deselectedStudents
+                          then Set.delete userId m.deselectedStudents
+                          else Set.insert userId m.deselectedStudents
+                      newActive = activeStudents (m{deselectedStudents = newDeselected})
+                   in m{ deselectedStudents = newDeselected
+                       , selectedSocialForm = if Set.size newActive == 1 then Individual else Group
+                       }
+                else m -- Can't add students or deselect primary when submission is active
+        Nothing ->
+          -- No submission: freely toggle students in/out of selection
+          let isSelected = Set.member userId m.selectedStudents
+              wasEmpty = Set.null m.selectedStudents
+              newSelected =
+                if isSelected
+                  then Set.delete userId m.selectedStudents
+                  else Set.insert userId m.selectedStudents
+              newClicked = if isSelected && m.clickedStudent == Just userId
+                then Nothing -- Deselecting the clicked student
+                else Just userId
+           in m{ clickedStudent = newClicked
+               , selectedStudents = newSelected
+               , activeSubmission = Nothing
+               , deselectedStudents = Set.empty
+               , editingEvidence = if isSelected then m.editingEvidence else Nothing
+               , taskObservations = if wasEmpty then Map.empty else m.taskObservations
+               , aggregatedResults = if wasEmpty then Map.empty else m.aggregatedResults
+               , aggregationStale = if wasEmpty then False else m.aggregationStale
+               , taskRemarks = if wasEmpty then Map.empty else m.taskRemarks
+               , additionalTasks = if wasEmpty then Set.empty else m.additionalTasks
+               , selectorGeneration = if wasEmpty then m.selectorGeneration + 1 else m.selectorGeneration
+               , selectedSocialForm = if Set.size newSelected == 1 then Individual else Group
+               , excludedTasks =
+                   if wasEmpty && m.startFromEmpty
+                     then Set.fromList m.assignment.tasks
+                     else m.excludedTasks
+               , showSubmissions = not (Ix.null (m.submissions Ix.@= userId))
                }
-            else if Just userId == m.clickedStudent
-              then m  -- Re-clicking the primary student: no-op
-              else
-                -- New student clicked: reset everything
-                let wasEmpty = m.clickedStudent == Nothing
-                 in m{ clickedStudent = Just userId
-                     , activeSubmission = Nothing
-                     , deselectedStudents = Set.empty
-                     , editingEvidence = Nothing
-                     , taskObservations = Map.empty
-                     , aggregatedResults = Map.empty
-                     , aggregationStale = False
-                     , taskRemarks = Map.empty
-                     , additionalTasks = Set.empty
-                     , selectorGeneration = m.selectorGeneration + 1
-                     , excludedTasks =
-                         if wasEmpty && m.startFromEmpty
-                           then Set.fromList m.assignment.tasks
-                           else m.excludedTasks
-                     , showSubmissions = not (Ix.null (m.submissions Ix.@= userId))
-                     }
 
     update (SetSocialForm sf) = M.modify $ \m ->
       m{selectedSocialForm = sf}
@@ -296,6 +308,7 @@ evaluatorComponent r assignment =
         { taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , clickedStudent = Nothing
+        , selectedStudents = Set.empty
         , activeSubmission = Nothing
         , deselectedStudents = Set.empty
         , editingEvidence = Nothing
