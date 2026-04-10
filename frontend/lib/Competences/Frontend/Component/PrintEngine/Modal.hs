@@ -7,7 +7,8 @@ module Competences.Frontend.Component.PrintEngine.Modal
   , printModalView
   , measurementContainer
   , footerMeasureContainer
-  , needsRemeasure
+  , RemeasurePolicy (..)
+  , remeasurePolicy
   , reorderedTaskIds
   )
 where
@@ -315,48 +316,39 @@ toggleSolution sid tcs =
         then tcs {visibleSolutions = Set.delete sid vs}
         else tcs {visibleSolutions = Set.insert sid vs}
 
--- | Whether a modal action requires re-measurement of task heights
-needsRemeasure :: PrintModalAction -> Bool
-needsRemeasure (SetPaperSize _) = True
-needsRemeasure (SetOrientation _) = True
-needsRemeasure (SetFontSize _) = True
-needsRemeasure (SetGroupedCopies _) = True
-needsRemeasure (SetTotalCopies _) = True
-needsRemeasure (SetTaskLayout _) = True
-needsRemeasure (SetGridRows _) = True
-needsRemeasure (SetGridCols _) = True
-needsRemeasure (SetShowTitle _) = True
-needsRemeasure (SetShowNameField _) = True
-needsRemeasure (SetFontFamily _) = True
-needsRemeasure (SetDistributeLastPage _) = True
-needsRemeasure (ApplyPreset _) = True
-needsRemeasure (ToggleDescription _) = True
-needsRemeasure (ToggleSolution _ _) = True
-needsRemeasure (ToggleGrid _) = True
-needsRemeasure (SetGridHeight _ _) = True
-needsRemeasure (ToggleInlineAnswer _) = True
-needsRemeasure (SetItemsPerRow _ _) = True
-needsRemeasure (SetCustomFooter _) = False
-needsRemeasure (SetPoints _ _) = False
-needsRemeasure RemeasurePages = True
-needsRemeasure ToggleReorderMode = False
-needsRemeasure (MoveTaskUp _) = True
-needsRemeasure (MoveTaskDown _) = True
-needsRemeasure OpenRenumberModal = False
-needsRemeasure (SetShowHeader _) = False
-needsRemeasure (SetShowFooter _) = False
-needsRemeasure (SetTaskHeaderStyle _) = False
-needsRemeasure (SetDuplexLayout _) = False
-needsRemeasure (MeasuredPageGrouping _) = False
-needsRemeasure PreviewNext = False
-needsRemeasure PreviewPrev = False
-needsRemeasure SaveLayout = False
-needsRemeasure PrintAndSaveLayout = False
-needsRemeasure CancelPrint = False
-needsRemeasure (SwitchTab _) = False
-needsRemeasure (SetImageSize _ _ _) = True
-needsRemeasure (SetImagePosition _ _ _) = True
-needsRemeasure (ToggleImageBackdrop _ _) = True
+-- | How a modal action affects page measurement
+data RemeasurePolicy = Immediate | Debounced | NoRemeasure
+  deriving (Eq, Show)
+
+remeasurePolicy :: PrintModalAction -> RemeasurePolicy
+remeasurePolicy (SetPaperSize _) = Immediate
+remeasurePolicy (SetOrientation _) = Immediate
+remeasurePolicy (SetFontSize _) = Immediate
+remeasurePolicy (SetGroupedCopies _) = Immediate
+remeasurePolicy (SetTotalCopies _) = Immediate
+remeasurePolicy (SetTaskLayout _) = Immediate
+remeasurePolicy (SetGridRows _) = Immediate
+remeasurePolicy (SetGridCols _) = Immediate
+remeasurePolicy (SetShowTitle _) = Immediate
+remeasurePolicy (SetShowNameField _) = Immediate
+remeasurePolicy (SetFontFamily _) = Immediate
+remeasurePolicy (SetDistributeLastPage _) = Immediate
+remeasurePolicy (ApplyPreset _) = Immediate
+remeasurePolicy (ToggleDescription _) = Immediate
+remeasurePolicy (ToggleSolution _ _) = Immediate
+remeasurePolicy (ToggleGrid _) = Immediate
+remeasurePolicy (SetGridHeight _ _) = Immediate
+remeasurePolicy (ToggleInlineAnswer _) = Immediate
+remeasurePolicy (SetItemsPerRow _ _) = Immediate
+remeasurePolicy RemeasurePages = Immediate
+remeasurePolicy (MoveTaskUp _) = Immediate
+remeasurePolicy (MoveTaskDown _) = Immediate
+remeasurePolicy (SetCustomFooter _) = Debounced
+remeasurePolicy (SetPoints _ _) = Debounced
+remeasurePolicy (SetImageSize _ _ _) = Debounced
+remeasurePolicy (SetImagePosition _ _ _) = Debounced
+remeasurePolicy (ToggleImageBackdrop _ _) = Debounced
+remeasurePolicy _ = NoRemeasure
 
 -- | Extract grid config from settings, defaulting to 1x1
 currentGridConfig :: PrintSettings -> GridConfig
@@ -1073,7 +1065,7 @@ measurementContainer renderTask taskCount model =
         , M.textProp "id" "print-measure-container"
         , class_ "page-print-content"
         ]
-        [ M.div_ [] [renderTask idx]
+        [ M.div_ [class_ "print-task"] [renderTask idx]
         | idx <- [0 .. taskCount - 1]
         ]
 

@@ -63,7 +63,8 @@ import Competences.Frontend.Component.PrintEngine.Modal
   , initPrintModalModel
   , initFromLayout
   , measurementContainer
-  , needsRemeasure
+  , RemeasurePolicy (..)
+  , remeasurePolicy
   , printModalView
   , reorderedTaskIds
   , updatePrintModal
@@ -572,12 +573,10 @@ viewerComponent r user assignment wm =
               Just mm -> expandedTasks (Just (reorderedTaskIds mm)) mm.settings mm.contentSettings m.projection
             total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
-      if needsRemeasure action
-        then doRemeasure
-        else case action of
-          SetCustomFooter _ -> scheduleDebouncedRemeasure
-          SetPoints _ _ -> scheduleDebouncedRemeasure
-          _ -> pure ()
+      case remeasurePolicy action of
+        Immediate -> doRemeasure
+        Debounced -> scheduleDebouncedRemeasure
+        NoRemeasure -> pure ()
       where
         scheduleDebouncedRemeasure = do
           M.modify $ \m -> m & #footerDraftGen .~ (m.footerDraftGen + 1)
