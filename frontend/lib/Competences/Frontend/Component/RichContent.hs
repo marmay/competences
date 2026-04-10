@@ -29,6 +29,7 @@ module Competences.Frontend.Component.RichContent
   , renderMarkdownText
 
     -- * File resolution
+  , ResolveResult (..)
   , FileResolver
   , noFiles
   , mkFileResolver
@@ -112,24 +113,28 @@ data RichContentAction
 -- File resolution
 -- ============================================================================
 
--- | A file resolver maps a file embed URL to either an error message
--- or a rendered view. When no file context is available, the resolver
--- always returns 'Left'.
-type FileResolver = Text -> Either Text (M.View RichContentModel RichContentAction)
+-- | Result of resolving a file embed URL.
+data ResolveResult
+  = ResolveError !Text -- ^ File not found or other error
+  | Suppressed -- ^ Image suppressed (e.g., FloatTop rendered elsewhere in print)
+  | Resolved !(M.View RichContentModel RichContentAction) -- ^ Successfully resolved view
+
+-- | A file resolver maps a file embed URL to a resolve result.
+type FileResolver = Text -> ResolveResult
 
 -- | A resolver that always fails -- for use when no file context is available.
 -- Returns the URL unchanged so it can be shown as bracketed text.
 noFiles :: FileResolver
-noFiles url = Left url
+noFiles url = ResolveError url
 
 -- | Build a resolver from a 'SyncContext' and list of attachments.
 -- Successfully resolved files are rendered as 'filePreviewComponent' views.
 mkFileResolver :: SyncContext -> [FileRef] -> FileResolver
 mkFileResolver syncCtx attachments url =
   case resolveFileRef attachments url of
-    Nothing -> Left $ "Datei nicht gefunden: " <> url
+    Nothing -> ResolveError $ "Datei nicht gefunden: " <> url
     Just fileRef ->
-      Right $
+      Resolved $
         inlineComponent
           ("file-preview-" <> M.ms (show fileRef.hash))
           (filePreviewComponent syncCtx fileRef)
@@ -621,8 +626,9 @@ renderInline resolver symbols = \case
       $ map (renderInline resolver symbols) inlines
   MD.FileEmbed url _caption _title imgSize ->
     case resolver url of
-      Left err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
-      Right fileView ->
+      ResolveError err -> M.span_ [class_ "text-stone-500 text-sm"] [M.text $ ms $ "[" <> err <> "]"]
+      Suppressed -> M.text ""
+      Resolved fileView ->
         let sizeClass = case imgSize of
               MD.ExactSize -> "embed-exact"
               MD.Thumb size -> thumbClasses size

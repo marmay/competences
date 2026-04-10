@@ -91,7 +91,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.RichContent (mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
+import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.TaskResource
   ( TaskResourceList
   , TaskWithSolutions (..)
@@ -994,10 +994,11 @@ viewerComponent r user assignment wm =
           printResolver url =
             let ips = imgSetting url
              in if ips.position == PrintFloatTop
-                  then Right $ M.div_ [MC.style_ [("display", "none")]] []
+                  then Suppressed
                   else case baseResolver url of
-                    Left err -> Left err
-                    Right fileView -> Right $ wrapImageForPrint ips fileView
+                    ResolveError err -> ResolveError err
+                    Suppressed -> Suppressed
+                    Resolved fileView -> Resolved $ wrapImageForPrint ips fileView
 
           -- FloatTop images: rendered as floated-right divs before the header
           floatTopUrls = [url | (url, ips) <- Map.toList imgSettings, ips.position == PrintFloatTop]
