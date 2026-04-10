@@ -8,7 +8,7 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), SubmissionOwnership (..), ownerIds)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
@@ -49,6 +49,7 @@ import Miso.Html qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
+import Optics.Core qualified as O
 import Optics.Core ((&), (.~))
 import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
@@ -90,14 +91,12 @@ data EvaluatorModel = EvaluatorModel
   , taskObservations :: !(Map.Map (TaskId, CompetenceLevelId) Ability)
   -- Aggregated results (worst ability per competence) - editable before Evidence creation
   , aggregatedResults :: !(Map.Map CompetenceLevelId Ability)
-  -- The student whose submissions are shown in the selector
+  -- The student whose submissions panel is shown
   , clickedStudent :: !(Maybe UserId)
-  -- Manually selected students (used when no submission is active)
-  , selectedStudents :: !(Set.Set UserId)
-  -- Currently selected submission (bound from submission selector)
-  , activeSubmission :: !(Maybe SubmissionId)
-  -- Group members the teacher has manually deselected
-  , deselectedStudents :: !(Set.Set UserId)
+  -- Student selection state (additive free-select or subtractive from submission)
+  , selection :: !SelectionState
+  -- Whether to show submission panel (auto/on/off)
+  , submissionMode :: !SubmissionMode
   -- Social form for the evaluation (Individual or Group)
   , selectedSocialForm :: !SocialForm
   -- Tasks excluded from evaluation (toggled off by teacher)
@@ -126,16 +125,31 @@ data EvaluatorModel = EvaluatorModel
   , startFromEmpty :: !Bool
   -- All submissions for this assignment (any student), indexed by user
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
-  -- Whether the submission panel is shown (auto-set when clicking a student with submissions)
-  , showSubmissions :: !Bool
   }
   deriving (Eq, Generic, Show)
+
+-- | Whether to show the submission panel for students
+data SubmissionMode = AutoSubmissions | SubmissionsOn | SubmissionsOff
+  deriving (Eq, Show)
+
+-- | Student selection state
+data SelectionState
+  = -- | Free multi-select: toggle students in/out
+    AdditiveSelection !(Set.Set UserId)
+  | -- | Constrained by submission: can only deselect from base set
+    SubtractiveSelection
+      { baseStudents :: !(Set.Set UserId) -- owners from the submission
+      , deselected :: !(Set.Set UserId) -- manually removed from base
+      , submissionId :: !SubmissionId -- the active submission
+      }
+  deriving (Eq, Show)
 
 data EvaluatorAction
   = UpdateDocument !DocumentChange
   | SetTaskObservationForAll !TaskId !CompetenceLevelId !Ability
   | ToggleStudentSelection !UserId
   | SetSocialForm !SocialForm
+  | SetSubmissionMode !SubmissionMode
   | ComputeAggregation -- Compute aggregated results from task observations
   | SetAggregatedResult !CompetenceLevelId !Ability -- Edit aggregated result
   | CreateEvidences
@@ -150,17 +164,37 @@ data EvaluatorAction
   | DismissSubmissions -- Close the submission panel
   deriving (Eq, Show)
 
--- | Derive the effective set of students.
--- Without an active submission: manually selected students.
--- With an active submission: submission owners minus deselected.
+-- | Derive the effective set of selected students.
 activeStudents :: EvaluatorModel -> Set.Set UserId
-activeStudents m = case m.activeSubmission of
-  Nothing -> m.selectedStudents
-  Just sid -> case Ix.getOne (m.submissions Ix.@= sid) of
-    Nothing -> m.selectedStudents
-    Just sub ->
-      let owners = Set.fromList (ownerIds sub.ownership)
-       in owners `Set.difference` m.deselectedStudents
+activeStudents m = case m.selection of
+  AdditiveSelection students -> students
+  SubtractiveSelection base desel _ -> base `Set.difference` desel
+
+-- | Whether the submission panel should be shown for the clicked student.
+submissionsActive :: EvaluatorModel -> Bool
+submissionsActive m = case m.submissionMode of
+  AutoSubmissions -> case m.clickedStudent of
+    Nothing -> False
+    Just uid -> not (Ix.null (m.submissions Ix.@= uid))
+  SubmissionsOn -> True
+  SubmissionsOff -> False
+
+-- | Lens for the submission selector binding.
+-- Getter: extracts SubmissionId from SubtractiveSelection.
+-- Setter: transitions between Additive/Subtractive based on selection.
+activeSubmissionLens :: O.Lens' EvaluatorModel (Maybe SubmissionId)
+activeSubmissionLens = O.lens getter setter
+  where
+    getter m = case m.selection of
+      SubtractiveSelection _ _ sid -> Just sid
+      _ -> Nothing
+    setter m Nothing =
+      m {selection = AdditiveSelection (activeStudents m)}
+    setter m (Just sid) =
+      let base = case Ix.getOne (m.submissions Ix.@= sid) of
+            Just sub -> Set.fromList (ownerIds sub.ownership)
+            Nothing -> Set.empty
+       in m {selection = SubtractiveSelection base Set.empty sid}
 
 -- | The evaluator component with its own state management
 evaluatorComponent :: SyncContext -> Assignment -> M.Component p EvaluatorModel EvaluatorAction
@@ -179,9 +213,8 @@ evaluatorComponent r assignment =
         , taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , clickedStudent = Nothing
-        , selectedStudents = Set.empty
-        , activeSubmission = Nothing
-        , deselectedStudents = Set.empty
+        , selection = AdditiveSelection Set.empty
+        , submissionMode = AutoSubmissions
         , selectedSocialForm = Individual
         , excludedTasks = Set.empty
         , evaluationDate = assignment.assignmentDate
@@ -196,7 +229,6 @@ evaluatorComponent r assignment =
         , selectorGeneration = 0
         , startFromEmpty = False
         , submissions = Ix.empty
-        , showSubmissions = False
         }
 
     update (UpdateDocument dc) = M.modify $ \m ->
@@ -232,53 +264,77 @@ evaluatorComponent r assignment =
            }
 
     update (ToggleStudentSelection userId) = M.modify $ \m ->
-      case m.activeSubmission of
-        Just _ ->
-          -- Submission active: toggle group member deselection (existing behavior)
-          let currentActive = activeStudents m
-           in if Set.member userId currentActive && m.clickedStudent /= Just userId
-                then
-                  let newDeselected =
-                        if Set.member userId m.deselectedStudents
-                          then Set.delete userId m.deselectedStudents
-                          else Set.insert userId m.deselectedStudents
-                      newActive = activeStudents (m{deselectedStudents = newDeselected})
-                   in m{ deselectedStudents = newDeselected
-                       , selectedSocialForm = if Set.size newActive == 1 then Individual else Group
-                       }
-                else m -- Can't add students or deselect primary when submission is active
-        Nothing ->
-          -- No submission: freely toggle students in/out of selection
-          let isSelected = Set.member userId m.selectedStudents
-              wasEmpty = Set.null m.selectedStudents
-              newSelected =
-                if isSelected
-                  then Set.delete userId m.selectedStudents
-                  else Set.insert userId m.selectedStudents
-              newClicked = if isSelected && m.clickedStudent == Just userId
-                then Nothing -- Deselecting the clicked student
-                else Just userId
-           in m{ clickedStudent = newClicked
-               , selectedStudents = newSelected
-               , activeSubmission = Nothing
-               , deselectedStudents = Set.empty
-               , editingEvidence = if isSelected then m.editingEvidence else Nothing
-               , taskObservations = if wasEmpty then Map.empty else m.taskObservations
-               , aggregatedResults = if wasEmpty then Map.empty else m.aggregatedResults
-               , aggregationStale = if wasEmpty then False else m.aggregationStale
-               , taskRemarks = if wasEmpty then Map.empty else m.taskRemarks
-               , additionalTasks = if wasEmpty then Set.empty else m.additionalTasks
-               , selectorGeneration = if wasEmpty then m.selectorGeneration + 1 else m.selectorGeneration
-               , selectedSocialForm = if Set.size newSelected == 1 then Individual else Group
-               , excludedTasks =
-                   if wasEmpty && m.startFromEmpty
-                     then Set.fromList m.assignment.tasks
-                     else m.excludedTasks
-               , showSubmissions = not (Ix.null (m.submissions Ix.@= userId))
-               }
+      case m.selection of
+        SubtractiveSelection base desel sid ->
+          -- Subtractive: can only toggle deselection of base members
+          if Set.member userId base
+            then
+              let newDesel =
+                    if Set.member userId desel
+                      then Set.delete userId desel
+                      else Set.insert userId desel
+                  newActive = base `Set.difference` newDesel
+               in m
+                    { selection = SubtractiveSelection base newDesel sid
+                    , selectedSocialForm = if Set.size newActive == 1 then Individual else Group
+                    }
+            else m
+        AdditiveSelection students ->
+          if submissionsActive m
+            then
+              -- Submission mode: switch to this student, show their submissions
+              m
+                { clickedStudent = Just userId
+                , selection = AdditiveSelection (Set.singleton userId)
+                , editingEvidence = Nothing
+                , taskObservations = Map.empty
+                , aggregatedResults = Map.empty
+                , aggregationStale = False
+                , taskRemarks = Map.empty
+                , additionalTasks = Set.empty
+                , selectorGeneration = m.selectorGeneration + 1
+                , selectedSocialForm = Individual
+                , excludedTasks =
+                    if Set.null students && m.startFromEmpty
+                      then Set.fromList m.assignment.tasks
+                      else m.excludedTasks
+                }
+            else
+              -- Free mode: toggle student in/out
+              let isSelected = Set.member userId students
+                  wasEmpty = Set.null students
+                  newStudents =
+                    if isSelected
+                      then Set.delete userId students
+                      else Set.insert userId students
+                  newClicked =
+                    if isSelected && m.clickedStudent == Just userId
+                      then Nothing
+                      else Just userId
+               in m
+                    { clickedStudent = newClicked
+                    , selection = AdditiveSelection newStudents
+                    , editingEvidence = if isSelected then m.editingEvidence else Nothing
+                    , taskObservations = if wasEmpty then Map.empty else m.taskObservations
+                    , aggregatedResults = if wasEmpty then Map.empty else m.aggregatedResults
+                    , aggregationStale = if wasEmpty then False else m.aggregationStale
+                    , taskRemarks = if wasEmpty then Map.empty else m.taskRemarks
+                    , additionalTasks = if wasEmpty then Set.empty else m.additionalTasks
+                    , selectorGeneration = if wasEmpty then m.selectorGeneration + 1 else m.selectorGeneration
+                    , selectedSocialForm = if Set.size newStudents == 1 then Individual else Group
+                    , excludedTasks =
+                        if wasEmpty && m.startFromEmpty
+                          then Set.fromList m.assignment.tasks
+                          else m.excludedTasks
+                    }
 
     update (SetSocialForm sf) = M.modify $ \m ->
       m{selectedSocialForm = sf}
+
+    update (SetSubmissionMode mode) = M.modify $ \m ->
+      m { submissionMode = mode
+        , selection = AdditiveSelection (activeStudents m)
+        }
 
     update ComputeAggregation = M.modify $ \m ->
       let activeTaskIds = Set.fromList m.assignment.tasks <> m.additionalTasks
@@ -308,15 +364,12 @@ evaluatorComponent r assignment =
         { taskObservations = Map.empty
         , aggregatedResults = Map.empty
         , clickedStudent = Nothing
-        , selectedStudents = Set.empty
-        , activeSubmission = Nothing
-        , deselectedStudents = Set.empty
+        , selection = AdditiveSelection Set.empty
         , editingEvidence = Nothing
         , aggregationStale = False
         , taskRemarks = Map.empty
         , additionalTasks = Set.empty
         , selectorGeneration = m'.selectorGeneration + 1
-        , showSubmissions = False
         }
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
@@ -412,7 +465,7 @@ evaluatorComponent r assignment =
       m{startFromEmpty = not m.startFromEmpty}
 
     update DismissSubmissions = M.modify $ \m ->
-      m{showSubmissions = False, activeSubmission = Nothing}
+      m{selection = AdditiveSelection (activeStudents m)}
 
     -- Create or modify evidence for a single student from aggregated results.
     -- If the student already has an evidence for this assignment, use Lock+Modify;
@@ -494,7 +547,7 @@ evaluatorComponent r assignment =
               ]
           -- Compact banner for non-digital submissions (empty list otherwise)
           compactBanner = case m.clickedStudent of
-            Just uid | m.showSubmissions ->
+            Just uid | submissionsActive m ->
               let studentSubs = Ix.toList (m.submissions Ix.@= uid)
                in if any isDigitalSubmission studentSubs
                     then []
@@ -512,13 +565,13 @@ evaluatorComponent r assignment =
        in if null sortedTaskIds && Set.null m.additionalTasks
             then Typography.paragraph (C.translate' C.LblAssignmentNoTasks)
             else case m.clickedStudent of
-              Just uid | m.showSubmissions ->
+              Just uid | submissionsActive m ->
                 let studentSubs = Ix.toList (m.submissions Ix.@= uid)
                  in if any isDigitalSubmission studentSubs
                       then
                         -- Full split view for digital submissions
                         let key = "sub-sel-" <> ms (show uid)
-                            binding = selectorTransformedLens id id #activeSubmission
+                            binding = selectorTransformedLens id id activeSubmissionLens
                          in Layout.hFlow
                               (Layout.gapM <> Layout.hFull)
                               [ Layout.scrollContent $ Layout.addClass "w-1/2" leftContent
@@ -570,12 +623,11 @@ evaluatorComponent r assignment =
       let active = activeStudents m
           isActive = Set.member student.id active
           isClicked = m.clickedStudent == Just student.id
-          -- Disable non-active, non-clicked students when a collaborative submission is active
-          isDisabled = case m.activeSubmission >>= \sid -> Ix.getOne (m.submissions Ix.@= sid) of
-            Just sub -> case sub.ownership of
-              CollaborativeSubmission _ -> not isActive && not isClicked
-              IndividualSubmission _ -> False
-            Nothing -> False
+          -- In subtractive mode: disable students not in the submission's base set
+          isDisabled = case m.selection of
+            AdditiveSelection _ -> False
+            SubtractiveSelection base _ _ ->
+              not (Set.member student.id base) && not isClicked
           hasEvidenceOnDate = Map.member student.id (evidencesForDate m.evaluationDate m.assignmentEvidences)
           hasAnyEvidence = any (\ev -> ev.userId == Just student.id) m.assignmentEvidences
           studentSubs = Ix.toList (m.submissions Ix.@= student.id)
