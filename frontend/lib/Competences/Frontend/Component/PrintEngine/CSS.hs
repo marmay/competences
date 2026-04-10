@@ -83,6 +83,8 @@ sharedCSS settings =
           ".page-print-content .flex:has(> .print-image-float-right) { display: block !important; }"
         , -- Contain floats within print tasks
           ".page-print-content .print-task { overflow: hidden; }"
+        , -- Pure black text for print (overrides prose-stone / text-stone-800)
+          ".page-print-content { color: black; }"
         ]
 
 -- | Continuous mode: zero-margin @page, explicit page dimensions and structural margins.
