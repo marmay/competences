@@ -28,7 +28,6 @@ import Competences.Document.Task
   , TaskPurpose
   , taskGroupId
   )
-import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
@@ -292,13 +291,13 @@ handleTasksCommand userId cmd d = case cmd of
         SubTask _ _ -> Left "Use OnSubTasks to create SubTasks"
         SelfContained _ ->
           (,taskContext.affectedUsers task d) <$> taskContext.create task d
-    CreateAndLock task -> do
+    CreateAndLock task lockUid lockSid -> do
       -- Verify it's a SelfContained task
       case task.taskType of
         SubTask _ _ -> Left "Use OnSubTasks to create SubTasks"
         SelfContained _ -> do
           d' <- taskContext.create task d
-          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
+          d'' <- doLock lockUid lockSid (TaskLock task.id) d'
           pure (d'', taskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences
@@ -333,9 +332,9 @@ handleTasksCommand userId cmd d = case cmd of
   OnTaskGroups c -> case c of
     Create group ->
       (,taskGroupContext.affectedUsers group d) <$> taskGroupContext.create group d
-    CreateAndLock group -> do
+    CreateAndLock group lockUid lockSid -> do
       d' <- taskGroupContext.create group d
-      d'' <- doLock userId legacySessionId (TaskGroupLock group.id) d'
+      d'' <- doLock lockUid lockSid (TaskGroupLock group.id) d'
       pure (d'', taskGroupContext.affectedUsers group d)
     Delete groupId -> do
       -- Cascading delete: delete all SubTasks, then delete the group
@@ -363,7 +362,7 @@ handleTasksCommand userId cmd d = case cmd of
           -- Verify TaskGroup exists
           validateSubTaskReferencesGroup d task
           (,subTaskContext.affectedUsers task d) <$> subTaskContext.create task d
-    CreateAndLock task -> do
+    CreateAndLock task lockUid lockSid -> do
       -- Verify it's a SubTask
       case task.taskType of
         SelfContained _ -> Left "Use OnTasks to create SelfContained tasks"
@@ -371,7 +370,7 @@ handleTasksCommand userId cmd d = case cmd of
           -- Verify TaskGroup exists
           validateSubTaskReferencesGroup d task
           d' <- subTaskContext.create task d
-          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
+          d'' <- doLock lockUid lockSid (TaskLock task.id) d'
           pure (d'', subTaskContext.affectedUsers task d)
     Delete taskId -> do
       -- Verify not referenced in evidences

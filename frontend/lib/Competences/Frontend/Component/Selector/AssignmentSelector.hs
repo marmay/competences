@@ -4,7 +4,7 @@ module Competences.Frontend.Component.Selector.AssignmentSelector
   )
 where
 
-import Competences.Command (AssignmentsCommand (..), Command (..), DraftAssignmentsCommand (..), EntityCommand (..))
+import Competences.Command (AssignmentsCommand (..), Command (..), DraftAssignmentsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
@@ -19,6 +19,7 @@ import Competences.Frontend.SyncContext
   , ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
@@ -162,7 +163,7 @@ assignmentSelectorComponent r initialSelection parentLens =
       assignmentId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let newAssignment = mkAssignment assignmentId (AssignmentName "") today
-      modifySyncDocument r $ Assignments (OnAssignments (CreateAndLock newAssignment))
+      modifySyncDocument r $ Assignments (OnAssignments (mkCreateAndLock r newAssignment))
       s ToggleDropdown
       s (SelectAssignment newAssignment)
 
@@ -170,7 +171,7 @@ assignmentSelectorComponent r initialSelection parentLens =
       assignmentId <- nextId r
       let today = syncDocumentEnv r ^. #currentDay
       let newAssignment = mkAssignment assignmentId (AssignmentName "") today
-      modifySyncDocument r $ DraftAssignments (OnDraftAssignments (CreateAndLock newAssignment))
+      modifySyncDocument r $ DraftAssignments (OnDraftAssignments (mkCreateAndLock r newAssignment))
       s ToggleDropdown
       s (SelectAssignment newAssignment)
 

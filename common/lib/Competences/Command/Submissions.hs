@@ -12,7 +12,6 @@ import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
-import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
@@ -129,7 +128,7 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
       let d' = d & #submissions %~ Ix.insert s
       Right (d', affectedUsersFor s d)
 
-    CreateAndLock s -> do
+    CreateAndLock s lockUid lockSid -> do
       unless (isOwner userId s) $
         Left "Submission: can only submit as yourself"
       case Ix.getOne (d.assignments Ix.@= s.assignmentId) of
@@ -140,7 +139,7 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
-      d'' <- doLock userId legacySessionId (SubmissionLock s.id) d'
+      d'' <- doLock lockUid lockSid (SubmissionLock s.id) d'
       Right (d'', affectedUsersFor s d)
 
     Delete submissionId -> do

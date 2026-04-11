@@ -12,7 +12,7 @@ where
 import Competences.Command.Common (AffectedUsers, EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Document (Document (..), Lock, LockHolder (..))
 import Competences.Document.Id (Id)
-import Competences.Document.Session (SessionId, legacySessionId)
+import Competences.Document.Session (SessionId)
 import Competences.Document.Order (OrderableSet, reordered, reordered')
 import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
@@ -125,19 +125,23 @@ doRelease uid l d =
       pure (d & (#locks %~ Map.delete l))
     Nothing -> Left "entity is not locked!"
 
--- | Interpret an entity command using the provided context
+-- | Interpret an entity command using the provided context.
+-- The userId parameter is the authenticated user from the envelope/connection.
+-- Lock and CreateAndLock carry their own userId which is validated against it.
 interpretEntityCommand
   :: (Eq a) => EntityCommandContext a patch -> UserId -> EntityCommand a patch -> Document -> UpdateResult
 interpretEntityCommand ctx _ (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
-interpretEntityCommand ctx uid (CreateAndLock a) d = do
+interpretEntityCommand ctx uid (CreateAndLock a lockUid lockSid) d = do
+  validateLockUser uid lockUid
   d' <- ctx.create a d
-  d'' <- doLock uid legacySessionId (ctx.lock (ctx.getId a)) d'
+  d'' <- doLock lockUid lockSid (ctx.lock (ctx.getId a)) d'
   pure (d'', ctx.affectedUsers a d)
 interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx _uid (Modify i (Lock lockUid lockSid)) d = do
+interpretEntityCommand ctx uid (Modify i (Lock lockUid lockSid)) d = do
+  validateLockUser uid lockUid
   d' <- doLock lockUid lockSid (ctx.lock i) d
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
@@ -147,3 +151,9 @@ interpretEntityCommand ctx uid (Modify i (Release patch)) d = do
   aModified <- ctx.applyPatch aCurrent patch
   let d'' = ctx.update aModified d'
   pure (d'', ctx.affectedUsers aModified d <> ctx.affectedUsers aCurrent d)
+
+-- | Validate that the userId in a lock command matches the authenticated user.
+validateLockUser :: UserId -> UserId -> Either Text ()
+validateLockUser authenticatedUid claimedUid =
+  when (claimedUid /= authenticatedUid) $
+    Left "Lock userId does not match authenticated user"

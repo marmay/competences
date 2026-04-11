@@ -124,35 +124,35 @@ commandAudience (Publish _) = AudienceAll
 
 evidenceAudience :: EntityCommand Evidence patch -> CommandAudience
 evidenceAudience (Create ev) = AudienceTeachersAnd (maybeToList ev.userId)
-evidenceAudience (CreateAndLock ev) = AudienceTeachersAnd (maybeToList ev.userId)
+evidenceAudience (CreateAndLock ev _ _) = AudienceTeachersAnd (maybeToList ev.userId)
 evidenceAudience _ = AudienceAll
 
 assessmentAudience :: EntityCommand CompetenceAssessment patch -> CommandAudience
 assessmentAudience (Create a) = AudienceTeachersAnd [a.userId]
-assessmentAudience (CreateAndLock a) = AudienceTeachersAnd [a.userId]
+assessmentAudience (CreateAndLock a _ _) = AudienceTeachersAnd [a.userId]
 assessmentAudience _ = AudienceAll
 
 gradeAudience :: EntityCommand CompetenceGridGrade patch -> CommandAudience
 gradeAudience (Create g) = AudienceTeachersAnd [g.userId]
-gradeAudience (CreateAndLock g) = AudienceTeachersAnd [g.userId]
+gradeAudience (CreateAndLock g _ _) = AudienceTeachersAnd [g.userId]
 gradeAudience _ = AudienceAll
 
 assignmentAudience :: EntityCommand Assignment patch -> CommandAudience
 assignmentAudience (Create a) = AudienceTeachersAnd (Set.toList a.studentIds)
-assignmentAudience (CreateAndLock a) = AudienceTeachersAnd (Set.toList a.studentIds)
+assignmentAudience (CreateAndLock a _ _) = AudienceTeachersAnd (Set.toList a.studentIds)
 assignmentAudience _ = AudienceAll
 
 participationAudience :: EntityCommand ParticipationRecord patch -> CommandAudience
 participationAudience (Create pr) = AudienceTeachersAnd [pr.userId]
-participationAudience (CreateAndLock pr) = AudienceTeachersAnd [pr.userId]
+participationAudience (CreateAndLock pr _ _) = AudienceTeachersAnd [pr.userId]
 participationAudience _ = AudienceAll
 
 absenceAudience :: EntityCommand Absence patch -> CommandAudience
 absenceAudience (Create a) = AudienceTeachersAnd [a.userId]
-absenceAudience (CreateAndLock a) = AudienceTeachersAnd [a.userId]
+absenceAudience (CreateAndLock a _ _) = AudienceTeachersAnd [a.userId]
 absenceAudience _ = AudienceAll
 
 submissionAudience :: EntityCommand Submission patch -> CommandAudience
 submissionAudience (Create s) = AudienceTeachersAnd (ownerIds s.ownership)
-submissionAudience (CreateAndLock s) = AudienceTeachersAnd (ownerIds s.ownership)
+submissionAudience (CreateAndLock s _ _) = AudienceTeachersAnd (ownerIds s.ownership)
 submissionAudience _ = AudienceAll

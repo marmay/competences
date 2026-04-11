@@ -3,7 +3,7 @@ module Competences.Frontend.Component.Selector.LessonNotesSelector
   )
 where
 
-import Competences.Command (EntityCommand (..), LessonNotesCommand (..))
+import Competences.Command (LessonNotesCommand (..))
 import Competences.Command qualified as Cmd
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), LessonNotes (..), LessonNotesIxs)
@@ -13,6 +13,7 @@ import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
   , isInitialUpdate
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -69,7 +70,7 @@ lessonNotesSelectorComponent r canCreate initialSelection parentLens =
       lnId <- nextId r
       today <- utctDay <$> getCurrentTime
       let newLn = mkLessonNotes lnId today
-      modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (CreateAndLock newLn))
+      modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (mkCreateAndLock r newLn))
       s (SelectItem newLn)
 
     update (SetSearchQuery q) = M.modify $ \m ->

@@ -34,8 +34,9 @@ module Competences.Frontend.SyncContext.SyncDocument
   , completeFileDownload
     -- * File Cache
   , FileCache
-    -- * Lock command helper
+    -- * Lock / CreateAndLock command helpers
   , mkLock
+  , mkCreateAndLock
     -- * Server Info
   , setServerInfo
   , readServerInfo
@@ -52,7 +53,7 @@ module Competences.Frontend.SyncContext.SyncDocument
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Command.Common (ModifyCommand (..))
+import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
 import Competences.Document (Document, User (..), UserId, emptyDocument)
 import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
@@ -164,6 +165,10 @@ getFocusedUserRef r = r.focusedUserRef
 -- | Create a Lock ModifyCommand using the connected user from a SyncContext
 mkLock :: SyncContext -> ModifyCommand patch
 mkLock r = Lock r.env.connectedUser.id r.env.sessionId
+
+-- | Create a CreateAndLock EntityCommand using the connected user from a SyncContext
+mkCreateAndLock :: SyncContext -> a -> EntityCommand a patch
+mkCreateAndLock r a = CreateAndLock a r.env.connectedUser.id r.env.sessionId
 
 data SyncDocumentEnv = SyncDocumentEnv
   { currentDay :: !Day

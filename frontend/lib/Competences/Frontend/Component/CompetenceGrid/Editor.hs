@@ -30,6 +30,7 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -126,7 +127,7 @@ editorComponent r grid =
               , description = ""
               , levels = Map.empty
               }
-      modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
+      modifySyncDocument r (Competences $ OnCompetences $ mkCreateAndLock r competence)
 
     view _m =
       Layout.vFlow

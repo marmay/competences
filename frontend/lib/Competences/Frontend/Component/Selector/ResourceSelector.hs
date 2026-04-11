@@ -3,7 +3,7 @@ module Competences.Frontend.Component.Selector.ResourceSelector
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ResourcesCommand (..))
+import Competences.Command (Command (..), ResourcesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Resource (..), ResourceContent (..), ResourceIxs)
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
@@ -13,6 +13,7 @@ import Competences.Frontend.Component.Resource.ImportModal qualified as ImportMo
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -105,7 +106,7 @@ resourceSelectorComponent r parentLens =
     createResource content = M.withSink $ \s -> do
       resourceId <- nextId r
       let newResource = (mkResource resourceId) {content = content}
-      modifySyncDocument r $ Resources (OnResources (CreateAndLock newResource))
+      modifySyncDocument r $ Resources (OnResources (mkCreateAndLock r newResource))
       s CloseDropdown
       s (SelectItem newResource)
 

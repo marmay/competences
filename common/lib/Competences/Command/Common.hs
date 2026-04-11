@@ -24,7 +24,7 @@ import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), toJSON, withObject, (.:), (.:?))
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, toJSON, withObject, (.:), (.:?))
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Parser)
 import Data.UUID.Types qualified as UUID
@@ -54,10 +54,11 @@ data ModifyCommand patch
   | Release !patch
   deriving (Eq, Generic, Show)
 
--- | Generic entity command - create, delete, or modify
+-- | Generic entity command - create, delete, or modify.
+-- CreateAndLock carries the requesting user and session for the implicit lock.
 data EntityCommand a patch
   = Create !a
-  | CreateAndLock !a
+  | CreateAndLock !a !UserId !SessionId
   | Delete !(Id a)
   | Modify !(Id a) !(ModifyCommand patch)
   deriving (Eq, Generic, Show)
@@ -83,7 +84,26 @@ instance (FromJSON patch) => FromJSON (ModifyCommand patch) where
 
 instance (ToJSON patch) => ToJSON (ModifyCommand patch)
 
-instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch)
+-- | Custom FromJSON for backward compat: old CreateAndLock had one field, new has three.
+instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch) where
+  parseJSON = withObject "EntityCommand" $ \v -> do
+    tag <- v .: "tag" :: Parser Text
+    case tag of
+      "Create" -> Create <$> v .: "contents"
+      "CreateAndLock" -> do
+        contents <- v .: "contents"
+        -- Try new format [entity, userId, sessionId], fall back to old format (entity only)
+        case fromJSON @(a, UserId, SessionId) contents of
+          Success (entity, uid, sid) -> pure $ CreateAndLock entity uid sid
+          Error _ -> case fromJSON @a contents of
+            Success entity -> pure $ CreateAndLock entity Competences.Document.Id.nilId legacySessionId
+            Error err -> fail $ "Failed to parse CreateAndLock contents: " <> err
+      "Delete" -> Delete <$> v .: "contents"
+      "Modify" -> do
+        (eid, mcmd) <- v .: "contents"
+        pure $ Modify eid mcmd
+      _ -> fail $ "Unknown EntityCommand tag: " <> show tag
+
 instance (ToJSON a, ToJSON patch) => ToJSON (EntityCommand a patch)
 #endif
 
@@ -132,19 +152,29 @@ requireTeacher userId doc =
     Just u -> when (u.role /= Teacher) $ Left "Only teachers can perform this action"
 
 #ifdef WITH_AESON
--- | Inject userId + legacySessionId into v1 Lock commands.
--- V1 Lock was nullary: {"tag":"Lock"} — transforms to {"tag":"Lock","contents":[userId, sessionId]}.
--- Recursively walks the JSON tree to handle Lock at any nesting depth.
+-- | Inject userId + legacySessionId into v1 Lock and CreateAndLock commands.
+-- V1 Lock was nullary, V1 CreateAndLock had only the entity.
+-- Recursively walks the JSON tree to handle commands at any nesting depth.
 injectLockHolder :: UserId -> Value -> Value
 injectLockHolder uid = go
   where
-    uidText = UUID.toText uid.unId
-    sidText = UUID.toText legacySessionId.unId
-    go (Object obj)
-      | KM.lookup "tag" obj == Just (String "Lock")
-      , Nothing <- KM.lookup "contents" obj =
-          Object $ KM.insert "contents" (toJSON (uidText, sidText)) obj
-      | otherwise = Object $ fmap go obj
+    uidJson = toJSON (UUID.toText uid.unId)
+    sidJson = toJSON (UUID.toText legacySessionId.unId)
+    go (Object obj) = Object $ case KM.lookup "tag" obj of
+      -- V1 Lock: {"tag":"Lock"} → {"tag":"Lock","contents":[uid,sid]}
+      Just (String "Lock")
+        | Nothing <- KM.lookup "contents" obj ->
+            KM.insert "contents" (toJSON (uidJson, sidJson)) obj
+      -- V1 CreateAndLock: {"tag":"CreateAndLock","contents":entity}
+      -- → {"tag":"CreateAndLock","contents":[entity,uid,sid]}
+      Just (String "CreateAndLock")
+        | Just entityVal <- KM.lookup "contents" obj
+        , not (isArray entityVal) ->
+            KM.insert "contents" (toJSON (entityVal, uidJson, sidJson)) obj
+      _ -> fmap go obj
     go (Array arr) = Array $ fmap go arr
     go other = other
+
+    isArray (Array _) = True
+    isArray _ = False
 #endif

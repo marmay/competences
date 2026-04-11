@@ -12,7 +12,6 @@ import Competences.Command.Tasks (TaskPatch (..), TaskGroupPatch (..), SubTaskPa
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), User (..))
 import Competences.Document.Task (TaskGroupId, taskGroupId)
-import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -72,12 +71,12 @@ handleDraftTasksCommand userId cmd d = case cmd of
         SubTask _ _ -> Left "Use OnDraftSubTasks to create SubTasks"
         SelfContained _ ->
           (,allTeachers d) <$> draftTaskContext.create task d
-    CreateAndLock task -> do
+    CreateAndLock task lockUid lockSid -> do
       case task.taskType of
         SubTask _ _ -> Left "Use OnDraftSubTasks to create SubTasks"
         SelfContained _ -> do
           d' <- draftTaskContext.create task d
-          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
+          d'' <- doLock lockUid lockSid (TaskLock task.id) d'
           pure (d'', allTeachers d)
     Delete taskId -> do
       task <- draftTaskContext.fetch taskId d
@@ -107,9 +106,9 @@ handleDraftTasksCommand userId cmd d = case cmd of
   OnDraftTaskGroups c -> case c of
     Create group ->
       (,allTeachers d) <$> draftTaskGroupContext.create group d
-    CreateAndLock group -> do
+    CreateAndLock group lockUid lockSid -> do
       d' <- draftTaskGroupContext.create group d
-      d'' <- doLock userId legacySessionId (TaskGroupLock group.id) d'
+      d'' <- doLock lockUid lockSid (TaskGroupLock group.id) d'
       pure (d'', allTeachers d)
     Delete groupId -> do
       (d', _) <- deleteDraftTaskGroupCascading groupId d
@@ -134,13 +133,13 @@ handleDraftTasksCommand userId cmd d = case cmd of
         SubTask _ _ -> do
           validateDraftSubTaskReferencesGroup d task
           (,allTeachers d) <$> draftSubTaskContext.create task d
-    CreateAndLock task -> do
+    CreateAndLock task lockUid lockSid -> do
       case task.taskType of
         SelfContained _ -> Left "Use OnDraftTasks to create SelfContained tasks"
         SubTask _ _ -> do
           validateDraftSubTaskReferencesGroup d task
           d' <- draftSubTaskContext.create task d
-          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
+          d'' <- doLock lockUid lockSid (TaskLock task.id) d'
           pure (d'', allTeachers d)
     Delete taskId -> do
       task <- draftSubTaskContext.fetch taskId d

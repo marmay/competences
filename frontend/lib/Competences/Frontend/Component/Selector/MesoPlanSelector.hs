@@ -3,7 +3,7 @@ module Competences.Frontend.Component.Selector.MesoPlanSelector
   )
 where
 
-import Competences.Command (Command (..), MesoPlansCommand (..), EntityCommand (..))
+import Competences.Command (Command (..), MesoPlansCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), MesoPlan (..), MesoPlanIxs)
 import Competences.Frontend.Common qualified as C
@@ -11,6 +11,7 @@ import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
@@ -95,7 +96,7 @@ mesoPlanSelectorComponent r initialSelection parentLens =
               , dateFrom = Nothing
               , dateTo = Nothing
               }
-      modifySyncDocument r $ MesoPlans (OnMesoPlans (CreateAndLock newPlan))
+      modifySyncDocument r $ MesoPlans (OnMesoPlans (mkCreateAndLock r newPlan))
       s (SelectPlan newPlan)
       s ToggleDropdown
 

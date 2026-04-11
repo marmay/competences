@@ -21,6 +21,7 @@ import Competences.Frontend.SyncContext
   , SyncDocumentEnv (..)
   , SyncContext
   , getFocusedUserRef
+  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
@@ -119,7 +120,7 @@ evidenceSelectorComponent r style parentLens bulkEditorLens =
           evidenceId <- nextId r
           let today = syncDocumentEnv r ^. #currentDay
           let evidence = (mkEvidence evidenceId today) { userId = Just user.id }
-          modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ Cmd.CreateAndLock evidence)
+          modifySyncDocument r (Cmd.Evidences $ Cmd.OnEvidences $ mkCreateAndLock r evidence)
           s CloseDropdown
           s (SelectEvidence evidence)
     update (ProjectionChanged change) = M.modify $ updateFromProjection change.projection
