@@ -170,7 +170,7 @@ main = do
   unless (null migrationCmds) $ do
     putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
     let systemUserId = Id UUID.nil
-    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemUserId cmd) initialGen migrationCmds
+    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemUserId legacySessionId cmd) initialGen migrationCmds
     DB.saveSnapshot pool doc latestGen
     putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
 
@@ -262,7 +262,7 @@ applyStartupMigrations pool = go
           putStrLn $ "Startup migration skipped: " <> T.unpack reason
           go doc gen rest
         Right (doc', _) -> do
-          (_cmdId, gen') <- DB.saveCommand pool systemUserId cmd
+          (_cmdId, gen') <- DB.saveCommand pool systemUserId legacySessionId cmd
           putStrLn $ "Startup migration applied at generation " <> show gen'
           go doc' gen' rest
 

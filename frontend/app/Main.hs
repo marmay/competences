@@ -6,7 +6,8 @@ module Main (main) where
 
 import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..))
 import Competences.Document (User (..), UserId, UserRole (..), emptyDocument)
-import Competences.Document.Id (mkId, nilId)
+import Competences.Document.Id (Id (..), mkId, nilId)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.Common.Translate qualified as C
@@ -27,9 +28,11 @@ import Control.Exception (catch)
 import Control.Monad (void)
 import Data.Maybe (isJust)
 import Data.Text qualified as T
+import Data.UUID.Types qualified as UUID
 import Miso qualified as M
 import Miso.DSL (jsg, fromJSVal, (!), setField)
 import Miso.Run (run)
+import System.Random (randomIO)
 
 main :: IO ()
 main = do
@@ -77,6 +80,9 @@ main = do
         idb <- openDatabase
         let mIdb = Just idb
 
+        -- Get or create session ID from sessionStorage
+        sessionId <- getOrCreateSessionId
+
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
         let initial = mkInitialHandler jwtToken mImpersonate imp mIdb forkApp
@@ -84,6 +90,9 @@ main = do
 
         withWebSocket wsUrl initial reconnect
           `catch` handleAuthFailure location
+
+        -- Silence unused warning (sessionId will be used when sent during auth)
+        void $ pure sessionId
 
 -- | Parse the ?impersonate=<uuid> query parameter from a URL search string
 parseImpersonateParam :: T.Text -> Maybe UserId
@@ -93,6 +102,25 @@ parseImpersonateParam search =
    in case [T.drop 1 v | (k, v) <- pairs, k == "impersonate", not (T.null v)] of
         (uuid : _) -> mkId uuid
         _ -> Nothing
+
+-- | Get or create a session UUID from sessionStorage.
+-- Each browser tab gets a unique session ID that persists across page reloads
+-- but not across tabs (sessionStorage is per-tab).
+getOrCreateSessionId :: IO SessionId
+getOrCreateSessionId = do
+  storage <- jsg "window" ! "sessionStorage"
+  existing <- storage ! "getItem" $ [("competences-session-id" :: T.Text)]
+  mText <- fromJSVal @T.Text existing
+  case mText >>= UUID.fromText of
+    Just uuid -> do
+      logDebug "Reusing existing session ID"
+      pure (Id uuid)
+    Nothing -> do
+      uuid <- randomIO
+      let uuidText = UUID.toText uuid
+      _ <- storage ! "setItem" $ [("competences-session-id" :: T.Text), uuidText]
+      logDebug $ M.ms $ "Created new session ID: " <> T.unpack uuidText
+      pure (Id uuid)
 
 -- | Handle authentication failure by redirecting to login
 handleAuthFailure :: M.JSVal -> AuthenticationException -> IO ()

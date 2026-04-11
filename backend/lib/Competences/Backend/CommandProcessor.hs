@@ -213,7 +213,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
           modifyIORef' clientsRef (Map.mapWithKey updateCounter)
 
           -- Persist to DB (optimistic, after responding to client)
-          generation <- DB.saveCommandWithAudience pool cmdId uid cmd audience
+          generation <- DB.saveCommandWithAudience pool cmdId uid legacySessionId cmd audience
           atomically $ writeTVar genVar generation
 
           -- Check snapshot

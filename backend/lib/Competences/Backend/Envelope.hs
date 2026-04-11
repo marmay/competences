@@ -31,6 +31,7 @@ import Competences.Document (Document (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id (..))
 import Competences.Document.Lesson (LessonId)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Data.Aeson
   ( FromJSON (..)
@@ -53,12 +54,17 @@ import Data.UUID.Types qualified as UUID
 import GHC.Generics (Generic)
 
 -- | Current version of command envelope schema
+-- V1: userId + payload
+-- V2: userId + sessionId + payload
 currentCommandVersion :: Int
-currentCommandVersion = 1
+currentCommandVersion = 2
 
 -- | Current version of snapshot envelope schema
+-- V1: Assignment had lessonId
+-- V2: Lesson.assignments added; locks as [(Lock, UserId)]
+-- V3: locks as [(Lock, LockHolder)]
 currentSnapshotVersion :: Int
-currentSnapshotVersion = 2
+currentSnapshotVersion = 3
 
 -- | Envelope for storing commands with version and metadata
 data CommandEnvelope = CommandEnvelope
@@ -66,6 +72,8 @@ data CommandEnvelope = CommandEnvelope
   -- ^ Schema version number
   , userId :: !UserId
   -- ^ User who executed the command
+  , sessionId :: !SessionId
+  -- ^ Session that executed the command (legacySessionId for v1)
   , payload :: !Value
   -- ^ The actual command as JSON
   }
@@ -85,17 +93,26 @@ instance ToJSON CommandEnvelope where
     object
       [ "version" .= env.version
       , "userId" .= UUID.toText env.userId.unId
+      , "sessionId" .= UUID.toText env.sessionId.unId
       , "payload" .= env.payload
       ]
 
 instance FromJSON CommandEnvelope where
   parseJSON = withObject "CommandEnvelope" $ \v -> do
-    version <- v .: "version"
+    ver <- v .: "version"
     userIdText <- v .: "userId"
     payload <- v .: "payload"
-    case UUID.fromText userIdText of
+    uid <- case UUID.fromText userIdText of
       Nothing -> fail $ "Invalid userId UUID: " <> show userIdText
-      Just uuid -> pure $ CommandEnvelope version (Id uuid) payload
+      Just uuid -> pure (Id uuid)
+    sid <- case ver of
+      1 -> pure legacySessionId
+      _ -> do
+        sidText <- v .: "sessionId"
+        case UUID.fromText sidText of
+          Nothing -> fail $ "Invalid sessionId UUID: " <> show sidText
+          Just uuid -> pure (Id uuid)
+    pure $ CommandEnvelope ver uid sid payload
 
 instance ToJSON SnapshotEnvelope where
   toJSON env =
@@ -111,32 +128,29 @@ instance FromJSON SnapshotEnvelope where
       <*> v .: "payload"
 
 -- | Wrap a command in an envelope at the current version
-wrapCommand :: UserId -> Command -> CommandEnvelope
-wrapCommand userId cmd =
+wrapCommand :: UserId -> SessionId -> Command -> CommandEnvelope
+wrapCommand userId sessionId cmd =
   CommandEnvelope
     { version = currentCommandVersion
     , userId = userId
+    , sessionId = sessionId
     , payload = toJSON cmd
     }
 
--- | Unwrap a command envelope, applying migrations if needed
+-- | Unwrap a command envelope, applying migrations if needed.
+-- Returns the session ID (legacySessionId for v1 commands) and the command.
 unwrapCommand :: CommandEnvelope -> Either Text Command
 unwrapCommand env = case env.version of
   1 ->
-    -- Current version: direct parse
     case fromJSON env.payload of
       Success cmd -> Right cmd
       Error err -> Left $ "Failed to parse command v1: " <> pack err
+  2 ->
+    case fromJSON env.payload of
+      Success cmd -> Right cmd
+      Error err -> Left $ "Failed to parse command v2: " <> pack err
   v ->
     Left $ "Unknown command version: " <> pack (show v)
-
--- Future versions example:
---  2 -> do
---    -- Parse as CommandV1 and migrate to current
---    cmdV1 <- case fromJSON env.payload of
---      Success cmd -> Right cmd
---      Error err -> Left $ "Failed to parse command v2: " <> show err
---    Right $ migrateCommandV1toV2 cmdV1
 
 -- | Wrap a document snapshot in an envelope at the current version
 wrapSnapshot :: Document -> SnapshotEnvelope
@@ -163,13 +177,36 @@ unwrapSnapshot env = case env.version of
           | Map.null linkMap = []
           | otherwise = [Migration (UpdateLessonAssignments (Map.toList linkMap))]
     Right (doc, cmds)
-  2 ->
+  2 -> do
+    -- V2: locks stored as [(Lock, UserId)] — migrate to [(Lock, LockHolder)]
+    let migratedPayload = migrateLocks env.payload
+    case fromJSON migratedPayload of
+      Success doc -> Right (doc, [])
+      Error err -> Left $ "Failed to parse snapshot v2: " <> pack err
+  3 ->
     -- Current version: direct parse
     case fromJSON env.payload of
       Success doc -> Right (doc, [])
-      Error err -> Left $ "Failed to parse snapshot v2: " <> pack err
+      Error err -> Left $ "Failed to parse snapshot v3: " <> pack err
   v ->
     Left $ "Unknown snapshot version: " <> pack (show v)
+
+-- | Migrate locks from v2 format [(Lock, UserId)] to v3 format [(Lock, LockHolder)].
+-- V2 locks are [[lockJson, "userId-uuid"]], v3 are [[lockJson, {"userId":..,"sessionId":..}]].
+migrateLocks :: Value -> Value
+migrateLocks (Object docObj) = case KM.lookup "locks" docObj of
+  Just locksVal -> Object $ KM.insert "locks" (migrateLockList locksVal) docObj
+  Nothing -> Object docObj
+  where
+    legacySidText = UUID.toText legacySessionId.unId
+    migrateLockList (Array locks) = Array $ fmap migrateLockPair locks
+    migrateLockList other = other
+    migrateLockPair (Array pair) = Array $ fmap migrateValue pair
+    migrateLockPair other = other
+    -- Convert bare UUID strings to LockHolder objects; leave objects unchanged
+    migrateValue (String uidText) = object ["userId" .= uidText, "sessionId" .= legacySidText]
+    migrateValue other = other
+migrateLocks other = other
 
 -- | Extract Assignment.lessonId links from a v1 snapshot's raw JSON.
 -- Returns a map from LessonId to list of AssignmentIds that referenced it.
