@@ -49,7 +49,9 @@ data CommandContext = CommandContext
   { userId :: !UserId
   , sessionId :: !SessionId
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+instance Binary CommandContext
 
 -- | Represents a change from one value to another (for conflict detection in patches)
 type Change a = Maybe (a, a)
@@ -77,6 +79,9 @@ instance (Binary a, Binary patch) => Binary (EntityCommand a patch)
 
 -- JSON instances
 #ifdef WITH_AESON
+instance FromJSON CommandContext
+instance ToJSON CommandContext
+
 -- | Custom FromJSON for backward compat: old Lock was nullary, new Lock carries UserId + SessionId.
 instance (FromJSON patch) => FromJSON (ModifyCommand patch) where
   parseJSON = withObject "ModifyCommand" $ \v -> do

@@ -221,7 +221,7 @@ performSync state user conn mCommandId = case mCommandId of
           else do
             -- Load commands for this user since the given generation
             cmdsWithId <- DB.loadCommandsForUser state.dbPool user.role user.id gen
-            let cmds = [(cid, cmdUid, cmd) | (cid, _gen, cmdUid, cmd) <- cmdsWithId]
+            let cmds = [(cid, ctx, cmd) | (cid, _gen, ctx, cmd) <- cmdsWithId]
             case cmds of
               [] -> do
                 -- No new commands, send current state with checksum
@@ -233,7 +233,7 @@ performSync state user conn mCommandId = case mCommandId of
                 pure (Just currentGen)
               _ -> do
                 let lastCmdId = (\(c, _, _) -> c) (last cmds)
-                    userCommands = [(cmdUid, cmd) | (_cid, cmdUid, cmd) <- cmds]
+                    userCommands = [(ctx, cmd) | (_cid, ctx, cmd) <- cmds]
                 -- Always compute checksum for sync
                 doc <- getDocument state
                 let projectedDoc = projectDocument user doc
@@ -284,7 +284,7 @@ senderThread queue ackSignal resyncFlag user state conn = do
         pure (first : rest, d)
 
       let lastCmdId = (last items).commandId
-          userCommands = [(item.userId, item.command) | item <- items]
+          userCommands = [(item.context, item.command) | item <- items]
           mChecksum =
             if any (.checkpoint) items
               then Just (computeDocumentChecksum (projectDocument user doc))

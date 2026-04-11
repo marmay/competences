@@ -54,8 +54,8 @@ where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
 import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
-import Competences.Document (Document, User (..), UserId, emptyDocument)
-import Competences.Document.Session (SessionId, legacySessionId)
+import Competences.Document (Document, User (..), emptyDocument)
+import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
 import Competences.Protocol (CommandId, ServerInfo (..))
@@ -311,7 +311,8 @@ modifySyncDocument r c = do
   -- Update SyncDocument with the authoritative list
   modifyMVar_ r.syncDocument $ \d -> do
     -- Replay all pending commands on remoteDocument to get localDocument
-    let (localDoc', validChanges) = replayLocalChanges r.env.connectedUser.id d.remoteDocument allPending
+    let localCtx = CommandContext r.env.connectedUser.id r.env.sessionId
+        (localDoc', validChanges) = replayLocalChanges localCtx d.remoteDocument allPending
     let d' = d
           & (#localDocument .~ localDoc')
           & (#localChanges .~ validChanges)
@@ -327,17 +328,18 @@ setSyncDocument :: SyncContext -> Document -> IO ()
 setSyncDocument r m = do
   -- Get all pending commands from CommandSender (authoritative source)
   allPending <- getAllPending r.env.commandSender
-  modifyMVar_ r.syncDocument $ setSyncDocument' r.env.connectedUser.id allPending m
+  let ctx = CommandContext r.env.connectedUser.id r.env.sessionId
+  modifyMVar_ r.syncDocument $ setSyncDocument' ctx allPending m
 
 emptySyncDocument :: SyncDocument
 emptySyncDocument = SyncDocument emptyDocument [] emptyDocument Map.empty 0
 
 -- | Set the sync document from server state, replaying local changes
 -- Takes the authoritative list of pending commands from CommandSender
-setSyncDocument' :: UserId -> [Command] -> Document -> SyncDocument -> IO SyncDocument
-setSyncDocument' userId allPending remoteDoc d = do
+setSyncDocument' :: CommandContext -> [Command] -> Document -> SyncDocument -> IO SyncDocument
+setSyncDocument' ctx allPending remoteDoc d = do
   -- Replay all pending commands on the new remoteDocument
-  let (localDoc', validChanges) = replayLocalChanges userId remoteDoc allPending
+  let (localDoc', validChanges) = replayLocalChanges ctx remoteDoc allPending
 
   let d' =
         d
@@ -369,9 +371,8 @@ nextId r = modifyMVar r.randomGen (pure . swap . random)
 
 -- | Apply a command from the server (echo or broadcast)
 -- Updates remoteDocument and replays localChanges on top of it.
--- The userId is the original issuer of the command (from the server protocol).
-applyRemoteCommand :: SyncContext -> UserId -> Command -> IO ()
-applyRemoteCommand d cmdUserId cmd = do
+applyRemoteCommand :: SyncContext -> CommandContext -> Command -> IO ()
+applyRemoteCommand d cmdCtx cmd = do
   -- Check if this is an echo of our pending command
   pending <- getPending d.env.commandSender
   let isEcho = pending == Just cmd
@@ -385,7 +386,7 @@ applyRemoteCommand d cmdUserId cmd = do
 
   modifyMVar_ d.syncDocument $ \syncDoc -> do
     -- Apply command to remoteDocument using the original issuer's userId
-    remoteDoc' <- case handleCommand (CommandContext cmdUserId legacySessionId) cmd syncDoc.remoteDocument of
+    remoteDoc' <- case handleCommand cmdCtx cmd syncDoc.remoteDocument of
       Left err -> do
         -- This shouldn't happen - server validated the command
         logError $ M.ms $ "Server sent invalid command: " <> show err
@@ -393,8 +394,9 @@ applyRemoteCommand d cmdUserId cmd = do
       Right (doc, _) -> pure doc
 
     -- Replay remaining pending commands on top of the new remote document
-    let (localDoc', validChanges) = replayLocalChanges
-          d.env.connectedUser.id
+    let localCtx = CommandContext d.env.connectedUser.id d.env.sessionId
+        (localDoc', validChanges) = replayLocalChanges
+          localCtx
           remoteDoc'
           remainingPending
 
@@ -430,12 +432,12 @@ readServerInfo r = liftIO $ readIORef r.serverInfoRef
 
 -- | Replay local changes on top of a document, filtering out invalid ones
 -- Returns (resulting document, valid localChanges)
-replayLocalChanges :: UserId -> Document -> [Command] -> (Document, [Command])
-replayLocalChanges userId doc localCmds =
+replayLocalChanges :: CommandContext -> Document -> [Command] -> (Document, [Command])
+replayLocalChanges ctx doc localCmds =
   foldr applyOne (doc, []) (reverse localCmds)
   where
     applyOne cmd (currentDoc, validCmds) =
-      case handleCommand (CommandContext userId legacySessionId) cmd currentDoc of
+      case handleCommand ctx cmd currentDoc of
         Left _err -> (currentDoc, validCmds)  -- Drop invalid command
         Right (newDoc, _) -> (newDoc, cmd : validCmds)
 
@@ -456,8 +458,9 @@ rejectCommand d cmd = do
 
   modifyMVar_ d.syncDocument $ \syncDoc -> do
     -- Replay remaining pending commands on remote document
-    let (localDoc', validChanges) = replayLocalChanges
-          d.env.connectedUser.id
+    let localCtx = CommandContext d.env.connectedUser.id d.env.sessionId
+        (localDoc', validChanges) = replayLocalChanges
+          localCtx
           syncDoc.remoteDocument
           remainingPending
 

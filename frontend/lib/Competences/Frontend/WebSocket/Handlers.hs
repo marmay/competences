@@ -11,7 +11,7 @@ module Competences.Frontend.WebSocket.Handlers
   )
 where
 
-import Competences.Command (Command)
+import Competences.Command (Command, CommandContext (..))
 import Competences.Document (Document, User (..), UserId)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.Id (idToText)
@@ -82,7 +82,7 @@ waitForAuth ws = do
 -- Returns (document, commandId, maybeChecksum).
 data SyncResult
   = SyncSnapshot !CommandId !Document !(Maybe Text)
-  | SyncIncremental !CommandId ![(UserId, Command)] !(Maybe Text)
+  | SyncIncremental !CommandId ![(CommandContext, Command)] !(Maybe Text)
 
 waitForSync :: WebSocket -> IO SyncResult
 waitForSync ws = do

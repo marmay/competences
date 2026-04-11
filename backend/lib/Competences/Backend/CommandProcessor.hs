@@ -60,7 +60,7 @@ import Database.PostgreSQL.Simple (Connection)
 -- | An item pushed to a client's output queue.
 data ClientQueueItem = ClientQueueItem
   { commandId :: !CommandId
-  , userId :: !UserId
+  , context :: !CommandContext
   , command :: !Command
   , checkpoint :: !Bool
   -- ^ True when the client should compute and validate a checksum
@@ -186,8 +186,9 @@ processorLoop inputQ docVar genVar pool clientsRef = go
           Right (doc', _affected) -> do
             writeTVar docVar doc'
             let cmdsFor = clientCommands doc cmd
+                cmdCtx = CommandContext uid sid
                 pushItem q ck c = writeTQueue q ClientQueueItem
-                  { commandId = cmdId, userId = uid, command = c, checkpoint = ck }
+                  { commandId = cmdId, context = cmdCtx, command = c, checkpoint = ck }
             -- Push per-client commands; checkpoint flag goes on the last item
             mapM_
               (\(_connId, (q, _count, isCheckpoint, clientUid)) ->

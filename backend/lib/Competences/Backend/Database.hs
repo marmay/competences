@@ -339,7 +339,7 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
 -- only if the user is a specific recipient.
 --
 -- Returns (CommandId, generation, UserId, Command) tuples ordered by generation.
-loadCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO [(CommandId, Int64, UserId, Command)]
+loadCommandsForUser :: Pool Connection -> UserRole -> UserId -> Int64 -> IO [(CommandId, Int64, CommandContext, Command)]
 loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
   rows <- case role of
     Teacher ->
@@ -371,7 +371,7 @@ loadCommandsForUser pool role userId sinceGen = withResource pool $ \conn -> do
         (userId.unId, sinceGen) ::
         IO [(UUID, Int64, Value)]
   pure
-    [ (Id cmdId, gen, envelope.userId, cmd)
+    [ (Id cmdId, gen, CommandContext envelope.userId envelope.sessionId, cmd)
     | (cmdId, gen, envelopeValue) <- rows
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]
