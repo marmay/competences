@@ -12,7 +12,7 @@ module Competences.Command.Tasks
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), ModifyCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, inContext, patchField')
 import Competences.Document.FileRef (FileRef)
 import Competences.Command.Interpret (EntityCommandContext (..), doLock, doRelease, mkEntityCommandContext)
 import Competences.Common.IxSet qualified as Ix
@@ -28,7 +28,6 @@ import Competences.Document.Task
   , TaskPurpose
   , taskGroupId
   )
-import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:?), (.!=))
@@ -282,8 +281,8 @@ deleteTaskGroupCascading groupId doc = do
   pure (doc'', group)
 
 -- | Handle a Tasks context command
-handleTasksCommand :: UserId -> TasksCommand -> Document -> UpdateResult
-handleTasksCommand userId cmd d = case cmd of
+handleTasksCommand :: CommandContext -> TasksCommand -> Document -> UpdateResult
+handleTasksCommand cmdCtx cmd d = case cmd of
   OnTasks c -> case c of
     Create task -> do
       -- Verify it's a SelfContained task
@@ -318,7 +317,7 @@ handleTasksCommand userId cmd d = case cmd of
           SubTask _ _ -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
           SelfContained _ -> pure (d', taskContext.affectedUsers task d)
       Release patch -> do
-        d' <- doRelease userId (TaskLock taskId) d
+        d' <- doRelease cmdCtx.userId (TaskLock taskId) d
         taskCurrent <- taskContext.fetch taskId d'
         -- Verify it's SelfContained
         case taskCurrent.taskType of
@@ -346,7 +345,7 @@ handleTasksCommand userId cmd d = case cmd of
         group <- taskGroupContext.fetch groupId d'
         pure (d', taskGroupContext.affectedUsers group d)
       Release patch -> do
-        d' <- doRelease userId (TaskGroupLock groupId) d
+        d' <- doRelease cmdCtx.userId (TaskGroupLock groupId) d
         groupCurrent <- taskGroupContext.fetch groupId d'
         groupModified <- applyTaskGroupPatch groupCurrent patch
         (d'', groupOld) <- taskGroupContext.delete groupId d'
@@ -400,7 +399,7 @@ handleTasksCommand userId cmd d = case cmd of
             taskModified <- applySubTaskPatch taskCurrent patch
             (d', taskOld) <- subTaskContext.delete taskId d
             d'' <- subTaskContext.create taskModified d'
-            d''' <- doRelease userId (TaskLock taskId) d''
+            d''' <- doRelease cmdCtx.userId (TaskLock taskId) d''
             pure (d''', subTaskContext.affectedUsers taskModified d <> subTaskContext.affectedUsers taskOld d)
   where
     taskContext =

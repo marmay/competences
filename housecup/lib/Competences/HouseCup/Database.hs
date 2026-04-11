@@ -5,9 +5,10 @@ module Competences.HouseCup.Database
   )
 where
 
-import Competences.Command (Command, handleCommand)
+import Competences.Command (Command, CommandContext (..), handleCommand)
 import Competences.Command.Common (injectLockHolder)
 import Competences.Document (Document (..), emptyDocument)
+import Competences.Document.Session (legacySessionId)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
 import Data.Aeson (FromJSON (..), Result (..), Value, eitherDecodeStrict, fromJSON, withObject, (.:))
@@ -142,6 +143,6 @@ replayCommands :: Document -> [(UserId, Command)] -> Document
 replayCommands = foldl applyCommand
   where
     applyCommand doc (uid, cmd) =
-      case handleCommand uid cmd doc of
+      case handleCommand (CommandContext uid legacySessionId) cmd doc of
         Right (doc', _) -> doc'
         Left _err -> doc -- skip failed commands (mirrors backend behavior)

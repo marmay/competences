@@ -7,11 +7,11 @@ module Competences.Command.Users
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Data.Default (Default (..))
 import Competences.Document (Document (..), Lock (..))
-import Competences.Document.User (Office365Id, User (..), UserId, UserRole)
+import Competences.Document.User (Office365Id, User (..), UserRole)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -63,8 +63,8 @@ applyUserPatch user patch =
       >=> patchField' @"office365Id" patch
 
 -- | Handle a Users context command
-handleUsersCommand :: UserId -> UsersCommand -> Document -> UpdateResult
-handleUsersCommand userId (OnUsers c) = interpretEntityCommand userContext userId c
+handleUsersCommand :: CommandContext -> UsersCommand -> Document -> UpdateResult
+handleUsersCommand cmdCtx (OnUsers c) = interpretEntityCommand userContext cmdCtx c
   where
     userContext =
       mkEntityCommandContext

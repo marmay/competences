@@ -45,8 +45,8 @@ import Competences.Backend.Envelope
   , wrapCommand
   , wrapSnapshot
   )
-import Competences.Command (Command, handleCommand)
-import Competences.Document.Session (SessionId)
+import Competences.Command (Command, CommandContext (..), handleCommand)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Command.Audience (CommandAudience, audienceRecipients, audienceToText)
 import Competences.Document (Document, UserRole (..))
 import Competences.Document.Id (Id (..))
@@ -679,7 +679,7 @@ loadSnapshotTextById conn gen = do
 replayCommandsForGC :: Document -> [(UserId, Command)] -> Either Text Document
 replayCommandsForGC doc [] = Right doc
 replayCommandsForGC doc ((userId, cmd) : rest) =
-  case handleCommand userId cmd doc of
+  case handleCommand (CommandContext userId legacySessionId) cmd doc of
     Left err -> Left err
     Right (doc', _) -> replayCommandsForGC doc' rest
 

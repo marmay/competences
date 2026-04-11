@@ -21,7 +21,7 @@ module Competences.Backend.CommandProcessor
 where
 
 import Competences.Backend.Database qualified as DB
-import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), ModifyCommand (..), handleCommand)
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), CommandContext (..), EntityCommand (..), ModifyCommand (..), handleCommand)
 import Competences.Document.Session (SessionId)
 import Competences.Command.Audience (CommandAudience (..), commandAudience)
 import Competences.Common.IxSet qualified as Ix
@@ -179,7 +179,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- SenderThreads read queue + docVar atomically → always consistent.
       result <- atomically $ do
         doc <- readTVar docVar
-        case handleCommand uid cmd doc of
+        case handleCommand (CommandContext uid sid) cmd doc of
           Left err -> do
             putTMVar responseVar (Left err)
             pure Nothing

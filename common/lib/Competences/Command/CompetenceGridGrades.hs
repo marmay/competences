@@ -7,12 +7,11 @@ module Competences.Command.CompetenceGridGrades
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (EntityCommandContext (..), interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Grade (Grade)
-import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -69,8 +68,8 @@ applyCompetenceGridGradePatch gridGrade patch =
       >=> patchField' @"comment" patch
 
 -- | Handle a CompetenceGridGrades command
-handleCompetenceGridGradesCommand :: UserId -> CompetenceGridGradesCommand -> Document -> UpdateResult
-handleCompetenceGridGradesCommand userId (OnCompetenceGridGrades c) = interpretEntityCommand gradeContext userId c
+handleCompetenceGridGradesCommand :: CommandContext -> CompetenceGridGradesCommand -> Document -> UpdateResult
+handleCompetenceGridGradesCommand cmdCtx (OnCompetenceGridGrades c) = interpretEntityCommand gradeContext cmdCtx c
   where
     baseContext =
       mkEntityCommandContext

@@ -7,12 +7,11 @@ module Competences.Command.LessonNotes
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.LessonNotes (LessonNoteItem (..), LessonNotes (..))
-import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), withObject, (.:?), (.!=))
@@ -92,9 +91,9 @@ applyLessonNotesPatch ln patch =
       >=> patchField' @"items" patch
 
 -- | Handle a LessonNotes context command
-handleLessonNotesCommand :: UserId -> LessonNotesCommand -> Document -> UpdateResult
-handleLessonNotesCommand userId (OnLessonNotes c) d =
-  interpretEntityCommand lessonNotesContext userId c d
+handleLessonNotesCommand :: CommandContext -> LessonNotesCommand -> Document -> UpdateResult
+handleLessonNotesCommand cmdCtx (OnLessonNotes c) d =
+  interpretEntityCommand lessonNotesContext cmdCtx c d
   where
     lessonNotesContext =
       mkEntityCommandContext

@@ -7,12 +7,12 @@ module Competences.Command.CompetenceAssessments
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assessment (CompetenceAssessment (..))
-import Competences.Document.Competence (CompetenceId, Level)
 import Competences.Document.User (UserId)
+import Competences.Document.Competence (CompetenceId, Level)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -75,12 +75,12 @@ applyCompetenceAssessmentPatch assessment patch =
 -- Special handling for Create: enforces one-assessment-per-day constraint.
 -- If an assessment already exists for the same (userId, competenceId, date),
 -- the existing assessment is updated instead of creating a duplicate.
-handleCompetenceAssessmentsCommand :: UserId -> CompetenceAssessmentsCommand -> Document -> UpdateResult
-handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) d = case c of
+handleCompetenceAssessmentsCommand :: CommandContext -> CompetenceAssessmentsCommand -> Document -> UpdateResult
+handleCompetenceAssessmentsCommand cmdCtx (OnCompetenceAssessments c) d = case c of
   -- Special Create handling: one-per-day constraint
   Create assessment -> handleCreateWithConstraint assessment d
   -- All other commands use standard interpretation
-  _ -> interpretEntityCommand assessmentContext userId c d
+  _ -> interpretEntityCommand assessmentContext cmdCtx c d
   where
     assessmentContext =
       mkEntityCommandContext
@@ -110,7 +110,7 @@ handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) d = case c
            in Right (doc', affectedUsers updated doc')
         Nothing ->
           -- No existing assessment for this day, create new
-          interpretEntityCommand assessmentContext userId (Create newAssessment) doc
+          interpretEntityCommand assessmentContext cmdCtx (Create newAssessment) doc
 
     -- Find an existing assessment for the same (userId, competenceId, date)
     findExistingForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe CompetenceAssessment

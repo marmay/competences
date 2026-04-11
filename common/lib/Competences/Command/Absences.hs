@@ -7,7 +7,7 @@ module Competences.Command.Absences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), UpdateResult)
+import Competences.Command.Common (AffectedUsers (..), CommandContext (..), EntityCommand (..), UpdateResult)
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
@@ -16,7 +16,6 @@ import Competences.Command.Interpret
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Absence (Absence (..))
-import Competences.Document.User (UserId)
 import Control.Monad (unless)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -56,8 +55,8 @@ applyAbsencePatch :: Absence -> AbsencePatch -> Either text Absence
 applyAbsencePatch a AbsencePatch = Right a
 
 -- | Handle an Absences context command
-handleAbsencesCommand :: UserId -> AbsencesCommand -> Document -> UpdateResult
-handleAbsencesCommand userId (OnAbsences c) d = case c of
+handleAbsencesCommand :: CommandContext -> AbsencesCommand -> Document -> UpdateResult
+handleAbsencesCommand cmdCtx (OnAbsences c) d = case c of
   Create a -> do
     -- Uniqueness: at most one per (lessonId, userId)
     let existing = d.absences Ix.@= a.lessonId Ix.@= a.userId
@@ -68,7 +67,7 @@ handleAbsencesCommand userId (OnAbsences c) d = case c of
     let prsToDelete = d'.participationRecords Ix.@= a.lessonId Ix.@= a.userId
         d'' = d' & #participationRecords %~ \prs -> foldr Ix.delete prs (Ix.toList prsToDelete)
     pure (d'', ctx.affectedUsers a d)
-  _ -> interpretEntityCommand ctx userId c d
+  _ -> interpretEntityCommand ctx cmdCtx c d
   where
     ctx =
       mkEntityCommandContext

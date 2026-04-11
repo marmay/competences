@@ -6,13 +6,13 @@ module Competences.Command.DraftTasks
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
+import Competences.Command.Common (AffectedUsers (..), CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Command.Interpret (EntityCommandContext (..), doLock, doRelease, mkEntityCommandContext)
 import Competences.Command.Tasks (TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), applyTaskPatch, applyTaskGroupPatch, applySubTaskPatch)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), User (..))
 import Competences.Document.Task (TaskGroupId, taskGroupId)
-import Competences.Document.User (UserId, UserRole (..))
+import Competences.Document.User (UserRole (..))
 import Control.Monad (unless)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -63,8 +63,8 @@ deleteDraftTaskGroupCascading groupId doc = do
   pure (doc'', group)
 
 -- | Handle a DraftTasks context command
-handleDraftTasksCommand :: UserId -> DraftTasksCommand -> Document -> UpdateResult
-handleDraftTasksCommand userId cmd d = case cmd of
+handleDraftTasksCommand :: CommandContext -> DraftTasksCommand -> Document -> UpdateResult
+handleDraftTasksCommand cmdCtx cmd d = case cmd of
   OnDraftTasks c -> case c of
     Create task -> do
       case task.taskType of
@@ -93,7 +93,7 @@ handleDraftTasksCommand userId cmd d = case cmd of
           SubTask _ _ -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
           SelfContained _ -> pure (d', allTeachers d)
       Release patch -> do
-        d' <- doRelease userId (TaskLock taskId) d
+        d' <- doRelease cmdCtx.userId (TaskLock taskId) d
         taskCurrent <- draftTaskContext.fetch taskId d'
         case taskCurrent.taskType of
           SubTask _ _ -> Left "Cannot modify SubTasks via OnDraftTasks (use OnDraftSubTasks instead)"
@@ -119,7 +119,7 @@ handleDraftTasksCommand userId cmd d = case cmd of
         _group <- draftTaskGroupContext.fetch groupId d'
         pure (d', allTeachers d)
       Release patch -> do
-        d' <- doRelease userId (TaskGroupLock groupId) d
+        d' <- doRelease cmdCtx.userId (TaskGroupLock groupId) d
         groupCurrent <- draftTaskGroupContext.fetch groupId d'
         groupModified <- applyTaskGroupPatch groupCurrent patch
         (d'', _) <- draftTaskGroupContext.delete groupId d'
@@ -162,7 +162,7 @@ handleDraftTasksCommand userId cmd d = case cmd of
             taskModified <- applySubTaskPatch taskCurrent patch
             (d', _) <- draftSubTaskContext.delete taskId d
             d'' <- draftSubTaskContext.create taskModified d'
-            d''' <- doRelease userId (TaskLock taskId) d''
+            d''' <- doRelease cmdCtx.userId (TaskLock taskId) d''
             pure (d''', allTeachers d)
   where
     draftTaskContext =

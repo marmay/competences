@@ -7,7 +7,7 @@ module Competences.Command.ParticipationRecords
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
@@ -17,7 +17,6 @@ import Competences.Command.Interpret
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.ParticipationRecord (ParticipationRecord (..))
-import Competences.Document.User (UserId)
 import Control.Monad (unless)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -63,8 +62,8 @@ applyParticipationRecordPatch pr patch =
     patchField' @"remark" patch
 
 -- | Handle a ParticipationRecords context command
-handleParticipationRecordsCommand :: UserId -> ParticipationRecordsCommand -> Document -> UpdateResult
-handleParticipationRecordsCommand userId (OnParticipationRecords c) d = case c of
+handleParticipationRecordsCommand :: CommandContext -> ParticipationRecordsCommand -> Document -> UpdateResult
+handleParticipationRecordsCommand cmdCtx (OnParticipationRecords c) d = case c of
   Create pr -> do
     -- Uniqueness: at most one per (lessonId, userId, participationType)
     let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
@@ -79,7 +78,7 @@ handleParticipationRecordsCommand userId (OnParticipationRecords c) d = case c o
     d' <- ctx.create pr d
     d'' <- doLock lockUid lockSid (ctx.lock (ctx.getId pr)) d'
     pure (d'', ctx.affectedUsers pr d)
-  _ -> interpretEntityCommand ctx userId c d
+  _ -> interpretEntityCommand ctx cmdCtx c d
   where
     ctx =
       mkEntityCommandContext

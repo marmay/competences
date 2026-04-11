@@ -7,13 +7,14 @@ module Competences.Command.Evidences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Common.IxSet qualified as Ix
 import Data.Default (Default (..))
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Lesson (LessonId)
+import Competences.Document.User (UserId)
 import Competences.Document.Evidence
   ( ActivityType
   , Evidence (..)
@@ -23,7 +24,6 @@ import Competences.Document.Evidence
   , TaskRemark
   )
 import Competences.Document.Task (TaskId)
-import Competences.Document.User (UserId)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 #ifdef WITH_AESON
@@ -139,8 +139,8 @@ applyEvidencePatch evidence patch =
       >=> patchField' @"lessonId" patch
 
 -- | Handle an Evidences context command
-handleEvidencesCommand :: UserId -> EvidencesCommand -> Document -> UpdateResult
-handleEvidencesCommand uId (OnEvidences c) = interpretEntityCommand evidenceContext uId c
+handleEvidencesCommand :: CommandContext -> EvidencesCommand -> Document -> UpdateResult
+handleEvidencesCommand cmdCtx (OnEvidences c) = interpretEntityCommand evidenceContext cmdCtx c
   where
     evidenceContext =
       mkEntityCommandContext

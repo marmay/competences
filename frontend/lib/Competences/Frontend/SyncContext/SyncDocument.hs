@@ -52,10 +52,10 @@ module Competences.Frontend.SyncContext.SyncDocument
   )
 where
 
-import Competences.Command (Command, handleCommand)
+import Competences.Command (Command, CommandContext (..), handleCommand)
 import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
 import Competences.Document (Document, User (..), UserId, emptyDocument)
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
 import Competences.Protocol (CommandId, ServerInfo (..))
@@ -385,7 +385,7 @@ applyRemoteCommand d cmdUserId cmd = do
 
   modifyMVar_ d.syncDocument $ \syncDoc -> do
     -- Apply command to remoteDocument using the original issuer's userId
-    remoteDoc' <- case handleCommand cmdUserId cmd syncDoc.remoteDocument of
+    remoteDoc' <- case handleCommand (CommandContext cmdUserId legacySessionId) cmd syncDoc.remoteDocument of
       Left err -> do
         -- This shouldn't happen - server validated the command
         logError $ M.ms $ "Server sent invalid command: " <> show err
@@ -435,7 +435,7 @@ replayLocalChanges userId doc localCmds =
   foldr applyOne (doc, []) (reverse localCmds)
   where
     applyOne cmd (currentDoc, validCmds) =
-      case handleCommand userId cmd currentDoc of
+      case handleCommand (CommandContext userId legacySessionId) cmd currentDoc of
         Left _err -> (currentDoc, validCmds)  -- Drop invalid command
         Right (newDoc, _) -> (newDoc, cmd : validCmds)
 

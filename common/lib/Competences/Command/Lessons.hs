@@ -8,7 +8,7 @@ module Competences.Command.Lessons
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
@@ -21,7 +21,6 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonPhase)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
 import Competences.Document.Resource (ResourceId)
-import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -100,8 +99,8 @@ deleteLessonChildren lessonId doc =
    in Right $ doc & #participationRecords %~ \rs -> foldr IxSet.delete rs prs
 
 -- | Handle a Lessons context command
-handleLessonsCommand :: UserId -> LessonsCommand -> Document -> UpdateResult
-handleLessonsCommand userId cmd d = case cmd of
+handleLessonsCommand :: CommandContext -> LessonsCommand -> Document -> UpdateResult
+handleLessonsCommand cmdCtx cmd d = case cmd of
   OnLessons c -> case c of
     Delete lessonId -> do
       -- Cascade: delete participation records for this lesson
@@ -109,7 +108,7 @@ handleLessonsCommand userId cmd d = case cmd of
       lesson <- lessonContext.fetch lessonId d'
       (d'', _) <- lessonContext.delete lessonId d'
       pure (d'', lessonContext.affectedUsers lesson d)
-    _ -> interpretEntityCommand lessonContext userId c d
+    _ -> interpretEntityCommand lessonContext cmdCtx c d
   ReorderLesson p t ->
     case reorder p t d.lessons (.mesoPlanId) of
       Left err -> Left $ explainReorderError err

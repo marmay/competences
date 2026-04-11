@@ -7,12 +7,12 @@ module Competences.Command.Layouts
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Layout (Layout (..))
 import Competences.Document.Layout.Settings (ContentPreset, ContentSettings, PrintSettings)
-import Competences.Document.User (UserId, UserRole (..))
+import Competences.Document.User (UserRole (..))
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -68,9 +68,9 @@ applyLayoutPatch layout patch =
       >=> patchField' @"contentSettings" patch
 
 -- | Handle a Layouts context command
-handleLayoutsCommand :: UserId -> LayoutsCommand -> Document -> UpdateResult
-handleLayoutsCommand userId (OnLayouts c) =
-  interpretEntityCommand layoutContext userId c
+handleLayoutsCommand :: CommandContext -> LayoutsCommand -> Document -> UpdateResult
+handleLayoutsCommand cmdCtx (OnLayouts c) =
+  interpretEntityCommand layoutContext cmdCtx c
   where
     layoutContext =
       mkEntityCommandContext

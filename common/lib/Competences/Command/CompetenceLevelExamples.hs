@@ -7,7 +7,7 @@ module Competences.Command.CompetenceLevelExamples
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( interpretEntityCommand
   , mkGroupOrderedEntityCommandContext
@@ -17,7 +17,6 @@ import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
-import Competences.Document.User (UserId)
 import Competences.TaskContent.RichContent (RichContent)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -74,10 +73,10 @@ applyCompetenceLevelExamplePatch example patch =
       >=> patchField' @"attachments" patch
 
 -- | Handle a CompetenceLevelExamples context command
-handleCompetenceLevelExamplesCommand :: UserId -> CompetenceLevelExamplesCommand -> Document -> UpdateResult
-handleCompetenceLevelExamplesCommand userId cmd d = case cmd of
+handleCompetenceLevelExamplesCommand :: CommandContext -> CompetenceLevelExamplesCommand -> Document -> UpdateResult
+handleCompetenceLevelExamplesCommand cmdCtx cmd d = case cmd of
   OnCompetenceLevelExamples c ->
-    interpretEntityCommand exampleContext userId c d
+    interpretEntityCommand exampleContext cmdCtx c d
   ReorderCompetenceLevelExample p t -> do
     case reorder p t d.competenceLevelExamples competenceLevelIdOf of
       Left err -> Left $ explainReorderError err

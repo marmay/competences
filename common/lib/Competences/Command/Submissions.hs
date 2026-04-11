@@ -7,12 +7,12 @@ module Competences.Command.Submissions
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand (..), ModifyCommand (..), UpdateResult, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, patchField')
 import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
-import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
 import Competences.Document.User (UserId)
+import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -107,20 +107,20 @@ validateVoidConstraint _ _ _ = Right ()
 
 -- | Handle a Submissions command.
 -- Custom handler because submissions have student-only authorization.
-handleSubmissionsCommand :: UserId -> SubmissionsCommand -> Document -> UpdateResult
-handleSubmissionsCommand userId (OnSubmissions cmd) d = do
+handleSubmissionsCommand :: CommandContext -> SubmissionsCommand -> Document -> UpdateResult
+handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
   -- Teachers cannot create submissions
-  case Ix.getOne (d.users Ix.@= userId) of
+  case Ix.getOne (d.users Ix.@= cmdCtx.userId) of
     Nothing -> Left "Submission: user not found"
     Just u -> when (u.role == Teacher) $ Left "Teachers cannot create submissions"
   case cmd of
     Create s -> do
-      unless (isOwner userId s) $
+      unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only submit as yourself"
       -- Verify assignment exists and validate ownership
       case Ix.getOne (d.assignments Ix.@= s.assignmentId) of
         Nothing -> Left "Submission: assignment not found"
-        Just a -> validateOwnership s.ownership userId a d
+        Just a -> validateOwnership s.ownership cmdCtx.userId a d
       validateKind s.kind
       validateVoidConstraint s.kind s d
       unless (Ix.null $ d.submissions Ix.@= s.id) $
@@ -129,11 +129,11 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
       Right (d', affectedUsersFor s d)
 
     CreateAndLock s lockUid lockSid -> do
-      unless (isOwner userId s) $
+      unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only submit as yourself"
       case Ix.getOne (d.assignments Ix.@= s.assignmentId) of
         Nothing -> Left "Submission: assignment not found"
-        Just a -> validateOwnership s.ownership userId a d
+        Just a -> validateOwnership s.ownership cmdCtx.userId a d
       validateKind s.kind
       validateVoidConstraint s.kind s d
       unless (Ix.null $ d.submissions Ix.@= s.id) $
@@ -144,23 +144,23 @@ handleSubmissionsCommand userId (OnSubmissions cmd) d = do
 
     Delete submissionId -> do
       s <- fetchSubmission submissionId d
-      unless (isOwner userId s) $
+      unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only delete your own submission"
       let d' = d & #submissions %~ Ix.delete s
       Right (d', affectedUsersFor s d)
 
     Modify submissionId (Lock lockUid lockSid) -> do
       s <- fetchSubmission submissionId d
-      unless (isOwner userId s) $
+      unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
       d' <- doLock lockUid lockSid (SubmissionLock submissionId) d
       Right (d', affectedUsersFor s d)
 
     Modify submissionId (Release patch) -> do
       s <- fetchSubmission submissionId d
-      unless (isOwner userId s) $
+      unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doRelease userId (SubmissionLock submissionId) d
+      d' <- doRelease cmdCtx.userId (SubmissionLock submissionId) d
       s' <- applySubmissionPatch s patch
       validateKind s'.kind
       let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx submissionId

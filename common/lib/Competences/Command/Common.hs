@@ -4,6 +4,7 @@ module Competences.Command.Common
   ( AffectedUsers (..)
   , UpdateResult
   , Change
+  , CommandContext (..)
   , ModifyCommand (..)
   , EntityCommand (..)
   , patchField
@@ -42,6 +43,13 @@ newtype AffectedUsers = AffectedUsers [UserId]
   deriving newtype (Semigroup, Monoid)
 
 type UpdateResult = Either Text (Document, AffectedUsers)
+
+-- | Context for command execution, carrying the authenticated user and session.
+data CommandContext = CommandContext
+  { userId :: !UserId
+  , sessionId :: !SessionId
+  }
+  deriving (Eq, Show)
 
 -- | Represents a change from one value to another (for conflict detection in patches)
 type Change a = Maybe (a, a)

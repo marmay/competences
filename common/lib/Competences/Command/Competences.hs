@@ -9,7 +9,7 @@ module Competences.Command.Competences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( interpretEntityCommand
   , mkGroupOrderedEntityCommandContext
@@ -19,7 +19,6 @@ import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Competence (Competence (..), Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
-import Competences.Document.User (UserId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -148,12 +147,12 @@ applyCompetencePatch competence patch =
       c & #levels .~ Map.filter (\info -> not (T.null info.description)) c.levels
 
 -- | Handle a Competences context command
-handleCompetencesCommand :: UserId -> CompetencesCommand -> Document -> UpdateResult
-handleCompetencesCommand userId cmd d = case cmd of
+handleCompetencesCommand :: CommandContext -> CompetencesCommand -> Document -> UpdateResult
+handleCompetencesCommand cmdCtx cmd d = case cmd of
   OnCompetenceGrids c ->
-    interpretEntityCommand competenceGridContext userId c d
+    interpretEntityCommand competenceGridContext cmdCtx c d
   OnCompetences c ->
-    interpretEntityCommand competenceContext userId c d
+    interpretEntityCommand competenceContext cmdCtx c d
   ReorderCompetence p t -> do
     case reorder p t d.competences (.competenceGridId) of
       Left err -> Left $ explainReorderError err
