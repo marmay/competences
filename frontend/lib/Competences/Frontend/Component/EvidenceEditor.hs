@@ -16,9 +16,9 @@ import Competences.Document
   , Evidence (..)
   , LevelInfo (..)
   , Lock (..)
-  , LockHolder (..)
   , User (..)
   , emptyDocument
+  , lockOwner
   )
 import Competences.Document.Evidence (Observation (..))
 import Competences.Document.Task (Task (..), TaskId, taskDisplayName)
@@ -51,7 +51,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Data.Bifunctor (bimap)
-import Optics.Core ((&), (.~), (?~), (^.), lens)
+import Optics.Core ((&), (.~), (?~), lens)
 
 -- | Mode for the evidence component
 data EvidenceMode
@@ -257,7 +257,7 @@ evidenceEditorDetailView r evidence =
       TE.editable
         ( \d -> do
             fmap
-              (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? EvidenceLock c.id))
+              (\c -> (c, lockOwner (EvidenceLock c.id) d))
               (Ix.getOne $ d.evidences Ix.@= evidence.id)
         )
         & (#modify ?~ (\e modify -> Evidences $ OnEvidences (Modify e.id modify)))

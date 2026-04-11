@@ -5,6 +5,7 @@ module Competences.Document
   ( Document (..)
   , emptyDocument
   , projectDocument
+  , lockOwner
   , module Competences.Document.Assessment
   , module Competences.Document.CompetenceGridGrade
   , module Competences.Document.Grade
@@ -217,6 +218,10 @@ instance ToJSON Document where
       , "layouts" .= Ix.toList d.layouts
       ]
 #endif
+
+-- | Look up who owns a lock, if any.
+lockOwner :: Lock -> Document -> Maybe UserId
+lockOwner l d = (.userId) <$> M.lookup l d.locks
 
 emptyDocument :: Document
 emptyDocument =

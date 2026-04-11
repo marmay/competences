@@ -6,7 +6,7 @@ module Competences.HouseCup.Database
 where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Command.Common (injectLockHolder)
+import Competences.Command.Common (injectLockHolder, migrateSnapshotLocks)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Session (legacySessionId)
 import Competences.Document.Id (Id (..))
@@ -55,7 +55,7 @@ unwrapSnapshot env = case env.version of
   1 -> case fromJSON env.payload of
     Success doc -> Right doc
     Error err -> Left $ "Failed to parse snapshot v1: " <> T.pack err
-  2 -> case fromJSON env.payload of
+  2 -> case fromJSON (migrateSnapshotLocks env.payload) of
     Success doc -> Right doc
     Error err -> Left $ "Failed to parse snapshot v2: " <> T.pack err
   3 -> case fromJSON env.payload of

@@ -5,7 +5,7 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..), UserPatch (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), LockHolder (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), lockOwner)
 import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
@@ -18,7 +18,6 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -66,7 +65,7 @@ userListEditorComponent r =
             TE.editable
               ( \d ->
                   map
-                    (\u -> (u, fmap (.userId) $ (d ^. #locks) Map.!? UserLock u.id))
+                    (\u -> (u, lockOwner (UserLock u.id) d))
                     (Ix.toAscList (Proxy @Text) (d ^. #users))
               )
               & (#modify ?~ \u m -> Users $ OnUsers $ Modify u.id m)

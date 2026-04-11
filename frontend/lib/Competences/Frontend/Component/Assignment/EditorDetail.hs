@@ -11,9 +11,9 @@ import Competences.Document
   ( Assignment (..)
   , Document (..)
   , Lock (..)
-  , LockHolder (..)
   , User (..)
   , emptyDocument
+  , lockOwner
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
@@ -50,13 +50,12 @@ import Competences.Query.Task (getTaskOrDraft)
 import Data.List (sortOn)
 import Data.Maybe (isJust)
 import Data.Proxy (Proxy (..))
-import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (^.), (.~))
+import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (.~))
 
 -- ============================================================================
 -- Wrapper Model and Actions
@@ -197,7 +196,7 @@ editorWrapperComponent r assignment =
                 let mAssignment = case origin' of
                       Published -> Ix.getOne $ d.assignments Ix.@= assignment.id
                       Draft -> Ix.getOne $ d.draftAssignments Ix.@= assignment.id
-                 in fmap (\c -> (c, fmap (.userId) $ (d ^. #locks) Map.!? AssignmentLock c.id)) mAssignment
+                 in fmap (\c -> (c, lockOwner (AssignmentLock c.id) d)) mAssignment
             )
             & (#modify ?~ (\a modify -> wrap $ Assignments $ OnAssignments (Modify a.id modify)))
             & (#delete ?~ (\a -> wrap $ Assignments $ OnAssignments (Delete a.id)))

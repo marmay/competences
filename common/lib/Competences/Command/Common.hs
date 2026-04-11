@@ -13,19 +13,19 @@ module Competences.Command.Common
   , requireTeacher
 #ifdef WITH_AESON
   , injectLockHolder
+  , migrateSnapshotLocks
 #endif
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserRole (..))
-import Competences.Document.Id (Id)
-import Competences.Document.Id qualified
+import Competences.Document.Id (Id (..), nilId)
 import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, toJSON, withObject, (.:), (.:?))
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, object, toJSON, withObject, (.:), (.:?), (.=))
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Parser)
 import Data.UUID.Types qualified as UUID
@@ -86,7 +86,7 @@ instance (FromJSON patch) => FromJSON (ModifyCommand patch) where
         mContents <- v .:? "contents"
         case mContents of
           Just (uid, sid) -> pure $ Lock uid sid
-          Nothing -> pure $ Lock (Competences.Document.Id.nilId) legacySessionId
+          Nothing -> pure $ Lock (nilId) legacySessionId
       "Release" -> Release <$> v .: "contents"
       _ -> fail $ "Unknown ModifyCommand tag: " <> show tag
 
@@ -104,7 +104,7 @@ instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch) where
         case fromJSON @(a, UserId, SessionId) contents of
           Success (entity, uid, sid) -> pure $ CreateAndLock entity uid sid
           Error _ -> case fromJSON @a contents of
-            Success entity -> pure $ CreateAndLock entity Competences.Document.Id.nilId legacySessionId
+            Success entity -> pure $ CreateAndLock entity nilId legacySessionId
             Error err -> fail $ "Failed to parse CreateAndLock contents: " <> err
       "Delete" -> Delete <$> v .: "contents"
       "Modify" -> do
@@ -185,4 +185,20 @@ injectLockHolder uid = go
 
     isArray (Array _) = True
     isArray _ = False
+
+-- | Migrate locks in a v2 snapshot from [(Lock, UserId)] to [(Lock, LockHolder)].
+-- Transforms bare UUID strings into LockHolder objects with legacySessionId.
+migrateSnapshotLocks :: Value -> Value
+migrateSnapshotLocks (Object docObj) = case KM.lookup "locks" docObj of
+  Just locksVal -> Object $ KM.insert "locks" (migrateLockList locksVal) docObj
+  Nothing -> Object docObj
+  where
+    sidText = UUID.toText legacySessionId.unId
+    migrateLockList (Array locks) = Array $ fmap migrateLockPair locks
+    migrateLockList other = other
+    migrateLockPair (Array pair) = Array $ fmap migrateValue pair
+    migrateLockPair other = other
+    migrateValue (String uidText) = object ["userId" .= uidText, "sessionId" .= sidText]
+    migrateValue other = other
+migrateSnapshotLocks other = other
 #endif

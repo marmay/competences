@@ -11,11 +11,11 @@ import Competences.Document
   ( Document (..)
   , FileRef (..)
   , Lock (..)
-  , LockHolder (..)
   , Resource (..)
   , ResourceContent (..)
   , ResourceIdentifier (..)
   , SHA256Hash (..)
+  , lockOwner
   )
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Frontend.Common qualified as C
@@ -59,7 +59,7 @@ editorDetailView r resource =
       TE.editable
         ( \d ->
             fmap
-              (\res -> (res, fmap (.userId) $ (d ^. #locks) Map.!? ResourceLock res.id))
+              (\res -> (res, lockOwner (ResourceLock res.id) d))
               (Ix.getOne $ d.resources Ix.@= resource.id)
         )
         & (#modify ?~ (\res modify -> Resources $ OnResources (EC.Modify res.id modify)))

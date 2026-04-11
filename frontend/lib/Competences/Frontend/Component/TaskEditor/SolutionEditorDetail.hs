@@ -10,8 +10,8 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Document (..)
   , Lock (..)
-  , LockHolder (..)
   , Solution (..)
+  , lockOwner
   )
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
@@ -23,10 +23,9 @@ import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), 
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
-import Data.Map.Strict qualified as Map
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Optics.Core ((&), (.~), (?~), (^.))
+import Optics.Core ((&), (.~), (?~))
 
 -- | Detail view for editing a solution
 editorDetailView
@@ -42,7 +41,7 @@ editorDetailView r solution =
       TE.editable
         ( \d ->
             fmap
-              (\s -> (s, fmap (.userId) $ (d ^. #locks) Map.!? SolutionLock s.id))
+              (\s -> (s, lockOwner (SolutionLock s.id) d))
               (Ix.getOne $ d.solutions Ix.@= solution.id)
         )
         & (#modify ?~ (\s modify -> Solutions $ OnSolutions (Modify s.id modify)))
@@ -124,7 +123,7 @@ solutionInlineEditor r solution =
       TE.editable
         ( \d ->
             fmap
-              (\s -> (s, fmap (.userId) $ (d ^. #locks) Map.!? SolutionLock s.id))
+              (\s -> (s, lockOwner (SolutionLock s.id) d))
               (Ix.getOne $ d.solutions Ix.@= solution.id)
         )
         & (#modify ?~ (\s modify -> Solutions $ OnSolutions (Modify s.id modify)))

@@ -27,7 +27,7 @@ module Competences.Backend.Envelope
 where
 
 import Competences.Command (Command (..), MigrationCommand (..))
-import Competences.Command.Common (injectLockHolder)
+import Competences.Command.Common (injectLockHolder, migrateSnapshotLocks)
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id (..))
@@ -182,7 +182,7 @@ unwrapSnapshot env = case env.version of
     Right (doc, cmds)
   2 -> do
     -- V2: locks stored as [(Lock, UserId)] — migrate to [(Lock, LockHolder)]
-    let migratedPayload = migrateLocks env.payload
+    let migratedPayload = migrateSnapshotLocks env.payload
     case fromJSON migratedPayload of
       Success doc -> Right (doc, [])
       Error err -> Left $ "Failed to parse snapshot v2: " <> pack err
@@ -193,23 +193,6 @@ unwrapSnapshot env = case env.version of
       Error err -> Left $ "Failed to parse snapshot v3: " <> pack err
   v ->
     Left $ "Unknown snapshot version: " <> pack (show v)
-
--- | Migrate locks from v2 format [(Lock, UserId)] to v3 format [(Lock, LockHolder)].
--- V2 locks are [[lockJson, "userId-uuid"]], v3 are [[lockJson, {"userId":..,"sessionId":..}]].
-migrateLocks :: Value -> Value
-migrateLocks (Object docObj) = case KM.lookup "locks" docObj of
-  Just locksVal -> Object $ KM.insert "locks" (migrateLockList locksVal) docObj
-  Nothing -> Object docObj
-  where
-    legacySidText = UUID.toText legacySessionId.unId
-    migrateLockList (Array locks) = Array $ fmap migrateLockPair locks
-    migrateLockList other = other
-    migrateLockPair (Array pair) = Array $ fmap migrateValue pair
-    migrateLockPair other = other
-    -- Convert bare UUID strings to LockHolder objects; leave objects unchanged
-    migrateValue (String uidText) = object ["userId" .= uidText, "sessionId" .= legacySidText]
-    migrateValue other = other
-migrateLocks other = other
 
 -- | Extract Assignment.lessonId links from a v1 snapshot's raw JSON.
 -- Returns a map from LessonId to list of AssignmentIds that referenced it.

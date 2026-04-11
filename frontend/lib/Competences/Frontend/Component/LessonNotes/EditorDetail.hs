@@ -12,9 +12,9 @@ import Competences.Document
   ( Document (..)
   , LessonNotes (..)
   , Lock (..)
-  , LockHolder (..)
   , Resource (..)
   , Task (..)
+  , lockOwner
   )
 import Competences.Document.LessonNotes (LessonNoteItem (..))
 import Competences.Document.Resource (ResourceIdentifier (..))
@@ -33,9 +33,8 @@ import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Query.Resource qualified as QResource
 import Competences.Query.Task qualified as QTask
-import Data.Map.Strict qualified as Map
 import Miso qualified as M
-import Optics.Core ((&), (?~), (^.))
+import Optics.Core ((&), (?~))
 
 -- | Detail view for editing a lesson notes entry
 editorDetailView
@@ -51,7 +50,7 @@ editorDetailView r ln =
       TE.editable
         ( \d ->
             fmap
-              (\ln' -> (ln', fmap (.userId) $ (d ^. #locks) Map.!? LessonNotesLock ln'.id))
+              (\ln' -> (ln', lockOwner (LessonNotesLock ln'.id) d))
               (Ix.getOne $ d.lessonNotes Ix.@= ln.id)
         )
         & (#modify ?~ (\ln' modify -> Cmd.LessonNotes $ OnLessonNotes (EC.Modify ln'.id modify)))
