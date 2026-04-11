@@ -14,6 +14,7 @@ import Competences.Command (Command)
 import Competences.Document (Document, User, UserId)
 import Competences.Document.FileRef (FileData, FileRef, SHA256Hash)
 import Competences.Document.Id (Id)
+import Competences.Document.Session (SessionId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
@@ -64,7 +65,7 @@ data ClientMessage
     -- Removes token from URL to prevent logging in server logs, browser history, etc.
     -- Includes client version information for compatibility checking.
     -- The Maybe UserId is for teacher impersonation.
-    Authenticate !Text !ClientInfo !(Maybe UserId)
+    Authenticate !Text !ClientInfo !SessionId !(Maybe UserId)
   | -- | Subscribe from a given command version.
     -- Nothing = fresh client (send full snapshot).
     -- Just commandId = incremental from this point.

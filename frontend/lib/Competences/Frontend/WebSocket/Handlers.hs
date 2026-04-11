@@ -15,6 +15,7 @@ import Competences.Command (Command)
 import Competences.Document (Document, User (..), UserId)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.Id (idToText)
+import Competences.Document.Session (SessionId)
 import Competences.Frontend.BuildInfo (frontendVersion)
 import Competences.Frontend.IndexedDB (CheckpointData (..), IndexedDB, computeDocumentChecksum, loadCheckpoint, storeCheckpoint)
 import Competences.Frontend.Logging (logInfo, logWarn)
@@ -62,9 +63,9 @@ import UnliftIO (readIORef, writeIORef)
 -- BUILDING BLOCKS
 -- ============================================================================
 
--- | Send authentication message with client version info.
-sendAuth :: Text -> Maybe UserId -> WebSocket -> IO ()
-sendAuth token mImpersonate ws = ws.send (Authenticate token clientInfo mImpersonate)
+-- | Send authentication message with client version info and session ID.
+sendAuth :: Text -> SessionId -> Maybe UserId -> WebSocket -> IO ()
+sendAuth token sessionId mImpersonate ws = ws.send (Authenticate token clientInfo sessionId mImpersonate)
   where
     clientInfo = ClientInfo frontendVersion
 
@@ -252,18 +253,19 @@ validateSyncAndAck mIdb key mChecksum cmdId ref ws = do
 -- | Initial handler: authenticate, subscribe, create state, fork app, run operation.
 mkInitialHandler
   :: Text                         -- ^ JWT token
+  -> SessionId                    -- ^ Client session ID
   -> Maybe UserId                 -- ^ Impersonation target
   -> Bool                         -- ^ Whether impersonating
   -> Maybe IndexedDB              -- ^ IndexedDB handle (Nothing outside WASM)
   -> (SyncContext -> IO ())       -- ^ Fork action (starts Miso app)
   -> WebSocket
   -> IO (SyncContext, CommandSender)
-mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
+mkInitialHandler token sessionId mImpersonate impersonating mIdb forkApp ws = do
   -- Create CommandSender
   sender <- mkCommandSender
 
   -- Authenticate
-  sendAuth token mImpersonate ws
+  sendAuth token sessionId mImpersonate ws
   (user, srvInfo) <- waitForAuth ws
 
   -- Update sender with connection
@@ -328,14 +330,15 @@ mkInitialHandler token mImpersonate impersonating mIdb forkApp ws = do
 -- | Reconnection handler: re-authenticate, subscribe, update state, run operation.
 mkReconnectHandler
   :: Text                            -- ^ JWT token
+  -> SessionId                       -- ^ Client session ID
   -> Maybe UserId                    -- ^ Impersonation target
   -> Maybe IndexedDB                 -- ^ IndexedDB handle
   -> (SyncContext, CommandSender)    -- ^ Previous state and sender
   -> WebSocket
   -> IO (SyncContext, CommandSender)
-mkReconnectHandler token mImpersonate mIdb (ref, sender) ws = do
+mkReconnectHandler token sessionId mImpersonate mIdb (ref, sender) ws = do
   -- Authenticate
-  sendAuth token mImpersonate ws
+  sendAuth token sessionId mImpersonate ws
   (_user, srvInfo) <- waitForAuth ws
 
   -- Update sender with new connection

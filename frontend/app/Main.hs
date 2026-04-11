@@ -85,14 +85,11 @@ main = do
 
         -- Connect and run with automatic reconnection
         logDebug "Connecting to server..."
-        let initial = mkInitialHandler jwtToken mImpersonate imp mIdb forkApp
-            reconnect = mkReconnectHandler jwtToken mImpersonate mIdb
+        let initial = mkInitialHandler jwtToken sessionId mImpersonate imp mIdb forkApp
+            reconnect = mkReconnectHandler jwtToken sessionId mImpersonate mIdb
 
         withWebSocket wsUrl initial reconnect
           `catch` handleAuthFailure location
-
-        -- Silence unused warning (sessionId will be used when sent during auth)
-        void $ pure sessionId
 
 -- | Parse the ?impersonate=<uuid> query parameter from a URL search string
 parseImpersonateParam :: T.Text -> Maybe UserId

@@ -20,6 +20,7 @@ import Competences.Command (Command (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (Office365Id)
 import Competences.Protocol (CommandId, ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Concurrent (ThreadId, forkIO, killThread)
@@ -67,8 +68,8 @@ wsHandler state jwtSecret pending = do
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
     case decodeOrFail authMsg of
-      Right (_, _, Authenticate token _clientInfo mImpersonate) ->
-        authenticateAndHandle state jwtSecret conn token mImpersonate
+      Right (_, _, Authenticate token _clientInfo sessionId mImpersonate) ->
+        authenticateAndHandle state jwtSecret conn token sessionId mImpersonate
       Right (_, _, _otherMsg) -> do
         putStrLn "First message must be Authenticate"
         WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "First message must be authentication")
@@ -78,8 +79,8 @@ wsHandler state jwtSecret pending = do
 
 -- | Shared authentication logic.
 authenticateAndHandle
-  :: AppState -> JWTSecret -> WS.Connection -> Text -> Maybe UserId -> IO ()
-authenticateAndHandle state jwtSecret conn token mImpersonate =
+  :: AppState -> JWTSecret -> WS.Connection -> Text -> SessionId -> Maybe UserId -> IO ()
+authenticateAndHandle state jwtSecret conn token sessionId mImpersonate =
   case extractUserFromJWT' jwtSecret token of
     Left err -> do
       putStrLn $ "Authentication failed: " <> err
@@ -91,7 +92,7 @@ authenticateAndHandle state jwtSecret conn token mImpersonate =
           putStrLn $ "Authentication successful for: " <> T.unpack userName
           -- Send Authenticated
           WS.sendBinaryData conn (Bin.encode $ Authenticated user (ServerInfo backendVersion))
-          handleClient state userId user conn
+          handleClient state userId sessionId user conn
         Just targetUserId -> do
           if userRole /= Teacher
             then do
@@ -106,7 +107,7 @@ authenticateAndHandle state jwtSecret conn token mImpersonate =
                 Just targetUser -> do
                   putStrLn $ "Impersonation: " <> T.unpack userName <> " viewing as " <> T.unpack targetUser.name
                   WS.sendBinaryData conn (Bin.encode $ Authenticated targetUser (ServerInfo backendVersion))
-                  handleClient state targetUser.id targetUser conn
+                  handleClient state targetUser.id sessionId targetUser conn
 
 -- | Validate JWT and extract user information
 extractUserFromJWT' :: JWTSecret -> Text -> Either String (UserId, Text, UserRole, Office365Id)
@@ -116,8 +117,8 @@ extractUserFromJWT' jwtSecret token = do
 
 -- | Handle a single client connection after authentication.
 -- Protocol: wait for SubscribeFrom, sync, then enter operation loop with sender thread.
-handleClient :: AppState -> UserId -> User -> WS.Connection -> IO ()
-handleClient state uid user conn = do
+handleClient :: AppState -> UserId -> SessionId -> User -> WS.Connection -> IO ()
+handleClient state uid sessionId user conn = do
   putStrLn $ "Client connected: " <> T.unpack user.name <> " (" <> show uid <> ")"
 
   -- Wait for SubscribeFrom (first message after auth)
@@ -176,7 +177,7 @@ handleClient state uid user conn = do
 
               -- Enter receive loop, cleanup on disconnect
               flip finally (cleanup uid connId senderTid) $
-                receiveLoop state uid user conn ackSignal resyncFlag
+                receiveLoop state uid sessionId user conn ackSignal resyncFlag
   where
     cleanup :: UserId -> ConnectionId -> ThreadId -> IO ()
     cleanup userId cid senderTid = do
@@ -315,18 +316,18 @@ senderThread queue ackSignal resyncFlag user state conn = do
             else go
 
 -- | Main receive loop after sync is complete.
-receiveLoop :: AppState -> UserId -> User -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
-receiveLoop state uid user conn ackSignal resyncFlag = forever $ do
+receiveLoop :: AppState -> UserId -> SessionId -> User -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
+receiveLoop state uid sessionId user conn ackSignal resyncFlag = forever $ do
   msg <- WS.receiveData conn
   case decodeOrFail msg of
     Left (_, _, err) ->
       putStrLn $ "Invalid message format from " <> show uid <> ": " <> err <> ", ignoring"
     Right (_, _, clientMsg) ->
-      handleClientMessage state uid user clientMsg conn ackSignal resyncFlag
+      handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
 
 -- | Handle individual client messages during operation.
-handleClientMessage :: AppState -> UserId -> User -> ClientMessage -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
-handleClientMessage state uid user clientMsg conn ackSignal resyncFlag = case clientMsg of
+handleClientMessage :: AppState -> UserId -> SessionId -> User -> ClientMessage -> WS.Connection -> TMVar () -> TVar Bool -> IO ()
+handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag = case clientMsg of
   Authenticate {} ->
     putStrLn $ "Unexpected Authenticate message from " <> show uid <> " (already authenticated)"
 
@@ -348,7 +349,7 @@ handleClientMessage state uid user clientMsg conn ackSignal resyncFlag = case cl
         putStrLn $ "Command rejected: user " <> show uid <> " is not authorized"
         WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Not authorized for this command")
       else do
-        result <- CP.submitCommand state.processor uid cmd
+        result <- CP.submitCommand state.processor uid sessionId cmd
         case result of
           Left err -> do
             putStrLn $ "Command rejected: " <> T.unpack err

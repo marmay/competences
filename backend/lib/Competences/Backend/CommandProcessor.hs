@@ -22,7 +22,7 @@ where
 
 import Competences.Backend.Database qualified as DB
 import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), ModifyCommand (..), handleCommand)
-import Competences.Document.Session (legacySessionId)
+import Competences.Document.Session (SessionId)
 import Competences.Command.Audience (CommandAudience (..), commandAudience)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), UserRole (..))
@@ -77,7 +77,7 @@ data ClientState = ClientState
 
 -- | A request to the processor.
 data ProcessorRequest
-  = SubmitCommand !UserId !Command !(TMVar (Either Text CommandId))
+  = SubmitCommand !UserId !SessionId !Command !(TMVar (Either Text CommandId))
   | RegisterClient !ConnectionId !UserRole !UserId !(TQueue ClientQueueItem)
   | UnregisterClient !ConnectionId
 
@@ -105,10 +105,10 @@ startProcessor docVar genVar pool = do
 
 -- | Submit a command for processing. Blocks until the command is applied (or rejected).
 -- Returns the CommandId on success.
-submitCommand :: CommandProcessor -> UserId -> Command -> IO (Either Text CommandId)
-submitCommand proc uid cmd = do
+submitCommand :: CommandProcessor -> UserId -> SessionId -> Command -> IO (Either Text CommandId)
+submitCommand proc uid sid cmd = do
   responseVar <- newEmptyTMVarIO
-  atomically $ writeTBQueue proc.inputQueue (SubmitCommand uid cmd responseVar)
+  atomically $ writeTBQueue proc.inputQueue (SubmitCommand uid sid cmd responseVar)
   atomically $ takeTMVar responseVar
 
 -- | Register a client's output queue with the processor.
@@ -134,8 +134,8 @@ processorLoop inputQ docVar genVar pool clientsRef = go
     go = do
       req <- atomically $ readTBQueue inputQ
       case req of
-        SubmitCommand uid cmd responseVar -> do
-          handleSubmit uid cmd responseVar
+        SubmitCommand uid sid cmd responseVar -> do
+          handleSubmit uid sid cmd responseVar
           go
         RegisterClient connId role' uid queue' -> do
           let cs = ClientState
@@ -150,8 +150,8 @@ processorLoop inputQ docVar genVar pool clientsRef = go
           modifyIORef' clientsRef (Map.delete connId)
           go
 
-    handleSubmit :: UserId -> Command -> TMVar (Either Text CommandId) -> IO ()
-    handleSubmit uid cmd responseVar = do
+    handleSubmit :: UserId -> SessionId -> Command -> TMVar (Either Text CommandId) -> IO ()
+    handleSubmit uid sid cmd responseVar = do
       -- Pre-generate CommandId
       cmdUuid <- UUID.nextRandom
       let cmdId = Id cmdUuid
@@ -179,7 +179,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- SenderThreads read queue + docVar atomically → always consistent.
       result <- atomically $ do
         doc <- readTVar docVar
-        case handleCommand uid legacySessionId cmd doc of
+        case handleCommand uid sid cmd doc of
           Left err -> do
             putTMVar responseVar (Left err)
             pure Nothing
@@ -213,7 +213,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
           modifyIORef' clientsRef (Map.mapWithKey updateCounter)
 
           -- Persist to DB (optimistic, after responding to client)
-          generation <- DB.saveCommandWithAudience pool cmdId uid legacySessionId cmd audience
+          generation <- DB.saveCommandWithAudience pool cmdId uid sid cmd audience
           atomically $ writeTVar genVar generation
 
           -- Check snapshot
