@@ -285,7 +285,7 @@ mkInitialHandler token sessionId mImpersonate impersonating mIdb forkApp ws = do
   syncResult <- waitForSync ws
 
   -- Create SyncContext
-  env <- mkSyncDocumentEnv user sender impersonating
+  env <- mkSyncDocumentEnv user sessionId sender impersonating
   ref <- mkSyncDocument env
   setServerInfo ref srvInfo
 

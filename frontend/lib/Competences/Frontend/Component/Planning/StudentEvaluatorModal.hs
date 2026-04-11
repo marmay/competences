@@ -39,6 +39,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -330,7 +331,7 @@ studentEvaluatorModal r initialLessonId initialUserId wm =
         case m.viewData.existingEvidence of
           Just existingEv -> do
             -- Lock then modify existing evidence
-            let lockCmd = Evidences (OnEvidences (Modify existingEv.id Lock))
+            let lockCmd = Evidences (OnEvidences (Modify existingEv.id (mkLock r)))
                 patch =
                   EvidencePatch
                     { userId = Nothing

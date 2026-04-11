@@ -12,7 +12,6 @@ import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandCon
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.Assessment (CompetenceAssessment (..))
 import Competences.Document.Competence (CompetenceId, Level)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -76,12 +75,12 @@ applyCompetenceAssessmentPatch assessment patch =
 -- Special handling for Create: enforces one-assessment-per-day constraint.
 -- If an assessment already exists for the same (userId, competenceId, date),
 -- the existing assessment is updated instead of creating a duplicate.
-handleCompetenceAssessmentsCommand :: UserId -> SessionId -> CompetenceAssessmentsCommand -> Document -> UpdateResult
-handleCompetenceAssessmentsCommand userId sid (OnCompetenceAssessments c) d = case c of
+handleCompetenceAssessmentsCommand :: UserId -> CompetenceAssessmentsCommand -> Document -> UpdateResult
+handleCompetenceAssessmentsCommand userId (OnCompetenceAssessments c) d = case c of
   -- Special Create handling: one-per-day constraint
   Create assessment -> handleCreateWithConstraint assessment d
   -- All other commands use standard interpretation
-  _ -> interpretEntityCommand assessmentContext userId sid c d
+  _ -> interpretEntityCommand assessmentContext userId c d
   where
     assessmentContext =
       mkEntityCommandContext
@@ -111,7 +110,7 @@ handleCompetenceAssessmentsCommand userId sid (OnCompetenceAssessments c) d = ca
            in Right (doc', affectedUsers updated doc')
         Nothing ->
           -- No existing assessment for this day, create new
-          interpretEntityCommand assessmentContext userId sid (Create newAssessment) doc
+          interpretEntityCommand assessmentContext userId (Create newAssessment) doc
 
     -- Find an existing assessment for the same (userId, competenceId, date)
     findExistingForDay :: Document -> UserId -> CompetenceId -> Day -> Maybe CompetenceAssessment

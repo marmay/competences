@@ -5,14 +5,14 @@ module Competences.Frontend.Component.RenumberModal
 where
 
 import Competences.Command (Command (..))
-import Competences.Command.Common (EntityCommand (..))
-import Competences.Command.Common qualified as Cmd (ModifyCommand (..))
+import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
 import Competences.Command.Tasks (TaskPatch (..), TasksCommand (..))
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
+  , mkLock
   , modifySyncDocument
   )
 import Competences.Frontend.SyncContext.WindowManager
@@ -208,9 +208,9 @@ renumberModalComponent r infos wm =
       M.io_ $ do
         mapM_
           ( \e -> do
-              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId Cmd.Lock))
+              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (mkLock r)))
               let patch = def & #identifier .~ Just (e.oldIdentifier, e.newIdentifier) :: TaskPatch
-              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (Cmd.Release patch)))
+              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (Release patch)))
           )
           toRename
         closeWindow wm

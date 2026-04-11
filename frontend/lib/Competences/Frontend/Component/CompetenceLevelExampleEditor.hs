@@ -38,6 +38,7 @@ import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -296,7 +297,7 @@ exampleEditorComponent r compId lvl =
                 }
             M.io_ $
               modifySyncDocument r $
-                CompetenceLevelExamples $ OnCompetenceLevelExamples $ Modify ex.id Lock
+                CompetenceLevelExamples $ OnCompetenceLevelExamples $ Modify ex.id (mkLock r)
           _ -> pure ()
         Nothing -> pure ()
 

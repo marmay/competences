@@ -34,6 +34,8 @@ module Competences.Frontend.SyncContext.SyncDocument
   , completeFileDownload
     -- * File Cache
   , FileCache
+    -- * Lock command helper
+  , mkLock
     -- * Server Info
   , setServerInfo
   , readServerInfo
@@ -50,8 +52,9 @@ module Competences.Frontend.SyncContext.SyncDocument
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Document.Session (legacySessionId)
+import Competences.Command.Common (ModifyCommand (..))
 import Competences.Document (Document, User (..), UserId, emptyDocument)
+import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
 import Competences.Protocol (CommandId, ServerInfo (..))
@@ -158,9 +161,14 @@ getCommandSender r = r.env.commandSender
 getFocusedUserRef :: SyncContext -> FocusedUserRef
 getFocusedUserRef r = r.focusedUserRef
 
+-- | Create a Lock ModifyCommand using the connected user from a SyncContext
+mkLock :: SyncContext -> ModifyCommand patch
+mkLock r = Lock r.env.connectedUser.id r.env.sessionId
+
 data SyncDocumentEnv = SyncDocumentEnv
   { currentDay :: !Day
   , connectedUser :: !User
+  , sessionId :: !SessionId
   , commandSender :: !CommandSender  -- Reference to CommandSender for network operations
   , impersonating :: !Bool  -- Whether the teacher is impersonating a student
   }
@@ -346,10 +354,10 @@ issueInitialUpdate r = do
   d <- readMVar r.syncDocument
   forM_ d.onChanged $ issueDocumentChange (DocumentChange d.localDocument InitialUpdate)
 
-mkSyncDocumentEnv :: (MonadIO m) => User -> CommandSender -> Bool -> m SyncDocumentEnv
-mkSyncDocumentEnv u sender imp = do
+mkSyncDocumentEnv :: (MonadIO m) => User -> SessionId -> CommandSender -> Bool -> m SyncDocumentEnv
+mkSyncDocumentEnv u sid sender imp = do
   d <- (.utctDay) <$> liftIO getCurrentTime
-  pure $ SyncDocumentEnv d u sender imp
+  pure $ SyncDocumentEnv d u sid sender imp
 
 nextId :: (MonadUnliftIO m) => SyncContext -> m (Id a)
 nextId r = modifyMVar r.randomGen (pure . swap . random)
@@ -372,7 +380,7 @@ applyRemoteCommand d cmdUserId cmd = do
 
   modifyMVar_ d.syncDocument $ \syncDoc -> do
     -- Apply command to remoteDocument using the original issuer's userId
-    remoteDoc' <- case handleCommand cmdUserId legacySessionId cmd syncDoc.remoteDocument of
+    remoteDoc' <- case handleCommand cmdUserId cmd syncDoc.remoteDocument of
       Left err -> do
         -- This shouldn't happen - server validated the command
         logError $ M.ms $ "Server sent invalid command: " <> show err
@@ -422,7 +430,7 @@ replayLocalChanges userId doc localCmds =
   foldr applyOne (doc, []) (reverse localCmds)
   where
     applyOne cmd (currentDoc, validCmds) =
-      case handleCommand userId legacySessionId cmd currentDoc of
+      case handleCommand userId cmd currentDoc of
         Left _err -> (currentDoc, validCmds)  -- Drop invalid command
         Right (newDoc, _) -> (newDoc, cmd : validCmds)
 

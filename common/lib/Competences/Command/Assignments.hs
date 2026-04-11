@@ -18,7 +18,6 @@ import Competences.Document.Assignment
   )
 import Competences.Document.Evidence (ActivityType)
 import Competences.Document.Task (TaskId)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (unless, (>=>))
 #ifdef WITH_AESON
@@ -100,14 +99,14 @@ validateAssignmentNotReferenced doc aid = do
     Left $ "Assignment is referenced by " <> pack (show (length referencingEvidences)) <> " evidence(s)"
 
 -- | Handle an Assignments context command
-handleAssignmentsCommand :: UserId -> SessionId -> AssignmentsCommand -> Document -> UpdateResult
-handleAssignmentsCommand userId sid (OnAssignments c) d = case c of
+handleAssignmentsCommand :: UserId -> AssignmentsCommand -> Document -> UpdateResult
+handleAssignmentsCommand userId (OnAssignments c) d = case c of
   Delete aid -> do
     validateAssignmentNotReferenced d aid
     (d', a) <- assignmentContext.delete aid d
     pure (d', assignmentContext.affectedUsers a d)
   _ ->
-    interpretEntityCommand assignmentContext userId sid c d
+    interpretEntityCommand assignmentContext userId c d
   where
     assignmentContext =
       mkEntityCommandContext

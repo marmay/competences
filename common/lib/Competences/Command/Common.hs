@@ -10,16 +10,24 @@ module Competences.Command.Common
   , patchField'
   , inContext
   , requireTeacher
+#ifdef WITH_AESON
+  , injectLockHolder
+#endif
   )
 where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserRole (..))
 import Competences.Document.Id (Id)
+import Competences.Document.Id qualified
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), toJSON, withObject, (.:), (.:?))
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types (Parser)
+import Data.UUID.Types qualified as UUID
 #endif
 import Data.Bifunctor (first)
 import Data.Binary (Binary)
@@ -38,9 +46,11 @@ type UpdateResult = Either Text (Document, AffectedUsers)
 -- | Represents a change from one value to another (for conflict detection in patches)
 type Change a = Maybe (a, a)
 
--- | Generic modify command - can only lock or release with a patch
+-- | Generic modify command - can only lock or release with a patch.
+-- Lock carries the requesting user and session (validated by server, used
+-- by all clients for consistent document state).
 data ModifyCommand patch
-  = Lock
+  = Lock !UserId !SessionId
   | Release !patch
   deriving (Eq, Generic, Show)
 
@@ -58,7 +68,19 @@ instance (Binary a, Binary patch) => Binary (EntityCommand a patch)
 
 -- JSON instances
 #ifdef WITH_AESON
-instance (FromJSON patch) => FromJSON (ModifyCommand patch)
+-- | Custom FromJSON for backward compat: old Lock was nullary, new Lock carries UserId + SessionId.
+instance (FromJSON patch) => FromJSON (ModifyCommand patch) where
+  parseJSON = withObject "ModifyCommand" $ \v -> do
+    tag <- v .: "tag" :: Parser Text
+    case tag of
+      "Lock" -> do
+        mContents <- v .:? "contents"
+        case mContents of
+          Just (uid, sid) -> pure $ Lock uid sid
+          Nothing -> pure $ Lock (Competences.Document.Id.nilId) legacySessionId
+      "Release" -> Release <$> v .: "contents"
+      _ -> fail $ "Unknown ModifyCommand tag: " <> show tag
+
 instance (ToJSON patch) => ToJSON (ModifyCommand patch)
 
 instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch)
@@ -108,3 +130,21 @@ requireTeacher userId doc =
   case Ix.getOne (doc.users Ix.@= userId) of
     Nothing -> Left "User not found"
     Just u -> when (u.role /= Teacher) $ Left "Only teachers can perform this action"
+
+#ifdef WITH_AESON
+-- | Inject userId + legacySessionId into v1 Lock commands.
+-- V1 Lock was nullary: {"tag":"Lock"} — transforms to {"tag":"Lock","contents":[userId, sessionId]}.
+-- Recursively walks the JSON tree to handle Lock at any nesting depth.
+injectLockHolder :: UserId -> Value -> Value
+injectLockHolder uid = go
+  where
+    uidText = UUID.toText uid.unId
+    sidText = UUID.toText legacySessionId.unId
+    go (Object obj)
+      | KM.lookup "tag" obj == Just (String "Lock")
+      , Nothing <- KM.lookup "contents" obj =
+          Object $ KM.insert "contents" (toJSON (uidText, sidText)) obj
+      | otherwise = Object $ fmap go obj
+    go (Array arr) = Array $ fmap go arr
+    go other = other
+#endif

@@ -24,6 +24,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   )
@@ -179,7 +180,7 @@ applyResourcePreview r preview = do
               }
       modifySyncDocument r (Cmd.Resources $ Cmd.OnResources $ Cmd.Create newResource)
     Update old new -> do
-      modifySyncDocument r (Cmd.Resources $ Cmd.OnResources $ Cmd.Modify old.id Lock)
+      modifySyncDocument r (Cmd.Resources $ Cmd.OnResources $ Cmd.Modify old.id (mkLock r))
       let patch = buildResourcePatch old new matchedCompetences
       modifySyncDocument r (Cmd.Resources $ Cmd.OnResources $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()

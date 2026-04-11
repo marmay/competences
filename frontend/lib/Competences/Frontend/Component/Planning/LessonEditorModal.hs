@@ -29,7 +29,7 @@ import Competences.Frontend.Component.Selector.SearchSelect (MetaFilter (..), Se
 import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSelectorStyle (..))
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
-import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
+import Competences.Frontend.SyncContext (SyncContext (..), mkLock, modifySyncDocument)
 import Competences.Document.Id (idToText)
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, inlineComponent, openFramedModalWith)
 import Competences.Frontend.View.Button qualified as Button
@@ -251,7 +251,7 @@ lessonEditorModal r lesson' lessonNotesIds wm =
         -- Save lesson field changes (including assignment list)
         if hasLessonChanges
           then do
-            modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id Lock)
+            modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id (mkLock r))
             modifySyncDocument r (Lessons $ OnLessons $ Modify m.lesson.id (Release patch))
           else pure ()
 
@@ -261,7 +261,7 @@ lessonEditorModal r lesson' lessonNotesIds wm =
 
         -- Link newly added lesson notes to this lesson
         let linkLessonNote lnId oldLessonId newLessonId = do
-              modifySyncDocument r (Cmd.LessonNotes $ OnLessonNotes $ Modify lnId Lock)
+              modifySyncDocument r (Cmd.LessonNotes $ OnLessonNotes $ Modify lnId (mkLock r))
               modifySyncDocument r (Cmd.LessonNotes $ OnLessonNotes $ Modify lnId (Release (def & #lessonId ?~ (oldLessonId, newLessonId))))
         mapM_ (\lnId -> linkLessonNote lnId Nothing (Just m.lesson.id)) lessonNotesAdded
         -- Unlink removed lesson notes from this lesson

@@ -21,7 +21,6 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonPhase)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
 import Competences.Document.Resource (ResourceId)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -101,8 +100,8 @@ deleteLessonChildren lessonId doc =
    in Right $ doc & #participationRecords %~ \rs -> foldr IxSet.delete rs prs
 
 -- | Handle a Lessons context command
-handleLessonsCommand :: UserId -> SessionId -> LessonsCommand -> Document -> UpdateResult
-handleLessonsCommand userId sid cmd d = case cmd of
+handleLessonsCommand :: UserId -> LessonsCommand -> Document -> UpdateResult
+handleLessonsCommand userId cmd d = case cmd of
   OnLessons c -> case c of
     Delete lessonId -> do
       -- Cascade: delete participation records for this lesson
@@ -110,7 +109,7 @@ handleLessonsCommand userId sid cmd d = case cmd of
       lesson <- lessonContext.fetch lessonId d'
       (d'', _) <- lessonContext.delete lessonId d'
       pure (d'', lessonContext.affectedUsers lesson d)
-    _ -> interpretEntityCommand lessonContext userId sid c d
+    _ -> interpretEntityCommand lessonContext userId c d
   ReorderLesson p t ->
     case reorder p t d.lessons (.mesoPlanId) of
       Left err -> Left $ explainReorderError err

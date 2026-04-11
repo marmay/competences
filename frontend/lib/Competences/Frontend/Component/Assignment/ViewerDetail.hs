@@ -14,8 +14,7 @@ import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
 import Competences.Command (Command (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
-import Competences.Command.Common (EntityCommand (..))
-import Competences.Command.Common qualified as Cmd (ModifyCommand (..))
+import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
@@ -106,6 +105,7 @@ import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , subscribeWithProjection
   )
@@ -498,7 +498,7 @@ viewerComponent r user assignment wm =
               let assignId = m.projection.currentAssignment.id
                   origOrder = m.projection.currentAssignment.tasks
                   mm' = updatePrintModal ToggleReorderMode 0 mm
-              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId Cmd.Lock))
+              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId (mkLock r)))
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (mm' & #originalTaskOrder .~ origOrder)
             else do
@@ -620,7 +620,7 @@ viewerComponent r user assignment wm =
 
     -- | Release an assignment lock with the given patch, routed by origin
     releaseAssignment origin assignId patch =
-      M.io_ $ modifySyncDocument r $ wrapForOrigin origin $ Assignments (OnAssignments (Modify assignId (Cmd.Release patch)))
+      M.io_ $ modifySyncDocument r $ wrapForOrigin origin $ Assignments (OnAssignments (Modify assignId (Release patch)))
 
     -- | Release the assignment lock, including task reorder if changed
     releaseReorderedTasks origin mm assignId = do

@@ -49,6 +49,7 @@ import Competences.Frontend.SyncContext
   , SyncContext
   , SyncDocument (..)
   , SyncDocumentEnv (..)
+  , mkLock
   , modifySyncDocument
   , readSyncDocument
   , subscribeDocument
@@ -102,7 +103,7 @@ editorComponent e r =
     update (StartEditing a) = do
       M.modify $ #refocusTarget ?~ a
       M.io_ $ do
-        runCommand $ withModify e.editable a Lock
+        runCommand $ withModify e.editable a (mkLock r)
         M.focus refocusTargetString
     update (CancelEditing a) = do
       M.modify $ #contentStates %~ Map.delete a

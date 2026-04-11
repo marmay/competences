@@ -7,7 +7,7 @@ module Main (main) where
 import Competences.Command (Command (..), EntityCommand (..), UsersCommand (..))
 import Competences.Document (User (..), UserId, UserRole (..), emptyDocument)
 import Competences.Document.Id (Id (..), mkId, nilId)
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (Office365Id (..))
 import Competences.Frontend.App (mkApp, runApp)
 import Competences.Frontend.Common.Translate qualified as C
@@ -46,7 +46,7 @@ main = do
         -- Fallback: use test user with disconnected CommandSender
         let user = User nilId "Test User" Teacher (Office365Id "")
         sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
-        env <- mkSyncDocumentEnv user sender False
+        env <- mkSyncDocumentEnv user legacySessionId sender False
         ref <- mkSyncDocument env
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user

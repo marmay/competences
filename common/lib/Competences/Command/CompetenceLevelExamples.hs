@@ -17,7 +17,6 @@ import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Competences.TaskContent.RichContent (RichContent)
 import Control.Monad ((>=>))
@@ -75,10 +74,10 @@ applyCompetenceLevelExamplePatch example patch =
       >=> patchField' @"attachments" patch
 
 -- | Handle a CompetenceLevelExamples context command
-handleCompetenceLevelExamplesCommand :: UserId -> SessionId -> CompetenceLevelExamplesCommand -> Document -> UpdateResult
-handleCompetenceLevelExamplesCommand userId sid cmd d = case cmd of
+handleCompetenceLevelExamplesCommand :: UserId -> CompetenceLevelExamplesCommand -> Document -> UpdateResult
+handleCompetenceLevelExamplesCommand userId cmd d = case cmd of
   OnCompetenceLevelExamples c ->
-    interpretEntityCommand exampleContext userId sid c d
+    interpretEntityCommand exampleContext userId c d
   ReorderCompetenceLevelExample p t -> do
     case reorder p t d.competenceLevelExamples competenceLevelIdOf of
       Left err -> Left $ explainReorderError err

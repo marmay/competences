@@ -17,7 +17,7 @@ import Competences.Command.Interpret
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
 import Competences.Document.ParticipationRecord (ParticipationRecord (..))
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -64,8 +64,8 @@ applyParticipationRecordPatch pr patch =
     patchField' @"remark" patch
 
 -- | Handle a ParticipationRecords context command
-handleParticipationRecordsCommand :: UserId -> SessionId -> ParticipationRecordsCommand -> Document -> UpdateResult
-handleParticipationRecordsCommand userId sid (OnParticipationRecords c) d = case c of
+handleParticipationRecordsCommand :: UserId -> ParticipationRecordsCommand -> Document -> UpdateResult
+handleParticipationRecordsCommand userId (OnParticipationRecords c) d = case c of
   Create pr -> do
     -- Uniqueness: at most one per (lessonId, userId, participationType)
     let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
@@ -78,9 +78,9 @@ handleParticipationRecordsCommand userId sid (OnParticipationRecords c) d = case
     unless (Ix.null existing) $
       Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
-    d'' <- doLock userId sid (ctx.lock (ctx.getId pr)) d'
+    d'' <- doLock userId legacySessionId (ctx.lock (ctx.getId pr)) d'
     pure (d'', ctx.affectedUsers pr d)
-  _ -> interpretEntityCommand ctx userId sid c d
+  _ -> interpretEntityCommand ctx userId c d
   where
     ctx =
       mkEntityCommandContext

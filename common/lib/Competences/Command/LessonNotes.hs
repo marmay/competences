@@ -12,7 +12,6 @@ import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandCon
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.LessonNotes (LessonNoteItem (..), LessonNotes (..))
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -93,9 +92,9 @@ applyLessonNotesPatch ln patch =
       >=> patchField' @"items" patch
 
 -- | Handle a LessonNotes context command
-handleLessonNotesCommand :: UserId -> SessionId -> LessonNotesCommand -> Document -> UpdateResult
-handleLessonNotesCommand userId sid (OnLessonNotes c) d =
-  interpretEntityCommand lessonNotesContext userId sid c d
+handleLessonNotesCommand :: UserId -> LessonNotesCommand -> Document -> UpdateResult
+handleLessonNotesCommand userId (OnLessonNotes c) d =
+  interpretEntityCommand lessonNotesContext userId c d
   where
     lessonNotesContext =
       mkEntityCommandContext

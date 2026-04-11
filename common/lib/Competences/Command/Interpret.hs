@@ -12,7 +12,7 @@ where
 import Competences.Command.Common (AffectedUsers, EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Document (Document (..), Lock, LockHolder (..))
 import Competences.Document.Id (Id)
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.Order (OrderableSet, reordered, reordered')
 import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
@@ -127,24 +127,23 @@ doRelease uid l d =
 
 -- | Interpret an entity command using the provided context
 interpretEntityCommand
-  :: (Eq a) => EntityCommandContext a patch -> UserId -> SessionId -> EntityCommand a patch -> Document -> UpdateResult
-interpretEntityCommand ctx _ _sid (Create a) d =
+  :: (Eq a) => EntityCommandContext a patch -> UserId -> EntityCommand a patch -> Document -> UpdateResult
+interpretEntityCommand ctx _ (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
-interpretEntityCommand ctx uid sid (CreateAndLock a) d = do
+interpretEntityCommand ctx uid (CreateAndLock a) d = do
   d' <- ctx.create a d
-  d'' <- doLock uid sid (ctx.lock (ctx.getId a)) d'
+  d'' <- doLock uid legacySessionId (ctx.lock (ctx.getId a)) d'
   pure (d'', ctx.affectedUsers a d)
-interpretEntityCommand ctx _ _sid (Delete i) d = do
+interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx uid sid (Modify i Lock) d = do
-  d' <- doLock uid sid (ctx.lock i) d
+interpretEntityCommand ctx _uid (Modify i (Lock lockUid lockSid)) d = do
+  d' <- doLock lockUid lockSid (ctx.lock i) d
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx uid _sid (Modify i (Release patch)) d = do
+interpretEntityCommand ctx uid (Modify i (Release patch)) d = do
   d' <- doRelease uid (ctx.lock i) d
   aCurrent <- ctx.fetch i d'
   aModified <- ctx.applyPatch aCurrent patch
-  -- Use in-place update to preserve ordering (avoid delete+create reorder effects)
   let d'' = ctx.update aModified d'
   pure (d'', ctx.affectedUsers aModified d <> ctx.affectedUsers aCurrent d)

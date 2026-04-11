@@ -28,6 +28,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   )
@@ -257,7 +258,7 @@ applyAssignmentPreview r doc preview = do
               }
       modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Create newAssignment)
     Update old new -> do
-      modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id Lock)
+      modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (mkLock r))
       let patch = buildAssignmentPatch old new taskIds
       modifySyncDocument r $ cmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()
@@ -292,7 +293,7 @@ applyTaskAndGetId r doc cmd preview = do
       modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
       pure newId
     Update old new -> do
-      modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id Lock)
+      modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (mkLock r))
       let patch = buildTaskPatch old new matchedPrimary matchedSecondary preview.parsedPurpose
       modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
       pure old.id
@@ -317,7 +318,7 @@ applySolutionAction r cmd taskId mTeacherId action = case action of
       modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Create newSolution)
     Nothing -> pure ()
   Update old new -> do
-    modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id Lock)
+    modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (mkLock r))
     let patch = buildSolutionPatch old new
     modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()

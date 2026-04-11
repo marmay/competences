@@ -6,7 +6,7 @@ module Competences.HouseCup.Database
 where
 
 import Competences.Command (Command, handleCommand)
-import Competences.Document.Session (legacySessionId)
+import Competences.Command.Common (injectLockHolder)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User (UserId)
@@ -64,7 +64,7 @@ unwrapSnapshot env = case env.version of
 
 unwrapCommand :: CommandEnvelope -> Either Text Command
 unwrapCommand env = case env.version of
-  1 -> case fromJSON env.payload of
+  1 -> case fromJSON (injectLockHolder env.userId env.payload) of
     Success cmd -> Right cmd
     Error err -> Left $ "Failed to parse command v1: " <> T.pack err
   2 -> case fromJSON env.payload of
@@ -142,6 +142,6 @@ replayCommands :: Document -> [(UserId, Command)] -> Document
 replayCommands = foldl applyCommand
   where
     applyCommand doc (uid, cmd) =
-      case handleCommand uid legacySessionId cmd doc of
+      case handleCommand uid cmd doc of
         Right (doc', _) -> doc'
         Left _err -> doc -- skip failed commands (mirrors backend behavior)

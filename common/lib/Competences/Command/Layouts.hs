@@ -12,7 +12,6 @@ import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandCon
 import Competences.Document (Document (..), Lock (..), User (..))
 import Competences.Document.Layout (Layout (..))
 import Competences.Document.Layout.Settings (ContentPreset, ContentSettings, PrintSettings)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -69,9 +68,9 @@ applyLayoutPatch layout patch =
       >=> patchField' @"contentSettings" patch
 
 -- | Handle a Layouts context command
-handleLayoutsCommand :: UserId -> SessionId -> LayoutsCommand -> Document -> UpdateResult
-handleLayoutsCommand userId sid (OnLayouts c) =
-  interpretEntityCommand layoutContext userId sid c
+handleLayoutsCommand :: UserId -> LayoutsCommand -> Document -> UpdateResult
+handleLayoutsCommand userId (OnLayouts c) =
+  interpretEntityCommand layoutContext userId c
   where
     layoutContext =
       mkEntityCommandContext

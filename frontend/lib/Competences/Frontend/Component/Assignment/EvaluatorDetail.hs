@@ -19,6 +19,7 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -491,7 +492,7 @@ evaluatorComponent r assignment =
       case Map.lookup userId (evidencesForDate m.evaluationDate m.assignmentEvidences) of
         Just existingEv -> do
           -- Lock then modify existing evidence
-          let lockCmd = Evidences (OnEvidences (Modify existingEv.id Lock))
+          let lockCmd = Evidences (OnEvidences (Modify existingEv.id (mkLock r)))
               patch = EvidencePatch
                 { userId = Nothing
                 , activityType = Just (existingEv.activityType, asmt.activityType)

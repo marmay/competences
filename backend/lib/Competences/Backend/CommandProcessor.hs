@@ -179,7 +179,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- SenderThreads read queue + docVar atomically → always consistent.
       result <- atomically $ do
         doc <- readTVar docVar
-        case handleCommand uid sid cmd doc of
+        case handleCommand uid cmd doc of
           Left err -> do
             putTMVar responseVar (Left err)
             pure Nothing

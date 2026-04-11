@@ -23,7 +23,6 @@ import Competences.Document.Evidence
   , TaskRemark
   )
 import Competences.Document.Task (TaskId)
-import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -140,8 +139,8 @@ applyEvidencePatch evidence patch =
       >=> patchField' @"lessonId" patch
 
 -- | Handle an Evidences context command
-handleEvidencesCommand :: UserId -> SessionId -> EvidencesCommand -> Document -> UpdateResult
-handleEvidencesCommand uId sid (OnEvidences c) = interpretEntityCommand evidenceContext uId sid c
+handleEvidencesCommand :: UserId -> EvidencesCommand -> Document -> UpdateResult
+handleEvidencesCommand uId (OnEvidences c) = interpretEntityCommand evidenceContext uId c
   where
     evidenceContext =
       mkEntityCommandContext

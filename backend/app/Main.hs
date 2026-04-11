@@ -257,7 +257,7 @@ applyStartupMigrations pool = go
     systemUserId = Id UUID.nil
     go doc gen [] = pure (doc, gen)
     go doc gen (cmd : rest) =
-      case handleCommand systemUserId legacySessionId cmd doc of
+      case handleCommand systemUserId cmd doc of
         Left reason -> do
           putStrLn $ "Startup migration skipped: " <> T.unpack reason
           go doc gen rest
@@ -271,7 +271,7 @@ applyStartupMigrations pool = go
 replayCommands :: Document -> [(Int64, Competences.Document.User.UserId, Command)] -> IO Document
 replayCommands doc [] = pure doc
 replayCommands doc ((gen, userId, cmd) : rest) =
-  case handleCommand userId legacySessionId cmd doc of
+  case handleCommand userId cmd doc of
     Left err -> die $ "Failed to replay command at generation " <> show gen <> ": " <> T.unpack err
     Right (doc', _) -> replayCommands doc' rest
 
@@ -279,7 +279,7 @@ replayCommands doc ((gen, userId, cmd) : rest) =
 applyMigrationCmds :: Competences.Document.User.UserId -> Document -> [Command] -> IO Document
 applyMigrationCmds _userId doc [] = pure doc
 applyMigrationCmds userId doc (cmd : rest) =
-  case handleCommand userId legacySessionId cmd doc of
+  case handleCommand userId cmd doc of
     Left err -> die $ "Failed to apply migration command: " <> T.unpack err
     Right (doc', _) -> applyMigrationCmds userId doc' rest
 

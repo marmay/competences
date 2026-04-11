@@ -25,6 +25,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   )
@@ -212,7 +213,7 @@ applyCompetenceAction r gridId ca = case ca.action of
             }
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Create newComp)
   Update old new -> do
-    modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id Lock)
+    modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (mkLock r))
     let patch = buildCompetencePatch old new
     modifySyncDocument r (Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()

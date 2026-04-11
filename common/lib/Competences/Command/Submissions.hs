@@ -12,7 +12,7 @@ import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionKind (..), SubmissionOwnership (..), VoidReason (..), ownerIds)
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when, unless)
 import Data.Set qualified as Set
@@ -108,8 +108,8 @@ validateVoidConstraint _ _ _ = Right ()
 
 -- | Handle a Submissions command.
 -- Custom handler because submissions have student-only authorization.
-handleSubmissionsCommand :: UserId -> SessionId -> SubmissionsCommand -> Document -> UpdateResult
-handleSubmissionsCommand userId sid (OnSubmissions cmd) d = do
+handleSubmissionsCommand :: UserId -> SubmissionsCommand -> Document -> UpdateResult
+handleSubmissionsCommand userId (OnSubmissions cmd) d = do
   -- Teachers cannot create submissions
   case Ix.getOne (d.users Ix.@= userId) of
     Nothing -> Left "Submission: user not found"
@@ -140,7 +140,7 @@ handleSubmissionsCommand userId sid (OnSubmissions cmd) d = do
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
-      d'' <- doLock userId sid (SubmissionLock s.id) d'
+      d'' <- doLock userId legacySessionId (SubmissionLock s.id) d'
       Right (d'', affectedUsersFor s d)
 
     Delete submissionId -> do
@@ -150,11 +150,11 @@ handleSubmissionsCommand userId sid (OnSubmissions cmd) d = do
       let d' = d & #submissions %~ Ix.delete s
       Right (d', affectedUsersFor s d)
 
-    Modify submissionId Lock -> do
+    Modify submissionId (Lock lockUid lockSid) -> do
       s <- fetchSubmission submissionId d
       unless (isOwner userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doLock userId sid (SubmissionLock submissionId) d
+      d' <- doLock lockUid lockSid (SubmissionLock submissionId) d
       Right (d', affectedUsersFor s d)
 
     Modify submissionId (Release patch) -> do

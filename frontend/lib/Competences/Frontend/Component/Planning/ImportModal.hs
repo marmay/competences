@@ -24,6 +24,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
+  , mkLock
   , modifySyncDocument
   , nextId
   )
@@ -226,7 +227,7 @@ applyLessonPreview r preview = do
       let newLesson = lesson & #id .~ newId & #competenceLevels .~ matchedCompetences
       modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.CreateAndLock newLesson)
     Update old new -> do
-      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id Lock)
+      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (mkLock r))
       let patch = buildLessonPatch old new matchedCompetences
       modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()

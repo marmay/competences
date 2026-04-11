@@ -12,7 +12,7 @@ import Competences.Command.Tasks (TaskPatch (..), TaskGroupPatch (..), SubTaskPa
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), TaskGroup (..), TaskType (..), User (..))
 import Competences.Document.Task (TaskGroupId, taskGroupId)
-import Competences.Document.Session (SessionId)
+import Competences.Document.Session (legacySessionId)
 import Competences.Document.User (UserId, UserRole (..))
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -64,8 +64,8 @@ deleteDraftTaskGroupCascading groupId doc = do
   pure (doc'', group)
 
 -- | Handle a DraftTasks context command
-handleDraftTasksCommand :: UserId -> SessionId -> DraftTasksCommand -> Document -> UpdateResult
-handleDraftTasksCommand userId sid cmd d = case cmd of
+handleDraftTasksCommand :: UserId -> DraftTasksCommand -> Document -> UpdateResult
+handleDraftTasksCommand userId cmd d = case cmd of
   OnDraftTasks c -> case c of
     Create task -> do
       case task.taskType of
@@ -77,7 +77,7 @@ handleDraftTasksCommand userId sid cmd d = case cmd of
         SubTask _ _ -> Left "Use OnDraftSubTasks to create SubTasks"
         SelfContained _ -> do
           d' <- draftTaskContext.create task d
-          d'' <- doLock userId sid (TaskLock task.id) d'
+          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
           pure (d'', allTeachers d)
     Delete taskId -> do
       task <- draftTaskContext.fetch taskId d
@@ -87,8 +87,8 @@ handleDraftTasksCommand userId sid cmd d = case cmd of
           (d', _) <- draftTaskContext.delete taskId d
           pure (d', allTeachers d)
     Modify taskId modCmd -> case modCmd of
-      Lock -> do
-        d' <- doLock userId sid (TaskLock taskId) d
+      Lock lockUid lockSid -> do
+        d' <- doLock lockUid lockSid (TaskLock taskId) d
         task <- draftTaskContext.fetch taskId d'
         case task.taskType of
           SubTask _ _ -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
@@ -109,14 +109,14 @@ handleDraftTasksCommand userId sid cmd d = case cmd of
       (,allTeachers d) <$> draftTaskGroupContext.create group d
     CreateAndLock group -> do
       d' <- draftTaskGroupContext.create group d
-      d'' <- doLock userId sid (TaskGroupLock group.id) d'
+      d'' <- doLock userId legacySessionId (TaskGroupLock group.id) d'
       pure (d'', allTeachers d)
     Delete groupId -> do
       (d', _) <- deleteDraftTaskGroupCascading groupId d
       pure (d', allTeachers d)
     Modify groupId modCmd -> case modCmd of
-      Lock -> do
-        d' <- doLock userId sid (TaskGroupLock groupId) d
+      Lock lockUid lockSid -> do
+        d' <- doLock lockUid lockSid (TaskGroupLock groupId) d
         _group <- draftTaskGroupContext.fetch groupId d'
         pure (d', allTeachers d)
       Release patch -> do
@@ -140,7 +140,7 @@ handleDraftTasksCommand userId sid cmd d = case cmd of
         SubTask _ _ -> do
           validateDraftSubTaskReferencesGroup d task
           d' <- draftSubTaskContext.create task d
-          d'' <- doLock userId sid (TaskLock task.id) d'
+          d'' <- doLock userId legacySessionId (TaskLock task.id) d'
           pure (d'', allTeachers d)
     Delete taskId -> do
       task <- draftSubTaskContext.fetch taskId d
@@ -154,8 +154,8 @@ handleDraftTasksCommand userId sid cmd d = case cmd of
       case taskCurrent.taskType of
         SelfContained _ -> Left "Cannot modify SelfContained tasks via OnDraftSubTasks (use OnDraftTasks instead)"
         SubTask _groupId _ -> case modCmd of
-          Lock -> do
-            d' <- doLock userId sid (TaskLock taskId) d
+          Lock lockUid lockSid -> do
+            d' <- doLock lockUid lockSid (TaskLock taskId) d
             pure (d', allTeachers d)
           Release patch -> do
             unless (Map.member (TaskLock taskId) (d ^. #locks)) $
