@@ -160,7 +160,7 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       s <- fetchSubmission submissionId d
       unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doRelease cmdCtx.userId (SubmissionLock submissionId) d
+      d' <- doRelease cmdCtx.userId cmdCtx.sessionId (SubmissionLock submissionId) d
       s' <- applySubmissionPatch s patch
       validateKind s'.kind
       let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx submissionId

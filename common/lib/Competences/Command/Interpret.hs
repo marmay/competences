@@ -115,13 +115,16 @@ doLock uid sid l d =
     Just _ -> Left "entity is already locked!"
     Nothing -> pure (d & (#locks %~ Map.insert l (LockHolder uid sid)))
 
--- | Release a lock on an entity
-doRelease :: UserId -> Lock -> Document -> Either Text Document
-doRelease uid l d =
+-- | Release a lock on an entity. Validates both userId and sessionId —
+-- only the same user in the same session (tab) can release their lock.
+doRelease :: UserId -> SessionId -> Lock -> Document -> Either Text Document
+doRelease uid sid l d =
   case (d ^. #locks) Map.!? l of
     Just holder -> do
       when (holder.userId /= uid) $
         Left "entity is locked by another user!"
+      when (holder.sessionId /= sid) $
+        Left "entity is locked by another session!"
       pure (d & (#locks %~ Map.delete l))
     Nothing -> Left "entity is not locked!"
 
@@ -146,7 +149,7 @@ interpretEntityCommand ctx cmdCtx (Modify i (Lock lockUid lockSid)) d = do
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
 interpretEntityCommand ctx cmdCtx (Modify i (Release patch)) d = do
-  d' <- doRelease cmdCtx.userId (ctx.lock i) d
+  d' <- doRelease cmdCtx.userId cmdCtx.sessionId (ctx.lock i) d
   aCurrent <- ctx.fetch i d'
   aModified <- ctx.applyPatch aCurrent patch
   let d'' = ctx.update aModified d'

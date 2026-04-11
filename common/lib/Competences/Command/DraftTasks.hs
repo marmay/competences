@@ -93,7 +93,7 @@ handleDraftTasksCommand cmdCtx cmd d = case cmd of
           SubTask _ _ -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
           SelfContained _ -> pure (d', allTeachers d)
       Release patch -> do
-        d' <- doRelease cmdCtx.userId (TaskLock taskId) d
+        d' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskLock taskId) d
         taskCurrent <- draftTaskContext.fetch taskId d'
         case taskCurrent.taskType of
           SubTask _ _ -> Left "Cannot modify SubTasks via OnDraftTasks (use OnDraftSubTasks instead)"
@@ -119,7 +119,7 @@ handleDraftTasksCommand cmdCtx cmd d = case cmd of
         _group <- draftTaskGroupContext.fetch groupId d'
         pure (d', allTeachers d)
       Release patch -> do
-        d' <- doRelease cmdCtx.userId (TaskGroupLock groupId) d
+        d' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskGroupLock groupId) d
         groupCurrent <- draftTaskGroupContext.fetch groupId d'
         groupModified <- applyTaskGroupPatch groupCurrent patch
         (d'', _) <- draftTaskGroupContext.delete groupId d'
@@ -162,7 +162,7 @@ handleDraftTasksCommand cmdCtx cmd d = case cmd of
             taskModified <- applySubTaskPatch taskCurrent patch
             (d', _) <- draftSubTaskContext.delete taskId d
             d'' <- draftSubTaskContext.create taskModified d'
-            d''' <- doRelease cmdCtx.userId (TaskLock taskId) d''
+            d''' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskLock taskId) d''
             pure (d''', allTeachers d)
   where
     draftTaskContext =

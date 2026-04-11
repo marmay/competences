@@ -317,7 +317,7 @@ handleTasksCommand cmdCtx cmd d = case cmd of
           SubTask _ _ -> Left "Cannot lock SubTasks (lock the parent TaskGroup instead)"
           SelfContained _ -> pure (d', taskContext.affectedUsers task d)
       Release patch -> do
-        d' <- doRelease cmdCtx.userId (TaskLock taskId) d
+        d' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskLock taskId) d
         taskCurrent <- taskContext.fetch taskId d'
         -- Verify it's SelfContained
         case taskCurrent.taskType of
@@ -345,7 +345,7 @@ handleTasksCommand cmdCtx cmd d = case cmd of
         group <- taskGroupContext.fetch groupId d'
         pure (d', taskGroupContext.affectedUsers group d)
       Release patch -> do
-        d' <- doRelease cmdCtx.userId (TaskGroupLock groupId) d
+        d' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskGroupLock groupId) d
         groupCurrent <- taskGroupContext.fetch groupId d'
         groupModified <- applyTaskGroupPatch groupCurrent patch
         (d'', groupOld) <- taskGroupContext.delete groupId d'
@@ -399,7 +399,7 @@ handleTasksCommand cmdCtx cmd d = case cmd of
             taskModified <- applySubTaskPatch taskCurrent patch
             (d', taskOld) <- subTaskContext.delete taskId d
             d'' <- subTaskContext.create taskModified d'
-            d''' <- doRelease cmdCtx.userId (TaskLock taskId) d''
+            d''' <- doRelease cmdCtx.userId cmdCtx.sessionId (TaskLock taskId) d''
             pure (d''', subTaskContext.affectedUsers taskModified d <> subTaskContext.affectedUsers taskOld d)
   where
     taskContext =
