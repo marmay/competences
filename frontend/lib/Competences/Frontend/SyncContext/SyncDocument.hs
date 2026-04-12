@@ -162,13 +162,13 @@ getCommandSender r = r.env.commandSender
 getFocusedUserRef :: SyncContext -> FocusedUserRef
 getFocusedUserRef r = r.focusedUserRef
 
--- | Create a Lock ModifyCommand using the connected user from a SyncContext
+-- | Create a Lock ModifyCommand
 mkLock :: SyncContext -> ModifyCommand patch
-mkLock r = Lock r.env.connectedUser.id r.env.sessionId
+mkLock _r = Lock
 
--- | Create a CreateAndLock EntityCommand using the connected user from a SyncContext
+-- | Create a CreateAndLock EntityCommand
 mkCreateAndLock :: SyncContext -> a -> EntityCommand a patch
-mkCreateAndLock r a = CreateAndLock a r.env.connectedUser.id r.env.sessionId
+mkCreateAndLock _r a = CreateAndLock a
 
 data SyncDocumentEnv = SyncDocumentEnv
   { currentDay :: !Day

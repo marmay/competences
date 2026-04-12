@@ -32,6 +32,8 @@ library
         Competences.Backend.Envelope
         Competences.Backend.HashedFile
         Competences.Backend.HTTP
+        Competences.Backend.SessionRegistry
+        Competences.Backend.StaleLockCleanup
         Competences.Backend.State
         Competences.Backend.WebSocket
     build-depends:

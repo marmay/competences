@@ -12,6 +12,7 @@ import Competences.Backend.Checkpoint (computeDocumentChecksum)
 import Competences.Backend.CommandProcessor (ConnectionId (..))
 import Competences.Backend.CommandProcessor qualified as CP
 import Competences.Backend.Database qualified as DB
+import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.State
   ( AppState (..)
   , getDocument
@@ -20,8 +21,10 @@ import Competences.Command (Command (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
+import Competences.Document.Lock (Lock, LockHolder (..))
 import Competences.Document.Session (SessionId)
 import Competences.Document.User (Office365Id)
+import Data.Map.Strict qualified as Map
 import Competences.Protocol (CommandId, ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.STM
@@ -160,7 +163,8 @@ handleClient state uid sessionId user conn = do
                 modifyTVar' state.nextConnectionId (+ 1)
                 pure (ConnectionId cid)
 
-              -- Create per-client queue and register with processor
+              -- Register session and create per-client queue
+              SR.registerSession state.sessionRegistry sessionId uid connId
               clientQueue <- newTQueueIO
               CP.registerClient state.processor connId user.role uid clientQueue
 
@@ -184,6 +188,7 @@ handleClient state uid sessionId user conn = do
       putStrLn $ "Client disconnected: " <> show userId <> " (" <> show cid <> ")"
       killThread senderTid
       CP.unregisterClient state.processor cid
+      SR.unregisterConnection state.sessionRegistry sessionId cid
 
 -- | Wait for a SubscribeFrom message from the client.
 -- Returns Nothing if client sends something unexpected or disconnects.
@@ -349,18 +354,32 @@ handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
         putStrLn $ "Command rejected: user " <> show uid <> " is not authorized"
         WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd "Not authorized for this command")
       else do
-        result <- CP.submitCommand state.processor uid sessionId cmd
-        case result of
+        -- Server-side lock validation for Unlock:
+        -- Unlock requires the lock holder's session to be dead.
+        allowed <- case cmd of
+          Unlock lock -> validateUnlock state uid lock
+          _ -> pure (Right ())
+        case allowed of
           Left err -> do
-            putStrLn $ "Command rejected: " <> T.unpack err
+            putStrLn $ "Command rejected (lock validation): " <> T.unpack err
             WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd err)
-          Right _cmdId ->
-            -- Command applied. Processor pushes to client queues.
-            -- SenderThread will deliver to this and all other affected clients.
-            putStrLn "Command applied successfully"
+          Right () -> do
+            result <- CP.submitCommand state.processor uid sessionId cmd
+            case result of
+              Left err -> do
+                putStrLn $ "Command rejected: " <> T.unpack err
+                WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd err)
+              Right _cmdId ->
+                -- Command applied. Processor pushes to client queues.
+                -- SenderThread will deliver to this and all other affected clients.
+                putStrLn "Command applied successfully"
 
   KeepAlive ->
     WS.sendBinaryData conn (Bin.encode KeepAliveResponse)
+
+  QuerySessionAlive queriedSid -> do
+    alive <- SR.isSessionAlive state.sessionRegistry queriedSid
+    WS.sendBinaryData conn (Bin.encode $ SessionAliveResponse queriedSid alive)
 
   RequestFile hash -> do
     putStrLn $ "File requested: " <> show hash
@@ -391,6 +410,25 @@ handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
       then WS.sendBinaryData conn (Bin.encode $ UploadDenied $
              "File too large (" <> T.pack (show fileSize) <> " bytes, max " <> T.pack (show maxUploadSize) <> ")")
       else WS.sendBinaryData conn (Bin.encode UploadPermitted)
+
+-- | Validate an Unlock command against the session registry.
+-- Checks that the lock exists and the holder's session is dead.
+validateUnlock :: AppState -> UserId -> Lock -> IO (Either Text ())
+validateUnlock state requestingUid lock = do
+  doc <- getDocument state
+  case Map.lookup lock doc.locks of
+    Nothing -> pure (Left "lock not held")
+    Just holder
+      | holder.userId == requestingUid ->
+          -- Same user: allowed if holder's session is dead
+          SR.isSessionAlive state.sessionRegistry holder.sessionId >>= \case
+            True -> pure (Left "entity is locked in another active session")
+            False -> pure (Right ())
+      | otherwise ->
+          -- Different user: allowed if holder's session is dead
+          SR.isSessionAlive state.sessionRegistry holder.sessionId >>= \case
+            True -> pure (Left "entity is locked by another user who is currently active")
+            False -> pure (Right ())
 
 -- | Check if a user role is authorized to execute a command.
 isAuthorized :: UserRole -> Command -> Bool

@@ -71,12 +71,12 @@ handleParticipationRecordsCommand cmdCtx (OnParticipationRecords c) d = case c o
       Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
     pure (d', ctx.affectedUsers pr d)
-  CreateAndLock pr lockUid lockSid -> do
+  CreateAndLock pr -> do
     let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
     unless (Ix.null existing) $
       Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
-    d'' <- doLock lockUid lockSid (ctx.lock (ctx.getId pr)) d'
+    d'' <- doLock cmdCtx.userId cmdCtx.sessionId (ctx.lock (ctx.getId pr)) d'
     pure (d'', ctx.affectedUsers pr d)
   _ -> interpretEntityCommand ctx cmdCtx c d
   where

@@ -6,6 +6,7 @@ import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
 import Competences.Backend.HTTP (FrontendHashes (..), appAPI, server)
+import Competences.Backend.StaleLockCleanup qualified as SLC
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
 import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), handleCommand)
@@ -199,6 +200,9 @@ main = do
 
   -- Initialize application state
   state <- initAppState docVar genVar pool cas instId proc
+
+  -- Start stale lock cleanup thread (6-hour threshold)
+  _ <- SLC.startCleanupThread state.sessionRegistry docVar proc (6 * 3600)
 
   -- Log startup
   DB.logStartup pool instanceId latestGen (opts.ensureTeacherO365 /= Nothing) Nothing

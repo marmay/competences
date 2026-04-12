@@ -12,7 +12,6 @@ module Competences.Command.Common
   , inContext
   , requireTeacher
 #ifdef WITH_AESON
-  , injectLockHolder
   , migrateSnapshotLocks
 #endif
   )
@@ -20,12 +19,12 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserRole (..))
-import Competences.Document.Id (Id (..), nilId)
+import Competences.Document.Id (Id (..))
 import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, object, toJSON, withObject, (.:), (.:?), (.=))
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, object, withObject, (.:), (.=))
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Parser)
 import Data.UUID.Types qualified as UUID
@@ -56,19 +55,18 @@ instance Binary CommandContext
 -- | Represents a change from one value to another (for conflict detection in patches)
 type Change a = Maybe (a, a)
 
--- | Generic modify command - can only lock or release with a patch.
--- Lock carries the requesting user and session (validated by server, used
--- by all clients for consistent document state).
+-- | Generic modify command - lock or release with a patch.
+-- The lock holder identity comes from the CommandContext (envelope),
+-- not from the command payload.
 data ModifyCommand patch
-  = Lock !UserId !SessionId
+  = Lock
   | Release !patch
   deriving (Eq, Generic, Show)
 
 -- | Generic entity command - create, delete, or modify.
--- CreateAndLock carries the requesting user and session for the implicit lock.
 data EntityCommand a patch
   = Create !a
-  | CreateAndLock !a !UserId !SessionId
+  | CreateAndLock !a
   | Delete !(Id a)
   | Modify !(Id a) !(ModifyCommand patch)
   deriving (Eq, Generic, Show)
@@ -82,22 +80,20 @@ instance (Binary a, Binary patch) => Binary (EntityCommand a patch)
 instance FromJSON CommandContext
 instance ToJSON CommandContext
 
--- | Custom FromJSON for backward compat: old Lock was nullary, new Lock carries UserId + SessionId.
+-- | Custom FromJSON for backward compat: old Lock carried UserId + SessionId,
+-- which are now ignored (identity comes from CommandContext).
 instance (FromJSON patch) => FromJSON (ModifyCommand patch) where
   parseJSON = withObject "ModifyCommand" $ \v -> do
     tag <- v .: "tag" :: Parser Text
     case tag of
-      "Lock" -> do
-        mContents <- v .:? "contents"
-        case mContents of
-          Just (uid, sid) -> pure $ Lock uid sid
-          Nothing -> pure $ Lock (nilId) legacySessionId
+      "Lock" -> pure Lock
       "Release" -> Release <$> v .: "contents"
       _ -> fail $ "Unknown ModifyCommand tag: " <> show tag
 
 instance (ToJSON patch) => ToJSON (ModifyCommand patch)
 
--- | Custom FromJSON for backward compat: old CreateAndLock had one field, new has three.
+-- | Custom FromJSON for backward compat: old CreateAndLock carried UserId + SessionId,
+-- which are now ignored (identity comes from CommandContext).
 instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch) where
   parseJSON = withObject "EntityCommand" $ \v -> do
     tag <- v .: "tag" :: Parser Text
@@ -105,12 +101,10 @@ instance (FromJSON a, FromJSON patch) => FromJSON (EntityCommand a patch) where
       "Create" -> Create <$> v .: "contents"
       "CreateAndLock" -> do
         contents <- v .: "contents"
-        -- Try new format [entity, userId, sessionId], fall back to old format (entity only)
+        -- Handle old format [entity, userId, sessionId] by extracting just the entity
         case fromJSON @(a, UserId, SessionId) contents of
-          Success (entity, uid, sid) -> pure $ CreateAndLock entity uid sid
-          Error _ -> case fromJSON @a contents of
-            Success entity -> pure $ CreateAndLock entity nilId legacySessionId
-            Error err -> fail $ "Failed to parse CreateAndLock contents: " <> err
+          Success (entity, _, _) -> pure $ CreateAndLock entity
+          Error _ -> CreateAndLock <$> parseJSON contents
       "Delete" -> Delete <$> v .: "contents"
       "Modify" -> do
         (eid, mcmd) <- v .: "contents"
@@ -165,32 +159,6 @@ requireTeacher userId doc =
     Just u -> when (u.role /= Teacher) $ Left "Only teachers can perform this action"
 
 #ifdef WITH_AESON
--- | Inject userId + legacySessionId into v1 Lock and CreateAndLock commands.
--- V1 Lock was nullary, V1 CreateAndLock had only the entity.
--- Recursively walks the JSON tree to handle commands at any nesting depth.
-injectLockHolder :: UserId -> Value -> Value
-injectLockHolder uid = go
-  where
-    uidJson = toJSON (UUID.toText uid.unId)
-    sidJson = toJSON (UUID.toText legacySessionId.unId)
-    go (Object obj) = Object $ case KM.lookup "tag" obj of
-      -- V1 Lock: {"tag":"Lock"} → {"tag":"Lock","contents":[uid,sid]}
-      Just (String "Lock")
-        | Nothing <- KM.lookup "contents" obj ->
-            KM.insert "contents" (toJSON (uidJson, sidJson)) obj
-      -- V1 CreateAndLock: {"tag":"CreateAndLock","contents":entity}
-      -- → {"tag":"CreateAndLock","contents":[entity,uid,sid]}
-      Just (String "CreateAndLock")
-        | Just entityVal <- KM.lookup "contents" obj
-        , not (isArray entityVal) ->
-            KM.insert "contents" (toJSON (entityVal, uidJson, sidJson)) obj
-      _ -> fmap go obj
-    go (Array arr) = Array $ fmap go arr
-    go other = other
-
-    isArray (Array _) = True
-    isArray _ = False
-
 -- | Migrate locks in a v2 snapshot from [(Lock, UserId)] to [(Lock, LockHolder)].
 -- Transforms bare UUID strings into LockHolder objects with legacySessionId.
 migrateSnapshotLocks :: Value -> Value

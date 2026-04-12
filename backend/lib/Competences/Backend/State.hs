@@ -7,6 +7,8 @@ where
 
 import Competences.Backend.CAS (CAS, InstanceId)
 import Competences.Backend.CommandProcessor (CommandProcessor)
+import Competences.Backend.SessionRegistry (SessionRegistry)
+import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Document (Document)
 import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO)
 import Data.Int (Int64)
@@ -29,6 +31,8 @@ data AppState = AppState
   -- ^ Single-threaded command processor with per-client queues
   , currentGeneration :: !(TVar Int64)
   -- ^ Current command generation number (tracks latest DB generation)
+  , sessionRegistry :: !SessionRegistry
+  -- ^ Tracks active sessions for stale lock cleanup
   }
 
 -- | Initialize application state with pre-created TVars.
@@ -37,7 +41,8 @@ data AppState = AppState
 initAppState :: TVar Document -> TVar Int64 -> Pool Connection -> CAS -> InstanceId -> CommandProcessor -> IO AppState
 initAppState docVar genVar pool cas' instId proc = do
   nextId <- newTVarIO 0
-  pure $ AppState docVar nextId pool cas' instId proc genVar
+  registry <- SR.newRegistry
+  pure $ AppState docVar nextId pool cas' instId proc genVar registry
 
 -- | Get current document (read-only)
 getDocument :: AppState -> IO Document

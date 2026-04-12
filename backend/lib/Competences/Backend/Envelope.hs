@@ -27,7 +27,7 @@ module Competences.Backend.Envelope
 where
 
 import Competences.Command (Command (..), MigrationCommand (..))
-import Competences.Command.Common (injectLockHolder, migrateSnapshotLocks)
+import Competences.Command.Common (migrateSnapshotLocks)
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id (..))
@@ -139,15 +139,14 @@ wrapCommand userId sessionId cmd =
     }
 
 -- | Unwrap a command envelope, applying migrations if needed.
--- V1 commands have nullary Lock; we inject the envelope's userId + legacySessionId
--- into the JSON before parsing so the resulting Lock carries the correct user.
+-- V1 commands have old Lock/CreateAndLock format with embedded userId/sessionId;
+-- the FromJSON instances in Command.Common handle backward compat by ignoring extra fields.
 unwrapCommand :: CommandEnvelope -> Either Text Command
 unwrapCommand env = case env.version of
   1 ->
-    let migratedPayload = injectLockHolder env.userId env.payload
-     in case fromJSON migratedPayload of
-          Success cmd -> Right cmd
-          Error err -> Left $ "Failed to parse command v1: " <> pack err
+    case fromJSON env.payload of
+      Success cmd -> Right cmd
+      Error err -> Left $ "Failed to parse command v1: " <> pack err
   2 ->
     case fromJSON env.payload of
       Success cmd -> Right cmd

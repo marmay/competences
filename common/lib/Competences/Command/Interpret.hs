@@ -115,8 +115,8 @@ doLock uid sid l d =
     Just _ -> Left "entity is already locked!"
     Nothing -> pure (d & (#locks %~ Map.insert l (LockHolder uid sid)))
 
--- | Release a lock on an entity. Validates both userId and sessionId —
--- only the same user in the same session (tab) can release their lock.
+-- | Release a lock on an entity. Checks that the requesting user
+-- owns the lock (same userId and sessionId).
 doRelease :: UserId -> SessionId -> Lock -> Document -> Either Text Document
 doRelease uid sid l d =
   case (d ^. #locks) Map.!? l of
@@ -129,23 +129,21 @@ doRelease uid sid l d =
     Nothing -> Left "entity is not locked!"
 
 -- | Interpret an entity command using the provided context.
--- The CommandContext carries the authenticated userId and sessionId.
--- Lock and CreateAndLock carry their own userId + sessionId which are validated.
+-- The CommandContext provides the authenticated user identity for
+-- lock acquisition and release.
 interpretEntityCommand
   :: (Eq a) => EntityCommandContext a patch -> CommandContext -> EntityCommand a patch -> Document -> UpdateResult
 interpretEntityCommand ctx _ (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
-interpretEntityCommand ctx cmdCtx (CreateAndLock a lockUid lockSid) d = do
-  validateLockClaims cmdCtx.userId cmdCtx.sessionId lockUid lockSid
+interpretEntityCommand ctx cmdCtx (CreateAndLock a) d = do
   d' <- ctx.create a d
-  d'' <- doLock lockUid lockSid (ctx.lock (ctx.getId a)) d'
+  d'' <- doLock cmdCtx.userId cmdCtx.sessionId (ctx.lock (ctx.getId a)) d'
   pure (d'', ctx.affectedUsers a d)
 interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
-interpretEntityCommand ctx cmdCtx (Modify i (Lock lockUid lockSid)) d = do
-  validateLockClaims cmdCtx.userId cmdCtx.sessionId lockUid lockSid
-  d' <- doLock lockUid lockSid (ctx.lock i) d
+interpretEntityCommand ctx cmdCtx (Modify i Lock) d = do
+  d' <- doLock cmdCtx.userId cmdCtx.sessionId (ctx.lock i) d
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
 interpretEntityCommand ctx cmdCtx (Modify i (Release patch)) d = do
@@ -154,11 +152,3 @@ interpretEntityCommand ctx cmdCtx (Modify i (Release patch)) d = do
   aModified <- ctx.applyPatch aCurrent patch
   let d'' = ctx.update aModified d'
   pure (d'', ctx.affectedUsers aModified d <> ctx.affectedUsers aCurrent d)
-
--- | Validate that userId and sessionId in a lock command match the authenticated context.
-validateLockClaims :: UserId -> SessionId -> UserId -> SessionId -> Either Text ()
-validateLockClaims authUid authSid claimedUid claimedSid = do
-  when (claimedUid /= authUid) $
-    Left "Lock userId does not match authenticated user"
-  when (claimedSid /= authSid) $
-    Left "Lock sessionId does not match authenticated session"

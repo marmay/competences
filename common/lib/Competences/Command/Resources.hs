@@ -85,7 +85,7 @@ handleResourcesCommand cmdCtx (OnResources c) d =
   case c of
     -- Validate new resources before creating
     Create r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext cmdCtx c d
-    CreateAndLock _r _ _ -> interpretEntityCommand resourceContext cmdCtx c d
+    CreateAndLock _r -> interpretEntityCommand resourceContext cmdCtx c d
     -- Other operations use applyPatch which already validates
     _ -> interpretEntityCommand resourceContext cmdCtx c d
   where

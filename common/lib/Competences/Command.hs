@@ -54,9 +54,11 @@ import Competences.Document (Document (..), Lesson (..), User (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (LessonId)
+import Competences.Document.Lock (Lock)
 import Competences.Document.User (Office365Id (..), UserRole (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Data.List (sortOn)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 #ifdef WITH_AESON
@@ -107,6 +109,7 @@ data Command
   | Layouts !LayoutsCommand
   | Publish !PublishData
   | Migration !MigrationCommand
+  | Unlock !Lock
   deriving (Eq, Generic, Show)
 
 type CommandId = Id Command
@@ -150,6 +153,9 @@ handleCommand cmdCtx cmd d = case cmd of
   -- System commands: no user role check needed
   Publish pd -> handlePublish pd d
   Migration c -> handleMigrationCommand c d
+  -- Lock cleanup: permissive and idempotent — server validates ownership/staleness
+  -- before persisting. Safe during replay even if the lock was already released.
+  Unlock lock -> Right (d & #locks %~ Map.delete lock, mempty)
   where
     teacherOnly result = requireTeacher cmdCtx.userId d >> result
 
@@ -201,3 +207,4 @@ handleMigrationCommand SortAssignmentTasksByIdentifier d =
 
 allUsers :: Document -> AffectedUsers
 allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users
+
