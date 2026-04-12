@@ -377,10 +377,6 @@ handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
   KeepAlive ->
     WS.sendBinaryData conn (Bin.encode KeepAliveResponse)
 
-  QuerySessionAlive queriedSid -> do
-    alive <- SR.isSessionAlive state.sessionRegistry queriedSid
-    WS.sendBinaryData conn (Bin.encode $ SessionAliveResponse queriedSid alive)
-
   RequestFile hash -> do
     putStrLn $ "File requested: " <> show hash
     mContents <- CAS.fetchFile state.cas hash

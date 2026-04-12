@@ -20,6 +20,8 @@ module Competences.Frontend.WebSocket.CommandSender
   , sendRequestUploadPermission
     -- * File Download
   , sendRequestFile
+    -- * Non-optimistic Commands
+  , sendCommandDirect
     -- * Subscriptions
   , subscribeConnection
   )
@@ -199,6 +201,18 @@ sendRequestFile sender hash = do
     Nothing -> logWarn "sendRequestFile: not connected"
     Just ws -> ws.send (RequestFile hash) `catch` \(_ :: SomeException) ->
       logWarn "sendRequestFile: send failed"
+
+-- | Send a command directly via WebSocket, bypassing the command queue.
+-- The command is NOT tracked for local replay — used for non-optimistic
+-- operations where the server must validate before local application
+-- (e.g., lock stealing). Does nothing if not connected.
+sendCommandDirect :: CommandSender -> Command -> IO ()
+sendCommandDirect sender cmd = do
+  maybeWs <- readMVar sender.wsRef
+  case maybeWs of
+    Nothing -> logWarn "sendCommandDirect: not connected"
+    Just ws -> ws.send (SendCommand cmd) `catch` \(_ :: SomeException) ->
+      logWarn "sendCommandDirect: send failed"
 
 -- | Subscribe to connection state changes
 subscribeConnection :: forall a. CommandSender -> (ConnectionChange -> a) -> M.Sink a -> IO ()

@@ -83,9 +83,6 @@ data ClientMessage
   | -- | Request permission to upload a file.
     -- Fields: fileName, mimeType, fileSize.
     RequestUploadPermission !Text !Text !Int64
-  | -- | Query whether a session is still active (has WebSocket connections).
-    -- Used by clients to decide if a lock can be stolen.
-    QuerySessionAlive !SessionId
   deriving (Eq, Generic, Show)
 
 instance Binary ClientMessage
@@ -125,8 +122,6 @@ data ServerMessage
     UploadPermitted
   | -- | Server denies upload with reason.
     UploadDenied !Text
-  | -- | Response to QuerySessionAlive: whether the session has active connections.
-    SessionAliveResponse !SessionId !Bool
   deriving (Eq, Generic, Show)
 
 instance Binary ServerMessage

@@ -23,6 +23,11 @@ module Competences.Frontend.SyncContext.SyncDocument
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
+    -- * Non-optimistic Commands
+  , sendCommandOnly
+    -- * Rejection Notifications
+  , subscribeRejections
+  , notifyRejection
     -- * Upload Permission
   , requestUploadPermission
   , completeUploadPermission
@@ -80,6 +85,7 @@ import Competences.Frontend.WebSocket.CommandSender
   , enqueueCommand
   , getAllPending
   , getPending
+  , sendCommandDirect
   , sendRequestFile
   , sendRequestUploadPermission
   , sendUploadFile
@@ -131,6 +137,9 @@ isInitialUpdate _ = False
 data ChangedHandler where
   ChangedHandler :: forall a. (DocumentChange -> a) -> (M.Sink a) -> ChangedHandler
 
+-- | Handler for command rejection notifications.
+data RejectionHandler = RejectionHandler (Command -> Text -> IO ())
+
 data SyncContext = SyncContext
   { syncDocument :: MVar SyncDocument
   , randomGen :: MVar StdGen
@@ -144,6 +153,8 @@ data SyncContext = SyncContext
   , uploadPermissionCallback :: !(IORef (Maybe (Either Text () -> IO ())))
   , fileUploadCallback :: !(IORef (Maybe (Either Text FileRef -> IO ())))
   , fileDownloadResults :: !(IORef (Map.Map SHA256Hash (MVar (Maybe BL.ByteString))))
+  , rejectionHandlers :: !(MVar (Map.Map Int RejectionHandler))
+  , nextRejectionHandlerId :: !(IORef Int)
   }
 
 -- | Get the environment from a SyncContext
@@ -180,7 +191,9 @@ mkSyncDocument env = do
   upc <- newIORef Nothing
   fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr
+  rh <- newMVar Map.empty
+  rhId <- newIORef 0
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -195,7 +208,9 @@ mkSyncDocument' env rgen m = do
   upc <- newIORef Nothing
   fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr
+  rh <- newMVar Map.empty
+  rhId <- newIORef 0
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 -- | Request permission to upload a file. The callback is invoked with
 -- Right () on UploadPermitted, or Left reason on UploadDenied.
@@ -461,3 +476,27 @@ rejectCommand d cmd = do
       issueDocumentChange (DocumentChange localDoc' DocumentReloaded)
 
     pure syncDoc'
+
+-- | Send a command to the server without applying locally.
+-- Used for non-optimistic operations where the server must validate
+-- before local application (e.g., lock stealing).
+sendCommandOnly :: SyncContext -> Command -> IO ()
+sendCommandOnly r cmd = do
+  logDebug $ "[SyncDoc] sendCommandOnly: " <> M.ms (show cmd)
+  sendCommandDirect r.env.commandSender cmd
+
+-- | Subscribe to command rejection notifications.
+-- Returns an unsubscribe action.
+subscribeRejections :: SyncContext -> (Command -> Text -> IO ()) -> IO (IO ())
+subscribeRejections r handler = do
+  handlerId <- readIORef r.nextRejectionHandlerId
+  writeIORef r.nextRejectionHandlerId (handlerId + 1)
+  modifyMVar_ r.rejectionHandlers $ pure . Map.insert handlerId (RejectionHandler handler)
+  pure $ modifyMVar_ r.rejectionHandlers $ pure . Map.delete handlerId
+
+-- | Notify all rejection subscribers about a rejected command.
+-- Called from the WebSocket operation loop on CommandRejected.
+notifyRejection :: SyncContext -> Command -> Text -> IO ()
+notifyRejection r cmd err = do
+  handlers <- readMVar r.rejectionHandlers
+  forM_ handlers $ \(RejectionHandler handler) -> handler cmd err

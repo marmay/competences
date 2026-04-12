@@ -28,6 +28,7 @@ import Competences.Frontend.SyncContext
   , completeUploadPermission
   , mkSyncDocument
   , mkSyncDocumentEnv
+  , notifyRejection
   , readSyncDocument
   , rejectCommand
   , setServerInfo
@@ -148,6 +149,7 @@ operationLoop ref mIdb ws = do
       CommandRejected cmd err -> do
         logWarn $ M.ms $ "Command rejected: " <> show cmd <> " - " <> T.unpack err
         rejectCommand ref cmd
+        notifyRejection ref cmd err
 
       KeepAliveResponse -> pure ()
 
