@@ -170,8 +170,8 @@ main = do
   -- Persist schema migration commands + new snapshot if any
   unless (null migrationCmds) $ do
     putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
-    let systemUserId = Id UUID.nil
-    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemUserId legacySessionId cmd) initialGen migrationCmds
+    let systemCtx = CommandContext (Id UUID.nil) legacySessionId
+    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemCtx cmd) initialGen migrationCmds
     DB.saveSnapshot pool doc latestGen
     putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
 
@@ -258,15 +258,15 @@ buildStartupMigrations opts = do
 applyStartupMigrations :: Pool Connection -> Document -> Int64 -> [Command] -> IO (Document, Int64)
 applyStartupMigrations pool = go
   where
-    systemUserId = Id UUID.nil
+    systemCtx = CommandContext (Id UUID.nil) legacySessionId
     go doc gen [] = pure (doc, gen)
     go doc gen (cmd : rest) =
-      case handleCommand (CommandContext systemUserId legacySessionId) cmd doc of
+      case handleCommand systemCtx cmd doc of
         Left reason -> do
           putStrLn $ "Startup migration skipped: " <> T.unpack reason
           go doc gen rest
         Right (doc', _) -> do
-          (_cmdId, gen') <- DB.saveCommand pool systemUserId legacySessionId cmd
+          (_cmdId, gen') <- DB.saveCommand pool systemCtx cmd
           putStrLn $ "Startup migration applied at generation " <> show gen'
           go doc' gen' rest
 

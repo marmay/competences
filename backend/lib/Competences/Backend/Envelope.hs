@@ -26,7 +26,7 @@ module Competences.Backend.Envelope
   )
 where
 
-import Competences.Command (Command (..), MigrationCommand (..))
+import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..))
 import Competences.Command.Common (migrateSnapshotLocks)
 import Competences.Document (Document (..))
 import Competences.Document.Assignment (AssignmentId)
@@ -129,12 +129,12 @@ instance FromJSON SnapshotEnvelope where
       <*> v .: "payload"
 
 -- | Wrap a command in an envelope at the current version
-wrapCommand :: UserId -> SessionId -> Command -> CommandEnvelope
-wrapCommand userId sessionId cmd =
+wrapCommand :: CommandContext -> Command -> CommandEnvelope
+wrapCommand ctx cmd =
   CommandEnvelope
     { version = currentCommandVersion
-    , userId = userId
-    , sessionId = sessionId
+    , userId = ctx.userId
+    , sessionId = ctx.sessionId
     , payload = toJSON cmd
     }
 

@@ -8,10 +8,10 @@ where
 import Competences.Command (Command, CommandContext (..), handleCommand)
 import Competences.Command.Common (migrateSnapshotLocks)
 import Competences.Document (Document (..), emptyDocument)
-import Competences.Document.Session (legacySessionId)
 import Competences.Document.Id (Id (..))
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
-import Data.Aeson (FromJSON (..), Result (..), Value, eitherDecodeStrict, fromJSON, withObject, (.:))
+import Data.Aeson (FromJSON (..), Result (..), Value, eitherDecodeStrict, fromJSON, withObject, (.:), (.:?))
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
@@ -38,6 +38,7 @@ instance FromJSON SnapshotEnvelope where
 data CommandEnvelope = CommandEnvelope
   { version :: !Int
   , userId :: !UserId
+  , sessionId :: !SessionId
   , payload :: !Value
   }
 
@@ -48,7 +49,15 @@ instance FromJSON CommandEnvelope where
     p <- v .: "payload"
     case UUID.fromText userIdText of
       Nothing -> fail $ "Invalid userId UUID: " <> show userIdText
-      Just uuid -> pure $ CommandEnvelope ver (Id uuid) p
+      Just uuid -> do
+        -- V2 envelopes have sessionId; v1 uses legacySessionId
+        mSidText <- v .:? "sessionId"
+        let sid = case mSidText of
+              Just sidText -> case UUID.fromText sidText of
+                Just sidUuid -> Id sidUuid
+                Nothing -> legacySessionId
+              Nothing -> legacySessionId
+        pure $ CommandEnvelope ver (Id uuid) sid p
 
 unwrapSnapshot :: SnapshotEnvelope -> Either Text Document
 unwrapSnapshot env = case env.version of
@@ -99,7 +108,7 @@ loadSnapshotBefore conn cutoff = do
             Right doc -> pure $ Just (doc, generation)
 
 -- | Load commands with generation > g AND created_at <= target time.
-loadCommandsUntil :: Connection -> Int64 -> UTCTime -> IO [(UserId, Command)]
+loadCommandsUntil :: Connection -> Int64 -> UTCTime -> IO [(CommandContext, Command)]
 loadCommandsUntil conn sinceGen cutoff = do
   rows <-
     query
@@ -113,7 +122,7 @@ loadCommandsUntil conn sinceGen cutoff = do
       (sinceGen, cutoff) ::
       IO [Only Value]
   pure
-    [ (envelope.userId, cmd)
+    [ (CommandContext envelope.userId envelope.sessionId, cmd)
     | Only envelopeValue <- rows
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]
@@ -139,10 +148,10 @@ loadDocumentAt conn day = do
   pure $ replayCommands baseDoc commands
 
 -- | Replay a list of commands on a document, skipping any that fail.
-replayCommands :: Document -> [(UserId, Command)] -> Document
+replayCommands :: Document -> [(CommandContext, Command)] -> Document
 replayCommands = foldl applyCommand
   where
-    applyCommand doc (uid, cmd) =
-      case handleCommand (CommandContext uid legacySessionId) cmd doc of
+    applyCommand doc (ctx, cmd) =
+      case handleCommand ctx cmd doc of
         Right (doc', _) -> doc'
         Left _err -> doc -- skip failed commands (mirrors backend behavior)

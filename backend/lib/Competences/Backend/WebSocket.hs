@@ -17,7 +17,7 @@ import Competences.Backend.State
   ( AppState (..)
   , getDocument
   )
-import Competences.Command (Command (..))
+import Competences.Command (Command (..), CommandContext (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
 import Competences.Document.FileRef (FileData (..), FileRef (..))
@@ -364,7 +364,7 @@ handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
             putStrLn $ "Command rejected (lock validation): " <> T.unpack err
             WS.sendBinaryData conn (Bin.encode $ CommandRejected cmd err)
           Right () -> do
-            result <- CP.submitCommand state.processor uid sessionId cmd
+            result <- CP.submitCommand state.processor (CommandContext uid sessionId) cmd
             case result of
               Left err -> do
                 putStrLn $ "Command rejected: " <> T.unpack err

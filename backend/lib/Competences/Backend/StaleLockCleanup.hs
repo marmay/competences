@@ -10,7 +10,7 @@ where
 
 import Competences.Backend.CommandProcessor (CommandProcessor, submitCommand)
 import Competences.Backend.SessionRegistry (SessionRegistry, findStaleSessions, removeStaleSessions)
-import Competences.Command (Command (..))
+import Competences.Command (Command (..), CommandContext (..))
 import Competences.Document (Document (..))
 import Competences.Document.Lock (LockHolder (..))
 import Control.Concurrent (ThreadId, forkIO, threadDelay)
@@ -60,7 +60,8 @@ cleanupOnce registry docVar proc threshold = do
               ]
         forM_ staleLocks $ \(lock, holder) -> do
           putStrLn $ "Releasing stale lock: " <> show lock <> " (session " <> show staleSid <> ")"
-          result <- submitCommand proc holder.userId holder.sessionId (Unlock lock)
+          let ctx = CommandContext holder.userId holder.sessionId
+          result <- submitCommand proc ctx (Unlock lock)
           case result of
             Left err -> putStrLn $ "  Failed: " <> T.unpack err
             Right _ -> pure ()
