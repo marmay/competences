@@ -13,7 +13,7 @@ import Competences.Command (Command (..), MesoPlansCommand (..), MesoPlanPatch (
 import Competences.Document.MesoPlan (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Document.Id (idToText)
-import Competences.Frontend.SyncContext (SyncContext (..), mkLock, modifySyncDocument)
+import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), WindowMode, closeWindow, openFramedModalWith)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Button qualified as Button
@@ -105,7 +105,7 @@ mesoPlanEditorModal r plan wm =
         -- Only send command if something changed
         if oldTitle /= newTitle || oldDateFrom /= newDateFrom || oldDateTo /= newDateTo
           then do
-            modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (mkLock r))
+            modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id Lock)
             modifySyncDocument r (MesoPlans $ OnMesoPlans $ Modify m.mesoPlan.id (Release patch))
           else pure ()
         closeWindow wm

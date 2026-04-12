@@ -15,7 +15,7 @@ module Competences.Frontend.Component.Planning.ImportModal
 where
 
 import Competences.Command qualified as Cmd
-import Competences.Command (LessonPatch (..), ModifyCommand (..))
+import Competences.Command (EntityCommand (CreateAndLock), LessonPatch (..), ModifyCommand (..))
 import Competences.Document (Document (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (ActionForm (..), Lesson (..))
@@ -24,8 +24,6 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ImportModal qualified as IM
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
-  , mkCreateAndLock
-  , mkLock
   , modifySyncDocument
   , nextId
   )
@@ -226,9 +224,9 @@ applyLessonPreview r preview = do
     Create lesson -> do
       newId <- nextId r
       let newLesson = lesson & #id .~ newId & #competenceLevels .~ matchedCompetences
-      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ mkCreateAndLock r newLesson)
+      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ CreateAndLock newLesson)
     Update old new -> do
-      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (mkLock r))
+      modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id Lock)
       let patch = buildLessonPatch old new matchedCompetences
       modifySyncDocument r (Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (Release patch))
     NoChange _ -> pure ()

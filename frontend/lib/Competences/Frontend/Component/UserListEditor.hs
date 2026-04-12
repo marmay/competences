@@ -11,7 +11,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Static (StaticComponent, StaticView, staticComponent)
-import Competences.Frontend.SyncContext (SyncContext, mkCreateAndLock, modifySyncDocument, nextId)
+import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId)
 import Competences.Frontend.View.Layout (centeredContent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
@@ -56,7 +56,7 @@ userListEditorComponent r =
               , role = Student
               , office365Id = Office365Id ""
               }
-      modifySyncDocument r (Users $ OnUsers $ mkCreateAndLock r user)
+      modifySyncDocument r (Users $ OnUsers $ CreateAndLock user)
 
     view :: StaticView Action
     view =

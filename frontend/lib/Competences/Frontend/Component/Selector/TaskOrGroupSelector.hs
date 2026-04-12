@@ -6,7 +6,7 @@ module Competences.Frontend.Component.Selector.TaskOrGroupSelector
   )
 where
 
-import Competences.Command (Command (..), DraftTasksCommand (..), TasksCommand (..))
+import Competences.Command (Command (..), DraftTasksCommand (..), EntityCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Task (..), TaskGroup (..), TaskGroupIxs, TaskIxs, TaskType (..))
 import Competences.Document.Task (TaskGroupId, TaskGroupIdentifier (..), TaskId, TaskIdentifier (..), defaultTaskAttributes, taskDisplayName)
@@ -15,7 +15,6 @@ import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext
-  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -106,7 +105,7 @@ taskOrGroupSelectorComponent r parentLens =
             , taskType = SelfContained defaultTaskAttributes
             , attachments = []
             }
-      modifySyncDocument r $ Tasks (OnTasks (mkCreateAndLock r newTask))
+      modifySyncDocument r $ Tasks (OnTasks (CreateAndLock newTask))
       s CloseDropdown
       s (SelectItem $ SelectableTask Published newTask)
 
@@ -120,7 +119,7 @@ taskOrGroupSelectorComponent r parentLens =
             , taskType = SelfContained defaultTaskAttributes
             , attachments = []
             }
-      modifySyncDocument r $ DraftTasks (OnDraftTasks (mkCreateAndLock r newTask))
+      modifySyncDocument r $ DraftTasks (OnDraftTasks (CreateAndLock newTask))
       s CloseDropdown
       s (SelectItem $ SelectableTask Draft newTask)
 
@@ -133,7 +132,7 @@ taskOrGroupSelectorComponent r parentLens =
             , contentBefore = Nothing
             , contentAfter = Nothing
             }
-      modifySyncDocument r $ Tasks (OnTaskGroups (mkCreateAndLock r newGroup))
+      modifySyncDocument r $ Tasks (OnTaskGroups (CreateAndLock newGroup))
       s CloseDropdown
       s (SelectItem $ SelectableGroup Published newGroup)
 
@@ -146,7 +145,7 @@ taskOrGroupSelectorComponent r parentLens =
             , contentBefore = Nothing
             , contentAfter = Nothing
             }
-      modifySyncDocument r $ DraftTasks (OnDraftTaskGroups (mkCreateAndLock r newGroup))
+      modifySyncDocument r $ DraftTasks (OnDraftTaskGroups (CreateAndLock newGroup))
       s CloseDropdown
       s (SelectItem $ SelectableGroup Draft newGroup)
 

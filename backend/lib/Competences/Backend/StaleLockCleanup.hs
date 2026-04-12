@@ -9,7 +9,7 @@ module Competences.Backend.StaleLockCleanup
 where
 
 import Competences.Backend.CommandProcessor (CommandProcessor, submitCommand)
-import Competences.Backend.SessionRegistry (SessionRegistry, findStaleSessions)
+import Competences.Backend.SessionRegistry (SessionRegistry, findStaleSessions, removeStaleSessions)
 import Competences.Command (Command (..))
 import Competences.Document (Document (..))
 import Competences.Document.Lock (LockHolder (..))
@@ -17,6 +17,7 @@ import Control.Concurrent (ThreadId, forkIO, threadDelay)
 import Control.Concurrent.STM (TVar, readTVarIO)
 import Control.Monad (forM_, forever)
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as T
 import Data.Time (NominalDiffTime)
 
 -- | How often to check for stale sessions (5 minutes).
@@ -50,7 +51,7 @@ cleanupOnce registry docVar proc threshold = do
     [] -> pure ()
     _ -> do
       doc <- readTVarIO docVar
-      let locks = Map.toList (doc.locks)
+      let locks = Map.toList doc.locks
       forM_ stale $ \(staleSid, _entry) -> do
         let staleLocks =
               [ (lock, holder)
@@ -59,6 +60,10 @@ cleanupOnce registry docVar proc threshold = do
               ]
         forM_ staleLocks $ \(lock, holder) -> do
           putStrLn $ "Releasing stale lock: " <> show lock <> " (session " <> show staleSid <> ")"
-          _result <- submitCommand proc holder.userId holder.sessionId (Unlock lock)
-          pure ()
-      putStrLn $ "Stale lock cleanup: checked " <> show (length stale) <> " expired sessions"
+          result <- submitCommand proc holder.userId holder.sessionId (Unlock lock)
+          case result of
+            Left err -> putStrLn $ "  Failed: " <> T.unpack err
+            Right _ -> pure ()
+      -- Evict cleaned session entries (only if still disconnected)
+      removeStaleSessions registry (map fst stale)
+      putStrLn $ "Stale lock cleanup: processed " <> show (length stale) <> " expired sessions"

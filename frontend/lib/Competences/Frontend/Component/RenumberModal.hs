@@ -12,7 +12,6 @@ import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
-  , mkLock
   , modifySyncDocument
   )
 import Competences.Frontend.SyncContext.WindowManager
@@ -208,7 +207,7 @@ renumberModalComponent r infos wm =
       M.io_ $ do
         mapM_
           ( \e -> do
-              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (mkLock r)))
+              modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId Lock))
               let patch = def & #identifier .~ Just (e.oldIdentifier, e.newIdentifier) :: TaskPatch
               modifySyncDocument r $ wrapForOrigin e.origin $ Tasks (OnTasks (Modify e.taskId (Release patch)))
           )

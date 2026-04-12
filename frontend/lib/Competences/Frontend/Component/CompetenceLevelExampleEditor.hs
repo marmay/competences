@@ -38,8 +38,6 @@ import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , mkCreateAndLock
-  , mkLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -283,7 +281,7 @@ exampleEditorComponent r compId lvl =
                 , attachments = []
                 }
         modifySyncDocument r $
-          CompetenceLevelExamples $ OnCompetenceLevelExamples $ mkCreateAndLock r ex
+          CompetenceLevelExamples $ OnCompetenceLevelExamples $ CreateAndLock ex
 
     update StartEditing = do
       m <- M.get
@@ -298,7 +296,7 @@ exampleEditorComponent r compId lvl =
                 }
             M.io_ $
               modifySyncDocument r $
-                CompetenceLevelExamples $ OnCompetenceLevelExamples $ Modify ex.id (mkLock r)
+                CompetenceLevelExamples $ OnCompetenceLevelExamples $ Modify ex.id Lock
           _ -> pure ()
         Nothing -> pure ()
 

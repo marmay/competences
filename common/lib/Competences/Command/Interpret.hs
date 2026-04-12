@@ -13,8 +13,6 @@ import Competences.Command.Common (AffectedUsers, CommandContext (..), EntityCom
 import Competences.Document (Document (..), Lock, LockHolder (..))
 import Competences.Document.Id (Id)
 import Competences.Document.Order (OrderableSet, reordered, reordered')
-import Competences.Document.Session (SessionId)
-import Competences.Document.User (UserId)
 import Control.Monad (unless, when)
 import Data.IxSet.Typed qualified as Ix
 import Data.Map qualified as Map
@@ -109,21 +107,21 @@ mkEntityCommandContext l idOf lock applyPatch affectedUsers =
         }
 
 -- | Lock an entity
-doLock :: UserId -> SessionId -> Lock -> Document -> Either Text Document
-doLock uid sid l d =
+doLock :: CommandContext -> Lock -> Document -> Either Text Document
+doLock ctx l d =
   case (d ^. #locks) Map.!? l of
     Just _ -> Left "entity is already locked!"
-    Nothing -> pure (d & (#locks %~ Map.insert l (LockHolder uid sid)))
+    Nothing -> pure (d & (#locks %~ Map.insert l (LockHolder ctx.userId ctx.sessionId)))
 
 -- | Release a lock on an entity. Checks that the requesting user
 -- owns the lock (same userId and sessionId).
-doRelease :: UserId -> SessionId -> Lock -> Document -> Either Text Document
-doRelease uid sid l d =
+doRelease :: CommandContext -> Lock -> Document -> Either Text Document
+doRelease ctx l d =
   case (d ^. #locks) Map.!? l of
     Just holder -> do
-      when (holder.userId /= uid) $
+      when (holder.userId /= ctx.userId) $
         Left "entity is locked by another user!"
-      when (holder.sessionId /= sid) $
+      when (holder.sessionId /= ctx.sessionId) $
         Left "entity is locked by another session!"
       pure (d & (#locks %~ Map.delete l))
     Nothing -> Left "entity is not locked!"
@@ -137,17 +135,17 @@ interpretEntityCommand ctx _ (Create a) d =
   (,ctx.affectedUsers a d) <$> ctx.create a d
 interpretEntityCommand ctx cmdCtx (CreateAndLock a) d = do
   d' <- ctx.create a d
-  d'' <- doLock cmdCtx.userId cmdCtx.sessionId (ctx.lock (ctx.getId a)) d'
+  d'' <- doLock cmdCtx (ctx.lock (ctx.getId a)) d'
   pure (d'', ctx.affectedUsers a d)
 interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
 interpretEntityCommand ctx cmdCtx (Modify i Lock) d = do
-  d' <- doLock cmdCtx.userId cmdCtx.sessionId (ctx.lock i) d
+  d' <- doLock cmdCtx (ctx.lock i) d
   a <- ctx.fetch i d'
   pure (d', ctx.affectedUsers a d)
 interpretEntityCommand ctx cmdCtx (Modify i (Release patch)) d = do
-  d' <- doRelease cmdCtx.userId cmdCtx.sessionId (ctx.lock i) d
+  d' <- doRelease cmdCtx (ctx.lock i) d
   aCurrent <- ctx.fetch i d'
   aModified <- ctx.applyPatch aCurrent patch
   let d'' = ctx.update aModified d'

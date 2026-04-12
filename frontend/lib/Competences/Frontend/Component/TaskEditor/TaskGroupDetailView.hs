@@ -31,7 +31,6 @@ import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolution
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -110,7 +109,7 @@ taskGroupEditorComponent r origin group =
             , taskType = SubTask group.id emptyOverride
             , attachments = []
             }
-      modifySyncDocument r $ wrap $ Tasks (OnSubTasks (mkCreateAndLock r newSubTask))
+      modifySyncDocument r $ wrap $ Tasks (OnSubTasks (CreateAndLock newSubTask))
       where
         emptyOverride = TaskAttributesOverride Nothing Nothing Nothing Nothing
 

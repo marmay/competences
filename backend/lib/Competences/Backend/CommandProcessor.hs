@@ -155,6 +155,7 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- Pre-generate CommandId
       cmdUuid <- UUID.nextRandom
       let cmdId = Id cmdUuid
+          cmdCtx = CommandContext uid sid
 
       -- Read current clients (safe: processor is single-threaded)
       clients <- readIORef clientsRef
@@ -179,14 +180,13 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- SenderThreads read queue + docVar atomically → always consistent.
       result <- atomically $ do
         doc <- readTVar docVar
-        case handleCommand (CommandContext uid sid) cmd doc of
+        case handleCommand cmdCtx cmd doc of
           Left err -> do
             putTMVar responseVar (Left err)
             pure Nothing
           Right (doc', _affected) -> do
             writeTVar docVar doc'
             let cmdsFor = clientCommands doc cmd
-                cmdCtx = CommandContext uid sid
                 pushItem q ck c = writeTQueue q ClientQueueItem
                   { commandId = cmdId, context = cmdCtx, command = c, checkpoint = ck }
             -- Push per-client commands; checkpoint flag goes on the last item

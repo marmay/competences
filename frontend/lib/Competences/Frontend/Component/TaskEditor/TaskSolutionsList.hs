@@ -16,7 +16,6 @@ import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
-  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
@@ -117,7 +116,7 @@ taskSolutionsListComponent r taskId =
     update CreateSolution = M.withSink $ \_sink -> do
       solutionId <- nextId r
       let newSolution = mkSolution solutionId taskId connectedUser.id
-      modifySyncDocument r $ Solutions (OnSolutions (mkCreateAndLock r newSolution))
+      modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock newSolution))
     update (DeleteSolution solId) = M.withSink $ \_sink -> do
       modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
 

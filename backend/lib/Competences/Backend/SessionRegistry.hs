@@ -11,13 +11,14 @@ module Competences.Backend.SessionRegistry
   , unregisterConnection
   , isSessionAlive
   , findStaleSessions
+  , removeStaleSessions
   )
 where
 
 import Competences.Backend.CommandProcessor (ConnectionId)
 import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
-import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
+import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set (Set)
@@ -67,7 +68,7 @@ unregisterConnection registry sid connId = do
 -- | Check if a session has at least one active connection.
 isSessionAlive :: SessionRegistry -> SessionId -> IO Bool
 isSessionAlive registry sid = do
-  reg <- atomically $ readTVar registry
+  reg <- readTVarIO registry
   pure $ case Map.lookup sid reg of
     Just entry -> not (Set.null entry.connections)
     Nothing -> False
@@ -77,7 +78,7 @@ isSessionAlive registry sid = do
 findStaleSessions :: SessionRegistry -> NominalDiffTime -> IO [(SessionId, SessionEntry)]
 findStaleSessions registry threshold = do
   now <- getCurrentTime
-  reg <- atomically $ readTVar registry
+  reg <- readTVarIO registry
   pure
     [ (sid, entry)
     | (sid, entry) <- Map.toList reg
@@ -85,3 +86,14 @@ findStaleSessions registry threshold = do
     , Just disconnectTime <- [entry.lastDisconnect]
     , diffUTCTime now disconnectTime > threshold
     ]
+
+-- | Remove session entries that still have no active connections.
+-- Called after stale lock cleanup to prevent unbounded registry growth.
+removeStaleSessions :: SessionRegistry -> [SessionId] -> IO ()
+removeStaleSessions registry sids = atomically $ do
+  reg <- readTVar registry
+  let reg' = foldl' (\m sid -> case Map.lookup sid m of
+                Just entry | Set.null entry.connections -> Map.delete sid m
+                _ -> m  -- reconnected since scan, keep it
+              ) reg sids
+  writeTVar registry reg'

@@ -27,7 +27,6 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -179,7 +178,7 @@ detailComponent r initialPlan =
                 , phases = []
                 , notes = mempty
                 }
-        modifySyncDocument r (Lessons $ OnLessons $ mkCreateAndLock r lesson)
+        modifySyncDocument r (Lessons $ OnLessons $ CreateAndLock lesson)
         openLessonEditor r lesson []
 
     update (ToggleLessonExpansion lessonId) = M.modify $ \m ->

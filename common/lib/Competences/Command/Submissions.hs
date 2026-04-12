@@ -139,7 +139,7 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
-      d'' <- doLock cmdCtx.userId cmdCtx.sessionId (SubmissionLock s.id) d'
+      d'' <- doLock cmdCtx (SubmissionLock s.id) d'
       Right (d'', affectedUsersFor s d)
 
     Delete submissionId -> do
@@ -153,14 +153,14 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       s <- fetchSubmission submissionId d
       unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doLock cmdCtx.userId cmdCtx.sessionId (SubmissionLock submissionId) d
+      d' <- doLock cmdCtx (SubmissionLock submissionId) d
       Right (d', affectedUsersFor s d)
 
     Modify submissionId (Release patch) -> do
       s <- fetchSubmission submissionId d
       unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
-      d' <- doRelease cmdCtx.userId cmdCtx.sessionId (SubmissionLock submissionId) d
+      d' <- doRelease cmdCtx (SubmissionLock submissionId) d
       s' <- applySubmissionPatch s patch
       validateKind s'.kind
       let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx submissionId

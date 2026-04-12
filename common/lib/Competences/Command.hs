@@ -207,4 +207,3 @@ handleMigrationCommand SortAssignmentTasksByIdentifier d =
 
 allUsers :: Document -> AffectedUsers
 allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users
-

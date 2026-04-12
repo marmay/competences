@@ -418,17 +418,13 @@ validateUnlock state requestingUid lock = do
   doc <- getDocument state
   case Map.lookup lock doc.locks of
     Nothing -> pure (Left "lock not held")
-    Just holder
-      | holder.userId == requestingUid ->
-          -- Same user: allowed if holder's session is dead
-          SR.isSessionAlive state.sessionRegistry holder.sessionId >>= \case
-            True -> pure (Left "entity is locked in another active session")
-            False -> pure (Right ())
-      | otherwise ->
-          -- Different user: allowed if holder's session is dead
-          SR.isSessionAlive state.sessionRegistry holder.sessionId >>= \case
-            True -> pure (Left "entity is locked by another user who is currently active")
-            False -> pure (Right ())
+    Just holder -> do
+      alive <- SR.isSessionAlive state.sessionRegistry holder.sessionId
+      pure $ if alive
+        then Left $ if holder.userId == requestingUid
+          then "entity is locked in another active session"
+          else "entity is locked by another user who is currently active"
+        else Right ()
 
 -- | Check if a user role is authorized to execute a command.
 isAuthorized :: UserRole -> Command -> Bool

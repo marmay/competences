@@ -105,7 +105,6 @@ import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
-  , mkLock
   , modifySyncDocument
   , subscribeWithProjection
   )
@@ -498,7 +497,7 @@ viewerComponent r user assignment wm =
               let assignId = m.projection.currentAssignment.id
                   origOrder = m.projection.currentAssignment.tasks
                   mm' = updatePrintModal ToggleReorderMode 0 mm
-              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId (mkLock r)))
+              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId Lock))
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (mm' & #originalTaskOrder .~ origOrder)
             else do

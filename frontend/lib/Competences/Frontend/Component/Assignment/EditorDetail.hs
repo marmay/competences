@@ -34,7 +34,6 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
-  , mkCreateAndLock
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -300,7 +299,7 @@ taskSearchConfig r origin =
             wrap = case origin of
               Published -> id
               Draft -> retargetForDraft
-        modifySyncDocument r $ wrap $ Tasks (OnTasks (mkCreateAndLock r newTask))
+        modifySyncDocument r $ wrap $ Tasks (OnTasks (CreateAndLock newTask))
         openTaskEditorModal r origin taskId
         pure taskId
     }
