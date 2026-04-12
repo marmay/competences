@@ -88,6 +88,8 @@ data Model = Model
   , stealError :: !(Maybe Text)
   , connected :: !Bool
   , lastProjection :: !LockProjection
+  , stealGen :: !Int
+  -- ^ Generation counter for steal timeout disambiguation
   }
   deriving (Eq, Show, Generic)
 
@@ -97,7 +99,7 @@ data Action
   | Click
   | Hold !(HoldButton.HoldAction ())
   | StealRejected !Text
-  | StealTimeout
+  | StealTimeout !Int
   | DismissError
   deriving (Eq, Show)
 
@@ -117,7 +119,7 @@ lockButtonComponent r cfg =
     env = syncDocumentEnv r
 
     initModel :: Model
-    initModel = Model Free HoldButton.emptyHoldState Nothing True emptyProjection
+    initModel = Model Free HoldButton.emptyHoldState Nothing True emptyProjection 0
 
     emptyProjection :: LockProjection
     emptyProjection = LockProjection Nothing Nothing
@@ -167,15 +169,16 @@ lockButtonComponent r cfg =
           HoldButton.ExecuteHold () gen
             | m.holdState.holdId == Just ()
             , m.holdState.holdGen == gen -> do
+                let newGen = m.stealGen + 1
                 M.modify $ \m' -> m'
                   { lockStatus = StealPending
                   , holdState = HoldButton.emptyHoldState
+                  , stealGen = newGen
                   }
                 M.io_ $ do
                   sendCommandOnly r (Unlock cfg.lock)
                   sendCommandOnly r cfg.lockCommand
-                -- Timeout: if still pending after 10s, revert
-                M.io $ threadDelay 10_000_000 >> pure StealTimeout
+                M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
           _ -> HoldButton.handleHoldAction #holdState (\() -> pure ()) Hold ha
         else pure ()
 
@@ -189,10 +192,10 @@ lockButtonComponent r cfg =
                 M.io $ threadDelay 4_000_000 >> pure DismissError
         _ -> pure ()
 
-    update StealTimeout = do
+    update (StealTimeout gen) = do
       m <- M.get
       case m.lockStatus of
-        StealPending ->
+        StealPending | m.stealGen == gen ->
           M.modify $ \m' -> m' { lockStatus = deriveLockStatus m.lastProjection }
         _ -> pure ()
 
