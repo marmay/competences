@@ -102,7 +102,7 @@ import Miso qualified as M
 import Miso.Subscription.Util (createSub)
 import Optics.Core ((&), (.~))
 import System.Random (StdGen, newStdGen, random)
-import UnliftIO (IORef, MVar, MonadIO, MonadUnliftIO, liftIO, modifyMVar, modifyMVar_, newEmptyMVar, newIORef, newMVar, readIORef, readMVar, takeMVar, tryPutMVar, writeIORef)
+import UnliftIO (IORef, MVar, MonadIO, MonadUnliftIO, atomicModifyIORef', liftIO, modifyMVar, modifyMVar_, newEmptyMVar, newIORef, newMVar, readIORef, readMVar, takeMVar, tryPutMVar, writeIORef)
 
 -- | The SyncDocument is, what is at the heart of the application. It contains the
 -- entire server state regarding the competence grid model, as far as it is
@@ -489,8 +489,7 @@ sendCommandOnly r cmd = do
 -- Returns an unsubscribe action.
 subscribeRejections :: SyncContext -> (Command -> Text -> IO ()) -> IO (IO ())
 subscribeRejections r handler = do
-  handlerId <- readIORef r.nextRejectionHandlerId
-  writeIORef r.nextRejectionHandlerId (handlerId + 1)
+  handlerId <- atomicModifyIORef' r.nextRejectionHandlerId $ \n -> (n + 1, n)
   modifyMVar_ r.rejectionHandlers $ pure . Map.insert handlerId (RejectionHandler handler)
   pure $ modifyMVar_ r.rejectionHandlers $ pure . Map.delete handlerId
 

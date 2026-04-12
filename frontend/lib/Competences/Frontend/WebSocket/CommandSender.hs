@@ -29,7 +29,7 @@ where
 
 import Competences.Command (Command)
 import Competences.Document.FileRef (FileData, SHA256Hash)
-import Competences.Frontend.Logging (logDebug, logWarn)
+import Competences.Frontend.Logging (logDebug)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
 import Competences.Protocol (ClientMessage (..))
 import Data.Int (Int64)
@@ -172,47 +172,35 @@ isConnected sender = do
     Just _ -> True
     Nothing -> False
 
--- | Send a file upload request over the WebSocket connection.
+-- | Send a message over the WebSocket connection, logging on failure.
 -- Does nothing if not connected.
-sendUploadFile :: CommandSender -> Text -> Text -> FileData -> IO ()
-sendUploadFile sender fileName mimeType fileData = do
+sendMessage :: CommandSender -> ClientMessage -> IO ()
+sendMessage sender msg = do
   maybeWs <- readMVar sender.wsRef
   case maybeWs of
-    Nothing -> logWarn "sendUploadFile: not connected"
-    Just ws -> ws.send (UploadFile fileName mimeType fileData) `catch` \(_ :: SomeException) ->
-      logWarn "sendUploadFile: send failed"
+    Nothing -> pure ()
+    Just ws -> ws.send msg `catch` \(_ :: SomeException) -> pure ()
+
+-- | Send a file upload request over the WebSocket connection.
+sendUploadFile :: CommandSender -> Text -> Text -> FileData -> IO ()
+sendUploadFile sender fileName mimeType fileData =
+  sendMessage sender (UploadFile fileName mimeType fileData)
 
 -- | Send an upload permission request over the WebSocket connection.
--- Does nothing if not connected.
 sendRequestUploadPermission :: CommandSender -> Text -> Text -> Int64 -> IO ()
-sendRequestUploadPermission sender fileName mimeType fileSize = do
-  maybeWs <- readMVar sender.wsRef
-  case maybeWs of
-    Nothing -> logWarn "sendRequestUploadPermission: not connected"
-    Just ws -> ws.send (RequestUploadPermission fileName mimeType fileSize) `catch` \(_ :: SomeException) ->
-      logWarn "sendRequestUploadPermission: send failed"
+sendRequestUploadPermission sender fileName mimeType fileSize =
+  sendMessage sender (RequestUploadPermission fileName mimeType fileSize)
 
 -- | Send a file download request over the WebSocket connection.
--- Does nothing if not connected.
 sendRequestFile :: CommandSender -> SHA256Hash -> IO ()
-sendRequestFile sender hash = do
-  maybeWs <- readMVar sender.wsRef
-  case maybeWs of
-    Nothing -> logWarn "sendRequestFile: not connected"
-    Just ws -> ws.send (RequestFile hash) `catch` \(_ :: SomeException) ->
-      logWarn "sendRequestFile: send failed"
+sendRequestFile sender hash = sendMessage sender (RequestFile hash)
 
 -- | Send a command directly via WebSocket, bypassing the command queue.
 -- The command is NOT tracked for local replay — used for non-optimistic
 -- operations where the server must validate before local application
--- (e.g., lock stealing). Does nothing if not connected.
+-- (e.g., lock stealing).
 sendCommandDirect :: CommandSender -> Command -> IO ()
-sendCommandDirect sender cmd = do
-  maybeWs <- readMVar sender.wsRef
-  case maybeWs of
-    Nothing -> logWarn "sendCommandDirect: not connected"
-    Just ws -> ws.send (SendCommand cmd) `catch` \(_ :: SomeException) ->
-      logWarn "sendCommandDirect: send failed"
+sendCommandDirect sender cmd = sendMessage sender (SendCommand cmd)
 
 -- | Subscribe to connection state changes
 subscribeConnection :: forall a. CommandSender -> (ConnectionChange -> a) -> M.Sink a -> IO ()

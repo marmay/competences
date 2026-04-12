@@ -23,7 +23,6 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Frontend.Common qualified as C
 import Competences.Document (Document (..), User (..))
 import Competences.Document.Lock (Lock, LockHolder (..))
-import Competences.Document.User (UserId)
 import Competences.Frontend.SyncContext
   ( SyncContext
   , SyncDocumentEnv (..)
@@ -48,12 +47,12 @@ import Competences.Frontend.WebSocket.CommandSender
   )
 import Control.Concurrent (threadDelay)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Subscription.Util (createSub)
-import Optics.Core ((&), (.~))
 
 -- | Configuration for a LockButton instance.
 data LockButtonConfig = LockButtonConfig
@@ -68,7 +67,8 @@ data LockButtonConfig = LockButtonConfig
 -- | Lock status derived from document state.
 data LockStatus
   = Free
-  | LockedByOther !User
+  | LockedByOther !Text
+  -- ^ Display name of the lock holder
   | LockedBySelf
   | LockedByMe
   | StealPending
@@ -77,7 +77,8 @@ data LockStatus
 -- | Projection of the document state relevant to this button.
 data LockProjection = LockProjection
   { lockHolder :: !(Maybe LockHolder)
-  , users :: !(Map.Map UserId User)
+  , holderName :: !(Maybe Text)
+  -- ^ Display name of the lock holder (if they exist in the document)
   }
   deriving (Eq, Show, Generic)
 
@@ -96,6 +97,7 @@ data Action
   | Click
   | Hold !(HoldButton.HoldAction ())
   | StealRejected !Text
+  | StealTimeout
   | DismissError
   deriving (Eq, Show)
 
@@ -118,14 +120,16 @@ lockButtonComponent r cfg =
     initModel = Model Free HoldButton.emptyHoldState Nothing True emptyProjection
 
     emptyProjection :: LockProjection
-    emptyProjection = LockProjection Nothing Map.empty
+    emptyProjection = LockProjection Nothing Nothing
 
     lockProjection :: Lock -> Document -> Maybe User -> LockProjection
     lockProjection lock doc _mFocusedUser =
-      LockProjection
-        { lockHolder = Map.lookup lock doc.locks
-        , users = Map.fromList [(u.id, u) | u <- Ix.toList doc.users]
-        }
+      let mHolder = Map.lookup lock doc.locks
+          mName = do
+            holder <- mHolder
+            user <- Ix.getOne (doc.users Ix.@= holder.userId)
+            pure user.name
+       in LockProjection mHolder mName
 
     deriveLockStatus :: LockProjection -> LockStatus
     deriveLockStatus proj = case proj.lockHolder of
@@ -134,11 +138,7 @@ lockButtonComponent r cfg =
         | holder.userId == env.connectedUser.id
         , holder.sessionId == env.sessionId -> LockedByMe
         | holder.userId == env.connectedUser.id -> LockedBySelf
-        | otherwise -> case Map.lookup holder.userId proj.users of
-            Just user -> LockedByOther user
-            Nothing -> LockedByOther unknownUser
-      where
-        unknownUser = env.connectedUser & #name .~ "?"
+        | otherwise -> LockedByOther (fromMaybe "?" proj.holderName)
 
     update (ProjectionChanged change) =
       M.modify $ \m -> m
@@ -174,6 +174,8 @@ lockButtonComponent r cfg =
                 M.io_ $ do
                   sendCommandOnly r (Unlock cfg.lock)
                   sendCommandOnly r cfg.lockCommand
+                -- Timeout: if still pending after 10s, revert
+                M.io $ threadDelay 10_000_000 >> pure StealTimeout
           _ -> HoldButton.handleHoldAction #holdState (\() -> pure ()) Hold ha
         else pure ()
 
@@ -185,6 +187,13 @@ lockButtonComponent r cfg =
            in do
                 M.modify $ \m' -> m' { lockStatus = status, stealError = Just err }
                 M.io $ threadDelay 4_000_000 >> pure DismissError
+        _ -> pure ()
+
+    update StealTimeout = do
+      m <- M.get
+      case m.lockStatus of
+        StealPending ->
+          M.modify $ \m' -> m' { lockStatus = deriveLockStatus m.lastProjection }
         _ -> pure ()
 
     update DismissError =
@@ -200,13 +209,13 @@ lockButtonComponent r cfg =
 
       StealPending -> pendingIcon cfg.style
 
-      LockedByOther user
+      LockedByOther name
         | m.connected ->
             withError m.stealError $
               stealButton cfg.style m.holdState $
-                "Locked by " <> M.ms user.name <> " \x2014 hold to take over"
+                "Locked by " <> M.ms name <> " \x2014 hold to take over"
         | otherwise ->
-            lockedIcon cfg.style $ "Locked by " <> M.ms user.name
+            lockedIcon cfg.style $ "Locked by " <> M.ms name
 
       LockedBySelf
         | m.connected ->
@@ -232,10 +241,10 @@ editButton s = Button.secondary (Button.button (s, Icon.IcnEdit, C.LblEdit) Clic
 
 -- | Hold-to-steal button with tooltip.
 stealButton :: Button.ButtonContentsStyle -> HoldButton.HoldState () -> M.MisoString -> M.View Model Action
-stealButton _s holdState tooltip =
+stealButton s holdState tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
-    HoldButton.holdButton Hold holdState () Button.Secondary Button.Small
-      (Button.IconOnly Icon.IcnLock)
+    HoldButton.holdButton Hold holdState () Button.Secondary (styleToButtonSize s)
+      (styleToContents s Icon.IcnLock)
 
 -- | Locked icon with tooltip (disconnected, can't steal).
 lockedIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View Model Action
@@ -274,3 +283,11 @@ styleToIconSize :: Button.ButtonContentsStyle -> Icon.Size
 styleToIconSize Button.IconOnlyS = Icon.Small
 styleToIconSize Button.IconTextS = Icon.Regular
 styleToIconSize Button.TextOnlyS = Icon.Regular
+
+styleToButtonSize :: Button.ButtonContentsStyle -> Button.ButtonSize
+styleToButtonSize Button.IconOnlyS = Button.Small
+styleToButtonSize _ = Button.Regular
+
+styleToContents :: Button.ButtonContentsStyle -> Icon.Icon -> Button.ButtonContents
+styleToContents Button.IconOnlyS icn = Button.IconOnly icn
+styleToContents _ icn = Button.IconText icn "Lock"
