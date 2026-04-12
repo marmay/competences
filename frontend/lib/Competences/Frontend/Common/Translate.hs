@@ -190,6 +190,12 @@ data Label
   | LblChangesPendingWarning
   | LblChangesNowSynced
   | LblLockedLevels
+    -- Lock stealing
+  | LblLockedBy !Text
+  | LblLockedInOtherTab
+  | LblStealFrom !Text
+  | LblStealFromOtherTab
+  | LblTakeOver
     -- Grid grading
   | LblGrade
   | LblGradeHistory
@@ -611,6 +617,12 @@ labels' =
   , LblChangesPendingWarning
   , LblChangesNowSynced
   , LblLockedLevels
+    -- Lock stealing
+  , LblLockedBy ""
+  , LblLockedInOtherTab
+  , LblStealFrom ""
+  , LblStealFromOtherTab
+  , LblTakeOver
     -- Grid grading
   , LblGrade
   , LblGradeHistory
@@ -1053,6 +1065,12 @@ defaultTranslation (LblUnsavedChanges n) = ms (show n) <> " ungespeicherte Ände
 defaultTranslation LblChangesPendingWarning = "Änderungen konnten noch nicht gespeichert werden"
 defaultTranslation LblChangesNowSynced = "Alle Änderungen gespeichert"
 defaultTranslation LblLockedLevels = "Gesperrt"
+-- Lock stealing
+defaultTranslation (LblLockedBy name) = "Gesperrt von " <> ms name
+defaultTranslation LblLockedInOtherTab = "In anderem Tab geöffnet"
+defaultTranslation (LblStealFrom name) = "Gesperrt von " <> ms name <> " — halten zum Übernehmen"
+defaultTranslation LblStealFromOtherTab = "In anderem Tab geöffnet — halten zum Übernehmen"
+defaultTranslation LblTakeOver = "Übernehmen"
 -- Grid grading
 defaultTranslation LblGrade = "Benotung"
 defaultTranslation LblGradeHistory = "Notenhistorie"

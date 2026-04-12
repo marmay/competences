@@ -203,25 +203,23 @@ lockButtonComponent r cfg =
 
       Free
         | m.connected -> editButton cfg.style
-        | otherwise -> disabledIcon cfg.style "Not connected"
+        | otherwise -> disabledIcon cfg.style (C.translate' C.LblDisconnected)
 
       StealPending -> pendingIcon cfg.style
 
       LockedByOther name
         | m.connected ->
             withError m.stealError $
-              stealButton cfg.style m.holdState $
-                "Locked by " <> M.ms name <> " \x2014 hold to take over"
+              stealButton cfg.style m.holdState $ C.translate' (C.LblStealFrom name)
         | otherwise ->
-            lockedIcon cfg.style $ "Locked by " <> M.ms name
+            lockedIcon cfg.style $ C.translate' (C.LblLockedBy name)
 
       LockedBySelf
         | m.connected ->
             withError m.stealError $
-              stealButton cfg.style m.holdState
-                "Open in another tab \x2014 hold to take over"
+              stealButton cfg.style m.holdState $ C.translate' C.LblStealFromOtherTab
         | otherwise ->
-            lockedIcon cfg.style "Open in another tab"
+            lockedIcon cfg.style $ C.translate' C.LblLockedInOtherTab
 
 -- | Subscription that pushes StealRejected when an Unlock for our Lock is rejected.
 rejectionSub :: SyncContext -> Lock -> M.Sub Action
@@ -288,4 +286,4 @@ styleToButtonSize _ = Button.Regular
 
 styleToContents :: Button.ButtonContentsStyle -> Icon.Icon -> Button.ButtonContents
 styleToContents Button.IconOnlyS icn = Button.IconOnly icn
-styleToContents _ icn = Button.IconText icn "Lock"
+styleToContents _ icn = Button.IconText icn (C.translate' C.LblTakeOver)
