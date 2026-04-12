@@ -607,7 +607,7 @@ viewerComponent r user assignment wm =
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
     update (LayoutHoldAction ha) =
-      HoldButton.handleHoldAction #layoutHoldState
+      HoldButton.handleHoldAction' #layoutHoldState
         (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid))))
         LayoutHoldAction
         ha

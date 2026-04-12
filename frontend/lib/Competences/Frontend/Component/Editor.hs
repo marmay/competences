@@ -123,7 +123,7 @@ editorComponent e r =
       M.modify (#reorderFrom .~ Nothing)
     update (Delete a) = M.io_ $ runCommand $ withDelete e.editable a
     update (HoldDelete ha) =
-      HoldButton.handleHoldAction #holdDeleteState doDelete HoldDelete ha
+      HoldButton.handleHoldAction' #holdDeleteState doDelete HoldDelete ha
       where
         doDelete a = runCommand $ withDelete e.editable a
     update (UpdatePatch original patched) =

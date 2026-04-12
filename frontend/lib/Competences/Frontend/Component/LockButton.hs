@@ -165,22 +165,17 @@ lockButtonComponent r cfg =
             LockedBySelf -> True
             _ -> False
       if canSteal
-        then case ha of
-          HoldButton.ExecuteHold () gen
-            | m.holdState.holdId == Just ()
-            , m.holdState.holdGen == gen -> do
-                let newGen = m.stealGen + 1
-                M.modify $ \m' -> m'
-                  { lockStatus = StealPending
-                  , holdState = HoldButton.emptyHoldState
-                  , stealGen = newGen
-                  }
-                M.io_ $ do
-                  sendCommandOnly r (Unlock cfg.lock)
-                  sendCommandOnly r cfg.lockCommand
-                M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
-          _ -> HoldButton.handleHoldAction #holdState (\() -> pure ()) Hold ha
+        then HoldButton.handleHoldAction #holdState doSteal Hold ha
         else pure ()
+      where
+        doSteal () = do
+          m <- M.get
+          let newGen = m.stealGen + 1
+          M.modify $ \m' -> m' { lockStatus = StealPending, stealGen = newGen }
+          M.io_ $ do
+            sendCommandOnly r (Unlock cfg.lock)
+            sendCommandOnly r cfg.lockCommand
+          M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
 
     update (StealRejected err) = do
       m <- M.get

@@ -274,7 +274,7 @@ submissionModalComponent r assignmentId userId _wm =
       M.io_ $ SubmissionPreview.openSubmissionPeekModal r sid
 
     update (OnHoldDelete ha) =
-      HoldButton.handleHoldAction #holdingDelete doDelete OnHoldDelete ha
+      HoldButton.handleHoldAction' #holdingDelete doDelete OnHoldDelete ha
       where
         doDelete sid = modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))
 

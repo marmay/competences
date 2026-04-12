@@ -17,6 +17,7 @@ module Competences.Frontend.View.HoldButton
   , HoldState (..)
   , emptyHoldState
   , handleHoldAction
+  , handleHoldAction'
   , holdButton
   , holdDeleteButton
   , holdDeleteButtonSm
@@ -68,12 +69,13 @@ data HoldAction id
 -- | Handle a 'HoldAction' inside a Miso component update function.
 --
 -- @holdLens@: lens to the @HoldState id@ field tracking the hold.
--- @onExecute@: IO action to run when the hold completes (e.g. send a delete command).
+-- @onExecute@: effect to run when the hold completes (e.g. send a delete command,
+--   modify model state, or spawn further async effects).
 -- @wrap@: constructor to wrap 'HoldAction' back into the parent action type.
 handleHoldAction
   :: (Eq id)
   => Lens' model (HoldState id)
-  -> (id -> IO ())
+  -> (id -> M.Effect parent model action)
   -> (HoldAction id -> action)
   -> HoldAction id
   -> M.Effect parent model action
@@ -100,11 +102,21 @@ handleHoldAction holdLens onExecute _wrap (ExecuteHold eid gen) = do
   let hs = m ^. holdLens
   case hs.holdId of
     Just eid' | eid == eid' && hs.holdGen == gen -> do
-      M.io_ $ onExecute eid
+      onExecute eid
       M.modify $ \m' -> m' & holdLens .~ HoldState Nothing hs.holdGen False
     _ -> pure ()
 handleHoldAction holdLens _onExecute _wrap HideHint =
   M.modify $ \m -> m & holdLens .~ (m ^. holdLens){showHint = False}
+
+-- | Convenience wrapper for the common case where the execute callback is a plain IO action.
+handleHoldAction'
+  :: (Eq id)
+  => Lens' model (HoldState id)
+  -> (id -> IO ())
+  -> (HoldAction id -> action)
+  -> HoldAction id
+  -> M.Effect parent model action
+handleHoldAction' holdLens onExecute = handleHoldAction holdLens (M.io_ . onExecute)
 
 -- | Render a hold-to-activate button with configurable appearance.
 --

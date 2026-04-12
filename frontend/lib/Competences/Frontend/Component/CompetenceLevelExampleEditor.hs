@@ -322,7 +322,7 @@ exampleEditorComponent r compId lvl =
     update (ReorderAfter targetId) = issueReorder (O.After targetId)
 
     update (HoldDeleteAction ha) =
-      HoldButton.handleHoldAction #holdDeleteState doDelete HoldDeleteAction ha
+      HoldButton.handleHoldAction' #holdDeleteState doDelete HoldDeleteAction ha
       where
         doDelete exId = modifySyncDocument r $
           CompetenceLevelExamples $ OnCompetenceLevelExamples $ Delete exId

@@ -216,12 +216,12 @@ detailComponent r initialPlan =
       openMesoPlanEditor r plan
 
     update (HoldDeleteMeso ha) =
-      HoldButton.handleHoldAction #holdDeleteMeso doDelete HoldDeleteMeso ha
+      HoldButton.handleHoldAction' #holdDeleteMeso doDelete HoldDeleteMeso ha
       where
         doDelete mpId = modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)
 
     update (HoldDeleteLesson ha) =
-      HoldButton.handleHoldAction #holdDeleteLesson doDelete HoldDeleteLesson ha
+      HoldButton.handleHoldAction' #holdDeleteLesson doDelete HoldDeleteLesson ha
       where
         doDelete lessonId = modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
 
