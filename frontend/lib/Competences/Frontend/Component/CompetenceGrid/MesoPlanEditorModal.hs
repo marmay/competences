@@ -33,7 +33,7 @@ import Optics.Core ((&), (?~))
 -- | Open the meso plan editor as a framed modal.
 openMesoPlanEditor :: SyncContext -> MesoPlan -> IO ()
 openMesoPlanEditor r plan =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan) (ModalId ("meso-plan-editor-" <> idToText plan.id)) ModalNarrow ModalAuto Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblEditMesoPlan) Icon.IcnMesoPlan Nothing) (ModalId ("meso-plan-editor-" <> idToText plan.id)) ModalNarrow ModalAuto Nothing
    in openFramedModalWith r.windowManager cfg (mesoPlanEditorModal r plan)
 
 -- ============================================================================

@@ -61,7 +61,7 @@ type Action = IM.Action
 -- | Open the competence grid import modal as a framed modal.
 openCompetenceGridImportModal :: SyncContext -> IO ()
 openCompetenceGridImportModal r =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportCompetenceGrids) Icon.IcnImport) (ModalId "import-competence-grids") ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportCompetenceGrids) Icon.IcnImport Nothing) (ModalId "import-competence-grids") ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (competenceGridImportModalComponent r)
 
 competenceGridImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model GridImportPreview) Action

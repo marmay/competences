@@ -59,7 +59,7 @@ type Action = IM.Action
 -- | Open the resource import modal as a framed modal.
 openResourceImportModal :: SyncContext -> IO ()
 openResourceImportModal r =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportResources) Icon.IcnImport) (ModalId "import-resources") ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportResources) Icon.IcnImport Nothing) (ModalId "import-resources") ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (resourceImportModalComponent r)
 
 resourceImportModalComponent :: SyncContext -> WindowMode -> M.Component p (IM.Model ResourceImportPreview) Action

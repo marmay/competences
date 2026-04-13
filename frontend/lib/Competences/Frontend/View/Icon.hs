@@ -15,6 +15,7 @@ module Competences.Frontend.View.Icon
   , iconS
   , iconVS
   , iconFull
+  , iconWithBadge
   , variantStrokeClass
   , sizeClass
   , animationClass
@@ -166,6 +167,18 @@ iconFull variant size anim icn =
   MH.span_
     [M.class_ $ ms $ variantStrokeClass variant <> " " <> animationClass anim]
     [iconS size icn]
+
+-- | Render a main icon with a small badge icon at the bottom-right.
+-- Used for entity-specific edit icons (e.g., task icon + edit badge).
+iconWithBadge :: Icon -> Icon -> View m a
+iconWithBadge main badge =
+  MH.span_
+    [M.class_ "relative inline-flex"]
+    [ iconS Large main
+    , MH.span_
+        [M.class_ "absolute -bottom-1 -right-1 text-muted-foreground"]
+        [iconS Small badge]
+    ]
 
 iconDefs :: View m a
 iconDefs = MS.svg_ [M.width_ "0", M.height_ "0"] [MS.defs_ [] (map iconDefOf [minBound .. maxBound])]

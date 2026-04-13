@@ -57,7 +57,7 @@ import Text.Read (readMaybe)
 -- | Open the lesson editor as a framed modal.
 openLessonEditor :: SyncContext -> Lesson -> [LessonNotesId] -> IO ()
 openLessonEditor r lesson lessonNotesIds =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblLesson) Icon.IcnEdit Nothing) (ModalId ("lesson-editor-" <> idToText lesson.id)) ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (lessonEditorModal r lesson lessonNotesIds)
 
 -- ============================================================================

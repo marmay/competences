@@ -78,7 +78,7 @@ import Optics.Core ((%))
 -- | Open the student evaluator as a framed modal.
 openStudentEvaluator :: SyncContext -> LessonId -> MisoString -> UserId -> IO ()
 openStudentEvaluator r lessonId studentName userId =
-  let cfg = ModalConfig (WindowChrome studentName Icon.IcnEvidence) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome studentName Icon.IcnEvidence Nothing) (ModalId ("student-eval-" <> idToText lessonId <> "-" <> idToText userId)) ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (studentEvaluatorModal r lessonId userId)
 
 -- ============================================================================

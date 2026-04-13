@@ -117,7 +117,7 @@ pinLessonEvaluator r mDateFrom lesson =
         }
    in pinDialog r.windowManager
         meta
-        (WindowChrome pinTitle Icon.IcnMesoPlan)
+        (WindowChrome pinTitle Icon.IcnMesoPlan Nothing)
         (lessonEvaluatorComponent r lesson.id)
 
 lessonEvaluatorComponent

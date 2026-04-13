@@ -42,7 +42,7 @@ windowTitleBar chrome actions =
         (Layout.hFull <> Layout.crossCenter <> Layout.mainBetween)
         [ Layout.hFlow
             (Layout.gapS <> Layout.crossCenter)
-            [ Icon.iconV Icon.Ghost chrome.icon
+            [ chromeIcon chrome
             , Typography.h4 chrome.title
             ]
         , Layout.hFlow
@@ -52,6 +52,12 @@ windowTitleBar chrome actions =
     ]
 
 -- | Close button (X icon) with tooltip.
+-- | Render the chrome icon, with optional badge overlay.
+chromeIcon :: WindowChrome -> M.View m a
+chromeIcon chrome = case chrome.iconBadge of
+  Nothing -> Icon.iconV Icon.Ghost chrome.icon
+  Just badge -> Icon.iconWithBadge chrome.icon badge
+
 closeButton :: a -> M.View m a
 closeButton action =
   withTooltip (PlainTooltip "Close") $

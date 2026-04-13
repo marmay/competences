@@ -112,7 +112,7 @@ submissionSummary subs =
 openSubmissionModal :: SyncContext -> AssignmentId -> UserId -> IO ()
 openSubmissionModal r assignmentId userId = do
   let cfg = ModalConfig
-        { chrome = WindowChrome (C.translate' C.LblAbgabe) Icon.IcnAssignment
+        { chrome = WindowChrome (C.translate' C.LblAbgabe) Icon.IcnAssignment Nothing
         , modalId = ModalId ("submission-" <> T.pack (show assignmentId))
         , width = ModalWide
         , height = ModalAuto

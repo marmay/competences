@@ -81,7 +81,7 @@ mkLockWatchConfig r watcherRemovedRef = LockWatchConfig
             , sortKey = SortKey [SortAtom taskId]
             , context = Nothing
             }
-          chrome = WindowChrome title Icon.IcnEdit
+          chrome = WindowChrome title Icon.IcnTask (Just Icon.IcnEdit)
        in pinDialogWith sink meta chrome (taskPinEditor r taskId pid)
   , watcherRemovedRef = watcherRemovedRef
   }

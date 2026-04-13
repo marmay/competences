@@ -98,7 +98,7 @@ openLessonNotesModal r ln =
   openFramedModalWith
     r.windowManager
     ( ModalConfig
-        { chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+        { chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes Nothing
         , modalId = ModalId ("lesson-notes-" <> idToText ln.id)
         , width = ModalWide
         , height = ModalFull
@@ -110,7 +110,7 @@ openLessonNotesModal r ln =
 -- | Pin the lesson notes viewer as a persistent dialog.
 pinLessonNotesViewer :: SyncContext -> LessonNotes -> IO ()
 pinLessonNotesViewer r ln =
-  let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes
+  let chrome = WindowChrome (M.ms ln.title) Icon.IcnLessonNotes Nothing
       meta = PinMeta
         { key = "lesson-notes-" <> idToText ln.id
         , category = PinCatLessonNotes

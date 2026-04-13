@@ -314,7 +314,7 @@ submissionPreviewPanel r aId uId =
 openSubmissionPeekModal :: SyncContext -> SubmissionId -> IO ()
 openSubmissionPeekModal r sid = do
   let cfg = ModalConfig
-        { chrome = WindowChrome (C.translate' C.LblSubmissions) Icon.IcnView
+        { chrome = WindowChrome (C.translate' C.LblSubmissions) Icon.IcnView Nothing
         , modalId = ModalId ("submission-peek-" <> T.pack (show sid))
         , width = ModalWide
         , height = ModalAuto

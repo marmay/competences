@@ -46,7 +46,7 @@ import Miso.Html qualified as MH
 -- | Open the resource modal as a framed modal.
 openResourceModal :: SyncContext -> ResourceModalConfig -> IO ()
 openResourceModal r cfg =
-  let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources) (ModalId "resources") ModalWide ModalFull Nothing
+  let frameCfg = ModalConfig (WindowChrome (C.translate' C.LblMaterials) Icon.IcnResources Nothing) (ModalId "resources") ModalWide ModalFull Nothing
    in openFramedModal r.windowManager frameCfg (resourceModalComponent r cfg)
 
 -- ============================================================================

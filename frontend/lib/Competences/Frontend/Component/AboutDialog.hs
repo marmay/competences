@@ -52,7 +52,7 @@ aboutButtonComponent ir = M.component model update view
     update OpenAboutDialog = M.io_ $ do
       srvInfo <- readServerInfo ir
       let cfg = ModalConfig
-            { chrome = WindowChrome "Meine Kompetenzen" Icon.IcnInfo
+            { chrome = WindowChrome "Meine Kompetenzen" Icon.IcnInfo Nothing
             , modalId = ModalId "about"
             , width = ModalNarrow
             , height = ModalAuto

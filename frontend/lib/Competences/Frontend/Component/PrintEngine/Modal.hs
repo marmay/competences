@@ -410,7 +410,7 @@ printModalView fc renderTask totalTasks title date model wrap =
     ]
   where
     modalConfig = ModalConfig
-      { chrome = WindowChrome ("Layout \x2014 " <> title) Icon.IcnPrint
+      { chrome = WindowChrome ("Layout \x2014 " <> title) Icon.IcnPrint Nothing
       , modalId = ModalId "print-preview"
       , width = ModalWide
       , height = ModalFull

@@ -221,7 +221,7 @@ data ViewerAction
 -- | Pin the competence grid viewer as a persistent dialog.
 pinCompetenceGridViewer :: SyncContext -> CompetenceGrid -> IO ()
 pinCompetenceGridViewer r grid =
-  let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid
+  let chrome = WindowChrome (M.ms grid.title) Icon.IcnCompetenceGrid Nothing
       meta = PinMeta
         { key = "grid-" <> idToText grid.id
         , category = PinCatCompetenceGrid

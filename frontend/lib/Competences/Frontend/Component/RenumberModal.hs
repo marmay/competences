@@ -164,7 +164,7 @@ openRenumberModal :: SyncContext -> [RenumberTaskInfo] -> IO ()
 openRenumberModal r infos =
   let cfg =
         ModalConfig
-          { chrome = WindowChrome (C.translate' C.LblRenumberTasks) Icon.IcnReorder
+          { chrome = WindowChrome (C.translate' C.LblRenumberTasks) Icon.IcnReorder Nothing
           , modalId = ModalId "renumber-tasks"
           , width = ModalNarrow
           , height = ModalAuto

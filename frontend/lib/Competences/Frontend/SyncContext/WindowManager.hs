@@ -106,6 +106,9 @@ import UnliftIO (MVar, newMVar, readMVar)
 data WindowChrome = WindowChrome
   { title :: !MisoString
   , icon :: !Icon.Icon
+  , iconBadge :: !(Maybe Icon.Icon)
+  -- ^ Optional small badge icon at the bottom-right of the main icon.
+  -- Used for entity-specific actions (e.g., task icon + edit badge).
   }
   deriving (Eq, Show)
 

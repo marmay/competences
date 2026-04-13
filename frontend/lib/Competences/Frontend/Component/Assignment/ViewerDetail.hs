@@ -247,7 +247,7 @@ emptyProjection role assignment = ViewerProjection
 pinAssignmentViewer :: SyncContext -> User -> Assignment -> IO ()
 pinAssignmentViewer r user assignment =
   let AssignmentName nameText = assignment.name
-      chrome = WindowChrome (M.ms nameText) (EvidenceIcon.activityTypeIcon assignment.activityType)
+      chrome = WindowChrome (M.ms nameText) (EvidenceIcon.activityTypeIcon assignment.activityType) Nothing
       meta = PinMeta
         { key = "assignment-" <> idToText assignment.id
         , category = PinCatAssignment

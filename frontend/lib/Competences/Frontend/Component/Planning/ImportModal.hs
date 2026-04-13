@@ -61,7 +61,7 @@ type Action = IM.Action
 -- | Open the lesson import modal as a framed modal.
 openLessonImportModal :: SyncContext -> MesoPlanId -> IO ()
 openLessonImportModal r mesoPlanId =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport) (ModalId "import-lessons") ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportLessons) Icon.IcnImport Nothing) (ModalId "import-lessons") ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (lessonImportModalComponent r mesoPlanId)
 
 -- ============================================================================

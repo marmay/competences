@@ -88,7 +88,7 @@ pinAssignmentEvaluator r assignment =
         }
    in pinDialog r.windowManager
         meta
-        (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType))
+        (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType) Nothing)
         (evaluatorComponent r assignment)
 
 -- | Detail view for editing an assignment

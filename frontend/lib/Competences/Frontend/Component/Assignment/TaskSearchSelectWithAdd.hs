@@ -51,7 +51,7 @@ newtype ModalAction
 openTaskEditorModal :: SyncContext -> EntityOrigin -> TaskId -> IO ()
 openTaskEditorModal r origin taskId =
   let cfg = ModalConfig
-        { chrome = WindowChrome (C.translate' C.LblEditTask) Icon.IcnTask
+        { chrome = WindowChrome (C.translate' C.LblEditTask) Icon.IcnTask Nothing
         , modalId = ModalId ("new-task-" <> idToText taskId)
         , width = ModalWide
         , height = ModalFull

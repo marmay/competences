@@ -67,7 +67,7 @@ type Action = IM.Action
 -- | Open the assignment import modal as a framed modal.
 openAssignmentImportModal :: SyncContext -> IO ()
 openAssignmentImportModal r =
-  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportAssignments) Icon.IcnImport) (ModalId "import-assignments") ModalWide ModalFull Nothing
+  let cfg = ModalConfig (WindowChrome (C.translate' C.LblImportAssignments) Icon.IcnImport Nothing) (ModalId "import-assignments") ModalWide ModalFull Nothing
    in openFramedModalWith r.windowManager cfg (assignmentImportModalComponent r)
 
 -- ============================================================================

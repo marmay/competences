@@ -78,7 +78,7 @@ openExampleEditor r competenceDesc compId lvl =
       title = C.translate' C.LblExamples <> " '" <> M.ms competenceDesc <> "' / " <> levelLabel
       frameCfg =
         ModalConfig
-          (WindowChrome title Icon.IcnInfo)
+          (WindowChrome title Icon.IcnInfo Nothing)
           (ModalId $ "examples-" <> T.pack (show compId) <> "-" <> T.pack (show lvl))
           ModalWide
           ModalFull
