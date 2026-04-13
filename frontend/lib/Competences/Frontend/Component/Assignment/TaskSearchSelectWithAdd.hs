@@ -7,9 +7,9 @@ module Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Task (..), TaskType (..))
+import Competences.Document (Document (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (TaskId, TaskIdentifier (..), defaultTaskAttributes)
+import Competences.Document.Task (TaskId, defaultTask)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
@@ -51,7 +51,7 @@ newtype ModalAction
 openTaskEditorModal :: SyncContext -> EntityOrigin -> TaskId -> IO ()
 openTaskEditorModal r origin taskId =
   let cfg = ModalConfig
-        { chrome = WindowChrome (C.translate' C.LblEditSelfContainedTask) Icon.IcnTask
+        { chrome = WindowChrome (C.translate' C.LblEditTask) Icon.IcnTask
         , modalId = ModalId ("new-task-" <> idToText taskId)
         , width = ModalWide
         , height = ModalFull
@@ -81,15 +81,8 @@ taskEditorModalComponent r origin taskId wm =
         Nothing -> M.io_ $ closeWindow wm
         Just _ -> pure ()
 
-    -- Stub task for taskDetailView (it uses task.id and task.taskType for routing)
-    stubTask = Task
-      { id = taskId
-      , identifier = TaskIdentifier ""
-      , title = ""
-      , content = Nothing
-      , taskType = SelfContained defaultTaskAttributes
-      , attachments = []
-      }
+    -- Stub task for taskDetailView (it uses task.id for routing)
+    stubTask = defaultTask taskId
 
     view _m =
       MH.div_

@@ -103,7 +103,7 @@ library
         Competences.Frontend.Component.Selector.LessonSelector,
         Competences.Frontend.Component.Selector.ResourceSelector,
         Competences.Frontend.Component.Selector.ObservationSelector,
-        Competences.Frontend.Component.Selector.TaskOrGroupSelector,
+        Competences.Frontend.Component.Selector.TaskSelector,
         Competences.Frontend.Component.FileGallery,
         Competences.Frontend.Component.FilePreview,
         Competences.Frontend.Component.FileUpload,
@@ -117,9 +117,10 @@ library
         Competences.Frontend.Component.TaskEditor.SolutionEditorDetail,
         Competences.Frontend.Component.SelectorDetail,
         Competences.Frontend.Component.TaskEditor,
+        Competences.Frontend.Component.TaskEditor.Lenses,
         Competences.Frontend.Component.TaskEditor.TaskDetailView,
-        Competences.Frontend.Component.TaskEditor.TaskGroupDetailView,
         Competences.Frontend.Component.TaskEditor.TaskSolutionsList,
+        Competences.Frontend.Component.TaskPinEditor,
         Competences.Frontend.Component.TaskResource,
         Competences.Frontend.Component.Static,
         Competences.Frontend.Component.ParticipationTimeline,
@@ -127,6 +128,7 @@ library
         Competences.Frontend.Component.UserListEditor,
         Competences.Frontend.SvgEmbed.Manager,
         Competences.Frontend.SyncContext,
+        Competences.Frontend.SyncContext.LockWatching,
         Competences.Frontend.SyncContext.WindowManager,
         Competences.Frontend.SyncContext.ProjectedSubscription,
         Competences.Frontend.SyncContext.SyncDocument,
@@ -228,7 +230,8 @@ executable competences-frontend
         competences-frontend,
         miso >= 1.9.0,
         random,
-        text
+        text,
+        uuid-types
     if !flag(wasm)
         build-depends:
             optparse-applicative

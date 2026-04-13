@@ -34,6 +34,7 @@ import Competences.Frontend.SyncContext
   , setServerInfo
   , setSyncDocument
   )
+import Competences.Frontend.SyncContext.LockWatching (initLockWatching)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocument (..), SyncDocumentEnv (..))
 import Competences.Frontend.WebSocket.CommandSender
   ( CommandSender
@@ -289,6 +290,7 @@ mkInitialHandler token sessionId mImpersonate impersonating mIdb forkApp ws = do
   -- Create SyncContext
   env <- mkSyncDocumentEnv user sessionId sender impersonating
   ref <- mkSyncDocument env
+  _ <- initLockWatching ref
   setServerInfo ref srvInfo
 
   -- Process sync result and send ACK

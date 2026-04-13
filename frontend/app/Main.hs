@@ -18,6 +18,7 @@ import Competences.Frontend.SyncContext
   , setSyncDocument
   )
 import Competences.Frontend.Logging (logDebug, logError)
+import Competences.Frontend.SyncContext.LockWatching (initLockWatching)
 import Competences.Frontend.WebSocket (getJWTToken)
 import Competences.Frontend.WebSocket.CommandSender (mkCommandSender)
 import Competences.Frontend.IndexedDB (openDatabase)
@@ -30,7 +31,7 @@ import Data.Maybe (isJust)
 import Data.Text qualified as T
 import Data.UUID.Types qualified as UUID
 import Miso qualified as M
-import Miso.DSL (jsg, fromJSVal, (!), setField)
+import Miso.DSL (jsg, fromJSVal, (!), (#), setField)
 import Miso.Run (run)
 import System.Random (randomIO)
 
@@ -48,6 +49,7 @@ main = do
         sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
         env <- mkSyncDocumentEnv user legacySessionId sender False
         ref <- mkSyncDocument env
+        _ <- initLockWatching ref
         setSyncDocument ref emptyDocument
         modifySyncDocument ref $ Users $ OnUsers $ Create user
         uri <- M.getURI
@@ -106,7 +108,7 @@ parseImpersonateParam search =
 getOrCreateSessionId :: IO SessionId
 getOrCreateSessionId = do
   storage <- jsg "window" ! "sessionStorage"
-  existing <- storage ! "getItem" $ [("competences-session-id" :: T.Text)]
+  existing <- storage # "getItem" $ [("competences-session-id" :: T.Text)]
   mText <- fromJSVal @T.Text existing
   case mText >>= UUID.fromText of
     Just uuid -> do
@@ -115,7 +117,7 @@ getOrCreateSessionId = do
     Nothing -> do
       uuid <- randomIO
       let uuidText = UUID.toText uuid
-      _ <- storage ! "setItem" $ [("competences-session-id" :: T.Text), uuidText]
+      _ <- storage # "setItem" $ [("competences-session-id" :: T.Text), uuidText]
       logDebug $ M.ms $ "Created new session ID: " <> T.unpack uuidText
       pure (Id uuid)
 

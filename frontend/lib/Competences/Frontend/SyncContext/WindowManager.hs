@@ -21,20 +21,26 @@ module Competences.Frontend.SyncContext.WindowManager
   , ModalHeight (..)
 
     -- * Types
-  , WindowManagerRef (..)
+  , WindowEventSink (..)
+  , WindowEvent (..)
   , AnyModal (..)
   , AnyPinnedDialog (..)
   , PinId -- no (..)
+  , mkPinId
+  , pinIdKey
   , PinCategory (..)
   , PinMeta (..)
   , SortAtom (..)
   , SortKey (..)
   , PinVisibility (..)
   , Model (..)
-  , WindowChange (..)
 
     -- * Construction
-  , newWindowManager
+  , mkWindowEventSink
+
+    -- * Lock watching
+  , LockWatchConfig (..)
+  , startLockWatching
 
     -- * Modal API (blocking dialogs)
   , openModal
@@ -45,9 +51,6 @@ module Competences.Frontend.SyncContext.WindowManager
   , minimizeDialog
   , restoreDialog
   , toggleDialog
-
-    -- * Subscription
-  , subscribeWindows
 
     -- * Window mode (opaque)
   , WindowMode -- no (..)
@@ -60,6 +63,9 @@ module Competences.Frontend.SyncContext.WindowManager
   , closeWhenPinned
   , closeWhenPinnedOrModal
 
+    -- * Pin state persistence
+  , pinSaveStateLens
+
     -- * Component mounting
   , inlineComponent
   , inlineComponentAttrs
@@ -71,17 +77,25 @@ module Competences.Frontend.SyncContext.WindowManager
   )
 where
 
+import Competences.Document (Document (..), Lock (..), LockHolder (..), UserId)
+import Competences.Document.Id (idToText)
+import Competences.Document.Session (SessionId)
+import Competences.Document.Task (TaskId)
 import Competences.Frontend.View.Icon qualified as Icon
 import Control.Monad (forM_, when)
+import Data.Dynamic (Dynamic, Typeable, fromDynamic, toDyn)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Typeable (Typeable, cast)
+import Data.Typeable (cast)
 import GHC.Generics (Generic)
+import Optics.Core qualified as O
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString)
-import Miso.Subscription.Util (createSub)
-import UnliftIO (MVar, modifyMVar, modifyMVar_, newMVar)
+import UnliftIO (MVar, newMVar, readMVar)
 
 -- ---------------------------------------------------------------------------
 -- Shared chrome types
@@ -133,7 +147,8 @@ data ModalConfig = ModalConfig
 
 -- | Category of a pinned dialog, used for ordering in the sidebar.
 data PinCategory
-  = PinCatAssignment
+  = PinCatTask
+  | PinCatAssignment
   | PinCatLessonEvaluation
   | PinCatLessonNotes
   | PinCatCompetenceGrid
@@ -179,7 +194,7 @@ toPinId meta = PinId meta.key
 -- Window mode (opaque)
 -- ---------------------------------------------------------------------------
 
--- | Rendering context for a component. Constructor not exported — only
+-- | Rendering context for a component. Constructor not exported -- only
 -- the mounting helpers ('inlineComponentWith', 'openFramedModalWith',
 -- 'pinDialogWith') can create values, so the context is always correct.
 data WindowMode = WindowMode
@@ -187,7 +202,7 @@ data WindowMode = WindowMode
   , _closeAction :: !(IO ())
   }
 
--- | Internal tag — NOT exported.
+-- | Internal tag -- NOT exported.
 data ContextTag = CInline | CModal | CPinned
   deriving (Eq)
 
@@ -234,6 +249,22 @@ closeWhenPinned wm = when (isPinned wm) wm._closeAction
 closeWhenPinnedOrModal :: WindowMode -> IO ()
 closeWhenPinnedOrModal wm = when (isPinnedOrModal wm) wm._closeAction
 
+-- | Lens into the saved state for a specific pin in the host model.
+-- Used as the parent side of a binding to persist pin component patches.
+-- The 'Dynamic' wraps the pin's typed state (e.g., 'TaskPatch').
+pinSaveStateLens :: (Typeable a) => PinId -> O.Lens' Model (Maybe a)
+pinSaveStateLens pid = O.lens getter setter
+  where
+    getter m = Map.lookup pid m.pinSaveStates >>= fromDynamic
+    setter m Nothing = m
+      { pinSaveStates = Map.delete pid m.pinSaveStates
+      , pinSaveGen = m.pinSaveGen + 1
+      }
+    setter m (Just a) = m
+      { pinSaveStates = Map.insert pid (toDyn a) m.pinSaveStates
+      , pinSaveGen = m.pinSaveGen + 1
+      }
+
 -- ---------------------------------------------------------------------------
 -- Public types
 -- ---------------------------------------------------------------------------
@@ -243,6 +274,14 @@ closeWhenPinnedOrModal wm = when (isPinnedOrModal wm) wm._closeAction
 -- instead of creating a new one.
 newtype PinId = PinId Text
   deriving (Eq, Ord, Show)
+
+-- | Construct a 'PinId' from a key string.
+mkPinId :: Text -> PinId
+mkPinId = PinId
+
+-- | Extract the key string from a 'PinId'.
+pinIdKey :: PinId -> Text
+pinIdKey (PinId k) = k
 
 -- | Visibility state of a pinned dialog.
 data PinVisibility = PinVisible | PinMinimized
@@ -263,19 +302,22 @@ instance Eq AnyModal where
       Nothing -> False
 
 -- | Existential wrapper for a pinned dialog component with its chrome and metadata.
+-- Stores a factory function that creates the component from optional saved state,
+-- allowing fresh components with restored patches after dormancy.
 data AnyPinnedDialog where
   AnyPinnedDialog
-    :: (Eq m, Typeable m)
-    => !(M.Component Model m a)
+    :: (Eq m, Typeable m, Typeable s)
+    => !(Maybe s -> M.Component Model m a)
+    -- ^ Typed factory: create component from optional saved state.
+    -- Called by the view on each render; Miso's keying ensures existing
+    -- instances are reused (factory output only matters on first mount).
     -> !WindowChrome
     -> !PinMeta
     -> AnyPinnedDialog
 
 instance Eq AnyPinnedDialog where
-  AnyPinnedDialog c1 ch1 m1 == AnyPinnedDialog c2 ch2 m2 =
-    ch1 == ch2 && m1 == m2 && case cast c2.model of
-      Just m2' -> c1.model == m2'
-      Nothing -> False
+  AnyPinnedDialog _ ch1 m1 == AnyPinnedDialog _ ch2 m2 =
+    ch1 == ch2 && m1 == m2
 
 -- | Host model used as the parent type for all managed components.
 -- Defined here to avoid circular imports with WindowHost.
@@ -283,53 +325,49 @@ data Model = Model
   { modalStack :: ![AnyModal]
   , pinnedDialogs :: !(Map.Map PinId (AnyPinnedDialog, PinVisibility))
   , pinOrder :: ![PinId]
+  , pinSaveStates :: !(Map.Map PinId Dynamic)
+  -- ^ Persisted component state for dormant pins. Updated via bindings
+  -- from pin components; read by the factory when creating fresh components.
+  , pinSaveGen :: !Int
+  -- ^ Generation counter, incremented by pinSaveStateLens on each write.
+  -- Included in Eq so Miso persists binding-written model updates.
+  -- (Dynamic has no Eq instance, so we can't compare pinSaveStates directly.)
   }
-  deriving (Eq, Generic)
+  deriving (Generic)
 
--- | Change notification sent to subscribers.
-data WindowChange = WindowChange
-  { modalStack :: ![AnyModal]
-  , pinnedDialogs :: !(Map.Map PinId (AnyPinnedDialog, PinVisibility))
-  , pinOrder :: ![PinId]
-  , isInitial :: !Bool
-  }
-
--- ---------------------------------------------------------------------------
--- Internal state
--- ---------------------------------------------------------------------------
-
-data WindowState = WindowState
-  { modals :: ![AnyModal]
-  , pins :: !(Map.Map PinId AnyPinnedDialog)
-  , pinVisibility :: !(Map.Map PinId PinVisibility)
-  , pinOrder :: ![PinId]
-  , handlers :: !(Map.Map Int WindowHandler)
-  , nextHandlerId :: !Int
-  }
-
-data WindowHandler where
-  WindowHandler :: forall a. (WindowChange -> a) -> M.Sink a -> WindowHandler
-
--- | Reference to the window manager.
-newtype WindowManagerRef = WindowManagerRef (MVar WindowState)
+instance Eq Model where
+  a == b =
+    a.modalStack == b.modalStack
+      && a.pinnedDialogs == b.pinnedDialogs
+      && a.pinOrder == b.pinOrder
+      && a.pinSaveGen == b.pinSaveGen
 
 -- ---------------------------------------------------------------------------
--- Construction
+-- Window events and event sink
 -- ---------------------------------------------------------------------------
 
--- | Create a new window manager.
-newWindowManager :: IO WindowManagerRef
-newWindowManager = WindowManagerRef <$> newMVar emptyState
-  where
-    emptyState =
-      WindowState
-        { modals = []
-        , pins = Map.empty
-        , pinVisibility = Map.empty
-        , pinOrder = []
-        , handlers = Map.empty
-        , nextHandlerId = 0
-        }
+-- | All window operations as events dispatched to the WindowHost.
+data WindowEvent
+  = WEOpenModal !AnyModal
+  | WECloseTopModal
+  | WEPinDialog !AnyPinnedDialog
+  | WEUnpinDialog !PinId
+  | WETogglePin !PinId
+  | WEMinimizePin !PinId
+  | WERestorePin !PinId
+
+-- | Event sink for dispatching window events to the WindowHost.
+-- The sink is an IO action that accepts events. Before the WindowHost
+-- mounts, events are silently dropped (the placeholder no-ops).
+newtype WindowEventSink = WindowEventSink (WindowEvent -> IO ())
+
+-- | Create a 'WindowEventSink' and the MVar used by the WindowHost to
+-- install the real sink. Before the WindowHost mounts, events are no-ops.
+mkWindowEventSink :: IO (WindowEventSink, MVar (WindowEvent -> IO ()))
+mkWindowEventSink = do
+  sinkRef <- newMVar (\_ -> pure ())
+  let sink = WindowEventSink (\ev -> do f <- readMVar sinkRef; f ev)
+  pure (sink, sinkRef)
 
 -- ---------------------------------------------------------------------------
 -- Modal API
@@ -337,164 +375,44 @@ newWindowManager = WindowManagerRef <$> newMVar emptyState
 
 -- | Open a blocking modal. Renders above everything including pinned dialogs.
 -- Pushes onto the modal stack; the new modal appears on top.
-openModal :: WindowManagerRef -> AnyModal -> IO ()
-openModal (WindowManagerRef ref) modal = do
-  modifyMVar_ ref $ \s -> do
-    let s' = s {modals = modal : s.modals}
-    notifyHandlers s'
-    pure s'
+openModal :: WindowEventSink -> AnyModal -> IO ()
+openModal (WindowEventSink f) modal = f (WEOpenModal modal)
 
 -- | Open a framed modal for a component that ignores 'WindowMode'.
--- Convenience wrapper: @openFramedModal ref cfg c = openFramedModalWith ref cfg (const c)@
+-- Convenience wrapper: @openFramedModal sink cfg c = openFramedModalWith sink cfg (const c)@
 openFramedModal
   :: (Eq m, Typeable m)
-  => WindowManagerRef
+  => WindowEventSink
   -> ModalConfig
   -> M.Component Model m a
   -> IO ()
-openFramedModal ref cfg comp =
-  openFramedModalWith ref cfg (const comp)
+openFramedModal sink cfg comp =
+  openFramedModalWith sink cfg (const comp)
 
 -- | Close the topmost modal. If multiple modals are stacked, reveals the next one.
-closeModal :: WindowManagerRef -> IO ()
-closeModal (WindowManagerRef ref) = do
-  modifyMVar_ ref $ \s -> do
-    let s' = s {modals = drop 1 s.modals}
-    notifyHandlers s'
-    pure s'
+closeModal :: WindowEventSink -> IO ()
+closeModal (WindowEventSink f) = f WECloseTopModal
 
 -- ---------------------------------------------------------------------------
 -- Pin API
 -- ---------------------------------------------------------------------------
 
--- | Pin a dialog (internal). If the 'PinId' already exists, the existing
--- dialog is made visible (restored). Otherwise it is added and made visible.
--- In both cases, any previously visible pin is minimized.
-pinDialogRaw :: WindowManagerRef -> PinMeta -> AnyPinnedDialog -> IO ()
-pinDialogRaw (WindowManagerRef ref) meta dialog = do
-  let pid = toPinId meta
-  modifyMVar_ ref $ \s -> do
-    let s' = if Map.member pid s.pins
-          then -- Existing pin: just restore it
-            makeVisible pid s
-          else -- New pin: add and make visible
-            let withNewPin = s
-                  { pins = Map.insert pid dialog s.pins
-                  , pinVisibility = Map.insert pid PinMinimized s.pinVisibility
-                  , pinOrder = s.pinOrder ++ [pid]
-                  }
-             in makeVisible pid withNewPin
-    notifyHandlers s'
-    pure s'
-
 -- | Remove a pinned dialog entirely.
-unpinDialog :: WindowManagerRef -> PinId -> IO ()
-unpinDialog (WindowManagerRef ref) pid = do
-  modifyMVar_ ref $ \s -> do
-    let s' = s
-          { pins = Map.delete pid s.pins
-          , pinVisibility = Map.delete pid s.pinVisibility
-          , pinOrder = filter (/= pid) s.pinOrder
-          }
-    notifyHandlers s'
-    pure s'
+-- The WindowHost handles clearing save state and invoking the onPinClosed callback.
+unpinDialog :: WindowEventSink -> PinId -> IO ()
+unpinDialog (WindowEventSink f) pid = f (WEUnpinDialog pid)
 
 -- | Minimize a pinned dialog (hide it).
-minimizeDialog :: WindowManagerRef -> PinId -> IO ()
-minimizeDialog (WindowManagerRef ref) pid = do
-  modifyMVar_ ref $ \s -> do
-    let s' = s {pinVisibility = Map.adjust (const PinMinimized) pid s.pinVisibility}
-    notifyHandlers s'
-    pure s'
+minimizeDialog :: WindowEventSink -> PinId -> IO ()
+minimizeDialog (WindowEventSink f) pid = f (WEMinimizePin pid)
 
 -- | Restore a pinned dialog (make it visible). Minimizes any currently visible pin.
-restoreDialog :: WindowManagerRef -> PinId -> IO ()
-restoreDialog (WindowManagerRef ref) pid = do
-  modifyMVar_ ref $ \s -> do
-    let s' = makeVisible pid s
-    notifyHandlers s'
-    pure s'
+restoreDialog :: WindowEventSink -> PinId -> IO ()
+restoreDialog (WindowEventSink f) pid = f (WERestorePin pid)
 
 -- | Toggle a pinned dialog: if visible, minimize; if minimized, restore.
-toggleDialog :: WindowManagerRef -> PinId -> IO ()
-toggleDialog (WindowManagerRef ref) pid = do
-  modifyMVar_ ref $ \s -> do
-    let s' = case Map.lookup pid s.pinVisibility of
-          Just PinVisible -> s {pinVisibility = Map.insert pid PinMinimized s.pinVisibility}
-          Just PinMinimized -> makeVisible pid s
-          Nothing -> s -- PinId not found, no-op
-    notifyHandlers s'
-    pure s'
-
--- ---------------------------------------------------------------------------
--- Subscription
--- ---------------------------------------------------------------------------
-
--- | Subscribe to window changes.
--- Uses 'createSub' for automatic cleanup when the component unmounts.
-subscribeWindows :: WindowManagerRef -> (WindowChange -> a) -> M.Sink a -> IO ()
-subscribeWindows ref f sink = createSub acquire release sink
-  where
-    acquire = do
-      (handlerId, initialChange) <- registerHandler ref f sink
-      -- Send initial notification (outside MVar lock)
-      sink $ f initialChange
-      pure handlerId
-    release = unregisterHandler ref
-
--- ---------------------------------------------------------------------------
--- Internal helpers
--- ---------------------------------------------------------------------------
-
--- | Make a pin visible, minimizing any currently visible pin.
-makeVisible :: PinId -> WindowState -> WindowState
-makeVisible pid s =
-  s {pinVisibility = Map.insert pid PinVisible $ minimizeAll s.pinVisibility}
-  where
-    minimizeAll = Map.map (const PinMinimized)
-
--- | Build the combined pin map (dialog + visibility) for notifications.
-buildPinnedDialogs :: WindowState -> Map.Map PinId (AnyPinnedDialog, PinVisibility)
-buildPinnedDialogs s =
-  Map.intersectionWith (,) s.pins s.pinVisibility
-
--- | Build a 'WindowChange' from the current state.
-mkWindowChange :: Bool -> WindowState -> WindowChange
-mkWindowChange initial s =
-  WindowChange
-    { modalStack = s.modals
-    , pinnedDialogs = buildPinnedDialogs s
-    , pinOrder = s.pinOrder
-    , isInitial = initial
-    }
-
--- | Notify all registered handlers of the current state.
-notifyHandlers :: WindowState -> IO ()
-notifyHandlers s = do
-  let change = mkWindowChange False s
-  forM_ s.handlers $ issueChange change
-
--- | Send a change to a single handler.
-issueChange :: WindowChange -> WindowHandler -> IO ()
-issueChange change (WindowHandler f sink) = sink $ f change
-
--- | Register a handler. Returns (handler ID, initial change).
-registerHandler :: WindowManagerRef -> (WindowChange -> a) -> M.Sink a -> IO (Int, WindowChange)
-registerHandler (WindowManagerRef ref) f sink = do
-  modifyMVar ref $ \s ->
-    pure
-      ( s
-          { handlers = Map.insert s.nextHandlerId (WindowHandler f sink) s.handlers
-          , nextHandlerId = s.nextHandlerId + 1
-          }
-      , (s.nextHandlerId, mkWindowChange True s)
-      )
-
--- | Unregister a handler by ID.
-unregisterHandler :: WindowManagerRef -> Int -> IO ()
-unregisterHandler (WindowManagerRef ref) handlerId =
-  modifyMVar_ ref $ \s ->
-    pure s {handlers = Map.delete handlerId s.handlers}
+toggleDialog :: WindowEventSink -> PinId -> IO ()
+toggleDialog (WindowEventSink f) pid = f (WETogglePin pid)
 
 -- ---------------------------------------------------------------------------
 -- Mounting helpers
@@ -521,35 +439,106 @@ inlineComponentWith key mkComp =
 -- | Open a framed modal, injecting modal 'WindowMode' into the component.
 openFramedModalWith
   :: (Eq m, Typeable m)
-  => WindowManagerRef
+  => WindowEventSink
   -> ModalConfig
   -> (WindowMode -> M.Component Model m a)
   -> IO ()
-openFramedModalWith ref cfg mkComp =
-  let mode = mkModalMode (closeModal ref)
-   in openModal ref (AnyModal (mkComp mode) cfg)
+openFramedModalWith sink cfg mkComp =
+  let mode = mkModalMode (closeModal sink)
+   in openModal sink (AnyModal (mkComp mode) cfg)
 
--- | Pin a dialog, injecting pinned 'WindowMode' into the component.
+-- | Pin a dialog, injecting pinned 'WindowMode' into the component factory.
+-- The factory receives optional saved state ('Dynamic') when the component
+-- is (re-)created after dormancy.
 pinDialogWith
-  :: (Eq m, Typeable m)
-  => WindowManagerRef
+  :: (Eq m, Typeable m, Typeable s)
+  => WindowEventSink
   -> PinMeta
   -> WindowChrome
-  -> (WindowMode -> M.Component Model m a)
+  -> (WindowMode -> Maybe s -> M.Component Model m a)
   -> IO ()
-pinDialogWith ref meta chrome mkComp =
+pinDialogWith sink meta chrome mkComp =
   let pid = toPinId meta
-      mode = mkPinnedMode (unpinDialog ref pid)
-   in pinDialogRaw ref meta (AnyPinnedDialog (mkComp mode) chrome meta)
+      mode = mkPinnedMode (unpinDialog sink pid)
+      dialog = AnyPinnedDialog (mkComp mode) chrome meta
+   in let WindowEventSink f = sink in f (WEPinDialog dialog)
 
--- | Pin a dialog for a component that ignores 'WindowMode'.
--- Convenience wrapper: @pinDialog ref meta ch c = pinDialogWith ref meta ch (const c)@
+-- | Pin a dialog for a component that ignores 'WindowMode' and saved state.
 pinDialog
   :: (Eq m, Typeable m)
-  => WindowManagerRef
+  => WindowEventSink
   -> PinMeta
   -> WindowChrome
   -> M.Component Model m a
   -> IO ()
-pinDialog ref meta chrome comp =
-  pinDialogWith ref meta chrome (const comp)
+pinDialog sink meta chrome comp =
+  pinDialogWith sink meta chrome (\_ (_ :: Maybe ()) -> comp)
+
+-- ---------------------------------------------------------------------------
+-- Lock watching
+-- ---------------------------------------------------------------------------
+
+-- | Configuration for lock-watching, provided by the caller to avoid
+-- circular module dependencies.
+data LockWatchConfig = LockWatchConfig
+  { userId :: !UserId
+  -- ^ The connected user's ID
+  , sessionId :: !SessionId
+  -- ^ The session ID
+  , subscribeDocChanges :: !((Document -> IO ()) -> IO (IO ()))
+  -- ^ Subscribe to document changes; returns unsubscribe action.
+  -- The callback receives the current document on each change.
+  , ensurePin :: !(WindowEventSink -> Document -> TaskId -> IO ())
+  -- ^ Create a pin for a locked task
+  , watcherRemovedRef :: !(IORef (Set PinId))
+  -- ^ Pins the watcher is about to remove (lock gone). These should NOT
+  -- trigger a Release command in the onPinClosed callback.
+  }
+
+-- | Start watching document locks and maintaining task editor pins accordingly.
+--
+-- When a TaskLock is held by the current user+session, a task editor pin
+-- is created. When the lock disappears (released, stolen), the pin is removed.
+-- On pin close (via close button), the lock is released.
+--
+-- Returns an unsubscribe action.
+startLockWatching :: LockWatchConfig -> WindowEventSink -> IO (IO ())
+startLockWatching cfg sink = do
+  prevRef <- newIORef Set.empty
+
+  -- Subscribe to document changes
+  cfg.subscribeDocChanges (onDocumentChange cfg sink prevRef)
+
+-- | Handle a document change: diff locks against previous state.
+onDocumentChange :: LockWatchConfig -> WindowEventSink -> IORef (Set TaskId) -> Document -> IO ()
+onDocumentChange cfg sink prevRef doc = do
+  let current = myTaskLocks cfg doc
+  prev <- readIORef prevRef
+  writeIORef prevRef current
+  let added = current `Set.difference` prev
+      removed = prev `Set.difference` current
+  mapM_ (cfg.ensurePin sink doc) (Set.toList added)
+  -- Mark as watcher-initiated before unpinning, so onPinClosed skips the Release
+  forM_ (Set.toList removed) $ \tid -> do
+    let pid = taskPinId tid
+    modifyIORef' cfg.watcherRemovedRef (Set.insert pid)
+    unpinDialog sink pid
+
+-- | Get all TaskIds locked by the current user+session.
+myTaskLocks :: LockWatchConfig -> Document -> Set TaskId
+myTaskLocks cfg doc =
+  Set.fromList
+    [ tid
+    | (TaskLock tid, holder) <- Map.toList doc.locks
+    , holder.userId == cfg.userId
+    , holder.sessionId == cfg.sessionId
+    ]
+
+-- | Pin key for a task (deterministic, used for deduplication).
+taskPinKey :: TaskId -> Text
+taskPinKey tid = "task-" <> idToText tid
+
+-- | Convert a TaskId to a PinId.
+taskPinId :: TaskId -> PinId
+taskPinId = mkPinId . taskPinKey
+

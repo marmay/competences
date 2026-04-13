@@ -61,7 +61,7 @@ git submodule at `static/`. Source files (`index.js`, `input.css`) live in
 `frontend/static-src/` and are copied into `static/` by `deploy_frontend.sh`.
 After cloning, run `git submodule update --init` to populate `static/`.
 
-**See also:** [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment, [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) for task system design.
+**See also:** [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment.
 
 ## Quick Start
 
@@ -284,11 +284,11 @@ CSS is built from `frontend/static-src/input.css` → `static/output.css` via Ta
 
 ### WindowManagement
 
-Modals and pinned panels are managed by the **WindowManager** (`SyncContext.WindowManager`). Components open windows via `openModal`/`pinDialog`; the WindowManager handles stacking, backdrop, and lifecycle. `View.WindowFrame` provides the rendering primitives (`modalFrame`, `modalDialog`, `windowTitleBar`).
+Modals and pinned panels are managed by the **WindowManager** (`SyncContext.WindowManager`). Components open windows via `openModal`/`pinDialog`; the **WindowHost** owns all state directly via `WindowEventSink` events and handles stacking, backdrop, and lifecycle. `View.WindowFrame` provides the rendering primitives (`modalFrame`, `modalDialog`, `windowTitleBar`).
 
 ### Selector Pattern
 
-The **SelectorDetail** component (`Component.SelectorDetail`) is a reusable left-right layout: selector on the left, detail view on the right. Used by `TaskEditor`, `AssignmentSelector`, `CompetenceGridSelector`, and others. It takes a `SelectorDetailConfig` with mode switching support.
+The **SelectorDetail** component (`Component.SelectorDetail`) is a reusable left-right layout: selector on the left, detail view on the right. Used by `AssignmentSelector`, `CompetenceGridSelector`, and others. It takes a `SelectorDetailConfig` with mode switching support.
 
 ### Unidirectional Data Flow
 
@@ -389,19 +389,14 @@ See [docs/DATABASE.md](docs/DATABASE.md) for complete persistence details.
 The task system allows teachers to create and manage learning tasks with competence associations.
 
 **Core Types** (in `common/lib/Competences/Document/Task.hs`):
-- `Task` - Atomic work unit with identifier, content, and type (SelfContained or SubTask)
-- `TaskGroup` - Organizational unit for related tasks with shared defaults
-- `TaskAttributes` - Core attributes: primary/secondary competences, purpose, displayInResources
+- `Task` - Atomic work unit with identifier, content, and flat attributes (primary/secondary competences, purpose, displayInResources)
 - `TaskPurpose` - Practice (develops competence) vs Assessment (proves competence)
 
 **Commands** (in `common/lib/Competences/Command/Tasks.hs`):
-- `OnTasks` - Create/Delete/Modify self-contained tasks (uses TaskLock)
-- `OnTaskGroups` - Create/Delete/Modify task groups (uses TaskGroupLock)
-- `OnSubTasks` - Create/Delete/Modify subtasks (uses parent TaskGroupLock)
+- `OnTasks` - Create/Delete/Modify tasks (uses TaskLock)
 
 **Frontend Components**:
-- `TaskEditor` - Unified editor for tasks and task groups (route: `/tasks`)
-  - Uses `SelectorDetail` pattern: left panel selects task/group, right panel shows detail view
+- `TaskEditor` - Task editor (route: `/tasks`)
   - Teacher-only feature, accessible via navigation menu
 
 **Gradual Migration**:
@@ -409,7 +404,6 @@ The task system allows teachers to create and manage learning tasks with compete
 - Old text-based tasks preserved in `oldTasks :: Maybe Text`
 - Allows smooth transition from free-text to structured tasks
 
-See [docs/TASKS-DESIGN.md](docs/TASKS-DESIGN.md) for design details.
 
 ## Authentication Flow
 

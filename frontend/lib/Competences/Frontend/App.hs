@@ -119,7 +119,7 @@ mkApp ir initialUri =
                           (page (m ^. #uri))
                        ]
                 )
-            , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowManager)]
+            , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowEventSinkRef ir.onPinClosedRef)]
             ]
 
     page uri = case M.route uri of

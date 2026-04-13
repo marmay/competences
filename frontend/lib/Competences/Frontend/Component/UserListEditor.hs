@@ -23,6 +23,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Data.Default (def)
 import Optics.Core (Iso', iso, (%), (&), (?~), (^.))
 
 data Action
@@ -77,7 +78,7 @@ userListEditorComponent r =
               `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField #name #name)
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
-          users = inlineComponent "user-list-editor-users-editor" (TE.editorComponent usersEditor r)
+          users = inlineComponent "user-list-editor-users-editor" (TE.editorComponent usersEditor r def)
           addButton = Button.primary (Button.button (Icon.IcnAdd, C.LblAddUser) NewUser)
           header =
             M.div_

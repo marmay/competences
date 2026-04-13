@@ -36,6 +36,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (RichContent)
+import Data.Default (def)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
@@ -53,7 +54,7 @@ editorDetailView
 editorDetailView r resource =
   inlineComponent
     ("resource-editor-" <> M.ms (show resource.id))
-    (TE.editorComponent resourceEditor r)
+    (TE.editorComponent resourceEditor r def)
   where
     resourceEditable =
       TE.editable

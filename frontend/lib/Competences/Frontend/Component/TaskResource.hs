@@ -50,8 +50,8 @@ data DisplayMode
 -- | A task with its pre-computed content and solutions
 data TaskWithSolutions = TaskWithSolutions
   { task :: !Task
-  , taskContent :: !(Maybe RichContent)  -- ^ Pre-computed from getTaskContent
-  , taskPurpose :: !TaskPurpose   -- ^ Pre-computed from getTaskAttributes
+  , taskContent :: !(Maybe RichContent)
+  , taskPurpose :: !TaskPurpose
   , solutions :: ![Solution]
   }
   deriving (Eq, Generic, Show)

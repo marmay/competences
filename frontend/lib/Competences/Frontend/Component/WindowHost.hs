@@ -2,8 +2,8 @@
 -- Module      : Competences.Frontend.Component.WindowHost
 -- Description : Unified window host for modals and pinned dialogs
 --
--- Subscribes to the WindowManager and renders both modals and pinned dialogs.
--- Mount once in App.hs. Replaces the former ModalHost.
+-- Owns all window state directly. The WindowEventSink dispatches events
+-- to this component's action handler. Mount once in App.hs.
 --
 -- Rendering order (z-index):
 --
@@ -24,14 +24,12 @@ import Competences.Frontend.SyncContext.WindowManager
   , PinId
   , PinMeta (..)
   , PinVisibility (..)
-  , WindowChange (..)
   , WindowChrome (..)
-  , WindowManagerRef
-  , closeModal
-  , subscribeWindows
-  , toggleDialog
-  , unpinDialog
+  , WindowEvent (..)
+  , mkPinId
   )
+import Data.Dynamic (fromDynamic)
+import Data.IORef (IORef, readIORef)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (modalDialog, pinFrame, pinSidebarIcon)
 import Data.List (sortOn)
@@ -39,20 +37,22 @@ import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Event (onClick)
+import UnliftIO (MVar, swapMVar)
 
 -- | Actions for the WindowHost component.
 data Action
-  = WindowsChanged !WindowChange
+  = WinEvent !WindowEvent
   | BackdropClicked
   | TogglePin !PinId
   | ClosePin !PinId
 
--- | The WindowHost component subscribes to WindowManager and renders
--- all managed windows (modals and pinned dialogs).
-windowHostComponent :: WindowManagerRef -> M.Component p Model Action
-windowHostComponent ref =
+-- | The WindowHost component owns all window state directly.
+-- The sinkRef MVar is filled on mount so that the WindowEventSink
+-- can dispatch events to this component's action handler.
+windowHostComponent :: MVar (WindowEvent -> IO ()) -> IORef (PinId -> IO ()) -> M.Component p Model Action
+windowHostComponent sinkRef onPinClosedRef =
   (M.component model update view)
-    { M.subs = [subscribeWindows ref WindowsChanged]
+    { M.subs = [fillSinkSub sinkRef]
     }
   where
     model =
@@ -60,24 +60,49 @@ windowHostComponent ref =
         { modalStack = []
         , pinnedDialogs = Map.empty
         , pinOrder = []
+        , pinSaveStates = Map.empty
+        , pinSaveGen = 0
         }
 
-    update (WindowsChanged change) =
-      M.modify $ \_ ->
-        Model
-          { modalStack = change.modalStack
-          , pinnedDialogs = change.pinnedDialogs
-          , pinOrder = change.pinOrder
-          }
+    update (WinEvent (WEOpenModal modal)) =
+      M.modify $ \m -> m {modalStack = modal : m.modalStack}
+
+    update (WinEvent WECloseTopModal) =
+      M.modify $ \m -> m {modalStack = drop 1 m.modalStack}
+
+    update (WinEvent (WEPinDialog dialog@(AnyPinnedDialog _ _ meta))) =
+      M.modify $ \m ->
+        let pid = mkPinIdFromMeta meta
+         in addPin pid dialog m
+
+    update (WinEvent (WEUnpinDialog pid)) = do
+      M.modify $ \m -> removePin pid m
+      M.io_ $ do
+        callback <- readIORef onPinClosedRef
+        callback pid
+
+    update (WinEvent (WETogglePin pid)) =
+      M.modify $ \m ->
+        case Map.lookup pid m.pinnedDialogs of
+          Just (_, PinVisible) -> setVisibility pid PinMinimized m
+          Just (_, PinMinimized) -> makeVisible pid m
+          Nothing -> m
+
+    update (WinEvent (WEMinimizePin pid)) =
+      M.modify $ \m -> setVisibility pid PinMinimized m
+
+    update (WinEvent (WERestorePin pid)) =
+      M.modify $ makeVisible pid
 
     update BackdropClicked =
-      M.io_ $ closeModal ref
+      -- Close the top modal
+      M.modify $ \m -> m {modalStack = drop 1 m.modalStack}
 
     update (TogglePin pid) =
-      M.io_ $ toggleDialog ref pid
+      update (WinEvent (WETogglePin pid))
 
     update (ClosePin pid) =
-      M.io_ $ unpinDialog ref pid
+      update (WinEvent (WEUnpinDialog pid))
 
     view m =
       MH.div_
@@ -88,6 +113,50 @@ windowHostComponent ref =
         , renderModal m
         ]
 
+-- | Extract PinId from PinMeta.
+mkPinIdFromMeta :: PinMeta -> PinId
+mkPinIdFromMeta meta = mkPinId meta.key
+
+-- | Fill the sink MVar with the real action sink on component mount.
+fillSinkSub :: MVar (WindowEvent -> IO ()) -> M.Sub Action
+fillSinkSub sinkRef actionSink = do
+  _ <- swapMVar sinkRef (\ev -> actionSink (WinEvent ev))
+  pure ()
+
+-- | Add a pin to the model. If the PinId already exists, restore it.
+-- Otherwise add it and make it visible.
+addPin :: PinId -> AnyPinnedDialog -> Model -> Model
+addPin pid dialog m =
+  if Map.member pid m.pinnedDialogs
+    then makeVisible pid m
+    else
+      let withNewPin = m
+            { pinnedDialogs = Map.insert pid (dialog, PinMinimized) m.pinnedDialogs
+            , pinOrder = m.pinOrder ++ [pid]
+            }
+       in makeVisible pid withNewPin
+
+-- | Remove a pin from the model. Clears save state.
+removePin :: PinId -> Model -> Model
+removePin pid m = m
+  { pinnedDialogs = Map.delete pid m.pinnedDialogs
+  , pinOrder = filter (/= pid) m.pinOrder
+  , pinSaveStates = Map.delete pid m.pinSaveStates
+  }
+
+-- | Make a pin visible, minimizing all others.
+makeVisible :: PinId -> Model -> Model
+makeVisible pid m = m
+  { pinnedDialogs = Map.adjust (\(d, _) -> (d, PinVisible)) pid $
+      Map.map (\(d, _) -> (d, PinMinimized)) m.pinnedDialogs
+  }
+
+-- | Set the visibility of a specific pin.
+setVisibility :: PinId -> PinVisibility -> Model -> Model
+setVisibility pid vis m = m
+  { pinnedDialogs = Map.adjust (\(d, _) -> (d, vis)) pid m.pinnedDialogs
+  }
+
 -- | Render all pinned dialogs. Visible ones get the overlay frame styling.
 -- Minimized ones are kept in the DOM with @class "hidden"@ to preserve state.
 -- Sorted by (category, sortKey) for deterministic ordering.
@@ -97,24 +166,26 @@ renderPinnedDialogs m =
     []
     (map renderOnePin (sortedPins m))
   where
-    renderOnePin (pid, AnyPinnedDialog comp chrome meta, visibility) =
+    renderOnePin (pid, AnyPinnedDialog factory chrome meta, visibility) =
       case visibility of
         PinVisible ->
-          MH.div_
-            [ class_
-                "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
-            ]
-            [ pinFrame
-                chrome
-                (TogglePin pid)
-                (ClosePin pid)
-                [MH.div_ [class_ "h-full"] [M.ms ("pin-" <> M.ms meta.key) M.+> comp]]
-            ]
+          let typedState = Map.lookup pid m.pinSaveStates >>= fromDynamic
+              comp = factory typedState
+           in MH.div_
+                [ class_
+                    "fixed inset-y-[2%] left-[1%] right-[calc(1%+4rem)] z-30 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg flex flex-col"
+                ]
+                [ pinFrame
+                    chrome
+                    (TogglePin pid)
+                    (ClosePin pid)
+                    [MH.div_ [class_ "h-full"]
+                      [M.mount_ [M.key_ (M.ms ("pin-" <> M.ms meta.key))] comp]]
+                ]
         PinMinimized ->
-          -- Keep in DOM but hidden to preserve component state
-          MH.div_
-            [class_ "hidden"]
-            [M.ms ("pin-" <> M.ms meta.key) M.+> comp]
+          -- Full unmount: component is removed from DOM to save memory.
+          -- State is preserved via bindings to pinSaveStates.
+          M.text ""
 
 -- | Render the sidebar icon strip on the right edge.
 -- Only shown when there are pinned dialogs.

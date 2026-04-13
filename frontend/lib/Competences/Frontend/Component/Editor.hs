@@ -82,8 +82,8 @@ addNamedField e f = e & #fields %~ (<> [f])
 editorComponent
   :: forall a patch f n p
    . (Functor f, Foldable f, Ord a, Default patch)
-  => Editor a patch f n -> SyncContext -> M.Component p (Model a patch f) (Action a patch)
-editorComponent e r =
+  => Editor a patch f n -> SyncContext -> patch -> M.Component p (Model a patch f) (Action a patch)
+editorComponent e r defaultPatch =
   (M.component model update view)
     { M.subs = [subscribeDocument r UpdateDocument]
     }
@@ -133,25 +133,31 @@ editorComponent e r =
       M.io_ $ M.focus refocusTargetString
 
     updateModel :: Document -> Model a patch f -> Model a patch f
-    updateModel d (Model _ patches reorderFrom _ _ contentStates holdDelete) =
+    updateModel d m =
       let es = e.editable.get d
           myEdits = filter (\(_, u) -> u == Just (syncDocumentEnv r ^. #connectedUser % #id)) (toList es)
-          patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe def (Map.lookup e' patches))) myEdits
-          refocusTarget = listToMaybe (Map.keys (patches' `Map.difference` patches) <> Map.keys patches')
+          patches' = Map.fromList $ map (\(e', _) -> (e', fromMaybe defaultPatch (Map.lookup e' m.patches))) myEdits
+          refocusTarget = listToMaybe (Map.keys (patches' `Map.difference` m.patches) <> Map.keys patches')
           users = Map.fromList $ map (\u -> (u ^. #id, u)) (IxSet.toList $ d ^. #users)
           -- Retain content states only for entities still being edited
-          contentStates' = Map.restrictKeys contentStates (Map.keysSet patches')
-       in Model (Just es) patches' reorderFrom refocusTarget users contentStates' holdDelete
+          contentStates' = Map.restrictKeys m.contentStates (Map.keysSet patches')
+       in m
+            { entries = Just es
+            , patches = patches'
+            , refocusTarget = refocusTarget
+            , users = users
+            , contentStates = contentStates'
+            }
 
     view :: Model a patch f -> M.View (Model a patch f) (Action a patch)
-    view m = case m.entries of
-      (Just entries) ->
-        e.view $
-          EditorViewData
-            { fields = map fst e.fields
-            , items = fmap (viewItem m) entries
-            }
-      Nothing -> M.div_ [] []
+    view m
+      | Just entries <- m.entries =
+          e.view $
+            EditorViewData
+              { fields = map fst e.fields
+              , items = fmap (viewItem m) entries
+              }
+      | otherwise = M.div_ [] []
 
     viewItem :: Model a patch f -> (a, Maybe UserId) -> EditorViewItem a patch f n
     viewItem m (item, user) =

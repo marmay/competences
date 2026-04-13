@@ -34,6 +34,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Query.Resource qualified as QResource
 import Competences.Query.Task qualified as QTask
 import Miso qualified as M
+import Data.Default (def)
 import Optics.Core ((&), (?~))
 
 -- | Detail view for editing a lesson notes entry
@@ -44,7 +45,7 @@ editorDetailView
 editorDetailView r ln =
   inlineComponent
     ("lesson-notes-editor-" <> M.ms (show ln.id))
-    (TE.editorComponent lnEditor r)
+    (TE.editorComponent lnEditor r def)
   where
     lnEditable =
       TE.editable

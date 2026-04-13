@@ -25,6 +25,7 @@ import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Data.Default (def)
 import Optics.Core ((&), (.~), (?~))
 
 -- | Detail view for editing a solution
@@ -35,7 +36,7 @@ editorDetailView
 editorDetailView r solution =
   inlineComponent
     ("solution-editor-" <> M.ms (show solution.id))
-    (TE.editorComponent solutionEditor r)
+    (TE.editorComponent solutionEditor r def)
   where
     solutionEditable =
       TE.editable
@@ -117,7 +118,7 @@ solutionInlineEditor
 solutionInlineEditor r solution =
   inlineComponent
     ("solution-inline-editor-" <> M.ms (show solution.id))
-    (TE.editorComponent inlineEditor r)
+    (TE.editorComponent inlineEditor r def)
   where
     solutionEditable =
       TE.editable

@@ -7,6 +7,7 @@ module Competences.Frontend.SyncContext.SyncDocument
   , mkSyncDocument
   , mkSyncDocument'
   , subscribeDocument
+  , subscribeDocumentIO
   , registerDocumentHandler
   , unregisterDocumentHandler
   , modifySyncDocument
@@ -64,8 +65,10 @@ import Competences.Frontend.FileCache (FileCache, newFileCache)
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SvgEmbed.Manager (FormulaCache, newFormulaCache)
 import Competences.Frontend.SyncContext.WindowManager
-  ( WindowManagerRef
-  , newWindowManager
+  ( PinId
+  , WindowEventSink
+  , WindowEvent
+  , mkWindowEventSink
   )
 import Competences.Frontend.SyncContext.UIState
   ( FocusedUserChange (..)
@@ -145,7 +148,9 @@ data SyncContext = SyncContext
   , randomGen :: MVar StdGen
   , env :: !SyncDocumentEnv
   , focusedUserRef :: !FocusedUserRef
-  , windowManager :: !WindowManagerRef
+  , windowManager :: !WindowEventSink
+  , windowEventSinkRef :: !(MVar (WindowEvent -> IO ()))
+  , onPinClosedRef :: !(IORef (PinId -> IO ()))
   , serverInfoRef :: !(IORef ServerInfo)
   , currentCommandId :: !(IORef (Maybe CommandId))
   , formulaCache :: !FormulaCache
@@ -183,7 +188,8 @@ mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
   randomGen <- newStdGen >>= newMVar
   focusedUser <- mkFocusedUserRef env.connectedUser
-  winMgr <- liftIO newWindowManager
+  (winMgr, sinkRef) <- liftIO mkWindowEventSink
+  onPinClosed <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
@@ -193,14 +199,15 @@ mkSyncDocument env = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr sinkRef onPinClosed srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
   randomGen' <- newMVar rgen
   focusedUser <- mkFocusedUserRef env.connectedUser
-  winMgr <- liftIO newWindowManager
+  (winMgr, sinkRef) <- liftIO mkWindowEventSink
+  onPinClosed <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
@@ -210,7 +217,7 @@ mkSyncDocument' env rgen m = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr sinkRef onPinClosed srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 -- | Request permission to upload a file. The callback is invoked with
 -- Right () on UploadPermitted, or Left reason on UploadDenied.
@@ -305,6 +312,14 @@ unregisterDocumentHandler :: SyncContext -> Int -> IO ()
 unregisterDocumentHandler d handlerId =
   modifyMVar_ d.syncDocument $ \d' ->
     pure d'{ onChanged = Map.delete handlerId d'.onChanged }
+
+-- | Subscribe to document changes via IO callback (for use outside Miso components).
+-- Returns an unsubscribe action. Sends the initial document immediately.
+subscribeDocumentIO :: SyncContext -> (DocumentChange -> IO ()) -> IO (IO ())
+subscribeDocumentIO r handler = do
+  (handlerId, initialDoc) <- registerDocumentHandler r id handler
+  handler (DocumentChange initialDoc InitialUpdate)
+  pure (unregisterDocumentHandler r handlerId)
 
 modifySyncDocument :: SyncContext -> Command -> IO ()
 modifySyncDocument r c = do
@@ -499,3 +514,4 @@ notifyRejection :: SyncContext -> Command -> Text -> IO ()
 notifyRejection r cmd err = do
   handlers <- readMVar r.rejectionHandlers
   forM_ handlers $ \(RejectionHandler handler) -> handler cmd err
+
