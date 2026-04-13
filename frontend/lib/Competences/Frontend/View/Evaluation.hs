@@ -43,13 +43,8 @@ import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Evidence (Ability (..), abilities)
 import Competences.Document.Task
   ( Task (..)
-  , TaskAttributes (..)
-  , TaskGroup
-  , TaskGroupIxs
   , TaskId
   , TaskIxs
-  , getTaskAttributes
-  , getTaskContent
   , taskDisplayName
   )
 import Competences.Frontend.Common qualified as C
@@ -100,20 +95,19 @@ data CompetenceLevelInfo = CompetenceLevelInfo
 -- ============================================================================
 
 -- | Pre-compute display data for all tasks in the document.
-projectTasks :: Ix.IxSet TaskGroupIxs TaskGroup -> Ix.IxSet TaskIxs Task -> Map.Map TaskId TaskViewData
-projectTasks taskGroups tasks =
+projectTasks :: Ix.IxSet TaskIxs Task -> Map.Map TaskId TaskViewData
+projectTasks tasks =
   Map.fromList
     [ (task.id, mkTaskViewData task)
     | task <- Ix.toList tasks
     ]
   where
     mkTaskViewData task =
-      let attrs = getTaskAttributes taskGroups task
-       in TaskViewData
-            { identifier = taskDisplayName task
-            , content = getTaskContent taskGroups task
-            , competenceLevels = attrs.primary <> attrs.secondary
-            }
+      TaskViewData
+        { identifier = taskDisplayName task
+        , content = task.content
+        , competenceLevels = task.primary <> task.secondary
+        }
 
 -- | Pre-compute display info for all competence levels in the document.
 projectCompetenceLevels

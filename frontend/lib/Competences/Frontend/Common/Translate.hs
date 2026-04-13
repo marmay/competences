@@ -119,23 +119,15 @@ data Label
   | LblStatisticsIndividual
   | LblTotalExercises
   | LblTotalObservations
-  | LblSelfContainedTasks
   | LblNewTask
-  | LblNewTaskGroup
+
   | LblNewDraftTask
-  | LblNewDraftTaskGroup
+
   | LblNewDraftAssignment
   | LblDraft
   | LblPublishAssignment
-  | LblTasksAndGroups
-  | LblEditTaskGroup
-  | LblEditSubTask
-  | LblEditSelfContainedTask
-  | LblTaskGroupContentBefore
-  | LblTaskGroupContentAfter
-  | LblSubTasks
-  | LblAddSubTask
-  | LblNoSubTasks
+
+  | LblEditTask
   | LblFilterTasks
   | LblFilterAssignments
   | LblFilterAllAssignments
@@ -149,10 +141,6 @@ data Label
   | LblTaskSecondaryCompetences
   | LblTaskPurposeLabel
   | LblTaskDisplayInResources
-  | LblInherit
-  | LblYes
-  | LblNo
-  | LblOverrideCompetences
   | LblNoCompetences
   | LblTaskPurpose !TaskPurpose
   | LblAssignments
@@ -548,23 +536,15 @@ labels' =
   , LblStatisticsIndividual
   , LblTotalExercises
   , LblTotalObservations
-  , LblSelfContainedTasks
   , LblNewTask
-  , LblNewTaskGroup
+
   , LblNewDraftTask
-  , LblNewDraftTaskGroup
+
   , LblNewDraftAssignment
   , LblDraft
   , LblPublishAssignment
-  , LblTasksAndGroups
-  , LblEditTaskGroup
-  , LblEditSubTask
-  , LblEditSelfContainedTask
-  , LblTaskGroupContentBefore
-  , LblTaskGroupContentAfter
-  , LblSubTasks
-  , LblAddSubTask
-  , LblNoSubTasks
+
+  , LblEditTask
   , LblFilterTasks
   , LblFilterAssignments
   , LblFilterAllAssignments
@@ -577,10 +557,6 @@ labels' =
   , LblTaskSecondaryCompetences
   , LblTaskPurposeLabel
   , LblTaskDisplayInResources
-  , LblInherit
-  , LblYes
-  , LblNo
-  , LblOverrideCompetences
   , LblNoCompetences
   , LblAssignments
   , LblNewAssignment
@@ -993,23 +969,15 @@ defaultTranslation LblParticipationTimeline = "Mitarbeit-Chronologie"
 defaultTranslation LblStatisticsIndividual = "Meine Statistik"
 defaultTranslation LblTotalExercises = "Gesamtanzahl Übungen"
 defaultTranslation LblTotalObservations = "Gesamtanzahl Beobachtungen"
-defaultTranslation LblSelfContainedTasks = "Aufgaben"
 defaultTranslation LblNewTask = "Neue Aufgabe"
-defaultTranslation LblNewTaskGroup = "Neue Aufgabengruppe"
+
 defaultTranslation LblNewDraftTask = "Neue Aufgabe (Entw.)"
-defaultTranslation LblNewDraftTaskGroup = "Neue Gruppe (Entw.)"
+
 defaultTranslation LblNewDraftAssignment = "Neuer Arbeitsauftrag (Entw.)"
 defaultTranslation LblDraft = "Entwurf"
 defaultTranslation LblPublishAssignment = "Veröffentlichen"
-defaultTranslation LblTasksAndGroups = "Aufgaben"
-defaultTranslation LblEditTaskGroup = "Aufgabengruppe bearbeiten"
-defaultTranslation LblEditSubTask = "Unteraufgabe bearbeiten"
-defaultTranslation LblEditSelfContainedTask = "Aufgabe bearbeiten"
-defaultTranslation LblTaskGroupContentBefore = "Inhalt davor"
-defaultTranslation LblTaskGroupContentAfter = "Inhalt danach"
-defaultTranslation LblSubTasks = "Unteraufgaben"
-defaultTranslation LblAddSubTask = "Unteraufgabe"
-defaultTranslation LblNoSubTasks = "Keine Unteraufgaben"
+
+defaultTranslation LblEditTask = "Aufgabe bearbeiten"
 defaultTranslation LblFilterTasks = "Nach Bezeichnung filtern..."
 defaultTranslation LblFilterAssignments = "Nach Name filtern..."
 defaultTranslation LblFilterAllAssignments = "Alle"
@@ -1023,10 +991,7 @@ defaultTranslation LblTaskPrimaryCompetences = "Primäre Kompetenzen"
 defaultTranslation LblTaskSecondaryCompetences = "Sekundäre Kompetenzen"
 defaultTranslation LblTaskPurposeLabel = "Zweck"
 defaultTranslation LblTaskDisplayInResources = "In Ressourcen anzeigen"
-defaultTranslation LblInherit = "Von Gruppe erben"
-defaultTranslation LblYes = "Ja"
-defaultTranslation LblNo = "Nein"
-defaultTranslation LblOverrideCompetences = "Kompetenzen überschreiben"
+
 defaultTranslation LblNoCompetences = "Keine Kompetenzen"
 defaultTranslation (LblTaskPurpose Practice) = "Übung"
 defaultTranslation (LblTaskPurpose Assessment) = "Beurteilung"

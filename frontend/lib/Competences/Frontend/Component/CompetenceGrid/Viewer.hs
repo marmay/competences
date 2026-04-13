@@ -37,12 +37,9 @@ import Competences.Document.Evidence
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Task
-  ( TaskAttributes (..)
-  , TaskId
+  ( TaskId
   , TaskIdentifier (..)
   , TaskPurpose (..)
-  , getTaskAttributes
-  , getTaskContent
   , getTaskPrimaryCompetences
   , isResourceTask
   )
@@ -234,7 +231,7 @@ pinCompetenceGridViewer r grid =
    in pinDialogWith r.windowManager
         meta
         chrome
-        (viewerComponent r grid)
+        (\mode (_savedState :: Maybe ()) -> viewerComponent r grid mode)
 
 -- | View for the viewer detail - shows competence grid with student evidence
 viewerDetailView
@@ -331,14 +328,13 @@ viewerComponent r grid wm =
     -- Compute resource tasks grouped by competence level
     computeResourceTasks :: Document -> Ix.IxSet CompetenceIxs Competence -> Map CompetenceLevelId [TaskWithSolutions]
     computeResourceTasks doc gridCompetences =
-      let taskGroups = doc.taskGroups
-          competenceIds = [c.id | c <- Ix.toList gridCompetences]
-          resourceTasksList = filter (isResourceTask taskGroups) $ Ix.toList doc.tasks
+      let competenceIds = [c.id | c <- Ix.toList gridCompetences]
+          resourceTasksList = filter isResourceTask $ Ix.toList doc.tasks
           buildTaskWithSolutions :: Task -> TaskWithSolutions
           buildTaskWithSolutions task = TaskWithSolutions
             { task = task
-            , taskContent = getTaskContent taskGroups task
-            , taskPurpose = (getTaskAttributes taskGroups task).purpose
+            , taskContent = task.content
+            , taskPurpose = task.purpose
             , solutions = Ix.toList $ doc.solutions Ix.@= task.id
             }
           -- Find the latest assignment date for a given task
@@ -358,7 +354,7 @@ viewerComponent r grid wm =
             Map.map (sortOn taskSortKey) $ foldr insertTask Map.empty tasks
             where
               insertTask tws acc =
-                let primaryLevels = getTaskPrimaryCompetences taskGroups tws.task
+                let primaryLevels = getTaskPrimaryCompetences tws.task
                     relevantLevels = filter (\(cid, _) -> cid `elem` competenceIds) primaryLevels
                  in foldr (\lvl -> Map.insertWith (++) lvl [tws]) acc relevantLevels
        in groupByCompetenceLevel $ map buildTaskWithSolutions resourceTasksList

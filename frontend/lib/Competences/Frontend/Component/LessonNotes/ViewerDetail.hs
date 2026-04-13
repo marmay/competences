@@ -21,7 +21,7 @@ import Competences.Document
   , ResourceIdentifier (..)
   )
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (TaskAttributes (..), getTaskAttributes, getTaskContent)
+import Competences.Document.Task (Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
@@ -71,10 +71,8 @@ resolveItem :: Document -> LessonNoteItem -> Maybe ResolvedItem
 resolveItem doc (LessonResource rid) = ResolvedResource <$> Ix.getOne (doc.resources Ix.@= rid)
 resolveItem doc (LessonTask tid) = do
   task <- Ix.getOne (doc.tasks Ix.@= tid)
-  let composedContent = getTaskContent doc.taskGroups task
-      sols = Ix.toList (doc.solutions Ix.@= tid)
-      purpose = (getTaskAttributes doc.taskGroups task).purpose
-  Just $ ResolvedTask $ TaskWithSolutions task composedContent purpose sols
+  let sols = Ix.toList (doc.solutions Ix.@= tid)
+  Just $ ResolvedTask $ TaskWithSolutions task task.content task.purpose sols
 
 -- ============================================================================
 -- Model & Action
@@ -122,7 +120,7 @@ pinLessonNotesViewer r ln =
    in pinDialogWith r.windowManager
         meta
         chrome
-        (viewerComponent r ln)
+        (\mode (_savedState :: Maybe ()) -> viewerComponent r ln mode)
 
 viewerDetailView
   :: SyncContext

@@ -159,7 +159,7 @@ computeViewData lessonId userId fallbackDate fallbackName doc =
         , existingEvidence = case filter (\e -> e.userId == Just userId) evs of
             (e : _) -> Just e
             [] -> Nothing
-        , taskViewData = Eval.projectTasks doc.taskGroups doc.tasks
+        , taskViewData = Eval.projectTasks doc.tasks
         , competenceLevelInfos = Eval.projectCompetenceLevels doc.competences doc.competenceGrids
         , baseLessonTaskIds = QLesson.lessonTaskIds doc lessonId
         }

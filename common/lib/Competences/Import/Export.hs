@@ -42,11 +42,8 @@ import Competences.Document.Resource (Resource (..), ResourceContent (..), Resou
 import Competences.Document.Solution (Solution (..), SolutionType (..))
 import Competences.Document.Task
   ( Task (..)
-  , TaskAttributes (..)
-  , TaskAttributesOverride (..)
   , TaskIdentifier (..)
   , TaskPurpose (..)
-  , TaskType (..)
   )
 import Competences.Import.Types (actionFormToGerman, activityTypeToGerman, levelToGerman, purposeToGerman, socialFormToGerman)
 import Data.Map.Strict qualified as Map
@@ -154,14 +151,14 @@ exportTaskAsSubsection doc task =
   let TaskIdentifier ident = task.identifier
       titleSuffix = if T.null task.title then "" else " \x2014 " <> task.title
       header = "### " <> ident <> titleSuffix <> "\n"
-      purposeLine = case getTaskPurpose task of
-        Just Assessment -> "Zweck: " <> purposeToGerman Assessment <> "\n"
+      purposeLine = case task.purpose of
+        Assessment -> "Zweck: " <> purposeToGerman Assessment <> "\n"
         _ -> "" -- Practice is the default, omit it
       contentSection = case task.content of
         Just c | let raw = toRawText c, not (T.null (T.strip raw)) -> "\n#### Angabe\n" <> T.strip raw <> "\n"
         _ -> ""
       -- Get primary and secondary competence references separately
-      (primaryIds, secondaryIds) = getTaskCompetenceIdsSplit task
+      (primaryIds, secondaryIds) = (task.primary, task.secondary)
       primarySection = exportCompetenceSection "Kompetenzen" doc primaryIds
       secondarySection = exportCompetenceSection "Sekundäre Kompetenzen" doc secondaryIds
       -- Get solutions for this task
@@ -180,21 +177,6 @@ exportCompetenceSection sectionName doc compIds =
    in if null refs
         then ""
         else "\n#### " <> sectionName <> "\n" <> T.intercalate "\n" refs <> "\n"
-
--- | Get the purpose from a task's attributes
-getTaskPurpose :: Task -> Maybe TaskPurpose
-getTaskPurpose task = case task.taskType of
-  SelfContained attrs -> Just attrs.purpose
-  SubTask _ _ -> Nothing
-
--- | Get primary and secondary competence level IDs from a task separately
-getTaskCompetenceIdsSplit :: Task -> ([CompetenceLevelId], [CompetenceLevelId])
-getTaskCompetenceIdsSplit task = case task.taskType of
-  SelfContained attrs -> (attrs.primary, attrs.secondary)
-  SubTask _ override ->
-    ( maybe [] id override.primary
-    , maybe [] id override.secondary
-    )
 
 -- | Format a competence reference as "GridName / Description / Level"
 formatCompetenceRef :: Document -> CompetenceLevelId -> Maybe Text

@@ -95,7 +95,6 @@ editorComponent r grid =
         , evidences = Ix.empty
         , locks = mempty
         , tasks = Ix.empty
-        , taskGroups = Ix.empty
         , solutions = Ix.empty
         , resources = Ix.empty
         , assignments = Ix.empty
@@ -108,7 +107,6 @@ editorComponent r grid =
         , absences = Ix.empty
         , submissions = Ix.empty
         , draftTasks = Ix.empty
-        , draftTaskGroups = Ix.empty
         , draftAssignments = Ix.empty
         , competenceLevelExamples = Ix.empty
         , layouts = Ix.empty
@@ -133,10 +131,10 @@ editorComponent r grid =
         (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
         [ inlineComponent
             ("competence-grid-editor-grid-" <> M.ms (show grid.id))
-            (TE.editorComponent competenceGridEditor r)
+            (TE.editorComponent competenceGridEditor r def)
         , inlineComponent
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
-            (TE.editorComponent competencesEditor r)
+            (TE.editorComponent competencesEditor r def)
         , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
             , inlineComponent

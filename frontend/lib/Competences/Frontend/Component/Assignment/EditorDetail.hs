@@ -17,7 +17,7 @@ import Competences.Document
   )
 import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Task (Task (..), TaskGroup (..), TaskId, TaskIdentifier (..), TaskType (..), defaultTaskAttributes, getTasksInGroup, taskDisplayName, taskGroupId)
+import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), defaultTask, taskDisplayName)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
@@ -54,6 +54,7 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Data.Default (def)
 import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (.~))
 
 -- ============================================================================
@@ -153,15 +154,8 @@ editorWrapperComponent r assignment =
             -- Get all draft tasks referenced by this assignment
             draftTaskIds = maybe [] (.tasks) mDraftAssignment
             draftTasks = [t | t <- Ix.toList doc.draftTasks, t.id `elem` draftTaskIds]
-            -- Get all draft task groups referenced by draft tasks
-            draftGroupIds = [gid | t <- draftTasks, Just gid <- [taskGroupId t]]
-            draftGroups = [g | g <- Ix.toList doc.draftTaskGroups, g.id `elem` draftGroupIds]
-            -- Also include subtasks from those groups
-            groupSubTasks = concatMap (\g -> getTasksInGroup g.id doc.draftTasks) draftGroups
-            allDraftTasks = draftTasks <> groupSubTasks
         modifySyncDocument r $ Publish PublishData
-          { taskGroups = draftGroups
-          , tasks = allDraftTasks
+          { tasks = draftTasks
           , assignment = mDraftAssignment
           }
 
@@ -169,7 +163,7 @@ editorWrapperComponent r assignment =
       Layout.vFlow Layout.gapM
         [ inlineComponent
             ("assignment-editor-" <> M.ms (show assignment.id) <> "-" <> M.ms (show m.origin))
-            (TE.editorComponent (assignmentEditor m.origin) r)
+            (TE.editorComponent (assignmentEditor m.origin) r def)
         , MH.div_
             [class_ "flex justify-end gap-2"]
             ( [ Button.outline $ Button.button (Icon.IcnReorder, C.LblRenumberTasks) OpenRenumberModal
@@ -288,14 +282,7 @@ taskSearchConfig r origin =
     , tagLayout = TagsInline
     , onCreate = Just $ do
         taskId <- nextId r
-        let newTask = Task
-              { id = taskId
-              , identifier = TaskIdentifier ""
-              , title = ""
-              , content = Nothing
-              , taskType = SelfContained defaultTaskAttributes
-              , attachments = []
-              }
+        let newTask = defaultTask taskId
             wrap = case origin of
               Published -> id
               Draft -> retargetForDraft

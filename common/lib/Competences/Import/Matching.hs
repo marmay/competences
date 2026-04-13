@@ -44,7 +44,8 @@ import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.Order (Order, orderMax, orderMin)
 import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Solution (Solution (..))
-import Competences.Document.Task (Task (..), TaskIdentifier (..), TaskType (..), defaultTaskAttributes)
+import Competences.Document.Task (Task (..), TaskIdentifier (..), defaultTask)
+import Optics.Core ((&), (.~))
 import Competences.Import.Types
 import Data.List (find)
 import Data.Maybe (mapMaybe)
@@ -262,26 +263,18 @@ findTaskByIdentifier doc isDraft ident mReplaces =
 -- | Create new task from parsed data
 makeNewTask :: ParsedTask -> Task
 makeNewTask parsed =
-  Task
-    { id = Id UUID.nil
-    , identifier = parsed.identifier
-    , title = parsed.title
-    , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
-    , taskType = SelfContained defaultTaskAttributes
-    , attachments = []
-    }
+  defaultTask (Id UUID.nil)
+    & #identifier .~ parsed.identifier
+    & #title .~ parsed.title
+    & #content .~ (if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content))
 
 -- | Update existing task with parsed data
 updateTask :: Task -> ParsedTask -> Task
 updateTask existing parsed =
-  Task
-    { id = existing.id
-    , identifier = parsed.identifier
-    , title = parsed.title
-    , content = if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content)
-    , taskType = existing.taskType
-    , attachments = existing.attachments
-    }
+  existing
+    & #identifier .~ parsed.identifier
+    & #title .~ parsed.title
+    & #content .~ (if T.null parsed.content then Nothing else Just (fromTrustedInput parsed.content))
 
 -- | Check if two tasks are equal
 taskEquals :: Task -> Task -> Bool

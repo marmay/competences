@@ -28,10 +28,7 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task
-  ( TaskAttributes (..)
-  , TaskId
-  , getTaskAttributes
-  , getTaskContent
+  ( TaskId
   , isResourceTask
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -115,17 +112,15 @@ findGroupedResources doc compLevels =
 findMatchingTasks :: [CompetenceLevelId] -> Document -> [TaskWithSolutions]
 findMatchingTasks compLevels doc =
   let compLevelSet = Set.fromList compLevels
-      taskGroups = doc.taskGroups
-      allTasks = filter (isResourceTask taskGroups) $ Ix.toList doc.tasks
+      allTasks = filter isResourceTask $ Ix.toList doc.tasks
    in [ TaskWithSolutions
           { task = t
-          , taskContent = getTaskContent taskGroups t
-          , taskPurpose = attrs.purpose
+          , taskContent = t.content
+          , taskPurpose = t.purpose
           , solutions = completeSols
           }
       | t <- allTasks
-      , let attrs = getTaskAttributes taskGroups t
-      , let tCompLevels = Set.fromList (attrs.primary <> attrs.secondary)
+      , let tCompLevels = Set.fromList (t.primary <> t.secondary)
       , not (Set.disjoint compLevelSet tCompLevels)
       , let completeSols = Ix.toList $ doc.solutions Ix.@= t.id Ix.@= Complete
       , not (null completeSols)
@@ -204,12 +199,11 @@ resolveAndAnnotate doc matchingResourceIds matchingTaskMap =
           case Ix.getOne (doc.tasks Ix.@= tid) of
             Nothing -> []
             Just t ->
-              let taskGroups = doc.taskGroups
-                  tws =
+              let tws =
                     TaskWithSolutions
                       { task = t
-                      , taskContent = getTaskContent taskGroups t
-                      , taskPurpose = (getTaskAttributes taskGroups t).purpose
+                      , taskContent = t.content
+                      , taskPurpose = t.purpose
                       , solutions = Ix.toList (doc.solutions Ix.@= tid)
                       }
                in [(ResolvedTask tws, ContextOnly)]

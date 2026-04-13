@@ -15,9 +15,8 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..))
 import Competences.Document.Task
-  ( TaskAttributes (..)
+  ( Task (..)
   , TaskId
-  , getTaskAttributes
   )
 import Competences.Frontend.Component.ResourceLookup (GroupedResources (..), findGroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View
@@ -43,6 +42,5 @@ computeGroupedResources taskId doc =
   case Ix.getOne (doc.tasks Ix.@= taskId) of
     Nothing -> GroupedResources [] [] []
     Just task ->
-      let attrs = getTaskAttributes doc.taskGroups task
-          compLevels = attrs.primary <> attrs.secondary
+      let compLevels = task.primary <> task.secondary
        in findGroupedResources doc compLevels

@@ -90,7 +90,7 @@ taskCompletionStatusFromIxSet doc userEvs task =
            in if allDone then TaskDone ref else TaskNotDone ref
         Nothing ->
           -- Phase 2: derive from competence observations (still filtered by task)
-          let primaryComps = getTaskPrimaryCompetences doc.taskGroups task
+          let primaryComps = getTaskPrimaryCompetences task
            in if null primaryComps
                 then TaskNotEvaluated
                 else

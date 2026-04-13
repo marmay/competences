@@ -3,48 +3,34 @@
 module Competences.Document.Task
   ( -- * IDs
     TaskId
-  , TaskGroupId
     -- * Identifiers
   , TaskIdentifier (..)
-  , TaskGroupIdentifier (..)
     -- * Task Purpose
   , TaskPurpose (..)
   , taskPurposes
-    -- * Task Attributes
-  , TaskAttributes (..)
-  , TaskAttributesOverride (..)
-  , defaultTaskAttributes
-    -- * Task Group
-  , TaskGroup (..)
-  , TaskGroupIxs
     -- * Task
   , Task (..)
-  , TaskType (..)
   , TaskIxs
     -- * Helper Functions
-  , getTaskAttributes
-  , getTaskContent
   , isResourceTask
   , getTaskPrimaryCompetences
   , getTaskSecondaryCompetences
   , getTaskAllCompetences
-  , getTasksInGroup
-  , taskGroupId
   , taskDisplayName
+  , defaultTask
   )
 where
 
-import Competences.Common.IxSet qualified as Ix
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Id (Id)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Maybe (fromMaybe)
 #endif
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
-import Data.List (singleton, sortOn)
-import Data.Maybe (fromMaybe)
+import Data.List (singleton)
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -53,20 +39,8 @@ import GHC.Generics (Generic)
 -- | ID for a Task.
 type TaskId = Id Task
 
--- | ID for a TaskGroup.
-type TaskGroupId = Id TaskGroup
-
 -- | Human-readable identifier for a Task.
 newtype TaskIdentifier = TaskIdentifier Text
-  deriving (Eq, Generic, Ord, Show)
-#ifdef WITH_AESON
-  deriving newtype (Binary, FromJSON, ToJSON)
-#else
-  deriving newtype (Binary)
-#endif
-
--- | Human-readable identifier for a TaskGroup.
-newtype TaskGroupIdentifier = TaskGroupIdentifier Text
   deriving (Eq, Generic, Ord, Show)
 #ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
@@ -100,147 +74,7 @@ instance Binary TaskPurpose
 taskPurposes :: [TaskPurpose]
 taskPurposes = [minBound .. maxBound]
 
--- | Core attributes that define what a task tests and how it's displayed.
-data TaskAttributes = TaskAttributes
-  { primary :: ![CompetenceLevelId]
-    -- ^ Competences that this task primarily tests for.
-  , secondary :: ![CompetenceLevelId]
-    -- ^ Competences that may be tested by this task.
-  , purpose :: !TaskPurpose
-    -- ^ Practice (develops competence) or Assessment (proves competence).
-  , displayInResources :: !Bool
-    -- ^ Whether to show this task in resource view for its primary competences.
-    -- Separate from purpose: controls timing (e.g., hide exam until after test date).
-  }
-  deriving (Eq, Generic, Ord, Show)
-
-#ifdef WITH_AESON
-instance FromJSON TaskAttributes where
-  parseJSON = withObject "TaskAttributes" $ \v ->
-    TaskAttributes
-      <$> v .: "primary"
-      <*> v .: "secondary"
-      <*> v .: "purpose"
-      <*> v .: "displayInResources"
-
-instance ToJSON TaskAttributes where
-  toJSON attrs =
-    object
-      [ "primary" .= attrs.primary
-      , "secondary" .= attrs.secondary
-      , "purpose" .= attrs.purpose
-      , "displayInResources" .= attrs.displayInResources
-      ]
-#endif
-
-instance Binary TaskAttributes
-
--- | Override attributes for subtasks (Nothing = inherit from group).
-data TaskAttributesOverride = TaskAttributesOverride
-  { primary :: !(Maybe [CompetenceLevelId])
-    -- ^ Nothing = inherit from group, Just x = use value x.
-  , secondary :: !(Maybe [CompetenceLevelId])
-    -- ^ Nothing = inherit from group, Just x = use value x.
-  , purpose :: !(Maybe TaskPurpose)
-    -- ^ Nothing = inherit from group, Just x = use value x.
-  , displayInResources :: !(Maybe Bool)
-    -- ^ Nothing = inherit from group, Just x = use value x.
-  }
-  deriving (Eq, Generic, Ord, Show)
-
-#ifdef WITH_AESON
-instance FromJSON TaskAttributesOverride where
-  parseJSON = withObject "TaskAttributesOverride" $ \v ->
-    TaskAttributesOverride
-      <$> v .:? "primary"
-      <*> v .:? "secondary"
-      <*> v .:? "purpose"
-      <*> v .:? "displayInResources"
-
-instance ToJSON TaskAttributesOverride where
-  toJSON override =
-    object
-      [ "primary" .= override.primary
-      , "secondary" .= override.secondary
-      , "purpose" .= override.purpose
-      , "displayInResources" .= override.displayInResources
-      ]
-#endif
-
-instance Binary TaskAttributesOverride
-
--- | Organizational unit for related tasks with shared defaults.
-data TaskGroup = TaskGroup
-  { id :: !TaskGroupId
-  , identifier :: !TaskGroupIdentifier
-    -- ^ Human-readable identifier (e.g., "Book-Chapter-1.2").
-    -- User is responsible for uniqueness.
-  , defaultTaskAttributes :: !TaskAttributes
-    -- ^ Default attributes inherited by subtasks.
-  , contentBefore :: !(Maybe RichContent)
-    -- ^ Content displayed before subtask content (when rendering).
-  , contentAfter :: !(Maybe RichContent)
-    -- ^ Content displayed after subtask content (when rendering).
-  }
-  deriving (Eq, Generic, Ord, Show)
-
-#ifdef WITH_AESON
-instance FromJSON TaskGroup where
-  parseJSON = withObject "TaskGroup" $ \v ->
-    TaskGroup
-      <$> v .: "id"
-      <*> v .: "identifier"
-      <*> v .: "defaultTaskAttributes"
-      <*> v .:? "contentBefore"
-      <*> v .:? "contentAfter"
-
-instance ToJSON TaskGroup where
-  toJSON group =
-    object
-      [ "id" .= group.id
-      , "identifier" .= group.identifier
-      , "defaultTaskAttributes" .= group.defaultTaskAttributes
-      , "contentBefore" .= group.contentBefore
-      , "contentAfter" .= group.contentAfter
-      ]
-#endif
-
-instance Binary TaskGroup
-
--- | Task type: self-contained or part of a group.
-data TaskType
-  = -- | Standalone task with own complete attributes.
-    SelfContained !TaskAttributes
-  | -- | Task belonging to a group, inheriting defaults with optional overrides.
-    SubTask !TaskGroupId !TaskAttributesOverride
-  deriving (Eq, Generic, Ord, Show)
-
-#ifdef WITH_AESON
-instance FromJSON TaskType where
-  parseJSON = withObject "TaskType" $ \v -> do
-    tag <- v .: "tag"
-    case tag :: Text of
-      "SelfContained" -> SelfContained <$> v .: "attributes"
-      "SubTask" -> SubTask <$> v .: "groupId" <*> v .: "override"
-      _ -> fail "Invalid TaskType tag"
-
-instance ToJSON TaskType where
-  toJSON (SelfContained attrs) =
-    object
-      [ "tag" .= ("SelfContained" :: Text)
-      , "attributes" .= attrs
-      ]
-  toJSON (SubTask groupId override) =
-    object
-      [ "tag" .= ("SubTask" :: Text)
-      , "groupId" .= groupId
-      , "override" .= override
-      ]
-#endif
-
-instance Binary TaskType
-
--- | Atomic unit of work, either standalone or part of a group.
+-- | Atomic unit of work with competence associations.
 data Task = Task
   { id :: !TaskId
   , identifier :: !TaskIdentifier
@@ -253,7 +87,14 @@ data Task = Task
     -- ^ Inline task content (if provided).
     -- Nothing = reference-only task (students look up by identifier).
     -- Just text = task content shown inline.
-  , taskType :: !TaskType
+  , primary :: ![CompetenceLevelId]
+    -- ^ Competences that this task primarily tests for.
+  , secondary :: ![CompetenceLevelId]
+    -- ^ Competences that may be tested by this task.
+  , purpose :: !TaskPurpose
+    -- ^ Practice (develops competence) or Assessment (proves competence).
+  , displayInResources :: !Bool
+    -- ^ Whether to show this task in resource view for its primary competences.
   , attachments :: ![FileRef]
     -- ^ Files attached to this task, referenced from markdown via file: URLs.
   }
@@ -261,14 +102,55 @@ data Task = Task
 
 #ifdef WITH_AESON
 instance FromJSON Task where
-  parseJSON = withObject "Task" $ \v ->
-    Task
-      <$> v .: "id"
-      <*> v .: "identifier"
-      <*> v .:? "title" .!= ""
-      <*> v .:? "content"
-      <*> v .: "taskType"
-      <*> v .:? "attachments" .!= []
+  parseJSON = withObject "Task" $ \v -> do
+    -- Support old format with taskType wrapper
+    mTaskType <- v .:? "taskType"
+    case mTaskType of
+      Just tt -> parseOldFormat v tt
+      Nothing -> parseNewFormat v
+    where
+      parseNewFormat v =
+        Task
+          <$> v .: "id"
+          <*> v .: "identifier"
+          <*> v .:? "title" .!= ""
+          <*> v .:? "content"
+          <*> v .:? "primary" .!= []
+          <*> v .:? "secondary" .!= []
+          <*> v .:? "purpose" .!= Practice
+          <*> v .:? "displayInResources" .!= True
+          <*> v .:? "attachments" .!= []
+
+      -- Migrate old SelfContained format; SubTask uses defaults (migrated at Document level)
+      parseOldFormat v tt = do
+        tid <- v .: "id"
+        ident <- v .: "identifier"
+        ttl <- v .:? "title" .!= ""
+        cnt <- v .:? "content"
+        attach <- v .:? "attachments" .!= []
+        tag <- tt .: "tag"
+        case tag :: Text of
+          "SelfContained" -> do
+            attrs <- tt .: "attributes"
+            prim <- attrs .: "primary"
+            sec <- attrs .: "secondary"
+            purp <- attrs .: "purpose"
+            disp <- attrs .: "displayInResources"
+            pure $ Task tid ident ttl cnt prim sec purp disp attach
+          _ -> do
+            -- SubTask: extract override values, using defaults where missing/null.
+            -- Full resolution with group defaults happens at Document migration level.
+            (prim, sec, purp, disp) <- parseOverride =<< tt .: "override"
+            pure $ Task tid ident ttl cnt prim sec purp disp attach
+
+      -- Parse an old TaskAttributesOverride object.
+      -- Each field is Maybe a (Nothing = inherit from group, which we map to defaults).
+      parseOverride = withObject "TaskAttributesOverride" $ \ov -> do
+        prim <- maybe [] (fromMaybe []) <$> ov .:? "primary"
+        sec <- maybe [] (fromMaybe []) <$> ov .:? "secondary"
+        purp <- maybe Practice (fromMaybe Practice) <$> ov .:? "purpose"
+        disp <- maybe True (fromMaybe True) <$> ov .:? "displayInResources"
+        pure (prim, sec, purp, disp)
 
 instance ToJSON Task where
   toJSON task =
@@ -277,97 +159,42 @@ instance ToJSON Task where
       , "identifier" .= task.identifier
       , "title" .= task.title
       , "content" .= task.content
-      , "taskType" .= task.taskType
+      , "primary" .= task.primary
+      , "secondary" .= task.secondary
+      , "purpose" .= task.purpose
+      , "displayInResources" .= task.displayInResources
       , "attachments" .= task.attachments
       ]
 #endif
 
 instance Binary Task
 
--- | IxSet indices for TaskGroup.
-type TaskGroupIxs = '[TaskGroupId, TaskGroupIdentifier]
-
-instance IxSet.Indexable TaskGroupIxs TaskGroup where
-  indices =
-    IxSet.ixList
-      (IxSet.ixFun $ singleton . (.id))
-      (IxSet.ixFun $ singleton . (.identifier))
-
 -- | IxSet indices for Task.
-type TaskIxs = '[TaskId, TaskIdentifier, Maybe TaskGroupId]
+type TaskIxs = '[TaskId, TaskIdentifier]
 
 instance IxSet.Indexable TaskIxs Task where
   indices =
     IxSet.ixList
       (IxSet.ixFun $ singleton . (.id))
       (IxSet.ixFun $ singleton . (.identifier))
-      (IxSet.ixFun $ singleton . taskGroupId)
-
--- | Extract TaskGroupId from a Task (if it's a SubTask).
-taskGroupId :: Task -> Maybe TaskGroupId
-taskGroupId task = case task.taskType of
-  SelfContained _ -> Nothing
-  SubTask gid _ -> Just gid
 
 -- Helper Functions
 
--- | Get resolved attributes for any task.
--- For SubTask, this requires the TaskGroups IxSet to look up the group.
--- Note: This will error if the TaskGroup is not found.
-getTaskAttributes :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> TaskAttributes
-getTaskAttributes taskGroups task = case task.taskType of
-  SelfContained attrs -> attrs
-  SubTask groupId override ->
-    case Ix.getOne (Ix.getEQ groupId taskGroups) of
-      Nothing -> error $ "TaskGroup not found: " <> show groupId
-      Just group ->
-        let defaults = group.defaultTaskAttributes
-         in TaskAttributes
-              { primary = fromMaybe defaults.primary override.primary
-              , secondary = fromMaybe defaults.secondary override.secondary
-              , purpose = fromMaybe defaults.purpose override.purpose
-              , displayInResources = fromMaybe defaults.displayInResources override.displayInResources
-              }
-
--- | Get composed content for any task.
--- For SubTask, this composes: [contentBefore] [task.content] [contentAfter].
-getTaskContent :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> Maybe RichContent
-getTaskContent taskGroups task = case task.taskType of
-  SelfContained _ -> task.content
-  SubTask groupId _ ->
-    case Ix.getOne (Ix.getEQ groupId taskGroups) of
-      Nothing -> task.content -- fallback if group not found
-      Just group ->
-        let composed =
-              fromMaybe mempty group.contentBefore
-                <> fromMaybe mempty task.content
-                <> fromMaybe mempty group.contentAfter
-         in if composed == mempty then Nothing else Just composed
-
 -- | Check if task should be displayed in resources.
-isResourceTask :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> Bool
-isResourceTask taskGroups task = (getTaskAttributes taskGroups task).displayInResources
+isResourceTask :: Task -> Bool
+isResourceTask task = task.displayInResources
 
 -- | Get primary competences for a task.
-getTaskPrimaryCompetences :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> [CompetenceLevelId]
-getTaskPrimaryCompetences taskGroups task = (getTaskAttributes taskGroups task).primary
+getTaskPrimaryCompetences :: Task -> [CompetenceLevelId]
+getTaskPrimaryCompetences = (.primary)
 
 -- | Get secondary competences for a task.
-getTaskSecondaryCompetences :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> [CompetenceLevelId]
-getTaskSecondaryCompetences taskGroups task = (getTaskAttributes taskGroups task).secondary
+getTaskSecondaryCompetences :: Task -> [CompetenceLevelId]
+getTaskSecondaryCompetences = (.secondary)
 
 -- | Get all competences (primary + secondary) for a task.
-getTaskAllCompetences :: Ix.IxSet TaskGroupIxs TaskGroup -> Task -> [CompetenceLevelId]
-getTaskAllCompetences taskGroups task =
-  let attrs = getTaskAttributes taskGroups task
-   in attrs.primary <> attrs.secondary
-
--- | Get all tasks in a group, sorted by identifier.
-getTasksInGroup :: TaskGroupId -> Ix.IxSet TaskIxs Task -> [Task]
-getTasksInGroup groupId tasks =
-  sortOn (.identifier) $
-    Ix.toList $
-      Ix.getEQ (Just groupId) tasks
+getTaskAllCompetences :: Task -> [CompetenceLevelId]
+getTaskAllCompetences task = task.primary <> task.secondary
 
 -- | Display name for a task: "identifier — title" or just identifier.
 taskDisplayName :: Task -> Text
@@ -376,12 +203,17 @@ taskDisplayName task =
       base = if T.null ident then "(Unbenannt)" else ident
    in if T.null task.title then base else base <> " \x2014 " <> task.title
 
--- | Default TaskAttributes for new tasks
-defaultTaskAttributes :: TaskAttributes
-defaultTaskAttributes =
-  TaskAttributes
-    { primary = []
+-- | Default task for creation (needs an ID to be provided).
+defaultTask :: TaskId -> Task
+defaultTask tid =
+  Task
+    { id = tid
+    , identifier = TaskIdentifier ""
+    , title = ""
+    , content = Nothing
+    , primary = []
     , secondary = []
     , purpose = Practice
     , displayInResources = True
+    , attachments = []
     }

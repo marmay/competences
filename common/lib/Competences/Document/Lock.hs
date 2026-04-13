@@ -23,7 +23,7 @@ import Competences.Document.ParticipationRecord (ParticipationRecordId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Submission (SubmissionId)
-import Competences.Document.Task (TaskGroupId, TaskId)
+import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -40,7 +40,6 @@ data Lock
   | UserLock !UserId
   | EvidenceLock !EvidenceId
   | TaskLock !TaskId
-  | TaskGroupLock !TaskGroupId
   | AssignmentLock !AssignmentId
   | CompetenceAssessmentLock !CompetenceAssessmentId
   | CompetenceGridGradeLock !CompetenceGridGradeId

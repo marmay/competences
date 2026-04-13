@@ -48,7 +48,7 @@ import Competences.Command.Lessons (LessonsCommand (..), LessonPatch (..), handl
 import Competences.Command.LessonNotes (LessonNotesCommand (..), LessonNotesPatch (..), handleLessonNotesCommand)
 import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), handleMesoPlansCommand)
 import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..), ParticipationRecordPatch (..), handleParticipationRecordsCommand)
-import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), TaskGroupPatch (..), SubTaskPatch (..), handleTasksCommand)
+import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
 import Competences.Document (Document (..), Lesson (..), User (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId)

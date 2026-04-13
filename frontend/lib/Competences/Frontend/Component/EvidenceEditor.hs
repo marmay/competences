@@ -43,6 +43,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
@@ -191,7 +192,7 @@ viewerComponent r evidence =
         [ Typography.h2 (C.translate' C.LblEvidences)
         , viewField (C.translate' C.LblEvidenceDate) (C.formatDay evidence.date)
         , viewField (C.translate' C.LblActivityType) (C.translate' $ C.LblActivityTypeDescription evidence.activityType)
-        , viewField (C.translate' C.LblTasksAndGroups) (viewTasks m (Map.keys evidence.tasks))
+        , viewField (C.translate' C.LblTasks) (viewTasks m (Map.keys evidence.tasks))
         , viewObservations m evidence
         ]
 
@@ -250,7 +251,7 @@ evidenceEditorDetailView
 evidenceEditorDetailView r evidence =
   V.inlineComponent
     ("evidence-editor-" <> M.ms (show evidence.id))
-    (TE.editorComponent evidenceEditor r)
+    (TE.editorComponent evidenceEditor r def)
   where
     evidenceEditorId = "evidence-editor-" <> M.ms (show evidence.id)
     evidenceEditable =
@@ -301,7 +302,7 @@ evidenceEditorDetailView r evidence =
                                (.userId)
                                (entityPatchTransformedLens #userId #userId (.id) id)
                            )
-        `TE.addNamedField` ( C.translate' C.LblTasksAndGroups
+        `TE.addNamedField` ( C.translate' C.LblTasks
                            , searchSelectEditorField
                                r
                                (evidenceEditorId <> "-tasks")

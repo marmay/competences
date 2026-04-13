@@ -34,10 +34,7 @@ import Competences.Document.Evidence (Ability (..), Evidence (..), TaskRemark (.
 import Competences.Document.Layout (LayoutId)
 import Competences.Document.Task
   ( Task (..)
-  , TaskAttributes (..)
   , TaskId
-  , getTaskAttributes
-  , getTaskContent
   , taskDisplayName
   )
 import Competences.Document.User (UserId)
@@ -260,7 +257,7 @@ pinAssignmentViewer r user assignment =
    in pinDialogWith r.windowManager
         meta
         chrome
-        (viewerComponent r user assignment)
+        (\mode (_savedState :: Maybe ()) -> viewerComponent r user assignment mode)
 
 -- | Detail view for viewing an assignment (read-only)
 -- Shows assignment details and renders task content with MathJax
@@ -341,12 +338,11 @@ viewerComponent r user assignment wm =
           relevantTasks = mapMaybe (getTaskOrDraft doc) updatedAssignment.tasks
 
           -- Build TaskWithSolutions for each task
-          taskGroups = doc.taskGroups
           tasksWithSolutions =
             [ TaskWithSolutions
                 { task = task
-                , taskContent = getTaskContent taskGroups task
-                , taskPurpose = (getTaskAttributes taskGroups task).purpose
+                , taskContent = task.content
+                , taskPurpose = task.purpose
                 , solutions = Ix.toList $ doc.solutions Ix.@= task.id
                 }
             | task <- relevantTasks
@@ -369,8 +365,7 @@ viewerComponent r user assignment wm =
           tasksWithCompetences = Set.fromList
             [ task.id
             | task <- relevantTasks
-            , let attrs = getTaskAttributes taskGroups task
-            , not (null attrs.primary) || not (null attrs.secondary)
+            , not (null task.primary) || not (null task.secondary)
             ]
 
           -- Collect task remarks from all evidences for this assignment/user

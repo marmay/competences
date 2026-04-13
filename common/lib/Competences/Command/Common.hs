@@ -20,13 +20,14 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserRole (..))
 import Competences.Document.Id (Id (..))
-import Competences.Document.Session (SessionId, legacySessionId)
+import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, object, withObject, (.:), (.=))
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Parser)
+import Competences.Document.Session (legacySessionId)
 import Data.UUID.Types qualified as UUID
 #endif
 import Data.Bifunctor (first)

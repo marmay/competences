@@ -53,7 +53,7 @@ data Icon
   | IcnSocialFormIndividual
   | IcnSocialFormGroup
   | IcnTask
-  | IcnTaskGroup
+
   | IcnCompetenceGrid
   | IcnEvidence
   | IcnAssignment
@@ -160,7 +160,6 @@ iconVS variant size icn =
     [M.class_ $ ms $ variantStrokeClass variant]
     [iconS size icn]
 
-
 -- | Render icon with variant, size, and animation
 iconFull :: Variant -> Size -> Animation -> Icon -> View m a
 iconFull variant size anim icn =
@@ -208,7 +207,7 @@ iconId = \case
   IcnSocialFormIndividual -> "icon-social-form-individual"
   IcnSocialFormGroup -> "icon-social-form-group"
   IcnTask -> "icon-task"
-  IcnTaskGroup -> "icon-task-group"
+
   IcnCompetenceGrid -> "icon-competence-grid"
   IcnEvidence -> "icon-evidence"
   IcnAssignment -> "icon-assignment"
@@ -419,11 +418,7 @@ iconDefOf' = \case
       , "M16 17H8"
       , "M10 9H8"
       ]
-  -- Folder icon for task groups
-  IcnTaskGroup ->
-    mkPathesD
-      [ "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-      ]
+
   -- Grid icon for competence grids
   IcnCompetenceGrid ->
     mkPathesD

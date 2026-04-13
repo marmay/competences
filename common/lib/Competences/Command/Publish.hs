@@ -8,7 +8,7 @@ where
 
 import Competences.Command.Common (AffectedUsers (..), UpdateResult)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), TaskGroup (..), Task (..), User (..))
+import Competences.Document (Document (..), Task (..), User (..))
 import Competences.Document.Assignment (Assignment (..))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -22,8 +22,7 @@ import Optics.Core ((&), (%~), (^.))
 -- Contains full entity snapshots so students (who never received draft commands)
 -- can reconstruct the entities from this single command.
 data PublishData = PublishData
-  { taskGroups :: ![TaskGroup]
-  , tasks :: ![Task]
+  { tasks :: ![Task]
   , assignment :: !(Maybe Assignment)
   }
   deriving (Eq, Generic, Show)
@@ -41,11 +40,9 @@ handlePublish pd doc =
   let doc' =
         doc
           -- Insert real entities (Ix.insert replaces if ID exists — idempotent)
-          & #taskGroups %~ (\s -> foldl' (flip Ix.insert) s pd.taskGroups)
           & #tasks %~ (\s -> foldl' (flip Ix.insert) s pd.tasks)
           & #assignments %~ maybe id (\a s -> Ix.insert a s) pd.assignment
           -- Delete drafts (Ix.deleteIx is no-op if not found — tolerant)
-          & #draftTaskGroups %~ (\s -> foldl' (\s' g -> IxSet.deleteIx g.id s') s pd.taskGroups)
           & #draftTasks %~ (\s -> foldl' (\s' t -> IxSet.deleteIx t.id s') s pd.tasks)
           & #draftAssignments %~ maybe id (\a s -> IxSet.deleteIx a.id s) pd.assignment
    in Right (doc', allUsers doc')

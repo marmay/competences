@@ -123,10 +123,11 @@ import Competences.Document.Resource
   )
 import Competences.Document.Solution (Solution (..), SolutionId, SolutionIxs, SolutionType (..))
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, ownerIds)
-import Competences.Document.Task (Task (..), TaskId, TaskIxs, TaskGroup (..), TaskGroupId, TaskGroupIxs, TaskType (..))
+import Competences.Document.Task (Task (..), TaskId, TaskIxs)
 import Competences.Document.User (User (..), UserId, UserIxs, UserRole (..))
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, fromJSON, object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Aeson.Types qualified as Aeson
 #endif
 import Data.Binary (Binary)
 import Data.Map qualified as M
@@ -141,7 +142,6 @@ data Document = Document
   , locks :: !(M.Map Lock LockHolder)
   , users :: !(Ix.IxSet UserIxs User)
   , tasks :: !(Ix.IxSet TaskIxs Task)
-  , taskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , assignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceAssessments :: !(Ix.IxSet CompetenceAssessmentIxs CompetenceAssessment)
   , competenceGridGrades :: !(Ix.IxSet CompetenceGridGradeIxs CompetenceGridGrade)
@@ -153,7 +153,6 @@ data Document = Document
   , absences :: !(Ix.IxSet AbsenceIxs Absence)
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
   , draftTasks :: !(Ix.IxSet TaskIxs Task)
-  , draftTaskGroups :: !(Ix.IxSet TaskGroupIxs TaskGroup)
   , draftAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceLevelExamples :: !(Ix.IxSet CompetenceLevelExampleIxs CompetenceLevelExample)
   , layouts :: !(Ix.IxSet LayoutIxs Layout)
@@ -170,10 +169,9 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .: "competences")
       <*> fmap Ix.fromList (v .: "evidences")
       <*> fmap Ix.fromList (v .: "resources")
-      <*> fmap M.fromList (v .: "locks")
+      <*> parseLocksTolerant v
       <*> fmap Ix.fromList (v .: "users")
-      <*> fmap Ix.fromList (v .: "tasks")
-      <*> fmap Ix.fromList (v .: "taskGroups")
+      <*> fmap Ix.fromList (v .:? "tasks" .!= [])
       <*> fmap Ix.fromList (v .: "assignments")
       <*> fmap Ix.fromList (v .:? "competenceAssessments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceGridGrades" .!= [])
@@ -185,10 +183,16 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "absences" .!= [])
       <*> fmap Ix.fromList (v .:? "submissions" .!= [])
       <*> fmap Ix.fromList (v .:? "draftTasks" .!= [])
-      <*> fmap Ix.fromList (v .:? "draftTaskGroups" .!= [])
       <*> fmap Ix.fromList (v .:? "draftAssignments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceLevelExamples" .!= [])
       <*> fmap Ix.fromList (v .:? "layouts" .!= [])
+
+-- | Parse locks map, silently dropping entries with unknown Lock constructors
+-- (e.g., removed TaskGroupLock from old snapshots).
+parseLocksTolerant :: Aeson.Object -> Aeson.Parser (M.Map Lock LockHolder)
+parseLocksTolerant v = do
+  pairs <- v .:? "locks" .!= ([] :: [(Value, Value)])
+  pure $ M.fromList [(k, h) | (kv, hv) <- pairs, Success k <- [fromJSON kv], Success h <- [fromJSON hv]]
 
 instance ToJSON Document where
   toJSON d =
@@ -200,7 +204,6 @@ instance ToJSON Document where
       , "locks" .= M.toList d.locks
       , "users" .= Ix.toList d.users
       , "tasks" .= Ix.toList d.tasks
-      , "taskGroups" .= Ix.toList d.taskGroups
       , "assignments" .= Ix.toList d.assignments
       , "competenceAssessments" .= Ix.toList d.competenceAssessments
       , "competenceGridGrades" .= Ix.toList d.competenceGridGrades
@@ -212,7 +215,6 @@ instance ToJSON Document where
       , "absences" .= Ix.toList d.absences
       , "submissions" .= Ix.toList d.submissions
       , "draftTasks" .= Ix.toList d.draftTasks
-      , "draftTaskGroups" .= Ix.toList d.draftTaskGroups
       , "draftAssignments" .= Ix.toList d.draftAssignments
       , "competenceLevelExamples" .= Ix.toList d.competenceLevelExamples
       , "layouts" .= Ix.toList d.layouts
@@ -233,7 +235,6 @@ emptyDocument =
     , locks = M.empty
     , users = Ix.empty
     , tasks = Ix.empty
-    , taskGroups = Ix.empty
     , assignments = Ix.empty
     , competenceAssessments = Ix.empty
     , competenceGridGrades = Ix.empty
@@ -245,7 +246,6 @@ emptyDocument =
     , absences = Ix.empty
     , submissions = Ix.empty
     , draftTasks = Ix.empty
-    , draftTaskGroups = Ix.empty
     , draftAssignments = Ix.empty
     , competenceLevelExamples = Ix.empty
     , layouts = Ix.empty
@@ -271,10 +271,9 @@ projectDocument user doc
         & #absences .~ (doc.absences Ix.@= user.id) -- Own absences only
         & #submissions .~ (doc.submissions Ix.@= user.id) -- Own submissions only
         & #draftTasks .~ Ix.empty -- Drafts are teacher-only
-        & #draftTaskGroups .~ Ix.empty
         & #draftAssignments .~ Ix.empty
         & #layouts .~ Ix.empty -- Layouts are teacher-only
-        -- competenceGrids, competences, resources, lessonNotes, tasks, taskGroups: students see all (public materials)
+        -- competenceGrids, competences, resources, lessonNotes, tasks: students see all (public materials)
   where
     -- Student can see locks on entities they have access to
     isLockVisible lock _ = case lock of

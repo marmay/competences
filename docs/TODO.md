@@ -5,13 +5,6 @@
 - [ ] **Migrate PrintEngine modal to WindowManager** — `PrintEngine/Modal.hs` calls `modalFrame` directly, bypassing the window manager stack. `ViewerDetail.hs` manages the modal state/lifecycle manually via `Maybe PrintModalModel`. To migrate: extract into a proper `M.Component` and open via `openFramedModal`. Non-trivial due to tight coupling with ViewerDetail (shared task rendering, measurement container, post-print actions).
 - [ ] **Migrate remaining View.Text imports to View.Typography** — Several components still import `View.Text` instead of `View.Typography` for heading/paragraph primitives.
 
-### Task system remaining (from Phase 1)
-
-- [ ] **Competence fields in task editor** — Add primary/secondary competence selection to task editor
-- [ ] **TaskGroupEditor** — Component for managing task groups and subtasks
-- [ ] **Resource view integration** — Show tasks in competence grid resource view
-- [ ] **Evidence task selection** — Replace text input with task selector in evidence editor
-
 ### Assignment refactor
 
 - [ ] **Extra tasks in evaluator** — Allow teachers to add tasks beyond the assignment's task list when evaluating
@@ -21,7 +14,7 @@
 ## Common / Architecture
 
 - [ ] **Reconsider `mkEntityCommandContext` abstraction** — The complex cases (Tasks, DraftTasks, Lessons) diverge significantly from the standard pattern and lead to code duplication. Evaluate whether a different abstraction would reduce boilerplate.
-- [ ] **Deduplicate Tasks.hs / DraftTasks.hs** — ~150 LOC of shared logic between these command modules.
+- [ ] **Deduplicate Tasks.hs / DraftTasks.hs** — Shared logic between these command modules (reduced after TaskGroup removal but still duplicated).
 - [ ] **Extract shared AffectedUsers helpers to Command.Common** — Currently scattered across individual command modules.
 
 ## Backend

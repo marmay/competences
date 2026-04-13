@@ -52,7 +52,7 @@ teacherCategories =
       , categoryDescription = "Bearbeite deine Aufträge und verfolge deinen Lernfortschritt."
       , categoryPage = ManageAssignments
       , subEntries =
-          [ NavEntry Icon.IcnTask (C.translate' C.LblSelfContainedTasks) ManageTasks
+          [ NavEntry Icon.IcnTask (C.translate' C.LblTasks) ManageTasks
           , NavEntry Icon.IcnEvidence (C.translate' C.LblEvidences) Evidences
           ]
       }

@@ -25,8 +25,6 @@ isDraft Published = False
 -- | Retarget a command from real collections to draft collections
 retargetForDraft :: Command -> Command
 retargetForDraft (Tasks (OnTasks cmd)) = DraftTasks (OnDraftTasks cmd)
-retargetForDraft (Tasks (OnTaskGroups cmd)) = DraftTasks (OnDraftTaskGroups cmd)
-retargetForDraft (Tasks (OnSubTasks cmd)) = DraftTasks (OnDraftSubTasks cmd)
 retargetForDraft (Assignments (OnAssignments cmd)) = DraftAssignments (OnDraftAssignments cmd)
 retargetForDraft cmd = cmd
 
