@@ -1,19 +1,21 @@
 -- | Connected task view component.
 --
--- A Miso component that subscribes to the document and renders a task
--- with configurable sections. Provides the Edit button (LockButton) and
--- solution management.
+-- Subscribes to SyncContext and renders a task using View.Task primitives.
+-- Determines context (teacher, focused student) to drive display rules:
+--
+-- * Edit button (LockButton): shown when user is a teacher
+-- * Purpose badge: shown when a student is focused
+-- * Collapsing: only in 'TaskInAssignment' mode
 --
 -- Usage:
 --
 -- @
 -- inlineComponent ("task-" <> ms (show taskId))
---   (taskComponent r (TaskConfig taskId defaultTaskOptions))
+--   (taskComponent r (TaskConfig taskId Published TaskInDetail))
 -- @
 module Competences.Frontend.Component.Task
   ( TaskConfig (..)
-  , TaskOptions (..)
-  , defaultTaskOptions
+  , TaskDisplayMode (..)
   , taskComponent
   )
 where
@@ -34,7 +36,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -56,29 +57,18 @@ import Optics.Core ((.~))
 data TaskConfig = TaskConfig
   { taskId :: !TaskId
   , origin :: !EntityOrigin
-  , options :: !TaskOptions
+  , displayMode :: !TaskDisplayMode
   }
 
--- | Display options for the task component.
-data TaskOptions = TaskOptions
-  { showEditButton :: !Bool
-  -- ^ Show LockButton (Edit) in the header
-  , showSolutions :: !Bool
-  -- ^ Show solutions section (with add-solution for teachers)
-  , showPurposeBadge :: !Bool
-  -- ^ Show Practice/Assessment badge
-  , startExpanded :: !Bool
-  -- ^ Start with content expanded
-  }
-
--- | Default options: edit button, solutions, purpose badge, collapsed.
-defaultTaskOptions :: TaskOptions
-defaultTaskOptions = TaskOptions
-  { showEditButton = True
-  , showSolutions = True
-  , showPurposeBadge = True
-  , startExpanded = False
-  }
+-- | How the task is displayed. Controls collapsibility and framing.
+data TaskDisplayMode
+  = TaskInAssignment
+  -- ^ Collapsible disclosure, status-tinted header
+  | TaskInDetail
+  -- ^ Expanded, no disclosure frame
+  | TaskInLessonNotes
+  -- ^ Expanded, content-card frame
+  deriving (Eq, Show)
 
 -- ============================================================================
 -- Model & Actions
@@ -88,6 +78,7 @@ data TaskProjection = TaskProjection
   { task :: !(Maybe Task)
   , solutions :: ![Solution]
   , isTeacher :: !Bool
+  , hasFocusedStudent :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -116,8 +107,8 @@ taskComponent r cfg =
     }
   where
     model = Model
-      { projection = TaskProjection Nothing [] False
-      , expanded = cfg.options.startExpanded
+      { projection = TaskProjection Nothing [] False False
+      , expanded = cfg.displayMode /= TaskInAssignment
       , expandedSolutions = Set.empty
       }
 
@@ -151,55 +142,103 @@ taskProjection cfg doc mUser =
       isTeacher = case mUser of
         Just u -> u.role == Teacher
         Nothing -> False
-   in TaskProjection mTask solutions isTeacher
+      hasFocusedStudent = case mUser of
+        Just u -> u.role == Student
+        Nothing -> False
+   in TaskProjection mTask solutions isTeacher hasFocusedStudent
 
 -- ============================================================================
 -- View
 -- ============================================================================
 
 viewTask :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-viewTask r cfg m task =
+viewTask r cfg m task = case cfg.displayMode of
+  TaskInAssignment -> viewTaskDisclosure r cfg m task
+  TaskInDetail -> viewTaskFlat r cfg m task
+  TaskInLessonNotes -> viewTaskCard r cfg m task
+
+-- | Collapsible disclosure view (assignments).
+viewTaskDisclosure :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+viewTaskDisclosure r cfg m task =
   let displayName = ms (taskDisplayName task)
-      hasContent = case task.content of
-        Nothing -> False
-        Just c -> c /= mempty
-      hasSolutions = not (null m.projection.solutions)
-      isExpandable = hasContent || hasSolutions
+      annotations = headerAnnotations r cfg m task
+      body = taskBody r m task cfg.displayMode
+   in V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
 
-      -- Header
-      headerLeft = V.taskHeader displayName
-      headerRight = Layout.hFlow (Layout.gapS <> Layout.crossCenter) $
-        concat
-          [ [ V.purposeBadge task.purpose | cfg.options.showPurposeBadge ]
-          , [ editButton r cfg task | cfg.options.showEditButton ]
-          ]
+-- | Flat expanded view (task detail pane).
+viewTaskFlat :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+viewTaskFlat r cfg m task =
+  MH.div_
+    [class_ "space-y-4"]
+    ( headerBar r cfg m task
+        : bodyParts r m task cfg.displayMode
+    )
 
-      -- Body
-      bodyContent = MH.div_
-        [class_ "space-y-3"]
-        ( concat
-            [ [ taskContentRendered r task | hasContent ]
-            , [ viewSolutions r m m.projection.solutions | cfg.options.showSolutions && hasSolutions ]
-            , [ addSolutionButton | cfg.options.showSolutions && m.projection.isTeacher ]
-            ]
+-- | Content-card framed view (lesson notes).
+viewTaskCard :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+viewTaskCard r cfg m task =
+  let displayName = ms (taskDisplayName task)
+   in V.taskCardView displayName
+        ( headerAnnotationBar r cfg m task
+            : bodyParts r m task cfg.displayMode
         )
-   in if isExpandable
-        then
-          Disclosure.disclosure ToggleExpanded $
-            Disclosure.contents
-              (Disclosure.titleWithAnnotation headerLeft headerRight)
-              m.expanded
-              bodyContent
-              []
-        else
-          MH.div_
-            [class_ "border rounded-lg overflow-hidden"]
-            [ MH.div_
-                [class_ "flex items-center justify-between px-3 py-2 bg-muted/50"]
-                [headerLeft, headerRight]
-            ]
 
--- | Render the Edit button (LockButton).
+-- ============================================================================
+-- Header
+-- ============================================================================
+
+-- | Full header bar with title + annotations (for flat mode).
+headerBar :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+headerBar r cfg m task =
+  MH.div_
+    [class_ "flex items-center justify-between"]
+    [ V.taskHeader (ms (taskDisplayName task))
+    , Layout.hFlow (Layout.gapS <> Layout.crossCenter) (headerAnnotations r cfg m task)
+    ]
+
+-- | Just the annotations as a horizontal bar (for card mode body).
+headerAnnotationBar :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+headerAnnotationBar r cfg m task =
+  case headerAnnotations r cfg m task of
+    [] -> Layout.empty
+    anns -> MH.div_ [class_ "px-3 pt-2"] [Layout.hFlow (Layout.gapS <> Layout.crossCenter) anns]
+
+-- | Context-driven header annotations.
+headerAnnotations :: SyncContext -> TaskConfig -> Model -> Task -> [M.View Model Action]
+headerAnnotations r cfg m task =
+  concat
+    [ [V.purposeBadge task.purpose | m.projection.hasFocusedStudent]
+    , [V.assessmentStar task.purpose | m.projection.hasFocusedStudent]
+    , [editButton r cfg task | m.projection.isTeacher]
+    ]
+
+-- ============================================================================
+-- Body
+-- ============================================================================
+
+-- | Body content as a single div.
+taskBody :: SyncContext -> Model -> Task -> TaskDisplayMode -> M.View Model Action
+taskBody r m task mode =
+  MH.div_ [class_ "space-y-3"] (bodyParts r m task mode)
+
+-- | Body content parts (for compositing into card or flat layout).
+bodyParts :: SyncContext -> Model -> Task -> TaskDisplayMode -> [M.View Model Action]
+bodyParts r m task _mode =
+  concat
+    [ [taskContentRendered r task | hasContent task]
+    , [viewSolutions r m m.projection.solutions | not (null m.projection.solutions)]
+    , [addSolutionButton | m.projection.isTeacher]
+    ]
+
+hasContent :: Task -> Bool
+hasContent task = case task.content of
+  Nothing -> False
+  Just c -> c /= mempty
+
+-- ============================================================================
+-- Edit button (LockButton)
+-- ============================================================================
+
 editButton :: SyncContext -> TaskConfig -> Task -> M.View Model Action
 editButton r cfg task =
   let wrap = wrapForOrigin cfg.origin
@@ -208,7 +247,10 @@ editButton r cfg task =
         (lockButtonComponent r
           (LockButtonConfig (TaskLock task.id) (wrap (Tasks (OnTasks (Modify task.id Lock)))) Button.IconOnlyS))
 
--- | Render task content (rich text with file embeds).
+-- ============================================================================
+-- Task content rendering
+-- ============================================================================
+
 taskContentRendered :: SyncContext -> Task -> M.View Model Action
 taskContentRendered r task = case task.content of
   Nothing -> Layout.empty
@@ -217,7 +259,10 @@ taskContentRendered r task = case task.content of
       then Layout.empty
       else V.taskContentView (renderRichTextWithFiles r.formulaCache r task.attachments content)
 
--- | Render solutions list.
+-- ============================================================================
+-- Solutions
+-- ============================================================================
+
 viewSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
 viewSolutions r m sols =
   MH.div_
@@ -233,7 +278,6 @@ viewOneSolution r m sol =
           else V.taskContentView (renderRichText r.formulaCache sol.content)
    in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered (ToggleSolution sol.id)
 
--- | Add solution button (for teachers).
 addSolutionButton :: M.View Model Action
 addSolutionButton =
   Button.secondary (Button.button (Button.IconTextS, Icon.IcnAdd, C.LblAddSolution) AddSolution)
