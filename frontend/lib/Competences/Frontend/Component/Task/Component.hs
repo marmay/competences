@@ -4,7 +4,8 @@
 -- Determines context (teacher, focused student) to drive display rules.
 module Competences.Frontend.Component.Task.Component
   ( TaskConfig (..)
-  , TaskDisplayMode (..)
+  , TaskViewSettings (..)
+  , defaultTaskViewSettings
   , taskComponent
   )
 where
@@ -44,16 +45,32 @@ import Optics.Core ((.~))
 data TaskConfig = TaskConfig
   { taskId :: !TaskId
   , origin :: !EntityOrigin
-  , displayMode :: !TaskDisplayMode
+  , settings :: !TaskViewSettings
   }
 
-data TaskDisplayMode
-  = TaskInAssignment
-  | TaskInDetail
-  | TaskInLessonNotes
-  | TaskPreview
-  -- ^ Collapsible, content only (no solutions, no edit button)
+-- | Orthogonal settings for task rendering.
+-- Compose these instead of picking a named mode.
+data TaskViewSettings = TaskViewSettings
+  { collapsible :: !Bool
+  -- ^ Can toggle open/closed (disclosure with chevron)
+  , showSolutions :: !Bool
+  -- ^ Show solutions section below content
+  , showAnnotations :: !Bool
+  -- ^ Show context-driven annotations (edit button, purpose badge)
+  , startExpanded :: !Bool
+  -- ^ Initial expansion state
+  }
   deriving (Eq, Show)
+
+-- | Default: always-open, full content, annotations visible.
+-- Suitable for task detail, lesson notes, and most non-list contexts.
+defaultTaskViewSettings :: TaskViewSettings
+defaultTaskViewSettings = TaskViewSettings
+  { collapsible = False
+  , showSolutions = True
+  , showAnnotations = True
+  , startExpanded = True
+  }
 
 -- ============================================================================
 -- Model & Actions
@@ -94,7 +111,7 @@ taskComponent r cfg =
   where
     model = Model
       { projection = TaskProjection Nothing [] False False
-      , expanded = cfg.displayMode `notElem` [TaskInAssignment, TaskPreview]
+      , expanded = cfg.settings.startExpanded
       , expandedSolutions = Set.empty
       }
 
@@ -146,15 +163,13 @@ taskProjection r cfg doc mUser =
 viewTask :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
 viewTask r cfg m task =
   let displayName = ms (taskDisplayName task)
-      annotations = headerAnnotations r cfg m task
+      annotations
+        | cfg.settings.showAnnotations = headerAnnotations r cfg m task
+        | otherwise = []
       body = taskBody r cfg m task
-   in case cfg.displayMode of
-        TaskInAssignment ->
-          V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
-        TaskPreview ->
-          V.taskDisclosureView Nothing ToggleExpanded displayName [] m.expanded body
-        _ ->
-          V.taskOpenView displayName annotations body
+   in if cfg.settings.collapsible
+        then V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
+        else V.taskOpenView displayName annotations body
 
 headerAnnotations :: SyncContext -> TaskConfig -> Model -> Task -> [M.View Model Action]
 headerAnnotations r cfg m task =
@@ -170,7 +185,7 @@ taskBody r cfg m task =
     concat
       [ [taskContentRendered r task | hasContent task]
       , [ viewSolutions r cfg m m.projection.solutions
-        | cfg.displayMode /= TaskPreview
+        | cfg.settings.showSolutions
         , not (null m.projection.solutions)
         ]
       ]

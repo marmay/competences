@@ -8,7 +8,8 @@
 module Competences.Frontend.Component.Task
   ( -- * Component
     TaskConfig (..)
-  , TaskDisplayMode (..)
+  , TaskViewSettings (..)
+  , defaultTaskViewSettings
   , taskComponent
     -- * Task list rendering
   , taskListView
@@ -18,6 +19,6 @@ module Competences.Frontend.Component.Task
   )
 where
 
-import Competences.Frontend.Component.Task.Component
+import Competences.Frontend.Component.Task.Component (TaskConfig (..), TaskViewSettings (..), defaultTaskViewSettings, taskComponent)
 import Competences.Frontend.Component.Task.EditButton
 import Competences.Frontend.Component.Task.ListView (taskListView)

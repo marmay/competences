@@ -76,5 +76,5 @@ taskDetailView r origin task =
         (assignmentRefsBanner r task.id)
     , inlineComponent
         ("task-detail-" <> ms (show task.id))
-        (TaskComp.taskComponent r (TaskComp.TaskConfig task.id origin TaskComp.TaskInDetail))
+        (TaskComp.taskComponent r (TaskComp.TaskConfig task.id origin TaskComp.defaultTaskViewSettings))
     ]

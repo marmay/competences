@@ -188,7 +188,7 @@ viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
 viewResolvedItem r (ResolvedTask tws) =
   inlineComponent
     ("lesson-notes-task-" <> M.ms (show tws.task.id))
-    (TaskComp.taskComponent r (TaskComp.TaskConfig tws.task.id Published TaskComp.TaskInLessonNotes))
+    (TaskComp.taskComponent r (TaskComp.TaskConfig tws.task.id Published TaskComp.defaultTaskViewSettings))
 
 -- ============================================================================
 -- Shared renderers
