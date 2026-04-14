@@ -27,13 +27,15 @@ import Competences.Frontend.Component.FileUpload (showFileSize)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..), taskExpandedCard)
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.Task qualified as TaskComp
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, openFramedModalWith, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, openFramedModalWith, pinDialogWith)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -183,7 +185,10 @@ viewerComponent r ln wm =
 -- | Render a resolved item in the viewer
 viewResolvedItem :: SyncContext -> ResolvedItem -> M.View model action
 viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
-viewResolvedItem r (ResolvedTask tws) = taskExpandedCard r tws
+viewResolvedItem r (ResolvedTask tws) =
+  inlineComponent
+    ("lesson-notes-task-" <> M.ms (show tws.task.id))
+    (TaskComp.taskComponent r (TaskComp.TaskConfig tws.task.id Published TaskComp.TaskInLessonNotes))
 
 -- ============================================================================
 -- Shared renderers

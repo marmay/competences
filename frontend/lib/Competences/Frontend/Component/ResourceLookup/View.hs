@@ -37,6 +37,7 @@ import Competences.Frontend.Component.ResourceLookup
   , ResolvedItem (..)
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.View.Task qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Badge qualified as Badge
@@ -307,10 +308,7 @@ taskBodyView fc t =
           Nothing -> Layout.empty
           Just rc
             | rc == mempty -> Layout.empty
-            | otherwise ->
-                MH.div_
-                  [class_ "prose prose-stone prose-sm max-w-none"]
-                  [renderRichText fc rc]
+            | otherwise -> VT.taskContentView (renderRichText fc rc)
       ]
         <> map (viewSolutionContent fc) t.solutions
     )
@@ -318,13 +316,9 @@ taskBodyView fc t =
 -- | Render solution content inline.
 viewSolutionContent :: FormulaCache -> Solution -> M.View model action
 viewSolutionContent fc sol =
-  MH.div_
-    [class_ "space-y-1"]
-    [ Typography.small $ C.translate' (C.LblSolutionType sol.solutionType)
-    , if sol.content == mempty
+  VT.solutionInlineView
+    (VT.solutionTypeLabel sol.solutionType)
+    ( if sol.content == mempty
         then Layout.empty
-        else
-          MH.div_
-            [class_ "prose prose-stone prose-sm max-w-none"]
-            [renderRichText fc sol.content]
-    ]
+        else VT.taskContentView (renderRichText fc sol.content)
+    )
