@@ -17,6 +17,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Button qualified as Button
@@ -75,7 +76,8 @@ taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
     renderSolutions' tid =
       renderSolutionList r state.expandedSolutions isTeacher
         (liftAction . V.ToggleSolution)
-        (liftAction . V.DeleteSolution)
+        (liftAction . V.HoldDeleteSolution)
+        state.holdDeleteSolution
         (liftAction (V.AddSolution tid))
 
 -- | Render a list of solutions with collapsible disclosures and optional teacher actions.
@@ -84,13 +86,18 @@ renderSolutionList
   -> Set SolutionId
   -> Bool
   -> (SolutionId -> a)
-  -> (SolutionId -> a)
+  -- ^ Toggle expand/collapse
+  -> (HoldButton.HoldAction SolutionId -> a)
+  -- ^ Hold-delete action wrapper
+  -> HoldButton.HoldState SolutionId
+  -- ^ Current hold state
   -> a
+  -- ^ Add solution action
   -> [Solution]
   -> M.View m a
-renderSolutionList r expandedSet isTeacher mkToggle mkDelete addAction sols =
+renderSolutionList r expandedSet isTeacher mkToggle mkHoldDelete holdState addAction sols =
   MH.div_ [class_ "space-y-1"]
-    ( map (renderOneSol r expandedSet isTeacher mkToggle mkDelete) sols
+    ( map (renderOneSol r expandedSet isTeacher mkToggle mkHoldDelete holdState) sols
         <> [addSolButton | isTeacher]
     )
   where
@@ -100,9 +107,11 @@ renderSolutionList r expandedSet isTeacher mkToggle mkDelete addAction sols =
 
 renderOneSol
   :: SyncContext -> Set SolutionId -> Bool
-  -> (SolutionId -> a) -> (SolutionId -> a)
+  -> (SolutionId -> a)
+  -> (HoldButton.HoldAction SolutionId -> a)
+  -> HoldButton.HoldState SolutionId
   -> Solution -> M.View m a
-renderOneSol r expandedSet isTeacher mkToggle mkDelete sol =
+renderOneSol r expandedSet isTeacher mkToggle mkHoldDelete holdState sol =
   let isExpanded = Set.member sol.id expandedSet
       rendered =
         if sol.content == mempty
@@ -111,7 +120,7 @@ renderOneSol r expandedSet isTeacher mkToggle mkDelete sol =
       actions
         | isTeacher =
             [ Disclosure.viewAction (solutionEditButton r sol)
-            , Disclosure.destructiveAction Icon.IcnDelete (mkDelete sol.id)
+            , Disclosure.holdDestructiveAction mkHoldDelete holdState sol.id
             ]
         | otherwise = []
    in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered actions (mkToggle sol.id)

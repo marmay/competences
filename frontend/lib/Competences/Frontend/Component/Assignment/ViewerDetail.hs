@@ -137,7 +137,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
-import Optics.Core ((&), (.~), (%~))
+import Optics.Core ((&), (%), (.~), (%~))
 import System.Random (randomIO)
 
 
@@ -425,8 +425,11 @@ viewerComponent r user assignment wm =
           solId <- nextId r
           let uid = (syncDocumentEnv r).connectedUser.id
           modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
-        VT.DeleteSolution solId ->
-          M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
+        VT.HoldDeleteSolution ha ->
+          HoldButton.handleHoldAction' (#taskListState % #holdDeleteSolution)
+            (\solId -> modifySyncDocument r $ Solutions (OnSolutions (Delete solId)))
+            (TaskListAction . VT.HoldDeleteSolution)
+            ha
         _ -> pure ()
 
     update (ToggleTaskResourcesExpanded taskId) =

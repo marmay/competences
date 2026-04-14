@@ -27,6 +27,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Task qualified as V
@@ -88,6 +89,7 @@ data Model = Model
   { projection :: !TaskProjection
   , expanded :: !Bool
   , expandedSolutions :: !(Set SolutionId)
+  , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
   }
   deriving (Eq, Generic, Show)
 
@@ -96,7 +98,7 @@ data Action
   | ToggleExpanded
   | ToggleSolution !SolutionId
   | AddSolution !TaskId
-  | DeleteSolution !SolutionId
+  | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -113,6 +115,7 @@ taskComponent r cfg =
       { projection = TaskProjection Nothing [] False False
       , expanded = cfg.settings.startExpanded
       , expandedSolutions = Set.empty
+      , holdDeleteSolution = HoldButton.emptyHoldState
       }
 
     update (ProjectionChanged change) =
@@ -131,8 +134,10 @@ taskComponent r cfg =
       let connectedUserId = (syncDocumentEnv r).connectedUser.id
           sol = mkSolution solId taskId connectedUserId
       modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock sol))
-    update (DeleteSolution solId) =
-      M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
+    update (HoldDeleteSolution ha) =
+      HoldButton.handleHoldAction' #holdDeleteSolution doDeleteSolution HoldDeleteSolution ha
+    doDeleteSolution solId =
+      modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
 
     view m = case m.projection.task of
       Nothing -> Layout.empty
@@ -206,4 +211,4 @@ taskContentRendered r task = case task.content of
 viewSolutions :: SyncContext -> TaskConfig -> Model -> [Solution] -> M.View Model Action
 viewSolutions r cfg m =
   renderSolutionList r m.expandedSolutions m.projection.isTeacher
-    ToggleSolution DeleteSolution (AddSolution cfg.taskId)
+    ToggleSolution HoldDeleteSolution m.holdDeleteSolution (AddSolution cfg.taskId)

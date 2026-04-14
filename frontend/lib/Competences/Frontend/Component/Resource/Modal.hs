@@ -27,6 +27,9 @@ import Competences.Frontend.View.Task qualified as VT
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
+import Optics.Core ((%))
+
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
@@ -127,8 +130,11 @@ resourceModalComponent r cfg =
           solId <- nextId r
           let uid = (syncDocumentEnv r).connectedUser.id
           modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
-        VT.DeleteSolution solId ->
-          M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
+        VT.HoldDeleteSolution ha ->
+          HoldButton.handleHoldAction' (#taskListState % #holdDeleteSolution)
+            (\solId -> modifySyncDocument r $ Solutions (OnSolutions (Delete solId)))
+            (TaskListAction . VT.HoldDeleteSolution)
+            ha
         _ -> pure ()
 
     update (SwitchViewMode newMode) =
