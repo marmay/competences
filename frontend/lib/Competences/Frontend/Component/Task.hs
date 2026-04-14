@@ -31,7 +31,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
@@ -268,19 +268,27 @@ taskContentRendered r task = case task.content of
 -- ============================================================================
 
 viewSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
-viewSolutions r m sols =
-  MH.div_
-    [class_ "space-y-1"]
-    (map (viewOneSolution r m) sols)
+viewSolutions r m =
+  renderSolutionList r.formulaCache m.expandedSolutions (ToggleSolution)
 
-viewOneSolution :: SyncContext -> Model -> Solution -> M.View Model Action
-viewOneSolution r m sol =
-  let isExpanded = Set.member sol.id m.expandedSolutions
-      rendered =
-        if sol.content == mempty
-          then Typography.muted (C.translate' C.LblNoContent)
-          else V.taskContentView (renderRichText r.formulaCache sol.content)
-   in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered (ToggleSolution sol.id)
+-- | Render a list of solutions with collapsible disclosures.
+-- Shared between the task component and 'taskListView'.
+renderSolutionList
+  :: FormulaCache
+  -> Set SolutionId
+  -> (SolutionId -> a)
+  -> [Solution]
+  -> M.View m a
+renderSolutionList fc expandedSet mkToggle sols =
+  MH.div_ [class_ "space-y-1"] (map renderOne sols)
+  where
+    renderOne sol =
+      let isExpanded = Set.member sol.id expandedSet
+          rendered =
+            if sol.content == mempty
+              then Typography.muted (C.translate' C.LblNoContent)
+              else V.taskContentView (renderRichText fc sol.content)
+       in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered (mkToggle sol.id)
 
 addSolutionButton :: M.View Model Action
 addSolutionButton =
@@ -339,13 +347,5 @@ taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
           mBody = if null parts then Nothing else Just (MH.div_ [class_ "space-y-3"] parts)
        in V.taskItemView (statusLookup tid) (liftAction (V.ToggleTask tid)) name (mkAnnotations tws) expanded mBody
 
-    renderSolutions sols =
-      MH.div_ [class_ "space-y-1"] (map renderOneSolution sols)
-
-    renderOneSolution sol =
-      let solExpanded = Set.member sol.id state.expandedSolutions
-          rendered =
-            if sol.content == mempty
-              then Typography.muted (C.translate' C.LblNoContent)
-              else V.taskContentView (renderRichText r.formulaCache sol.content)
-       in V.solutionView (V.solutionTypeLabel sol.solutionType) solExpanded rendered (liftAction (V.ToggleSolution sol.id))
+    renderSolutions =
+      renderSolutionList r.formulaCache state.expandedSolutions (liftAction . V.ToggleSolution)
