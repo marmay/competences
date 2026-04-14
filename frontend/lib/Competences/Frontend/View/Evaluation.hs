@@ -21,7 +21,6 @@ module Competences.Frontend.View.Evaluation
   , viewCompetenceRow
     -- * Task section views
   , viewTaskHeader
-  , viewTaskContent
   , viewTaskCompetences
     -- * Aggregation views
   , viewAggregationSection
@@ -48,12 +47,10 @@ import Competences.Document.Task
   , taskDisplayName
   )
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -61,7 +58,6 @@ import Competences.TaskContent.RichContent (RichContent)
 import Data.List (groupBy, sort)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
-import Data.Set qualified as Set
 import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -197,29 +193,6 @@ viewTaskHeader taskData taskId isExcluded toggleAction extraContent =
                 (Button.button (if isExcluded then C.LblIncludeTask else C.LblExcludeTask) (Just toggleAction))
             ]
         ]
-
--- | Collapsible task content (disclosure chevron + rich text).
-viewTaskContent
-  :: FormulaCache
-  -> Map.Map TaskId TaskViewData
-  -> Set.Set TaskId
-  -> TaskId
-  -> (TaskId -> a)
-  -> M.View m a
-viewTaskContent fc taskData expandedSet taskId toggleAction =
-  case Map.lookup taskId taskData of
-    Nothing -> M.text ""
-    Just tvd ->
-      let isExpanded = Set.member taskId expandedSet
-       in case tvd.content of
-            Nothing -> M.text ""
-            Just c
-              | c == mempty -> M.text ""
-              | otherwise ->
-                  let titleView = Disclosure.titleText (C.translate' C.LblTaskStatement)
-                      bodyView = MH.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText fc c]
-                   in Disclosure.innerDisclosure (toggleAction taskId) $
-                        Disclosure.contents titleView isExpanded bodyView []
 
 -- | Per-task competence evaluations (lists competence rows with ability buttons).
 viewTaskCompetences

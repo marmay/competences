@@ -13,7 +13,6 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, UserIxs)
-import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
@@ -27,6 +26,7 @@ import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Task qualified as VT
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -752,12 +752,24 @@ evaluatorComponent r assignment =
             , if isExcluded
                 then M.text ""
                 else M.div_ []
-                       [ Eval.viewTaskContent r.formulaCache m.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
+                       [ viewEvalTaskContent m taskId
                        , viewTaskSolutions m taskId
                        , viewTaskRemarkButtons m taskId
                        , viewStudentEvaluations m taskId
                        ]
             ]
+
+    viewEvalTaskContent m taskId =
+      case Map.lookup taskId m.taskViewData of
+        Nothing -> M.text ""
+        Just tvd -> case tvd.content of
+          Nothing -> M.text ""
+          Just c | c == mempty -> M.text ""
+          Just c ->
+            VT.taskContentDisclosure
+              (Set.member taskId m.expandedTaskContent)
+              (renderRichText r.formulaCache c)
+              (ToggleTaskContentExpanded taskId)
 
     viewTaskSolutions m taskId =
       let taskSolutions = Ix.toList $ m.solutions Ix.@= taskId
@@ -767,16 +779,15 @@ evaluatorComponent r assignment =
                    (map (viewSolutionItem m) taskSolutions)
 
     viewSolutionItem m solution =
-      let -- Results type is expanded by default
-          -- We track which Results are collapsed in collapsedResults
-          -- For non-Results types, they are collapsed unless explicitly expanded (but we use same logic)
+      let -- Results type is expanded by default; others collapsed by default
           isExpanded = case solution.solutionType of
             Results -> not $ Set.member solution.id m.collapsedResults
-            _ -> Set.member solution.id m.collapsedResults  -- Non-results: collapsed by default, tracked as "expanded" in set
-          titleView = Disclosure.titleIconText Icon.IcnSolution (C.translate' (C.LblSolutionType solution.solutionType))
-          bodyView = M.div_ [class_ "prose prose-sm prose-stone max-w-none"] [renderRichText r.formulaCache solution.content]
-       in Disclosure.innerDisclosure (ToggleSolutionExpanded solution.id) $
-            Disclosure.contents titleView isExpanded bodyView []
+            _ -> Set.member solution.id m.collapsedResults
+          rendered =
+            if solution.content == mempty
+              then Typography.muted "Kein Inhalt"
+              else VT.taskContentView (renderRichText r.formulaCache solution.content)
+       in VT.solutionView (VT.solutionTypeLabel solution.solutionType) isExpanded rendered (ToggleSolutionExpanded solution.id)
 
     viewTaskRemarkButtons m taskId =
       if Set.null (activeStudents m)

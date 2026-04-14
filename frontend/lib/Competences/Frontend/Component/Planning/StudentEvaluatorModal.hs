@@ -58,7 +58,9 @@ import Competences.Frontend.View.Combobox
   , withSelected
   )
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.View.Evaluation qualified as Eval
+import Competences.Frontend.View.Task qualified as VT
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -441,7 +443,13 @@ studentEvaluatorModal r initialLessonId initialUserId wm =
                 else
                   MH.div_
                     []
-                    [ Eval.viewTaskContent r.formulaCache m.viewData.taskViewData m.expandedTaskContent taskId ToggleTaskContentExpanded
+                    [ case Map.lookup taskId m.viewData.taskViewData of
+                        Just tvd | Just c <- tvd.content, c /= mempty ->
+                          VT.taskContentDisclosure
+                            (Set.member taskId m.expandedTaskContent)
+                            (renderRichText r.formulaCache c)
+                            (ToggleTaskContentExpanded taskId)
+                        _ -> M.text ""
                     , Eval.viewTaskCompetences m.viewData.taskViewData m.viewData.competenceLevelInfos m.taskObservations taskId SetTaskObservation
                     ]
             ]
