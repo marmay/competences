@@ -14,20 +14,15 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Document (Document, Task (..))
+import Competences.Document (Document, Solution (..), Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
-import Competences.Frontend.Component.TaskResource
-  ( DisplayMode (..)
-  , TaskResourceList
-  , TaskWithSolutions (..)
-  , initialState
-  , taskResourceListView
-  , updateTaskResourceList
-  )
-import Competences.Frontend.Component.TaskResource qualified as TRL
-import Competences.Document.Task (TaskId)
+import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.View.Task qualified as VT
+import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -85,7 +80,7 @@ data ResourceViewMode
 -- | Internal model for the component
 data Model = Model
   { config :: !ResourceModalConfig
-  , taskListState :: !TaskResourceList
+  , taskListState :: !VT.TaskViewState
   , viewMode :: !ResourceViewMode
   , collapsedGroups :: !(Set.Set TaskStatusGroup)
   }
@@ -96,7 +91,7 @@ data Model = Model
 -- ============================================================================
 
 data Action
-  = TaskListAction !TRL.Action
+  = TaskListAction !VT.TaskViewAction
   | SwitchViewMode !ResourceViewMode
   | ToggleStatusGroup !TaskStatusGroup
   deriving (Eq, Show)
@@ -117,14 +112,14 @@ resourceModalComponent r cfg =
     model =
       Model
         { config = cfg
-        , taskListState = initialState TasksCollapsed cfg.taskStatuses cfg.tasks
+        , taskListState = VT.initialTaskViewState [] -- tasks start collapsed
         , viewMode = defaultMode
         , collapsedGroups = Set.empty
         }
 
     update (TaskListAction action) =
       M.modify $ \m ->
-        m {taskListState = updateTaskResourceList action m.taskListState}
+        m {taskListState = VT.updateTaskView action m.taskListState}
 
     update (SwitchViewMode newMode) =
       M.modify $ \m -> m {viewMode = newMode}
@@ -147,7 +142,7 @@ resourceModalComponent r cfg =
             ViewTasks
               | Map.null m.config.taskStatuses ->
                   -- No focused user: flat list without grouping
-                  taskResourceListView r m.config.showPurposeBadge (const Layout.empty) m.config.taskStatuses m.config.tasks m.taskListState (const []) TaskListAction
+                  viewModalTaskList r m m.config.showPurposeBadge (const Layout.empty) m.config.tasks
               | otherwise ->
                   groupedTasksView r m
             ViewLearningResources ->
@@ -191,19 +186,81 @@ viewStatusGroup :: SyncContext -> Model -> (TaskStatusGroup, [TaskWithSolutions]
 viewStatusGroup r m (group, tasks) =
   let isExpanded = not $ Set.member group m.collapsedGroups
       title = statusGroupLabel group
-      content =
-        taskResourceListView
-          r
-          m.config.showPurposeBadge
-          (viewTaskCompletionStatusFromMap m.config.taskStatuses)
-          m.config.taskStatuses
-          tasks
-          m.taskListState
-          (const [])
-          TaskListAction
+      content = viewModalTaskList r m m.config.showPurposeBadge
+                  (viewTaskCompletionStatusFromMap m.config.taskStatuses)
+                  tasks
    in Disclosure.disclosure (ToggleStatusGroup group) $
         Disclosure.contents (Disclosure.titleText title) isExpanded content []
 
 -- | Translated label for a status group
 statusGroupLabel :: TaskStatusGroup -> M.MisoString
 statusGroupLabel = C.translate' . C.LblTaskStatusGroup
+
+-- ============================================================================
+-- Task rendering (using View/Task primitives)
+-- ============================================================================
+
+-- | Render a task list using View/Task primitives.
+viewModalTaskList
+  :: SyncContext
+  -> Model
+  -> Bool
+  -- ^ Show purpose badge
+  -> (TaskId -> M.View Model Action)
+  -- ^ Per-task extra view (e.g., completion status indicator)
+  -> [TaskWithSolutions]
+  -> M.View Model Action
+viewModalTaskList _r _m _showPurpose _taskExtra [] =
+  Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
+viewModalTaskList r m showPurpose taskExtra tasks =
+  Layout.vFlow Layout.gapM (map (viewModalTask r m showPurpose taskExtra) tasks)
+
+viewModalTask
+  :: SyncContext -> Model -> Bool -> (TaskId -> M.View Model Action)
+  -> TaskWithSolutions -> M.View Model Action
+viewModalTask r m showPurpose taskExtra tws =
+  let taskId = tws.task.id
+      displayName = M.ms (taskDisplayName tws.task)
+      isExpanded = Set.member taskId m.taskListState.expandedTasks
+      mPalette = VT.taskStatusPalette (Map.lookup taskId m.config.taskStatuses)
+      hasContent = case tws.taskContent of
+        Nothing -> False
+        Just c -> c /= mempty
+      hasSolutions = not (null tws.solutions)
+
+      annotations = concat
+        [ [taskExtra taskId]
+        , [VT.purposeBadge tws.taskPurpose | showPurpose]
+        , [VT.assessmentStar tws.taskPurpose | showPurpose]
+        ]
+
+      body = MH.div_ [class_ "space-y-3"] $ concat
+        [ [ VT.taskContentView (renderRichTextWithFiles r.formulaCache r tws.task.attachments rc)
+          | hasContent, Just rc <- [tws.taskContent]
+          ]
+        , [ viewModalSolutions r m tws.solutions | hasSolutions ]
+        ]
+   in if hasContent || hasSolutions
+        then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
+        else
+          MH.div_
+            [class_ "border rounded-lg overflow-hidden"]
+            [ MH.div_
+                [class_ $ "flex items-center justify-between px-3 py-2 " <> VT.taskStatusHeaderBg (Map.lookup taskId m.config.taskStatuses)]
+                [ VT.taskHeader displayName
+                , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
+                ]
+            ]
+
+viewModalSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
+viewModalSolutions r m sols =
+  MH.div_ [class_ "space-y-1"] (map (viewModalOneSolution r m) sols)
+
+viewModalOneSolution :: SyncContext -> Model -> Solution -> M.View Model Action
+viewModalOneSolution r m sol =
+  let isExpanded = Set.member sol.id m.taskListState.expandedSolutions
+      rendered =
+        if sol.content == mempty
+          then Typography.muted "Kein Inhalt"
+          else VT.taskContentView (renderRichText r.formulaCache sol.content)
+   in VT.solutionView (VT.solutionTypeLabel sol.solutionType) isExpanded rendered (TaskListAction (VT.ToggleSolution sol.id))

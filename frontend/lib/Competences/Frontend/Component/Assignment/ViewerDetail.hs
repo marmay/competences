@@ -87,16 +87,9 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
-import Competences.Frontend.Component.TaskResource
-  ( TaskResourceList
-  , TaskWithSolutions (..)
-  , DisplayMode (..)
-  , initialState
-  , taskResourceListView
-  , updateTaskResourceList
-  )
-import Competences.Frontend.Component.TaskResource qualified as TRL
+import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithFiles, renderRichTextWithResolver, resolveFileView)
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.View.Task qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
@@ -126,7 +119,7 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.User (UserRole (..))
 import Competences.Query.Assignment (AssignmentStatus (..), accumulatedObservations, assignmentStatus)
 import Competences.Query.Assignment qualified as Q
-import Competences.Query.TaskStatus (TaskCompletionStatus, taskCompletionStatuses)
+import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -274,7 +267,7 @@ viewerDetailView r user assignment =
 -- | Model with projection and task list state
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
-  , taskListState :: !TaskResourceList
+  , taskListState :: !VT.TaskViewState
   , expandedTaskResources :: !(Set.Set TaskId)
   , pagePrintModal :: !(Maybe PrintModalModel)
   , pagePrintPending :: !(Maybe PrintSettings)
@@ -287,7 +280,7 @@ data ViewerModel = ViewerModel
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
-  | TaskListAction !TRL.Action
+  | TaskListAction !VT.TaskViewAction
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
   | OpenPagePrintModal !(Maybe LayoutId)
@@ -309,7 +302,7 @@ viewerComponent r user assignment wm =
   where
     model = ViewerModel
       { projection = emptyProjection user.role assignment
-      , taskListState = initialState TasksExpanded Map.empty []
+      , taskListState = VT.initialTaskViewState []
       , expandedTaskResources = Set.empty
       , pagePrintModal = Nothing
       , pagePrintPending = Nothing
@@ -404,8 +397,13 @@ viewerComponent r user assignment wm =
     update (ProjectionChanged change) =
       M.modify $ \m ->
         let newTasks = change.projection.tasksWithSolutions
-            -- Re-initialize task list state with new tasks, keeping expanded state
-            newTaskListState = initialState TasksExpanded change.projection.taskStatuses newTasks
+            -- Expand all tasks except those that are done
+            expandedIds =
+              [ t.task.id
+              | t <- newTasks
+              , not (isDone (Map.lookup t.task.id change.projection.taskStatuses))
+              ]
+            newTaskListState = VT.initialTaskViewState expandedIds
             -- Build fresh TaskInfos map for updating modal order
             freshMap = Map.fromList
               [(ti.taskId, ti) | ti <- taskInfosFromTws newTasks]
@@ -418,7 +416,7 @@ viewerComponent r user assignment wm =
               & #pagePrintModal %~ fmap updateModal
 
     update (TaskListAction action) =
-      M.modify $ \m -> m & #taskListState .~ updateTaskResourceList action m.taskListState
+      M.modify $ \m -> m & #taskListState .~ VT.updateTaskView action m.taskListState
 
     update (ToggleTaskResourcesExpanded taskId) =
       M.modify $ \m ->
@@ -677,11 +675,6 @@ viewerComponent r user assignment wm =
       let proj = m.projection
           desc = proj.currentAssignment.description
           showPurposeBadge = proj.connectedUserRole == Teacher
-          taskStatusRenderer taskId =
-            M.div_ [class_ "flex items-center gap-1"]
-              ( viewTaskRemarkBadges proj.taskRemarkMap taskId
-                  <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
-              )
        in Card.card
             [ M.div_
                 [class_ "space-y-2"]
@@ -716,7 +709,7 @@ viewerComponent r user assignment wm =
             , M.div_
               [class_ "space-y-4"]
               ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
-                [ taskResourceListView r showPurposeBadge taskStatusRenderer proj.taskStatuses proj.tasksWithSolutions m.taskListState (viewTaskResources m r) TaskListAction ]
+                [ viewTaskList r m proj showPurposeBadge ]
               )
             ]
 
@@ -779,6 +772,79 @@ viewerComponent r user assignment wm =
     viewRemarkBadge Exceptional = Badge.badge (PaletteName "ability-success") (Badge.badgeLabel (C.LblTaskRemark Exceptional))
     viewRemarkBadge Sloppy = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Sloppy))
     viewRemarkBadge Lacking = Badge.badge (PaletteName "ability-warning") (Badge.badgeLabel (C.LblTaskRemark Lacking))
+
+    -- ========================================================================
+    -- Task list (using View/Task primitives)
+    -- ========================================================================
+
+    viewTaskList :: SyncContext -> ViewerModel -> ViewerProjection -> Bool -> M.View ViewerModel ViewerAction
+    viewTaskList syncCtx m proj showPurpose
+      | null proj.tasksWithSolutions =
+          Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
+      | otherwise =
+          Layout.vFlow Layout.gapM
+            (map (viewTaskItem syncCtx m proj showPurpose) proj.tasksWithSolutions)
+
+    viewTaskItem :: SyncContext -> ViewerModel -> ViewerProjection -> Bool -> TaskWithSolutions -> M.View ViewerModel ViewerAction
+    viewTaskItem syncCtx m proj showPurpose tws =
+      let taskId = tws.task.id
+          displayName = ms (taskDisplayName tws.task)
+          isExpanded = Set.member taskId m.taskListState.expandedTasks
+          mPalette = VT.taskStatusPalette (Map.lookup taskId proj.taskStatuses)
+          hasContent = case tws.taskContent of
+            Nothing -> False
+            Just c -> c /= mempty
+          hasSolutions = not (null tws.solutions)
+          extra = viewTaskResources m syncCtx taskId
+
+          annotations =
+            concat
+              [ [ M.div_ [class_ "flex items-center gap-1"]
+                    ( viewTaskRemarkBadges proj.taskRemarkMap taskId
+                        <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
+                    )
+                ]
+              , [VT.purposeBadge tws.taskPurpose | showPurpose]
+              , [VT.assessmentStar tws.taskPurpose | showPurpose]
+              ]
+
+          body = M.div_ [class_ "space-y-3"] $ concat
+            [ [ VT.taskContentView (renderRichTextWithFiles syncCtx.formulaCache syncCtx tws.task.attachments rc)
+              | hasContent
+              , Just rc <- [tws.taskContent]
+              ]
+            , [ viewTaskSolutions syncCtx m tws.solutions | hasSolutions ]
+            , extra
+            ]
+       in if hasContent || hasSolutions || not (null extra)
+            then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
+            else
+              M.div_
+                [class_ "border rounded-lg overflow-hidden"]
+                [ M.div_
+                    [class_ $ "flex items-center justify-between px-3 py-2 " <> VT.taskStatusHeaderBg (Map.lookup taskId proj.taskStatuses)]
+                    [ VT.taskHeader displayName
+                    , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
+                    ]
+                ]
+
+    viewTaskSolutions :: SyncContext -> ViewerModel -> [Solution] -> M.View ViewerModel ViewerAction
+    viewTaskSolutions syncCtx m sols =
+      M.div_ [class_ "space-y-1"]
+        (map (viewTaskOneSolution syncCtx m) sols)
+
+    viewTaskOneSolution :: SyncContext -> ViewerModel -> Solution -> M.View ViewerModel ViewerAction
+    viewTaskOneSolution syncCtx m sol =
+      let isExpanded = Set.member sol.id m.taskListState.expandedSolutions
+          rendered =
+            if sol.content == mempty
+              then Typography.muted "Kein Inhalt"
+              else VT.taskContentView (renderRichText syncCtx.formulaCache sol.content)
+       in VT.solutionView (VT.solutionTypeLabel sol.solutionType) isExpanded rendered (TaskListAction (VT.ToggleSolution sol.id))
+
+    isDone :: Maybe TaskCompletionStatus -> Bool
+    isDone (Just (TaskDone _)) = True
+    isDone _ = False
 
     -- ========================================================================
     -- Submission Status Button (students only)
