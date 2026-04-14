@@ -8,6 +8,7 @@ module Competences.Frontend.View.Task.Detail
   , taskHeaderWithBadges
     -- * Task content
   , taskContentView
+  , taskContentDisclosure
     -- * Solutions
   , solutionView
   , solutionInlineView
@@ -57,6 +58,26 @@ taskContentView renderedContent =
   MH.div_
     [class_ "prose prose-stone prose-sm max-w-none"]
     [renderedContent]
+
+-- | Render task content as a collapsible inner disclosure.
+-- Used when the task description should be independently collapsible
+-- (e.g., in the evaluator where the task stays visible but the
+-- description can be toggled).
+taskContentDisclosure
+  :: Bool
+  -- ^ Is expanded
+  -> M.View m a
+  -- ^ Rendered content
+  -> a
+  -- ^ Toggle action
+  -> M.View m a
+taskContentDisclosure isExpanded renderedContent toggleAction =
+  Disclosure.innerDisclosure toggleAction $
+    Disclosure.contents
+      (Disclosure.titleText (C.translate' C.LblTaskContent))
+      isExpanded
+      (taskContentView renderedContent)
+      []
 
 -- ============================================================================
 -- Solutions

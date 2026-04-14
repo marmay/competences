@@ -26,10 +26,12 @@ import GHC.Generics (Generic)
 import Optics.Core ((&), (.~))
 
 -- | Shared state for task view expansion.
--- Tracks which tasks and solutions are expanded.
--- Replaces TaskResource.TaskResourceList.
+-- Tracks which tasks, descriptions, and solutions are expanded.
 data TaskViewState = TaskViewState
   { expandedTasks :: !(Set TaskId)
+  -- ^ Which tasks are expanded (whole-task disclosure)
+  , expandedDescriptions :: !(Set TaskId)
+  -- ^ Which task descriptions are expanded (content disclosure within a task)
   , expandedSolutions :: !(Set SolutionId)
   }
   deriving (Eq, Generic, Show)
@@ -37,6 +39,7 @@ data TaskViewState = TaskViewState
 -- | Actions for task view state.
 data TaskViewAction
   = ToggleTask !TaskId
+  | ToggleDescription !TaskId
   | ToggleSolution !SolutionId
   deriving (Eq, Show)
 
@@ -44,15 +47,18 @@ data TaskViewAction
 updateTaskView :: TaskViewAction -> TaskViewState -> TaskViewState
 updateTaskView (ToggleTask taskId) s =
   s & #expandedTasks .~ toggle taskId s.expandedTasks
+updateTaskView (ToggleDescription taskId) s =
+  s & #expandedDescriptions .~ toggle taskId s.expandedDescriptions
 updateTaskView (ToggleSolution solId) s =
   s & #expandedSolutions .~ toggle solId s.expandedSolutions
 
 -- | Initial state with a given set of expanded tasks.
--- Solutions always start collapsed.
+-- Descriptions and solutions start collapsed.
 initialTaskViewState :: [TaskId] -> TaskViewState
 initialTaskViewState expanded =
   TaskViewState
     { expandedTasks = Set.fromList expanded
+    , expandedDescriptions = Set.empty
     , expandedSolutions = Set.empty
     }
 
