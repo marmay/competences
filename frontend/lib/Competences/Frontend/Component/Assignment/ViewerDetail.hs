@@ -87,7 +87,8 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithFiles, renderRichTextWithResolver, resolveFileView)
+import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
+import Competences.Frontend.Component.Task qualified as TaskComp
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.View.Task qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
@@ -778,60 +779,27 @@ viewerComponent r user assignment wm =
     -- ========================================================================
 
     viewTaskList :: SyncContext -> ViewerModel -> ViewerProjection -> Bool -> M.View ViewerModel ViewerAction
-    viewTaskList syncCtx m proj showPurpose
-      | null proj.tasksWithSolutions =
-          Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
-      | otherwise =
-          Layout.vFlow Layout.gapM
-            (map (viewTaskItem syncCtx m proj showPurpose) proj.tasksWithSolutions)
+    viewTaskList syncCtx m proj showPurpose =
+      TaskComp.taskListView
+        syncCtx
+        m.taskListState
+        (`Map.lookup` proj.taskStatuses)
+        (taskAnnotations proj showPurpose)
+        (viewTaskResources m syncCtx)
+        TaskListAction
+        proj.tasksWithSolutions
 
-    viewTaskItem :: SyncContext -> ViewerModel -> ViewerProjection -> Bool -> TaskWithSolutions -> M.View ViewerModel ViewerAction
-    viewTaskItem syncCtx m proj showPurpose tws =
-      let taskId = tws.task.id
-          displayName = ms (taskDisplayName tws.task)
-          isExpanded = Set.member taskId m.taskListState.expandedTasks
-          hasContent = case tws.taskContent of
-            Nothing -> False
-            Just c -> c /= mempty
-          hasSolutions = not (null tws.solutions)
-          extra = viewTaskResources m syncCtx taskId
-
-          annotations =
-            concat
-              [ [ M.div_ [class_ "flex items-center gap-1"]
-                    ( viewTaskRemarkBadges proj.taskRemarkMap taskId
-                        <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
-                    )
-                ]
-              , [VT.purposeBadge tws.taskPurpose | showPurpose]
-              , [VT.assessmentStar tws.taskPurpose | showPurpose]
-              ]
-
-          bodyParts = concat
-            [ [ VT.taskContentView (renderRichTextWithFiles syncCtx.formulaCache syncCtx tws.task.attachments rc)
-              | hasContent
-              , Just rc <- [tws.taskContent]
-              ]
-            , [ viewTaskSolutions syncCtx m tws.solutions | hasSolutions ]
-            , extra
-            ]
-
-          mBody = if null bodyParts then Nothing else Just (M.div_ [class_ "space-y-3"] bodyParts)
-       in VT.taskItemView (Map.lookup taskId proj.taskStatuses) (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded mBody
-
-    viewTaskSolutions :: SyncContext -> ViewerModel -> [Solution] -> M.View ViewerModel ViewerAction
-    viewTaskSolutions syncCtx m sols =
-      M.div_ [class_ "space-y-1"]
-        (map (viewTaskOneSolution syncCtx m) sols)
-
-    viewTaskOneSolution :: SyncContext -> ViewerModel -> Solution -> M.View ViewerModel ViewerAction
-    viewTaskOneSolution syncCtx m sol =
-      let isExpanded = Set.member sol.id m.taskListState.expandedSolutions
-          rendered =
-            if sol.content == mempty
-              then Typography.muted (C.translate' C.LblNoContent)
-              else VT.taskContentView (renderRichText syncCtx.formulaCache sol.content)
-       in VT.solutionView (VT.solutionTypeLabel sol.solutionType) isExpanded rendered (TaskListAction (VT.ToggleSolution sol.id))
+    taskAnnotations :: ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
+    taskAnnotations proj showPurpose tws =
+      concat
+        [ [ M.div_ [class_ "flex items-center gap-1"]
+              ( viewTaskRemarkBadges proj.taskRemarkMap tws.task.id
+                  <> [viewTaskCompletionStatusFromMap proj.taskStatuses tws.task.id]
+              )
+          ]
+        , [VT.purposeBadge tws.taskPurpose | showPurpose]
+        , [VT.assessmentStar tws.taskPurpose | showPurpose]
+        ]
 
     isDone :: Maybe TaskCompletionStatus -> Bool
     isDone (Just (TaskDone _)) = True

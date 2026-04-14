@@ -17,6 +17,8 @@ module Competences.Frontend.Component.Task
   ( TaskConfig (..)
   , TaskDisplayMode (..)
   , taskComponent
+    -- * Task list rendering (polymorphic, for embedding in parent components)
+  , taskListView
   )
 where
 
@@ -27,6 +29,7 @@ import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
+import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.SyncContext
@@ -38,6 +41,7 @@ import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
+import Competences.Query.TaskStatus (TaskCompletionStatus)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Task qualified as V
 import Competences.Frontend.View.Typography qualified as Typography
@@ -281,3 +285,67 @@ viewOneSolution r m sol =
 addSolutionButton :: M.View Model Action
 addSolutionButton =
   Button.secondary (Button.button (Button.IconTextS, Icon.IcnAdd, C.LblAddSolution) AddSolution)
+
+-- ============================================================================
+-- Task list rendering (polymorphic, for parent components)
+-- ============================================================================
+
+-- | Render a list of tasks with disclosures, solutions, and status tinting.
+--
+-- This is the shared rendering function for task lists in parent components
+-- (assignment viewer, resource modal, etc.). Each parent provides:
+--
+-- * A status lookup for header tinting
+-- * Per-task annotations (badges, status dots)
+-- * Per-task extra body content (e.g., related materials)
+-- * An action lifter to wrap 'V.TaskViewAction'
+taskListView
+  :: SyncContext
+  -> V.TaskViewState
+  -> (TaskId -> Maybe TaskCompletionStatus)
+  -- ^ Status lookup (for header tinting)
+  -> (TaskWithSolutions -> [M.View m a])
+  -- ^ Per-task annotations (right of header)
+  -> (TaskId -> [M.View m a])
+  -- ^ Per-task extra body content (appended after solutions)
+  -> (V.TaskViewAction -> a)
+  -- ^ Lift task view actions to parent action type
+  -> [TaskWithSolutions]
+  -> M.View m a
+taskListView _ _ _ _ _ _ [] =
+  Layout.centeredPlaceholder (C.translate' C.LblNoTasksAvailable)
+taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
+  Layout.vFlow Layout.gapM (map renderOne tasks)
+  where
+    renderOne tws =
+      let tid = tws.task.id
+          name = ms (taskDisplayName tws.task)
+          expanded = Set.member tid state.expandedTasks
+          contentPresent = case tws.taskContent of
+            Nothing -> False
+            Just c -> c /= mempty
+          solsPresent = not (null tws.solutions)
+          extra = mkExtraBody tid
+
+          parts = concat
+            [ [ V.taskContentView (renderRichTextWithFiles r.formulaCache r tws.task.attachments rc)
+              | contentPresent
+              , Just rc <- [tws.taskContent]
+              ]
+            , [ renderSolutions tws.solutions | solsPresent ]
+            , extra
+            ]
+
+          mBody = if null parts then Nothing else Just (MH.div_ [class_ "space-y-3"] parts)
+       in V.taskItemView (statusLookup tid) (liftAction (V.ToggleTask tid)) name (mkAnnotations tws) expanded mBody
+
+    renderSolutions sols =
+      MH.div_ [class_ "space-y-1"] (map renderOneSolution sols)
+
+    renderOneSolution sol =
+      let solExpanded = Set.member sol.id state.expandedSolutions
+          rendered =
+            if sol.content == mempty
+              then Typography.muted (C.translate' C.LblNoContent)
+              else V.taskContentView (renderRichText r.formulaCache sol.content)
+       in V.solutionView (V.solutionTypeLabel sol.solutionType) solExpanded rendered (liftAction (V.ToggleSolution sol.id))
