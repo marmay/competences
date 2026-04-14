@@ -273,7 +273,9 @@ renderSolutionList r expandedSet isTeacher mkToggle mkDelete addAction sols =
         <> [addSolButton | isTeacher]
     )
   where
-    addSolButton = Button.secondary (Button.ButtonConfig (Button.IconText Icon.IcnAdd (C.translate' C.LblAddSolution)) (Just addAction))
+    addSolButton =
+      MH.div_ [class_ "flex justify-end"]
+        [Button.ghostSm (Button.ButtonConfig (Button.IconText Icon.IcnAdd (C.translate' C.LblAddSolution)) (Just addAction))]
 
 renderOneSol
   :: SyncContext -> Set SolutionId -> Bool

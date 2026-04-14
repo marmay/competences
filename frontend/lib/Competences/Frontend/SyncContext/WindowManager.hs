@@ -77,10 +77,8 @@ module Competences.Frontend.SyncContext.WindowManager
   )
 where
 
-import Competences.Document (Document (..), Lock (..), LockHolder (..), UserId)
-import Competences.Document.Id (idToText)
+import Competences.Document (Document (..), Lock, LockHolder (..), UserId)
 import Competences.Document.Session (SessionId)
-import Competences.Document.Task (TaskId)
 import Competences.Frontend.View.Icon qualified as Icon
 import Control.Monad (forM_, when)
 import Data.Dynamic (Dynamic, Typeable, fromDynamic, toDyn)
@@ -491,16 +489,18 @@ data LockWatchConfig = LockWatchConfig
   , subscribeDocChanges :: !((Document -> IO ()) -> IO (IO ()))
   -- ^ Subscribe to document changes; returns unsubscribe action.
   -- The callback receives the current document on each change.
-  , ensurePin :: !(WindowEventSink -> Document -> TaskId -> IO ())
-  -- ^ Create a pin for a locked task
+  , ensurePin :: !(WindowEventSink -> Document -> Lock -> IO ())
+  -- ^ Create a pin for a locked entity
+  , lockPinId :: !(Lock -> PinId)
+  -- ^ Map a lock to its pin ID (deterministic, for deduplication)
   , watcherRemovedRef :: !(IORef (Set PinId))
   -- ^ Pins the watcher is about to remove (lock gone). These should NOT
   -- trigger a Release command in the onPinClosed callback.
   }
 
--- | Start watching document locks and maintaining task editor pins accordingly.
+-- | Start watching document locks and maintaining editor pins accordingly.
 --
--- When a TaskLock is held by the current user+session, a task editor pin
+-- When a lock is held by the current user+session, an editor pin
 -- is created. When the lock disappears (released, stolen), the pin is removed.
 -- On pin close (via close button), the lock is released.
 --
@@ -513,35 +513,27 @@ startLockWatching cfg sink = do
   cfg.subscribeDocChanges (onDocumentChange cfg sink prevRef)
 
 -- | Handle a document change: diff locks against previous state.
-onDocumentChange :: LockWatchConfig -> WindowEventSink -> IORef (Set TaskId) -> Document -> IO ()
+onDocumentChange :: LockWatchConfig -> WindowEventSink -> IORef (Set Lock) -> Document -> IO ()
 onDocumentChange cfg sink prevRef doc = do
-  let current = myTaskLocks cfg doc
+  let current = myLocks cfg doc
   prev <- readIORef prevRef
   writeIORef prevRef current
   let added = current `Set.difference` prev
       removed = prev `Set.difference` current
   mapM_ (cfg.ensurePin sink doc) (Set.toList added)
   -- Mark as watcher-initiated before unpinning, so onPinClosed skips the Release
-  forM_ (Set.toList removed) $ \tid -> do
-    let pid = taskPinId tid
+  forM_ (Set.toList removed) $ \lock -> do
+    let pid = cfg.lockPinId lock
     modifyIORef' cfg.watcherRemovedRef (Set.insert pid)
     unpinDialog sink pid
 
--- | Get all TaskIds locked by the current user+session.
-myTaskLocks :: LockWatchConfig -> Document -> Set TaskId
-myTaskLocks cfg doc =
+-- | Get all locks held by the current user+session.
+myLocks :: LockWatchConfig -> Document -> Set Lock
+myLocks cfg doc =
   Set.fromList
-    [ tid
-    | (TaskLock tid, holder) <- Map.toList doc.locks
+    [ lock
+    | (lock, holder) <- Map.toList doc.locks
     , holder.userId == cfg.userId
     , holder.sessionId == cfg.sessionId
     ]
-
--- | Pin key for a task (deterministic, used for deduplication).
-taskPinKey :: TaskId -> Text
-taskPinKey tid = "task-" <> idToText tid
-
--- | Convert a TaskId to a PinId.
-taskPinId :: TaskId -> PinId
-taskPinId = mkPinId . taskPinKey
 
