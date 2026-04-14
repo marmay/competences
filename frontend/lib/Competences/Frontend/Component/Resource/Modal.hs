@@ -14,7 +14,9 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Document (Document, Task (..))
+import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
+import Competences.Document (Document, Task (..), User (..))
+import Competences.Document.Solution (mkSolution)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
@@ -23,7 +25,8 @@ import Competences.Frontend.Component.Task qualified as TaskComp
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.View.Task qualified as VT
 import Competences.Document.Task (TaskId)
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
+import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Button qualified as Button
@@ -117,9 +120,16 @@ resourceModalComponent r cfg =
         , collapsedGroups = Set.empty
         }
 
-    update (TaskListAction action) =
-      M.modify $ \m ->
-        m {taskListState = VT.updateTaskView action m.taskListState}
+    update (TaskListAction action) = do
+      M.modify $ \m -> m {taskListState = VT.updateTaskView action m.taskListState}
+      case action of
+        VT.AddSolution taskId -> M.io_ $ do
+          solId <- nextId r
+          let uid = (syncDocumentEnv r).connectedUser.id
+          modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
+        VT.DeleteSolution solId ->
+          M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
+        _ -> pure ()
 
     update (SwitchViewMode newMode) =
       M.modify $ \m -> m {viewMode = newMode}

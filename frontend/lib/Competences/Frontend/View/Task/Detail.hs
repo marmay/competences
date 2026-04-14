@@ -101,16 +101,18 @@ solutionView
   -- ^ Is expanded
   -> M.View m a
   -- ^ Rendered solution content
+  -> [Disclosure.DisclosureAction m a]
+  -- ^ Header actions (edit, delete — empty for non-teachers)
   -> a
   -- ^ Toggle action
   -> M.View m a
-solutionView typeLabel isExpanded renderedContent toggleAction =
+solutionView typeLabel isExpanded renderedContent actions toggleAction =
   Disclosure.innerDisclosure toggleAction $
     Disclosure.contents
       (Disclosure.titleIconText Icon.IcnSolution typeLabel)
       isExpanded
       renderedContent
-      []
+      actions
 
 -- | Render a solution always visible (no disclosure).
 solutionInlineView :: MisoString -> M.View m a -> M.View m a

@@ -778,16 +778,16 @@ evaluatorComponent r assignment =
             else M.div_ [class_ "space-y-2 mb-3"]
                    (map (viewSolutionItem m) taskSolutions)
 
-    viewSolutionItem m solution =
+    viewSolutionItem _m solution =
       let -- Results type is expanded by default; others collapsed by default
           isExpanded = case solution.solutionType of
-            Results -> not $ Set.member solution.id m.collapsedResults
-            _ -> Set.member solution.id m.collapsedResults
+            Results -> not $ Set.member solution.id _m.collapsedResults
+            _ -> Set.member solution.id _m.collapsedResults
           rendered =
             if solution.content == mempty
-              then Typography.muted "Kein Inhalt"
+              then Typography.muted (C.translate' C.LblNoContent)
               else VT.taskContentView (renderRichText r.formulaCache solution.content)
-       in VT.solutionView (VT.solutionTypeLabel solution.solutionType) isExpanded rendered (ToggleSolutionExpanded solution.id)
+       in VT.solutionView (VT.solutionTypeLabel solution.solutionType) isExpanded rendered [] (ToggleSolutionExpanded solution.id)
 
     viewTaskRemarkButtons m taskId =
       if Set.null (activeStudents m)

@@ -24,24 +24,27 @@ module Competences.Frontend.Component.Task
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Solution (..), Task (..), User (..), UserRole (..))
-import Competences.Document.Solution (SolutionId)
+import Competences.Document.Solution (SolutionId, mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
+  , modifySyncDocument
+  , nextId
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Query.TaskStatus (TaskCompletionStatus)
@@ -100,7 +103,8 @@ data Action
   = ProjectionChanged !(ProjectedChange TaskProjection)
   | ToggleExpanded
   | ToggleSolution !SolutionId
-  | AddSolution
+  | AddSolution !TaskId
+  | DeleteSolution !SolutionId
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -130,7 +134,13 @@ taskComponent r cfg =
               then Set.delete sid m.expandedSolutions
               else Set.insert sid m.expandedSolutions
         }
-    update AddSolution = pure () -- TODO: wire up solution creation
+    update (AddSolution taskId) = M.io_ $ do
+      solId <- nextId r
+      let connectedUserId = (syncDocumentEnv r).connectedUser.id
+          sol = mkSolution solId taskId connectedUserId
+      modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock sol))
+    update (DeleteSolution solId) =
+      M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
 
     view m = case m.projection.task of
       Nothing -> Layout.empty
@@ -162,7 +172,7 @@ viewTask :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
 viewTask r cfg m task =
   let displayName = ms (taskDisplayName task)
       annotations = headerAnnotations r cfg m task
-      body = taskBody r m task
+      body = taskBody r cfg m task
    in case cfg.displayMode of
         TaskInAssignment ->
           V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
@@ -187,17 +197,16 @@ headerAnnotations r cfg m task =
 -- ============================================================================
 
 -- | Body content as a single div.
-taskBody :: SyncContext -> Model -> Task -> M.View Model Action
-taskBody r m task =
-  MH.div_ [class_ "space-y-3"] (bodyParts r m task)
+taskBody :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
+taskBody r cfg m task =
+  MH.div_ [class_ "space-y-3"] (bodyParts r cfg m task)
 
 -- | Body content parts (for compositing into card or flat layout).
-bodyParts :: SyncContext -> Model -> Task -> [M.View Model Action]
-bodyParts r m task =
+bodyParts :: SyncContext -> TaskConfig -> Model -> Task -> [M.View Model Action]
+bodyParts r cfg m task =
   concat
     [ [taskContentRendered r task | hasContent task]
-    , [viewSolutions r m m.projection.solutions | not (null m.projection.solutions)]
-    , [addSolutionButton | m.projection.isTeacher]
+    , [viewSolutions r cfg m m.projection.solutions | not (null m.projection.solutions)]
     ]
 
 hasContent :: Task -> Bool
@@ -238,32 +247,59 @@ taskContentRendered r task = case task.content of
 -- Solutions
 -- ============================================================================
 
-viewSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
-viewSolutions r m =
-  renderSolutionList r.formulaCache m.expandedSolutions (ToggleSolution)
+viewSolutions :: SyncContext -> TaskConfig -> Model -> [Solution] -> M.View Model Action
+viewSolutions r cfg m =
+  renderSolutionList r m.expandedSolutions m.projection.isTeacher
+    ToggleSolution DeleteSolution (AddSolution cfg.taskId)
 
--- | Render a list of solutions with collapsible disclosures.
+-- | Render a list of solutions with collapsible disclosures and optional teacher actions.
 -- Shared between the task component and 'taskListView'.
 renderSolutionList
-  :: FormulaCache
+  :: SyncContext
   -> Set SolutionId
+  -> Bool
+  -- ^ Is teacher (show edit/delete actions and add button)
   -> (SolutionId -> a)
+  -- ^ Toggle expand/collapse
+  -> (SolutionId -> a)
+  -- ^ Delete action
+  -> a
+  -- ^ Add solution action
   -> [Solution]
   -> M.View m a
-renderSolutionList fc expandedSet mkToggle sols =
-  MH.div_ [class_ "space-y-1"] (map renderOne sols)
+renderSolutionList r expandedSet isTeacher mkToggle mkDelete addAction sols =
+  MH.div_ [class_ "space-y-1"]
+    ( map (renderOneSol r expandedSet isTeacher mkToggle mkDelete) sols
+        <> [addSolButton | isTeacher]
+    )
   where
-    renderOne sol =
-      let isExpanded = Set.member sol.id expandedSet
-          rendered =
-            if sol.content == mempty
-              then Typography.muted (C.translate' C.LblNoContent)
-              else V.taskContentView (renderRichText fc sol.content)
-       in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered (mkToggle sol.id)
+    addSolButton = Button.secondary (Button.ButtonConfig (Button.IconText Icon.IcnAdd (C.translate' C.LblAddSolution)) (Just addAction))
 
-addSolutionButton :: M.View Model Action
-addSolutionButton =
-  Button.secondary (Button.button (Button.IconTextS, Icon.IcnAdd, C.LblAddSolution) AddSolution)
+renderOneSol
+  :: SyncContext -> Set SolutionId -> Bool
+  -> (SolutionId -> a) -> (SolutionId -> a)
+  -> Solution -> M.View m a
+renderOneSol r expandedSet isTeacher mkToggle mkDelete sol =
+  let isExpanded = Set.member sol.id expandedSet
+      rendered =
+        if sol.content == mempty
+          then Typography.muted (C.translate' C.LblNoContent)
+          else V.taskContentView (renderRichText r.formulaCache sol.content)
+      actions
+        | isTeacher =
+            [ Disclosure.viewAction (solutionEditButton r sol)
+            , Disclosure.destructiveAction Icon.IcnDelete (mkDelete sol.id)
+            ]
+        | otherwise = []
+   in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered actions (mkToggle sol.id)
+
+-- | LockButton for editing a solution (opens pin editor).
+solutionEditButton :: SyncContext -> Solution -> M.View m a
+solutionEditButton r sol =
+  inlineComponent
+    ("sol-edit-btn-" <> ms (show sol.id))
+    (lockButtonComponent r
+      (LockButtonConfig (SolutionLock sol.id) (Solutions (OnSolutions (Modify sol.id Lock))) Button.IconOnlyS))
 
 -- ============================================================================
 -- Task list rendering (polymorphic, for parent components)
@@ -296,6 +332,8 @@ taskListView _ _ _ _ _ _ [] =
 taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
   Layout.vFlow Layout.gapM (map renderOne tasks)
   where
+    isTeacher = (syncDocumentEnv r).connectedUser.role == Teacher
+
     renderOne tws =
       let tid = tws.task.id
           name = ms (taskDisplayName tws.task)
@@ -311,12 +349,15 @@ taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
               | contentPresent
               , Just rc <- [tws.taskContent]
               ]
-            , [ renderSolutions tws.solutions | solsPresent ]
+            , [ renderSolutions tid tws.solutions | solsPresent ]
             , extra
             ]
 
           mBody = if null parts then Nothing else Just (MH.div_ [class_ "space-y-3"] parts)
        in V.taskItemView (statusLookup tid) (liftAction (V.ToggleTask tid)) name (mkAnnotations tws) expanded mBody
 
-    renderSolutions =
-      renderSolutionList r.formulaCache state.expandedSolutions (liftAction . V.ToggleSolution)
+    renderSolutions tid =
+      renderSolutionList r state.expandedSolutions isTeacher
+        (liftAction . V.ToggleSolution)
+        (liftAction . V.DeleteSolution)
+        (liftAction (V.AddSolution tid))

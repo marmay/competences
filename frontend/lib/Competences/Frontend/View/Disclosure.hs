@@ -43,6 +43,7 @@ module Competences.Frontend.View.Disclosure
   , action
   , destructiveAction
   , holdDestructiveAction
+  , viewAction
 
     -- * Content construction
   , contents
@@ -143,6 +144,12 @@ action icon act = DisclosureAction $ Button.ghostSm (Button.ButtonConfig (Button
 -- | Destructive button action (red, for delete actions).
 destructiveAction :: Icon.Icon -> a -> DisclosureAction m a
 destructiveAction icon act = DisclosureAction $ Button.destructiveSm (Button.ButtonConfig (Button.IconOnly icon) (Just act))
+
+-- | Wrap an arbitrary view as a disclosure action.
+-- Use for inline components (e.g., LockButton) that need to appear
+-- in the disclosure header's action area.
+viewAction :: M.View m a -> DisclosureAction m a
+viewAction = DisclosureAction
 
 -- | Hold-to-delete action (press and hold 2s to confirm).
 holdDestructiveAction :: (Eq id) => (HoldButton.HoldAction id -> a) -> HoldButton.HoldState id -> id -> DisclosureAction m a

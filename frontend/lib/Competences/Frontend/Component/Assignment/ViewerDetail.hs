@@ -12,9 +12,8 @@ import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
-import Competences.Command (Command (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
-import Competences.Command.Common (EntityCommand (..), ModifyCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
@@ -87,6 +86,7 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
+import Competences.Document.Solution (mkSolution)
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task qualified as TaskComp
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
@@ -97,8 +97,10 @@ import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , modifySyncDocument
+  , nextId
   , subscribeWithProjection
   )
+import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
@@ -416,8 +418,16 @@ viewerComponent r user assignment wm =
               & #taskListState .~ newTaskListState
               & #pagePrintModal %~ fmap updateModal
 
-    update (TaskListAction action) =
+    update (TaskListAction action) = do
       M.modify $ \m -> m & #taskListState .~ VT.updateTaskView action m.taskListState
+      case action of
+        VT.AddSolution taskId -> M.io_ $ do
+          solId <- nextId r
+          let uid = (syncDocumentEnv r).connectedUser.id
+          modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
+        VT.DeleteSolution solId ->
+          M.io_ $ modifySyncDocument r $ Solutions (OnSolutions (Delete solId))
+        _ -> pure ()
 
     update (ToggleTaskResourcesExpanded taskId) =
       M.modify $ \m ->

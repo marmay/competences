@@ -35,14 +35,20 @@ data TaskViewState = TaskViewState
 data TaskViewAction
   = ToggleTask !TaskId
   | ToggleSolution !SolutionId
+  | AddSolution !TaskId
+  | DeleteSolution !SolutionId
   deriving (Eq, Show)
 
 -- | Update task view state. Pure function.
+-- Handles expansion state only. 'AddSolution' and 'DeleteSolution'
+-- are side-effectful — the parent must dispatch them to 'modifySyncDocument'.
 updateTaskView :: TaskViewAction -> TaskViewState -> TaskViewState
 updateTaskView (ToggleTask taskId) s =
   s & #expandedTasks .~ toggle taskId s.expandedTasks
 updateTaskView (ToggleSolution solId) s =
   s & #expandedSolutions .~ toggle solId s.expandedSolutions
+updateTaskView (AddSolution _) s = s
+updateTaskView (DeleteSolution _) s = s
 
 -- | Initial state with a given set of expanded tasks.
 -- Solutions start collapsed.
