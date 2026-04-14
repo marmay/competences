@@ -790,7 +790,6 @@ viewerComponent r user assignment wm =
       let taskId = tws.task.id
           displayName = ms (taskDisplayName tws.task)
           isExpanded = Set.member taskId m.taskListState.expandedTasks
-          mPalette = VT.taskStatusPalette (Map.lookup taskId proj.taskStatuses)
           hasContent = case tws.taskContent of
             Nothing -> False
             Just c -> c /= mempty
@@ -808,7 +807,7 @@ viewerComponent r user assignment wm =
               , [VT.assessmentStar tws.taskPurpose | showPurpose]
               ]
 
-          body = M.div_ [class_ "space-y-3"] $ concat
+          bodyParts = concat
             [ [ VT.taskContentView (renderRichTextWithFiles syncCtx.formulaCache syncCtx tws.task.attachments rc)
               | hasContent
               , Just rc <- [tws.taskContent]
@@ -816,10 +815,9 @@ viewerComponent r user assignment wm =
             , [ viewTaskSolutions syncCtx m tws.solutions | hasSolutions ]
             , extra
             ]
-       in if hasContent || hasSolutions || not (null extra)
-            then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
-            else
-              VT.taskStaticHeader displayName (VT.taskStatusHeaderBg (Map.lookup taskId proj.taskStatuses)) annotations
+
+          mBody = if null bodyParts then Nothing else Just (M.div_ [class_ "space-y-3"] bodyParts)
+       in VT.taskItemView (Map.lookup taskId proj.taskStatuses) (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded mBody
 
     viewTaskSolutions :: SyncContext -> ViewerModel -> [Solution] -> M.View ViewerModel ViewerAction
     viewTaskSolutions syncCtx m sols =

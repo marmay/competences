@@ -14,6 +14,7 @@ module Competences.Frontend.View.Task.Detail
   , solutionInlineView
   , solutionTypeLabel
     -- * Composites
+  , taskItemView
   , taskDisclosureView
   , taskStaticHeader
   , taskCardView
@@ -28,7 +29,9 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
+import Competences.Frontend.View.Task.Badge (taskStatusHeaderBg, taskStatusPalette)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Query.TaskStatus (TaskCompletionStatus)
 import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -119,6 +122,25 @@ solutionInlineView typeLabel renderedContent =
 -- ============================================================================
 -- Composites
 -- ============================================================================
+
+-- | Render a task item: disclosure if there's body content, static header otherwise.
+-- This is the main entry point for rendering a task in a list context.
+taskItemView
+  :: Maybe TaskCompletionStatus
+  -> a
+  -- ^ Toggle action
+  -> MisoString
+  -- ^ Display name
+  -> [M.View m a]
+  -- ^ Header annotations (right side)
+  -> Bool
+  -- ^ Expanded
+  -> Maybe (M.View m a)
+  -- ^ Body content ('Nothing' for non-expandable tasks)
+  -> M.View m a
+taskItemView mStatus toggleAction displayName annotations isExpanded = \case
+  Just body -> taskDisclosureView (taskStatusPalette mStatus) toggleAction displayName annotations isExpanded body
+  Nothing -> taskStaticHeader displayName (taskStatusHeaderBg mStatus) annotations
 
 -- | Collapsible task view (disclosure). For use in assignment task lists.
 --

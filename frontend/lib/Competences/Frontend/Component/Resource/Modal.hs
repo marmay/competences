@@ -222,7 +222,6 @@ viewModalTask r m showPurpose taskExtra tws =
   let taskId = tws.task.id
       displayName = M.ms (taskDisplayName tws.task)
       isExpanded = Set.member taskId m.taskListState.expandedTasks
-      mPalette = VT.taskStatusPalette (Map.lookup taskId m.config.taskStatuses)
       hasContent = case tws.taskContent of
         Nothing -> False
         Just c -> c /= mempty
@@ -234,16 +233,15 @@ viewModalTask r m showPurpose taskExtra tws =
         , [VT.assessmentStar tws.taskPurpose | showPurpose]
         ]
 
-      body = MH.div_ [class_ "space-y-3"] $ concat
+      bodyParts = concat
         [ [ VT.taskContentView (renderRichTextWithFiles r.formulaCache r tws.task.attachments rc)
           | hasContent, Just rc <- [tws.taskContent]
           ]
         , [ viewModalSolutions r m tws.solutions | hasSolutions ]
         ]
-   in if hasContent || hasSolutions
-        then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
-        else
-          VT.taskStaticHeader displayName (VT.taskStatusHeaderBg (Map.lookup taskId m.config.taskStatuses)) annotations
+
+      mBody = if null bodyParts then Nothing else Just (MH.div_ [class_ "space-y-3"] bodyParts)
+   in VT.taskItemView (Map.lookup taskId m.config.taskStatuses) (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded mBody
 
 viewModalSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
 viewModalSolutions r m sols =
