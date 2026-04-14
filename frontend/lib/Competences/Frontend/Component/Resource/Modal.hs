@@ -243,14 +243,7 @@ viewModalTask r m showPurpose taskExtra tws =
    in if hasContent || hasSolutions
         then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
         else
-          MH.div_
-            [class_ "border rounded-lg overflow-hidden"]
-            [ MH.div_
-                [class_ $ "flex items-center justify-between px-3 py-2 " <> VT.taskStatusHeaderBg (Map.lookup taskId m.config.taskStatuses)]
-                [ VT.taskHeader displayName
-                , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
-                ]
-            ]
+          VT.taskStaticHeader displayName (VT.taskStatusHeaderBg (Map.lookup taskId m.config.taskStatuses)) annotations
 
 viewModalSolutions :: SyncContext -> Model -> [Solution] -> M.View Model Action
 viewModalSolutions r m sols =
@@ -261,6 +254,6 @@ viewModalOneSolution r m sol =
   let isExpanded = Set.member sol.id m.taskListState.expandedSolutions
       rendered =
         if sol.content == mempty
-          then Typography.muted "Kein Inhalt"
+          then Typography.muted (C.translate' C.LblNoContent)
           else VT.taskContentView (renderRichText r.formulaCache sol.content)
    in VT.solutionView (VT.solutionTypeLabel sol.solutionType) isExpanded rendered (TaskListAction (VT.ToggleSolution sol.id))

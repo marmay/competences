@@ -15,6 +15,7 @@ module Competences.Frontend.View.Task.Detail
   , solutionTypeLabel
     -- * Composites
   , taskDisclosureView
+  , taskStaticHeader
   , taskCardView
   )
 where
@@ -28,6 +29,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
@@ -144,6 +146,26 @@ taskDisclosureView mPalette toggleAction displayName annotations isExpanded body
   let title = taskHeaderWithBadges displayName annotations
    in Disclosure.maybePaletteDisclosure mPalette toggleAction $
         Disclosure.contents title isExpanded body []
+
+-- | Non-expandable task header (no body content).
+-- Renders a bordered row with task name and annotations.
+taskStaticHeader
+  :: MisoString
+  -- ^ Display name
+  -> Text
+  -- ^ Header background class (e.g., from 'taskStatusHeaderBg')
+  -> [M.View m a]
+  -- ^ Annotations (right side)
+  -> M.View m a
+taskStaticHeader displayName headerBg annotations =
+  MH.div_
+    [class_ "border rounded-lg overflow-hidden"]
+    [ MH.div_
+        [class_ $ "flex items-center justify-between px-3 py-2 " <> headerBg]
+        [ taskHeader displayName
+        , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
+        ]
+    ]
 
 -- | Always-expanded task card. For use in lesson notes, task detail, etc.
 --

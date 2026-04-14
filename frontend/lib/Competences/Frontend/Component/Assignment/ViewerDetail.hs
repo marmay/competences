@@ -819,14 +819,7 @@ viewerComponent r user assignment wm =
        in if hasContent || hasSolutions || not (null extra)
             then VT.taskDisclosureView mPalette (TaskListAction (VT.ToggleTask taskId)) displayName annotations isExpanded body
             else
-              M.div_
-                [class_ "border rounded-lg overflow-hidden"]
-                [ M.div_
-                    [class_ $ "flex items-center justify-between px-3 py-2 " <> VT.taskStatusHeaderBg (Map.lookup taskId proj.taskStatuses)]
-                    [ VT.taskHeader displayName
-                    , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
-                    ]
-                ]
+              VT.taskStaticHeader displayName (VT.taskStatusHeaderBg (Map.lookup taskId proj.taskStatuses)) annotations
 
     viewTaskSolutions :: SyncContext -> ViewerModel -> [Solution] -> M.View ViewerModel ViewerAction
     viewTaskSolutions syncCtx m sols =
@@ -838,7 +831,7 @@ viewerComponent r user assignment wm =
       let isExpanded = Set.member sol.id m.taskListState.expandedSolutions
           rendered =
             if sol.content == mempty
-              then Typography.muted "Kein Inhalt"
+              then Typography.muted (C.translate' C.LblNoContent)
               else VT.taskContentView (renderRichText syncCtx.formulaCache sol.content)
        in VT.solutionView (VT.solutionTypeLabel sol.solutionType) isExpanded rendered (TaskListAction (VT.ToggleSolution sol.id))
 

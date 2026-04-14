@@ -162,7 +162,7 @@ viewTaskDisclosure :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model
 viewTaskDisclosure r cfg m task =
   let displayName = ms (taskDisplayName task)
       annotations = headerAnnotations r cfg m task
-      body = taskBody r m task cfg.displayMode
+      body = taskBody r m task
    in V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
 
 -- | Flat expanded view (task detail pane).
@@ -171,7 +171,7 @@ viewTaskFlat r cfg m task =
   MH.div_
     [class_ "space-y-4"]
     ( headerBar r cfg m task
-        : bodyParts r m task cfg.displayMode
+        : bodyParts r m task
     )
 
 -- | Content-card framed view (lesson notes).
@@ -180,7 +180,7 @@ viewTaskCard r cfg m task =
   let displayName = ms (taskDisplayName task)
    in V.taskCardView displayName
         ( headerAnnotationBar r cfg m task
-            : bodyParts r m task cfg.displayMode
+            : bodyParts r m task
         )
 
 -- ============================================================================
@@ -217,13 +217,13 @@ headerAnnotations r cfg m task =
 -- ============================================================================
 
 -- | Body content as a single div.
-taskBody :: SyncContext -> Model -> Task -> TaskDisplayMode -> M.View Model Action
-taskBody r m task mode =
-  MH.div_ [class_ "space-y-3"] (bodyParts r m task mode)
+taskBody :: SyncContext -> Model -> Task -> M.View Model Action
+taskBody r m task =
+  MH.div_ [class_ "space-y-3"] (bodyParts r m task)
 
 -- | Body content parts (for compositing into card or flat layout).
-bodyParts :: SyncContext -> Model -> Task -> TaskDisplayMode -> [M.View Model Action]
-bodyParts r m task _mode =
+bodyParts :: SyncContext -> Model -> Task -> [M.View Model Action]
+bodyParts r m task =
   concat
     [ [taskContentRendered r task | hasContent task]
     , [viewSolutions r m m.projection.solutions | not (null m.projection.solutions)]
@@ -274,7 +274,7 @@ viewOneSolution r m sol =
   let isExpanded = Set.member sol.id m.expandedSolutions
       rendered =
         if sol.content == mempty
-          then Typography.muted "Kein Inhalt"
+          then Typography.muted (C.translate' C.LblNoContent)
           else V.taskContentView (renderRichText r.formulaCache sol.content)
    in V.solutionView (V.solutionTypeLabel sol.solutionType) isExpanded rendered (ToggleSolution sol.id)
 
