@@ -16,6 +16,7 @@ import Competences.Document.Id (idToText)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
+import Competences.Frontend.Component.Task.SolutionPinEditor (solutionPinEditor)
 import Competences.Frontend.SyncContext.SyncDocument
   ( DocumentChange (..)
   , SyncContext (..)
@@ -116,10 +117,18 @@ ensureTaskPin r sink taskId doc =
 
 ensureSolutionPin :: SyncContext -> WindowEventSink -> SolutionId -> Document -> IO ()
 ensureSolutionPin r sink solId doc =
-  -- Open the parent task's pin editor (solutions are edited within their task)
-  case Ix.getOne (doc.solutions Ix.@= solId) of
-    Just sol -> ensureTaskPin r sink sol.taskId doc
-    Nothing -> pure ()
+  let mSol = Ix.getOne (doc.solutions Ix.@= solId)
+      mTask = mSol >>= \sol -> Ix.getOne (doc.tasks Ix.@= sol.taskId)
+      title = maybe ("Lösung" :: MisoString) (\t -> ms (taskDisplayName t) <> " – Lösung") mTask
+      pid = lockPinId' (SolutionLock solId)
+      meta = PinMeta
+        { key = "solution-" <> idToText solId
+        , category = PinCatTask
+        , sortKey = SortKey [SortAtom solId]
+        , context = Nothing
+        }
+      chrome = WindowChrome title Icon.IcnSolution (Just Icon.IcnEdit)
+   in pinDialogWith sink meta chrome (solutionPinEditor r solId pid)
 
 -- ============================================================================
 -- Config
