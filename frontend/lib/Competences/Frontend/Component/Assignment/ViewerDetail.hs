@@ -791,15 +791,18 @@ viewerComponent r user assignment wm =
 
     taskAnnotations :: ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
     taskAnnotations proj showPurpose tws =
-      concat
-        [ [ M.div_ [class_ "flex items-center gap-1"]
-              ( viewTaskRemarkBadges proj.taskRemarkMap tws.task.id
-                  <> [viewTaskCompletionStatusFromMap proj.taskStatuses tws.task.id]
-              )
-          ]
-        , [VT.purposeBadge tws.taskPurpose | showPurpose]
-        , [VT.assessmentStar tws.taskPurpose | showPurpose]
-        ]
+      let taskId = tws.task.id
+          taskOrigin = if Set.member taskId proj.draftTaskIds then Draft else proj.origin
+       in concat
+            [ [ M.div_ [class_ "flex items-center gap-1"]
+                  ( viewTaskRemarkBadges proj.taskRemarkMap taskId
+                      <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
+                  )
+              ]
+            , [VT.purposeBadge tws.taskPurpose | showPurpose]
+            , [VT.assessmentStar tws.taskPurpose | showPurpose]
+            , [TaskComp.taskEditButton r taskOrigin tws.task | proj.connectedUserRole == Teacher]
+            ]
 
     isDone :: Maybe TaskCompletionStatus -> Bool
     isDone (Just (TaskDone _)) = True

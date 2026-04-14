@@ -18,6 +18,7 @@ import Competences.Document (Document, Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Task qualified as TaskComp
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.View.Task qualified as VT
@@ -209,14 +210,15 @@ viewModalTaskList r m taskExtra =
     r
     m.taskListState
     (`Map.lookup` m.config.taskStatuses)
-    (modalAnnotations m taskExtra)
+    (modalAnnotations r m taskExtra)
     (const [])
     TaskListAction
 
-modalAnnotations :: Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
-modalAnnotations m taskExtra tws =
+modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
+modalAnnotations r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [VT.purposeBadge tws.taskPurpose | m.config.showPurposeBadge]
     , [VT.assessmentStar tws.taskPurpose | m.config.showPurposeBadge]
+    , [TaskComp.taskEditButton r Published tws.task]
     ]

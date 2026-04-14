@@ -19,6 +19,8 @@ module Competences.Frontend.Component.Task
   , taskComponent
     -- * Task list rendering (polymorphic, for embedding in parent components)
   , taskListView
+    -- * Standalone edit button (polymorphic, for use in annotations)
+  , taskEditButton
   )
 where
 
@@ -244,8 +246,13 @@ hasContent task = case task.content of
 -- ============================================================================
 
 editButton :: SyncContext -> TaskConfig -> Task -> M.View Model Action
-editButton r cfg task =
-  let wrap = wrapForOrigin cfg.origin
+editButton r cfg task = taskEditButton r cfg.origin task
+
+-- | Standalone edit button for a task. Polymorphic — can be used in any
+-- parent component's annotations. Opens the pin editor for the task.
+taskEditButton :: SyncContext -> EntityOrigin -> Task -> M.View m a
+taskEditButton r origin task =
+  let wrap = wrapForOrigin origin
    in inlineComponent
         ("task-edit-btn-" <> ms (show task.id))
         (lockButtonComponent r
