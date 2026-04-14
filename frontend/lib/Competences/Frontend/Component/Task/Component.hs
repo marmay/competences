@@ -51,6 +51,8 @@ data TaskDisplayMode
   = TaskInAssignment
   | TaskInDetail
   | TaskInLessonNotes
+  | TaskPreview
+  -- ^ Collapsible, content only (no solutions, no edit button)
   deriving (Eq, Show)
 
 -- ============================================================================
@@ -92,7 +94,7 @@ taskComponent r cfg =
   where
     model = Model
       { projection = TaskProjection Nothing [] False False
-      , expanded = cfg.displayMode /= TaskInAssignment
+      , expanded = cfg.displayMode `notElem` [TaskInAssignment, TaskPreview]
       , expandedSolutions = Set.empty
       }
 
@@ -149,6 +151,8 @@ viewTask r cfg m task =
    in case cfg.displayMode of
         TaskInAssignment ->
           V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
+        TaskPreview ->
+          V.taskDisclosureView Nothing ToggleExpanded displayName [] m.expanded body
         _ ->
           V.taskOpenView displayName annotations body
 
@@ -165,7 +169,10 @@ taskBody r cfg m task =
   MH.div_ [class_ "space-y-3"] $
     concat
       [ [taskContentRendered r task | hasContent task]
-      , [viewSolutions r cfg m m.projection.solutions | not (null m.projection.solutions)]
+      , [ viewSolutions r cfg m m.projection.solutions
+        | cfg.displayMode /= TaskPreview
+        , not (null m.projection.solutions)
+        ]
       ]
 
 hasContent :: Task -> Bool
