@@ -1,25 +1,22 @@
--- | Read-only task detail view with LockButton for pin-based editing.
+-- | Task detail view for the task editor.
+--
+-- Renders the assignment refs banner above a standard task component.
+-- The task itself is rendered identically to how it appears in assignments.
 module Competences.Frontend.Component.TaskEditor.TaskDetailView
   ( taskDetailView
   )
 where
 
-import Competences.Command (Command (..), ModifyCommand (..), TasksCommand (..), EntityCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), Task (..), User)
-import Competences.Document.Assignment (Assignment (..), AssignmentName (..))
-import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Task (TaskId, taskDisplayName)
+import Competences.Document (Assignment (..), Document (..), Task (..), User)
+import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.Frontend.Component.TaskEditor.TaskSolutionsList (taskSolutionsListComponent)
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.Task qualified as TaskComp
 import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -65,62 +62,19 @@ assignmentRefsBanner r taskId =
         [class_ "rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800"]
         content
 
--- | Read-only detail view for a task with LockButton to open pin editor
+-- | Task detail view: assignment refs banner + standard task component.
 taskDetailView
   :: SyncContext
   -> EntityOrigin
   -> Task
   -> M.View p a
 taskDetailView r origin task =
-  let wrap = wrapForOrigin origin
-   in MH.div_
-    [class_ "space-y-6"]
+  MH.div_
+    [class_ "space-y-4"]
     [ inlineComponent
         ("task-assignment-refs-" <> ms (show task.id))
         (assignmentRefsBanner r task.id)
-    , -- Header with title and LockButton
-      MH.div_
-        [class_ "flex items-center justify-between"]
-        [ MH.div_
-            []
-            [ Typography.h3 (ms (taskDisplayName task))
-            ]
-        , inlineComponent
-            ("task-lock-btn-" <> ms (show task.id))
-            (lockButtonComponent r
-              (LockButtonConfig (TaskLock task.id) (wrap (Tasks (OnTasks (Modify task.id Lock)))) Button.IconTextS))
-        ]
-    , -- Task fields (read-only)
-      MH.div_
-        [class_ "space-y-4"]
-        [ field (C.translate' C.LblTaskPurposeLabel) $
-            M.text (C.translate' (C.LblTaskPurpose task.purpose))
-        , field (C.translate' C.LblTaskPrimaryCompetences) $
-            competenceList task.primary
-        , field (C.translate' C.LblTaskSecondaryCompetences) $
-            competenceList task.secondary
-        , case task.content of
-            Nothing -> M.text ""
-            Just content ->
-              field (C.translate' C.LblTaskContent) $
-                renderRichText r.formulaCache content
-        ]
-    , -- Solutions list
-      inlineComponent
-        ("task-solutions-" <> ms (show task.id))
-        (taskSolutionsListComponent r task.id)
+    , inlineComponent
+        ("task-detail-" <> ms (show task.id))
+        (TaskComp.taskComponent r (TaskComp.TaskConfig task.id origin TaskComp.TaskInDetail))
     ]
-  where
-    field label content =
-      MH.div_
-        [class_ "space-y-1"]
-        [ MH.div_ [class_ "text-sm font-medium text-stone-500"] [M.text label]
-        , MH.div_ [] [content]
-        ]
-
-    competenceList :: [CompetenceLevelId] -> M.View p a
-    competenceList [] = Typography.placeholder (C.translate' C.LblNoCompetences)
-    competenceList comps =
-      MH.div_
-        [class_ "text-sm text-stone-600"]
-        [M.text (ms (show (length comps)) <> " " <> C.translate' C.LblCompetence)]
