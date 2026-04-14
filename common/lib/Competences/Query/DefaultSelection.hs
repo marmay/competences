@@ -3,6 +3,7 @@ module Competences.Query.DefaultSelection
   , defaultCompetenceGrid
   , defaultLessonNotes
   , defaultMesoPlan
+  , defaultTask
   )
 where
 
@@ -10,6 +11,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentIxs)
 import Competences.Document.CompetenceGrid (CompetenceGrid (..), CompetenceGridIxs)
+import Competences.Document.Task (Task, TaskIdentifier, TaskIxs)
 import Competences.Document.LessonNotes (LessonNotes (..), LessonNotesIxs)
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanIxs)
 import Competences.Document.Order (Order)
@@ -36,6 +38,11 @@ defaultCompetenceGrid grids =
 defaultLessonNotes :: Day -> Ix.IxSet LessonNotesIxs LessonNotes -> Maybe LessonNotes
 defaultLessonNotes today notes =
   listToMaybe $ Ix.toAscList (Proxy @Day) $ notes Ix.@>= today
+
+-- | First task by identifier (alphabetical order).
+defaultTask :: Ix.IxSet TaskIxs Task -> Maybe Task
+defaultTask tasks =
+  listToMaybe $ Ix.toAscList (Proxy @TaskIdentifier) tasks
 
 -- | Last meso plan whose dateFrom <= today.
 defaultMesoPlan :: Day -> Ix.IxSet MesoPlanIxs MesoPlan -> Maybe MesoPlan

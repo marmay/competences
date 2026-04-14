@@ -3,6 +3,9 @@ module Competences.Frontend.Page
   )
 where
 
+import Control.Applicative ((<|>))
+import Competences.Document.Task (TaskId)
+import Competences.Frontend.Common.MisoId ()
 import Data.Functor (($>))
 import Miso qualified as M
 import Miso.Router qualified as M
@@ -11,7 +14,7 @@ data Page
   = CompetenceGrid
   | Planning
   | Evidences
-  | ManageTasks
+  | ManageTasks !(Maybe TaskId)
   | ManageResources
   | ManageLessonNotes
   | ViewAssignments
@@ -28,7 +31,7 @@ instance M.Router Page where
         [ M.path "grid" $> CompetenceGrid
         , M.path "planning" $> Planning
         , M.path "evidences" $> Evidences
-        , M.path "tasks" $> ManageTasks
+        , M.path "tasks" *> (ManageTasks . Just <$> M.capture <|> pure (ManageTasks Nothing))
         , M.path "resources" $> ManageResources
         , M.path "lesson-notes" $> ManageLessonNotes
         , M.path "assignments" $> ViewAssignments
@@ -40,7 +43,8 @@ instance M.Router Page where
   fromRoute CompetenceGrid = [M.toPath "app", M.toPath "grid"]
   fromRoute Planning = [M.toPath "app", M.toPath "planning"]
   fromRoute Evidences = [M.toPath "app", M.toPath "evidences"]
-  fromRoute ManageTasks = [M.toPath "app", M.toPath "tasks"]
+  fromRoute (ManageTasks Nothing) = [M.toPath "app", M.toPath "tasks"]
+  fromRoute (ManageTasks (Just tid)) = [M.toPath "app", M.toPath "tasks", M.toCapture tid]
   fromRoute ManageResources = [M.toPath "app", M.toPath "resources"]
   fromRoute ManageLessonNotes = [M.toPath "app", M.toPath "lesson-notes"]
   fromRoute ViewAssignments = [M.toPath "app", M.toPath "assignments"]

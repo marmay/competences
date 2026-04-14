@@ -128,7 +128,7 @@ mkApp ir initialUri =
         CompetenceGrid -> competenceGrid
         Planning -> planning
         Evidences -> evidences
-        ManageTasks -> manageTasks
+        ManageTasks mTaskId -> manageTasks mTaskId
         ManageResources -> manageResources
         ManageLessonNotes -> manageLessonNotes
         ViewAssignments -> viewAssignments
@@ -145,7 +145,7 @@ mkApp ir initialUri =
         else GridView :| []
     planning = mounted Planning $ planningComponent ir
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
-    manageTasks = mounted ManageTasks $ taskEditorComponent ir
+    manageTasks mTaskId = mounted (ManageTasks mTaskId) $ taskEditorComponent ir mTaskId
     manageResources = mounted ManageResources $ resourceEditorComponent ir
     manageLessonNotes = mounted ManageLessonNotes $ lessonNotesComponent ir lessonNotesDefaultMode lessonNotesAvailableModes lessonNotesCanCreate
     lessonNotesDefaultMode = if isTeacher model.connectedUser then LessonNotesEdit else LessonNotesView

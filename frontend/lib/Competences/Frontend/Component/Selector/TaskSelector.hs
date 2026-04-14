@@ -17,6 +17,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
+import Competences.Frontend.SyncContext.SyncDocument (isInitialUpdate)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -61,8 +62,13 @@ data Action
   deriving (Eq, Show)
 
 taskSelectorComponent
-  :: SyncContext -> Lens' p (Maybe SelectedTask) -> M.Component p Model Action
-taskSelectorComponent r parentLens =
+  :: SyncContext
+  -> Maybe (Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask)
+  -- ^ Initial selection function (applied once on first document load).
+  -- Takes published+draft tasks and the set of draft task IDs.
+  -> Lens' p (Maybe SelectedTask)
+  -> M.Component p Model Action
+taskSelectorComponent r initialSelection parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -115,10 +121,14 @@ taskSelectorComponent r parentLens =
                 Just t' -> Just (SelectedTask (taskOrigin t'.id) t')
                 Nothing -> m.newItem
             Nothing -> Nothing
+          -- Apply initial selection on first document load when nothing is selected
+          selected' = case (isInitialUpdate dc.change, validatedSelected, initialSelection) of
+            (True, Nothing, Just f) -> f mergedTasks draftTaskIds'
+            _ -> validatedSelected
        in m
             { allTasks = mergedTasks
             , draftTaskIds = draftTaskIds'
-            , selectedItem = validatedSelected
+            , selectedItem = selected'
             , newItem = validatedNew
             }
 
