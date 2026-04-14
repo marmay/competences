@@ -15,7 +15,7 @@ import Competences.Document (Document (..), Lock (..), Solution (..), User (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
-import Competences.Frontend.Component.TaskPinEditor (taskPinEditor)
+import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
 import Competences.Frontend.SyncContext.SyncDocument
   ( DocumentChange (..)
   , SyncContext (..)
