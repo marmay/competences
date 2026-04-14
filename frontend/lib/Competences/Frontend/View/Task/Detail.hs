@@ -16,6 +16,7 @@ module Competences.Frontend.View.Task.Detail
     -- * Composites
   , taskItemView
   , taskDisclosureView
+  , taskOpenView
   , taskStaticHeader
   , taskCardView
   )
@@ -168,6 +169,20 @@ taskDisclosureView mPalette toggleAction displayName annotations isExpanded body
   let title = taskHeaderWithBadges displayName annotations
    in Disclosure.maybePaletteDisclosure mPalette toggleAction $
         Disclosure.contents title isExpanded body []
+
+-- | Always-open task view (same frame as disclosure, no chevron or toggle).
+-- For use in task detail, lesson notes, etc.
+taskOpenView
+  :: MisoString
+  -- ^ Display name
+  -> [M.View m a]
+  -- ^ Header annotations (right side)
+  -> M.View m a
+  -- ^ Body content
+  -> M.View m a
+taskOpenView displayName annotations body =
+  Disclosure.staticDisclosure $
+    Disclosure.contents (taskHeaderWithBadges displayName annotations) True body []
 
 -- | Non-expandable task header (no body content).
 -- Renders a bordered row with task name and annotations.

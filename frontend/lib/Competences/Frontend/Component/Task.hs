@@ -39,6 +39,7 @@ import Competences.Frontend.SyncContext
   , SyncContext (..)
   , subscribeWithProjection
   )
+import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
@@ -109,7 +110,7 @@ data Action
 taskComponent :: SyncContext -> TaskConfig -> M.Component p Model Action
 taskComponent r cfg =
   (M.component model update view)
-    { M.subs = [subscribeWithProjection r (taskProjection cfg) ProjectionChanged]
+    { M.subs = [subscribeWithProjection r (taskProjection r cfg) ProjectionChanged]
     }
   where
     model = Model
@@ -139,75 +140,38 @@ taskComponent r cfg =
 -- Projection
 -- ============================================================================
 
-taskProjection :: TaskConfig -> Document -> Maybe User -> TaskProjection
-taskProjection cfg doc mUser =
+taskProjection :: SyncContext -> TaskConfig -> Document -> Maybe User -> TaskProjection
+taskProjection r cfg doc mUser =
   let mTask = case cfg.origin of
         Published -> Ix.getOne (doc.tasks Ix.@= cfg.taskId)
         Draft -> Ix.getOne (doc.draftTasks Ix.@= cfg.taskId)
       solutions = Ix.toList (doc.solutions Ix.@= cfg.taskId)
-      isTeacher = case mUser of
-        Just u -> u.role == Teacher
-        Nothing -> False
+      connectedUser :: User
+      connectedUser = (syncDocumentEnv r).connectedUser
+      connectedRole = connectedUser.role
       hasFocusedStudent = case mUser of
         Just u -> u.role == Student
         Nothing -> False
-   in TaskProjection mTask solutions isTeacher hasFocusedStudent
+   in TaskProjection mTask solutions (connectedRole == Teacher) hasFocusedStudent
 
 -- ============================================================================
 -- View
 -- ============================================================================
 
 viewTask :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-viewTask r cfg m task = case cfg.displayMode of
-  TaskInAssignment -> viewTaskDisclosure r cfg m task
-  TaskInDetail -> viewTaskFlat r cfg m task
-  TaskInLessonNotes -> viewTaskCard r cfg m task
-
--- | Collapsible disclosure view (assignments).
-viewTaskDisclosure :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-viewTaskDisclosure r cfg m task =
+viewTask r cfg m task =
   let displayName = ms (taskDisplayName task)
       annotations = headerAnnotations r cfg m task
       body = taskBody r m task
-   in V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
-
--- | Flat expanded view (task detail pane).
-viewTaskFlat :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-viewTaskFlat r cfg m task =
-  MH.div_
-    [class_ "space-y-4"]
-    ( headerBar r cfg m task
-        : bodyParts r m task
-    )
-
--- | Content-card framed view (lesson notes).
-viewTaskCard :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-viewTaskCard r cfg m task =
-  let displayName = ms (taskDisplayName task)
-   in V.taskCardView displayName
-        ( headerAnnotationBar r cfg m task
-            : bodyParts r m task
-        )
+   in case cfg.displayMode of
+        TaskInAssignment ->
+          V.taskDisclosureView Nothing ToggleExpanded displayName annotations m.expanded body
+        _ ->
+          V.taskOpenView displayName annotations body
 
 -- ============================================================================
 -- Header
 -- ============================================================================
-
--- | Full header bar with title + annotations (for flat mode).
-headerBar :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-headerBar r cfg m task =
-  MH.div_
-    [class_ "flex items-center justify-between"]
-    [ V.taskHeader (ms (taskDisplayName task))
-    , Layout.hFlow (Layout.gapS <> Layout.crossCenter) (headerAnnotations r cfg m task)
-    ]
-
--- | Just the annotations as a horizontal bar (for card mode body).
-headerAnnotationBar :: SyncContext -> TaskConfig -> Model -> Task -> M.View Model Action
-headerAnnotationBar r cfg m task =
-  case headerAnnotations r cfg m task of
-    [] -> Layout.empty
-    anns -> MH.div_ [class_ "px-3 pt-2"] [Layout.hFlow (Layout.gapS <> Layout.crossCenter) anns]
 
 -- | Context-driven header annotations.
 headerAnnotations :: SyncContext -> TaskConfig -> Model -> Task -> [M.View Model Action]

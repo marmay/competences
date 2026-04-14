@@ -55,6 +55,7 @@ module Competences.Frontend.View.Disclosure
 
     -- * Presentation functions
   , disclosure
+  , staticDisclosure
   , innerDisclosure
   , popDisclosure
   , innerPopDisclosure
@@ -200,6 +201,11 @@ titleWithAnnotation left right =
 disclosure :: a -> DisclosureContents m a -> M.View m a
 disclosure = disclosureImpl DisclosureDefault MutedHeader
 
+-- | Non-collapsible disclosure: same bordered frame and header as 'disclosure',
+-- but without a chevron or click handler. Body is always visible.
+staticDisclosure :: DisclosureContents m a -> M.View m a
+staticDisclosure = staticDisclosureImpl DisclosureDefault MutedHeader
+
 -- | Disclosure with nested style (no border, reduced padding).
 --
 -- Use inside another disclosure for hierarchical content.
@@ -261,6 +267,57 @@ data HeaderColor
   = MutedHeader
   | PopHeader
   | PaletteHeader !PaletteName
+
+-- | Static (non-collapsible) implementation. Same frame as 'disclosureImpl'
+-- but no chevron, no click handler, body always shown.
+staticDisclosureImpl
+  :: DisclosureStyle
+  -> HeaderColor
+  -> DisclosureContents m a
+  -> M.View m a
+staticDisclosureImpl style headerColor dc =
+  MH.div_
+    [class_ containerClasses]
+    [ MH.div_
+        [class_ headerWrapperClasses]
+        [ Layout.addClass headerLayoutClasses $
+            Layout.hFlow
+              (Layout.hFull <> Layout.crossCenter)
+              (titleView : actionsView)
+        ]
+    , bodySection
+    ]
+  where
+    containerClasses = case style of
+      DisclosureDefault -> "border rounded-lg overflow-hidden" :: Text
+      DisclosureNested -> "rounded overflow-hidden"
+
+    headerBg = case headerColor of
+      MutedHeader -> "bg-muted/50" :: Text
+      PopHeader -> "bg-primary text-primary-foreground"
+      PaletteHeader p -> bgClass Base p
+
+    headerLayoutClasses = case style of
+      DisclosureDefault -> "gap-3" :: Text
+      DisclosureNested -> "gap-2"
+
+    headerWrapperClasses = case style of
+      DisclosureDefault -> "px-3 py-2 " <> headerBg
+      DisclosureNested -> "px-2 py-1.5 " <> headerBg
+
+    titleView = MH.div_ [class_ "flex-1 min-w-0"] [dc.title]
+
+    actionsView = case dc.actions of
+      [] -> []
+      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow Layout.gapT (map renderAction as)]]
+
+    bodySection = case dc.body of
+      Nothing -> M.text ""
+      Just bodyView ->
+        let bodyClasses = case style of
+              DisclosureDefault -> "px-3 py-3" :: Text
+              DisclosureNested -> "px-2 py-2"
+         in MH.div_ [class_ bodyClasses] [bodyView]
 
 -- | Core implementation for all disclosure variants.
 disclosureImpl
