@@ -186,7 +186,7 @@ taskBody r cfg m task =
       [ [taskContentRendered r task | hasContent task]
       , [ viewSolutions r cfg m m.projection.solutions
         | cfg.settings.showSolutions
-        , not (null m.projection.solutions)
+        , not (null m.projection.solutions) || m.projection.isTeacher
         ]
       ]
 
