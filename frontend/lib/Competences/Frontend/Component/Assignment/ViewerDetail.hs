@@ -12,7 +12,7 @@ import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
@@ -86,21 +86,20 @@ import Competences.Frontend.Component.PrintEngine.Types
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Document.Solution (mkSolution)
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
-import Competences.Frontend.Component.Task qualified as TaskComp
+import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
+import Competences.Frontend.Component.Task.EditButton (taskEditButton)
+import Competences.Frontend.View.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
-import Competences.Frontend.View.Task qualified as VT
+import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
   , modifySyncDocument
-  , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
@@ -137,7 +136,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
-import Optics.Core ((&), (%), (.~), (%~))
+import Optics.Core ((&), (.~), (%~))
 import System.Random (randomIO)
 
 
@@ -270,7 +269,7 @@ viewerDetailView r user assignment =
 -- | Model with projection and task list state
 data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
-  , taskListState :: !VT.TaskViewState
+  , taskListState :: !VT.TaskDetailedState
   , expandedTaskResources :: !(Set.Set TaskId)
   , pagePrintModal :: !(Maybe PrintModalModel)
   , pagePrintPending :: !(Maybe PrintSettings)
@@ -283,7 +282,7 @@ data ViewerModel = ViewerModel
 
 data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
-  | TaskListAction !VT.TaskViewAction
+  | TaskListAction !VT.TaskDetailedAction
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
   | OpenPagePrintModal !(Maybe LayoutId)
@@ -305,7 +304,7 @@ viewerComponent r user assignment wm =
   where
     model = ViewerModel
       { projection = emptyProjection user.role assignment
-      , taskListState = VT.initialTaskViewState []
+      , taskListState = VT.initialTaskDetailedState []
       , expandedTaskResources = Set.empty
       , pagePrintModal = Nothing
       , pagePrintPending = Nothing
@@ -406,7 +405,7 @@ viewerComponent r user assignment wm =
               | t <- newTasks
               , not (isDone (Map.lookup t.task.id change.projection.taskStatuses))
               ]
-            newTaskListState = VT.initialTaskViewState expandedIds
+            newTaskListState = VT.initialTaskDetailedState expandedIds
             -- Build fresh TaskInfos map for updating modal order
             freshMap = Map.fromList
               [(ti.taskId, ti) | ti <- taskInfosFromTws newTasks]
@@ -418,19 +417,8 @@ viewerComponent r user assignment wm =
               & #taskListState .~ newTaskListState
               & #pagePrintModal %~ fmap updateModal
 
-    update (TaskListAction action) = do
-      M.modify $ \m -> m & #taskListState .~ VT.updateTaskView action m.taskListState
-      case action of
-        VT.AddSolution taskId -> M.io_ $ do
-          solId <- nextId r
-          let uid = (syncDocumentEnv r).connectedUser.id
-          modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
-        VT.HoldDeleteSolution ha ->
-          HoldButton.handleHoldAction' (#taskListState % #holdDeleteSolution)
-            (\solId -> modifySyncDocument r $ Solutions (OnSolutions (Delete solId)))
-            (TaskListAction . VT.HoldDeleteSolution)
-            ha
-        _ -> pure ()
+    update (TaskListAction action) =
+      TaskComp.updateTaskDetailed #taskListState r TaskListAction action
 
     update (ToggleTaskResourcesExpanded taskId) =
       M.modify $ \m ->
@@ -812,9 +800,9 @@ viewerComponent r user assignment wm =
                       <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
                   )
               ]
-            , [VT.purposeBadge tws.taskPurpose | showPurpose]
-            , [VT.assessmentStar tws.taskPurpose | showPurpose]
-            , [TaskComp.taskEditButton r taskOrigin tws.task | proj.connectedUserRole == Teacher]
+            , [TaskBadge.purposeBadge tws.taskPurpose | showPurpose]
+            , [TaskBadge.assessmentStar tws.taskPurpose | showPurpose]
+            , [taskEditButton r taskOrigin tws.task | proj.connectedUserRole == Teacher]
             ]
 
     isDone :: Maybe TaskCompletionStatus -> Bool

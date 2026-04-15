@@ -14,21 +14,18 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
-import Competences.Document (Document, Task (..), User (..))
-import Competences.Document.Solution (mkSolution)
+import Competences.Document (Document, Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Task qualified as TaskComp
+import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
+import Competences.Frontend.Component.Task.EditButton (taskEditButton)
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
-import Competences.Frontend.View.Task qualified as VT
+import Competences.Frontend.View.Task.Badge qualified as TaskBadge
+import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Document.Task (TaskId)
-import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
-import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
-import Competences.Frontend.View.HoldButton qualified as HoldButton
-import Optics.Core ((%))
+import Competences.Frontend.SyncContext (SyncContext (..))
 
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -86,7 +83,7 @@ data ResourceViewMode
 -- | Internal model for the component
 data Model = Model
   { config :: !ResourceModalConfig
-  , taskListState :: !VT.TaskViewState
+  , taskListState :: !VT.TaskDetailedState
   , viewMode :: !ResourceViewMode
   , collapsedGroups :: !(Set.Set TaskStatusGroup)
   }
@@ -97,7 +94,7 @@ data Model = Model
 -- ============================================================================
 
 data Action
-  = TaskListAction !VT.TaskViewAction
+  = TaskListAction !VT.TaskDetailedAction
   | SwitchViewMode !ResourceViewMode
   | ToggleStatusGroup !TaskStatusGroup
   deriving (Eq, Show)
@@ -118,24 +115,13 @@ resourceModalComponent r cfg =
     model =
       Model
         { config = cfg
-        , taskListState = VT.initialTaskViewState [] -- tasks start collapsed
+        , taskListState = VT.initialTaskDetailedState [] -- tasks start collapsed
         , viewMode = defaultMode
         , collapsedGroups = Set.empty
         }
 
-    update (TaskListAction action) = do
-      M.modify $ \m -> m {taskListState = VT.updateTaskView action m.taskListState}
-      case action of
-        VT.AddSolution taskId -> M.io_ $ do
-          solId <- nextId r
-          let uid = (syncDocumentEnv r).connectedUser.id
-          modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId taskId uid)))
-        VT.HoldDeleteSolution ha ->
-          HoldButton.handleHoldAction' (#taskListState % #holdDeleteSolution)
-            (\solId -> modifySyncDocument r $ Solutions (OnSolutions (Delete solId)))
-            (TaskListAction . VT.HoldDeleteSolution)
-            ha
-        _ -> pure ()
+    update (TaskListAction action) =
+      TaskComp.updateTaskDetailed #taskListState r TaskListAction action
 
     update (SwitchViewMode newMode) =
       M.modify $ \m -> m {viewMode = newMode}
@@ -234,7 +220,7 @@ modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> T
 modalAnnotations r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
-    , [VT.purposeBadge tws.taskPurpose | m.config.showPurposeBadge]
-    , [VT.assessmentStar tws.taskPurpose | m.config.showPurposeBadge]
-    , [TaskComp.taskEditButton r Published tws.task]
+    , [TaskBadge.purposeBadge tws.taskPurpose | m.config.showPurposeBadge]
+    , [TaskBadge.assessmentStar tws.taskPurpose | m.config.showPurposeBadge]
+    , [taskEditButton r Published tws.task]
     ]

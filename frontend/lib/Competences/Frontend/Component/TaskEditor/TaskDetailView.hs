@@ -13,7 +13,7 @@ import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Task qualified as TaskComp
+import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Tailwind (class_)
@@ -76,5 +76,5 @@ taskDetailView r origin task =
         (assignmentRefsBanner r task.id)
     , inlineComponent
         ("task-detail-" <> ms (show task.id))
-        (TaskComp.taskComponent r (TaskComp.TaskConfig task.id origin TaskComp.defaultTaskViewSettings))
+        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id origin TaskComp.defaultTaskDetailedSettings))
     ]

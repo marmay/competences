@@ -37,7 +37,7 @@ import Competences.Frontend.Component.ResourceLookup
   , ResolvedItem (..)
   )
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
-import Competences.Frontend.View.Task qualified as VT
+import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Badge qualified as Badge

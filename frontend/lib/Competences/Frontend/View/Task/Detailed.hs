@@ -1,10 +1,14 @@
--- | Full task view primitives: headers, content, solutions, composites.
+-- | Detailed task view: pure view primitives and pure state machine.
 --
--- Provides building blocks for task rendering plus higher-level composites
--- (disclosure view, card view). No SyncContext dependency.
-module Competences.Frontend.View.Task.Detail
-  ( -- * Task header
-    taskHeader
+-- Effects for the state machine live in 'Component.Task.Detailed.Embed'.
+module Competences.Frontend.View.Task.Detailed
+  ( -- * State machine
+    TaskDetailedState (..)
+  , TaskDetailedAction (..)
+  , initialTaskDetailedState
+  , updateTaskDetailedPure
+    -- * Task header
+  , taskHeader
   , taskHeaderWithBadges
     -- * Task content
   , taskContentView
@@ -22,21 +26,67 @@ module Competences.Frontend.View.Task.Detail
   )
 where
 
-import Competences.Document.Solution (SolutionType (..))
+import Competences.Document.Solution (SolutionId, SolutionType (..))
+import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Task.Badge (taskStatusHeaderBg, taskStatusPalette)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
+import Optics.Core ((%~))
+
+-- ============================================================================
+-- State machine
+-- ============================================================================
+
+-- | Shared state for the detailed task view: expansion and hold-to-delete.
+data TaskDetailedState = TaskDetailedState
+  { expandedTasks :: !(Set TaskId)
+  , expandedSolutions :: !(Set SolutionId)
+  , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
+  }
+  deriving (Eq, Generic, Show)
+
+data TaskDetailedAction
+  = ToggleTask !TaskId
+  | ToggleSolution !SolutionId
+  | AddSolution !TaskId
+  | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
+  deriving (Eq, Show)
+
+-- | Initial state with a given set of initially-expanded tasks.
+initialTaskDetailedState :: [TaskId] -> TaskDetailedState
+initialTaskDetailedState expanded =
+  TaskDetailedState
+    { expandedTasks = Set.fromList expanded
+    , expandedSolutions = Set.empty
+    , holdDeleteSolution = HoldButton.emptyHoldState
+    }
+
+-- | Pure update for the toggle branches; effectful branches are no-ops here.
+updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
+updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
+updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
+updateTaskDetailedPure (AddSolution _) = id
+updateTaskDetailedPure (HoldDeleteSolution _) = id
+
+toggle :: (Ord a) => a -> Set a -> Set a
+toggle x s
+  | Set.member x s = Set.delete x s
+  | otherwise = Set.insert x s
 
 -- ============================================================================
 -- Task header
@@ -66,9 +116,6 @@ taskContentView renderedContent =
     [renderedContent]
 
 -- | Render task content as a collapsible inner disclosure.
--- Used when the task description should be independently collapsible
--- (e.g., in the evaluator where the task stays visible but the
--- description can be toggled).
 taskContentDisclosure
   :: Bool
   -- ^ Is expanded
@@ -127,7 +174,6 @@ solutionInlineView typeLabel renderedContent =
 -- ============================================================================
 
 -- | Render a task item: disclosure if there's body content, static header otherwise.
--- This is the main entry point for rendering a task in a list context.
 taskItemView
   :: Maybe TaskCompletionStatus
   -> a
@@ -145,15 +191,7 @@ taskItemView mStatus toggleAction displayName annotations isExpanded = \case
   Just body -> taskDisclosureView (taskStatusPalette mStatus) toggleAction displayName annotations isExpanded body
   Nothing -> taskStaticHeader displayName (taskStatusHeaderBg mStatus) annotations
 
--- | Collapsible task view (disclosure). For use in assignment task lists.
---
--- Takes:
--- - Optional palette for status tinting
--- - Toggle action
--- - Display name
--- - Header annotations (badges, buttons — placed right of title)
--- - Whether currently expanded
--- - Body content (pre-rendered: task content + solutions + extras)
+-- | Collapsible task view (disclosure).
 taskDisclosureView
   :: Maybe PaletteName
   -> a
@@ -173,7 +211,6 @@ taskDisclosureView mPalette toggleAction displayName annotations isExpanded body
         Disclosure.contents title isExpanded body []
 
 -- | Always-open task view (same frame as disclosure, no chevron or toggle).
--- For use in task detail, lesson notes, etc.
 taskOpenView
   :: MisoString
   -- ^ Display name
@@ -187,7 +224,6 @@ taskOpenView displayName annotations body =
     Disclosure.contents (taskHeaderWithBadges displayName annotations) True body []
 
 -- | Non-expandable task header (no body content).
--- Renders a bordered row with task name and annotations.
 taskStaticHeader
   :: MisoString
   -- ^ Display name
@@ -206,10 +242,7 @@ taskStaticHeader displayName headerBg annotations =
         ]
     ]
 
--- | Always-expanded task card. For use in lesson notes, task detail, etc.
---
--- Renders as a content card with task icon + display name header,
--- followed by the provided body content.
+-- | Always-expanded task card.
 taskCardView
   :: MisoString
   -- ^ Display name

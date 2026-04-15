@@ -26,7 +26,7 @@ import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Task qualified as VT
+import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)

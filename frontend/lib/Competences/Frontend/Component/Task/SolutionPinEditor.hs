@@ -17,7 +17,7 @@ import Competences.Frontend.Component.Editor (Editable (..), editable, editor, a
 import Competences.Frontend.Component.Editor.FormView (editorFormView)
 import Competences.Frontend.Component.Editor.Types (Action, Model (..))
 import Competences.Frontend.Component.Editor.View (EditorView, EditorViewData (..), EditorViewItem (..))
-import Competences.Frontend.Component.Task.Component (TaskConfig (..), TaskViewSettings (..), taskComponent)
+import Competences.Frontend.Component.Task.Detailed (TaskDetailedConfig (..), TaskDetailedSettings (..), taskDetailedComponent)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.SyncContext.WindowManager
   ( WindowMode
@@ -90,7 +90,7 @@ solEditorView r _solId viewData =
         vi <- viewData.items
         let sol :: Solution = vi.item
         pure sol.taskId
-      previewSettings = TaskViewSettings
+      previewSettings = TaskDetailedSettings
         { collapsible = True
         , showSolutions = False
         , showAnnotations = False
@@ -99,7 +99,7 @@ solEditorView r _solId viewData =
    in MH.div_
         [class_ "space-y-4"]
         ( [ inlineComponent ("sol-task-preview-" <> ms (show taskId))
-              (taskComponent r (TaskConfig taskId Published previewSettings))
+              (taskDetailedComponent r (TaskDetailedConfig taskId Published previewSettings))
           | Just taskId <- [mTaskId]
           ]
             <> [formView]

@@ -28,7 +28,7 @@ import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Task qualified as TaskComp
+import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -188,7 +188,7 @@ viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
 viewResolvedItem r (ResolvedTask tws) =
   inlineComponent
     ("lesson-notes-task-" <> M.ms (show tws.task.id))
-    (TaskComp.taskComponent r (TaskComp.TaskConfig tws.task.id Published TaskComp.defaultTaskViewSettings))
+    (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig tws.task.id Published TaskComp.defaultTaskDetailedSettings))
 
 -- ============================================================================
 -- Shared renderers
