@@ -16,7 +16,7 @@ import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Button qualified as Button

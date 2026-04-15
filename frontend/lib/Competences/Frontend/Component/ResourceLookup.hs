@@ -31,7 +31,7 @@ import Competences.Document.Task
   ( TaskId
   , isResourceTask
   )
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Data.Ord (Down (..))

@@ -21,7 +21,7 @@ import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesCompo
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Task.EditButton (taskEditButton)
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.View.Task.Badge qualified as TaskBadge
 import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Document.Task (TaskId)

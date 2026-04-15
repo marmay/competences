@@ -90,7 +90,7 @@ import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileRes
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Task.EditButton (taskEditButton)
 import Competences.Frontend.View.Task.Badge qualified as TaskBadge
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission

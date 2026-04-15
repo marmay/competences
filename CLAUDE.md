@@ -298,8 +298,36 @@ Data flows up the component tree. Components subscribe to projected state from S
 
 - Don't bundle multiple stateful components in one module
 - Tabs belong in separate modules
-- Folder structure for navigability: `Component/Foo.hs` (wrapper) + `Component/Foo/` (subcomponents)
+- Prefer self-contained submodules (`Component/Foo/Bar.hs`) over umbrella re-exports (`Component/Foo.hs`). Umbrellas force every touch of any submodule to invalidate all importers; self-contained modules keep the recompile graph narrow.
 - Models must be minimal: project onto exactly what the view needs
+
+### Entity View / Embed / Component Layering
+
+Entity views that have their own state machine (expansion, hold-to-delete, etc.) and may be reused across parent contexts follow a three-layer split. Example: the detailed task view uses
+
+```
+View/Task/Detailed.hs              -- pure: view + state machine + pure update
+Component/Task/Detailed/Embed.hs   -- effectful: lens-taking updateTaskDetailed
+Component/Task/Detailed.hs         -- full Miso component wrapping View + Embed
+```
+
+**Layering rules:**
+- View module is pure. No `SyncContext`, no `Command`, no `IO`. Owns the state type, action type, pure update, and view functions.
+- Embed module depends only on the View module (not on other entities' components). Exposes a lens-taking effectful update plus any list-rendering helpers that need to dispatch commands. Safe to import from any entity's component module without creating cycles.
+- Component module mounts a full Miso component. Embeds the state in its model and delegates its update to the Embed helper.
+
+**Why both forms exist:**
+- Component form is an isolation boundary. Narrow projection, filtered updates — one task mounted as a child re-renders only when its own data changes.
+- View+Embed form is a composition primitive. A parent renders the view inline and holds the state itself. Used when recursion between two entities must be broken on this side (e.g. a resource rendering its tasks inline via `Task.Detailed.Embed` rather than mounting each as a child component).
+
+Parents that embed the state machine collapse their `update` branch to one line:
+
+```haskell
+update (TaskListAction a) =
+  TaskComp.updateTaskDetailed #taskListState r TaskListAction a
+```
+
+Follow this split only when the state machine is reused across multiple parents. For one-off components, keep state and effects together.
 
 ## Command Handler Conventions
 

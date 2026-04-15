@@ -36,7 +36,7 @@ import Competences.Frontend.Component.ResourceLookup
   , ItemRelevance (..)
   , ResolvedItem (..)
   )
-import Competences.Frontend.Component.TaskResource (TaskWithSolutions (..))
+import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.View.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)

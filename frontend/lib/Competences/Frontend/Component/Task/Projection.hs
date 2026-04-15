@@ -1,9 +1,8 @@
--- | Task-with-solutions convenience type.
+-- | Denormalized task projection for list views.
 --
--- Used by views that need pre-assembled task + solutions data.
--- Note: @taskContent@ and @taskPurpose@ duplicate fields on @Task@
--- (kept for backward compatibility with projection code).
-module Competences.Frontend.Component.TaskResource
+-- 'taskContent' and 'taskPurpose' duplicate fields on 'Task'. Callers read
+-- them via OverloadedRecordDot without importing 'Task(..)'.
+module Competences.Frontend.Component.Task.Projection
   ( TaskWithSolutions (..)
   )
 where
@@ -13,7 +12,6 @@ import Competences.Document.Task (TaskPurpose)
 import Competences.TaskContent.RichContent (RichContent)
 import GHC.Generics (Generic)
 
--- | A task with its pre-computed content and solutions.
 data TaskWithSolutions = TaskWithSolutions
   { task :: !Task
   , taskContent :: !(Maybe RichContent)

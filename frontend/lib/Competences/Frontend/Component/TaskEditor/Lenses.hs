@@ -1,5 +1,5 @@
 -- | Shared lenses for Task/TaskPatch fields used by both
--- TaskDetailView (inline editor) and TaskPinEditor (pin editor).
+-- TaskDetailView (inline editor) and Task.PinEditor (pin editor).
 module Competences.Frontend.Component.TaskEditor.Lenses
   ( identifierViewLens
   , identifierPatchLens
