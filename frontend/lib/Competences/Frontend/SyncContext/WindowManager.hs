@@ -149,6 +149,7 @@ data ModalConfig = ModalConfig
 -- | Category of a pinned dialog, used for ordering in the sidebar.
 data PinCategory
   = PinCatTask
+  | PinCatResource
   | PinCatAssignment
   | PinCatLessonEvaluation
   | PinCatLessonNotes

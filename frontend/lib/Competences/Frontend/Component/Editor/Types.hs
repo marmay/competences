@@ -3,6 +3,7 @@ module Competences.Frontend.Component.Editor.Types
   , Action (..)
   , Reorder' (..)
   , translateReorder'
+  , singlePatchLens
   )
 where
 
@@ -17,6 +18,7 @@ import Data.Foldable (toList)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
+import Optics.Core (Lens', lens)
 
 data Model a patch f = Model
   { entries :: !(Maybe (f (a, Maybe UserId)))
@@ -66,3 +68,17 @@ translateReorder' _ Forward' = Forward
 translateReorder' _ Backward' = Backward
 translateReorder' f (Before' a) = Before (f a)
 translateReorder' f (After' a) = After (f a)
+
+-- | Lens to extract the single patch value from a pin-editor 'Model'.
+--
+-- Pin editors edit one entity at a time, so 'patches' holds at most one
+-- entry. Used by PinEditor factories to bind the patch into the
+-- @WindowManager@'s @pinSaveStates@.
+singlePatchLens :: Lens' (Model a patch Maybe) (Maybe patch)
+singlePatchLens = lens getter setter
+  where
+    getter m = case Map.elems m.patches of
+      [p] -> Just p
+      _ -> Nothing
+    setter m (Just p) = m {patches = Map.map (const p) m.patches}
+    setter m Nothing = m

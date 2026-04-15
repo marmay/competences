@@ -10,14 +10,14 @@ module Competences.Frontend.Component.Task.Detailed.Embed
 where
 
 import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
-import Competences.Document (Solution (..), Task (..), User (..), UserRole (..))
+import Competences.Document (Solution (..), Task (..), User (..))
 import Competences.Document.Solution (mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
+import Competences.Frontend.SyncContext (SyncContext (..), isTeacher, modifySyncDocument, nextId)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -103,11 +103,10 @@ renderSolutionList
   -> M.View m a
 renderSolutionList r state liftAction tid sols =
   MH.div_ [class_ "space-y-1"]
-    ( map (renderOneSol r state liftAction isTeacher) sols
-        <> [addSolButton | isTeacher]
+    ( map (renderOneSol r state liftAction (isTeacher r)) sols
+        <> [addSolButton | isTeacher r]
     )
   where
-    isTeacher = (syncDocumentEnv r).connectedUser.role == Teacher
     addSolButton =
       MH.div_ [class_ "flex justify-end"]
         [Button.ghostSm (Button.ButtonConfig (Button.IconText Icon.IcnAdd (C.translate' C.LblAddSolution)) (Just (liftAction (V.AddSolution tid))))]
@@ -119,13 +118,13 @@ renderOneSol
   -> Bool
   -> Solution
   -> M.View m a
-renderOneSol r state liftAction isTeacher sol =
+renderOneSol r state liftAction isTeacher' sol =
   let isExpanded = Set.member sol.id state.expandedSolutions
       rendered
         | sol.content == mempty = Typography.muted (C.translate' C.LblNoContent)
         | otherwise = V.taskContentView (renderRichText r.formulaCache sol.content)
       actions
-        | isTeacher =
+        | isTeacher' =
             [ Disclosure.viewAction (solutionEditButton r sol)
             , Disclosure.holdDestructiveAction (liftAction . V.HoldDeleteSolution) state.holdDeleteSolution sol.id
             ]

@@ -1,10 +1,10 @@
-module Competences.Frontend.Component.Resource.EditorDetail
-  ( editorDetailView
+-- | Resource editor mounted in a pinned dialog.
+module Competences.Frontend.Component.Resource.PinEditor
+  ( resourcePinEditor
   )
 where
 
-import Competences.Command (Command (..), ResourcesCommand (..))
-import Competences.Command.Common qualified as EC
+import Competences.Command (Command (..), EntityCommand (..), ResourcesCommand (..))
 import Competences.Command.Resources (ResourcePatch (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
@@ -18,78 +18,90 @@ import Competences.Document
   , lockOwner
   )
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent)
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..), mkFieldLens)
-import Competences.Frontend.Component.Editor.FormView qualified as TE
-import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
+import Competences.Frontend.Component.Editor.FormView (editorFormView')
+import Competences.Frontend.Component.Editor.Types (Action (..), Model (..), singlePatchLens)
 import Competences.Frontend.Component.FileUpload (fileUploadComponent, showFileSize)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.SyncContext (SyncContext (..))
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
+import Competences.Frontend.SyncContext.WindowManager
+  ( PinId
+  , WindowMode
+  , inlineComponent
+  , inlineComponentAttrs
+  , pinSaveStateLens
+  )
+import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (RichContent)
-import Data.Default (def)
+import Data.Default (Default (..))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as M
+import Miso.Html.Property qualified as MP
 import Miso.String (ms)
 import Optics.Core (Lens', lens, (&), (.~), (?~), (^.))
+import Optics.Core qualified as O
 
--- | Detail view for editing a resource
-editorDetailView
-  :: SyncContext
-  -> Resource
-  -> M.View p a
-editorDetailView r resource =
-  inlineComponent
-    ("resource-editor-" <> M.ms (show resource.id))
-    (TE.editorComponent resourceEditor r def)
+-- | Resource pin editor factory.
+resourcePinEditor
+  :: SyncContext -> ResourceId -> PinId
+  -> WindowMode -> Maybe ResourcePatch
+  -> M.Component WM.Model (Model Resource ResourcePatch Maybe) (Action Resource ResourcePatch)
+resourcePinEditor r resId pid _mode mSaved =
+  (editorComponent resourceEditor r (fromMaybe def mSaved))
+    { M.bindings =
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+        ]
+    }
   where
+    resourceEditable :: Editable Maybe Resource ResourcePatch
     resourceEditable =
-      TE.editable
+      editable
         ( \d ->
             fmap
               (\res -> (res, lockOwner (ResourceLock res.id) d))
-              (Ix.getOne $ d.resources Ix.@= resource.id)
+              (Ix.getOne $ d.resources Ix.@= resId)
         )
-        & (#modify ?~ (\res modify -> Resources $ OnResources (EC.Modify res.id modify)))
-        & (#delete ?~ (\res -> Resources $ OnResources (EC.Delete res.id)))
+        & (#modify ?~ (\res modify -> Resources $ OnResources (Modify res.id modify)))
 
     resourceEditor =
-      TE.editor
-        ( TE.editorFormView'
-            (C.translate' C.LblEditResource)
-            id
-        )
+      editor
+        (editorFormView' (C.translate' C.LblEditResource) id)
         resourceEditable
-        `TE.addNamedField` ( C.translate' C.LblResourceIdentifier
-                           , identifierEditorField
-                           )
-        `TE.addNamedField` ( C.translate' C.LblResourceCompetenceLevels
-                           , competenceLevelEditorField r "resource-levels" 1 competenceLevelsLens  -- minResults=1: resources must have at least one level
-                           )
-        `TE.addNamedField` ( C.translate' C.LblResourceContent
-                           , resourceContentEditorField r
-                           )
+        `addNamedField` ( C.translate' C.LblResourceIdentifier
+                        , identifierEditorField
+                        )
+        `addNamedField` ( C.translate' C.LblResourceCompetenceLevels
+                        , competenceLevelEditorField r "resource-pin-levels" 1 competenceLevelsLens
+                        )
+        `addNamedField` ( C.translate' C.LblResourceContent
+                        , resourceContentEditorField r
+                        )
 
--- | Editor field for identifier (handles ResourceIdentifier newtype)
+-- ============================================================================
+-- Fields (migrated from former Resource/EditorDetail.hs)
+-- ============================================================================
+
+-- | Editor field for the resource identifier (ResourceIdentifier newtype wrap).
 identifierEditorField :: EditorField Resource ResourcePatch f
 identifierEditorField =
   EditorField
     { viewer = \res ->
         let ResourceIdentifier t = res.identifier
-         in text_ (M.ms t)
+         in text_ (ms t)
     , editor = \refocusTarget original patch ->
         let ResourceIdentifier origText = original.identifier
             currentText = case patch.identifier of
@@ -99,12 +111,12 @@ identifierEditorField =
               [ class_ "w-full"
               , MH.onChange
                   (\v -> UpdatePatch original (patch & #identifier ?~ (original.identifier, ResourceIdentifier (M.fromMisoString v))))
-              , M.value_ (M.ms currentText)
+              , MP.value_ (ms currentText)
               ]
-              <> if refocusTarget then [M.id_ "refocus-target"] else []
+              <> if refocusTarget then [MP.id_ "refocus-target"] else []
     }
 
--- | Lens for competence levels
+-- | Lens for competence levels; resources must have at least one (enforced by the selector's @minResults = 1@).
 competenceLevelsLens :: EntityPatchTransformedLens Resource ResourcePatch [] CompetenceLevelId [] CompetenceLevelId
 competenceLevelsLens =
   EntityPatchTransformedLens
@@ -114,7 +126,7 @@ competenceLevelsLens =
     , embed = id
     }
 
--- | Editor field for resource content (sum type)
+-- | Editor field for the resource content sum type.
 resourceContentEditorField :: SyncContext -> EditorField Resource ResourcePatch f
 resourceContentEditorField r =
   EditorField
@@ -129,34 +141,39 @@ resourceContentEditorField r =
       InlineContent rc ->
         if rc == mempty
           then Typography.placeholder "Kein Inhalt"
-          else MH.div_ [class_ "prose prose-stone prose-sm max-w-none"]
-                 [renderRichTextWithFiles fc r res.attachments rc]
+          else
+            MH.div_
+              [class_ "prose prose-stone prose-sm max-w-none"]
+              [renderRichTextWithFiles fc r res.attachments rc]
       WebLink url desc ->
-        MH.div_ [class_ "space-y-1"]
+        MH.div_
+          [class_ "space-y-1"]
           [ Layout.hFlow
               (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
               [ MH.span_ [] [Typography.fieldLabel $ C.translate' C.LblWebLink]
-              , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
-                  [M.text $ M.ms url]
+              , MH.a_ [MP.href_ (ms url), MP.target_ "_blank", class_ "text-sky-600 hover:underline"]
+                  [M.text $ ms url]
               ]
           , if desc /= ""
-              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
+              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ ms desc]
               else Layout.empty
           ]
       VideoLink url desc ->
-        MH.div_ [class_ "space-y-1"]
+        MH.div_
+          [class_ "space-y-1"]
           [ Layout.hFlow
               (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
               [ MH.span_ [] [Typography.fieldLabel $ C.translate' C.LblVideoLink]
-              , MH.a_ [M.href_ (M.ms url), M.target_ "_blank", class_ "text-sky-600 hover:underline"]
-                  [M.text $ M.ms url]
+              , MH.a_ [MP.href_ (ms url), MP.target_ "_blank", class_ "text-sky-600 hover:underline"]
+                  [M.text $ ms url]
               ]
           , if desc /= ""
-              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ M.ms desc]
+              then MH.p_ [class_ "text-sm text-muted-foreground"] [M.text $ ms desc]
               else Layout.empty
           ]
       FileContent fileRef ->
-        MH.div_ [class_ "space-y-1"]
+        MH.div_
+          [class_ "space-y-1"]
           [ Layout.hFlow
               (Layout.gapS <> Layout.crossCenter)
               [ Typography.fieldLabel $ C.translate' C.LblFile
@@ -176,82 +193,42 @@ resourceContentEditorField r =
             Just (_, c) -> c
             Nothing -> original.content
        in MH.div_ [class_ "space-y-3"]
-            [ -- Content type selector
-              Button.buttonGroup
+            [ Button.buttonGroup
                 [ Button.toggleSm (isInline currentContent) (Button.button (C.translate' C.LblInlineContent) (switchToInline original patch))
                 , Button.toggleSm (isWebLink currentContent) (Button.button (C.translate' C.LblWebLink) (switchToWebLink original patch))
                 , Button.toggleSm (isVideoLink currentContent) (Button.button (C.translate' C.LblVideoLink) (switchToVideoLink original patch))
                 , Button.toggleSm (isFile currentContent) (Button.button (C.translate' C.LblFile) (switchToFile original patch))
                 ]
-            , -- Content-specific fields
-              case currentContent of
+            , case currentContent of
                 InlineContent rc ->
-                  MH.div_ [class_ "space-y-3"]
-                    [ inlineComponentAttrs "rc-resource-editor"
-                        (if refocusTarget then [M.id_ "refocus-target"] else [])
+                  MH.div_
+                    [class_ "space-y-3"]
+                    [ inlineComponentAttrs
+                        "rc-resource-editor"
+                        (if refocusTarget then [MP.id_ "refocus-target"] else [])
                         (richContentEditorComponent fc rc (resourceRichContentLens original))
-                    , inlineComponent "resource-attachments-upload"
-                        (fileUploadComponent r
-                          (Just $ C.translate' C.LblAttachments)
-                          (currentAttachments original patch)
-                          (resourceAttachmentsLens original))
+                    , inlineComponent
+                        "resource-attachments-upload"
+                        ( fileUploadComponent
+                            r
+                            (Just $ C.translate' C.LblAttachments)
+                            (currentAttachments original patch)
+                            (resourceAttachmentsLens original)
+                        )
                     ]
                 WebLink url desc ->
-                  MH.div_ [class_ "space-y-2"]
-                    [ MH.div_ []
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblUrl]
-                        , MH.input_
-                            [ class_ "w-full p-2 border border-stone-300 rounded-md"
-                            , M.type_ "url"
-                            , M.placeholder_ "https://..."
-                            , MH.onChange
-                                (\v -> UpdatePatch original (patch & #content ?~ (original.content, WebLink (M.fromMisoString v) desc)))
-                            , M.value_ (M.ms url)
-                            ]
-                        ]
-                    , MH.div_ []
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblDescription]
-                        , MH.textarea_
-                            [ class_ "w-full min-h-[80px] resize-y p-2 border border-stone-300 rounded-md"
-                            , M.placeholder_ "Beschreibung des Links..."
-                            , MH.onChange
-                                (\v -> UpdatePatch original (patch & #content ?~ (original.content, WebLink url (M.fromMisoString v))))
-                            , M.value_ (M.ms desc)
-                            ]
-                            []
-                        ]
-                    ]
+                  urlDescForm original patch WebLink url desc "https://..." "Beschreibung des Links..."
                 VideoLink url desc ->
-                  MH.div_ [class_ "space-y-2"]
-                    [ MH.div_ []
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblUrl]
-                        , MH.input_
-                            [ class_ "w-full p-2 border border-stone-300 rounded-md"
-                            , M.type_ "url"
-                            , M.placeholder_ "https://youtube.com/..."
-                            , MH.onChange
-                                (\v -> UpdatePatch original (patch & #content ?~ (original.content, VideoLink (M.fromMisoString v) desc)))
-                            , M.value_ (M.ms url)
-                            ]
-                        ]
-                    , MH.div_ []
-                        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblDescription]
-                        , MH.textarea_
-                            [ class_ "w-full min-h-[80px] resize-y p-2 border border-stone-300 rounded-md"
-                            , M.placeholder_ "Beschreibung des Videos..."
-                            , MH.onChange
-                                (\v -> UpdatePatch original (patch & #content ?~ (original.content, VideoLink url (M.fromMisoString v))))
-                            , M.value_ (M.ms desc)
-                            ]
-                            []
-                        ]
-                    ]
+                  urlDescForm original patch VideoLink url desc "https://youtube.com/..." "Beschreibung des Videos..."
                 FileContent fileRef ->
-                  inlineComponent "file-upload-editor"
-                    (fileUploadComponent r
-                      Nothing
-                      (if isNilFileRef fileRef then [] else [fileRef])
-                      (resourceFileRefsLens original))
+                  inlineComponent
+                    "file-upload-editor"
+                    ( fileUploadComponent
+                        r
+                        Nothing
+                        (if isNilFileRef fileRef then [] else [fileRef])
+                        (resourceFileRefsLens original)
+                    )
             ]
 
     isInline (InlineContent _) = True
@@ -271,30 +248,64 @@ resourceContentEditorField r =
     switchToVideoLink original patch = UpdatePatch original (patch & #content ?~ (original.content, VideoLink "" ""))
     switchToFile original patch = UpdatePatch original (patch & #content ?~ (original.content, FileContent nilFileRef))
 
--- | Get the current attachments value, considering any pending patch.
+-- | Shared url + description form for 'WebLink' and 'VideoLink' content variants.
+urlDescForm
+  :: Resource
+  -> ResourcePatch
+  -> (Text -> Text -> ResourceContent)
+  -- ^ Content constructor (WebLink or VideoLink)
+  -> Text
+  -- ^ Current URL value
+  -> Text
+  -- ^ Current description value
+  -> M.MisoString
+  -- ^ URL placeholder
+  -> M.MisoString
+  -- ^ Description placeholder
+  -> M.View (Model Resource ResourcePatch f) (Action Resource ResourcePatch)
+urlDescForm original patch mkContent url desc urlPlaceholder descPlaceholder =
+  MH.div_
+    [class_ "space-y-2"]
+    [ MH.div_ []
+        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblUrl]
+        , MH.input_
+            [ class_ "w-full p-2 border border-stone-300 rounded-md"
+            , MP.type_ "url"
+            , MP.placeholder_ urlPlaceholder
+            , MH.onChange
+                (\v -> UpdatePatch original (patch & #content ?~ (original.content, mkContent (M.fromMisoString v) desc)))
+            , MP.value_ (ms url)
+            ]
+        ]
+    , MH.div_ []
+        [ MH.span_ [class_ "block mb-1"] [Typography.fieldLabel $ C.translate' C.LblDescription]
+        , MH.textarea_
+            [ class_ "w-full min-h-[80px] resize-y p-2 border border-stone-300 rounded-md"
+            , MP.placeholder_ descPlaceholder
+            , MH.onChange
+                (\v -> UpdatePatch original (patch & #content ?~ (original.content, mkContent url (M.fromMisoString v))))
+            , MP.value_ (ms desc)
+            ]
+            []
+        ]
+    ]
+
 currentAttachments :: Resource -> ResourcePatch -> [FileRef]
 currentAttachments original patch = case patch.attachments of
   Just (_, after) -> after
   Nothing -> original.attachments
 
--- | Lens into the 'attachments' field of a resource via its patch.
 resourceAttachmentsLens :: Resource -> Lens' (Model Resource ResourcePatch f) [FileRef]
 resourceAttachmentsLens = mkFieldLens #attachments #attachments
 
--- | A nil FileRef used as placeholder when switching to FileContent mode.
 nilFileRef :: FileRef
 nilFileRef = FileRef (SHA256Hash "") "" "" 0
 
--- | Check if a FileRef is the nil placeholder.
 isNilFileRef :: FileRef -> Bool
 isNilFileRef fr = fr.hash == SHA256Hash ""
 
 -- | Lens into the 'RichContent' inside a resource's 'InlineContent'.
---
--- GET: extracts 'RichContent' from 'InlineContent', returns 'mempty' for other variants.
--- SET: wraps the 'RichContent' in 'InlineContent' and updates the patch.
---
--- This is safe because the component is only rendered when the content type is InlineContent.
+-- Safe because the component is only mounted when the content type is 'InlineContent'.
 resourceRichContentLens :: Resource -> Lens' (Model Resource ResourcePatch f) (ContentState RichContent)
 resourceRichContentLens original = lens getter setter
   where
@@ -306,15 +317,11 @@ resourceRichContentLens original = lens getter setter
         InlineContent rc -> Valid rc
         _ -> Valid mempty
     setter model cs@(Valid rc) =
-      (model{contentStates = insertCS model cs}) & baseLens .~ InlineContent rc
-    setter model cs = model{contentStates = insertCS model cs}
+      (model {contentStates = insertCS model cs}) & baseLens .~ InlineContent rc
+    setter model cs = model {contentStates = insertCS model cs}
 
     insertCS m cs = Map.alter (Just . Map.insert fieldName cs . fromMaybe Map.empty) original m.contentStates
 
--- | Lens that maps between @[FileRef]@ (component's model) and 'ResourceContent' (patch).
---
--- GET: extracts @[FileRef]@ from 'FileContent' (singleton or empty).
--- SET: takes @listToMaybe@ of the @[FileRef]@, wraps in 'FileContent', updates patch.
 resourceFileRefsLens :: Resource -> Lens' (Model Resource ResourcePatch f) [FileRef]
 resourceFileRefsLens original = lens getter setter
   where
@@ -328,3 +335,4 @@ resourceFileRefsLens original = lens getter setter
       case listToMaybe refs of
         Just ref -> model & baseLens .~ FileContent ref
         Nothing -> model & baseLens .~ FileContent nilFileRef
+

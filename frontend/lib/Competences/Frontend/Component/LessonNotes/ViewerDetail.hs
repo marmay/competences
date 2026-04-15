@@ -3,9 +3,6 @@ module Competences.Frontend.Component.LessonNotes.ViewerDetail
   , viewerComponent
   , pinLessonNotesViewer
   , openLessonNotesModal
-    -- * Shared renderers (reused by ResourceLookup.View)
-  , viewResourceCard
-  , viewLinkCard
   )
 where
 
@@ -16,15 +13,11 @@ import Competences.Document
   , LessonNoteItem (..)
   , LessonNotes (..)
   , Resource (..)
-  , FileRef (..)
-  , ResourceContent (..)
-  , ResourceIdentifier (..)
   )
 import Competences.Document.Id (idToText)
 import Competences.Document.Task (Task (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.FileUpload (showFileSize)
-import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
+import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
@@ -43,11 +36,9 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Maybe (mapMaybe)
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Html.Property qualified as MP
 import Optics.Core ((&), (.~))
 
 -- ============================================================================
@@ -184,55 +175,11 @@ viewerComponent r ln wm =
 
 -- | Render a resolved item in the viewer
 viewResolvedItem :: SyncContext -> ResolvedItem -> M.View model action
-viewResolvedItem r (ResolvedResource res) = viewResourceCard r res
+viewResolvedItem r (ResolvedResource res) =
+  inlineComponent
+    ("lesson-notes-resource-" <> M.ms (show res.id))
+    (ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
 viewResolvedItem r (ResolvedTask tws) =
   inlineComponent
     ("lesson-notes-task-" <> M.ms (show tws.task.id))
     (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig tws.task.id Published TaskComp.defaultTaskDetailedSettings))
-
--- ============================================================================
--- Shared renderers
--- ============================================================================
-
--- | Render a resource card always-expanded (no disclosure state).
---
--- Used by views that show resources inline without collapse/expand controls
--- (e.g. lesson notes viewer detail, resource lookup view).
-viewResourceCard :: SyncContext -> Resource -> M.View model action
-viewResourceCard r res =
-  let ResourceIdentifier ident = res.identifier
-      displayName = if T.null ident then "(Unbenannt)" else ident
-      fc = r.formulaCache
-   in case res.content of
-        InlineContent rc ->
-          Card.contentCard Icon.IcnResources (M.ms displayName)
-            [ if rc /= mempty
-                then
-                  MH.div_
-                    [class_ "px-3 pb-3 prose prose-stone prose-sm max-w-none"]
-                    [renderRichTextWithFiles fc r res.attachments rc]
-                else Layout.empty
-            ]
-        WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
-        VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
-        FileContent fileRef ->
-          Card.contentCard Icon.IcnResources (M.ms displayName)
-            [ MH.div_ [class_ "px-3 pb-3 text-sm text-muted-foreground"]
-                [M.text $ M.ms $ fileRef.fileName <> " (" <> showFileSize fileRef.fileSize <> ")"]
-            ]
-
--- | Render a link card (web or video) with icon, name, and optional title.
-viewLinkCard :: Icon.Icon -> T.Text -> T.Text -> T.Text -> T.Text -> M.View model action
-viewLinkCard icon ident displayName url title =
-  MH.a_
-    [ class_ "flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
-    , MP.href_ (M.ms url)
-    , MP.target_ "_blank"
-    , MP.rel_ "noopener noreferrer"
-    ]
-    [ Icon.icon [class_ "text-sky-600"] icon
-    , MH.span_ [class_ "font-medium"] [M.text (M.ms displayName)]
-    , if T.null title || title == ident
-        then Layout.empty
-        else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (M.ms $ "— " <> title)]
-    ]

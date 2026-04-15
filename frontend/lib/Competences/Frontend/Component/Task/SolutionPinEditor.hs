@@ -15,7 +15,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, enumEditorField, richTextEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView)
-import Competences.Frontend.Component.Editor.Types (Action, Model (..))
+import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
 import Competences.Frontend.Component.Editor.View (EditorView, EditorViewData (..), EditorViewItem (..))
 import Competences.Frontend.Component.Task.Detailed (TaskDetailedConfig (..), TaskDetailedSettings (..), taskDetailedComponent)
 import Competences.Frontend.SyncContext (SyncContext (..))
@@ -29,7 +29,6 @@ import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Default (Default (..))
-import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -105,16 +104,3 @@ solEditorView r _solId viewData =
             <> [formView]
         )
 
--- ============================================================================
--- Internal
--- ============================================================================
-
--- | Lens to extract the single patch value from the Editor model.
-singlePatchLens :: O.Lens' (Model Solution SolutionPatch Maybe) (Maybe SolutionPatch)
-singlePatchLens = O.lens getter setter
-  where
-    getter m = case Map.elems m.patches of
-      [p] -> Just p
-      _ -> Nothing
-    setter m (Just p) = m {patches = Map.map (const p) m.patches}
-    setter m Nothing = m

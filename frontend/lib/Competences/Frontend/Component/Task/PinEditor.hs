@@ -16,7 +16,7 @@ import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, textEditorField, richTextWithFilesEditorField, enumEditorField, boolEditorField, fileUploadEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
-import Competences.Frontend.Component.Editor.Types (Action, Model (..))
+import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Frontend.Component.TaskEditor.Lenses
@@ -32,7 +32,6 @@ import Competences.Frontend.SyncContext.WindowManager
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Data.Default (Default (..))
-import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Miso.String (ms)
@@ -107,14 +106,4 @@ taskPinEditor r taskId pid _mode mSaved =
                         , fileUploadEditorField r #attachments #attachments
                         )
 
--- | Lens to extract the single patch value from the Editor model.
--- For single-entity editors, the patches map has at most one entry.
-singlePatchLens :: O.Lens' (Model Task TaskPatch Maybe) (Maybe TaskPatch)
-singlePatchLens = O.lens getter setter
-  where
-    getter m = case Map.elems m.patches of
-      [p] -> Just p
-      _ -> Nothing
-    setter m (Just p) = m {patches = Map.map (const p) m.patches}
-    setter m Nothing = m
 

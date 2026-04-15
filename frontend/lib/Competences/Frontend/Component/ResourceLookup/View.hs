@@ -14,11 +14,8 @@ where
 
 import Competences.Document
   ( Document
-  , FileRef (..)
   , LessonNotes (..)
   , Resource (..)
-  , ResourceContent (..)
-  , ResourceIdentifier (..)
   , Solution (..)
   , Task (..)
   )
@@ -26,20 +23,20 @@ import Competences.Document.Id (idToText)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
-import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewLinkCard)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
-import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText, renderRichTextWithFiles)
+import Competences.Frontend.Component.Resource.Detailed.Embed qualified as ResEmbed
+import Competences.Frontend.Component.Resource.EditButton (resourceEditButton)
+import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.ResourceLookup
   ( AnnotatedLessonNoteGroup (..)
   , GroupedResources (..)
   , ItemRelevance (..)
   , ResolvedItem (..)
   )
+import Competences.Frontend.Fragment.Resource.Detailed qualified as VR
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
-import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), subscribeDocument)
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -63,8 +60,11 @@ import Optics.Core ((&), (.~))
 data GroupedResourcesModel = GroupedResourcesModel
   { groupedResources :: !GroupedResources
   -- ^ Computed grouped resources (updated via document subscription)
-  , expandedItems :: !(Set T.Text)
-  -- ^ Expanded resource/task IDs (using text keys for uniformity)
+  , resourceState :: !VR.ResourceDetailedState
+  -- ^ Expansion state for resource items (managed via the resource Fragment).
+  , expandedTasks :: !(Set T.Text)
+  -- ^ Expanded task IDs (text keys; out of scope for this pass — tasks
+  -- still use the ad-hoc text-keyed expansion).
   , collapsedLessonNotes :: !(Set LessonNotesId)
   -- ^ Lesson note groups that have been collapsed (default: expanded)
   , otherCollapsed :: !Bool
@@ -75,7 +75,8 @@ data GroupedResourcesModel = GroupedResourcesModel
 -- | Actions for the grouped resources component.
 data GroupedResourcesAction
   = DocChanged !DocumentChange
-  | ToggleItemExpanded !T.Text
+  | ResourceAction !VR.ResourceDetailedAction
+  | ToggleTaskExpanded !T.Text
   | ToggleLessonNoteGroup !LessonNotesId
   | ToggleOtherSection
   | OpenLessonNotes !LessonNotes
@@ -105,7 +106,8 @@ groupedResourcesComponent r project =
     initModel =
       GroupedResourcesModel
         { groupedResources = GroupedResources [] [] []
-        , expandedItems = Set.empty
+        , resourceState = VR.initialResourceDetailedState []
+        , expandedTasks = Set.empty
         , collapsedLessonNotes = Set.empty
         , otherCollapsed = True
         }
@@ -113,13 +115,16 @@ groupedResourcesComponent r project =
     update (DocChanged change) =
       M.modify $ \m -> m & #groupedResources .~ project change.document
 
-    update (ToggleItemExpanded key) =
+    update (ResourceAction a) =
+      ResEmbed.updateResourceDetailed #resourceState r ResourceAction a
+
+    update (ToggleTaskExpanded key) =
       M.modify $ \m ->
         let newExpanded =
-              if Set.member key m.expandedItems
-                then Set.delete key m.expandedItems
-                else Set.insert key m.expandedItems
-         in m & #expandedItems .~ newExpanded
+              if Set.member key m.expandedTasks
+                then Set.delete key m.expandedTasks
+                else Set.insert key m.expandedTasks
+         in m & #expandedTasks .~ newExpanded
 
     update (ToggleLessonNoteGroup lnId) =
       M.modify $ \m ->
@@ -199,10 +204,7 @@ viewOtherSection r m gr'
 -- Annotated Item Rendering
 -- ============================================================================
 
--- | Render an annotated item (resource or task) with relevance-based styling.
---
--- Relevant items use a primary-accented (pop) disclosure header.
--- Context-only items use the default muted header with a "Kontext" badge.
+-- | Render an annotated item (resource or task).
 viewAnnotatedItem
   :: SyncContext
   -> GroupedResourcesModel
@@ -213,22 +215,15 @@ viewAnnotatedItem r m (item, relevance) =
     ResolvedResource res -> viewResourceItem r m relevance res
     ResolvedTask tws -> viewTaskItem r.formulaCache m relevance tws
 
--- | Pick the right inner disclosure variant based on relevance.
-relevanceDisclosure :: ItemRelevance -> a -> Disclosure.DisclosureContents m a -> M.View m a
-relevanceDisclosure Relevant = Disclosure.innerPopDisclosure
-relevanceDisclosure ContextOnly = Disclosure.innerDisclosure
-
--- | Build a disclosure title with an optional "Passend" badge for relevant items.
-relevanceTitle :: ItemRelevance -> M.View m a -> M.View m a
-relevanceTitle Relevant title =
-  Disclosure.titleWithAnnotation title (Badge.primary $ Badge.badgeText $ C.translate' C.LblRelevant)
-relevanceTitle ContextOnly title = title
+-- | Relevance badge shown inline with the entity header.
+relevanceBadge :: ItemRelevance -> Maybe (M.View m a)
+relevanceBadge Relevant = Just (Badge.primary $ Badge.badgeText $ C.translate' C.LblRelevant)
+relevanceBadge ContextOnly = Nothing
 
 -- ============================================================================
 -- Resource Item
 -- ============================================================================
 
--- | Render a single resource as a disclosure or link card.
 viewResourceItem
   :: SyncContext
   -> GroupedResourcesModel
@@ -236,53 +231,19 @@ viewResourceItem
   -> Resource
   -> M.View GroupedResourcesModel GroupedResourcesAction
 viewResourceItem r m relevance res =
-  let ResourceIdentifier ident = res.identifier
-      displayName = if T.null ident then "(Unbenannt)" else ident
-      key = "res-" <> idToText res.id
-   in case res.content of
-        InlineContent rc ->
-          let isExpanded = Set.member key m.expandedItems
-              hasContent = rc /= mempty
-              titleBase = Disclosure.titleIconText Icon.IcnResources (ms displayName)
-              disclosureTitle = relevanceTitle relevance titleBase
-              bodyView =
-                MH.div_
-                  [class_ "prose prose-stone prose-sm max-w-none"]
-                  [renderRichTextWithFiles r.formulaCache r res.attachments rc]
-           in if hasContent
-                then
-                  relevanceDisclosure relevance (ToggleItemExpanded key) $
-                    Disclosure.contents disclosureTitle isExpanded bodyView []
-                else
-                  MH.div_
-                    [class_ "rounded overflow-hidden"]
-                    [ MH.div_
-                        [class_ "px-2 py-1.5"]
-                        [ Layout.hFlow
-                            (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-                            [ Icon.icon [class_ "text-sky-600"] Icon.IcnResources
-                            , MH.span_ [class_ "font-medium"] [M.text (ms displayName)]
-                            ]
-                        ]
-                    ]
-        WebLink url title -> viewLinkCard Icon.IcnLink ident displayName url title
-        VideoLink url title -> viewLinkCard Icon.IcnVideo ident displayName url title
-        FileContent fileRef ->
-          let isExpanded' = Set.member key m.expandedItems
-              titleBase' = Disclosure.titleIconText Icon.IcnResources (ms displayName)
-              disclosureTitle' = relevanceTitle relevance titleBase'
-              bodyView' =
-                inlineComponent
-                  ("res-gallery-" <> ms (show fileRef.hash))
-                  (fileGalleryComponent r [fileRef])
-           in relevanceDisclosure relevance (ToggleItemExpanded key) $
-                Disclosure.contents disclosureTitle' isExpanded' bodyView' []
+  ResEmbed.renderResource r m.resourceState annotations ResourceAction res
+  where
+    annotations res' =
+      maybe [] (: []) (relevanceBadge relevance)
+        <> [resourceEditButton r res' | isTeacher r]
 
 -- ============================================================================
 -- Task Item
 -- ============================================================================
 
--- | Render a single task with its solutions as a disclosure.
+-- | Render a single task with its solutions as a disclosure (ad-hoc — task
+-- items in this view are still keyed by text; full Fragment migration is
+-- deferred).
 viewTaskItem
   :: FormulaCache
   -> GroupedResourcesModel
@@ -292,11 +253,14 @@ viewTaskItem
 viewTaskItem fc m relevance tws =
   let displayName = taskDisplayName tws.task
       key = "task-" <> idToText tws.task.id
-      isExpanded = Set.member key m.expandedItems
+      isExpanded = Set.member key m.expandedTasks
       titleBase = Disclosure.titleIconText Icon.IcnTask (ms displayName)
-      titleView = relevanceTitle relevance titleBase
+      titleView = case relevanceBadge relevance of
+        Nothing -> titleBase
+        Just b -> Disclosure.titleWithAnnotation titleBase b
       bodyView = taskBodyView fc tws
-   in relevanceDisclosure relevance (ToggleItemExpanded key) $
+      picker = if relevance == Relevant then Disclosure.innerPopDisclosure else Disclosure.innerDisclosure
+   in picker (ToggleTaskExpanded key) $
         Disclosure.contents titleView isExpanded bodyView []
 
 -- | Render task body content (task content + solutions).

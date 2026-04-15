@@ -20,6 +20,7 @@ module Competences.Frontend.SyncContext.SyncDocument
   , issueInitialUpdate
   , mkSyncDocumentEnv
   , syncDocumentEnv
+  , isTeacher
   , getCommandSender
   , getFocusedUserRef
   , nextId
@@ -56,7 +57,7 @@ module Competences.Frontend.SyncContext.SyncDocument
 where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Document (Document, User (..), emptyDocument)
+import Competences.Document (Document, User (..), UserRole (..), emptyDocument)
 import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
@@ -165,6 +166,10 @@ data SyncContext = SyncContext
 -- | Get the environment from a SyncContext
 syncDocumentEnv :: SyncContext -> SyncDocumentEnv
 syncDocumentEnv r = r.env
+
+-- | Whether the connected user has the 'Teacher' role.
+isTeacher :: SyncContext -> Bool
+isTeacher r = (syncDocumentEnv r).connectedUser.role == Teacher
 
 -- | Get the CommandSender from a SyncContext
 getCommandSender :: SyncContext -> CommandSender
