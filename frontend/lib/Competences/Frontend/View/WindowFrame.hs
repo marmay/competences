@@ -163,13 +163,12 @@ pinFrame chrome toggleAction closeAction content =
 
 -- | Sidebar icon button for a pinned dialog.
 --
--- Renders a ~48x48 icon button with optional context badge overlay.
+-- Renders a ~48x48 icon button with the chrome's icon and optional
+-- badge icon overlay (e.g. edit pen to mark an editor pin) plus an
+-- optional context text badge underneath (e.g. assignment name).
 -- Active (currently visible) dialogs are highlighted.
 pinSidebarIcon
-  :: Icon.Icon
-  -- ^ The icon to display
-  -> M.MisoString
-  -- ^ Hover text (tooltip)
+  :: WindowChrome
   -> Bool
   -- ^ Whether this pin is currently visible (active)
   -> Maybe M.MisoString
@@ -177,17 +176,22 @@ pinSidebarIcon
   -> a
   -- ^ Click action
   -> M.View m a
-pinSidebarIcon icn title isActive badgeText clickAction =
+pinSidebarIcon chrome isActive badgeText clickAction =
   M.div_
     [class_ "relative"]
-    [ withTooltip (PlainTooltip title) $
-        Button.toggleLg isActive (Button.button icn (Just clickAction))
-    , -- Badge overlay
-      case badgeText of
-        Nothing -> M.text ""
-        Just t ->
-          M.span_
-            [ class_ "absolute -bottom-1 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-bold rounded-full max-w-12 truncate px-1 flex items-center justify-center"
-            ]
-            [M.text t]
-    ]
+    ( [ withTooltip (PlainTooltip chrome.title) $
+          Button.toggleLg isActive (Button.button chrome.icon (Just clickAction))
+      ]
+        <> [ M.span_
+              [ class_ "absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background p-0.5 pointer-events-none"
+              ]
+              [Icon.iconS Icon.Small b]
+           | Just b <- [chrome.iconBadge]
+           ]
+        <> [ M.span_
+              [ class_ "absolute -bottom-1 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-bold rounded-full max-w-12 truncate px-1 flex items-center justify-center"
+              ]
+              [M.text t]
+           | Just t <- [badgeText]
+           ]
+    )

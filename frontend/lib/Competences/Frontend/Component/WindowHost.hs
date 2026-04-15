@@ -24,7 +24,6 @@ import Competences.Frontend.SyncContext.WindowManager
   , PinId
   , PinMeta (..)
   , PinVisibility (..)
-  , WindowChrome (..)
   , WindowEvent (..)
   , mkPinId
   )
@@ -202,7 +201,7 @@ renderSidebar m
   where
     renderSidebarEntry (pid, AnyPinnedDialog _ chrome meta, visibility) =
       let isActive = visibility == PinVisible
-       in pinSidebarIcon chrome.icon chrome.title isActive meta.context (TogglePin pid)
+       in pinSidebarIcon chrome isActive meta.context (TogglePin pid)
 
 -- | Extract and sort pinned dialogs by (category, sortKey).
 sortedPins :: Model -> [(PinId, AnyPinnedDialog, PinVisibility)]

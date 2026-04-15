@@ -170,13 +170,15 @@ iconFull variant size anim icn =
 
 -- | Render a main icon with a small badge icon at the bottom-right.
 -- Used for entity-specific edit icons (e.g., task icon + edit badge).
+-- The badge sits on a filled primary circle with a background ring so
+-- stroke-only badge icons (e.g. the edit pen) remain legible.
 iconWithBadge :: Icon -> Icon -> View m a
 iconWithBadge main badge =
   MH.span_
     [M.class_ "relative inline-flex"]
     [ iconS Large main
     , MH.span_
-        [M.class_ "absolute -bottom-1 -right-1 text-muted-foreground"]
+        [M.class_ "absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background p-0.5"]
         [iconS Small badge]
     ]
 
