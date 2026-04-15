@@ -1,6 +1,6 @@
 -- | Shared view for rendering task completion status.
 -- Reusable across assignment viewer, competence resources, and assignment evaluator.
-module Competences.Frontend.View.TaskStatus
+module Competences.Frontend.Fragment.TaskStatus
   ( viewTaskCompletionStatus
   , viewTaskCompletionStatusFromMap
   )

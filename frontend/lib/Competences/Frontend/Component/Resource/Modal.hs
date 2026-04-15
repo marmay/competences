@@ -21,9 +21,9 @@ import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesCompo
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Task.EditButton (taskEditButton)
-import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.View.Task.Badge qualified as TaskBadge
-import Competences.Frontend.View.Task.Detailed qualified as VT
+import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
+import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
+import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..))
 
@@ -33,7 +33,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), inlineComponent, openFramedModal)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
+import Competences.Frontend.Fragment.TaskStatus (viewTaskCompletionStatusFromMap)
 import Competences.Query.TaskStatus (TaskCompletionStatus, TaskStatusGroup (..), groupByTaskStatus)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set

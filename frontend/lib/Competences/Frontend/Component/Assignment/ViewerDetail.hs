@@ -89,9 +89,9 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Task.EditButton (taskEditButton)
-import Competences.Frontend.View.Task.Badge qualified as TaskBadge
-import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.View.Task.Detailed qualified as VT
+import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
+import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
+import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
@@ -103,7 +103,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Card qualified as Card
@@ -122,7 +122,7 @@ import Competences.Document.User (UserRole (..))
 import Competences.Query.Assignment (AssignmentStatus (..), accumulatedObservations, assignmentStatus)
 import Competences.Query.Assignment qualified as Q
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
-import Competences.Frontend.View.TaskStatus (viewTaskCompletionStatusFromMap)
+import Competences.Frontend.Fragment.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set

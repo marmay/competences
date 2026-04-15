@@ -1,7 +1,7 @@
 -- | Detailed task view: pure view primitives and pure state machine.
 --
 -- Effects for the state machine live in 'Component.Task.Detailed.Embed'.
-module Competences.Frontend.View.Task.Detailed
+module Competences.Frontend.Fragment.Task.Detailed
   ( -- * State machine
     TaskDetailedState (..)
   , TaskDetailedAction (..)
@@ -36,7 +36,7 @@ import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Task.Badge (taskStatusHeaderBg, taskStatusPalette)
+import Competences.Frontend.Fragment.Task.Badge (taskStatusHeaderBg, taskStatusPalette)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus)
 import Data.Set (Set)

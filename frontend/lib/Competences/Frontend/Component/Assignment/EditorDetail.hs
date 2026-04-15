@@ -39,7 +39,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout

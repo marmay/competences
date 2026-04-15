@@ -10,7 +10,6 @@ module Competences.Frontend.View
   , module Competences.Frontend.View.CellStyle
   , module Competences.Frontend.View.Color
   , module Competences.Frontend.View.Combobox
-  , module Competences.Frontend.View.EvidenceIcon
   , inlineComponent
   , inlineComponentAttrs
   , module Competences.Frontend.View.Form
@@ -29,7 +28,6 @@ import Competences.Frontend.View.Button
 import Competences.Frontend.View.CellStyle
 import Competences.Frontend.View.Color
 import Competences.Frontend.View.Combobox
-import Competences.Frontend.View.EvidenceIcon
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Form
 import Competences.Frontend.View.Layout

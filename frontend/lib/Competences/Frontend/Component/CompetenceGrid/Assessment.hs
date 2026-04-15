@@ -46,8 +46,8 @@ import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Color (textClass')
 import Competences.Frontend.View.Color.Ability (abilityPalette)
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
-import Competences.Frontend.View.GradeBadge (gradeBadgeView)
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Color.Completion (CompletionStatus (..))

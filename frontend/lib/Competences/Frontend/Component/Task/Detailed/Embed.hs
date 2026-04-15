@@ -16,7 +16,7 @@ import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
-import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
+import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, nextId)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Button qualified as Button
@@ -25,7 +25,7 @@ import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Task.Detailed qualified as V
+import Competences.Frontend.Fragment.Task.Detailed qualified as V
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus (TaskCompletionStatus)
 import Data.Set qualified as Set

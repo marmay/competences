@@ -24,9 +24,9 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Evaluation qualified as Eval
+import Competences.Frontend.Fragment.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Task.Detailed qualified as VT
+import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -36,7 +36,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Assignment (isDigitalSubmission, isVoidSubmission, isNonDigitalSubmission)
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
 import Competences.Frontend.Component.SubmissionPreview qualified as SubPreview
-import Competences.Frontend.View.SubmissionViewer qualified as SubViewer
+import Competences.Frontend.Fragment.SubmissionViewer qualified as SubViewer
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))

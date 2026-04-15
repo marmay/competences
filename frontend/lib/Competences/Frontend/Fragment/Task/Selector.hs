@@ -2,7 +2,7 @@
 --
 -- Pure view helpers for task items in selector panels.
 -- Leaf module with no View.Task.* dependencies.
-module Competences.Frontend.View.Task.Selector
+module Competences.Frontend.Fragment.Task.Selector
   ( -- * Draft badge
     draftBadge
     -- * Selector items

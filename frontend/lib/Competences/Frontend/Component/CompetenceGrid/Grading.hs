@@ -36,7 +36,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Card qualified as Card
-import Competences.Frontend.View.GradeBadge (gradeBadgeView)
+import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table

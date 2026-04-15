@@ -54,7 +54,7 @@ import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
 import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.Component.Task.Projection (TaskWithSolutions (..))
+import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
@@ -71,14 +71,14 @@ import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Ability (abilityPalette)
 import Competences.Frontend.View.Color.Mastery (masteryPalette)
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
-import Competences.Frontend.View.GradeBadge (gradeBadgeView)
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.Table (TableCellSpec (..))
 import Competences.Frontend.View.CellStyle qualified as CellStyle
-import Competences.Frontend.View.MasteryBar qualified as MasteryBar
+import Competences.Frontend.Fragment.MasteryBar qualified as MasteryBar
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (pinButton)

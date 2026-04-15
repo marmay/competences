@@ -28,7 +28,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.GradeBadge (gradeBadgeView)
+import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Data.Proxy (Proxy (..))

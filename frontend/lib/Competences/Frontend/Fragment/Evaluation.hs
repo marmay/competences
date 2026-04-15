@@ -1,11 +1,11 @@
 -- |
--- Module      : Competences.Frontend.View.Evaluation
+-- Module      : Competences.Frontend.Fragment.Evaluation
 -- Description : Shared view helpers for evaluation components
 --
 -- Contains reusable view functions and pure helpers shared between
 -- the assignment evaluator (EvaluatorDetail) and the lesson evaluator
 -- (StudentEvaluatorModal).
-module Competences.Frontend.View.Evaluation
+module Competences.Frontend.Fragment.Evaluation
   ( -- * Projection types
     TaskViewData (..)
   , CompetenceLevelInfo (..)

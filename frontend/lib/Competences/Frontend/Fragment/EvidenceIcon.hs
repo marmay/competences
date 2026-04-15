@@ -3,7 +3,7 @@
 -- Provides mapping functions from 'ActivityType' and 'SocialForm' to
 -- their corresponding 'Icon' values, plus a small helper for rendering
 -- icons with @stroke="currentColor"@ so they inherit the text color.
-module Competences.Frontend.View.EvidenceIcon
+module Competences.Frontend.Fragment.EvidenceIcon
   ( activityTypeIcon
   , socialFormIcon
   , coloredStrokeIcon

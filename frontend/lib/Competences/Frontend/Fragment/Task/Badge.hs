@@ -2,7 +2,7 @@
 --
 -- Purpose badges, status palettes, assessment stars.
 -- Leaf module with no View.Task.* dependencies.
-module Competences.Frontend.View.Task.Badge
+module Competences.Frontend.Fragment.Task.Badge
   ( -- * Purpose badge
     purposeBadge
   , purposeBadgeVariant

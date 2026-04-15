@@ -2,7 +2,7 @@
 --
 -- 'taskContent' and 'taskPurpose' duplicate fields on 'Task'. Callers read
 -- them via OverloadedRecordDot without importing 'Task(..)'.
-module Competences.Frontend.Component.Task.Projection
+module Competences.Frontend.Fragment.Task.Projection
   ( TaskWithSolutions (..)
   )
 where

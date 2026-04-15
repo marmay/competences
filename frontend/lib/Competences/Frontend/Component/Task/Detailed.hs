@@ -27,8 +27,8 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Task.Badge (assessmentStar, purposeBadge)
-import Competences.Frontend.View.Task.Detailed qualified as V
+import Competences.Frontend.Fragment.Task.Badge (assessmentStar, purposeBadge)
+import Competences.Frontend.Fragment.Task.Detailed qualified as V
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M

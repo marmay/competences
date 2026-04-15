@@ -1,4 +1,4 @@
-module Competences.Frontend.View.MasteryBar
+module Competences.Frontend.Fragment.MasteryBar
   ( MasteryDisplayConfig (..)
   , masteryDisplay
   )

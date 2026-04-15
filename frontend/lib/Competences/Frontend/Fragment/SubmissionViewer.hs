@@ -1,4 +1,4 @@
-module Competences.Frontend.View.SubmissionViewer
+module Competences.Frontend.Fragment.SubmissionViewer
   ( isSubmissionOpen
   )
 where

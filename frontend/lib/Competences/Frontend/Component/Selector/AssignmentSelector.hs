@@ -26,7 +26,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon

@@ -1,6 +1,6 @@
 -- | Shared component for displaying observations with icons and tooltips
 -- Designed for reuse across components showing observation summaries
-module Competences.Frontend.View.ObservationSummary
+module Competences.Frontend.Fragment.ObservationSummary
   ( observationSummaryView
   , observationIconView
   )

@@ -1,4 +1,4 @@
-module Competences.Frontend.View.GradeBadge
+module Competences.Frontend.Fragment.GradeBadge
   ( gradeBadgeView
   , gradePalette
   , gradeShortLabel
