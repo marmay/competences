@@ -161,7 +161,7 @@ viewLessonNoteGroup r m group =
       annotations =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
-          <> [ entityMenu
+          <> [ entityMenu m.lessonNotesState.menuDismissed (LessonNotesAction VLN.MenuReset)
                   [ menuEdit (LessonNotesAction (VLN.MenuEdit ln.id))
                   , menuPin (LessonNotesAction (VLN.MenuPin ln))
                   , menuGoTo (LessonNotesAction (VLN.MenuGoTo ln.id))
@@ -230,7 +230,7 @@ viewResourceItem r m relevance res =
   where
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
-        <> [ entityMenu
+        <> [ entityMenu m.resourceState.menuDismissed (ResourceAction VR.MenuReset)
                 [ menuEdit (ResourceAction (VR.MenuEdit res'.id))
                 , menuPin (ResourceAction (VR.MenuPin res'))
                 , menuGoTo (ResourceAction (VR.MenuGoTo res'.id))

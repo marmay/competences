@@ -216,11 +216,11 @@ viewModalTaskList r m taskExtra =
     TaskListAction
 
 modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
-modalAnnotations _r _m taskExtra tws =
+modalAnnotations _r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
-    , [ entityMenu
+    , [ entityMenu m.taskListState.menuDismissed (TaskListAction VT.MenuReset)
             [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
             , menuPin (TaskListAction (VT.MenuPin tws.task))
             , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))

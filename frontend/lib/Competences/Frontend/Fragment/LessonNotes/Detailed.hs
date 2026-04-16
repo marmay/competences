@@ -35,14 +35,15 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
-import Optics.Core ((%~))
+import Optics.Core ((%~), (.~))
 
 -- ============================================================================
 -- State machine
 -- ============================================================================
 
-newtype LessonNotesDetailedState = LessonNotesDetailedState
-  { expandedLessonNotes :: Set LessonNotesId
+data LessonNotesDetailedState = LessonNotesDetailedState
+  { expandedLessonNotes :: !(Set LessonNotesId)
+  , menuDismissed :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -52,11 +53,12 @@ data LessonNotesDetailedAction
   | MenuPin !LessonNotes
   | MenuGoTo !LessonNotesId
   | MenuDelete !LessonNotesId
+  | MenuReset
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
 initialLessonNotesDetailedState expanded =
-  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded}
+  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, menuDismissed = False}
 
 updateLessonNotesDetailedPure
   :: LessonNotesDetailedAction
@@ -64,6 +66,7 @@ updateLessonNotesDetailedPure
   -> LessonNotesDetailedState
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
+updateLessonNotesDetailedPure MenuReset = #menuDismissed .~ False
 updateLessonNotesDetailedPure _ = id
 
 

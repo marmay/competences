@@ -34,7 +34,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Router qualified as M
 import Miso.String (ms)
-import Optics.Core (Lens', (%), (%~))
+import Optics.Core (Lens', (%), (%~), (.~))
 
 -- | Embeddable update: pass a lens at the parent's 'TaskDetailedState'
 -- and a lifter wrapping 'TaskDetailedAction' back into the parent action.
@@ -56,15 +56,21 @@ updateTaskDetailed stateLens r lift = go
         (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid)))
         (lift . V.HoldDeleteSolution)
         ha
-    go (V.MenuEdit tid) =
+    go (V.MenuEdit tid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Modify tid Lock))
-    go (V.MenuPin task) =
+    go (V.MenuPin task) = do
+      dismiss
       M.io_ $ requestViewerPin r (PinTaskViewer task)
-    go (V.MenuGoTo tid) =
+    go (V.MenuGoTo tid) = do
+      dismiss
       M.io_ $ M.pushURI (M.toURI (ManageTasks (Just tid)))
-    go (V.MenuDelete tid) =
+    go (V.MenuDelete tid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
     go action = M.modify (stateLens %~ V.updateTaskDetailedPure action)
+
+    dismiss = M.modify (stateLens % #menuDismissed .~ True)
 
 -- | Render a list of tasks with disclosures, solutions, and status tinting.
 taskListView

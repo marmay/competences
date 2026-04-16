@@ -123,10 +123,10 @@ viewTask r cfg m task =
         else V.taskOpenView displayName annotations body
 
 headerAnnotations :: SyncContext -> TaskDetailedConfig -> Model -> Task -> [M.View Model Action]
-headerAnnotations r cfg _m task =
+headerAnnotations r cfg m task =
   concat
     [ [assessmentStar task.purpose]
-    , [ entityMenu $
+    , [ entityMenu m.viewState.menuDismissed (ViewAction V.MenuReset) $
             [ menuEdit (ViewAction (V.MenuEdit task.id))
             , menuPin (ViewAction (V.MenuPin task))
             ]

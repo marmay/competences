@@ -1,11 +1,14 @@
--- | Reusable CSS-only hover dropdown menu component.
+-- | Reusable hover dropdown menu component.
 --
--- Uses the @group-hover@ pattern (same as Tooltip.hs) to show a dropdown
--- panel when the user hovers over a trigger element.
+-- Stateful variants take a @dismissed@ flag and a reset action. The Embed
+-- layer sets dismissed after handling an entry action; @mouseLeave@ fires
+-- the reset to re-enable hover on the next approach.
 module Competences.Frontend.View.HoverMenu
   ( hoverMenu
   , hoverMenuRight
   , hoverMenuAboveRight
+  , hoverMenuStateful
+  , hoverMenuStatefulRight
   , hoverMenuEntry
   , hoverMenuSeparator
   , hoverMenuHeading
@@ -20,19 +23,16 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
 
--- | Wrap a trigger element with a hover dropdown.
---
--- The trigger is rendered normally. On hover, the dropdown items appear
--- below. Uses @pt-1@ padding (not margin) so the hover zone is contiguous
--- between trigger and dropdown panel.
+-- ============================================================================
+-- Stateless (CSS-only hover)
+-- ============================================================================
+
 hoverMenu :: View m a -> [View m a] -> View m a
 hoverMenu = hoverMenuWith "left-0"
 
--- | Like 'hoverMenu' but the dropdown aligns to the right edge of the trigger.
 hoverMenuRight :: View m a -> [View m a] -> View m a
 hoverMenuRight = hoverMenuWith "right-0"
 
--- | Like 'hoverMenuRight' but the dropdown opens above the trigger.
 hoverMenuAboveRight :: View m a -> [View m a] -> View m a
 hoverMenuAboveRight trigger items =
   MH.div_
@@ -43,14 +43,7 @@ hoverMenuAboveRight trigger items =
             "absolute right-0 bottom-full pb-1 z-50 \
             \hidden group-hover/menu:block"
         ]
-        [ MH.div_
-            [ class_
-                "min-w-48 bg-popover text-popover-foreground \
-                \border border-border rounded-md shadow-lg p-1 \
-                \flex flex-col gap-0.5"
-            ]
-            items
-        ]
+        [dropdownPanel items]
     ]
 
 hoverMenuWith :: Text -> View m a -> [View m a] -> View m a
@@ -63,15 +56,45 @@ hoverMenuWith align trigger items =
             "absolute " <> align <> " top-full pt-1 z-50 \
             \hidden group-hover/menu:block"
         ]
-        [ MH.div_
-            [ class_
-                "min-w-48 bg-popover text-popover-foreground \
-                \border border-border rounded-md shadow-lg p-1 \
-                \flex flex-col gap-0.5"
-            ]
-            items
-        ]
+        [dropdownPanel items]
     ]
+
+-- ============================================================================
+-- Stateful (CSS hover + dismissed flag)
+-- ============================================================================
+
+hoverMenuStateful :: Bool -> a -> View m a -> [View m a] -> View m a
+hoverMenuStateful = hoverMenuStatefulWith "left-0"
+
+hoverMenuStatefulRight :: Bool -> a -> View m a -> [View m a] -> View m a
+hoverMenuStatefulRight = hoverMenuStatefulWith "right-0"
+
+hoverMenuStatefulWith :: Text -> Bool -> a -> View m a -> [View m a] -> View m a
+hoverMenuStatefulWith align dismissed resetAction trigger items =
+  MH.div_
+    [class_ "group/menu relative", MH.onMouseLeave resetAction]
+    [ trigger
+    , MH.div_
+        [ class_ $
+            "absolute " <> align <> " top-full pt-1 z-50 "
+              <> if dismissed then "hidden" else "hidden group-hover/menu:block"
+        ]
+        [dropdownPanel items]
+    ]
+
+-- ============================================================================
+-- Shared
+-- ============================================================================
+
+dropdownPanel :: [View m a] -> View m a
+dropdownPanel items =
+  MH.div_
+    [ class_
+        "min-w-48 bg-popover text-popover-foreground \
+        \border border-border rounded-md shadow-lg p-1 \
+        \flex flex-col gap-0.5"
+    ]
+    items
 
 -- | A single clickable entry in a hover menu (icon + label, full-width).
 hoverMenuEntry :: Bool -> Icon.Icon -> MisoString -> a -> View m a

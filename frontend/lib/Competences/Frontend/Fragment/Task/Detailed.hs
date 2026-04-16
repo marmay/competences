@@ -48,7 +48,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString)
-import Optics.Core ((%~))
+import Optics.Core ((%~), (.~))
 
 -- ============================================================================
 -- State machine
@@ -59,6 +59,7 @@ data TaskDetailedState = TaskDetailedState
   { expandedTasks :: !(Set TaskId)
   , expandedSolutions :: !(Set SolutionId)
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
+  , menuDismissed :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -71,6 +72,7 @@ data TaskDetailedAction
   | MenuPin !Task
   | MenuGoTo !TaskId
   | MenuDelete !TaskId
+  | MenuReset
   deriving (Eq, Show)
 
 -- | Initial state with a given set of initially-expanded tasks.
@@ -80,18 +82,15 @@ initialTaskDetailedState expanded =
     { expandedTasks = Set.fromList expanded
     , expandedSolutions = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
+    , menuDismissed = False
     }
 
 -- | Pure update for the toggle branches; effectful branches are no-ops here.
 updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
 updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
-updateTaskDetailedPure (AddSolution _) = id
-updateTaskDetailedPure (HoldDeleteSolution _) = id
-updateTaskDetailedPure (MenuEdit _) = id
-updateTaskDetailedPure (MenuPin _) = id
-updateTaskDetailedPure (MenuGoTo _) = id
-updateTaskDetailedPure (MenuDelete _) = id
+updateTaskDetailedPure MenuReset = #menuDismissed .~ False
+updateTaskDetailedPure _ = id
 
 
 -- ============================================================================

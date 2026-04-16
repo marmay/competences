@@ -36,14 +36,15 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
-import Optics.Core ((%~))
+import Optics.Core ((%~), (.~))
 
 -- ============================================================================
 -- State machine
 -- ============================================================================
 
-newtype ResourceDetailedState = ResourceDetailedState
-  { expandedResources :: Set ResourceId
+data ResourceDetailedState = ResourceDetailedState
+  { expandedResources :: !(Set ResourceId)
+  , menuDismissed :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -53,14 +54,16 @@ data ResourceDetailedAction
   | MenuPin !Resource
   | MenuGoTo !ResourceId
   | MenuDelete !ResourceId
+  | MenuReset
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
 initialResourceDetailedState expanded =
-  ResourceDetailedState {expandedResources = Set.fromList expanded}
+  ResourceDetailedState {expandedResources = Set.fromList expanded, menuDismissed = False}
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
+updateResourceDetailedPure MenuReset = #menuDismissed .~ False
 updateResourceDetailedPure _ = id
 
 

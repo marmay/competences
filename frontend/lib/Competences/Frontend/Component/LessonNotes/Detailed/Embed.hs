@@ -19,7 +19,7 @@ import Data.Set qualified as Set
 import Miso qualified as M
 import Miso.Router qualified as M
 import Miso.String (ms)
-import Optics.Core (Lens', (%~))
+import Optics.Core (Lens', (%), (%~), (.~))
 
 -- | Embeddable update: pass a lens at the parent's 'LessonNotesDetailedState'.
 updateLessonNotesDetailed
@@ -30,15 +30,21 @@ updateLessonNotesDetailed
   -> M.Effect parent model action
 updateLessonNotesDetailed stateLens r _lift = go
   where
-    go (V.MenuEdit lnid) =
+    go (V.MenuEdit lnid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))
-    go (V.MenuPin ln) =
+    go (V.MenuPin ln) = do
+      dismiss
       M.io_ $ requestViewerPin r (PinLessonNotesViewer ln)
-    go (V.MenuGoTo lnid) =
+    go (V.MenuGoTo lnid) = do
+      dismiss
       M.io_ $ M.pushURI (M.toURI (ManageLessonNotes (Just lnid)))
-    go (V.MenuDelete lnid) =
+    go (V.MenuDelete lnid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
     go action = M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
+
+    dismiss = M.modify (stateLens % #menuDismissed .~ True)
 
 -- | Render a lesson-notes group as a collapsible disclosure.
 -- Body is caller-supplied (e.g. items with relevance annotations).

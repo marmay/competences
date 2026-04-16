@@ -82,11 +82,11 @@ resourceDetailedComponent r cfg =
 
     view' m = case m.projection.resource of
       Nothing -> Layout.empty
-      Just res -> renderResource r m.viewState annotations ViewAction res
+      Just res -> renderResource r m.viewState (annotations m) ViewAction res
 
-    annotations res
+    annotations m res
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu $
+          [entityMenu m.viewState.menuDismissed (ViewAction V.MenuReset) $
             [ menuEdit (ViewAction (V.MenuEdit res.id))
             , menuPin (ViewAction (V.MenuPin res))
             ]

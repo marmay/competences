@@ -90,13 +90,13 @@ lessonNotesDetailedComponent r cfg =
       Nothing -> Layout.empty
       Just (ln, mLesson, items) ->
         V.lessonNotesCardView $
-          [V.lessonNotesHeader (ms ln.title) ln.date (annotations ln)]
+          [V.lessonNotesHeader (ms ln.title) ln.date (annotations m ln)]
             <> [V.linkedLessonLink (ms lesson.title) | Just lesson <- [mLesson]]
             <> [V.itemsSection (map (viewResolvedItem r) items)]
 
-    annotations ln
+    annotations m ln
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu $
+          [entityMenu m.viewState.menuDismissed (ViewAction V.MenuReset) $
             [ menuEdit (ViewAction (V.MenuEdit ln.id))
             , menuPin (ViewAction (V.MenuPin ln))
             ]

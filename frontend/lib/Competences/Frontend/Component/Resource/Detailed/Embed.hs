@@ -21,7 +21,7 @@ import Data.Text qualified as T
 import Miso qualified as M
 import Miso.Router qualified as M
 import Miso.String (ms)
-import Optics.Core (Lens', (%~))
+import Optics.Core (Lens', (%), (%~), (.~))
 
 -- | Embeddable update: pass a lens at the parent's 'ResourceDetailedState'.
 updateResourceDetailed
@@ -32,15 +32,21 @@ updateResourceDetailed
   -> M.Effect parent model action
 updateResourceDetailed stateLens r _lift = go
   where
-    go (V.MenuEdit rid) =
+    go (V.MenuEdit rid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Resources (OnResources (Modify rid Lock))
-    go (V.MenuPin res) =
+    go (V.MenuPin res) = do
+      dismiss
       M.io_ $ requestViewerPin r (PinResourceViewer res)
-    go (V.MenuGoTo rid) =
+    go (V.MenuGoTo rid) = do
+      dismiss
       M.io_ $ M.pushURI (M.toURI (ManageResources (Just rid)))
-    go (V.MenuDelete rid) =
+    go (V.MenuDelete rid) = do
+      dismiss
       M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
     go action = M.modify (stateLens %~ V.updateResourceDetailedPure action)
+
+    dismiss = M.modify (stateLens % #menuDismissed .~ True)
 
 renderResource
   :: SyncContext

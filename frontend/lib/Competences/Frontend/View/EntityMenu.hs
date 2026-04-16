@@ -1,11 +1,15 @@
 -- | Reusable entity context menu (hover dropdown with ⋮ trigger).
+--
+-- The stateful 'entityMenu' takes a dismissed flag and reset action.
+-- The Embed layer sets dismissed after handling an entry action;
+-- mouseLeave fires the reset.
 module Competences.Frontend.View.EntityMenu
-  ( EntityMenuEntry (..)
-  , EntityMenuStyle (..)
-  , menuEdit
+  ( menuEdit
   , menuPin
   , menuGoTo
   , menuDelete
+  , menuCustom
+  , menuSeparator
   , entityMenu
   )
 where
@@ -13,38 +17,28 @@ where
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
-import Data.List (partition)
 import Miso qualified as M
 import Miso.String (MisoString)
 
-data EntityMenuStyle = MenuPrimary | MenuDestructive
-  deriving (Eq, Show)
+menuEdit :: a -> M.View m a
+menuEdit = HoverMenu.hoverMenuEntry True Icon.IcnEdit (C.translate' C.LblEdit)
 
-data EntityMenuEntry a = EntityMenuEntry
-  { style :: !EntityMenuStyle
-  , icon :: !Icon.Icon
-  , label :: !MisoString
-  , action :: !a
-  }
+menuPin :: a -> M.View m a
+menuPin = HoverMenu.hoverMenuEntry True Icon.IcnPin (C.translate' C.LblPin)
 
-menuEdit :: a -> EntityMenuEntry a
-menuEdit = EntityMenuEntry MenuPrimary Icon.IcnEdit (C.translate' C.LblEdit)
+menuGoTo :: a -> M.View m a
+menuGoTo = HoverMenu.hoverMenuEntry True Icon.IcnOpenModal (C.translate' C.LblGoTo)
 
-menuPin :: a -> EntityMenuEntry a
-menuPin = EntityMenuEntry MenuPrimary Icon.IcnPin (C.translate' C.LblPin)
+menuDelete :: a -> M.View m a
+menuDelete = HoverMenu.hoverMenuEntry True Icon.IcnDelete (C.translate' C.LblDelete)
 
-menuGoTo :: a -> EntityMenuEntry a
-menuGoTo = EntityMenuEntry MenuPrimary Icon.IcnOpenModal (C.translate' C.LblGoTo)
+menuCustom :: Icon.Icon -> MisoString -> a -> M.View m a
+menuCustom = HoverMenu.hoverMenuEntry True
 
-menuDelete :: a -> EntityMenuEntry a
-menuDelete = EntityMenuEntry MenuDestructive Icon.IcnDelete (C.translate' C.LblDelete)
+menuSeparator :: M.View m a
+menuSeparator = HoverMenu.hoverMenuSeparator
 
-entityMenu :: [EntityMenuEntry a] -> M.View m a
-entityMenu entries =
+entityMenu :: Bool -> a -> [M.View m a] -> M.View m a
+entityMenu dismissed resetAction items =
   let trigger = Icon.iconVS Icon.Ghost Icon.Small Icon.IcnMoreVertical
-      (primary, destructive) = partition (\e -> e.style == MenuPrimary) entries
-      renderEntry e = HoverMenu.hoverMenuEntry True e.icon e.label e.action
-      items = case destructive of
-        [] -> map renderEntry primary
-        _ -> map renderEntry primary <> [HoverMenu.hoverMenuSeparator] <> map renderEntry destructive
-   in HoverMenu.hoverMenuRight trigger items
+   in HoverMenu.hoverMenuStatefulRight dismissed resetAction trigger items

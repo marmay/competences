@@ -2,7 +2,10 @@
 --
 -- Effects for these actions live in 'Component.Assignment.Detailed.Embed'.
 module Competences.Frontend.Fragment.Assignment.Detailed
-  ( AssignmentDetailedAction (..)
+  ( AssignmentDetailedState (..)
+  , AssignmentDetailedAction (..)
+  , initialAssignmentDetailedState
+  , updateAssignmentDetailedPure
   , assignmentEntityMenu
   , assignmentHeaderView
   , assignmentCardView
@@ -13,35 +16,50 @@ import Competences.Document (Assignment (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
-import Competences.Frontend.View.EntityMenu (EntityMenuEntry (..), EntityMenuStyle (..), menuEdit, menuGoTo, menuPin)
+import Competences.Frontend.View.EntityMenu (menuCustom, menuEdit, menuGoTo, menuPin)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
+import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Optics.Core ((.~))
 
 -- ============================================================================
--- Actions
+-- State machine
 -- ============================================================================
+
+newtype AssignmentDetailedState = AssignmentDetailedState
+  { menuDismissed :: Bool
+  }
+  deriving (Eq, Generic, Show)
+
+initialAssignmentDetailedState :: AssignmentDetailedState
+initialAssignmentDetailedState = AssignmentDetailedState {menuDismissed = False}
 
 data AssignmentDetailedAction
   = MenuEdit !AssignmentId
   | MenuPin !Assignment
   | MenuGoTo !AssignmentId
   | MenuEvaluate !Assignment
+  | MenuReset
   deriving (Eq, Show)
+
+updateAssignmentDetailedPure :: AssignmentDetailedAction -> AssignmentDetailedState -> AssignmentDetailedState
+updateAssignmentDetailedPure MenuReset = #menuDismissed .~ False
+updateAssignmentDetailedPure _ = id
 
 -- ============================================================================
 -- Entity menu
 -- ============================================================================
 
-assignmentEntityMenu :: Bool -> Assignment -> [EntityMenuEntry AssignmentDetailedAction]
+assignmentEntityMenu :: Bool -> Assignment -> [M.View m AssignmentDetailedAction]
 assignmentEntityMenu isTeacher a =
   [ menuEdit (MenuEdit a.id)
   , menuPin (MenuPin a)
   , menuGoTo (MenuGoTo a.id)
   ]
-    ++ [ EntityMenuEntry MenuPrimary Icon.IcnApply (C.translate' C.LblEvaluateAssignment) (MenuEvaluate a)
+    ++ [ menuCustom Icon.IcnApply (C.translate' C.LblEvaluateAssignment) (MenuEvaluate a)
        | isTeacher
        ]
 
