@@ -57,11 +57,8 @@ import Miso.Subscription.Util (createSub)
 -- | Configuration for a LockButton instance.
 data LockButtonConfig = LockButtonConfig
   { lock :: !Lock
-  -- ^ Which lock to monitor
   , lockCommand :: !Command
-  -- ^ Entity-specific Lock command (e.g., Evidences (OnEvidences (Modify eid Lock)))
   , style :: !Button.ButtonContentsStyle
-  -- ^ Compact (icon-only) or extended (icon+text)
   }
 
 -- | Lock status derived from document state.

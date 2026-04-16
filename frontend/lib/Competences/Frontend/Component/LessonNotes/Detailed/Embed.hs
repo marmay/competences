@@ -51,7 +51,7 @@ updateLessonNotesDetailed stateLens r lift = go
         ha
     go action = M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuOpen .~ False)
+    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
 
 -- | Render a lesson-notes group as a collapsible disclosure.
 -- Body is caller-supplied (e.g. items with relevance annotations).

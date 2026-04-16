@@ -78,7 +78,7 @@ updateTaskDetailed stateLens r lift = go
         ha
     go action = M.modify (stateLens %~ V.updateTaskDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuOpen .~ False)
+    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
 
 -- | Render a list of tasks with disclosures, solutions, and status tinting.
 taskListView

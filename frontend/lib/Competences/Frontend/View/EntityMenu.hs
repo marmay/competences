@@ -9,14 +9,17 @@ module Competences.Frontend.View.EntityMenu
   , menuDelete
   , menuCustom
   , menuSeparator
+  , menuWidget
   , entityMenu
   )
 where
 
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
+import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Icon qualified as Icon
 import Miso qualified as M
+import Miso.Html qualified as MH
 import Miso.String (MisoString)
 
 menuEdit :: a -> M.View m a
@@ -36,6 +39,11 @@ menuCustom = HoverMenu.hoverMenuEntry True
 
 menuSeparator :: M.View m a
 menuSeparator = HoverMenu.hoverMenuSeparator
+
+-- | Wrap an interactive widget (LockButton, HoldButton) for consistent
+-- menu entry sizing (full-width, small text).
+menuWidget :: M.View m a -> M.View m a
+menuWidget w = MH.div_ [class_ "w-full text-sm"] [w]
 
 -- | Click-to-open entity menu. Toggle action opens/closes the trigger,
 -- close action is fired by the backdrop when clicking outside.

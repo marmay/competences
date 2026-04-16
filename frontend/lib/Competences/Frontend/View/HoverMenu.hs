@@ -67,14 +67,14 @@ clickMenuRight :: Bool -> a -> a -> View m a -> [View m a] -> View m a
 clickMenuRight isOpen toggleAction closeAction trigger items =
   MH.div_
     [class_ "relative"]
-    [ MH.div_ [MH.onClick toggleAction] [trigger]
+    [ MH.div_ [MH.onClickWithOptions M.stopPropagation toggleAction] [trigger]
     , if isOpen
         then
           MH.div_
             []
             [ MH.div_ [class_ "fixed inset-0 z-40", MH.onClick closeAction] []
             , MH.div_
-                [class_ "absolute right-0 top-full pt-1 z-50"]
+                [class_ "absolute right-0 top-full pt-1 z-50", MH.onClick closeAction]
                 [dropdownPanel items]
             ]
         else M.text ""
@@ -99,7 +99,7 @@ hoverMenuEntry :: Bool -> Icon.Icon -> MisoString -> a -> View m a
 hoverMenuEntry isActive icn label action =
   let activeCls = if isActive then " bg-accent text-accent-foreground" else ""
    in MH.div_
-        [ class_ $ "flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground" <> activeCls
+        [ class_ $ "flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground" <> activeCls
         , MH.onClick action
         ]
         [ Icon.iconS Icon.Small icn

@@ -23,7 +23,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
@@ -92,13 +92,13 @@ resourceDetailedComponent r cfg =
 
     annotations m res
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ editButton r res.id
+          [entityMenu (m.viewState.menuOpen == Just res.id) (ViewAction (V.MenuToggle res.id)) (ViewAction V.MenuClose) $
+            [ menuWidget (editButton r res.id)
             , menuPin (ViewAction (V.MenuPin res))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo res.id)) | cfg.settings.enableGoTo]
             ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity res.id | cfg.settings.enableDelete]
+            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity res.id) | cfg.settings.enableDelete]
           ]
       | otherwise = []
 

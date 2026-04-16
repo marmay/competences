@@ -47,7 +47,7 @@ import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuWidget)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -169,8 +169,8 @@ viewLessonNoteGroup r m group =
       annotations =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
-          <> [ entityMenu m.lessonNotesState.menuOpen (LessonNotesAction VLN.MenuToggle) (LessonNotesAction VLN.MenuClose)
-                  [ lnEditButton r ln.id
+          <> [ entityMenu (m.lessonNotesState.menuOpen == Just ln.id) (LessonNotesAction (VLN.MenuToggle ln.id)) (LessonNotesAction VLN.MenuClose)
+                  [ menuWidget (lnEditButton r ln.id)
                   , menuPin (LessonNotesAction (VLN.MenuPin ln))
                   , menuGoTo (LessonNotesAction (VLN.MenuGoTo ln.id))
                   ]
@@ -238,8 +238,8 @@ viewResourceItem r m relevance res =
   where
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
-        <> [ entityMenu m.resourceState.menuOpen (ResourceAction VR.MenuToggle) (ResourceAction VR.MenuClose)
-                [ resEditButton r res'.id
+        <> [ entityMenu (m.resourceState.menuOpen == Just res'.id) (ResourceAction (VR.MenuToggle res'.id)) (ResourceAction VR.MenuClose)
+                [ menuWidget (resEditButton r res'.id)
                 , menuPin (ResourceAction (VR.MenuPin res'))
                 , menuGoTo (ResourceAction (VR.MenuGoTo res'.id))
                 ]

@@ -45,7 +45,7 @@ import Optics.Core ((%~), (.~))
 data LessonNotesDetailedState = LessonNotesDetailedState
   { expandedLessonNotes :: !(Set LessonNotesId)
   , holdDeleteEntity :: !(HoldButton.HoldState LessonNotesId)
-  , menuOpen :: !Bool
+  , menuOpen :: !(Maybe LessonNotesId)
   }
   deriving (Eq, Generic, Show)
 
@@ -56,13 +56,13 @@ data LessonNotesDetailedAction
   | MenuGoTo !LessonNotesId
   | MenuDelete !LessonNotesId
   | HoldDeleteEntity !(HoldButton.HoldAction LessonNotesId)
-  | MenuToggle
+  | MenuToggle !LessonNotesId
   | MenuClose
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
 initialLessonNotesDetailedState expanded =
-  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = False}
+  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = Nothing}
 
 updateLessonNotesDetailedPure
   :: LessonNotesDetailedAction
@@ -70,8 +70,8 @@ updateLessonNotesDetailedPure
   -> LessonNotesDetailedState
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
-updateLessonNotesDetailedPure MenuToggle = #menuOpen %~ not
-updateLessonNotesDetailedPure MenuClose = #menuOpen .~ False
+updateLessonNotesDetailedPure (MenuToggle lnid) = #menuOpen %~ \cur -> if cur == Just lnid then Nothing else Just lnid
+updateLessonNotesDetailedPure MenuClose = #menuOpen .~ Nothing
 updateLessonNotesDetailedPure _ = id
 
 

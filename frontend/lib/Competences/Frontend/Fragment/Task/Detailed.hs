@@ -60,7 +60,7 @@ data TaskDetailedState = TaskDetailedState
   , expandedSolutions :: !(Set SolutionId)
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
   , holdDeleteEntity :: !(HoldButton.HoldState TaskId)
-  , menuOpen :: !Bool
+  , menuOpen :: !(Maybe TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -74,7 +74,7 @@ data TaskDetailedAction
   | MenuGoTo !TaskId
   | MenuDelete !TaskId
   | HoldDeleteEntity !(HoldButton.HoldAction TaskId)
-  | MenuToggle
+  | MenuToggle !TaskId
   | MenuClose
   deriving (Eq, Show)
 
@@ -86,15 +86,15 @@ initialTaskDetailedState expanded =
     , expandedSolutions = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
     , holdDeleteEntity = HoldButton.emptyHoldState
-    , menuOpen = False
+    , menuOpen = Nothing
     }
 
 -- | Pure update for the toggle branches; effectful branches are no-ops here.
 updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
 updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
-updateTaskDetailedPure MenuToggle = #menuOpen %~ not
-updateTaskDetailedPure MenuClose = #menuOpen .~ False
+updateTaskDetailedPure (MenuToggle tid) = #menuOpen %~ \cur -> if cur == Just tid then Nothing else Just tid
+updateTaskDetailedPure MenuClose = #menuOpen .~ Nothing
 updateTaskDetailedPure _ = id
 
 

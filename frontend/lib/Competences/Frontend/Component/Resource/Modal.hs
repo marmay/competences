@@ -22,7 +22,7 @@ import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesCompo
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuWidget)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -223,8 +223,8 @@ modalAnnotations r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
-    , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
-            [ taskEditButton r tws.task.id
+    , [ entityMenu (m.taskListState.menuOpen == Just tws.task.id) (TaskListAction (VT.MenuToggle tws.task.id)) (TaskListAction VT.MenuClose)
+            [ menuWidget (taskEditButton r tws.task.id)
             , menuPin (TaskListAction (VT.MenuPin tws.task))
             , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
             ]

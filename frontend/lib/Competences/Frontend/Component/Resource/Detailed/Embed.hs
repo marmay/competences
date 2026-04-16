@@ -53,7 +53,7 @@ updateResourceDetailed stateLens r lift = go
         ha
     go action = M.modify (stateLens %~ V.updateResourceDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuOpen .~ False)
+    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
 
 renderResource
   :: SyncContext

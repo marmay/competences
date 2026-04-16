@@ -26,7 +26,7 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -130,13 +130,13 @@ headerAnnotations :: SyncContext -> TaskDetailedConfig -> Model -> Task -> [M.Vi
 headerAnnotations r cfg m task =
   concat
     [ [assessmentStar task.purpose]
-    , [ entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ editButton r task.id
+    , [ entityMenu (m.viewState.menuOpen == Just task.id) (ViewAction (V.MenuToggle task.id)) (ViewAction V.MenuClose) $
+            [ menuWidget (editButton r cfg.origin task.id)
             , menuPin (ViewAction (V.MenuPin task))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo task.id)) | cfg.settings.enableGoTo]
             ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity task.id | cfg.settings.enableDelete]
+            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity task.id) | cfg.settings.enableDelete]
       | isTeacher r
       ]
     ]
@@ -152,12 +152,12 @@ taskBody r cfg m task =
         ]
       ]
 
-editButton :: SyncContext -> TaskId -> M.View Model Action
-editButton r tid =
-  inlineComponent
-    ("task-edit-btn-" <> ms (show tid))
-    (lockButtonComponent r
-      (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))
+editButton :: SyncContext -> EntityOrigin -> TaskId -> M.View Model Action
+editButton r origin tid =
+  let cmd = wrapForOrigin origin $ Tasks (OnTasks (Modify tid Lock))
+   in inlineComponent
+        ("task-edit-btn-" <> ms (show tid))
+        (lockButtonComponent r (LockButtonConfig (TaskLock tid) cmd Button.IconTextS))
 
 hasContent :: Task -> Bool
 hasContent task = case task.content of

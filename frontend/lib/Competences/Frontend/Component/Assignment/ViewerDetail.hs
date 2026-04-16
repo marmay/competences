@@ -92,7 +92,7 @@ import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Assignment.Detailed.Embed qualified as AssignmentEmbed
 import Competences.Frontend.Fragment.Assignment.Detailed qualified as VA
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.View.EntityMenu (entityMenu, menuCustom, menuEdit, menuGoTo, menuPin)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuCustom, menuEdit, menuGoTo, menuPin, menuWidget)
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -817,8 +817,8 @@ viewerComponent r user assignment wm =
                   )
               ]
             , [TaskBadge.assessmentStar tws.taskPurpose]
-            , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
-                  [ taskEditButton r tws.task.id
+            , [ entityMenu (m.taskListState.menuOpen == Just tws.task.id) (TaskListAction (VT.MenuToggle tws.task.id)) (TaskListAction VT.MenuClose)
+                  [ menuWidget (taskEditButton r tws.task.id)
                   , menuPin (TaskListAction (VT.MenuPin tws.task))
                   , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
                   ]

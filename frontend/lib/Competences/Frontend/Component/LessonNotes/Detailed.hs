@@ -30,7 +30,7 @@ import Competences.Frontend.SyncContext
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.Maybe (mapMaybe)
@@ -102,13 +102,13 @@ lessonNotesDetailedComponent r cfg =
 
     annotations m ln
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ editButton r ln.id
+          [entityMenu (m.viewState.menuOpen == Just ln.id) (ViewAction (V.MenuToggle ln.id)) (ViewAction V.MenuClose) $
+            [ menuWidget (editButton r ln.id)
             , menuPin (ViewAction (V.MenuPin ln))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo ln.id)) | cfg.settings.enableGoTo]
             ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity ln.id | cfg.settings.enableDelete]
+            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity ln.id) | cfg.settings.enableDelete]
           ]
       | otherwise = []
 

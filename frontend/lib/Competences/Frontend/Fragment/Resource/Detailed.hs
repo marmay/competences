@@ -46,7 +46,7 @@ import Optics.Core ((%~), (.~))
 data ResourceDetailedState = ResourceDetailedState
   { expandedResources :: !(Set ResourceId)
   , holdDeleteEntity :: !(HoldButton.HoldState ResourceId)
-  , menuOpen :: !Bool
+  , menuOpen :: !(Maybe ResourceId)
   }
   deriving (Eq, Generic, Show)
 
@@ -57,18 +57,18 @@ data ResourceDetailedAction
   | MenuGoTo !ResourceId
   | MenuDelete !ResourceId
   | HoldDeleteEntity !(HoldButton.HoldAction ResourceId)
-  | MenuToggle
+  | MenuToggle !ResourceId
   | MenuClose
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
 initialResourceDetailedState expanded =
-  ResourceDetailedState {expandedResources = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = False}
+  ResourceDetailedState {expandedResources = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = Nothing}
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
-updateResourceDetailedPure MenuToggle = #menuOpen %~ not
-updateResourceDetailedPure MenuClose = #menuOpen .~ False
+updateResourceDetailedPure (MenuToggle rid) = #menuOpen %~ \cur -> if cur == Just rid then Nothing else Just rid
+updateResourceDetailedPure MenuClose = #menuOpen .~ Nothing
 updateResourceDetailedPure _ = id
 
 
