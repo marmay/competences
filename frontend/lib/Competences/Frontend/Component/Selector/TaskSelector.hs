@@ -64,11 +64,10 @@ data Action
 taskSelectorComponent
   :: SyncContext
   -> Maybe (Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask)
-  -- ^ Initial selection function (applied once on first document load).
-  -- Takes published+draft tasks and the set of draft task IDs.
+  -> Maybe (SelectedTask -> IO ())
   -> Lens' p (Maybe SelectedTask)
   -> M.Component p Model Action
-taskSelectorComponent r initialSelection parentLens =
+taskSelectorComponent r initialSelection onSelect parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -76,10 +75,14 @@ taskSelectorComponent r initialSelection parentLens =
   where
     model = Model Ix.empty Set.empty Nothing Nothing False ""
 
-    update (SelectItem item) = M.modify $ \m ->
-      case Ix.getOne (m.allTasks Ix.@= item.task.id) of
-        Just t' -> m & (#selectedItem ?~ SelectedTask item.origin t') & (#newItem .~ Nothing)
-        Nothing -> m & (#newItem ?~ item)
+    update (SelectItem item) = do
+      M.modify $ \m ->
+        case Ix.getOne (m.allTasks Ix.@= item.task.id) of
+          Just t' -> m & (#selectedItem ?~ SelectedTask item.origin t') & (#newItem .~ Nothing)
+          Nothing -> m & (#newItem ?~ item)
+      case onSelect of
+        Just f -> M.io_ (f item)
+        Nothing -> pure ()
 
     update CreateNewTask = M.withSink $ \s -> do
       taskId <- nextId r

@@ -14,6 +14,7 @@ import Competences.Frontend.Component.Selector.TaskSelector
   , taskSelectorComponent
   )
 import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -23,6 +24,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Router qualified as M
 
 -- | Model for the unified task editor
 data Model = Model
@@ -47,6 +49,8 @@ taskEditorComponent r mTaskId =
 
     update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
+    onSelect = Just (\st -> M.pushURI (M.toURI (ManageTasks (Just st.task.id))))
+
     selectionFn = Just $ \tasks draftIds ->
       case mTaskId of
         Just tid ->
@@ -70,7 +74,7 @@ taskEditorComponent r mTaskId =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r selectionFn #selected)
+        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r selectionFn onSelect #selected)
         (detailView m.selected)
 
     detailView Nothing =

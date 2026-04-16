@@ -16,6 +16,7 @@ import Competences.Frontend.Component.LessonNotes.Detailed
   , lessonNotesDetailedComponent
   )
 import Competences.Frontend.Component.Selector.LessonNotesSelector (lessonNotesSelectorComponent)
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -23,6 +24,7 @@ import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.DefaultSelection qualified as QDefault
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Router qualified as M
 import Miso.String (ms)
 
 data Model = Model
@@ -50,6 +52,7 @@ lessonNotesComponent r canCreate mLnId =
     selectionFn = case mLnId of
       Just lnid -> Just (\allNotes -> Ix.getOne (allNotes Ix.@= lnid))
       Nothing -> Just (QDefault.defaultLessonNotes r.env.currentDay)
+    onSelect = Just (\ln -> M.pushURI (M.toURI (ManageLessonNotes (Just ln.id))))
 
     update ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
 
@@ -58,7 +61,7 @@ lessonNotesComponent r canCreate mLnId =
         m.sidebarOpen
         ToggleSidebar
         ( inlineComponentAttrs "lesson-notes-selector" [class_ "h-full"] $
-            lessonNotesSelectorComponent r canCreate selectionFn #selected
+            lessonNotesSelectorComponent r canCreate selectionFn onSelect #selected
         )
         (detailView m.selected)
 

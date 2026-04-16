@@ -56,9 +56,10 @@ data Action
 resourceSelectorComponent
   :: SyncContext
   -> Maybe (Ix.IxSet ResourceIxs Resource -> Maybe Resource)
+  -> Maybe (Resource -> IO ())
   -> Lens' p (Maybe Resource)
   -> M.Component p Model Action
-resourceSelectorComponent r initialSelection parentLens =
+resourceSelectorComponent r initialSelection onSelect parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -66,10 +67,14 @@ resourceSelectorComponent r initialSelection parentLens =
   where
     model = Model Ix.empty Nothing Nothing False ""
 
-    update (SelectItem item) = M.modify $ \m ->
-      case Ix.getOne (m.allResources Ix.@= item.id) of
-        Just res -> m & (#selectedItem ?~ res) & (#newItem .~ Nothing)
-        Nothing -> m & (#newItem ?~ item)
+    update (SelectItem item) = do
+      M.modify $ \m ->
+        case Ix.getOne (m.allResources Ix.@= item.id) of
+          Just res -> m & (#selectedItem ?~ res) & (#newItem .~ Nothing)
+          Nothing -> m & (#newItem ?~ item)
+      case onSelect of
+        Just f -> M.io_ (f item)
+        Nothing -> pure ()
 
     update CreateInlineResource = createResource (InlineContent mempty)
     update CreateWebLinkResource = createResource (WebLink "" "")

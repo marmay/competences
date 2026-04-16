@@ -16,12 +16,14 @@ import Competences.Frontend.Component.Resource.Detailed
   , resourceDetailedComponent
   )
 import Competences.Frontend.Component.Selector.ResourceSelector (resourceSelectorComponent)
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Router qualified as M
 import Miso.String (ms)
 
 data Model = Model
@@ -41,6 +43,7 @@ resourceEditorComponent r mResId =
     model = Model Nothing True
 
     selectionFn = fmap (\rid allRes -> Ix.getOne (allRes Ix.@= rid)) mResId
+    onSelect = Just (\res -> M.pushURI (M.toURI (ManageResources (Just res.id))))
 
     update ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
 
@@ -48,7 +51,7 @@ resourceEditorComponent r mResId =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r selectionFn #selected)
+        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r selectionFn onSelect #selected)
         (detailView m.selected)
 
     detailView Nothing =

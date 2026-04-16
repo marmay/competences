@@ -50,9 +50,10 @@ lessonNotesSelectorComponent
   :: SyncContext
   -> Bool
   -> Maybe (Ix.IxSet LessonNotesIxs LessonNotes -> Maybe LessonNotes)
+  -> Maybe (LessonNotes -> IO ())
   -> Lens' p (Maybe LessonNotes)
   -> M.Component p Model Action
-lessonNotesSelectorComponent r canCreate initialSelection parentLens =
+lessonNotesSelectorComponent r canCreate initialSelection onSelect parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -60,10 +61,14 @@ lessonNotesSelectorComponent r canCreate initialSelection parentLens =
   where
     model = Model Ix.empty Nothing Nothing ""
 
-    update (SelectItem item) = M.modify $ \m ->
-      case Ix.getOne (m.allNotes Ix.@= item.id) of
-        Just ln -> m & (#selectedItem ?~ ln) & (#newItem .~ Nothing)
-        Nothing -> m & (#newItem ?~ item)
+    update (SelectItem item) = do
+      M.modify $ \m ->
+        case Ix.getOne (m.allNotes Ix.@= item.id) of
+          Just ln -> m & (#selectedItem ?~ ln) & (#newItem .~ Nothing)
+          Nothing -> m & (#newItem ?~ item)
+      case onSelect of
+        Just f -> M.io_ (f item)
+        Nothing -> pure ()
 
     update CreateLessonNotes = M.withSink $ \s -> do
       lnId <- nextId r
