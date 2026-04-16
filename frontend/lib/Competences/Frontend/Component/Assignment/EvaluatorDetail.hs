@@ -14,7 +14,8 @@ import Competences.Document.Id (idToText)
 import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
-import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
+import Competences.Document.Evidence (Ability (..), ActivityType (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
+import Competences.Common.Set (toggle)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, UserIxs)
@@ -28,6 +29,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
 import Competences.Frontend.Fragment.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
@@ -55,7 +57,7 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Optics.Core qualified as O
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (%~), (.~))
 import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
 import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
@@ -140,6 +142,9 @@ data EvaluatorModel = EvaluatorModel
   -- Per-task qualitative remarks (e.g. sloppy, exceptional)
   , taskRemarks :: !(Map.Map TaskId (Set.Set TaskRemark))
   , taskNotes :: !(Map.Map TaskId RichContent)
+  , taskNoteStates :: !(Map.Map TaskId (ContentState RichContent))
+  , expandedTaskNotes :: !(Set.Set TaskId)
+  , isCorrection :: !Bool
   , additionalTasks :: !(Set.Set TaskId)
   -- Counter to re-key the inline extra-task selector (incremented on reset)
   , selectorGeneration :: !Int
@@ -181,9 +186,11 @@ data EvaluatorAction
   | ToggleSolutionExpanded !SolutionId -- Toggle expand/collapse for a solution
   | LoadStudentEvidence !UserId -- Load existing evidence data into evaluator
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
-  | ToggleTaskRemark !TaskId !TaskRemark -- Toggle a per-task remark
-  | ToggleStartFromEmpty -- Toggle "start from empty" session preference
-  | DismissSubmissions -- Close the submission panel
+  | ToggleTaskRemark !TaskId !TaskRemark
+  | ToggleTaskNoteEditor !TaskId
+  | ToggleCorrection
+  | ToggleStartFromEmpty
+  | DismissSubmissions
   deriving (Eq, Show)
 
 -- | Derive the effective set of selected students.
@@ -248,6 +255,9 @@ evaluatorComponent r assignment =
         , taskStatuses = Map.empty
         , taskRemarks = Map.empty
         , taskNotes = Map.empty
+        , taskNoteStates = Map.empty
+        , expandedTaskNotes = Set.empty
+        , isCorrection = False
         , additionalTasks = Set.empty
         , selectorGeneration = 0
         , startFromEmpty = False
@@ -315,6 +325,9 @@ evaluatorComponent r assignment =
                 , aggregationStale = False
                 , taskRemarks = Map.empty
                 , taskNotes = Map.empty
+                , taskNoteStates = Map.empty
+                , expandedTaskNotes = Set.empty
+                , isCorrection = False
                 , additionalTasks = Set.empty
                 , selectorGeneration = m.selectorGeneration + 1
                 , selectedSocialForm = Individual
@@ -393,6 +406,9 @@ evaluatorComponent r assignment =
         , aggregationStale = False
         , taskRemarks = Map.empty
         , taskNotes = Map.empty
+        , taskNoteStates = Map.empty
+        , expandedTaskNotes = Set.empty
+        , isCorrection = False
         , additionalTasks = Set.empty
         , selectorGeneration = m'.selectorGeneration + 1
         }
@@ -463,6 +479,9 @@ evaluatorComponent r assignment =
                , aggregationStale = False
                , taskRemarks = ev.taskRemarks
                , taskNotes = ev.taskNotes
+               , taskNoteStates = Map.empty
+               , expandedTaskNotes = Set.empty
+               , isCorrection = ev.activityType == Correction
                , additionalTasks = loadedExtras
                , selectorGeneration = m.selectorGeneration + 1
                }
@@ -474,6 +493,9 @@ evaluatorComponent r assignment =
        , aggregationStale = False
        , taskRemarks = Map.empty
        , taskNotes = Map.empty
+       , taskNoteStates = Map.empty
+       , expandedTaskNotes = Set.empty
+       , isCorrection = False
        , additionalTasks = Set.empty
        , selectorGeneration = m.selectorGeneration + 1
        }
@@ -487,6 +509,12 @@ evaluatorComponent r assignment =
                          then Map.delete taskId m.taskRemarks
                          else Map.insert taskId updated m.taskRemarks
        in m & #taskRemarks .~ newRemarks
+
+    update (ToggleTaskNoteEditor taskId) = M.modify $ \m ->
+      m & #expandedTaskNotes %~ toggle taskId
+
+    update ToggleCorrection = M.modify $ \m ->
+      m{isCorrection = not m.isCorrection}
 
     update ToggleStartFromEmpty = M.modify $ \m ->
       m{startFromEmpty = not m.startFromEmpty}
@@ -515,13 +543,14 @@ evaluatorComponent r assignment =
                     ]
             ]
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
+      let effectiveActivityType = if m.isCorrection then Correction else asmt.activityType
       case Map.lookup userId (evidencesForDate m.evaluationDate m.assignmentEvidences) of
         Just existingEv -> do
           -- Lock then modify existing evidence
           let lockCmd = Evidences (OnEvidences (Modify existingEv.id Lock))
               patch = EvidencePatch
                 { userId = Nothing
-                , activityType = Just (existingEv.activityType, asmt.activityType)
+                , activityType = Just (existingEv.activityType, effectiveActivityType)
                 , date = Just (existingEv.date, m.evaluationDate)
                 , tasks = Just (existingEv.tasks, tasksMap)
                 , oldTasks = Nothing
@@ -539,7 +568,7 @@ evaluatorComponent r assignment =
           let evidence = Evidence
                 { id = evidenceId
                 , userId = Just userId
-                , activityType = asmt.activityType
+                , activityType = effectiveActivityType
                 , date = m.evaluationDate
                 , tasks = tasksMap
                 , oldTasks = ""
@@ -640,6 +669,10 @@ evaluatorComponent r assignment =
                     , M.label_ [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
                         [ M.input_ [MP.type_ "checkbox", MP.checked_ m.startFromEmpty, M.onClick ToggleStartFromEmpty]
                         , M.text (C.translate' C.LblOnlySelectedTasks)
+                        ]
+                    , M.label_ [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
+                        [ M.input_ [MP.type_ "checkbox", MP.checked_ m.isCorrection, M.onClick ToggleCorrection]
+                        , M.text (C.translate' C.LblIsCorrection)
                         ]
                     ]
                 ]
@@ -823,17 +856,41 @@ evaluatorComponent r assignment =
         then M.text ""
         else
           let currentRemarks = Map.findWithDefault Set.empty taskId m.taskRemarks
-           in M.div_ [class_ "mt-2 mb-2"]
+              noteExpanded = Set.member taskId m.expandedTaskNotes
+              hasNote = Map.member taskId m.taskNotes
+              noteButtonStyle = if hasNote then Button.primarySm else Button.ghostSm
+           in M.div_ [class_ "mt-2 mb-2 space-y-2"]
                 [ Layout.hFlow (Layout.gapS <> Layout.crossCenter)
                     ( M.span_ [class_ "text-xs text-muted-foreground font-medium"]
                         [M.text $ C.translate' C.LblTaskRemarks <> ":"]
                     : map (viewRemarkButton currentRemarks taskId) taskRemarks
+                    ++ [noteButtonStyle (Button.button (Icon.IcnEdit, C.translate' C.LblTaskNote) (ToggleTaskNoteEditor taskId))]
                     )
+                , if noteExpanded
+                    then viewTaskNoteEditor m taskId
+                    else M.text ""
                 ]
 
     viewRemarkButton currentRemarks taskId remark =
       Button.toggleSm (Set.member remark currentRemarks)
         (Button.button (C.LblTaskRemark remark) (ToggleTaskRemark taskId remark))
+
+    viewTaskNoteEditor m' taskId =
+      inlineComponent
+        ("task-note-" <> ms (show taskId))
+        (richContentEditorComponent r.formulaCache
+          (Map.findWithDefault mempty taskId m'.taskNotes)
+          (taskNoteStateLens taskId)
+        )
+
+    taskNoteStateLens :: TaskId -> O.Lens' EvaluatorModel (ContentState RichContent)
+    taskNoteStateLens tid = O.lens getter setter
+      where
+        getter m' = Map.findWithDefault (Valid (Map.findWithDefault mempty tid m'.taskNotes)) tid m'.taskNoteStates
+        setter m' cs@(Valid rc) = m'
+          & #taskNoteStates %~ Map.insert tid cs
+          & #taskNotes %~ if rc == mempty then Map.delete tid else Map.insert tid rc
+        setter m' cs = m' & #taskNoteStates %~ Map.insert tid cs
 
     viewStudentEvaluations m taskId =
       if Set.null (activeStudents m)
