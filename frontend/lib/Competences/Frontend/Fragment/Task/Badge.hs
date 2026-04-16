@@ -3,10 +3,7 @@
 -- Purpose badges, status palettes, assessment stars.
 -- Leaf module with no View.Task.* dependencies.
 module Competences.Frontend.Fragment.Task.Badge
-  ( -- * Purpose badge
-    purposeBadge
-  , purposeBadgeVariant
-  , assessmentStar
+  ( assessmentStar
     -- * Status styling
   , taskStatusPalette
   , taskStatusHeaderBg
@@ -14,8 +11,6 @@ module Competences.Frontend.Fragment.Task.Badge
 where
 
 import Competences.Document.Task (TaskPurpose (..))
-import Competences.Frontend.Common qualified as C
-import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Color.Status qualified as Status
 import Competences.Frontend.View.Icon qualified as Icon
@@ -25,19 +20,7 @@ import Competences.Query.TaskStatus (TaskCompletionStatus (..))
 import Data.Text (Text)
 import Miso qualified as M
 
--- | Render a Practice/Assessment badge.
-purposeBadge :: TaskPurpose -> M.View m a
-purposeBadge purpose =
-  Badge.variant
-    (purposeBadgeVariant purpose)
-    (Badge.badgeLabel $ C.LblTaskPurpose purpose)
-
--- | Badge variant for a task purpose.
-purposeBadgeVariant :: TaskPurpose -> Badge.BadgeVariant
-purposeBadgeVariant Practice = Badge.Secondary
-purposeBadgeVariant Assessment = Badge.Primary
-
--- | Assessment star icon (shown alongside the purpose badge).
+-- | Assessment star icon.
 assessmentStar :: TaskPurpose -> M.View m a
 assessmentStar Assessment = Icon.icon [class_ "w-4 h-4 text-amber-500"] Icon.IcnStar
 assessmentStar Practice = Layout.empty

@@ -791,7 +791,7 @@ viewerComponent r user assignment wm =
         proj.tasksWithSolutions
 
     taskAnnotations :: ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
-    taskAnnotations proj showPurpose tws =
+    taskAnnotations proj _showPurpose tws =
       let taskId = tws.task.id
        in concat
             [ [ M.div_ [class_ "flex items-center gap-1"]
@@ -799,8 +799,7 @@ viewerComponent r user assignment wm =
                       <> [viewTaskCompletionStatusFromMap proj.taskStatuses taskId]
                   )
               ]
-            , [TaskBadge.purposeBadge tws.taskPurpose | showPurpose]
-            , [TaskBadge.assessmentStar tws.taskPurpose | showPurpose]
+            , [TaskBadge.assessmentStar tws.taskPurpose]
             , [ entityMenu EntityMenuConfig
                   { onEdit = Just (TaskListAction (VT.MenuEdit tws.task.id))
                   , onPin = Just (TaskListAction (VT.MenuPin tws.task))

@@ -9,12 +9,12 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Solution (..), Task (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Solution (..), Task (..), User)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.Detailed.Embed (renderSolutionList, updateTaskDetailed)
-import Competences.Frontend.Fragment.Task.Badge (assessmentStar, purposeBadge)
+import Competences.Frontend.Fragment.Task.Badge (assessmentStar)
 import Competences.Frontend.Fragment.Task.Detailed qualified as V
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -62,7 +62,6 @@ defaultTaskDetailedSettings = TaskDetailedSettings
 data TaskProjection = TaskProjection
   { task :: !(Maybe Task)
   , solutions :: ![Solution]
-  , hasFocusedStudent :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -87,7 +86,6 @@ taskDetailedComponent r cfg =
       { projection = TaskProjection
           { task = Nothing
           , solutions = []
-          , hasFocusedStudent = False
           }
       , viewState = V.initialTaskDetailedState [cfg.taskId | cfg.settings.startExpanded]
       }
@@ -104,13 +102,12 @@ taskDetailedComponent r cfg =
       Just task -> viewTask r cfg m task
 
 taskProjection :: TaskDetailedConfig -> Document -> Maybe User -> TaskProjection
-taskProjection cfg doc mUser =
+taskProjection cfg doc _mUser =
   TaskProjection
     { task = case cfg.origin of
         Published -> Ix.getOne (doc.tasks Ix.@= cfg.taskId)
         Draft -> Ix.getOne (doc.draftTasks Ix.@= cfg.taskId)
     , solutions = Ix.toList (doc.solutions Ix.@= cfg.taskId)
-    , hasFocusedStudent = maybe False (\u -> u.role == Student) mUser
     }
 
 viewTask :: SyncContext -> TaskDetailedConfig -> Model -> Task -> M.View Model Action
@@ -126,10 +123,9 @@ viewTask r cfg m task =
         else V.taskOpenView displayName annotations body
 
 headerAnnotations :: SyncContext -> TaskDetailedConfig -> Model -> Task -> [M.View Model Action]
-headerAnnotations r cfg m task =
+headerAnnotations r cfg _m task =
   concat
-    [ [purposeBadge task.purpose | m.projection.hasFocusedStudent]
-    , [assessmentStar task.purpose | m.projection.hasFocusedStudent]
+    [ [assessmentStar task.purpose]
     , [ entityMenu EntityMenuConfig
           { onEdit = Just (ViewAction (V.MenuEdit task.id))
           , onPin = Just (ViewAction (V.MenuPin task))
