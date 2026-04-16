@@ -114,7 +114,7 @@ isAssignmentOpen doc userId assignmentId =
             Nothing -> True -- No evidence date to compare against
             Just d
               | d < submissionTrackingCutoff -> False -- Legacy data: assume already corrected
-              | otherwise -> not $ any (\s -> utctDay s.submittedAt >= d) submissions
+              | otherwise -> not $ any (\s -> utctDay s.submittedAt > d) submissions
 
 -- | Does an assignment have any unreviewed digital student submissions?
 -- Only DigitalSubmission counts; void and non-digital don't need teacher review.
@@ -136,7 +136,7 @@ hasUnreviewedSubmission doc assignmentId userId =
           evs ->
             let latestDay = (last evs).date
              in latestDay >= submissionTrackingCutoff
-                  && any (\s -> utctDay s.submittedAt >= latestDay) userSubs
+                  && any (\s -> utctDay s.submittedAt > latestDay) userSubs
 
 -- | Check if a submission is a DigitalSubmission (has uploaded files).
 isDigitalSubmission :: Submission -> Bool
