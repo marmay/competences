@@ -54,6 +54,7 @@ library
         Competences.Command.Users
         Competences.Common.BinaryOrphans
         Competences.Common.IxSet
+        Competences.Common.Set
         Competences.Document
         Competences.Document.Absence
         Competences.Document.ActivityType

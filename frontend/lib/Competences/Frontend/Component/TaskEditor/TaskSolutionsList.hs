@@ -28,12 +28,12 @@ import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Common.Set qualified as SetUtil
 import Data.Set (Set)
-import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((&), (.~))
+import Optics.Core ((%~))
 
 -- ============================================================================
 -- Projection
@@ -106,13 +106,7 @@ taskSolutionsListComponent r taskId =
     update (ProjectionChanged change) =
       M.modify $ #projection .~ change.projection
     update (ToggleSolution solId) =
-      M.modify $ \m ->
-        m
-          & #expandedSolutions
-          .~ ( if Set.member solId m.expandedSolutions
-                 then Set.delete solId m.expandedSolutions
-                 else Set.insert solId m.expandedSolutions
-             )
+      M.modify $ #expandedSolutions %~ SetUtil.toggle solId
     update CreateSolution = M.withSink $ \_sink -> do
       solutionId <- nextId r
       let newSolution = mkSolution solutionId taskId connectedUser.id

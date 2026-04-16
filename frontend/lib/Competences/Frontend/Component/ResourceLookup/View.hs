@@ -46,6 +46,7 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
+import Competences.Common.Set qualified as SetUtil
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -53,7 +54,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
-import Optics.Core ((&), (.~))
+import Optics.Core ((&), (.~), (%~))
 
 -- ============================================================================
 -- Model & Actions
@@ -121,12 +122,7 @@ groupedResourcesComponent r project =
       LNEmbed.updateLessonNotesDetailed #lessonNotesState r LessonNotesAction a
 
     update (ToggleTaskExpanded key) =
-      M.modify $ \m ->
-        let newExpanded =
-              if Set.member key m.expandedTasks
-                then Set.delete key m.expandedTasks
-                else Set.insert key m.expandedTasks
-         in m & #expandedTasks .~ newExpanded
+      M.modify $ #expandedTasks %~ SetUtil.toggle key
 
     update ToggleOtherSection =
       M.modify $ \m -> m & #otherCollapsed .~ not m.otherCollapsed

@@ -41,7 +41,9 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Data.Maybe (isNothing)
+import Competences.Common.Set qualified as SetUtil
 import Data.Set qualified as Set
+import Optics.Core ((%~))
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -184,26 +186,14 @@ detailComponent r initialPlan =
         then m{expandedLessonId = Nothing}
         else m{expandedLessonId = Just lessonId}
 
-    update (ToggleAssignmentsExpanded lessonId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member lessonId m.expandedAssignments
-              then Set.delete lessonId m.expandedAssignments
-              else Set.insert lessonId m.expandedAssignments
-       in m {expandedAssignments = newExpanded}
+    update (ToggleAssignmentsExpanded lessonId) =
+      M.modify $ #expandedAssignments %~ SetUtil.toggle lessonId
 
-    update (ToggleNotesExpanded lessonId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member lessonId m.expandedNotes
-              then Set.delete lessonId m.expandedNotes
-              else Set.insert lessonId m.expandedNotes
-       in m {expandedNotes = newExpanded}
+    update (ToggleNotesExpanded lessonId) =
+      M.modify $ #expandedNotes %~ SetUtil.toggle lessonId
 
-    update (TogglePhasesExpanded lessonId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member lessonId m.expandedPhases
-              then Set.delete lessonId m.expandedPhases
-              else Set.insert lessonId m.expandedPhases
-       in m {expandedPhases = newExpanded}
+    update (TogglePhasesExpanded lessonId) =
+      M.modify $ #expandedPhases %~ SetUtil.toggle lessonId
 
     update (OpenLessonEditorModal lesson) = do
       m <- M.get

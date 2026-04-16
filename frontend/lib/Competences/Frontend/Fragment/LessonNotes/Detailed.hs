@@ -18,6 +18,7 @@ module Competences.Frontend.Fragment.LessonNotes.Detailed
   )
 where
 
+import Competences.Common.Set (toggle)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
@@ -59,10 +60,6 @@ updateLessonNotesDetailedPure
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
 
-toggle :: (Ord a) => a -> Set a -> Set a
-toggle x s
-  | Set.member x s = Set.delete x s
-  | otherwise = Set.insert x s
 
 -- ============================================================================
 -- Header

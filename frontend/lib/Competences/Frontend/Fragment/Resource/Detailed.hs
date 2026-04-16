@@ -21,6 +21,7 @@ module Competences.Frontend.Fragment.Resource.Detailed
   )
 where
 
+import Competences.Common.Set (toggle)
 import Competences.Document (ResourceContent (..), ResourceId)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -57,10 +58,6 @@ initialResourceDetailedState expanded =
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
 
-toggle :: (Ord a) => a -> Set a -> Set a
-toggle x s
-  | Set.member x s = Set.delete x s
-  | otherwise = Set.insert x s
 
 -- ============================================================================
 -- Icons

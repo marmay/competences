@@ -68,6 +68,7 @@ import Competences.Query.Lesson qualified as QLesson
 import Data.Function ((&))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, isNothing)
+import Competences.Common.Set qualified as SetUtil
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time (Day)
@@ -75,7 +76,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString, fromMisoString)
-import Optics.Core ((%))
+import Optics.Core ((%), (%~))
 
 -- | Open the student evaluator as a framed modal.
 openStudentEvaluator :: SyncContext -> LessonId -> MisoString -> UserId -> IO ()
@@ -240,18 +241,12 @@ studentEvaluatorModal r initialLessonId initialUserId wm =
        in m{taskObservations = newObs, aggregationStale = not (Map.null m.aggregatedResults)}
 
     update (ToggleTaskIncluded taskId) = M.modify $ \m ->
-      let newIncluded =
-            if Set.member taskId m.includedTasks
-              then Set.delete taskId m.includedTasks
-              else Set.insert taskId m.includedTasks
-       in m{includedTasks = newIncluded, aggregationStale = not (Map.null m.aggregatedResults)}
+      m { includedTasks = SetUtil.toggle taskId m.includedTasks
+        , aggregationStale = not (Map.null m.aggregatedResults)
+        }
 
-    update (ToggleTaskContentExpanded taskId) = M.modify $ \m ->
-      let newExpanded =
-            if Set.member taskId m.expandedTaskContent
-              then Set.delete taskId m.expandedTaskContent
-              else Set.insert taskId m.expandedTaskContent
-       in m{expandedTaskContent = newExpanded}
+    update (ToggleTaskContentExpanded taskId) =
+      M.modify $ #expandedTaskContent %~ SetUtil.toggle taskId
 
     -- Add task (combobox)
     update (TaskSearchChanged q) = M.modify $ \m ->

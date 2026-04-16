@@ -27,6 +27,7 @@ module Competences.Frontend.Fragment.Task.Detailed
 where
 
 import Competences.Document.Solution (SolutionId, SolutionType (..))
+import Competences.Common.Set (toggle)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
@@ -83,10 +84,6 @@ updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
 updateTaskDetailedPure (AddSolution _) = id
 updateTaskDetailedPure (HoldDeleteSolution _) = id
 
-toggle :: (Ord a) => a -> Set a -> Set a
-toggle x s
-  | Set.member x s = Set.delete x s
-  | otherwise = Set.insert x s
 
 -- ============================================================================
 -- Task header
