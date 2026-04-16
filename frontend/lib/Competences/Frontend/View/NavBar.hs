@@ -67,9 +67,9 @@ teacherCategories =
       { categoryIcon = Icon.IcnLessonNotes
       , categoryLabel = C.translate' C.LblLessonNotesEntries
       , categoryDescription = "Notizen und Materialien aus dem Unterricht."
-      , categoryPage = ManageLessonNotes
+      , categoryPage = ManageLessonNotes Nothing
       , subEntries =
-          [ NavEntry Icon.IcnResources (C.translate' C.LblResources) ManageResources
+          [ NavEntry Icon.IcnResources (C.translate' C.LblResources) (ManageResources Nothing)
           , NavEntry Icon.IcnMesoPlan (C.translate' C.LblMesoPlanning) Planning
           ]
       }
@@ -96,7 +96,7 @@ studentCategories =
       { categoryIcon = Icon.IcnLessonNotes
       , categoryLabel = C.translate' C.LblLessonNotesEntries
       , categoryDescription = "Notizen und Materialien aus dem Unterricht."
-      , categoryPage = ManageLessonNotes
+      , categoryPage = ManageLessonNotes Nothing
       , subEntries = []
       }
   ]

@@ -129,8 +129,8 @@ mkApp ir initialUri =
         Planning -> planning
         Evidences -> evidences
         ManageTasks mTaskId -> manageTasks mTaskId
-        ManageResources -> manageResources
-        ManageLessonNotes -> manageLessonNotes
+        ManageResources mResId -> manageResources mResId
+        ManageLessonNotes mLnId -> manageLessonNotes mLnId
         ViewAssignments -> viewAssignments
         ManageAssignments -> manageAssignments
         StatisticsOverview -> statisticsOverview
@@ -146,8 +146,8 @@ mkApp ir initialUri =
     planning = mounted Planning $ planningComponent ir
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ taskEditorComponent ir mTaskId
-    manageResources = mounted ManageResources $ resourceEditorComponent ir
-    manageLessonNotes = mounted ManageLessonNotes $ lessonNotesComponent ir (isTeacher model.connectedUser)
+    manageResources mResId = mounted (ManageResources mResId) $ resourceEditorComponent ir mResId
+    manageLessonNotes mLnId = mounted (ManageLessonNotes mLnId) $ lessonNotesComponent ir (isTeacher model.connectedUser) mLnId
     -- Both routes use the unified assignment component
     -- Teachers see Edit/Evaluate/View modes, students see View mode only
     viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser

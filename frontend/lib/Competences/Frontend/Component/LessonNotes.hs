@@ -6,7 +6,9 @@ module Competences.Frontend.Component.LessonNotes
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (LessonNotes (..))
+import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.LessonNotes.Detailed
   ( LessonNotesDetailedConfig (..)
@@ -37,11 +39,17 @@ lessonNotesComponent
   :: SyncContext
   -> Bool
   -- ^ Whether the user can create new lesson notes
+  -> Maybe LessonNotesId
+  -- ^ Deep link: pre-select this lesson notes entry
   -> M.Component p Model Action
-lessonNotesComponent r canCreate =
+lessonNotesComponent r canCreate mLnId =
   M.component model update view'
   where
     model = Model Nothing True
+
+    selectionFn = case mLnId of
+      Just lnid -> Just (\allNotes -> Ix.getOne (allNotes Ix.@= lnid))
+      Nothing -> Just (QDefault.defaultLessonNotes r.env.currentDay)
 
     update ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
 
@@ -50,9 +58,7 @@ lessonNotesComponent r canCreate =
         m.sidebarOpen
         ToggleSidebar
         ( inlineComponentAttrs "lesson-notes-selector" [class_ "h-full"] $
-            lessonNotesSelectorComponent r canCreate
-              (Just $ QDefault.defaultLessonNotes r.env.currentDay)
-              #selected
+            lessonNotesSelectorComponent r canCreate selectionFn #selected
         )
         (detailView m.selected)
 

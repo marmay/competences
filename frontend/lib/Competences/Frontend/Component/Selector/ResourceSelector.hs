@@ -13,6 +13,7 @@ import Competences.Frontend.Component.Resource.ImportModal qualified as ImportMo
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , isInitialUpdate
   , modifySyncDocument
   , nextId
   , subscribeDocument
@@ -53,8 +54,11 @@ data Action
   deriving (Eq, Show)
 
 resourceSelectorComponent
-  :: SyncContext -> Lens' p (Maybe Resource) -> M.Component p Model Action
-resourceSelectorComponent r parentLens =
+  :: SyncContext
+  -> Maybe (Ix.IxSet ResourceIxs Resource -> Maybe Resource)
+  -> Lens' p (Maybe Resource)
+  -> M.Component p Model Action
+resourceSelectorComponent r initialSelection parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
     , M.subs = [subscribeDocument r UpdateDocument]
@@ -92,11 +96,14 @@ resourceSelectorComponent r parentLens =
                 Just res' -> Just res'
                 Nothing -> m.newItem
             Nothing -> Nothing
-       in m
+          m' = m
             { allResources = allResources'
             , selectedItem = validatedSelected
             , newItem = validatedNew
             }
+       in case (isInitialUpdate dc.change, m'.selectedItem, initialSelection) of
+            (True, Nothing, Just f) -> m' {selectedItem = f allResources'}
+            _ -> m'
 
     update OpenImportModal = do
       M.modify $ #dropdownOpen .~ False

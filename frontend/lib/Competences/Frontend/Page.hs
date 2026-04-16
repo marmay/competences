@@ -4,6 +4,8 @@ module Competences.Frontend.Page
 where
 
 import Control.Applicative ((<|>))
+import Competences.Document.LessonNotes (LessonNotesId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common.MisoId ()
 import Data.Functor (($>))
@@ -15,8 +17,8 @@ data Page
   | Planning
   | Evidences
   | ManageTasks !(Maybe TaskId)
-  | ManageResources
-  | ManageLessonNotes
+  | ManageResources !(Maybe ResourceId)
+  | ManageLessonNotes !(Maybe LessonNotesId)
   | ViewAssignments
   | ManageAssignments
   | StatisticsOverview
@@ -32,8 +34,8 @@ instance M.Router Page where
         , M.path "planning" $> Planning
         , M.path "evidences" $> Evidences
         , M.path "tasks" *> (ManageTasks . Just <$> M.capture <|> pure (ManageTasks Nothing))
-        , M.path "resources" $> ManageResources
-        , M.path "lesson-notes" $> ManageLessonNotes
+        , M.path "resources" *> (ManageResources . Just <$> M.capture <|> pure (ManageResources Nothing))
+        , M.path "lesson-notes" *> (ManageLessonNotes . Just <$> M.capture <|> pure (ManageLessonNotes Nothing))
         , M.path "assignments" $> ViewAssignments
         , M.path "manage-assignments" $> ManageAssignments
         , M.path "statistics-overview" $> StatisticsOverview
@@ -45,8 +47,10 @@ instance M.Router Page where
   fromRoute Evidences = [M.toPath "app", M.toPath "evidences"]
   fromRoute (ManageTasks Nothing) = [M.toPath "app", M.toPath "tasks"]
   fromRoute (ManageTasks (Just tid)) = [M.toPath "app", M.toPath "tasks", M.toCapture tid]
-  fromRoute ManageResources = [M.toPath "app", M.toPath "resources"]
-  fromRoute ManageLessonNotes = [M.toPath "app", M.toPath "lesson-notes"]
+  fromRoute (ManageResources Nothing) = [M.toPath "app", M.toPath "resources"]
+  fromRoute (ManageResources (Just rid)) = [M.toPath "app", M.toPath "resources", M.toCapture rid]
+  fromRoute (ManageLessonNotes Nothing) = [M.toPath "app", M.toPath "lesson-notes"]
+  fromRoute (ManageLessonNotes (Just lnid)) = [M.toPath "app", M.toPath "lesson-notes", M.toCapture lnid]
   fromRoute ViewAssignments = [M.toPath "app", M.toPath "assignments"]
   fromRoute ManageAssignments = [M.toPath "app", M.toPath "manage-assignments"]
   fromRoute StatisticsOverview = [M.toPath "app", M.toPath "statistics-overview"]

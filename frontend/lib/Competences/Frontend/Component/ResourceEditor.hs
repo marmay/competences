@@ -6,7 +6,9 @@ module Competences.Frontend.Component.ResourceEditor
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Resource (..))
+import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Resource.Detailed
   ( ResourceDetailedConfig (..)
@@ -32,11 +34,13 @@ data Action
   = ToggleSidebar
   deriving (Eq, Show)
 
-resourceEditorComponent :: SyncContext -> M.Component p Model Action
-resourceEditorComponent r =
+resourceEditorComponent :: SyncContext -> Maybe ResourceId -> M.Component p Model Action
+resourceEditorComponent r mResId =
   M.component model update view'
   where
     model = Model Nothing True
+
+    selectionFn = fmap (\rid allRes -> Ix.getOne (allRes Ix.@= rid)) mResId
 
     update ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
 
@@ -44,7 +48,7 @@ resourceEditorComponent r =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r #selected)
+        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r selectionFn #selected)
         (detailView m.selected)
 
     detailView Nothing =
