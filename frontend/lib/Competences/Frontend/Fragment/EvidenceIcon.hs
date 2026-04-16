@@ -24,6 +24,7 @@ activityTypeIcon Conversation = Icon.IcnActivityTypeConversation
 activityTypeIcon Exam = Icon.IcnActivityTypeExam
 activityTypeIcon SchoolExercise = Icon.IcnActivityTypeSchoolExercise
 activityTypeIcon HomeExercise = Icon.IcnActivityTypeHomeExercise
+activityTypeIcon Correction = Icon.IcnActivityTypeCorrection
 
 -- | Map a 'SocialForm' to its icon.
 socialFormIcon :: SocialForm -> Icon.Icon

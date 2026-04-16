@@ -31,6 +31,7 @@ import Competences.Document.Id (Id, nilId)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
+import Competences.TaskContent.RichContent (RichContent)
 #ifdef WITH_AESON
 import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON (..), ToJSON (..), Object, Value, object, withObject, (.:), (.:?), (.!=), (.=))
@@ -131,6 +132,8 @@ data Evidence = Evidence
   , observations :: !(Ix.IxSet ObservationIxs Observation)
   , taskRemarks :: !(Map TaskId (Set TaskRemark))
     -- ^ Per-task qualitative remarks (e.g. sloppy, exceptional)
+  , taskNotes :: !(Map TaskId RichContent)
+    -- ^ Per-task rich text notes (correction tips, sub-task feedback)
   , assignmentId :: !(Maybe AssignmentId)
     -- ^ Optional link to assignment this evidence was created from
   , lessonId :: !(Maybe LessonId)
@@ -155,6 +158,7 @@ nilEvidence = Evidence
   , oldTasks = ""
   , observations = Ix.empty
   , taskRemarks = Map.empty
+  , taskNotes = Map.empty
   , assignmentId = Nothing
   , lessonId = Nothing
   }
@@ -233,6 +237,7 @@ instance FromJSON Evidence where
       <*> pure oldTasksValue
       <*> fmap Ix.fromList (v .: "observations")
       <*> v .:? "taskRemarks" .!= Map.empty
+      <*> v .:? "taskNotes" .!= Map.empty
       <*> v .:? "assignmentId" .!= Nothing
       <*> v .:? "lessonId" .!= Nothing
 
@@ -264,6 +269,7 @@ instance ToJSON Evidence where
       , "oldTasks" .= e.oldTasks
       , "observations" .= Ix.toList e.observations
       , "taskRemarks" .= e.taskRemarks
+      , "taskNotes" .= e.taskNotes
       , "assignmentId" .= e.assignmentId
       , "lessonId" .= e.lessonId
       ]

@@ -25,6 +25,8 @@ data ActivityType
     -- ^ Exercising in school.
   | HomeExercise
     -- ^ Home exercise.
+  | Correction
+    -- ^ Correction of a previous assessment.
   deriving (Bounded, Enum, Eq, Generic, Ord, Read, Show)
 
 #ifdef WITH_AESON
@@ -52,3 +54,4 @@ activityReliability Conversation = 4
 activityReliability Exam = 3
 activityReliability SchoolExercise = 2
 activityReliability HomeExercise = 1
+activityReliability Correction = 1

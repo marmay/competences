@@ -487,6 +487,7 @@ saveStudentEvidence r m (uid, observations) = do
           , oldTasks = ""
           , observations = Ix.fromList freshObservations
           , taskRemarks = Map.empty
+          , taskNotes = Map.empty
           , assignmentId = Nothing
           , lessonId = Nothing
           }

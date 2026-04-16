@@ -331,6 +331,8 @@ activityTypeFromGerman "Conversation" = Just Conversation
 activityTypeFromGerman "Exam" = Just Exam
 activityTypeFromGerman "SchoolExercise" = Just SchoolExercise
 activityTypeFromGerman "HomeExercise" = Just HomeExercise
+activityTypeFromGerman "Correction" = Just Correction
+activityTypeFromGerman "Verbesserung" = Just Correction
 activityTypeFromGerman _ = Nothing
 
 -- | Convert ActivityType to German name
@@ -339,6 +341,7 @@ activityTypeToGerman Conversation = "Gespräch"
 activityTypeToGerman Exam = "Prüfung"
 activityTypeToGerman SchoolExercise = "Schulübung"
 activityTypeToGerman HomeExercise = "Hausübung"
+activityTypeToGerman Correction = "Verbesserung"
 
 -- ============================================================================
 -- Social Form Utilities

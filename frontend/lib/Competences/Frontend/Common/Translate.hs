@@ -516,6 +516,7 @@ labels' =
   , LblActivityTypeDescription Exam
   , LblActivityTypeDescription SchoolExercise
   , LblActivityTypeDescription HomeExercise
+  , LblActivityTypeDescription Correction
   , LblActivityTasks
   , LblStudents
   , LblStudent
@@ -950,6 +951,7 @@ defaultTranslation (LblActivityTypeDescription Conversation) = "Gespräch"
 defaultTranslation (LblActivityTypeDescription Exam) = "Test"
 defaultTranslation (LblActivityTypeDescription SchoolExercise) = "Schulübung"
 defaultTranslation (LblActivityTypeDescription HomeExercise) = "Hausübung"
+defaultTranslation (LblActivityTypeDescription Correction) = "Verbesserung"
 defaultTranslation LblActivityTasks = "Bearbeitete Aufgaben"
 defaultTranslation LblActivityObservations = "Gemachte Beobachtungen"
 defaultTranslation LblStudents = "Schüler"

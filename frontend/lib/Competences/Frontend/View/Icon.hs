@@ -51,6 +51,7 @@ data Icon
   | IcnActivityTypeExam
   | IcnActivityTypeSchoolExercise
   | IcnActivityTypeHomeExercise
+  | IcnActivityTypeCorrection
   | IcnSocialFormIndividual
   | IcnSocialFormGroup
   | IcnTask
@@ -220,6 +221,7 @@ iconId = \case
   IcnActivityTypeExam -> "icon-activity-type-supervised"
   IcnActivityTypeSchoolExercise -> "icon-activity-type-semi-supervised"
   IcnActivityTypeHomeExercise -> "icon-activity-type-unsupervised"
+  IcnActivityTypeCorrection -> "icon-activity-type-correction"
   IcnSocialFormIndividual -> "icon-social-form-individual"
   IcnSocialFormGroup -> "icon-social-form-group"
   IcnTask -> "icon-task"
@@ -411,6 +413,11 @@ iconDefOf' = \case
   IcnActivityTypeHomeExercise ->
     mkPathesD
       [ "M8 15.0001C8 15.0001 9.6 17.0001 12 17.0001C14.4 17.0001 16 15.0001 16 15.0001M3 14.6001V12.1302C3 10.9815 3 10.4071 3.14805 9.87819C3.2792 9.40966 3.49473 8.96898 3.78405 8.5778C4.11067 8.1362 4.56404 7.78358 5.47078 7.07834L8.07078 5.05612C9.47608 3.96311 10.1787 3.4166 10.9546 3.20653C11.6392 3.02116 12.3608 3.02116 13.0454 3.20653C13.8213 3.4166 14.5239 3.96311 15.9292 5.05612L18.5292 7.07834C19.436 7.78358 19.8893 8.1362 20.2159 8.5778C20.5053 8.96898 20.7208 9.40966 20.8519 9.87819C21 10.4071 21 10.9815 21 12.1302V14.6001C21 16.8403 21 17.9604 20.564 18.816C20.1805 19.5687 19.5686 20.1806 18.816 20.5641C17.9603 21.0001 16.8402 21.0001 14.6 21.0001H9.4C7.15979 21.0001 6.03969 21.0001 5.18404 20.5641C4.43139 20.1806 3.81947 19.5687 3.43597 18.816C3 17.9604 3 16.8403 3 14.6001Z"
+      ]
+  IcnActivityTypeCorrection ->
+    mkPathesD
+      [ "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+      , "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
       ]
   IcnSocialFormIndividual ->
     mkPathesD

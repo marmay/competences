@@ -15,6 +15,7 @@ import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.Common qualified as C
@@ -138,7 +139,7 @@ data EvaluatorModel = EvaluatorModel
   , taskStatuses :: !(Map.Map UserId (Map.Map TaskId TaskCompletionStatus))
   -- Per-task qualitative remarks (e.g. sloppy, exceptional)
   , taskRemarks :: !(Map.Map TaskId (Set.Set TaskRemark))
-  -- Extra tasks added by teacher (not in assignment.tasks)
+  , taskNotes :: !(Map.Map TaskId RichContent)
   , additionalTasks :: !(Set.Set TaskId)
   -- Counter to re-key the inline extra-task selector (incremented on reset)
   , selectorGeneration :: !Int
@@ -246,6 +247,7 @@ evaluatorComponent r assignment =
         , aggregationStale = False
         , taskStatuses = Map.empty
         , taskRemarks = Map.empty
+        , taskNotes = Map.empty
         , additionalTasks = Set.empty
         , selectorGeneration = 0
         , startFromEmpty = False
@@ -312,6 +314,7 @@ evaluatorComponent r assignment =
                 , aggregatedResults = Map.empty
                 , aggregationStale = False
                 , taskRemarks = Map.empty
+                , taskNotes = Map.empty
                 , additionalTasks = Set.empty
                 , selectorGeneration = m.selectorGeneration + 1
                 , selectedSocialForm = Individual
@@ -389,6 +392,7 @@ evaluatorComponent r assignment =
         , editingEvidence = Nothing
         , aggregationStale = False
         , taskRemarks = Map.empty
+        , taskNotes = Map.empty
         , additionalTasks = Set.empty
         , selectorGeneration = m'.selectorGeneration + 1
         }
@@ -458,6 +462,7 @@ evaluatorComponent r assignment =
                , evaluationDate = ev.date
                , aggregationStale = False
                , taskRemarks = ev.taskRemarks
+               , taskNotes = ev.taskNotes
                , additionalTasks = loadedExtras
                , selectorGeneration = m.selectorGeneration + 1
                }
@@ -468,6 +473,7 @@ evaluatorComponent r assignment =
        , aggregatedResults = Map.empty
        , aggregationStale = False
        , taskRemarks = Map.empty
+       , taskNotes = Map.empty
        , additionalTasks = Set.empty
        , selectorGeneration = m.selectorGeneration + 1
        }
@@ -521,6 +527,7 @@ evaluatorComponent r assignment =
                 , oldTasks = Nothing
                 , observations = Just (existingEv.observations, Ix.fromList observations)
                 , taskRemarks = Just (existingEv.taskRemarks, m.taskRemarks)
+                , taskNotes = Just (existingEv.taskNotes, m.taskNotes)
                 , assignmentId = Nothing
                 , lessonId = Nothing
                 }
@@ -538,6 +545,7 @@ evaluatorComponent r assignment =
                 , oldTasks = ""
                 , observations = Ix.fromList observations
                 , taskRemarks = m.taskRemarks
+                , taskNotes = m.taskNotes
                 , assignmentId = Just asmt.id
                 , lessonId = Nothing
                 }

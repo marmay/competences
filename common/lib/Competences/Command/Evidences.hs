@@ -23,6 +23,7 @@ import Competences.Document.Evidence
   , TaskEvaluations
   , TaskRemark
   )
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Document.Task (TaskId)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -56,7 +57,7 @@ data EvidencePatch = EvidencePatch
   , observations :: !(Change (Ix.IxSet ObservationIxs Observation))
     -- ^ Change observations from old to new value
   , taskRemarks :: !(Change (Map TaskId (Set TaskRemark)))
-    -- ^ Change taskRemarks from old to new value
+  , taskNotes :: !(Change (Map TaskId RichContent))
   , assignmentId :: !(Change (Maybe AssignmentId))
     -- ^ Change assignmentId from old to new value
   , lessonId :: !(Change (Maybe LessonId))
@@ -82,6 +83,7 @@ instance FromJSON EvidencePatch where
       <*> v .:? "oldTasks" .!= Nothing
       <*> v .: "observations"
       <*> v .:? "taskRemarks" .!= Nothing
+      <*> v .:? "taskNotes" .!= Nothing
       <*> v .:? "assignmentId" .!= Nothing
       <*> v .:? "lessonId" .!= Nothing
 
@@ -120,6 +122,7 @@ instance Default EvidencePatch where
       , oldTasks = Nothing
       , observations = Nothing
       , taskRemarks = Nothing
+      , taskNotes = Nothing
       , assignmentId = Nothing
       , lessonId = Nothing
       }
@@ -135,6 +138,7 @@ applyEvidencePatch evidence patch =
       >=> patchField' @"oldTasks" patch
       >=> patchField' @"observations" patch
       >=> patchField' @"taskRemarks" patch
+      >=> patchField' @"taskNotes" patch
       >=> patchField' @"assignmentId" patch
       >=> patchField' @"lessonId" patch
 
