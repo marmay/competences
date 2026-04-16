@@ -19,6 +19,7 @@ import Data.Set qualified as Set
 import Miso qualified as M
 import Miso.Router qualified as M
 import Miso.String (ms)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Optics.Core (Lens', (%), (%~), (.~))
 
 -- | Embeddable update: pass a lens at the parent's 'LessonNotesDetailedState'.
@@ -28,7 +29,7 @@ updateLessonNotesDetailed
   -> (V.LessonNotesDetailedAction -> action)
   -> V.LessonNotesDetailedAction
   -> M.Effect parent model action
-updateLessonNotesDetailed stateLens r _lift = go
+updateLessonNotesDetailed stateLens r lift = go
   where
     go (V.MenuEdit lnid) = do
       dismiss
@@ -42,6 +43,12 @@ updateLessonNotesDetailed stateLens r _lift = go
     go (V.MenuDelete lnid) = do
       dismiss
       M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
+    go (V.HoldDeleteEntity ha) =
+      HoldButton.handleHoldAction'
+        (stateLens % #holdDeleteEntity)
+        (\lnid -> modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid)))
+        (lift . V.HoldDeleteEntity)
+        ha
     go action = M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ False)

@@ -59,6 +59,7 @@ data TaskDetailedState = TaskDetailedState
   { expandedTasks :: !(Set TaskId)
   , expandedSolutions :: !(Set SolutionId)
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
+  , holdDeleteEntity :: !(HoldButton.HoldState TaskId)
   , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -72,6 +73,7 @@ data TaskDetailedAction
   | MenuPin !Task
   | MenuGoTo !TaskId
   | MenuDelete !TaskId
+  | HoldDeleteEntity !(HoldButton.HoldAction TaskId)
   | MenuToggle
   | MenuClose
   deriving (Eq, Show)
@@ -83,6 +85,7 @@ initialTaskDetailedState expanded =
     { expandedTasks = Set.fromList expanded
     , expandedSolutions = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
+    , holdDeleteEntity = HoldButton.emptyHoldState
     , menuOpen = False
     }
 

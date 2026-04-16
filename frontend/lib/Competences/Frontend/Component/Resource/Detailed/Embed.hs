@@ -16,6 +16,7 @@ import Competences.Frontend.Fragment.Resource.Detailed qualified as V
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, requestViewerPin, PinViewerRequest (..))
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Miso qualified as M
@@ -30,7 +31,7 @@ updateResourceDetailed
   -> (V.ResourceDetailedAction -> action)
   -> V.ResourceDetailedAction
   -> M.Effect parent model action
-updateResourceDetailed stateLens r _lift = go
+updateResourceDetailed stateLens r lift = go
   where
     go (V.MenuEdit rid) = do
       dismiss
@@ -44,6 +45,12 @@ updateResourceDetailed stateLens r _lift = go
     go (V.MenuDelete rid) = do
       dismiss
       M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
+    go (V.HoldDeleteEntity ha) =
+      HoldButton.handleHoldAction'
+        (stateLens % #holdDeleteEntity)
+        (\rid -> modifySyncDocument r $ Resources (OnResources (Delete rid)))
+        (lift . V.HoldDeleteEntity)
+        ha
     go action = M.modify (stateLens %~ V.updateResourceDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ False)

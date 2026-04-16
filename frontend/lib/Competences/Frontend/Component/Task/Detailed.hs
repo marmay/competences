@@ -9,9 +9,10 @@ where
 
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Solution (..), Task (..), User)
+import Competences.Document (Document (..), Lock (..), Solution (..), Task (..), User)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.Detailed.Embed (renderSolutionList, updateTaskDetailed)
 import Competences.Frontend.Fragment.Task.Badge (assessmentStar)
@@ -23,7 +24,10 @@ import Competences.Frontend.SyncContext
   , modifySyncDocument
   , subscribeWithProjection
   )
-import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set qualified as Set
@@ -127,11 +131,12 @@ headerAnnotations r cfg m task =
   concat
     [ [assessmentStar task.purpose]
     , [ entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ menuEdit (ViewAction (V.MenuEdit task.id))
+            [ editButton r task.id
             , menuPin (ViewAction (V.MenuPin task))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo task.id)) | cfg.settings.enableGoTo]
-            ++ [menuDelete (ViewAction (V.MenuDelete task.id)) | cfg.settings.enableDelete]
+            ++ [menuSeparator | cfg.settings.enableDelete]
+            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity task.id | cfg.settings.enableDelete]
       | isTeacher r
       ]
     ]
@@ -146,6 +151,13 @@ taskBody r cfg m task =
         , not (null m.projection.solutions) || isTeacher r
         ]
       ]
+
+editButton :: SyncContext -> TaskId -> M.View Model Action
+editButton r tid =
+  inlineComponent
+    ("task-edit-btn-" <> ms (show tid))
+    (lockButtonComponent r
+      (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))
 
 hasContent :: Task -> Bool
 hasContent task = case task.content of

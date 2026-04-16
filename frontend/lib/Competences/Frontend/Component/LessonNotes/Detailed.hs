@@ -8,8 +8,11 @@ module Competences.Frontend.Component.LessonNotes.Detailed
   )
 where
 
+import Competences.Command (EntityCommand (..), ModifyCommand (..))
+import Competences.Command qualified as Cmd
+import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), LessonNotes (..), Resource (..), Task (..), User)
+import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), LessonNotes (..), Lock (..), Resource (..), Task (..), User)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.LessonNotes.Detailed.Embed (updateLessonNotesDetailed)
@@ -25,7 +28,10 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.Maybe (mapMaybe)
 import GHC.Generics (Generic)
@@ -97,13 +103,21 @@ lessonNotesDetailedComponent r cfg =
     annotations m ln
       | cfg.settings.showAnnotations, isTeacher r =
           [entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ menuEdit (ViewAction (V.MenuEdit ln.id))
+            [ editButton r ln.id
             , menuPin (ViewAction (V.MenuPin ln))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo ln.id)) | cfg.settings.enableGoTo]
-            ++ [menuDelete (ViewAction (V.MenuDelete ln.id)) | cfg.settings.enableDelete]
+            ++ [menuSeparator | cfg.settings.enableDelete]
+            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity ln.id | cfg.settings.enableDelete]
           ]
       | otherwise = []
+
+    editButton :: SyncContext -> LessonNotesId -> M.View Model Action
+    editButton r' lnid =
+      inlineComponent
+        ("ln-edit-btn-" <> ms (show lnid))
+        (lockButtonComponent r'
+          (LockButtonConfig (LessonNotesLock lnid) (Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))) Button.IconTextS))
 
 lessonNotesProjection :: LessonNotesDetailedConfig -> Document -> Maybe User -> LessonNotesProjection
 lessonNotesProjection cfg doc _mUser =

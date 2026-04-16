@@ -12,14 +12,20 @@ module Competences.Frontend.Component.ResourceLookup.View
   )
 where
 
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..))
+import Competences.Command qualified as Cmd
+import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Document
   ( Document
   , LessonNotes (..)
+  , Lock (..)
   , Resource (..)
   , Solution (..)
   , Task (..)
   )
 import Competences.Document.Id (idToText)
+import Competences.Document.LessonNotes (LessonNotesId)
+import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.LessonNotes.Detailed.Embed qualified as LNEmbed
@@ -39,7 +45,9 @@ import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo)
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -162,7 +170,7 @@ viewLessonNoteGroup r m group =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
           <> [ entityMenu m.lessonNotesState.menuOpen (LessonNotesAction VLN.MenuToggle) (LessonNotesAction VLN.MenuClose)
-                  [ menuEdit (LessonNotesAction (VLN.MenuEdit ln.id))
+                  [ lnEditButton r ln.id
                   , menuPin (LessonNotesAction (VLN.MenuPin ln))
                   , menuGoTo (LessonNotesAction (VLN.MenuGoTo ln.id))
                   ]
@@ -231,7 +239,7 @@ viewResourceItem r m relevance res =
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
         <> [ entityMenu m.resourceState.menuOpen (ResourceAction VR.MenuToggle) (ResourceAction VR.MenuClose)
-                [ menuEdit (ResourceAction (VR.MenuEdit res'.id))
+                [ resEditButton r res'.id
                 , menuPin (ResourceAction (VR.MenuPin res'))
                 , menuGoTo (ResourceAction (VR.MenuGoTo res'.id))
                 ]
@@ -287,3 +295,21 @@ viewSolutionContent fc sol =
         then Layout.empty
         else VT.taskContentView (renderRichText fc sol.content)
     )
+
+-- ============================================================================
+-- Edit buttons (LockButton components)
+-- ============================================================================
+
+lnEditButton :: SyncContext -> LessonNotesId -> M.View GroupedResourcesModel GroupedResourcesAction
+lnEditButton r lnid =
+  inlineComponent
+    ("ln-edit-btn-" <> ms (show lnid))
+    (lockButtonComponent r
+      (LockButtonConfig (LessonNotesLock lnid) (Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))) Button.IconTextS))
+
+resEditButton :: SyncContext -> ResourceId -> M.View GroupedResourcesModel GroupedResourcesAction
+resEditButton r rid =
+  inlineComponent
+    ("res-edit-btn-" <> ms (show rid))
+    (lockButtonComponent r
+      (LockButtonConfig (ResourceLock rid) (Resources (OnResources (Modify rid Lock))) Button.IconTextS))

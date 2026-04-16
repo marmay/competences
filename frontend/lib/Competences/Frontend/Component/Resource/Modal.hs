@@ -14,12 +14,15 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Document (Document, Task (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
+import Competences.Document (Document, Lock (..), Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo)
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -28,7 +31,6 @@ import Competences.Frontend.SyncContext (SyncContext (..))
 
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.SyncContext.WindowManager (ModalConfig (..), ModalId (..), ModalHeight (..), ModalWidth (..), WindowChrome (..), inlineComponent, openFramedModal)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Tailwind (class_)
@@ -38,6 +40,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.String (ms)
 import Miso.Html qualified as MH
 
 -- | Open the resource modal as a framed modal.
@@ -216,14 +219,21 @@ viewModalTaskList r m taskExtra =
     TaskListAction
 
 modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
-modalAnnotations _r m taskExtra tws =
+modalAnnotations r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
     , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
-            [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
+            [ taskEditButton r tws.task.id
             , menuPin (TaskListAction (VT.MenuPin tws.task))
             , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
             ]
       ]
     ]
+
+taskEditButton :: SyncContext -> TaskId -> M.View Model Action
+taskEditButton r tid =
+  inlineComponent
+    ("task-edit-btn-" <> ms (show tid))
+    (lockButtonComponent r
+      (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))

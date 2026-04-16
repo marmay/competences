@@ -24,6 +24,7 @@ where
 import Competences.Common.Set (toggle)
 import Competences.Document (Resource, ResourceContent (..), ResourceId)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -44,6 +45,7 @@ import Optics.Core ((%~), (.~))
 
 data ResourceDetailedState = ResourceDetailedState
   { expandedResources :: !(Set ResourceId)
+  , holdDeleteEntity :: !(HoldButton.HoldState ResourceId)
   , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -54,13 +56,14 @@ data ResourceDetailedAction
   | MenuPin !Resource
   | MenuGoTo !ResourceId
   | MenuDelete !ResourceId
+  | HoldDeleteEntity !(HoldButton.HoldAction ResourceId)
   | MenuToggle
   | MenuClose
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
 initialResourceDetailedState expanded =
-  ResourceDetailedState {expandedResources = Set.fromList expanded, menuOpen = False}
+  ResourceDetailedState {expandedResources = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = False}
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid

@@ -68,6 +68,14 @@ updateTaskDetailed stateLens r lift = go
     go (V.MenuDelete tid) = do
       dismiss
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
+    go (V.HoldDeleteEntity ha) =
+      HoldButton.handleHoldAction'
+        (stateLens % #holdDeleteEntity)
+        (\tid -> do
+          modifySyncDocument r $ Tasks (OnTasks (Delete tid))
+        )
+        (lift . V.HoldDeleteEntity)
+        ha
     go action = M.modify (stateLens %~ V.updateTaskDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ False)

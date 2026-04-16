@@ -9,8 +9,10 @@ module Competences.Frontend.Component.Resource.Detailed
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Resource (..), User)
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..))
+import Competences.Document (Document (..), Lock (..), Resource (..), User)
 import Competences.Document.Resource (ResourceId)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.Component.Resource.Detailed.Embed (renderResource, updateResourceDetailed)
 import Competences.Frontend.Fragment.Resource.Detailed qualified as V
 import Competences.Frontend.SyncContext
@@ -19,10 +21,14 @@ import Competences.Frontend.SyncContext
   , isTeacher
   , subscribeWithProjection
   )
-import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator)
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.String (ms)
 import Optics.Core ((.~))
 
 data ResourceDetailedConfig = ResourceDetailedConfig
@@ -87,13 +93,21 @@ resourceDetailedComponent r cfg =
     annotations m res
       | cfg.settings.showAnnotations, isTeacher r =
           [entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
-            [ menuEdit (ViewAction (V.MenuEdit res.id))
+            [ editButton r res.id
             , menuPin (ViewAction (V.MenuPin res))
             ]
             ++ [menuGoTo (ViewAction (V.MenuGoTo res.id)) | cfg.settings.enableGoTo]
-            ++ [menuDelete (ViewAction (V.MenuDelete res.id)) | cfg.settings.enableDelete]
+            ++ [menuSeparator | cfg.settings.enableDelete]
+            ++ [HoldButton.holdDeleteButtonSm (ViewAction . V.HoldDeleteEntity) m.viewState.holdDeleteEntity res.id | cfg.settings.enableDelete]
           ]
       | otherwise = []
+
+    editButton :: SyncContext -> ResourceId -> M.View Model Action
+    editButton r' rid =
+      inlineComponent
+        ("res-edit-btn-" <> ms (show rid))
+        (lockButtonComponent r'
+          (LockButtonConfig (ResourceLock rid) (Resources (OnResources (Modify rid Lock))) Button.IconTextS))
 
 resourceProjection :: ResourceDetailedConfig -> Document -> Maybe User -> ResourceProjection
 resourceProjection cfg doc _mUser =

@@ -12,7 +12,7 @@ import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
@@ -22,6 +22,7 @@ import Competences.Document
   , ContentPreset (..)
   , Document (..)
   , Layout (..)
+  , Lock (..)
   , Solution (..)
   , User (..)
   )
@@ -90,6 +91,7 @@ import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileRes
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
 import Competences.Frontend.Component.Assignment.Detailed.Embed qualified as AssignmentEmbed
 import Competences.Frontend.Fragment.Assignment.Detailed qualified as VA
+import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.EntityMenu (entityMenu, menuCustom, menuEdit, menuGoTo, menuPin)
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
@@ -816,13 +818,20 @@ viewerComponent r user assignment wm =
               ]
             , [TaskBadge.assessmentStar tws.taskPurpose]
             , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
-                  [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
+                  [ taskEditButton r tws.task.id
                   , menuPin (TaskListAction (VT.MenuPin tws.task))
                   , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
                   ]
               | proj.connectedUserRole == Teacher
               ]
             ]
+
+    taskEditButton :: SyncContext -> TaskId -> M.View ViewerModel ViewerAction
+    taskEditButton r' tid =
+      inlineComponent
+        ("task-edit-btn-" <> ms (show tid))
+        (lockButtonComponent r'
+          (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))
 
     isDone :: Maybe TaskCompletionStatus -> Bool
     isDone (Just (TaskDone _)) = True

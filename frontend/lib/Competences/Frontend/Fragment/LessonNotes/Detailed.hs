@@ -24,6 +24,7 @@ import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
+import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -43,6 +44,7 @@ import Optics.Core ((%~), (.~))
 
 data LessonNotesDetailedState = LessonNotesDetailedState
   { expandedLessonNotes :: !(Set LessonNotesId)
+  , holdDeleteEntity :: !(HoldButton.HoldState LessonNotesId)
   , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -53,13 +55,14 @@ data LessonNotesDetailedAction
   | MenuPin !LessonNotes
   | MenuGoTo !LessonNotesId
   | MenuDelete !LessonNotesId
+  | HoldDeleteEntity !(HoldButton.HoldAction LessonNotesId)
   | MenuToggle
   | MenuClose
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
 initialLessonNotesDetailedState expanded =
-  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, menuOpen = False}
+  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = False}
 
 updateLessonNotesDetailedPure
   :: LessonNotesDetailedAction
