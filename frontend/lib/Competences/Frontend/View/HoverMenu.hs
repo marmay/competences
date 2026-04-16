@@ -5,13 +5,13 @@
 module Competences.Frontend.View.HoverMenu
   ( hoverMenu
   , hoverMenuRight
+  , hoverMenuAboveRight
   , hoverMenuEntry
   , hoverMenuSeparator
   , hoverMenuHeading
   )
 where
 
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Text (Text)
@@ -32,6 +32,27 @@ hoverMenu = hoverMenuWith "left-0"
 hoverMenuRight :: View m a -> [View m a] -> View m a
 hoverMenuRight = hoverMenuWith "right-0"
 
+-- | Like 'hoverMenuRight' but the dropdown opens above the trigger.
+hoverMenuAboveRight :: View m a -> [View m a] -> View m a
+hoverMenuAboveRight trigger items =
+  MH.div_
+    [class_ "group/menu relative"]
+    [ trigger
+    , MH.div_
+        [ class_
+            "absolute right-0 bottom-full pb-1 z-50 \
+            \hidden group-hover/menu:block"
+        ]
+        [ MH.div_
+            [ class_
+                "min-w-48 bg-popover text-popover-foreground \
+                \border border-border rounded-md shadow-lg p-1 \
+                \flex flex-col gap-0.5"
+            ]
+            items
+        ]
+    ]
+
 hoverMenuWith :: Text -> View m a -> [View m a] -> View m a
 hoverMenuWith align trigger items =
   MH.div_
@@ -45,16 +66,24 @@ hoverMenuWith align trigger items =
         [ MH.div_
             [ class_
                 "min-w-48 bg-popover text-popover-foreground \
-                \border border-border rounded-md shadow-lg py-1"
+                \border border-border rounded-md shadow-lg p-1 \
+                \flex flex-col gap-0.5"
             ]
             items
         ]
     ]
 
--- | A single clickable entry in a hover menu (icon + label).
+-- | A single clickable entry in a hover menu (icon + label, full-width).
 hoverMenuEntry :: Bool -> Icon.Icon -> MisoString -> a -> View m a
 hoverMenuEntry isActive icn label action =
-  Button.toggleGhostSm isActive (Button.ButtonConfig (Button.IconText icn label) (Just action))
+  let activeCls = if isActive then " bg-accent text-accent-foreground" else ""
+   in MH.div_
+        [ class_ $ "flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground" <> activeCls
+        , MH.onClick action
+        ]
+        [ Icon.iconS Icon.Small icn
+        , M.text label
+        ]
 
 -- | Small uppercase section heading within a menu.
 hoverMenuHeading :: MisoString -> View m a

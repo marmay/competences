@@ -296,21 +296,25 @@ staticDisclosureImpl style headerColor dc =
     ]
   where
     containerClasses = case style of
-      DisclosureDefault -> "border rounded-lg overflow-hidden" :: Text
-      DisclosureNested -> "rounded overflow-hidden"
+      DisclosureDefault -> "border rounded-lg" :: Text
+      DisclosureNested -> "rounded"
 
     headerBg = case headerColor of
       MutedHeader -> "bg-muted/50" :: Text
       PopHeader -> "bg-primary text-primary-foreground"
       PaletteHeader p -> bgClass Base p
 
+    headerRounding = case style of
+      DisclosureDefault -> "rounded-t-lg" :: Text
+      DisclosureNested -> "rounded-t"
+
     headerLayoutClasses = case style of
       DisclosureDefault -> "gap-3" :: Text
       DisclosureNested -> "gap-2"
 
     headerWrapperClasses = case style of
-      DisclosureDefault -> "px-3 py-2 " <> headerBg
-      DisclosureNested -> "px-2 py-1.5 " <> headerBg
+      DisclosureDefault -> "px-3 py-2 " <> headerBg <> " " <> headerRounding
+      DisclosureNested -> "px-2 py-1.5 " <> headerBg <> " " <> headerRounding
 
     titleView = MH.div_ [class_ "flex-1 min-w-0"] [dc.title]
 
@@ -350,23 +354,23 @@ disclosureImpl style headerColor toggleAction dc =
       Just _ -> True
       Nothing -> False
 
-    -- Container classes based on style
     containerClasses = case style of
-      DisclosureDefault -> "border rounded-lg overflow-hidden" :: Text
-      DisclosureNested -> "rounded overflow-hidden"
+      DisclosureDefault -> "border rounded-lg" :: Text
+      DisclosureNested -> "rounded"
 
-    -- Header background + text color classes
     headerBg = case headerColor of
       MutedHeader -> "bg-muted/50" :: Text
       PopHeader -> "bg-primary text-primary-foreground"
       PaletteHeader p -> bgClass Base p
 
-    -- Layout classes added via addClass
+    headerRounding = case style of
+      DisclosureDefault -> "rounded-t-lg" :: Text
+      DisclosureNested -> "rounded-t"
+
     headerLayoutExtra = case style of
       DisclosureDefault -> "gap-3" :: Text
       DisclosureNested -> "gap-2"
 
-    -- Hover background class
     headerHover = case headerColor of
       MutedHeader -> case style of
         DisclosureDefault -> "hover:bg-muted" :: Text
@@ -379,9 +383,9 @@ disclosureImpl style headerColor toggleAction dc =
     -- Non-layout classes that go on wrapper div
     headerWrapperExtra = case style of
       DisclosureDefault ->
-        "px-3 py-2 transition-colors " <> headerBg <> " " <> headerHover
+        "px-3 py-2 transition-colors " <> headerBg <> " " <> headerHover <> " " <> headerRounding
       DisclosureNested ->
-        "px-2 py-1.5 transition-colors " <> headerBg <> " " <> headerHover
+        "px-2 py-1.5 transition-colors " <> headerBg <> " " <> headerHover <> " " <> headerRounding
 
     -- Header content
     headerContent =
