@@ -10,12 +10,16 @@ where
 
 import Control.Applicative ((<|>))
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..), SolutionsCommand (..), TasksCommand (..))
+import Competences.Command qualified as Cmd
+import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), User (..))
+import Competences.Document (Document (..), LessonNotes (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), User (..))
 import Competences.Document.Id (idToText)
+import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
+import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEditor)
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
 import Competences.Frontend.Component.Task.SolutionPinEditor (solutionPinEditor)
@@ -78,6 +82,7 @@ lockPinId' :: Lock -> PinId
 lockPinId' (TaskLock tid) = mkPinId ("task-" <> idToText tid)
 lockPinId' (SolutionLock sid) = mkPinId ("solution-" <> idToText sid)
 lockPinId' (ResourceLock rid) = mkPinId ("resource-" <> idToText rid)
+lockPinId' (LessonNotesLock lnid) = mkPinId ("lesson-notes-" <> idToText lnid)
 lockPinId' lock = mkPinId (T.pack (show lock))
 
 -- | Try to recover a Lock from a PinId (inverse of 'lockPinId'').
@@ -87,12 +92,14 @@ parsePinLock pid =
    in (TaskLock <$> (T.stripPrefix "task-" key >>= mkId))
         <|> (SolutionLock <$> (T.stripPrefix "solution-" key >>= mkId))
         <|> (ResourceLock <$> (T.stripPrefix "resource-" key >>= mkId))
+        <|> (LessonNotesLock <$> (T.stripPrefix "lesson-notes-" key >>= mkId))
 
 -- | Build the command to release a lock.
 releaseCommand :: Lock -> Command
 releaseCommand (TaskLock tid) = Tasks (OnTasks (Modify tid (Release def)))
 releaseCommand (SolutionLock sid) = Solutions (OnSolutions (Modify sid (Release def)))
 releaseCommand (ResourceLock rid) = Resources (OnResources (Modify rid (Release def)))
+releaseCommand (LessonNotesLock lnid) = Cmd.LessonNotes (OnLessonNotes (Modify lnid (Release def)))
 releaseCommand _ = error "releaseCommand: unhandled lock type"
 
 -- ============================================================================
@@ -105,6 +112,7 @@ ensureLockPin r sink lock doc = case lock of
   TaskLock tid -> ensureTaskPin r sink tid doc
   SolutionLock sid -> ensureSolutionPin r sink sid doc
   ResourceLock rid -> ensureResourcePin r sink rid doc
+  LessonNotesLock lnid -> ensureLessonNotesPin r sink lnid doc
   _ -> pure () -- No pin editor for other lock types yet
 
 ensureTaskPin :: SyncContext -> WindowEventSink -> TaskId -> Document -> IO ()
@@ -151,6 +159,20 @@ ensureResourcePin r sink resId doc =
         }
       chrome = WindowChrome title Icon.IcnResources (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (resourcePinEditor r resId pid)
+
+ensureLessonNotesPin :: SyncContext -> WindowEventSink -> LessonNotesId -> Document -> IO ()
+ensureLessonNotesPin r sink lnId doc =
+  let mLn = Ix.getOne (doc.lessonNotes Ix.@= lnId)
+      title = maybe ("Unterrichtsnotiz" :: MisoString) (ms . (.title)) mLn
+      pid = lockPinId' (LessonNotesLock lnId)
+      meta = PinMeta
+        { key = "lesson-notes-" <> idToText lnId
+        , category = PinCatLessonNotes
+        , sortKey = SortKey [SortAtom lnId]
+        , context = Nothing
+        }
+      chrome = WindowChrome title Icon.IcnLessonNotes (Just Icon.IcnEdit)
+   in pinDialogWith sink meta chrome (lessonNotesPinEditor r lnId pid)
 
 -- ============================================================================
 -- Config

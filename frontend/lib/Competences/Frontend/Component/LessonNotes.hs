@@ -1,52 +1,64 @@
+-- | Lesson notes page: selector + detail view.
+-- The detail pane mounts 'lessonNotesDetailedComponent'; editing goes
+-- through the pin editor.
 module Competences.Frontend.Component.LessonNotes
   ( lessonNotesComponent
-  , LessonNotesMode (..)
   )
 where
 
 import Competences.Document (LessonNotes (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.LessonNotes.EditorDetail (editorDetailView)
-import Competences.Frontend.Component.LessonNotes.ViewerDetail (viewerDetailView)
+import Competences.Frontend.Component.LessonNotes.Detailed
+  ( LessonNotesDetailedConfig (..)
+  , defaultLessonNotesDetailedSettings
+  , lessonNotesDetailedComponent
+  )
 import Competences.Frontend.Component.Selector.LessonNotesSelector (lessonNotesSelectorComponent)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
-import Competences.Query.DefaultSelection qualified as QDefault
-import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
-import Data.List.NonEmpty (NonEmpty)
+import Competences.Frontend.View.Tailwind (class_)
+import Competences.Query.DefaultSelection qualified as QDefault
+import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.String (ms)
 
--- | Mode for the lesson notes component
-data LessonNotesMode = LessonNotesEdit | LessonNotesView
-  deriving (Eq, Ord, Enum, Bounded, Show)
+data Model = Model
+  { selected :: !(Maybe LessonNotes)
+  , sidebarOpen :: !Bool
+  }
+  deriving (Eq, Generic, Show)
 
--- | Lesson notes component using SelectorDetail pattern
--- Teachers: Edit (default) and View modes
--- Students: View mode only
+data Action
+  = ToggleSidebar
+  deriving (Eq, Show)
+
 lessonNotesComponent
   :: SyncContext
-  -> LessonNotesMode
-  -> NonEmpty LessonNotesMode
   -> Bool
   -- ^ Whether the user can create new lesson notes
-  -> M.Component p (SD.Model LessonNotes LessonNotesMode) (SD.Action LessonNotesMode)
-lessonNotesComponent r defaultMode availableModes canCreate =
-  SD.selectorDetailComponent
-    SD.SelectorDetailConfig
-      { SD.selectorId = "lesson-notes"
-      , SD.selectorComponent = lessonNotesSelectorComponent r canCreate
-          (Just $ QDefault.defaultLessonNotes r.env.currentDay)
-      , SD.detailView = \mode ln -> case mode of
-          LessonNotesEdit -> editorDetailView r ln
-          LessonNotesView -> viewerDetailView r ln
-      , SD.modeLabel = \case
-          LessonNotesEdit -> C.translate' C.LblEdit
-          LessonNotesView -> C.translate' C.LblView
-      , SD.modeIcon = \case
-          LessonNotesEdit -> Just Icon.IcnEdit
-          LessonNotesView -> Just Icon.IcnView
-      , SD.availableModes = availableModes
-      , SD.defaultMode = defaultMode
-      , SD.emptyView = Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-      }
+  -> M.Component p Model Action
+lessonNotesComponent r canCreate =
+  M.component model update view'
+  where
+    model = Model Nothing True
+
+    update ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
+
+    view' m =
+      Layout.collapsibleSideMenu
+        m.sidebarOpen
+        ToggleSidebar
+        ( inlineComponentAttrs "lesson-notes-selector" [class_ "h-full"] $
+            lessonNotesSelectorComponent r canCreate
+              (Just $ QDefault.defaultLessonNotes r.env.currentDay)
+              #selected
+        )
+        (detailView m.selected)
+
+    detailView Nothing =
+      Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
+    detailView (Just ln) =
+      inlineComponent
+        ("lesson-notes-detail-" <> ms (show ln.id))
+        (lessonNotesDetailedComponent r (LessonNotesDetailedConfig ln.id defaultLessonNotesDetailedSettings))

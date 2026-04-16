@@ -20,12 +20,14 @@ import Competences.Document
   , Task (..)
   )
 import Competences.Document.Id (idToText)
-import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.LessonNotes.Detailed.Embed qualified as LNEmbed
+import Competences.Frontend.Component.LessonNotes.EditButton (lessonNotesEditButton)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
 import Competences.Frontend.Component.Resource.Detailed.Embed qualified as ResEmbed
 import Competences.Frontend.Component.Resource.EditButton (resourceEditButton)
+import Competences.Frontend.Fragment.LessonNotes.Detailed qualified as VLN
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.ResourceLookup
   ( AnnotatedLessonNoteGroup (..)
@@ -38,6 +40,7 @@ import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
+import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -61,12 +64,8 @@ data GroupedResourcesModel = GroupedResourcesModel
   { groupedResources :: !GroupedResources
   -- ^ Computed grouped resources (updated via document subscription)
   , resourceState :: !VR.ResourceDetailedState
-  -- ^ Expansion state for resource items (managed via the resource Fragment).
+  , lessonNotesState :: !VLN.LessonNotesDetailedState
   , expandedTasks :: !(Set T.Text)
-  -- ^ Expanded task IDs (text keys; out of scope for this pass — tasks
-  -- still use the ad-hoc text-keyed expansion).
-  , collapsedLessonNotes :: !(Set LessonNotesId)
-  -- ^ Lesson note groups that have been collapsed (default: expanded)
   , otherCollapsed :: !Bool
   -- ^ Whether the "Other resources" section is collapsed
   }
@@ -76,8 +75,8 @@ data GroupedResourcesModel = GroupedResourcesModel
 data GroupedResourcesAction
   = DocChanged !DocumentChange
   | ResourceAction !VR.ResourceDetailedAction
+  | LessonNotesAction !VLN.LessonNotesDetailedAction
   | ToggleTaskExpanded !T.Text
-  | ToggleLessonNoteGroup !LessonNotesId
   | ToggleOtherSection
   | OpenLessonNotes !LessonNotes
   deriving (Eq, Show)
@@ -107,8 +106,8 @@ groupedResourcesComponent r project =
       GroupedResourcesModel
         { groupedResources = GroupedResources [] [] []
         , resourceState = VR.initialResourceDetailedState []
+        , lessonNotesState = VLN.initialLessonNotesDetailedState []
         , expandedTasks = Set.empty
-        , collapsedLessonNotes = Set.empty
         , otherCollapsed = True
         }
 
@@ -118,6 +117,9 @@ groupedResourcesComponent r project =
     update (ResourceAction a) =
       ResEmbed.updateResourceDetailed #resourceState r ResourceAction a
 
+    update (LessonNotesAction a) =
+      LNEmbed.updateLessonNotesDetailed #lessonNotesState r LessonNotesAction a
+
     update (ToggleTaskExpanded key) =
       M.modify $ \m ->
         let newExpanded =
@@ -125,14 +127,6 @@ groupedResourcesComponent r project =
                 then Set.delete key m.expandedTasks
                 else Set.insert key m.expandedTasks
          in m & #expandedTasks .~ newExpanded
-
-    update (ToggleLessonNoteGroup lnId) =
-      M.modify $ \m ->
-        let newCollapsed =
-              if Set.member lnId m.collapsedLessonNotes
-                then Set.delete lnId m.collapsedLessonNotes
-                else Set.insert lnId m.collapsedLessonNotes
-         in m & #collapsedLessonNotes .~ newCollapsed
 
     update ToggleOtherSection =
       M.modify $ \m -> m & #otherCollapsed .~ not m.otherCollapsed
@@ -165,15 +159,15 @@ viewLessonNoteGroup
   -> M.View GroupedResourcesModel GroupedResourcesAction
 viewLessonNoteGroup r m group =
   let ln = group.lessonNotes
-      isExpanded = not (Set.member ln.id m.collapsedLessonNotes)
-      titleView = Disclosure.titleIconText Icon.IcnLessonNotes (ms ln.title)
       bodyView =
         MH.div_
           [class_ "space-y-2"]
           (map (viewAnnotatedItem r m) group.items)
-      openAction = Disclosure.action Icon.IcnOpenModal (OpenLessonNotes ln)
-   in Disclosure.innerDisclosure (ToggleLessonNoteGroup ln.id) $
-        Disclosure.contents titleView isExpanded bodyView [openAction]
+      annotations =
+        [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
+        ]
+          <> [lessonNotesEditButton r ln | isTeacher r]
+   in LNEmbed.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
 
 -- ============================================================================
 -- Other (ungrouped) Section

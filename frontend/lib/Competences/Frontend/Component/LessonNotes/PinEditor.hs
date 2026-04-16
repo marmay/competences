@@ -1,5 +1,6 @@
-module Competences.Frontend.Component.LessonNotes.EditorDetail
-  ( editorDetailView
+-- | Lesson-notes editor mounted in a pinned dialog.
+module Competences.Frontend.Component.LessonNotes.PinEditor
+  ( lessonNotesPinEditor
   )
 where
 
@@ -16,70 +17,79 @@ import Competences.Document
   , Task (..)
   , lockOwner
   )
-import Competences.Document.LessonNotes (LessonNoteItem (..))
+import Competences.Document.LessonNotes (LessonNoteItem (..), LessonNotesId)
 import Competences.Document.Resource (ResourceIdentifier (..))
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editor qualified as TE
+import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, dayEditorField, textEditorField)
+import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.EditorField (EditorField)
-import Competences.Frontend.Component.Editor.FormView qualified as TE
+import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..), keywordsFilter)
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
-import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.SyncContext.WindowManager
+  ( PinId
+  , WindowMode
+  , pinSaveStateLens
+  )
+import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Query.Resource qualified as QResource
 import Competences.Query.Task qualified as QTask
+import Data.Default (Default (..))
+import Data.Maybe (fromMaybe)
 import Miso qualified as M
-import Data.Default (def)
+import Miso.String (ms)
 import Optics.Core ((&), (?~))
+import Optics.Core qualified as O
 
--- | Detail view for editing a lesson notes entry
-editorDetailView
-  :: SyncContext
-  -> LessonNotes
-  -> M.View (SD.Model LessonNotes mode) (SD.Action mode)
-editorDetailView r ln =
-  inlineComponent
-    ("lesson-notes-editor-" <> M.ms (show ln.id))
-    (TE.editorComponent lnEditor r def)
+-- | Lesson-notes pin editor factory.
+lessonNotesPinEditor
+  :: SyncContext -> LessonNotesId -> PinId
+  -> WindowMode -> Maybe LessonNotesPatch
+  -> M.Component WM.Model (Model LessonNotes LessonNotesPatch Maybe) (Action LessonNotes LessonNotesPatch)
+lessonNotesPinEditor r lnId pid _mode mSaved =
+  (editorComponent lnEditor r (fromMaybe def mSaved))
+    { M.bindings =
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+        ]
+    }
   where
+    editorId = "lesson-notes-pin-editor-" <> ms (show lnId)
+
+    lnEditable :: Editable Maybe LessonNotes LessonNotesPatch
     lnEditable =
-      TE.editable
+      editable
         ( \d ->
             fmap
-              (\ln' -> (ln', lockOwner (LessonNotesLock ln'.id) d))
-              (Ix.getOne $ d.lessonNotes Ix.@= ln.id)
+              (\ln -> (ln, lockOwner (LessonNotesLock ln.id) d))
+              (Ix.getOne $ d.lessonNotes Ix.@= lnId)
         )
-        & (#modify ?~ (\ln' modify -> Cmd.LessonNotes $ OnLessonNotes (EC.Modify ln'.id modify)))
-        & (#delete ?~ (\ln' -> Cmd.LessonNotes $ OnLessonNotes (EC.Delete ln'.id)))
+        & (#modify ?~ (\ln modify -> Cmd.LessonNotes $ OnLessonNotes (EC.Modify ln.id modify)))
 
     lnEditor =
-      TE.editor
-        ( TE.editorFormView'
-            (C.translate' C.LblLessonNotesEntries)
-            id
-        )
+      editor
+        (editorFormView' (C.translate' C.LblLessonNotesEntries) id)
         lnEditable
-        `TE.addNamedField` ( C.translate' C.LblLessonNotesDate
-                           , TE.dayEditorField #date #date
-                           )
-        `TE.addNamedField` ( C.translate' C.LblLessonNotesTitle
-                           , TE.textEditorField #title #title
-                           )
-        `TE.addNamedField` ( C.translate' C.LblLesson
-                           , lessonEditorField r ("lesson-notes-editor-" <> M.ms (show ln.id) <> "-lesson")
-                               (entityPatchTransformedLens #lessonId #lessonId id id)
-                           )
-        `TE.addNamedField` ( C.translate' C.LblLessonNotesItems
-                           , itemsEditorField r
-                           )
+        `addNamedField` ( C.translate' C.LblLessonNotesDate
+                        , dayEditorField #date #date
+                        )
+        `addNamedField` ( C.translate' C.LblLessonNotesTitle
+                        , textEditorField #title #title
+                        )
+        `addNamedField` ( C.translate' C.LblLesson
+                        , lessonEditorField r (editorId <> "-lesson")
+                            (entityPatchTransformedLens #lessonId #lessonId id id)
+                        )
+        `addNamedField` ( C.translate' C.LblLessonNotesItems
+                        , itemsEditorField r
+                        )
 
 -- ============================================================================
--- NoteItem: union of Resource and Task for the combined selector
+-- Items field (migrated from former LessonNotes/EditorDetail.hs)
 -- ============================================================================
 
 data NoteItem = NoteResource !Resource | NoteTask !Task
@@ -102,20 +112,15 @@ noteItemSearchConfig =
         , keywordsFilter ["aufgabe"] $ \case NoteTask _ -> True; _ -> False
         ]
     , viewTag = \case
-        NoteResource r' -> (Icon.IcnResources, M.ms $ let ResourceIdentifier x = r'.identifier in x)
-        NoteTask t -> (Icon.IcnTask, M.ms $ taskDisplayName t)
+        NoteResource r' -> (Icon.IcnResources, ms $ let ResourceIdentifier x = r'.identifier in x)
+        NoteTask t -> (Icon.IcnTask, ms $ taskDisplayName t)
     , placeholder = M.fromMisoString $ C.translate' C.LblSelectResources
     , selectionOrder = ManualReorder
     , tagLayout = TagsVertical
     , onCreate = Nothing
     }
 
--- | Editor field for the items list using SearchSelect
--- Viewer: comma-separated resource/task names
--- Editor: unified SearchSelect with @res/@aufg meta filters
-itemsEditorField
-  :: SyncContext
-  -> EditorField LessonNotes LessonNotesPatch f
+itemsEditorField :: SyncContext -> EditorField LessonNotes LessonNotesPatch f
 itemsEditorField r =
   searchSelectEditorField
     r

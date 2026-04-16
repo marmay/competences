@@ -13,7 +13,7 @@ import Competences.Frontend.Component.AboutDialog (aboutButtonView)
 import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
-import Competences.Frontend.Component.LessonNotes (LessonNotesMode (..), lessonNotesComponent)
+import Competences.Frontend.Component.LessonNotes (lessonNotesComponent)
 import Competences.Frontend.Component.Planning (planningComponent)
 import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
 import Competences.Frontend.Component.ParticipationTimeline (participationTimelineComponent)
@@ -147,10 +147,7 @@ mkApp ir initialUri =
     evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ taskEditorComponent ir mTaskId
     manageResources = mounted ManageResources $ resourceEditorComponent ir
-    manageLessonNotes = mounted ManageLessonNotes $ lessonNotesComponent ir lessonNotesDefaultMode lessonNotesAvailableModes lessonNotesCanCreate
-    lessonNotesDefaultMode = if isTeacher model.connectedUser then LessonNotesEdit else LessonNotesView
-    lessonNotesAvailableModes = if isTeacher model.connectedUser then LessonNotesEdit :| [LessonNotesView] else LessonNotesView :| []
-    lessonNotesCanCreate = isTeacher model.connectedUser
+    manageLessonNotes = mounted ManageLessonNotes $ lessonNotesComponent ir (isTeacher model.connectedUser)
     -- Both routes use the unified assignment component
     -- Teachers see Edit/Evaluate/View modes, students see View mode only
     viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
