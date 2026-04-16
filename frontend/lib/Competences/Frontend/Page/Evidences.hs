@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.EvidenceEditor
-  ( evidenceEditorComponent
+module Competences.Frontend.Page.Evidences
+  ( evidencesPage
   , EvidenceMode (..)
   , EvidenceEditorModel (..)
   , EvidenceEditorAction (..)
@@ -76,12 +76,12 @@ data EvidenceEditorAction
   deriving (Eq, Show)
 
 -- | Evidence editor component with support for bulk editing
-evidenceEditorComponent
+evidencesPage
   :: SyncContext
   -> Bool
   -- ^ Can edit evidences? (True for teachers, False for students)
   -> M.Component p EvidenceEditorModel EvidenceEditorAction
-evidenceEditorComponent r canEdit =
+evidencesPage r canEdit =
   let style = if canEdit then EvidenceSelectorViewAndCreate else EvidenceSelectorViewOnly
       defaultMode = if canEdit then EvidenceEdit else EvidenceView
    in M.component model update (mainView r style canEdit defaultMode)

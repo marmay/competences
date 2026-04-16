@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.Planning
-  ( planningComponent
+module Competences.Frontend.Page.Planning
+  ( planningPage
   , PlanningMode (..)
   )
 where
@@ -23,10 +23,10 @@ data PlanningMode = PlanningEdit
 
 -- | Planning component using SelectorDetail pattern
 -- Teachers: Edit meso plans and their entries
-planningComponent
+planningPage
   :: SyncContext
   -> M.Component p (SD.Model MesoPlan PlanningMode) (SD.Action PlanningMode)
-planningComponent r =
+planningPage r =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "planning"

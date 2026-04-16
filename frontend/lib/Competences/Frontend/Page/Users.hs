@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.UserListEditor
-  ( userListEditorComponent
+module Competences.Frontend.Page.Users
+  ( usersPage
   )
 where
 
@@ -43,8 +43,8 @@ office365IdChangeIso = iso toText fromText
     fromText Nothing = Nothing
     fromText (Just (a, b)) = Just (Office365Id a, Office365Id b)
 
-userListEditorComponent :: SyncContext -> StaticComponent p Action
-userListEditorComponent r =
+usersPage :: SyncContext -> StaticComponent p Action
+usersPage r =
   staticComponent update view
   where
     update :: Action -> M.Effect p () Action

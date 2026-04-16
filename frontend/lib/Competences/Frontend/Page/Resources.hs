@@ -1,8 +1,8 @@
 -- | Resource page: sidebar selector + detail view.
 -- The detail pane mounts 'resourceDetailedComponent' so resources render
 -- identically on this page and elsewhere.
-module Competences.Frontend.Component.ResourceEditor
-  ( resourceEditorComponent
+module Competences.Frontend.Page.Resources
+  ( resourcesPage
   )
 where
 
@@ -37,8 +37,8 @@ data Action
   = ToggleSidebar
   deriving (Eq, Show)
 
-resourceEditorComponent :: SyncContext -> Maybe ResourceId -> M.Component p Model Action
-resourceEditorComponent r mResId =
+resourcesPage :: SyncContext -> Maybe ResourceId -> M.Component p Model Action
+resourcesPage r mResId =
   M.component model update view'
   where
     model = Model Nothing True

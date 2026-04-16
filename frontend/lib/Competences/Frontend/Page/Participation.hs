@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.ParticipationTimeline
-  ( participationTimelineComponent
+module Competences.Frontend.Page.Participation
+  ( participationPage
   , Model (..)
   , Action (..)
   , emptyModel
@@ -71,8 +71,8 @@ emptyModel = Model {students = [], lessons = [], records = Map.empty, absences =
 -- Component
 -- ---------------------------------------------------------------------------
 
-participationTimelineComponent :: SyncContext -> M.Component p Model Action
-participationTimelineComponent docRef =
+participationPage :: SyncContext -> M.Component p Model Action
+participationPage docRef =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]
     , M.initialAction = Nothing

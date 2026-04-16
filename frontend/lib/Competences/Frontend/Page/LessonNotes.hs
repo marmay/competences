@@ -1,8 +1,8 @@
 -- | Lesson notes page: selector + detail view.
 -- The detail pane mounts 'lessonNotesDetailedComponent'; editing goes
 -- through the pin editor.
-module Competences.Frontend.Component.LessonNotes
-  ( lessonNotesComponent
+module Competences.Frontend.Page.LessonNotes
+  ( lessonNotesPage
   )
 where
 
@@ -38,14 +38,14 @@ data Action
   = ToggleSidebar
   deriving (Eq, Show)
 
-lessonNotesComponent
+lessonNotesPage
   :: SyncContext
   -> Bool
   -- ^ Whether the user can create new lesson notes
   -> Maybe LessonNotesId
   -- ^ Deep link: pre-select this lesson notes entry
   -> M.Component p Model Action
-lessonNotesComponent r canCreate mLnId =
+lessonNotesPage r canCreate mLnId =
   M.component model update view'
   where
     model = Model Nothing True

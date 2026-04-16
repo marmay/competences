@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.TaskEditor
-  ( taskEditorComponent
+module Competences.Frontend.Page.Tasks
+  ( tasksPage
   )
 where
 
@@ -41,8 +41,8 @@ data Action
 -- | Unified task editor component.
 -- When a 'TaskId' is provided (from URL deep link), that task is selected
 -- on initial load. Otherwise falls back to smart default (first by identifier).
-taskEditorComponent :: SyncContext -> Maybe TaskId -> M.Component p Model Action
-taskEditorComponent r mTaskId =
+tasksPage :: SyncContext -> Maybe TaskId -> M.Component p Model Action
+tasksPage r mTaskId =
   M.component model update view'
   where
     model = Model Nothing True

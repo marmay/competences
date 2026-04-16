@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.StatisticsOverview
-  ( statisticsOverviewComponent
+module Competences.Frontend.Page.Statistics
+  ( statisticsPage
   , Model (..)
   , Action (..)
   , emptyModel
@@ -44,8 +44,8 @@ emptyModel :: Model
 emptyModel = Model {byUserStats = Map.empty}
 
 -- | Statistics Overview Component
-statisticsOverviewComponent :: SyncContext -> M.Component p Model Action
-statisticsOverviewComponent docRef =
+statisticsPage :: SyncContext -> M.Component p Model Action
+statisticsPage docRef =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]
     , M.initialAction = Nothing

@@ -77,8 +77,8 @@ data Action mode
 -- data GridMode = GridView | GridEdit
 --   deriving (Eq, Ord, Enum, Bounded, Show)
 --
--- competenceGridComponent :: SyncContext -> User -> M.Component p (SD.Model CompetenceGrid GridMode) (SD.Action GridMode)
--- competenceGridComponent r user =
+-- competenceGridPage :: SyncContext -> User -> M.Component p (SD.Model CompetenceGrid GridMode) (SD.Action GridMode)
+-- competenceGridPage r user =
 --   SD.selectorDetailComponent
 --     SD.SelectorDetailConfig
 --       { selectorId = "competence-grid"

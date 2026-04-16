@@ -8,19 +8,19 @@ import Competences.Document (User (..), UserId)
 import Competences.Document.Id (idToText)
 import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Assignment (assignmentComponent)
 import Competences.Frontend.Component.AboutDialog (aboutButtonView)
-import Competences.Frontend.Component.CompetenceGrid (CompetenceGridMode (..), competenceGridComponent)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
-import Competences.Frontend.Component.EvidenceEditor (evidenceEditorComponent)
-import Competences.Frontend.Component.LessonNotes (lessonNotesComponent)
-import Competences.Frontend.Component.Planning (planningComponent)
-import Competences.Frontend.Component.ResourceEditor (resourceEditorComponent)
-import Competences.Frontend.Component.ParticipationTimeline (participationTimelineComponent)
-import Competences.Frontend.Component.StatisticsOverview (statisticsOverviewComponent)
-import Competences.Frontend.Component.TaskEditor (taskEditorComponent)
-import Competences.Frontend.Component.UserListEditor (userListEditorComponent)
 import Competences.Frontend.Component.WindowHost (windowHostComponent)
+import Competences.Frontend.Page.Assignments (assignmentsPage)
+import Competences.Frontend.Page.CompetenceGrid (CompetenceGridMode (..), competenceGridPage)
+import Competences.Frontend.Page.Evidences (evidencesPage)
+import Competences.Frontend.Page.LessonNotes (lessonNotesPage)
+import Competences.Frontend.Page.Participation (participationPage)
+import Competences.Frontend.Page.Planning (planningPage)
+import Competences.Frontend.Page.Resources (resourcesPage)
+import Competences.Frontend.Page.Statistics (statisticsPage)
+import Competences.Frontend.Page.Tasks (tasksPage)
+import Competences.Frontend.Page.Users (usersPage)
 import Competences.Frontend.Page
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -137,24 +137,24 @@ mkApp ir initialUri =
         ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
 
-    competenceGrid = mounted CompetenceGrid $ competenceGridComponent ir defaultGridMode availableGridModes
+    competenceGrid = mounted CompetenceGrid $ competenceGridPage ir defaultGridMode availableGridModes
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
         then GridView :| [GridEdit, GridAssessment, GridGrading]
         else GridView :| []
-    planning = mounted Planning $ planningComponent ir
-    evidences = mounted Evidences $ evidenceEditorComponent ir (isTeacher model.connectedUser)
-    manageTasks mTaskId = mounted (ManageTasks mTaskId) $ taskEditorComponent ir mTaskId
-    manageResources mResId = mounted (ManageResources mResId) $ resourceEditorComponent ir mResId
-    manageLessonNotes mLnId = mounted (ManageLessonNotes mLnId) $ lessonNotesComponent ir (isTeacher model.connectedUser) mLnId
+    planning = mounted Planning $ planningPage ir
+    evidences = mounted Evidences $ evidencesPage ir (isTeacher model.connectedUser)
+    manageTasks mTaskId = mounted (ManageTasks mTaskId) $ tasksPage ir mTaskId
+    manageResources mResId = mounted (ManageResources mResId) $ resourcesPage ir mResId
+    manageLessonNotes mLnId = mounted (ManageLessonNotes mLnId) $ lessonNotesPage ir (isTeacher model.connectedUser) mLnId
     -- Both routes use the unified assignment component
     -- Teachers see Edit/Evaluate/View modes, students see View mode only
-    viewAssignments = mounted ViewAssignments $ assignmentComponent ir model.connectedUser
-    manageAssignments = mounted ManageAssignments $ assignmentComponent ir model.connectedUser
-    statisticsOverview = mounted StatisticsOverview $ statisticsOverviewComponent ir
-    participationTimeline = mounted ParticipationTimeline $ participationTimelineComponent ir
-    manageUsers = mounted ManageUsers $ userListEditorComponent ir
+    viewAssignments = mounted ViewAssignments $ assignmentsPage ir model.connectedUser
+    manageAssignments = mounted ManageAssignments $ assignmentsPage ir model.connectedUser
+    statisticsOverview = mounted StatisticsOverview $ statisticsPage ir
+    participationTimeline = mounted ParticipationTimeline $ participationPage ir
+    manageUsers = mounted ManageUsers $ usersPage ir
 
     mounted key = inlineComponentAttrs (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
 

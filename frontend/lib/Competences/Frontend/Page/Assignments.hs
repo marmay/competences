@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.Assignment
-  ( assignmentComponent
+module Competences.Frontend.Page.Assignments
+  ( assignmentsPage
   , AssignmentMode (..)
   )
 where
@@ -27,11 +27,11 @@ data AssignmentMode = AssignmentEdit | AssignmentView
 -- | Assignment component using SelectorDetail pattern
 -- Teachers: Edit (default) and View modes
 -- Students: View mode only
-assignmentComponent
+assignmentsPage
   :: SyncContext
   -> User
   -> M.Component p (SD.Model Assignment AssignmentMode) (SD.Action AssignmentMode)
-assignmentComponent r user =
+assignmentsPage r user =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "assignment"

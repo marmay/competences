@@ -1,5 +1,5 @@
-module Competences.Frontend.Component.CompetenceGrid
-  ( competenceGridComponent
+module Competences.Frontend.Page.CompetenceGrid
+  ( competenceGridPage
   , CompetenceGridMode (..)
   )
 where
@@ -37,14 +37,14 @@ import Miso.Html qualified as MH
 -- - View mode: displays competence grid with student evidence
 -- - Edit mode: allows editing grid and competences
 -- - Assessment mode: allows assessing student competences
-competenceGridComponent
+competenceGridPage
   :: SyncContext
   -> CompetenceGridMode
   -- ^ Initial mode (GridView or GridEdit)
   -> NonEmpty CompetenceGridMode
   -- ^ Available modes (for role-based filtering)
   -> M.Component p (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
-competenceGridComponent r initialMode availableModes =
+competenceGridPage r initialMode availableModes =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "competence-grid"
