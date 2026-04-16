@@ -44,7 +44,7 @@ import Optics.Core ((%~), (.~))
 
 data ResourceDetailedState = ResourceDetailedState
   { expandedResources :: !(Set ResourceId)
-  , menuDismissed :: !Bool
+  , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -54,16 +54,18 @@ data ResourceDetailedAction
   | MenuPin !Resource
   | MenuGoTo !ResourceId
   | MenuDelete !ResourceId
-  | MenuReset
+  | MenuToggle
+  | MenuClose
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
 initialResourceDetailedState expanded =
-  ResourceDetailedState {expandedResources = Set.fromList expanded, menuDismissed = False}
+  ResourceDetailedState {expandedResources = Set.fromList expanded, menuOpen = False}
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
-updateResourceDetailedPure MenuReset = #menuDismissed .~ False
+updateResourceDetailedPure MenuToggle = #menuOpen %~ not
+updateResourceDetailedPure MenuClose = #menuOpen .~ False
 updateResourceDetailedPure _ = id
 
 

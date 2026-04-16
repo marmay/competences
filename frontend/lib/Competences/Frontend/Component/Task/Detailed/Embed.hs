@@ -70,7 +70,7 @@ updateTaskDetailed stateLens r lift = go
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
     go action = M.modify (stateLens %~ V.updateTaskDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuDismissed .~ True)
+    dismiss = M.modify (stateLens % #menuOpen .~ False)
 
 -- | Render a list of tasks with disclosures, solutions, and status tinting.
 taskListView

@@ -1,14 +1,12 @@
--- | Reusable hover dropdown menu component.
+-- | Reusable dropdown menu components.
 --
--- Stateful variants take a @dismissed@ flag and a reset action. The Embed
--- layer sets dismissed after handling an entry action; @mouseLeave@ fires
--- the reset to re-enable hover on the next approach.
+-- Stateless variants use CSS hover. Click-based variants use explicit
+-- open/close state managed by the caller.
 module Competences.Frontend.View.HoverMenu
   ( hoverMenu
   , hoverMenuRight
   , hoverMenuAboveRight
-  , hoverMenuStateful
-  , hoverMenuStatefulRight
+  , clickMenuRight
   , hoverMenuEntry
   , hoverMenuSeparator
   , hoverMenuHeading
@@ -60,26 +58,26 @@ hoverMenuWith align trigger items =
     ]
 
 -- ============================================================================
--- Stateful (CSS hover + dismissed flag)
+-- Click-based (explicit open/close)
 -- ============================================================================
 
-hoverMenuStateful :: Bool -> a -> View m a -> [View m a] -> View m a
-hoverMenuStateful = hoverMenuStatefulWith "left-0"
-
-hoverMenuStatefulRight :: Bool -> a -> View m a -> [View m a] -> View m a
-hoverMenuStatefulRight = hoverMenuStatefulWith "right-0"
-
-hoverMenuStatefulWith :: Text -> Bool -> a -> View m a -> [View m a] -> View m a
-hoverMenuStatefulWith align dismissed resetAction trigger items =
+-- | Click-to-open dropdown aligned to the right.
+-- When open, a fixed backdrop catches outside clicks to close.
+clickMenuRight :: Bool -> a -> a -> View m a -> [View m a] -> View m a
+clickMenuRight isOpen toggleAction closeAction trigger items =
   MH.div_
-    [class_ "group/menu relative", MH.onMouseLeave resetAction]
-    [ trigger
-    , MH.div_
-        [ class_ $
-            "absolute " <> align <> " top-full pt-1 z-50 "
-              <> if dismissed then "hidden" else "hidden group-hover/menu:block"
-        ]
-        [dropdownPanel items]
+    [class_ "relative"]
+    [ MH.div_ [MH.onClick toggleAction] [trigger]
+    , if isOpen
+        then
+          MH.div_
+            []
+            [ MH.div_ [class_ "fixed inset-0 z-40", MH.onClick closeAction] []
+            , MH.div_
+                [class_ "absolute right-0 top-full pt-1 z-50"]
+                [dropdownPanel items]
+            ]
+        else M.text ""
     ]
 
 -- ============================================================================

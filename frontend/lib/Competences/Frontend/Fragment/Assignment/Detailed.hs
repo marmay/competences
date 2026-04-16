@@ -23,30 +23,32 @@ import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((.~))
+import Optics.Core ((%~), (.~))
 
 -- ============================================================================
 -- State machine
 -- ============================================================================
 
 newtype AssignmentDetailedState = AssignmentDetailedState
-  { menuDismissed :: Bool
+  { menuOpen :: Bool
   }
   deriving (Eq, Generic, Show)
 
 initialAssignmentDetailedState :: AssignmentDetailedState
-initialAssignmentDetailedState = AssignmentDetailedState {menuDismissed = False}
+initialAssignmentDetailedState = AssignmentDetailedState {menuOpen = False}
 
 data AssignmentDetailedAction
   = MenuEdit !AssignmentId
   | MenuPin !Assignment
   | MenuGoTo !AssignmentId
   | MenuEvaluate !Assignment
-  | MenuReset
+  | MenuToggle
+  | MenuClose
   deriving (Eq, Show)
 
 updateAssignmentDetailedPure :: AssignmentDetailedAction -> AssignmentDetailedState -> AssignmentDetailedState
-updateAssignmentDetailedPure MenuReset = #menuDismissed .~ False
+updateAssignmentDetailedPure MenuToggle = #menuOpen %~ not
+updateAssignmentDetailedPure MenuClose = #menuOpen .~ False
 updateAssignmentDetailedPure _ = id
 
 -- ============================================================================

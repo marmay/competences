@@ -126,7 +126,7 @@ headerAnnotations :: SyncContext -> TaskDetailedConfig -> Model -> Task -> [M.Vi
 headerAnnotations r cfg m task =
   concat
     [ [assessmentStar task.purpose]
-    , [ entityMenu m.viewState.menuDismissed (ViewAction V.MenuReset) $
+    , [ entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
             [ menuEdit (ViewAction (V.MenuEdit task.id))
             , menuPin (ViewAction (V.MenuPin task))
             ]

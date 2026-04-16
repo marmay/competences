@@ -86,7 +86,7 @@ resourceDetailedComponent r cfg =
 
     annotations m res
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu m.viewState.menuDismissed (ViewAction V.MenuReset) $
+          [entityMenu m.viewState.menuOpen (ViewAction V.MenuToggle) (ViewAction V.MenuClose) $
             [ menuEdit (ViewAction (V.MenuEdit res.id))
             , menuPin (ViewAction (V.MenuPin res))
             ]

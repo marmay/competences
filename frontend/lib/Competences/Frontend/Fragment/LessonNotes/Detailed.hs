@@ -43,7 +43,7 @@ import Optics.Core ((%~), (.~))
 
 data LessonNotesDetailedState = LessonNotesDetailedState
   { expandedLessonNotes :: !(Set LessonNotesId)
-  , menuDismissed :: !Bool
+  , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -53,12 +53,13 @@ data LessonNotesDetailedAction
   | MenuPin !LessonNotes
   | MenuGoTo !LessonNotesId
   | MenuDelete !LessonNotesId
-  | MenuReset
+  | MenuToggle
+  | MenuClose
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
 initialLessonNotesDetailedState expanded =
-  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, menuDismissed = False}
+  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, menuOpen = False}
 
 updateLessonNotesDetailedPure
   :: LessonNotesDetailedAction
@@ -66,7 +67,8 @@ updateLessonNotesDetailedPure
   -> LessonNotesDetailedState
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
-updateLessonNotesDetailedPure MenuReset = #menuDismissed .~ False
+updateLessonNotesDetailedPure MenuToggle = #menuOpen %~ not
+updateLessonNotesDetailedPure MenuClose = #menuOpen .~ False
 updateLessonNotesDetailedPure _ = id
 
 

@@ -1,8 +1,7 @@
--- | Reusable entity context menu (hover dropdown with ⋮ trigger).
+-- | Reusable entity context menu (click-to-open dropdown with ⋮ trigger).
 --
--- The stateful 'entityMenu' takes a dismissed flag and reset action.
--- The Embed layer sets dismissed after handling an entry action;
--- mouseLeave fires the reset.
+-- The menu opens on click and closes when an entry is activated (via the
+-- Embed layer) or when the user clicks outside (backdrop).
 module Competences.Frontend.View.EntityMenu
   ( menuEdit
   , menuPin
@@ -38,7 +37,9 @@ menuCustom = HoverMenu.hoverMenuEntry True
 menuSeparator :: M.View m a
 menuSeparator = HoverMenu.hoverMenuSeparator
 
-entityMenu :: Bool -> a -> [M.View m a] -> M.View m a
-entityMenu dismissed resetAction items =
+-- | Click-to-open entity menu. Toggle action opens/closes the trigger,
+-- close action is fired by the backdrop when clicking outside.
+entityMenu :: Bool -> a -> a -> [M.View m a] -> M.View m a
+entityMenu isOpen toggleAction closeAction items =
   let trigger = Icon.iconVS Icon.Ghost Icon.Small Icon.IcnMoreVertical
-   in HoverMenu.hoverMenuStatefulRight dismissed resetAction trigger items
+   in HoverMenu.clickMenuRight isOpen toggleAction closeAction trigger items

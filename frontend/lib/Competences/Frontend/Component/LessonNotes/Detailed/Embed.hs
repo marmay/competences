@@ -44,7 +44,7 @@ updateLessonNotesDetailed stateLens r _lift = go
       M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
     go action = M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuDismissed .~ True)
+    dismiss = M.modify (stateLens % #menuOpen .~ False)
 
 -- | Render a lesson-notes group as a collapsible disclosure.
 -- Body is caller-supplied (e.g. items with relevance annotations).

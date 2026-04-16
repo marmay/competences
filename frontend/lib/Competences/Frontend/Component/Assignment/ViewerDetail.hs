@@ -701,7 +701,7 @@ viewerComponent r user assignment wm =
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
                             <> [ viewPagePrintButton m | proj.connectedUserRole == Teacher ]
-                            <> [ entityMenu m.assignmentMenuState.menuDismissed (AssignmentMenuAction VA.MenuReset)
+                            <> [ entityMenu m.assignmentMenuState.menuOpen (AssignmentMenuAction VA.MenuToggle) (AssignmentMenuAction VA.MenuClose)
                                   [ menuEdit (AssignmentMenuAction (VA.MenuEdit proj.currentAssignment.id))
                                   , menuPin (AssignmentMenuAction (VA.MenuPin proj.currentAssignment))
                                   , menuCustom Icon.IcnApply (C.translate' C.LblEvaluateAssignment) (AssignmentMenuAction (VA.MenuEvaluate proj.currentAssignment))
@@ -815,7 +815,7 @@ viewerComponent r user assignment wm =
                   )
               ]
             , [TaskBadge.assessmentStar tws.taskPurpose]
-            , [ entityMenu m.taskListState.menuDismissed (TaskListAction VT.MenuReset)
+            , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
                   [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
                   , menuPin (TaskListAction (VT.MenuPin tws.task))
                   , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))

@@ -46,7 +46,7 @@ updateResourceDetailed stateLens r _lift = go
       M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
     go action = M.modify (stateLens %~ V.updateResourceDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuDismissed .~ True)
+    dismiss = M.modify (stateLens % #menuOpen .~ False)
 
 renderResource
   :: SyncContext

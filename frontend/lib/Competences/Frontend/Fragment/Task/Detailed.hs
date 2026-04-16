@@ -59,7 +59,7 @@ data TaskDetailedState = TaskDetailedState
   { expandedTasks :: !(Set TaskId)
   , expandedSolutions :: !(Set SolutionId)
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
-  , menuDismissed :: !Bool
+  , menuOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
 
@@ -72,7 +72,8 @@ data TaskDetailedAction
   | MenuPin !Task
   | MenuGoTo !TaskId
   | MenuDelete !TaskId
-  | MenuReset
+  | MenuToggle
+  | MenuClose
   deriving (Eq, Show)
 
 -- | Initial state with a given set of initially-expanded tasks.
@@ -82,14 +83,15 @@ initialTaskDetailedState expanded =
     { expandedTasks = Set.fromList expanded
     , expandedSolutions = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
-    , menuDismissed = False
+    , menuOpen = False
     }
 
 -- | Pure update for the toggle branches; effectful branches are no-ops here.
 updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
 updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
-updateTaskDetailedPure MenuReset = #menuDismissed .~ False
+updateTaskDetailedPure MenuToggle = #menuOpen %~ not
+updateTaskDetailedPure MenuClose = #menuOpen .~ False
 updateTaskDetailedPure _ = id
 
 

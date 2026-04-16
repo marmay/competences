@@ -46,4 +46,4 @@ updateAssignmentDetailed stateLens r _lift = go
       M.io_ $ pinAssignmentEvaluator r assignment
     go action = M.modify (stateLens %~ V.updateAssignmentDetailedPure action)
 
-    dismiss = M.modify (stateLens % #menuDismissed .~ True)
+    dismiss = M.modify (stateLens % #menuOpen .~ False)

@@ -220,7 +220,7 @@ modalAnnotations _r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
-    , [ entityMenu m.taskListState.menuDismissed (TaskListAction VT.MenuReset)
+    , [ entityMenu m.taskListState.menuOpen (TaskListAction VT.MenuToggle) (TaskListAction VT.MenuClose)
             [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
             , menuPin (TaskListAction (VT.MenuPin tws.task))
             , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
