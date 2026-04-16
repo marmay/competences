@@ -12,6 +12,7 @@ import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Resource.Detailed
   ( ResourceDetailedConfig (..)
+  , ResourceDetailedSettings (..)
   , defaultResourceDetailedSettings
   , resourceDetailedComponent
   )
@@ -57,6 +58,7 @@ resourceEditorComponent r mResId =
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just resource) =
-      inlineComponent
-        ("resource-detail-" <> ms (show resource.id))
-        (resourceDetailedComponent r (ResourceDetailedConfig resource.id defaultResourceDetailedSettings))
+      let adminSettings = defaultResourceDetailedSettings {enableGoTo = False, enableDelete = True}
+       in inlineComponent
+            ("resource-detail-" <> ms (show resource.id))
+            (resourceDetailedComponent r (ResourceDetailedConfig resource.id adminSettings))

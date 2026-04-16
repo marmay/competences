@@ -12,6 +12,7 @@ import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.LessonNotes.Detailed
   ( LessonNotesDetailedConfig (..)
+  , LessonNotesDetailedSettings (..)
   , defaultLessonNotesDetailedSettings
   , lessonNotesDetailedComponent
   )
@@ -68,6 +69,7 @@ lessonNotesComponent r canCreate mLnId =
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just ln) =
-      inlineComponent
-        ("lesson-notes-detail-" <> ms (show ln.id))
-        (lessonNotesDetailedComponent r (LessonNotesDetailedConfig ln.id defaultLessonNotesDetailedSettings))
+      let adminSettings = defaultLessonNotesDetailedSettings {enableGoTo = False, enableDelete = True}
+       in inlineComponent
+            ("lesson-notes-detail-" <> ms (show ln.id))
+            (lessonNotesDetailedComponent r (LessonNotesDetailedConfig ln.id adminSettings))

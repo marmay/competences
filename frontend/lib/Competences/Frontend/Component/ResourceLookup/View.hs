@@ -23,10 +23,8 @@ import Competences.Document.Id (idToText)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.LessonNotes.Detailed.Embed qualified as LNEmbed
-import Competences.Frontend.Component.LessonNotes.EditButton (lessonNotesEditButton)
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
 import Competences.Frontend.Component.Resource.Detailed.Embed qualified as ResEmbed
-import Competences.Frontend.Component.Resource.EditButton (resourceEditButton)
 import Competences.Frontend.Fragment.LessonNotes.Detailed qualified as VLN
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.ResourceLookup
@@ -41,6 +39,7 @@ import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -162,7 +161,14 @@ viewLessonNoteGroup r m group =
       annotations =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
-          <> [lessonNotesEditButton r ln | isTeacher r]
+          <> [ entityMenu EntityMenuConfig
+                { onEdit = Just (LessonNotesAction (VLN.MenuEdit ln.id))
+                , onPin = Just (LessonNotesAction (VLN.MenuPin ln))
+                , onGoTo = Just (LessonNotesAction (VLN.MenuGoTo ln.id))
+                , onDelete = Nothing
+                }
+             | isTeacher r
+             ]
    in LNEmbed.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
 
 -- ============================================================================
@@ -225,7 +231,14 @@ viewResourceItem r m relevance res =
   where
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
-        <> [resourceEditButton r res' | isTeacher r]
+        <> [ entityMenu EntityMenuConfig
+              { onEdit = Just (ResourceAction (VR.MenuEdit res'.id))
+              , onPin = Just (ResourceAction (VR.MenuPin res'))
+              , onGoTo = Just (ResourceAction (VR.MenuGoTo res'.id))
+              , onDelete = Nothing
+              }
+           | isTeacher r
+           ]
 
 -- ============================================================================
 -- Task Item

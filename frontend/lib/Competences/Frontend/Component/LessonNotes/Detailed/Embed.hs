@@ -8,11 +8,16 @@ module Competences.Frontend.Component.LessonNotes.Detailed.Embed
   )
 where
 
+import Competences.Command qualified as Cmd
+import Competences.Command (EntityCommand (..), ModifyCommand (..))
+import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Document (LessonNotes (..))
 import Competences.Frontend.Fragment.LessonNotes.Detailed qualified as V
-import Competences.Frontend.SyncContext (SyncContext)
+import Competences.Frontend.Page (Page (..))
+import Competences.Frontend.SyncContext (SyncContext, PinViewerRequest (..), modifySyncDocument, requestViewerPin)
 import Data.Set qualified as Set
 import Miso qualified as M
+import Miso.Router qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', (%~))
 
@@ -23,17 +28,24 @@ updateLessonNotesDetailed
   -> (V.LessonNotesDetailedAction -> action)
   -> V.LessonNotesDetailedAction
   -> M.Effect parent model action
-updateLessonNotesDetailed stateLens _r _lift action =
-  M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
+updateLessonNotesDetailed stateLens r _lift = go
+  where
+    go (V.MenuEdit lnid) =
+      M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))
+    go (V.MenuPin ln) =
+      M.io_ $ requestViewerPin r (PinLessonNotesViewer ln)
+    go (V.MenuGoTo lnid) =
+      M.io_ $ M.pushURI (M.toURI (ManageLessonNotes (Just lnid)))
+    go (V.MenuDelete lnid) =
+      M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
+    go action = M.modify (stateLens %~ V.updateLessonNotesDetailedPure action)
 
 -- | Render a lesson-notes group as a collapsible disclosure.
 -- Body is caller-supplied (e.g. items with relevance annotations).
 renderLessonNotesGroup
   :: V.LessonNotesDetailedState
   -> [M.View m a]
-  -- ^ Header annotations (edit button, open-modal button)
   -> M.View m a
-  -- ^ Pre-rendered body
   -> (V.LessonNotesDetailedAction -> a)
   -> LessonNotes
   -> M.View m a

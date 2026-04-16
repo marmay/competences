@@ -19,6 +19,7 @@ module Competences.Frontend.Fragment.LessonNotes.Detailed
 where
 
 import Competences.Common.Set (toggle)
+import Competences.Document (LessonNotes)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
@@ -45,8 +46,12 @@ newtype LessonNotesDetailedState = LessonNotesDetailedState
   }
   deriving (Eq, Generic, Show)
 
-newtype LessonNotesDetailedAction
-  = ToggleLessonNotes LessonNotesId
+data LessonNotesDetailedAction
+  = ToggleLessonNotes !LessonNotesId
+  | MenuEdit !LessonNotesId
+  | MenuPin !LessonNotes
+  | MenuGoTo !LessonNotesId
+  | MenuDelete !LessonNotesId
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
@@ -59,6 +64,7 @@ updateLessonNotesDetailedPure
   -> LessonNotesDetailedState
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
+updateLessonNotesDetailedPure _ = id
 
 
 -- ============================================================================

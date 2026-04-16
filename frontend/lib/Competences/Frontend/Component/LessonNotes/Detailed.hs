@@ -13,7 +13,6 @@ import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), Le
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.LessonNotes.Detailed.Embed (updateLessonNotesDetailed)
-import Competences.Frontend.Component.LessonNotes.EditButton (lessonNotesEditButton)
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
@@ -26,6 +25,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.Maybe (mapMaybe)
 import GHC.Generics (Generic)
@@ -41,16 +41,19 @@ data LessonNotesDetailedConfig = LessonNotesDetailedConfig
 data LessonNotesDetailedSettings = LessonNotesDetailedSettings
   { startExpanded :: !Bool
   , showAnnotations :: !Bool
+  , enableGoTo :: !Bool
+  , enableDelete :: !Bool
   }
   deriving (Eq, Show)
 
 defaultLessonNotesDetailedSettings :: LessonNotesDetailedSettings
 defaultLessonNotesDetailedSettings =
-  LessonNotesDetailedSettings {startExpanded = True, showAnnotations = True}
-
--- ============================================================================
--- Model & Actions
--- ============================================================================
+  LessonNotesDetailedSettings
+    { startExpanded = True
+    , showAnnotations = True
+    , enableGoTo = True
+    , enableDelete = False
+    }
 
 newtype LessonNotesProjection = LessonNotesProjection
   { lessonNotes :: Maybe (LessonNotes, Maybe Lesson, [ResolvedItem])
@@ -67,10 +70,6 @@ data Action
   = ProjectionChanged !(ProjectedChange LessonNotesProjection)
   | ViewAction !V.LessonNotesDetailedAction
   deriving (Eq, Show)
-
--- ============================================================================
--- Component
--- ============================================================================
 
 lessonNotesDetailedComponent :: SyncContext -> LessonNotesDetailedConfig -> M.Component p Model Action
 lessonNotesDetailedComponent r cfg =
@@ -96,12 +95,14 @@ lessonNotesDetailedComponent r cfg =
             <> [V.itemsSection (map (viewResolvedItem r) items)]
 
     annotations ln
-      | cfg.settings.showAnnotations, isTeacher r = [lessonNotesEditButton r ln]
+      | cfg.settings.showAnnotations, isTeacher r =
+          [entityMenu EntityMenuConfig
+            { onEdit = Just (ViewAction (V.MenuEdit ln.id))
+            , onPin = Just (ViewAction (V.MenuPin ln))
+            , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo ln.id)) else Nothing
+            , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete ln.id)) else Nothing
+            }]
       | otherwise = []
-
--- ============================================================================
--- Projection
--- ============================================================================
 
 lessonNotesProjection :: LessonNotesDetailedConfig -> Document -> Maybe User -> LessonNotesProjection
 lessonNotesProjection cfg doc _mUser =
@@ -117,10 +118,6 @@ resolveItem doc (LessonTask tid) = do
   task <- Ix.getOne (doc.tasks Ix.@= tid)
   let sols = Ix.toList (doc.solutions Ix.@= tid)
   pure $ ResolvedTask $ TaskWithSolutions task task.content task.purpose sols
-
--- ============================================================================
--- Item rendering
--- ============================================================================
 
 viewResolvedItem :: SyncContext -> ResolvedItem -> M.View m a
 viewResolvedItem r (ResolvedResource res) =

@@ -1,9 +1,4 @@
--- | Full Miso component for the detailed task view.
---
--- Subscribes to SyncContext and renders a single task using the state
--- machine from 'View.Task.Detailed'. Parents that just want to embed the
--- detailed view inline (no isolation) should use 'Task.Detailed.Embed'
--- instead.
+-- | Full Miso component wrapping the detailed task Fragment.
 module Competences.Frontend.Component.Task.Detailed
   ( TaskDetailedConfig (..)
   , TaskDetailedSettings (..)
@@ -12,33 +7,31 @@ module Competences.Frontend.Component.Task.Detailed
   )
 where
 
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Solution (..), Task (..), User (..), UserRole (..))
-import Competences.Frontend.SyncContext (isTeacher)
 import Competences.Document.Task (TaskId, taskDisplayName)
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.Detailed.Embed (renderSolutionList, updateTaskDetailed)
-import Competences.Frontend.Component.Task.EditButton (taskEditButton)
+import Competences.Frontend.Fragment.Task.Badge (assessmentStar, purposeBadge)
+import Competences.Frontend.Fragment.Task.Detailed qualified as V
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
   , SyncContext (..)
+  , isTeacher
+  , modifySyncDocument
   , subscribeWithProjection
   )
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.Fragment.Task.Badge (assessmentStar, purposeBadge)
-import Competences.Frontend.Fragment.Task.Detailed qualified as V
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
 import Optics.Core ((.~))
-
--- ============================================================================
--- Configuration
--- ============================================================================
 
 data TaskDetailedConfig = TaskDetailedConfig
   { taskId :: !TaskId
@@ -51,21 +44,20 @@ data TaskDetailedSettings = TaskDetailedSettings
   , showSolutions :: !Bool
   , showAnnotations :: !Bool
   , startExpanded :: !Bool
+  , enableGoTo :: !Bool
+  , enableDelete :: !Bool
   }
   deriving (Eq, Show)
 
--- | Default: always-open, full content, annotations visible.
 defaultTaskDetailedSettings :: TaskDetailedSettings
 defaultTaskDetailedSettings = TaskDetailedSettings
   { collapsible = False
   , showSolutions = True
   , showAnnotations = True
   , startExpanded = True
+  , enableGoTo = True
+  , enableDelete = False
   }
-
--- ============================================================================
--- Model & Actions
--- ============================================================================
 
 data TaskProjection = TaskProjection
   { task :: !(Maybe Task)
@@ -85,10 +77,6 @@ data Action
   | ViewAction !V.TaskDetailedAction
   deriving (Eq, Show)
 
--- ============================================================================
--- Component
--- ============================================================================
-
 taskDetailedComponent :: SyncContext -> TaskDetailedConfig -> M.Component p Model Action
 taskDetailedComponent r cfg =
   (M.component model update' view')
@@ -105,15 +93,15 @@ taskDetailedComponent r cfg =
       }
 
     update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
+    update' (ViewAction (V.MenuEdit tid)) =
+      M.io_ $ modifySyncDocument r $ wrapForOrigin cfg.origin (Tasks (OnTasks (Modify tid Lock)))
+    update' (ViewAction (V.MenuDelete tid)) =
+      M.io_ $ modifySyncDocument r $ wrapForOrigin cfg.origin (Tasks (OnTasks (Delete tid)))
     update' (ViewAction a) = updateTaskDetailed #viewState r ViewAction a
 
     view' m = case m.projection.task of
       Nothing -> Layout.empty
       Just task -> viewTask r cfg m task
-
--- ============================================================================
--- Projection
--- ============================================================================
 
 taskProjection :: TaskDetailedConfig -> Document -> Maybe User -> TaskProjection
 taskProjection cfg doc mUser =
@@ -124,10 +112,6 @@ taskProjection cfg doc mUser =
     , solutions = Ix.toList (doc.solutions Ix.@= cfg.taskId)
     , hasFocusedStudent = maybe False (\u -> u.role == Student) mUser
     }
-
--- ============================================================================
--- View
--- ============================================================================
 
 viewTask :: SyncContext -> TaskDetailedConfig -> Model -> Task -> M.View Model Action
 viewTask r cfg m task =
@@ -146,7 +130,14 @@ headerAnnotations r cfg m task =
   concat
     [ [purposeBadge task.purpose | m.projection.hasFocusedStudent]
     , [assessmentStar task.purpose | m.projection.hasFocusedStudent]
-    , [taskEditButton r cfg.origin task | isTeacher r]
+    , [ entityMenu EntityMenuConfig
+          { onEdit = Just (ViewAction (V.MenuEdit task.id))
+          , onPin = Just (ViewAction (V.MenuPin task))
+          , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo task.id)) else Nothing
+          , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete task.id)) else Nothing
+          }
+      | isTeacher r
+      ]
     ]
 
 taskBody :: SyncContext -> TaskDetailedConfig -> Model -> Task -> M.View Model Action
@@ -172,4 +163,3 @@ taskContentRendered r task = case task.content of
     if content == mempty
       then Layout.empty
       else V.taskContentView (renderRichTextWithFiles r.formulaCache r task.attachments content)
-

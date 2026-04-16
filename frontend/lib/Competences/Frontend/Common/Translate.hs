@@ -52,6 +52,8 @@ newtype TranslationData = TranslationData
 data Label
   = LblEdit
   | LblDelete
+  | LblPin
+  | LblGoTo
   | LblApply
   | LblCancel
   | LblPreview
@@ -465,6 +467,8 @@ labels' :: [Label]
 labels' =
   [ LblEdit
   , LblDelete
+  , LblPin
+  , LblGoTo
   , LblApply
   , LblCancel
   , LblPreview
@@ -891,6 +895,8 @@ defaultLanguage = De
 defaultTranslation :: Label -> MisoString
 defaultTranslation LblEdit = "Bearbeiten"
 defaultTranslation LblDelete = "Löschen"
+defaultTranslation LblPin = "Anheften"
+defaultTranslation LblGoTo = "Gehe zu"
 defaultTranslation LblApply = "Übernehmen"
 defaultTranslation LblCancel = "Abbrechen"
 defaultTranslation LblPreview = "Vorschau"

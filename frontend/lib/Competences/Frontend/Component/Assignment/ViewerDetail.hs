@@ -88,7 +88,7 @@ import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), open
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.Component.Task.EditButton (taskEditButton)
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -793,7 +793,6 @@ viewerComponent r user assignment wm =
     taskAnnotations :: ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
     taskAnnotations proj showPurpose tws =
       let taskId = tws.task.id
-          taskOrigin = if Set.member taskId proj.draftTaskIds then Draft else proj.origin
        in concat
             [ [ M.div_ [class_ "flex items-center gap-1"]
                   ( viewTaskRemarkBadges proj.taskRemarkMap taskId
@@ -802,7 +801,14 @@ viewerComponent r user assignment wm =
               ]
             , [TaskBadge.purposeBadge tws.taskPurpose | showPurpose]
             , [TaskBadge.assessmentStar tws.taskPurpose | showPurpose]
-            , [taskEditButton r taskOrigin tws.task | proj.connectedUserRole == Teacher]
+            , [ entityMenu EntityMenuConfig
+                  { onEdit = Just (TaskListAction (VT.MenuEdit tws.task.id))
+                  , onPin = Just (TaskListAction (VT.MenuPin tws.task))
+                  , onGoTo = Just (TaskListAction (VT.MenuGoTo tws.task.id))
+                  , onDelete = Nothing
+                  }
+              | proj.connectedUserRole == Teacher
+              ]
             ]
 
     isDone :: Maybe TaskCompletionStatus -> Bool

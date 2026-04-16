@@ -26,8 +26,9 @@ module Competences.Frontend.Fragment.Task.Detailed
   )
 where
 
-import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Common.Set (toggle)
+import Competences.Document (Task)
+import Competences.Document.Solution (SolutionId, SolutionType (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.View.Card qualified as Card
@@ -66,6 +67,10 @@ data TaskDetailedAction
   | ToggleSolution !SolutionId
   | AddSolution !TaskId
   | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
+  | MenuEdit !TaskId
+  | MenuPin !Task
+  | MenuGoTo !TaskId
+  | MenuDelete !TaskId
   deriving (Eq, Show)
 
 -- | Initial state with a given set of initially-expanded tasks.
@@ -83,6 +88,10 @@ updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
 updateTaskDetailedPure (AddSolution _) = id
 updateTaskDetailedPure (HoldDeleteSolution _) = id
+updateTaskDetailedPure (MenuEdit _) = id
+updateTaskDetailedPure (MenuPin _) = id
+updateTaskDetailedPure (MenuGoTo _) = id
+updateTaskDetailedPure (MenuDelete _) = id
 
 
 -- ============================================================================

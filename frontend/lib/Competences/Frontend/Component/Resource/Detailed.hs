@@ -12,7 +12,6 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Resource (..), User)
 import Competences.Document.Resource (ResourceId)
 import Competences.Frontend.Component.Resource.Detailed.Embed (renderResource, updateResourceDetailed)
-import Competences.Frontend.Component.Resource.EditButton (resourceEditButton)
 import Competences.Frontend.Fragment.Resource.Detailed qualified as V
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -20,14 +19,11 @@ import Competences.Frontend.SyncContext
   , isTeacher
   , subscribeWithProjection
   )
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Optics.Core ((.~))
-
--- ============================================================================
--- Configuration
--- ============================================================================
 
 data ResourceDetailedConfig = ResourceDetailedConfig
   { resourceId :: !ResourceId
@@ -36,19 +32,20 @@ data ResourceDetailedConfig = ResourceDetailedConfig
 
 data ResourceDetailedSettings = ResourceDetailedSettings
   { startExpanded :: !Bool
-  -- ^ Initial expansion state for collapsible contents
   , showAnnotations :: !Bool
-  -- ^ Show teacher-only annotations (edit button)
+  , enableGoTo :: !Bool
+  , enableDelete :: !Bool
   }
   deriving (Eq, Show)
 
 defaultResourceDetailedSettings :: ResourceDetailedSettings
 defaultResourceDetailedSettings =
-  ResourceDetailedSettings {startExpanded = True, showAnnotations = True}
-
--- ============================================================================
--- Model & Actions
--- ============================================================================
+  ResourceDetailedSettings
+    { startExpanded = True
+    , showAnnotations = True
+    , enableGoTo = True
+    , enableDelete = False
+    }
 
 newtype ResourceProjection = ResourceProjection
   { resource :: Maybe Resource
@@ -65,10 +62,6 @@ data Action
   = ProjectionChanged !(ProjectedChange ResourceProjection)
   | ViewAction !V.ResourceDetailedAction
   deriving (Eq, Show)
-
--- ============================================================================
--- Component
--- ============================================================================
 
 resourceDetailedComponent :: SyncContext -> ResourceDetailedConfig -> M.Component p Model Action
 resourceDetailedComponent r cfg =
@@ -92,12 +85,14 @@ resourceDetailedComponent r cfg =
       Just res -> renderResource r m.viewState annotations ViewAction res
 
     annotations res
-      | cfg.settings.showAnnotations, isTeacher r = [resourceEditButton r res]
+      | cfg.settings.showAnnotations, isTeacher r =
+          [entityMenu EntityMenuConfig
+            { onEdit = Just (ViewAction (V.MenuEdit res.id))
+            , onPin = Just (ViewAction (V.MenuPin res))
+            , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo res.id)) else Nothing
+            , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete res.id)) else Nothing
+            }]
       | otherwise = []
-
--- ============================================================================
--- Projection
--- ============================================================================
 
 resourceProjection :: ResourceDetailedConfig -> Document -> Maybe User -> ResourceProjection
 resourceProjection cfg doc _mUser =

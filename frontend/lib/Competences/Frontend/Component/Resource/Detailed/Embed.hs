@@ -1,22 +1,25 @@
 -- | Embedding helpers for the detailed resource view.
 --
--- Depends only on the pure view layer, so it is safe to import from any
--- entity's component module without creating cycles.
+-- Depends only on the Fragment layer, so safe to import from any entity's
+-- component module without creating cycles.
 module Competences.Frontend.Component.Resource.Detailed.Embed
   ( updateResourceDetailed
   , renderResource
   )
 where
 
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..))
 import Competences.Document (FileRef (..), Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Fragment.Resource.Detailed qualified as V
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.Page (Page (..))
+import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument, requestViewerPin, PinViewerRequest (..))
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Miso qualified as M
+import Miso.Router qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', (%~))
 
@@ -27,20 +30,22 @@ updateResourceDetailed
   -> (V.ResourceDetailedAction -> action)
   -> V.ResourceDetailedAction
   -> M.Effect parent model action
-updateResourceDetailed stateLens _ _ action =
-  M.modify (stateLens %~ V.updateResourceDetailedPure action)
+updateResourceDetailed stateLens r _lift = go
+  where
+    go (V.MenuEdit rid) =
+      M.io_ $ modifySyncDocument r $ Resources (OnResources (Modify rid Lock))
+    go (V.MenuPin res) =
+      M.io_ $ requestViewerPin r (PinResourceViewer res)
+    go (V.MenuGoTo rid) =
+      M.io_ $ M.pushURI (M.toURI (ManageResources (Just rid)))
+    go (V.MenuDelete rid) =
+      M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
+    go action = M.modify (stateLens %~ V.updateResourceDetailedPure action)
 
--- | Render a single resource with its body in the shape determined by content type.
---
--- * 'InlineContent' with content — collapsible disclosure.
--- * 'InlineContent' empty — static header.
--- * 'WebLink' / 'VideoLink' — link card.
--- * 'FileContent' — collapsible disclosure containing the file gallery.
 renderResource
   :: SyncContext
   -> V.ResourceDetailedState
   -> (Resource -> [M.View m a])
-  -- ^ Per-resource annotations (edit button, badges, …)
   -> (V.ResourceDetailedAction -> a)
   -> Resource
   -> M.View m a
@@ -91,4 +96,3 @@ renderResource r state mkAnnotations liftAction res =
             (inlineComponent
                 ("res-gallery-" <> ms (show fileRef.hash))
                 (fileGalleryComponent r [fileRef]))
-

@@ -22,6 +22,9 @@ module Competences.Frontend.SyncContext.SyncDocument
   , syncDocumentEnv
   , isTeacher
   , getCommandSender
+    -- * Viewer Pin Requests
+  , PinViewerRequest (..)
+  , requestViewerPin
   , getFocusedUserRef
   , nextId
   , isInitialUpdate
@@ -57,7 +60,7 @@ module Competences.Frontend.SyncContext.SyncDocument
 where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Document (Document, User (..), UserRole (..), emptyDocument)
+import Competences.Document (Document, LessonNotes, Resource, Task, User (..), UserRole (..), emptyDocument)
 import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
@@ -152,6 +155,7 @@ data SyncContext = SyncContext
   , windowManager :: !WindowEventSink
   , windowEventSinkRef :: !(MVar (WindowEvent -> IO ()))
   , onPinClosedRef :: !(IORef (PinId -> IO ()))
+  , onPinViewerRequestRef :: !(IORef (PinViewerRequest -> IO ()))
   , serverInfoRef :: !(IORef ServerInfo)
   , currentCommandId :: !(IORef (Maybe CommandId))
   , formulaCache :: !FormulaCache
@@ -170,6 +174,17 @@ syncDocumentEnv r = r.env
 -- | Whether the connected user has the 'Teacher' role.
 isTeacher :: SyncContext -> Bool
 isTeacher r = (syncDocumentEnv r).connectedUser.role == Teacher
+
+data PinViewerRequest
+  = PinTaskViewer !Task
+  | PinResourceViewer !Resource
+  | PinLessonNotesViewer !LessonNotes
+  deriving (Eq, Show)
+
+requestViewerPin :: SyncContext -> PinViewerRequest -> IO ()
+requestViewerPin r req = do
+  handler <- readIORef r.onPinViewerRequestRef
+  handler req
 
 -- | Get the CommandSender from a SyncContext
 getCommandSender :: SyncContext -> CommandSender
@@ -195,6 +210,7 @@ mkSyncDocument env = do
   focusedUser <- mkFocusedUserRef env.connectedUser
   (winMgr, sinkRef) <- liftIO mkWindowEventSink
   onPinClosed <- newIORef (\_ -> pure ())
+  onPinViewer <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
@@ -204,7 +220,7 @@ mkSyncDocument env = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr sinkRef onPinClosed srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr sinkRef onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -213,6 +229,7 @@ mkSyncDocument' env rgen m = do
   focusedUser <- mkFocusedUserRef env.connectedUser
   (winMgr, sinkRef) <- liftIO mkWindowEventSink
   onPinClosed <- newIORef (\_ -> pure ())
+  onPinViewer <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
   cmdIdRef <- newIORef Nothing
   fc <- liftIO newFormulaCache
@@ -222,7 +239,7 @@ mkSyncDocument' env rgen m = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr sinkRef onPinClosed srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr sinkRef onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 -- | Request permission to upload a file. The callback is invoked with
 -- Right () on UploadPermitted, or Left reason on UploadDenied.

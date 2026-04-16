@@ -94,6 +94,8 @@ solEditorView r _solId viewData =
         , showSolutions = False
         , showAnnotations = False
         , startExpanded = False
+        , enableGoTo = False
+        , enableDelete = False
         }
    in MH.div_
         [class_ "space-y-4"]

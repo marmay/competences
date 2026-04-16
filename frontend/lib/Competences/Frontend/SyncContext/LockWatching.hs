@@ -13,18 +13,23 @@ import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..)
 import Competences.Command qualified as Cmd
 import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), LessonNotes (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), User (..))
+import Competences.Document (Document (..), LessonNotes (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
+import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
 import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEditor)
+import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
+import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
 import Competences.Frontend.Component.Task.SolutionPinEditor (solutionPinEditor)
 import Competences.Frontend.SyncContext.SyncDocument
   ( DocumentChange (..)
+  , PinViewerRequest (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
   , sendCommandOnly
@@ -70,6 +75,8 @@ initLockWatching r = do
       else case parsePinLock pid of
         Just lock -> sendCommandOnly r (releaseCommand lock)
         Nothing -> pure ()
+
+  writeIORef r.onPinViewerRequestRef (handleViewerPin r)
 
   startLockWatching (mkLockWatchConfig r watcherRemovedRef) r.windowManager
 
@@ -173,6 +180,44 @@ ensureLessonNotesPin r sink lnId doc =
         }
       chrome = WindowChrome title Icon.IcnLessonNotes (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (lessonNotesPinEditor r lnId pid)
+
+-- ============================================================================
+-- Viewer Pins
+-- ============================================================================
+
+handleViewerPin :: SyncContext -> PinViewerRequest -> IO ()
+handleViewerPin r (PinTaskViewer task) =
+  pinDialogWith r.windowManager
+    (PinMeta
+      { key = "task-ref-" <> idToText task.id
+      , category = PinCatTask
+      , sortKey = SortKey [SortAtom task.id]
+      , context = Nothing
+      })
+    (WindowChrome (ms (taskDisplayName task)) Icon.IcnTask Nothing)
+    (\_ (_ :: Maybe ()) -> TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id Published TaskComp.defaultTaskDetailedSettings))
+handleViewerPin r (PinResourceViewer res) =
+  let ResourceIdentifier ident = res.identifier
+      title = if T.null ident then "Ressource" else ident
+   in pinDialogWith r.windowManager
+        (PinMeta
+          { key = "resource-ref-" <> idToText res.id
+          , category = PinCatResource
+          , sortKey = SortKey [SortAtom res.id]
+          , context = Nothing
+          })
+        (WindowChrome (ms title) Icon.IcnResources Nothing)
+        (\_ (_ :: Maybe ()) -> ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
+handleViewerPin r (PinLessonNotesViewer ln) =
+  pinDialogWith r.windowManager
+    (PinMeta
+      { key = "lesson-notes-ref-" <> idToText ln.id
+      , category = PinCatLessonNotes
+      , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
+      , context = Nothing
+      })
+    (WindowChrome (ms ln.title) Icon.IcnLessonNotes Nothing)
+    (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))
 
 -- ============================================================================
 -- Config

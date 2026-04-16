@@ -76,5 +76,7 @@ taskDetailView r origin task =
         (assignmentRefsBanner r task.id)
     , inlineComponent
         ("task-detail-" <> ms (show task.id))
-        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id origin TaskComp.defaultTaskDetailedSettings))
+        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id origin adminSettings))
     ]
+  where
+    adminSettings = TaskComp.defaultTaskDetailedSettings {TaskComp.enableGoTo = False, TaskComp.enableDelete = True}

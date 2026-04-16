@@ -18,9 +18,8 @@ import Competences.Document (Document, Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.Component.Task.EditButton (taskEditButton)
+import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -217,10 +216,16 @@ viewModalTaskList r m taskExtra =
     TaskListAction
 
 modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
-modalAnnotations r m taskExtra tws =
+modalAnnotations _r m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.purposeBadge tws.taskPurpose | m.config.showPurposeBadge]
     , [TaskBadge.assessmentStar tws.taskPurpose | m.config.showPurposeBadge]
-    , [taskEditButton r Published tws.task]
+    , [ entityMenu EntityMenuConfig
+          { onEdit = Just (TaskListAction (VT.MenuEdit tws.task.id))
+          , onPin = Just (TaskListAction (VT.MenuPin tws.task))
+          , onGoTo = Just (TaskListAction (VT.MenuGoTo tws.task.id))
+          , onDelete = Nothing
+          }
+      ]
     ]

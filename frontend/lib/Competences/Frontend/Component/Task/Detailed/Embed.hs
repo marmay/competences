@@ -9,7 +9,7 @@ module Competences.Frontend.Component.Task.Detailed.Embed
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..), TasksCommand (..))
 import Competences.Document (Solution (..), Task (..), User (..))
 import Competences.Document.Solution (mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
@@ -17,7 +17,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.SyncContext (SyncContext (..), isTeacher, modifySyncDocument, nextId)
+import Competences.Frontend.Page (Page (..))
+import Competences.Frontend.SyncContext (SyncContext (..), PinViewerRequest (..), isTeacher, modifySyncDocument, nextId, requestViewerPin)
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -31,6 +32,7 @@ import Competences.Query.TaskStatus (TaskCompletionStatus)
 import Data.Set qualified as Set
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Miso.Router qualified as M
 import Miso.String (ms)
 import Optics.Core (Lens', (%), (%~))
 
@@ -54,6 +56,14 @@ updateTaskDetailed stateLens r lift = go
         (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid)))
         (lift . V.HoldDeleteSolution)
         ha
+    go (V.MenuEdit tid) =
+      M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Modify tid Lock))
+    go (V.MenuPin task) =
+      M.io_ $ requestViewerPin r (PinTaskViewer task)
+    go (V.MenuGoTo tid) =
+      M.io_ $ M.pushURI (M.toURI (ManageTasks (Just tid)))
+    go (V.MenuDelete tid) =
+      M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
     go action = M.modify (stateLens %~ V.updateTaskDetailedPure action)
 
 -- | Render a list of tasks with disclosures, solutions, and status tinting.

@@ -81,6 +81,7 @@ data Icon
   | IcnMinusMinus
   | IcnPrint
   | IcnMenu
+  | IcnMoreVertical
   | IcnLessonNotes
   | IcnOpenModal -- ^ Square with arrow out (open in modal)
   | IcnCloudCheck -- ^ Connected, all synced (cloud + checkmark)
@@ -249,6 +250,7 @@ iconId = \case
   IcnMinusMinus -> "icon-minus-minus"
   IcnPrint -> "icon-print"
   IcnMenu -> "icon-menu"
+  IcnMoreVertical -> "icon-more-vertical"
   IcnLessonNotes -> "icon-lesson-notes"
   IcnOpenModal -> "icon-open-modal"
   IcnCloudCheck -> "icon-cloud-check"
@@ -615,6 +617,12 @@ iconDefOf' = \case
       , "M4 12h16"
       , "M4 18h16"
       ]
+  -- Vertical three-dots menu icon
+  IcnMoreVertical ->
+    [ MS.circle_ [MSP.cx_ "12", MSP.cy_ "5", MSP.r_ "1", MSP.fill_ "currentColor"]
+    , MS.circle_ [MSP.cx_ "12", MSP.cy_ "12", MSP.r_ "1", MSP.fill_ "currentColor"]
+    , MS.circle_ [MSP.cx_ "12", MSP.cy_ "19", MSP.r_ "1", MSP.fill_ "currentColor"]
+    ]
   -- Lesson notes icon (notebook with lines)
   IcnLessonNotes ->
     mkPathesD

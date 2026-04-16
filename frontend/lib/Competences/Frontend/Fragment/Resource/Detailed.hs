@@ -22,7 +22,7 @@ module Competences.Frontend.Fragment.Resource.Detailed
 where
 
 import Competences.Common.Set (toggle)
-import Competences.Document (ResourceContent (..), ResourceId)
+import Competences.Document (Resource, ResourceContent (..), ResourceId)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -47,8 +47,12 @@ newtype ResourceDetailedState = ResourceDetailedState
   }
   deriving (Eq, Generic, Show)
 
-newtype ResourceDetailedAction
-  = ToggleResource ResourceId
+data ResourceDetailedAction
+  = ToggleResource !ResourceId
+  | MenuEdit !ResourceId
+  | MenuPin !Resource
+  | MenuGoTo !ResourceId
+  | MenuDelete !ResourceId
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
@@ -57,6 +61,7 @@ initialResourceDetailedState expanded =
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
+updateResourceDetailedPure _ = id
 
 
 -- ============================================================================
