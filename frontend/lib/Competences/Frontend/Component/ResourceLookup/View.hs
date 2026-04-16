@@ -39,7 +39,7 @@ import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -161,12 +161,11 @@ viewLessonNoteGroup r m group =
       annotations =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
-          <> [ entityMenu EntityMenuConfig
-                { onEdit = Just (LessonNotesAction (VLN.MenuEdit ln.id))
-                , onPin = Just (LessonNotesAction (VLN.MenuPin ln))
-                , onGoTo = Just (LessonNotesAction (VLN.MenuGoTo ln.id))
-                , onDelete = Nothing
-                }
+          <> [ entityMenu
+                  [ menuEdit (LessonNotesAction (VLN.MenuEdit ln.id))
+                  , menuPin (LessonNotesAction (VLN.MenuPin ln))
+                  , menuGoTo (LessonNotesAction (VLN.MenuGoTo ln.id))
+                  ]
              | isTeacher r
              ]
    in LNEmbed.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
@@ -231,12 +230,11 @@ viewResourceItem r m relevance res =
   where
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
-        <> [ entityMenu EntityMenuConfig
-              { onEdit = Just (ResourceAction (VR.MenuEdit res'.id))
-              , onPin = Just (ResourceAction (VR.MenuPin res'))
-              , onGoTo = Just (ResourceAction (VR.MenuGoTo res'.id))
-              , onDelete = Nothing
-              }
+        <> [ entityMenu
+                [ menuEdit (ResourceAction (VR.MenuEdit res'.id))
+                , menuPin (ResourceAction (VR.MenuPin res'))
+                , menuGoTo (ResourceAction (VR.MenuGoTo res'.id))
+                ]
            | isTeacher r
            ]
 

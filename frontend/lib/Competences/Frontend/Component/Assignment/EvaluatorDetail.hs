@@ -1,6 +1,7 @@
 module Competences.Frontend.Component.Assignment.EvaluatorDetail
   ( evaluatorDetailView
   , evaluatorComponent
+  , pinAssignmentEvaluator
   )
 where
 
@@ -8,6 +9,9 @@ import Competences.Command (Command (..), EntityCommand (..), EvidencesCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Command.Evidences (EvidencePatch (..))
 import Competences.Document (Assignment (..), Document (..), Solution (..), SolutionId, SolutionIxs, SolutionType (..), User (..))
+import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Id (idToText)
+import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Document.Submission (Submission (..), SubmissionId, SubmissionIxs, SubmissionKind (..), ownerIds)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Evidence (Ability (..), Evidence (..), Observation (..), SocialForm (..), TaskEvaluations, TaskRemark (..), taskRemarks, socialForms)
@@ -23,7 +27,7 @@ import Competences.Frontend.SyncContext
   , subscribeDocument
   )
 import Competences.Frontend.Component.RichContent (renderRichText)
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
 import Competences.Frontend.Fragment.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -55,6 +59,23 @@ import Competences.Frontend.View.Badge qualified as Badge
 import qualified Competences.Frontend.View.Button as Button
 import Competences.Frontend.Component.Selector.Common (selectorTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..), searchSelectComponent)
+
+-- | Pin the assignment evaluator as a persistent dialog.
+pinAssignmentEvaluator :: SyncContext -> Assignment -> IO ()
+pinAssignmentEvaluator r assignment =
+  let AssignmentName nameText = assignment.name
+      pinTitle = C.translate' C.LblEvaluateAssignment
+        <> ": " <> ms nameText
+      meta = PinMeta
+        { key = "assignment-evaluation-" <> idToText assignment.id
+        , category = PinCatAssignment
+        , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
+        , context = Just (C.formatDayShort assignment.assignmentDate)
+        }
+   in pinDialog r.windowManager
+        meta
+        (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType) Nothing)
+        (evaluatorComponent r assignment)
 
 -- | Find evidences for a specific date, keyed by student.
 -- Used to filter assignmentEvidences by the current evaluationDate at each usage site.

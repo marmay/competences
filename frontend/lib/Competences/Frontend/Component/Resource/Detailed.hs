@@ -19,7 +19,7 @@ import Competences.Frontend.SyncContext
   , isTeacher
   , subscribeWithProjection
   )
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
 import Competences.Frontend.View.Layout qualified as Layout
 import GHC.Generics (Generic)
 import Miso qualified as M
@@ -86,12 +86,13 @@ resourceDetailedComponent r cfg =
 
     annotations res
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu EntityMenuConfig
-            { onEdit = Just (ViewAction (V.MenuEdit res.id))
-            , onPin = Just (ViewAction (V.MenuPin res))
-            , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo res.id)) else Nothing
-            , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete res.id)) else Nothing
-            }]
+          [entityMenu $
+            [ menuEdit (ViewAction (V.MenuEdit res.id))
+            , menuPin (ViewAction (V.MenuPin res))
+            ]
+            ++ [menuGoTo (ViewAction (V.MenuGoTo res.id)) | cfg.settings.enableGoTo]
+            ++ [menuDelete (ViewAction (V.MenuDelete res.id)) | cfg.settings.enableDelete]
+          ]
       | otherwise = []
 
 resourceProjection :: ResourceDetailedConfig -> Document -> Maybe User -> ResourceProjection

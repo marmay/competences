@@ -25,7 +25,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
 import Competences.Frontend.View.Layout qualified as Layout
 import Data.Maybe (mapMaybe)
 import GHC.Generics (Generic)
@@ -96,12 +96,13 @@ lessonNotesDetailedComponent r cfg =
 
     annotations ln
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu EntityMenuConfig
-            { onEdit = Just (ViewAction (V.MenuEdit ln.id))
-            , onPin = Just (ViewAction (V.MenuPin ln))
-            , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo ln.id)) else Nothing
-            , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete ln.id)) else Nothing
-            }]
+          [entityMenu $
+            [ menuEdit (ViewAction (V.MenuEdit ln.id))
+            , menuPin (ViewAction (V.MenuPin ln))
+            ]
+            ++ [menuGoTo (ViewAction (V.MenuGoTo ln.id)) | cfg.settings.enableGoTo]
+            ++ [menuDelete (ViewAction (V.MenuDelete ln.id)) | cfg.settings.enableDelete]
+          ]
       | otherwise = []
 
 lessonNotesProjection :: LessonNotesDetailedConfig -> Document -> Maybe User -> LessonNotesProjection

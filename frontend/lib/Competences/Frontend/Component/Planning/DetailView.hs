@@ -20,7 +20,7 @@ import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (openMesoPlanEditor)
 import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
 import Competences.Frontend.Component.Planning.LessonEditorModal (openLessonEditor)
-import Competences.Frontend.Component.Assignment.EditorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
 import Competences.Frontend.Component.Planning.LessonEvaluator (pinLessonEvaluator)
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.SelectorDetail qualified as SD

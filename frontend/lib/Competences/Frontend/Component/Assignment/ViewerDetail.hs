@@ -88,7 +88,8 @@ import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), open
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.View.EntityMenu (EntityMenuEntry (..), EntityMenuStyle (..), entityMenu, menuEdit, menuGoTo, menuPin)
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -284,6 +285,8 @@ data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
   | TaskListAction !VT.TaskDetailedAction
   | PinThis
+  | EditAssignment
+  | PinEvaluation
   | ToggleTaskResourcesExpanded !TaskId
   | OpenPagePrintModal !(Maybe LayoutId)
   | OpenNewLayoutModal !Layout
@@ -601,6 +604,13 @@ viewerComponent r user assignment wm =
 
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
+    update EditAssignment = do
+      m <- M.get
+      M.io_ $ modifySyncDocument r $
+        wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignment.id Lock))
+
+    update PinEvaluation = M.io_ $ pinAssignmentEvaluator r assignment
+
     update (LayoutHoldAction ha) =
       HoldButton.handleHoldAction' #layoutHoldState
         (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid))))
@@ -693,6 +703,13 @@ viewerComponent r user assignment wm =
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
                             <> [ viewPagePrintButton m | proj.connectedUserRole == Teacher ]
+                            <> [ entityMenu
+                                  [ menuEdit EditAssignment
+                                  , menuPin PinThis
+                                  , EntityMenuEntry MenuPrimary Icon.IcnApply (C.translate' C.LblEvaluateAssignment) PinEvaluation
+                                  ]
+                               | proj.connectedUserRole == Teacher
+                               ]
                         ]
                     ]
                 , -- Date below title (muted, small)
@@ -800,12 +817,11 @@ viewerComponent r user assignment wm =
                   )
               ]
             , [TaskBadge.assessmentStar tws.taskPurpose]
-            , [ entityMenu EntityMenuConfig
-                  { onEdit = Just (TaskListAction (VT.MenuEdit tws.task.id))
-                  , onPin = Just (TaskListAction (VT.MenuPin tws.task))
-                  , onGoTo = Just (TaskListAction (VT.MenuGoTo tws.task.id))
-                  , onDelete = Nothing
-                  }
+            , [ entityMenu
+                  [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
+                  , menuPin (TaskListAction (VT.MenuPin tws.task))
+                  , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
+                  ]
               | proj.connectedUserRole == Teacher
               ]
             ]

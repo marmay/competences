@@ -19,7 +19,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Detailed qualified as VT
@@ -220,11 +220,10 @@ modalAnnotations _r _m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
-    , [ entityMenu EntityMenuConfig
-          { onEdit = Just (TaskListAction (VT.MenuEdit tws.task.id))
-          , onPin = Just (TaskListAction (VT.MenuPin tws.task))
-          , onGoTo = Just (TaskListAction (VT.MenuGoTo tws.task.id))
-          , onDelete = Nothing
-          }
+    , [ entityMenu
+            [ menuEdit (TaskListAction (VT.MenuEdit tws.task.id))
+            , menuPin (TaskListAction (VT.MenuPin tws.task))
+            , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
+            ]
       ]
     ]

@@ -23,7 +23,7 @@ import Competences.Frontend.SyncContext
   , modifySyncDocument
   , subscribeWithProjection
   )
-import Competences.Frontend.View.EntityMenu (EntityMenuConfig (..), entityMenu)
+import Competences.Frontend.View.EntityMenu (entityMenu, menuEdit, menuPin, menuGoTo, menuDelete)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Set qualified as Set
@@ -126,12 +126,12 @@ headerAnnotations :: SyncContext -> TaskDetailedConfig -> Model -> Task -> [M.Vi
 headerAnnotations r cfg _m task =
   concat
     [ [assessmentStar task.purpose]
-    , [ entityMenu EntityMenuConfig
-          { onEdit = Just (ViewAction (V.MenuEdit task.id))
-          , onPin = Just (ViewAction (V.MenuPin task))
-          , onGoTo = if cfg.settings.enableGoTo then Just (ViewAction (V.MenuGoTo task.id)) else Nothing
-          , onDelete = if cfg.settings.enableDelete then Just (ViewAction (V.MenuDelete task.id)) else Nothing
-          }
+    , [ entityMenu $
+            [ menuEdit (ViewAction (V.MenuEdit task.id))
+            , menuPin (ViewAction (V.MenuPin task))
+            ]
+            ++ [menuGoTo (ViewAction (V.MenuGoTo task.id)) | cfg.settings.enableGoTo]
+            ++ [menuDelete (ViewAction (V.MenuDelete task.id)) | cfg.settings.enableDelete]
       | isTeacher r
       ]
     ]

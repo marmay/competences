@@ -1,11 +1,9 @@
 module Competences.Frontend.Component.Assignment.EditorDetail
   ( editorDetailView
-  , pinAssignmentEvaluator
   )
 where
 
 import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), PublishData (..), TasksCommand (..))
-import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Assignment (..)
@@ -15,12 +13,10 @@ import Competences.Document
   , emptyDocument
   , lockOwner
   )
-import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Id (idToText)
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), defaultTask, taskDisplayName)
-import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Assignment.EvaluatorDetail (evaluatorComponent)
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.Component.Assignment.PinEditor (nameViewLens, namePatchLens, userSearchConfig)
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
@@ -38,8 +34,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
-import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -50,12 +45,11 @@ import Data.List (sortOn)
 import Data.Maybe (isJust)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
-import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Data.Default (def)
-import Optics.Core (Iso', Lens', iso, (%), (&), (?~), (.~))
+import Optics.Core ((&), (?~), (.~))
 
 -- ============================================================================
 -- Wrapper Model and Actions
@@ -73,23 +67,6 @@ data EditorAction
   | PublishAssignment
   | OpenRenumberModal
   deriving (Eq, Show)
-
--- | Pin the assignment evaluator as a persistent dialog.
-pinAssignmentEvaluator :: SyncContext -> Assignment -> IO ()
-pinAssignmentEvaluator r assignment =
-  let AssignmentName nameText = assignment.name
-      pinTitle = C.translate' C.LblEvaluateAssignment
-        <> ": " <> M.ms nameText
-      meta = PinMeta
-        { key = "assignment-evaluation-" <> idToText assignment.id
-        , category = PinCatAssignment
-        , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
-        , context = Just (C.formatDayShort assignment.assignmentDate)
-        }
-   in pinDialog r.windowManager
-        meta
-        (WindowChrome pinTitle (EvidenceIcon.activityTypeIcon assignment.activityType) Nothing)
-        (evaluatorComponent r assignment)
 
 -- | Detail view for editing an assignment
 -- The mode type parameter allows this to work with any mode type
@@ -236,29 +213,6 @@ editorWrapperComponent r assignment =
                            , TE.boolEditorField #groupSubmissionAllowed #groupSubmissionAllowed
                            )
 
--- | Iso for converting between AssignmentName and Text
-assignmentNameTextIso :: Iso' AssignmentName T.Text
-assignmentNameTextIso = iso getter setter
-  where
-    getter (AssignmentName t) = t
-    setter t = AssignmentName t
-
--- | Iso for converting Change AssignmentName to Change Text
-changeAssignmentNameTextIso :: Iso' (Change AssignmentName) (Change T.Text)
-changeAssignmentNameTextIso = iso (fmap convertChange) (fmap convertChange')
-  where
-    convertChange (old, new) = (getter old, getter new)
-    convertChange' (old, new) = (setter old, setter new)
-    getter (AssignmentName t) = t
-    setter t = AssignmentName t
-
--- | Lens for viewing assignment name as Text
-nameViewLens :: Lens' Assignment T.Text
-nameViewLens = #name % assignmentNameTextIso
-
--- | Lens for patching assignment name as Text
-namePatchLens :: Lens' AssignmentPatch (Change T.Text)
-namePatchLens = #name % changeAssignmentNameTextIso
 
 -- ============================================================================
 -- SearchSelect configs
@@ -291,17 +245,3 @@ taskSearchConfig r origin =
         pure taskId
     }
 
-userSearchConfig :: SearchSelectConfig User UserId
-userSearchConfig =
-  SearchSelectConfig
-    { projectItems = \doc ->
-        sortOn (.name) $ filter isStudent $ Ix.toList doc.users
-    , itemId = (.id)
-    , itemLabel = (.name)
-    , metaFilters = []
-    , viewTag = \u -> (Icon.IcnSocialFormIndividual, M.ms u.name)
-    , placeholder = "Schüler auswählen..."
-    , selectionOrder = AutoOrder id
-    , tagLayout = TagsInline
-    , onCreate = Nothing
-    }
