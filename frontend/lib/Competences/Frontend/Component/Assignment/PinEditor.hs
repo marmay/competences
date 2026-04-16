@@ -15,6 +15,7 @@ import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.Editor (Editable (..), addNamedField, boolEditorField, dayEditorField, editable, editor, editorComponent, enumEditorField, richTextEditorField, textEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
@@ -39,25 +40,29 @@ import Optics.Core qualified as O
 assignmentPinEditor
   :: SyncContext
   -> AssignmentId
+  -> EntityOrigin
   -> PinId
   -> WindowMode
   -> Maybe AssignmentPatch
   -> M.Component WM.Model (Model Assignment AssignmentPatch Maybe) (Action Assignment AssignmentPatch)
-assignmentPinEditor r assignmentId pid _mode mSaved =
+assignmentPinEditor r assignmentId origin pid _mode mSaved =
   (editorComponent assignmentEditor r (fromMaybe def mSaved))
     { M.bindings =
         [O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens]
     }
   where
+    wrap = wrapForOrigin origin
     editorId = "assignment-pin-editor-" <> ms (show assignmentId)
 
     assignmentEditable =
       editable
         ( \d ->
-            let mAssignment = Ix.getOne (d.assignments Ix.@= assignmentId)
+            let mAssignment = case origin of
+                  Published -> Ix.getOne (d.assignments Ix.@= assignmentId)
+                  Draft -> Ix.getOne (d.draftAssignments Ix.@= assignmentId)
              in fmap (\a -> (a, lockOwner (AssignmentLock a.id) d)) mAssignment
         )
-        & (#modify ?~ (\a modify -> Assignments $ OnAssignments (Modify a.id modify)))
+        & (#modify ?~ (\a modify -> wrap $ Assignments $ OnAssignments (Modify a.id modify)))
 
     assignmentEditor =
       editor

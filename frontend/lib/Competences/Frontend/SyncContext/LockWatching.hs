@@ -27,14 +27,16 @@ import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEdito
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
 import Competences.Frontend.Component.Task.SolutionPinEditor (solutionPinEditor)
 import Competences.Frontend.SyncContext.SyncDocument
   ( DocumentChange (..)
   , PinViewerRequest (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , SyncDocumentEnv (..)
+  , readSyncDocument
   , sendCommandOnly
   , subscribeDocumentIO
   )
@@ -55,6 +57,7 @@ import Competences.Frontend.SyncContext.WindowManager
 import Competences.Frontend.View.Icon qualified as Icon
 import Data.Default (Default (..))
 import Data.IORef (IORef, atomicModifyIORef', newIORef, writeIORef)
+import Data.Maybe (isJust)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Competences.Document.Id (mkId)
@@ -76,7 +79,9 @@ initLockWatching r = do
     if wasWatcherRemoval
       then pure () -- Lock already gone, no command needed
       else case parsePinLock pid of
-        Just lock -> sendCommandOnly r (releaseCommand lock)
+        Just lock -> do
+          sd <- readSyncDocument r
+          sendCommandOnly r (releaseCommand sd.localDocument lock)
         Nothing -> pure ()
 
   writeIORef r.onPinViewerRequestRef (handleViewerPin r)
@@ -106,14 +111,18 @@ parsePinLock pid =
         <|> (LessonNotesLock <$> (T.stripPrefix "lesson-notes-" key >>= mkId))
         <|> (AssignmentLock <$> (T.stripPrefix "assignment-" key >>= mkId))
 
--- | Build the command to release a lock.
-releaseCommand :: Lock -> Command
-releaseCommand (TaskLock tid) = Tasks (OnTasks (Modify tid (Release def)))
-releaseCommand (SolutionLock sid) = Solutions (OnSolutions (Modify sid (Release def)))
-releaseCommand (ResourceLock rid) = Resources (OnResources (Modify rid (Release def)))
-releaseCommand (LessonNotesLock lnid) = Cmd.LessonNotes (OnLessonNotes (Modify lnid (Release def)))
-releaseCommand (AssignmentLock aid) = Assignments (OnAssignments (Modify aid (Release def)))
-releaseCommand _ = error "releaseCommand: unhandled lock type"
+-- | Build the command to release a lock, routing to draft collection when needed.
+releaseCommand :: Document -> Lock -> Command
+releaseCommand doc (TaskLock tid) =
+  let cmd = Tasks (OnTasks (Modify tid (Release def)))
+   in if Ix.null (doc.draftTasks Ix.@= tid) then cmd else retargetForDraft cmd
+releaseCommand _doc (SolutionLock sid) = Solutions (OnSolutions (Modify sid (Release def)))
+releaseCommand _doc (ResourceLock rid) = Resources (OnResources (Modify rid (Release def)))
+releaseCommand _doc (LessonNotesLock lnid) = Cmd.LessonNotes (OnLessonNotes (Modify lnid (Release def)))
+releaseCommand doc (AssignmentLock aid) =
+  let cmd = Assignments (OnAssignments (Modify aid (Release def)))
+   in if Ix.null (doc.draftAssignments Ix.@= aid) then cmd else retargetForDraft cmd
+releaseCommand _ _ = error "releaseCommand: unhandled lock type"
 
 -- ============================================================================
 -- Pin creation per lock type
@@ -131,7 +140,10 @@ ensureLockPin r sink lock doc = case lock of
 
 ensureTaskPin :: SyncContext -> WindowEventSink -> TaskId -> Document -> IO ()
 ensureTaskPin r sink taskId doc =
-  let mTask = Ix.getOne (doc.tasks Ix.@= taskId)
+  let mPublished = Ix.getOne (doc.tasks Ix.@= taskId)
+      mDraft = Ix.getOne (doc.draftTasks Ix.@= taskId)
+      mTask = mPublished <|> mDraft
+      origin = if isJust mDraft then Draft else Published
       title = maybe ("Task" :: MisoString) (ms . taskDisplayName) mTask
       pid = lockPinId' (TaskLock taskId)
       meta = PinMeta
@@ -141,7 +153,7 @@ ensureTaskPin r sink taskId doc =
         , context = Nothing
         }
       chrome = WindowChrome title Icon.IcnTask (Just Icon.IcnEdit)
-   in pinDialogWith sink meta chrome (taskPinEditor r taskId pid)
+   in pinDialogWith sink meta chrome (taskPinEditor r taskId origin pid)
 
 ensureSolutionPin :: SyncContext -> WindowEventSink -> SolutionId -> Document -> IO ()
 ensureSolutionPin r sink solId doc =
@@ -190,7 +202,10 @@ ensureLessonNotesPin r sink lnId doc =
 
 ensureAssignmentPin :: SyncContext -> WindowEventSink -> AssignmentId -> Document -> IO ()
 ensureAssignmentPin r sink aid doc =
-  let mAssignment = Ix.getOne (doc.assignments Ix.@= aid)
+  let mPublished = Ix.getOne (doc.assignments Ix.@= aid)
+      mDraft = Ix.getOne (doc.draftAssignments Ix.@= aid)
+      mAssignment = mPublished <|> mDraft
+      origin = if isJust mDraft then Draft else Published
       title = case mAssignment of
         Just a -> let AssignmentName t = a.name in ms t
         Nothing -> "Auftrag" :: MisoString
@@ -202,7 +217,7 @@ ensureAssignmentPin r sink aid doc =
         , context = Nothing
         }
       chrome = WindowChrome title Icon.IcnAssignment (Just Icon.IcnEdit)
-   in pinDialogWith sink meta chrome (assignmentPinEditor r aid pid)
+   in pinDialogWith sink meta chrome (assignmentPinEditor r aid origin pid)
 
 -- ============================================================================
 -- Viewer Pins

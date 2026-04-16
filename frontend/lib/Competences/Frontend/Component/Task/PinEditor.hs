@@ -14,6 +14,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), lockOwner)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, textEditorField, richTextWithFilesEditorField, enumEditorField, boolEditorField, fileUploadEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
@@ -42,26 +43,29 @@ import Optics.Core qualified as O
 -- Receives optional saved state and creates a component with a binding
 -- that persists patches to the parent model's pinSaveStates.
 taskPinEditor
-  :: SyncContext -> TaskId -> PinId
+  :: SyncContext -> TaskId -> EntityOrigin -> PinId
   -> WindowMode -> Maybe TaskPatch
   -> M.Component WM.Model (Model Task TaskPatch Maybe) (Action Task TaskPatch)
-taskPinEditor r taskId pid _mode mSaved =
+taskPinEditor r taskId origin pid _mode mSaved =
   (editorComponent taskEditor r (fromMaybe def mSaved))
         { M.bindings =
             [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
             ]
         }
   where
+    wrap = wrapForOrigin origin
     editorId = "task-pin-editor-" <> ms (show taskId)
 
     taskEditable :: Editable Maybe Task TaskPatch
     taskEditable =
       editable
         ( \d ->
-            let t = Ix.getOne (d.tasks Ix.@= taskId)
+            let t = case origin of
+                  Published -> Ix.getOne (d.tasks Ix.@= taskId)
+                  Draft -> Ix.getOne (d.draftTasks Ix.@= taskId)
              in fmap (\t' -> (t', lockOwner (TaskLock t'.id) d)) t
         )
-        & (#modify ?~ (\t modify -> Tasks $ OnTasks (Modify t.id modify)))
+        & (#modify ?~ (\t modify -> wrap $ Tasks $ OnTasks (Modify t.id modify)))
 
     taskEditor =
       editor
