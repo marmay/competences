@@ -39,12 +39,12 @@ import Competences.Frontend.Common.Effect (liftEffect_)
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
-import Competences.Document (Document (..), Lock (..), Solution (..), Task (..), User (..))
+import Competences.Document (Document (..), Solution (..), Task (..), User (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..), mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Fragment.Task.Badge (assessmentStar, taskStatusHeaderBg, taskStatusPalette)
@@ -66,7 +66,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -426,16 +425,17 @@ viewTask r cfg m task =
         else taskOpenView displayName annotations body
 
 headerAnnotations :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> [M.View ComponentModel ComponentAction]
-headerAnnotations r cfg m task =
+headerAnnotations r cfg _m task =
   concat
     [ [assessmentStar task.purpose]
-    , [ entityMenu (m.viewState.menuOpen == Just task.id) (ViewAction (MenuToggle task.id)) (ViewAction MenuClose) $
-            [ menuWidget (editButton r cfg.origin task.id)
-            , menuPin (ViewAction (MenuPin task))
-            ]
-            ++ [menuGoTo (ViewAction (MenuGoTo task.id)) | cfg.settings.enableGoTo]
-            ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . HoldDeleteEntity) m.viewState.holdDeleteEntity task.id) | cfg.settings.enableDelete]
+    , [ inlineComponent ("task-menu-" <> ms (show task.id))
+          (EM.entityMenuComponent r EM.EntityMenuConfig
+            { edit = Just (EM.taskEdit task.id cfg.origin)
+            , pin = Just (PinTaskViewer task)
+            , goTo = if cfg.settings.enableGoTo then Just (ManageTasks (Just task.id)) else Nothing
+            , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id cfg.origin) else Nothing
+            , extraEntries = []
+            })
       | isTeacher r
       ]
     ]
@@ -450,13 +450,6 @@ taskBody r cfg m task =
         , not (null m.projection.solutions) || isTeacher r
         ]
       ]
-
-editButton :: SyncContext -> EntityOrigin -> TaskId -> M.View ComponentModel ComponentAction
-editButton r origin tid =
-  let cmd = wrapForOrigin origin $ Tasks (OnTasks (Modify tid Lock))
-   in inlineComponent
-        ("task-edit-btn-" <> ms (show tid))
-        (lockButtonComponent r (LockButtonConfig (TaskLock tid) cmd Button.IconTextS))
 
 hasContent :: Task -> Bool
 hasContent task = case task.content of

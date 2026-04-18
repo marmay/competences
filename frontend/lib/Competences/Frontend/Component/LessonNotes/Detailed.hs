@@ -30,10 +30,10 @@ import Competences.Command qualified as Cmd
 import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
-import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), LessonNotes (..), Lock (..), Task (..), User)
+import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), LessonNotes (..), Task (..), User)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
+import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Page (Page (..))
@@ -47,10 +47,8 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -306,24 +304,18 @@ lessonNotesDetailedComponent renderItem r cfg =
             <> [linkedLessonLink (ms lesson.title) | Just lesson <- [mLesson]]
             <> [itemsSection (map (renderItem r) items)]
 
-    annotations m ln
+    annotations _m ln
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu (m.viewState.menuOpen == Just ln.id) (ViewAction (MenuToggle ln.id)) (ViewAction MenuClose) $
-            [ menuWidget (editButton r ln.id)
-            , menuPin (ViewAction (MenuPin ln))
-            ]
-            ++ [menuGoTo (ViewAction (MenuGoTo ln.id)) | cfg.settings.enableGoTo]
-            ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . HoldDeleteEntity) m.viewState.holdDeleteEntity ln.id) | cfg.settings.enableDelete]
+          [ inlineComponent ("entity-menu-" <> ms (show ln.id))
+              (EM.entityMenuComponent r EM.EntityMenuConfig
+                { edit = Just (EM.lessonNotesEdit ln.id)
+                , pin = Just (PinLessonNotesViewer ln)
+                , goTo = if cfg.settings.enableGoTo then Just (ManageLessonNotes (Just ln.id)) else Nothing
+                , delete = if cfg.settings.enableDelete then Just (EM.lessonNotesDelete ln.id) else Nothing
+                , extraEntries = []
+                })
           ]
       | otherwise = []
-
-    editButton :: SyncContext -> LessonNotesId -> M.View ComponentModel ComponentAction
-    editButton r' lnid =
-      inlineComponent
-        ("ln-edit-btn-" <> ms (show lnid))
-        (lockButtonComponent r'
-          (LockButtonConfig (LessonNotesLock lnid) (Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))) Button.IconTextS))
 
 lessonNotesProjection :: LessonNotesDetailedConfig -> Document -> Maybe User -> LessonNotesProjection
 lessonNotesProjection cfg doc _mUser =

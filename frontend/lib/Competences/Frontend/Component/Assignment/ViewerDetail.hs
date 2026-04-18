@@ -12,7 +12,7 @@ import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
@@ -22,7 +22,6 @@ import Competences.Document
   , ContentPreset (..)
   , Document (..)
   , Layout (..)
-  , Lock (..)
   , Solution (..)
   , User (..)
   )
@@ -89,15 +88,16 @@ import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), open
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task.Detailed qualified as VT
-import Competences.Frontend.Component.Assignment.Detailed qualified as VA
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.View.EntityMenu (entityMenu, menuCustom, menuEdit, menuGoTo, menuPin, menuWidget)
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
-  ( ProjectedChange (..)
+  ( PinViewerRequest (..)
+  , ProjectedChange (..)
   , SyncContext (..)
   , modifySyncDocument
   , subscribeWithProjection
@@ -280,7 +280,6 @@ data ViewerModel = ViewerModel
   , pagePrintPageGrouping :: !PageGrouping
   , layoutHoldState :: !(HoldButton.HoldState LayoutId)
   , footerDraftGen :: !Int
-  , assignmentMenuState :: !VA.AssignmentDetailedState
   }
   deriving (Eq, Generic, Show)
 
@@ -288,7 +287,6 @@ data ViewerAction
   = ProjectionChanged !(ProjectedChange ViewerProjection)
   | TaskListAction !VT.TaskDetailedAction
   | PinThis
-  | AssignmentMenuAction !VA.AssignmentDetailedAction
   | ToggleTaskResourcesExpanded !TaskId
   | OpenPagePrintModal !(Maybe LayoutId)
   | OpenNewLayoutModal !Layout
@@ -317,7 +315,6 @@ viewerComponent r user assignment wm =
       , pagePrintPageGrouping = []
       , layoutHoldState = HoldButton.emptyHoldState
       , footerDraftGen = 0
-      , assignmentMenuState = VA.initialAssignmentDetailedState
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -607,9 +604,6 @@ viewerComponent r user assignment wm =
 
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
-    update (AssignmentMenuAction a) =
-      VA.updateAssignmentDetailed #assignmentMenuState r AssignmentMenuAction a
-
     update (LayoutHoldAction ha) =
       liftEffect_ #layoutHoldState LayoutHoldAction $
         HoldButton.updateHold (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid)))) ha
@@ -700,11 +694,17 @@ viewerComponent r user assignment wm =
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
                             <> [ viewPagePrintButton m | proj.connectedUserRole == Teacher ]
-                            <> [ entityMenu m.assignmentMenuState.menuOpen (AssignmentMenuAction VA.MenuToggle) (AssignmentMenuAction VA.MenuClose)
-                                  [ menuEdit (AssignmentMenuAction (VA.MenuEdit proj.currentAssignment.id))
-                                  , menuPin (AssignmentMenuAction (VA.MenuPin proj.currentAssignment))
-                                  , menuCustom Icon.IcnApply (C.translate' C.LblEvaluateAssignment) (AssignmentMenuAction (VA.MenuEvaluate proj.currentAssignment))
-                                  ]
+                            <> [ inlineComponent ("entity-menu-" <> ms (show proj.currentAssignment.id))
+                                  (EM.entityMenuComponent r EM.EntityMenuConfig
+                                    { edit = Just (EM.assignmentEdit proj.currentAssignment.id m.projection.origin)
+                                    , pin = Just (PinAssignmentViewer proj.currentAssignment)
+                                    , goTo = Nothing
+                                    , delete = Nothing
+                                    , extraEntries =
+                                        [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
+                                            (pinAssignmentEvaluator r proj.currentAssignment)
+                                        ]
+                                    })
                                | proj.connectedUserRole == Teacher
                                ]
                         ]
@@ -805,7 +805,7 @@ viewerComponent r user assignment wm =
         proj.tasksWithSolutions
 
     taskAnnotations :: ViewerModel -> ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
-    taskAnnotations m proj _showPurpose tws =
+    taskAnnotations _m proj _showPurpose tws =
       let taskId = tws.task.id
        in concat
             [ [ M.div_ [class_ "flex items-center gap-1"]
@@ -814,21 +814,17 @@ viewerComponent r user assignment wm =
                   )
               ]
             , [TaskBadge.assessmentStar tws.taskPurpose]
-            , [ entityMenu (m.taskListState.menuOpen == Just tws.task.id) (TaskListAction (VT.MenuToggle tws.task.id)) (TaskListAction VT.MenuClose)
-                  [ menuWidget (taskEditButton r tws.task.id)
-                  , menuPin (TaskListAction (VT.MenuPin tws.task))
-                  , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
-                  ]
+            , [ inlineComponent ("entity-menu-" <> ms (show tws.task.id))
+                  (EM.entityMenuComponent r EM.EntityMenuConfig
+                    { edit = Just (EM.taskEdit tws.task.id Published)
+                    , pin = Just (PinTaskViewer tws.task)
+                    , goTo = Just (ManageTasks (Just tws.task.id))
+                    , delete = Nothing
+                    , extraEntries = []
+                    })
               | proj.connectedUserRole == Teacher
               ]
             ]
-
-    taskEditButton :: SyncContext -> TaskId -> M.View ViewerModel ViewerAction
-    taskEditButton r' tid =
-      inlineComponent
-        ("task-edit-btn-" <> ms (show tid))
-        (lockButtonComponent r'
-          (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))
 
     isDone :: Maybe TaskCompletionStatus -> Bool
     isDone (Just (TaskDone _)) = True

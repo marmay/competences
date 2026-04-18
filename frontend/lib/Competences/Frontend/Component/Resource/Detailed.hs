@@ -32,9 +32,9 @@ where
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
-import Competences.Document (Document (..), FileRef (..), Lock (..), Resource (..), ResourceContent (..), ResourceId, ResourceIdentifier (..), User)
+import Competences.Document (Document (..), FileRef (..), Resource (..), ResourceContent (..), ResourceId, ResourceIdentifier (..), User)
+import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
@@ -47,9 +47,7 @@ import Competences.Frontend.SyncContext
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.EntityMenu (entityMenu, menuGoTo, menuPin, menuSeparator, menuWidget)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -363,24 +361,18 @@ resourceDetailedComponent r cfg =
       Nothing -> Layout.empty
       Just res -> renderResource r m.viewState (annotations m) ViewAction res
 
-    annotations m res
+    annotations _m res
       | cfg.settings.showAnnotations, isTeacher r =
-          [entityMenu (m.viewState.menuOpen == Just res.id) (ViewAction (MenuToggle res.id)) (ViewAction MenuClose) $
-            [ menuWidget (editButton r res.id)
-            , menuPin (ViewAction (MenuPin res))
-            ]
-            ++ [menuGoTo (ViewAction (MenuGoTo res.id)) | cfg.settings.enableGoTo]
-            ++ [menuSeparator | cfg.settings.enableDelete]
-            ++ [menuWidget (HoldButton.holdDeleteButton (ViewAction . HoldDeleteEntity) m.viewState.holdDeleteEntity res.id) | cfg.settings.enableDelete]
+          [ inlineComponent ("entity-menu-" <> ms (show res.id))
+              (EM.entityMenuComponent r EM.EntityMenuConfig
+                { edit = Just (EM.resourceEdit res.id)
+                , pin = Just (PinResourceViewer res)
+                , goTo = if cfg.settings.enableGoTo then Just (ManageResources (Just res.id)) else Nothing
+                , delete = if cfg.settings.enableDelete then Just (EM.resourceDelete res.id) else Nothing
+                , extraEntries = []
+                })
           ]
       | otherwise = []
-
-    editButton :: SyncContext -> ResourceId -> M.View ComponentModel ComponentAction
-    editButton r' rid =
-      inlineComponent
-        ("res-edit-btn-" <> ms (show rid))
-        (lockButtonComponent r'
-          (LockButtonConfig (ResourceLock rid) (Resources (OnResources (Modify rid Lock))) Button.IconTextS))
 
 resourceProjection :: ResourceDetailedConfig -> Document -> Maybe User -> ResourceProjection
 resourceProjection cfg doc _mUser =

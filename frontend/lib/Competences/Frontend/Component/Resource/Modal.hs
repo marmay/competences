@@ -14,19 +14,19 @@ module Competences.Frontend.Component.Resource.Modal
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), TasksCommand (..))
-import Competences.Document (Document, Lock (..), Task (..))
+import Competences.Document (Document, Task (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
+import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
 import Competences.Frontend.Component.Task.Detailed qualified as VT
-import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
-import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuWidget)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Document.Task (TaskId)
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.Page (Page (..))
+import Competences.Frontend.SyncContext (PinViewerRequest (..), SyncContext (..))
+import Competences.Frontend.View.Button qualified as Button
 
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -218,21 +218,17 @@ viewModalTaskList r m taskExtra =
     TaskListAction
 
 modalAnnotations :: SyncContext -> Model -> (TaskId -> M.View Model Action) -> TaskWithSolutions -> [M.View Model Action]
-modalAnnotations r m taskExtra tws =
+modalAnnotations r _m taskExtra tws =
   concat
     [ [taskExtra tws.task.id]
     , [TaskBadge.assessmentStar tws.taskPurpose]
-    , [ entityMenu (m.taskListState.menuOpen == Just tws.task.id) (TaskListAction (VT.MenuToggle tws.task.id)) (TaskListAction VT.MenuClose)
-            [ menuWidget (taskEditButton r tws.task.id)
-            , menuPin (TaskListAction (VT.MenuPin tws.task))
-            , menuGoTo (TaskListAction (VT.MenuGoTo tws.task.id))
-            ]
+    , [ inlineComponent ("entity-menu-" <> ms (show tws.task.id))
+          (EM.entityMenuComponent r EM.EntityMenuConfig
+            { edit = Just (EM.taskEdit tws.task.id Published)
+            , pin = Just (PinTaskViewer tws.task)
+            , goTo = Just (ManageTasks (Just tws.task.id))
+            , delete = Nothing
+            , extraEntries = []
+            })
       ]
     ]
-
-taskEditButton :: SyncContext -> TaskId -> M.View Model Action
-taskEditButton r tid =
-  inlineComponent
-    ("task-edit-btn-" <> ms (show tid))
-    (lockButtonComponent r
-      (LockButtonConfig (TaskLock tid) (Tasks (OnTasks (Modify tid Lock))) Button.IconTextS))
