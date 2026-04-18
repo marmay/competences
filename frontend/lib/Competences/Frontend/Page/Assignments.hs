@@ -1,63 +1,56 @@
 module Competences.Frontend.Page.Assignments
   ( assignmentsPage
-  , AssignmentMode (..)
   )
 where
 
 import Competences.Document (Assignment (..), User (..))
-import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Assignment.EditorDetail (editorDetailView)
-import Competences.Frontend.Component.Assignment.ViewerDetail (viewerDetailView)
+import Competences.Frontend.Component.Assignment.ViewerDetail (viewerComponent)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
-import Competences.Query.DefaultSelection qualified as QDefault
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
-import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs, inlineComponentWith)
 import Competences.Frontend.View.Layout qualified as Layout
-import Data.List.NonEmpty (NonEmpty (..))
+import Competences.Frontend.View.Tailwind (class_)
+import Competences.Query.DefaultSelection qualified as QDefault
+import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.String (ms)
 
--- | Mode for the assignment component
--- Teachers have Edit and View modes; evaluation is available via pinned dialog
--- Students only have View mode
-data AssignmentMode = AssignmentEdit | AssignmentView
-  deriving (Eq, Ord, Enum, Bounded, Show)
+data Model = Model
+  { selected :: !(Maybe Assignment)
+  , sidebarOpen :: !Bool
+  }
+  deriving (Eq, Generic, Show)
 
--- | Assignment component using SelectorDetail pattern
--- Teachers: Edit (default) and View modes
--- Students: View mode only
+data Action
+  = ToggleSidebar
+  deriving (Eq, Show)
+
 assignmentsPage
   :: SyncContext
   -> User
-  -> M.Component p (SD.Model Assignment AssignmentMode) (SD.Action AssignmentMode)
+  -> M.Component p Model Action
 assignmentsPage r user =
-  SD.selectorDetailComponent
-    SD.SelectorDetailConfig
-      { SD.selectorId = "assignment"
-      , SD.selectorComponent = assignmentSelectorComponent r
-          (Just $ QDefault.defaultAssignment r.env.currentDay)
-      , SD.detailView = \mode assignment -> case mode of
-          AssignmentEdit -> editorDetailView r assignment
-          AssignmentView -> viewerDetailView r user assignment
-      , SD.modeLabel = \case
-          AssignmentEdit -> C.translate' C.LblEdit
-          AssignmentView -> C.translate' C.LblView
-      , SD.modeIcon = \case
-          AssignmentEdit -> Just Icon.IcnEdit
-          AssignmentView -> Just Icon.IcnView
-      , SD.availableModes = availableModes
-      , SD.defaultMode = defaultMode
-      , SD.emptyView = Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-      }
+  M.component model update view'
   where
-    -- Teachers get Edit + View modes, students only get View mode
-    availableModes =
-      if isTeacher user
-        then AssignmentEdit :| [AssignmentView]
-        else AssignmentView :| []
-    -- Teachers default to Edit mode, students default to View mode
-    defaultMode =
-      if isTeacher user
-        then AssignmentEdit
-        else AssignmentView
+    model = Model Nothing True
+
+    update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
+
+    view' m =
+      Layout.collapsibleSideMenu
+        m.sidebarOpen
+        ToggleSidebar
+        ( inlineComponentAttrs "assignment-selector" [class_ "h-full"] $
+            assignmentSelectorComponent r
+              (Just $ QDefault.defaultAssignment r.env.currentDay)
+              #selected
+        )
+        (detailView m.selected)
+
+    detailView Nothing =
+      Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
+    detailView (Just assignment) =
+      inlineComponentWith
+        ("assignment-detail-" <> ms (show assignment.id))
+        (viewerComponent r user assignment)

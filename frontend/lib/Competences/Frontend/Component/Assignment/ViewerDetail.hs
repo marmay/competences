@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.Assignment.ViewerDetail
   ( viewerDetailView
+  , viewerComponent
   , pinAssignmentViewer
   -- Re-export from Query module for backward compatibility
   , AssignmentStatus (..)
