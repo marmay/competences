@@ -38,6 +38,7 @@ library
         Competences.Frontend.Component.Deferred,
         Competences.Frontend.Component.Draft,
         Competences.Frontend.Component.Entity.Assembly,
+        Competences.Frontend.Component.EntityMenu,
         Competences.Frontend.Component.AboutDialog,
         Competences.Frontend.Page.Assignments,
         Competences.Frontend.Component.Assignment.Detailed,

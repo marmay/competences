@@ -110,10 +110,10 @@ holdFragmentDef
   -> Button.ButtonVariant
   -> Button.ButtonSize
   -> Button.ButtonContents
-  -> FragmentDef parent (HoldState id) (HoldAction id) ((HoldAction id -> a) -> M.View m a)
+  -> FragmentDef parent (HoldState id) (HoldAction id) Bool ((HoldAction id -> a) -> M.View m a)
 holdFragmentDef onExecute eid variant size contents = FragmentDef
   { initialModel = emptyHoldState
-  , update = \ha -> () <$ updateHold onExecute ha
+  , update = updateHold onExecute
   , view = \hs liftAction -> holdButton liftAction hs eid variant size contents
   , subs = []
   }

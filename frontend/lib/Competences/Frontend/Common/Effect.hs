@@ -39,16 +39,16 @@ liftEffect_ modelLens liftAction eff = () <$ liftEffect modelLens liftAction eff
 mapSub :: (a -> b) -> M.Sub a -> M.Sub b
 mapSub f sub = \sink -> sub (sink . f)
 
-data FragmentDef parent model action view = FragmentDef
+data FragmentDef parent model action result view = FragmentDef
   { initialModel :: model
-  , update :: action -> GEffect parent model action ()
+  , update :: action -> GEffect parent model action result
   , view :: model -> view
   , subs :: [M.Sub action]
   }
 
-data EmbeddedFragment parent parentModel parentAction fragmentModel fragmentAction view = EmbeddedFragment
+data EmbeddedFragment parent parentModel parentAction fragmentModel fragmentAction result view = EmbeddedFragment
   { initialModel :: fragmentModel
-  , update :: fragmentAction -> GEffect parent parentModel parentAction ()
+  , update :: fragmentAction -> GEffect parent parentModel parentAction result
   , view :: parentModel -> view
   , subscribe :: [M.Sub parentAction]
   }
@@ -56,19 +56,19 @@ data EmbeddedFragment parent parentModel parentAction fragmentModel fragmentActi
 embedFragment
   :: Lens' parentModel fragmentModel
   -> (fragmentAction -> parentAction)
-  -> FragmentDef parent fragmentModel fragmentAction view
-  -> EmbeddedFragment parent parentModel parentAction fragmentModel fragmentAction view
+  -> FragmentDef parent fragmentModel fragmentAction result view
+  -> EmbeddedFragment parent parentModel parentAction fragmentModel fragmentAction result view
 embedFragment lens lift frag = EmbeddedFragment
   { initialModel = frag.initialModel
-  , update = \a -> liftEffect_ lens lift (frag.update a)
+  , update = \a -> liftEffect lens lift (frag.update a)
   , view = \m -> frag.view (m ^. lens)
   , subscribe = map (mapSub lift) frag.subs
   }
 
 toComponent
-  :: FragmentDef p model action ((action -> action) -> M.View model action)
+  :: FragmentDef p model action result ((action -> action) -> M.View model action)
   -> M.Component p model action
 toComponent frag =
-  (M.component frag.initialModel frag.update (\m -> frag.view m id))
+  (M.component frag.initialModel (\a -> () <$ frag.update a) (\m -> frag.view m id))
     { M.subs = frag.subs
     }

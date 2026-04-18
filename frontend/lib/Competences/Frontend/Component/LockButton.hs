@@ -7,8 +7,11 @@ module Competences.Frontend.Component.LockButton
   , LockState (..)
   , LockAction (..)
   , LockStatus (..)
+  , LockProjection (..)
   , lockFragmentDef
   , lockButtonComponent
+  , lockView
+  , initialLockState
   )
 where
 
@@ -102,12 +105,15 @@ data LockAction
 -- Fragment definition
 -- ============================================================================
 
+initialLockState :: LockState
+initialLockState = LockState Free HoldButton.emptyHoldState Nothing True emptyProjection 0
+
 lockFragmentDef
   :: SyncContext
   -> LockButtonConfig
-  -> FragmentDef parent LockState LockAction ((LockAction -> a) -> M.View m a)
+  -> FragmentDef parent LockState LockAction () ((LockAction -> a) -> M.View m a)
 lockFragmentDef r cfg = FragmentDef
-  { initialModel = LockState Free HoldButton.emptyHoldState Nothing True emptyProjection 0
+  { initialModel = initialLockState
   , update = updateLock r cfg
   , view = lockView cfg.style
   , subs =
