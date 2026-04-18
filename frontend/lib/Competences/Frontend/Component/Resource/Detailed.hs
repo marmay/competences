@@ -29,7 +29,6 @@ module Competences.Frontend.Component.Resource.Detailed
   )
 where
 
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Document (..), FileRef (..), Resource (..), ResourceContent (..), ResourceId, ResourceIdentifier (..), User)
@@ -42,13 +41,10 @@ import Competences.Frontend.SyncContext
   , ProjectedChange (..)
   , SyncContext (..)
   , isTeacher
-  , modifySyncDocument
-  , requestViewerPin
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -60,42 +56,28 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
-import Miso.Router qualified as M
 import Miso.String (MisoString, ms)
-import Competences.Frontend.Common.Effect (liftEffect_)
-import Optics.Core (Lens', (%), (%~), (.~))
+import Optics.Core (Lens', (%~), (.~))
 
 -- ============================================================================
 -- State machine
 -- ============================================================================
 
-data ResourceDetailedState = ResourceDetailedState
-  { expandedResources :: !(Set ResourceId)
-  , holdDeleteEntity :: !(HoldButton.HoldState ResourceId)
-  , menuOpen :: !(Maybe ResourceId)
+newtype ResourceDetailedState = ResourceDetailedState
+  { expandedResources :: Set ResourceId
   }
   deriving (Eq, Generic, Show)
 
-data ResourceDetailedAction
-  = ToggleResource !ResourceId
-  | MenuEdit !ResourceId
-  | MenuPin !Resource
-  | MenuGoTo !ResourceId
-  | MenuDelete !ResourceId
-  | HoldDeleteEntity !(HoldButton.HoldAction ResourceId)
-  | MenuToggle !ResourceId
-  | MenuClose
+newtype ResourceDetailedAction
+  = ToggleResource ResourceId
   deriving (Eq, Show)
 
 initialResourceDetailedState :: [ResourceId] -> ResourceDetailedState
 initialResourceDetailedState expanded =
-  ResourceDetailedState {expandedResources = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = Nothing}
+  ResourceDetailedState {expandedResources = Set.fromList expanded}
 
 updateResourceDetailedPure :: ResourceDetailedAction -> ResourceDetailedState -> ResourceDetailedState
 updateResourceDetailedPure (ToggleResource rid) = #expandedResources %~ toggle rid
-updateResourceDetailedPure (MenuToggle rid) = #menuOpen %~ \cur -> if cur == Just rid then Nothing else Just rid
-updateResourceDetailedPure MenuClose = #menuOpen .~ Nothing
-updateResourceDetailedPure _ = id
 
 -- ============================================================================
 -- Embeddable update
@@ -104,30 +86,10 @@ updateResourceDetailedPure _ = id
 -- | Embeddable update: pass a lens at the parent's 'ResourceDetailedState'.
 updateResourceDetailed
   :: Lens' model ResourceDetailedState
-  -> SyncContext
-  -> (ResourceDetailedAction -> action)
   -> ResourceDetailedAction
   -> M.Effect parent model action
-updateResourceDetailed stateLens r lift = go
-  where
-    go (MenuEdit rid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Resources (OnResources (Modify rid Lock))
-    go (MenuPin res) = do
-      dismiss
-      M.io_ $ requestViewerPin r (PinResourceViewer res)
-    go (MenuGoTo rid) = do
-      dismiss
-      M.io_ $ M.pushURI (M.toURI (ManageResources (Just rid)))
-    go (MenuDelete rid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
-    go (HoldDeleteEntity ha) =
-      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
-        HoldButton.updateHold (\rid -> modifySyncDocument r $ Resources (OnResources (Delete rid))) ha
-    go action = M.modify (stateLens %~ updateResourceDetailedPure action)
-
-    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
+updateResourceDetailed stateLens action =
+  M.modify (stateLens %~ updateResourceDetailedPure action)
 
 -- ============================================================================
 -- Resource rendering
@@ -355,7 +317,7 @@ resourceDetailedComponent r cfg =
         }
 
     update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
-    update' (ViewAction a) = updateResourceDetailed #viewState r ViewAction a
+    update' (ViewAction a) = updateResourceDetailed #viewState a
 
     view' m = case m.projection.resource of
       Nothing -> Layout.empty

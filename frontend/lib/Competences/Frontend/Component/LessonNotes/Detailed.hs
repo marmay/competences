@@ -25,9 +25,6 @@ module Competences.Frontend.Component.LessonNotes.Detailed
   )
 where
 
-import Competences.Command (EntityCommand (..), ModifyCommand (..))
-import Competences.Command qualified as Cmd
-import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Document (..), Lesson (..), LessonNoteItem (..), LessonNotes (..), Task (..), User)
@@ -42,14 +39,11 @@ import Competences.Frontend.SyncContext
   , PinViewerRequest (..)
   , SyncContext (..)
   , isTeacher
-  , modifySyncDocument
-  , requestViewerPin
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Disclosure qualified as Disclosure
-import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -61,36 +55,25 @@ import Data.Time (Day)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Router qualified as M
 import Miso.String (MisoString, ms)
-import Competences.Frontend.Common.Effect (liftEffect_)
-import Optics.Core (Lens', (%), (%~), (.~))
+import Optics.Core (Lens', (%~), (.~))
 
 -- ============================================================================
 -- State machine
 -- ============================================================================
 
-data LessonNotesDetailedState = LessonNotesDetailedState
-  { expandedLessonNotes :: !(Set LessonNotesId)
-  , holdDeleteEntity :: !(HoldButton.HoldState LessonNotesId)
-  , menuOpen :: !(Maybe LessonNotesId)
+newtype LessonNotesDetailedState = LessonNotesDetailedState
+  { expandedLessonNotes :: Set LessonNotesId
   }
   deriving (Eq, Generic, Show)
 
-data LessonNotesDetailedAction
-  = ToggleLessonNotes !LessonNotesId
-  | MenuEdit !LessonNotesId
-  | MenuPin !LessonNotes
-  | MenuGoTo !LessonNotesId
-  | MenuDelete !LessonNotesId
-  | HoldDeleteEntity !(HoldButton.HoldAction LessonNotesId)
-  | MenuToggle !LessonNotesId
-  | MenuClose
+newtype LessonNotesDetailedAction
+  = ToggleLessonNotes LessonNotesId
   deriving (Eq, Show)
 
 initialLessonNotesDetailedState :: [LessonNotesId] -> LessonNotesDetailedState
 initialLessonNotesDetailedState expanded =
-  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded, holdDeleteEntity = HoldButton.emptyHoldState, menuOpen = Nothing}
+  LessonNotesDetailedState {expandedLessonNotes = Set.fromList expanded}
 
 updateLessonNotesDetailedPure
   :: LessonNotesDetailedAction
@@ -98,9 +81,6 @@ updateLessonNotesDetailedPure
   -> LessonNotesDetailedState
 updateLessonNotesDetailedPure (ToggleLessonNotes lnid) =
   #expandedLessonNotes %~ toggle lnid
-updateLessonNotesDetailedPure (MenuToggle lnid) = #menuOpen %~ \cur -> if cur == Just lnid then Nothing else Just lnid
-updateLessonNotesDetailedPure MenuClose = #menuOpen .~ Nothing
-updateLessonNotesDetailedPure _ = id
 
 -- ============================================================================
 -- Embeddable update
@@ -109,30 +89,10 @@ updateLessonNotesDetailedPure _ = id
 -- | Embeddable update: pass a lens at the parent's 'LessonNotesDetailedState'.
 updateLessonNotesDetailed
   :: Lens' model LessonNotesDetailedState
-  -> SyncContext
-  -> (LessonNotesDetailedAction -> action)
   -> LessonNotesDetailedAction
   -> M.Effect parent model action
-updateLessonNotesDetailed stateLens r lift = go
-  where
-    go (MenuEdit lnid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock))
-    go (MenuPin ln) = do
-      dismiss
-      M.io_ $ requestViewerPin r (PinLessonNotesViewer ln)
-    go (MenuGoTo lnid) = do
-      dismiss
-      M.io_ $ M.pushURI (M.toURI (ManageLessonNotes (Just lnid)))
-    go (MenuDelete lnid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
-    go (HoldDeleteEntity ha) =
-      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
-        HoldButton.updateHold (\lnid -> modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))) ha
-    go action = M.modify (stateLens %~ updateLessonNotesDetailedPure action)
-
-    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
+updateLessonNotesDetailed stateLens action =
+  M.modify (stateLens %~ updateLessonNotesDetailedPure action)
 
 -- ============================================================================
 -- Lesson-notes group rendering
@@ -294,7 +254,7 @@ lessonNotesDetailedComponent renderItem r cfg =
       }
 
     update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
-    update' (ViewAction a) = updateLessonNotesDetailed #viewState r ViewAction a
+    update' (ViewAction a) = updateLessonNotesDetailed #viewState a
 
     view' m = case m.projection.lessonNotes of
       Nothing -> Layout.empty

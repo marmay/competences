@@ -115,10 +115,10 @@ groupedResourcesComponent r project =
       M.modify $ \m -> m & #groupedResources .~ project change.document
 
     update (ResourceAction a) =
-      ResComp.updateResourceDetailed #resourceState r ResourceAction a
+      ResComp.updateResourceDetailed #resourceState a
 
     update (LessonNotesAction a) =
-      LNComp.updateLessonNotesDetailed #lessonNotesState r LessonNotesAction a
+      LNComp.updateLessonNotesDetailed #lessonNotesState a
 
     update (ToggleTaskExpanded key) =
       M.modify $ #expandedTasks %~ SetUtil.toggle key

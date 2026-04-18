@@ -36,14 +36,14 @@ module Competences.Frontend.Component.Task.Detailed
 where
 
 import Competences.Frontend.Common.Effect (liftEffect_)
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..), TasksCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Document (..), Solution (..), Task (..), User (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..), mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
+import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
@@ -57,7 +57,6 @@ import Competences.Frontend.SyncContext
   , isTeacher
   , modifySyncDocument
   , nextId
-  , requestViewerPin
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
@@ -78,7 +77,6 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Router qualified as M
 import Miso.String (MisoString, ms)
 import Optics.Core (Lens', (%), (%~), (.~))
 
@@ -90,8 +88,6 @@ data TaskDetailedState = TaskDetailedState
   { expandedTasks :: !(Set TaskId)
   , expandedSolutions :: !(Set SolutionId)
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
-  , holdDeleteEntity :: !(HoldButton.HoldState TaskId)
-  , menuOpen :: !(Maybe TaskId)
   }
   deriving (Eq, Generic, Show)
 
@@ -100,13 +96,6 @@ data TaskDetailedAction
   | ToggleSolution !SolutionId
   | AddSolution !TaskId
   | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
-  | MenuEdit !TaskId
-  | MenuPin !Task
-  | MenuGoTo !TaskId
-  | MenuDelete !TaskId
-  | HoldDeleteEntity !(HoldButton.HoldAction TaskId)
-  | MenuToggle !TaskId
-  | MenuClose
   deriving (Eq, Show)
 
 initialTaskDetailedState :: [TaskId] -> TaskDetailedState
@@ -115,15 +104,11 @@ initialTaskDetailedState expanded =
     { expandedTasks = Set.fromList expanded
     , expandedSolutions = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
-    , holdDeleteEntity = HoldButton.emptyHoldState
-    , menuOpen = Nothing
     }
 
 updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
 updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
-updateTaskDetailedPure (MenuToggle tid) = #menuOpen %~ \cur -> if cur == Just tid then Nothing else Just tid
-updateTaskDetailedPure MenuClose = #menuOpen .~ Nothing
 updateTaskDetailedPure _ = id
 
 -- ============================================================================
@@ -145,24 +130,7 @@ updateTaskDetailed stateLens r lift = go
     go (HoldDeleteSolution ha) =
       liftEffect_ (stateLens % #holdDeleteSolution) (lift . HoldDeleteSolution) $
         HoldButton.updateHold (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid))) ha
-    go (MenuEdit tid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Modify tid Lock))
-    go (MenuPin task) = do
-      dismiss
-      M.io_ $ requestViewerPin r (PinTaskViewer task)
-    go (MenuGoTo tid) = do
-      dismiss
-      M.io_ $ M.pushURI (M.toURI (ManageTasks (Just tid)))
-    go (MenuDelete tid) = do
-      dismiss
-      M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
-    go (HoldDeleteEntity ha) =
-      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
-        HoldButton.updateHold (\tid -> modifySyncDocument r $ Tasks (OnTasks (Delete tid))) ha
     go action = M.modify (stateLens %~ updateTaskDetailedPure action)
-
-    dismiss = M.modify (stateLens % #menuOpen .~ Nothing)
 
 -- ============================================================================
 -- Task list rendering
@@ -393,10 +361,6 @@ taskDetailedComponent r cfg =
       }
 
     update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
-    update' (ViewAction (MenuEdit tid)) =
-      M.io_ $ modifySyncDocument r $ wrapForOrigin cfg.origin (Tasks (OnTasks (Modify tid Lock)))
-    update' (ViewAction (MenuDelete tid)) =
-      M.io_ $ modifySyncDocument r $ wrapForOrigin cfg.origin (Tasks (OnTasks (Delete tid)))
     update' (ViewAction a) = updateTaskDetailed #viewState r ViewAction a
 
     view' m = case m.projection.task of
