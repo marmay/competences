@@ -28,10 +28,9 @@ import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.LessonNotes.Detailed.Embed qualified as LNEmbed
+import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
 import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
-import Competences.Frontend.Component.Resource.Detailed.Embed qualified as ResEmbed
-import Competences.Frontend.Fragment.LessonNotes.Detailed qualified as VLN
+import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.ResourceLookup
   ( AnnotatedLessonNoteGroup (..)
@@ -39,9 +38,8 @@ import Competences.Frontend.Component.ResourceLookup
   , ItemRelevance (..)
   , ResolvedItem (..)
   )
-import Competences.Frontend.Fragment.Resource.Detailed qualified as VR
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.Fragment.Task.Detailed qualified as VT
+import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.SyncContext (DocumentChange (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Button qualified as Button
@@ -71,8 +69,8 @@ import Optics.Core ((&), (.~), (%~))
 data GroupedResourcesModel = GroupedResourcesModel
   { groupedResources :: !GroupedResources
   -- ^ Computed grouped resources (updated via document subscription)
-  , resourceState :: !VR.ResourceDetailedState
-  , lessonNotesState :: !VLN.LessonNotesDetailedState
+  , resourceState :: !ResComp.ResourceDetailedState
+  , lessonNotesState :: !LNComp.LessonNotesDetailedState
   , expandedTasks :: !(Set T.Text)
   , otherCollapsed :: !Bool
   -- ^ Whether the "Other resources" section is collapsed
@@ -82,8 +80,8 @@ data GroupedResourcesModel = GroupedResourcesModel
 -- | Actions for the grouped resources component.
 data GroupedResourcesAction
   = DocChanged !DocumentChange
-  | ResourceAction !VR.ResourceDetailedAction
-  | LessonNotesAction !VLN.LessonNotesDetailedAction
+  | ResourceAction !ResComp.ResourceDetailedAction
+  | LessonNotesAction !LNComp.LessonNotesDetailedAction
   | ToggleTaskExpanded !T.Text
   | ToggleOtherSection
   | OpenLessonNotes !LessonNotes
@@ -113,8 +111,8 @@ groupedResourcesComponent r project =
     initModel =
       GroupedResourcesModel
         { groupedResources = GroupedResources [] [] []
-        , resourceState = VR.initialResourceDetailedState []
-        , lessonNotesState = VLN.initialLessonNotesDetailedState []
+        , resourceState = ResComp.initialResourceDetailedState []
+        , lessonNotesState = LNComp.initialLessonNotesDetailedState []
         , expandedTasks = Set.empty
         , otherCollapsed = True
         }
@@ -123,10 +121,10 @@ groupedResourcesComponent r project =
       M.modify $ \m -> m & #groupedResources .~ project change.document
 
     update (ResourceAction a) =
-      ResEmbed.updateResourceDetailed #resourceState r ResourceAction a
+      ResComp.updateResourceDetailed #resourceState r ResourceAction a
 
     update (LessonNotesAction a) =
-      LNEmbed.updateLessonNotesDetailed #lessonNotesState r LessonNotesAction a
+      LNComp.updateLessonNotesDetailed #lessonNotesState r LessonNotesAction a
 
     update (ToggleTaskExpanded key) =
       M.modify $ #expandedTasks %~ SetUtil.toggle key
@@ -169,14 +167,14 @@ viewLessonNoteGroup r m group =
       annotations =
         [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
         ]
-          <> [ entityMenu (m.lessonNotesState.menuOpen == Just ln.id) (LessonNotesAction (VLN.MenuToggle ln.id)) (LessonNotesAction VLN.MenuClose)
+          <> [ entityMenu (m.lessonNotesState.menuOpen == Just ln.id) (LessonNotesAction (LNComp.MenuToggle ln.id)) (LessonNotesAction LNComp.MenuClose)
                   [ menuWidget (lnEditButton r ln.id)
-                  , menuPin (LessonNotesAction (VLN.MenuPin ln))
-                  , menuGoTo (LessonNotesAction (VLN.MenuGoTo ln.id))
+                  , menuPin (LessonNotesAction (LNComp.MenuPin ln))
+                  , menuGoTo (LessonNotesAction (LNComp.MenuGoTo ln.id))
                   ]
              | isTeacher r
              ]
-   in LNEmbed.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
+   in LNComp.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
 
 -- ============================================================================
 -- Other (ungrouped) Section
@@ -234,14 +232,14 @@ viewResourceItem
   -> Resource
   -> M.View GroupedResourcesModel GroupedResourcesAction
 viewResourceItem r m relevance res =
-  ResEmbed.renderResource r m.resourceState annotations ResourceAction res
+  ResComp.renderResource r m.resourceState annotations ResourceAction res
   where
     annotations res' =
       maybe [] (: []) (relevanceBadge relevance)
-        <> [ entityMenu (m.resourceState.menuOpen == Just res'.id) (ResourceAction (VR.MenuToggle res'.id)) (ResourceAction VR.MenuClose)
+        <> [ entityMenu (m.resourceState.menuOpen == Just res'.id) (ResourceAction (ResComp.MenuToggle res'.id)) (ResourceAction ResComp.MenuClose)
                 [ menuWidget (resEditButton r res'.id)
-                , menuPin (ResourceAction (VR.MenuPin res'))
-                , menuGoTo (ResourceAction (VR.MenuGoTo res'.id))
+                , menuPin (ResourceAction (ResComp.MenuPin res'))
+                , menuGoTo (ResourceAction (ResComp.MenuGoTo res'.id))
                 ]
            | isTeacher r
            ]

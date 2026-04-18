@@ -88,14 +88,12 @@ import Competences.Frontend.Component.PrintEngine.Types
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
-import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
-import Competences.Frontend.Component.Assignment.Detailed.Embed qualified as AssignmentEmbed
-import Competences.Frontend.Fragment.Assignment.Detailed qualified as VA
+import Competences.Frontend.Component.Task.Detailed qualified as VT
+import Competences.Frontend.Component.Assignment.Detailed qualified as VA
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.EntityMenu (entityMenu, menuCustom, menuEdit, menuGoTo, menuPin, menuWidget)
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Frontend.Component.Assignment.TaskResources qualified as TaskResources
 import Competences.Frontend.Component.Submission qualified as Submission
 import Competences.Frontend.SyncContext
@@ -425,7 +423,7 @@ viewerComponent r user assignment wm =
               & #pagePrintModal %~ fmap updateModal
 
     update (TaskListAction action) =
-      TaskComp.updateTaskDetailed #taskListState r TaskListAction action
+      VT.updateTaskDetailed #taskListState r TaskListAction action
 
     update (ToggleTaskResourcesExpanded taskId) =
       M.modify $ \m ->
@@ -609,7 +607,7 @@ viewerComponent r user assignment wm =
     update PinThis = M.io_ $ pinAssignmentViewer r user assignment
 
     update (AssignmentMenuAction a) =
-      AssignmentEmbed.updateAssignmentDetailed #assignmentMenuState r AssignmentMenuAction a
+      VA.updateAssignmentDetailed #assignmentMenuState r AssignmentMenuAction a
 
     update (LayoutHoldAction ha) =
       HoldButton.handleHoldAction' #layoutHoldState
@@ -798,7 +796,7 @@ viewerComponent r user assignment wm =
 
     viewTaskList :: SyncContext -> ViewerModel -> ViewerProjection -> Bool -> M.View ViewerModel ViewerAction
     viewTaskList syncCtx m proj showPurpose =
-      TaskComp.taskListView
+      VT.taskListView
         syncCtx
         m.taskListState
         (`Map.lookup` proj.taskStatuses)

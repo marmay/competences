@@ -19,13 +19,12 @@ import Competences.Document (Document, Lock (..), Task (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.ResourceLookup (GroupedResources)
 import Competences.Frontend.Component.ResourceLookup.View (groupedResourcesComponent)
-import Competences.Frontend.Component.Task.Detailed.Embed qualified as TaskComp
+import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.Component.LockButton (LockButtonConfig (..), lockButtonComponent)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.EntityMenu (entityMenu, menuPin, menuGoTo, menuWidget)
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.Fragment.Task.Badge qualified as TaskBadge
-import Competences.Frontend.Fragment.Task.Detailed qualified as VT
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.SyncContext (SyncContext (..))
 
@@ -123,7 +122,7 @@ resourceModalComponent r cfg =
         }
 
     update (TaskListAction action) =
-      TaskComp.updateTaskDetailed #taskListState r TaskListAction action
+      VT.updateTaskDetailed #taskListState r TaskListAction action
 
     update (SwitchViewMode newMode) =
       M.modify $ \m -> m {viewMode = newMode}
@@ -210,7 +209,7 @@ viewModalTaskList
   -> [TaskWithSolutions]
   -> M.View Model Action
 viewModalTaskList r m taskExtra =
-  TaskComp.taskListView
+  VT.taskListView
     r
     m.taskListState
     (`Map.lookup` m.config.taskStatuses)

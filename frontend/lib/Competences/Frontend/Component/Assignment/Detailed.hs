@@ -1,7 +1,5 @@
--- | Detailed assignment view: pure view primitives and action types.
---
--- Effects for these actions live in 'Component.Assignment.Detailed.Embed'.
-module Competences.Frontend.Fragment.Assignment.Detailed
+-- | Detailed assignment view: state machine, pure views, and effectful update.
+module Competences.Frontend.Component.Assignment.Detailed
   ( AssignmentDetailedState (..)
   , AssignmentDetailedAction (..)
   , initialAssignmentDetailedState
@@ -9,13 +7,20 @@ module Competences.Frontend.Fragment.Assignment.Detailed
   , assignmentEntityMenu
   , assignmentHeaderView
   , assignmentCardView
+  , updateAssignmentDetailed
   )
 where
 
-import Competences.Document (Assignment (..))
+import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Common.IxSet qualified as Ix
+import Competences.Document (Assignment (..), Document (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
+import Competences.Frontend.Component.Draft (retargetForDraft)
 import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
+import Competences.Frontend.Page (Page (..))
+import Competences.Frontend.SyncContext (PinViewerRequest (..), SyncContext, SyncDocument (..), modifySyncDocument, readSyncDocument, requestViewerPin)
 import Competences.Frontend.View.EntityMenu (menuCustom, menuEdit, menuGoTo, menuPin)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
@@ -23,7 +28,8 @@ import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Optics.Core ((%~), (.~))
+import Miso.Router qualified as M
+import Optics.Core (Lens', (%), (%~), (.~))
 
 -- ============================================================================
 -- State machine
@@ -93,3 +99,36 @@ assignmentCardView a annotations =
   MH.div_
     [class_ "border rounded-lg px-3 py-2"]
     [assignmentHeaderView a annotations]
+
+-- ============================================================================
+-- Effectful update
+-- ============================================================================
+
+-- | Embeddable update: handles effectful operations for assignment menu actions.
+updateAssignmentDetailed
+  :: Lens' model AssignmentDetailedState
+  -> SyncContext
+  -> (AssignmentDetailedAction -> action)
+  -> AssignmentDetailedAction
+  -> M.Effect parent model action
+updateAssignmentDetailed stateLens r _lift = go
+  where
+    go (MenuEdit aid) = do
+      dismiss
+      M.io_ $ do
+        sd <- readSyncDocument r
+        let isDraft = not $ Ix.null (sd.localDocument.draftAssignments Ix.@= aid)
+            wrap = if isDraft then retargetForDraft else id
+        modifySyncDocument r $ wrap $ Assignments (OnAssignments (Modify aid Lock))
+    go (MenuPin assignment) = do
+      dismiss
+      M.io_ $ requestViewerPin r (PinAssignmentViewer assignment)
+    go (MenuGoTo _aid) = do
+      dismiss
+      M.io_ $ M.pushURI (M.toURI ManageAssignments)
+    go (MenuEvaluate assignment) = do
+      dismiss
+      M.io_ $ pinAssignmentEvaluator r assignment
+    go action = M.modify (stateLens %~ updateAssignmentDetailedPure action)
+
+    dismiss = M.modify (stateLens % #menuOpen .~ False)

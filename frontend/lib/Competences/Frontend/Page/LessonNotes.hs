@@ -10,6 +10,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (LessonNotes (..))
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Entity.Assembly (renderResolvedItem)
 import Competences.Frontend.Component.LessonNotes.Detailed
   ( LessonNotesDetailedConfig (..)
   , LessonNotesDetailedSettings (..)
@@ -72,4 +73,5 @@ lessonNotesPage r canCreate mLnId =
       let adminSettings = defaultLessonNotesDetailedSettings {enableGoTo = False, enableDelete = True}
        in inlineComponent
             ("lesson-notes-detail-" <> ms (show ln.id))
-            (lessonNotesDetailedComponent r (LessonNotesDetailedConfig ln.id adminSettings))
+            (lessonNotesDetailedComponent renderResolvedItem r (LessonNotesDetailedConfig ln.id adminSettings))
+

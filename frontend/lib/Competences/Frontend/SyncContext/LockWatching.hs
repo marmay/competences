@@ -26,6 +26,7 @@ import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
 import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEditor)
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
+import Competences.Frontend.Component.Entity.Assembly (renderResolvedItem)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
@@ -255,7 +256,7 @@ handleViewerPin r (PinLessonNotesViewer ln) =
       , context = Nothing
       })
     (WindowChrome (ms ln.title) Icon.IcnLessonNotes Nothing)
-    (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))
+    (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent renderResolvedItem r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))
 handleViewerPin r (PinAssignmentViewer assignment) =
   pinAssignmentViewer r r.env.connectedUser assignment
 
@@ -273,3 +274,4 @@ mkLockWatchConfig r watcherRemovedRef = LockWatchConfig
   , lockPinId = lockPinId'
   , watcherRemovedRef = watcherRemovedRef
   }
+

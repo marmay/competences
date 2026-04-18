@@ -12,6 +12,7 @@ where
 import Competences.Document (LessonNotes (..))
 import Competences.Document.Id (idToText)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Entity.Assembly (renderResolvedItem)
 import Competences.Frontend.Component.LessonNotes.Detailed
   ( LessonNotesDetailedConfig (..)
   , defaultLessonNotesDetailedSettings
@@ -46,7 +47,7 @@ openLessonNotesModal r ln =
         , pinnable = Just ()
         }
     )
-    (\_mode -> lessonNotesDetailedComponent r cfg)
+    (\_mode -> lessonNotesDetailedComponent renderResolvedItem r cfg)
   where
     cfg = LessonNotesDetailedConfig ln.id defaultLessonNotesDetailedSettings
 
@@ -61,4 +62,5 @@ pinLessonNotesViewer r ln =
         }
       cfg = LessonNotesDetailedConfig ln.id defaultLessonNotesDetailedSettings
    in pinDialogWith r.windowManager meta chrome
-        (\_ (_ :: Maybe ()) -> lessonNotesDetailedComponent r cfg)
+        (\_ (_ :: Maybe ()) -> lessonNotesDetailedComponent renderResolvedItem r cfg)
+

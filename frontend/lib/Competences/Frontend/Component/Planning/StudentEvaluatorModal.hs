@@ -60,7 +60,7 @@ import Competences.Frontend.View.Combobox
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Fragment.Evaluation qualified as Eval
-import Competences.Frontend.Fragment.Task.Detailed qualified as VT
+import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography

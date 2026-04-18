@@ -33,7 +33,7 @@ import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richCon
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), inlineComponent, pinDialog)
 import Competences.Frontend.Fragment.Evaluation qualified as Eval
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.Fragment.Task.Detailed qualified as VT
+import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
