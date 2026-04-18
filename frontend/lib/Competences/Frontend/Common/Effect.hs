@@ -66,9 +66,9 @@ embedFragment lens lift frag = EmbeddedFragment
   }
 
 toComponent
-  :: FragmentDef p model action (model -> M.View model action)
+  :: FragmentDef p model action ((action -> action) -> M.View model action)
   -> M.Component p model action
 toComponent frag =
-  (M.component frag.initialModel frag.update (\m -> frag.view m m))
+  (M.component frag.initialModel frag.update (\m -> frag.view m id))
     { M.subs = frag.subs
     }

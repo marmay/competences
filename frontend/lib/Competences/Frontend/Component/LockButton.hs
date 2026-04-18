@@ -1,26 +1,20 @@
--- | Lock-aware edit button component.
+-- | Lock-aware edit button: as a fragment (embeddable) or component (standalone).
 --
--- A self-contained component that shows the lock status of an entity
--- and provides actions to lock (click) or steal (hold). Subscribes to
--- document changes and connection status.
---
--- Usage:
---
--- @
--- lockButtonComponent r
---   (LockButtonConfig (EvidenceLock eid) (Evidences (OnEvidences (Modify eid Lock))) Button.IconOnlyS)
--- @
+-- Shows lock status and provides click-to-lock or hold-to-steal.
+-- Composes the hold-button fragment internally for the steal workflow.
 module Competences.Frontend.Component.LockButton
   ( LockButtonConfig (..)
-  , Model
-  , Action
+  , LockState (..)
+  , LockAction (..)
+  , LockStatus (..)
+  , lockFragmentDef
   , lockButtonComponent
   )
 where
 
 import Control.Monad (when)
 import Competences.Command (Command (..))
-import Competences.Frontend.Common.Effect (liftEffect)
+import Competences.Frontend.Common.Effect (FragmentDef (..), GEffect, liftEffect, toComponent)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Frontend.Common qualified as C
 import Competences.Document (Document (..), User (..))
@@ -56,43 +50,45 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Subscription.Util (createSub)
 
--- | Configuration for a LockButton instance.
+-- ============================================================================
+-- Configuration
+-- ============================================================================
+
 data LockButtonConfig = LockButtonConfig
   { lock :: !Lock
   , lockCommand :: !Command
   , style :: !Button.ButtonContentsStyle
   }
 
--- | Lock status derived from document state.
+-- ============================================================================
+-- State and actions
+-- ============================================================================
+
 data LockStatus
   = Free
   | LockedByOther !Text
-  -- ^ Display name of the lock holder
   | LockedBySelf
   | LockedByMe
   | StealPending
   deriving (Eq, Show, Generic)
 
--- | Projection of the document state relevant to this button.
 data LockProjection = LockProjection
   { lockHolder :: !(Maybe LockHolder)
   , holderName :: !(Maybe Text)
-  -- ^ Display name of the lock holder (if they exist in the document)
   }
   deriving (Eq, Show, Generic)
 
-data Model = Model
+data LockState = LockState
   { lockStatus :: !LockStatus
   , holdState :: !(HoldButton.HoldState ())
   , stealError :: !(Maybe Text)
   , connected :: !Bool
   , lastProjection :: !LockProjection
   , stealGen :: !Int
-  -- ^ Generation counter for steal timeout disambiguation
   }
   deriving (Eq, Show, Generic)
 
-data Action
+data LockAction
   = ProjectionChanged !(ProjectedChange LockProjection)
   | ConnectionChanged !ConnectionChange
   | Click
@@ -102,62 +98,57 @@ data Action
   | DismissError
   deriving (Eq, Show)
 
-lockButtonComponent
+-- ============================================================================
+-- Fragment definition
+-- ============================================================================
+
+lockFragmentDef
   :: SyncContext
   -> LockButtonConfig
-  -> M.Component p Model Action
-lockButtonComponent r cfg =
-  (M.component initModel update view)
-    { M.subs =
-        [ subscribeWithProjection r (lockProjection cfg.lock) ProjectionChanged
-        , subscribeConnection env.commandSender ConnectionChanged
-        , rejectionSub r cfg.lock
-        ]
-    }
+  -> FragmentDef parent LockState LockAction ((LockAction -> a) -> M.View m a)
+lockFragmentDef r cfg = FragmentDef
+  { initialModel = LockState Free HoldButton.emptyHoldState Nothing True emptyProjection 0
+  , update = updateLock r cfg
+  , view = lockView cfg.style
+  , subs =
+      [ subscribeWithProjection r (lockProjection cfg.lock) ProjectionChanged
+      , subscribeConnection env.commandSender ConnectionChanged
+      , rejectionSub r cfg.lock
+      ]
+  }
   where
     env = syncDocumentEnv r
 
-    initModel :: Model
-    initModel = Model Free HoldButton.emptyHoldState Nothing True emptyProjection 0
+-- | Standalone component wrapping the fragment.
+lockButtonComponent :: SyncContext -> LockButtonConfig -> M.Component p LockState LockAction
+lockButtonComponent r cfg = toComponent (lockFragmentDef r cfg)
 
-    emptyProjection :: LockProjection
-    emptyProjection = LockProjection Nothing Nothing
+-- ============================================================================
+-- Update
+-- ============================================================================
 
-    lockProjection :: Lock -> Document -> Maybe User -> LockProjection
-    lockProjection lock doc _mFocusedUser =
-      let mHolder = Map.lookup lock doc.locks
-          mName = do
-            holder <- mHolder
-            user <- Ix.getOne (doc.users Ix.@= holder.userId)
-            pure user.name
-       in LockProjection mHolder mName
+updateLock :: SyncContext -> LockButtonConfig -> LockAction -> GEffect parent LockState LockAction ()
+updateLock r cfg = go
+  where
+    env = syncDocumentEnv r
 
-    deriveLockStatus :: LockProjection -> LockStatus
-    deriveLockStatus proj = case proj.lockHolder of
-      Nothing -> Free
-      Just holder
-        | holder.userId == env.connectedUser.id
-        , holder.sessionId == env.sessionId -> LockedByMe
-        | holder.userId == env.connectedUser.id -> LockedBySelf
-        | otherwise -> LockedByOther (fromMaybe "?" proj.holderName)
-
-    update (ProjectionChanged change) =
+    go (ProjectionChanged change) =
       M.modify $ \m -> m
         { lockStatus = deriveLockStatus change.projection
         , lastProjection = change.projection
         , stealError = Nothing
         }
 
-    update (ConnectionChanged change) =
+    go (ConnectionChanged change) =
       M.modify $ \m -> m { connected = change.state == Connected }
 
-    update Click = do
+    go Click = do
       m <- M.get
       case m.lockStatus of
         Free | m.connected -> M.io_ $ modifySyncDocument r cfg.lockCommand
         _ -> pure ()
 
-    update (Hold ha) = do
+    go (Hold ha) = do
       m <- M.get
       let canSteal = m.connected && case m.lockStatus of
             LockedByOther _ -> True
@@ -176,7 +167,7 @@ lockButtonComponent r cfg =
             M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
         else pure ()
 
-    update (StealRejected err) = do
+    go (StealRejected err) = do
       m <- M.get
       case m.lockStatus of
         StealPending ->
@@ -186,42 +177,70 @@ lockButtonComponent r cfg =
                 M.io $ threadDelay 4_000_000 >> pure DismissError
         _ -> pure ()
 
-    update (StealTimeout gen) = do
+    go (StealTimeout gen) = do
       m <- M.get
       case m.lockStatus of
         StealPending | m.stealGen == gen ->
           M.modify $ \m' -> m' { lockStatus = deriveLockStatus m.lastProjection }
         _ -> pure ()
 
-    update DismissError =
+    go DismissError =
       M.modify $ \m -> m { stealError = Nothing }
 
-    view :: Model -> M.View Model Action
-    view m = case m.lockStatus of
-      LockedByMe -> M.text ""
+    deriveLockStatus :: LockProjection -> LockStatus
+    deriveLockStatus proj = case proj.lockHolder of
+      Nothing -> Free
+      Just holder
+        | holder.userId == env.connectedUser.id
+        , holder.sessionId == env.sessionId -> LockedByMe
+        | holder.userId == env.connectedUser.id -> LockedBySelf
+        | otherwise -> LockedByOther (fromMaybe "?" proj.holderName)
 
-      Free
-        | m.connected -> editButton cfg.style
-        | otherwise -> disabledIcon cfg.style (C.translate' C.LblDisconnected)
+-- ============================================================================
+-- View
+-- ============================================================================
 
-      StealPending -> pendingIcon cfg.style
+lockView :: Button.ButtonContentsStyle -> LockState -> (LockAction -> a) -> M.View m a
+lockView s m liftAction = case m.lockStatus of
+  LockedByMe -> M.text ""
 
-      LockedByOther name
-        | m.connected ->
-            withError m.stealError $
-              stealButton cfg.style m.holdState $ C.translate' (C.LblStealFrom name)
-        | otherwise ->
-            lockedIcon cfg.style $ C.translate' (C.LblLockedBy name)
+  Free
+    | m.connected -> editButton s liftAction
+    | otherwise -> disabledIcon s (C.translate' C.LblDisconnected)
 
-      LockedBySelf
-        | m.connected ->
-            withError m.stealError $
-              stealButton cfg.style m.holdState $ C.translate' C.LblStealFromOtherTab
-        | otherwise ->
-            lockedIcon cfg.style $ C.translate' C.LblLockedInOtherTab
+  StealPending -> pendingIcon s
 
--- | Subscription that pushes StealRejected when an Unlock for our Lock is rejected.
-rejectionSub :: SyncContext -> Lock -> M.Sub Action
+  LockedByOther name
+    | m.connected ->
+        withError m.stealError $
+          stealButton s m.holdState liftAction $ C.translate' (C.LblStealFrom name)
+    | otherwise ->
+        lockedIcon s $ C.translate' (C.LblLockedBy name)
+
+  LockedBySelf
+    | m.connected ->
+        withError m.stealError $
+          stealButton s m.holdState liftAction $ C.translate' C.LblStealFromOtherTab
+    | otherwise ->
+        lockedIcon s $ C.translate' C.LblLockedInOtherTab
+
+-- ============================================================================
+-- Helpers
+-- ============================================================================
+
+emptyProjection :: LockProjection
+emptyProjection = LockProjection Nothing Nothing
+
+lockProjection :: Lock -> Document -> Maybe User -> LockProjection
+lockProjection lock doc _mFocusedUser =
+  let mHolder = Map.lookup lock doc.locks
+      mName = do
+        holder <- mHolder
+        user <- Ix.getOne (doc.users Ix.@= holder.userId)
+        pure user.name
+   in LockProjection mHolder mName
+
+rejectionSub :: SyncContext -> Lock -> M.Sub LockAction
 rejectionSub r lock sink = createSub acquire release sink
   where
     acquire = subscribeRejections r $ \cmd err ->
@@ -230,41 +249,35 @@ rejectionSub r lock sink = createSub acquire release sink
         _ -> pure ()
     release = id
 
--- | Simple edit button (click to lock).
-editButton :: Button.ButtonContentsStyle -> M.View Model Action
-editButton s = Button.secondary (Button.button (s, Icon.IcnEdit, C.LblEdit) Click)
+editButton :: Button.ButtonContentsStyle -> (LockAction -> a) -> M.View m a
+editButton s liftAction = Button.secondary (Button.button (s, Icon.IcnEdit, C.LblEdit) (Just (liftAction Click)))
 
--- | Hold-to-steal button with tooltip.
-stealButton :: Button.ButtonContentsStyle -> HoldButton.HoldState () -> M.MisoString -> M.View Model Action
-stealButton s holdState tooltip =
+stealButton :: Button.ButtonContentsStyle -> HoldButton.HoldState () -> (LockAction -> a) -> M.MisoString -> M.View m a
+stealButton s holdState liftAction tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
-    HoldButton.holdButton Hold holdState () Button.Secondary (styleToButtonSize s)
+    HoldButton.holdButton (liftAction . Hold) holdState () Button.Secondary (styleToButtonSize s)
       (styleToContents s Icon.IcnLock)
 
--- | Locked icon with tooltip (disconnected, can't steal).
-lockedIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View Model Action
+lockedIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View m a
 lockedIcon s tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
     MH.div_
       [class_ "inline-flex items-center justify-center p-1 text-stone-400"]
       [Icon.iconS (styleToIconSize s) Icon.IcnLock]
 
--- | Disabled edit icon with tooltip.
-disabledIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View Model Action
+disabledIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View m a
 disabledIcon s tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
     MH.div_
       [class_ "inline-flex items-center justify-center p-1 text-stone-300"]
       [Icon.iconS (styleToIconSize s) Icon.IcnEdit]
 
--- | Pending steal indicator (pulsing lock).
-pendingIcon :: Button.ButtonContentsStyle -> M.View Model Action
+pendingIcon :: Button.ButtonContentsStyle -> M.View m a
 pendingIcon s =
   MH.div_
     [class_ "inline-flex items-center justify-center p-1 text-stone-400"]
     [Icon.iconFull Icon.Secondary (styleToIconSize s) Icon.Pulse Icon.IcnLock]
 
--- | Wrap a view with an error tooltip if present.
 withError :: Maybe Text -> M.View m a -> M.View m a
 withError Nothing v = v
 withError (Just err) v =

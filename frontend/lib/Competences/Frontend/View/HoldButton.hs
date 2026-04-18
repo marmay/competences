@@ -17,6 +17,7 @@ module Competences.Frontend.View.HoldButton
   , HoldState (..)
   , emptyHoldState
   , updateHold
+  , holdFragmentDef
   , holdButton
   , holdDeleteButton
   , holdDeleteButtonSm
@@ -24,7 +25,7 @@ module Competences.Frontend.View.HoldButton
   )
 where
 
-import Competences.Frontend.Common.Effect (GEffect)
+import Competences.Frontend.Common.Effect (FragmentDef (..), GEffect)
 import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Status (Status (..), statusPalette)
@@ -99,6 +100,23 @@ updateHold onExecute (ExecuteHold eid gen) = do
 updateHold _onExecute HideHint = do
   M.modify $ \hs -> hs{showHint = False}
   pure False
+
+-- | Bundle hold button as a 'FragmentDef'.
+-- The view renders a destructive hold button for the given entity id.
+holdFragmentDef
+  :: (Eq id)
+  => (id -> IO ())
+  -> id
+  -> Button.ButtonVariant
+  -> Button.ButtonSize
+  -> Button.ButtonContents
+  -> FragmentDef parent (HoldState id) (HoldAction id) ((HoldAction id -> a) -> M.View m a)
+holdFragmentDef onExecute eid variant size contents = FragmentDef
+  { initialModel = emptyHoldState
+  , update = \ha -> () <$ updateHold onExecute ha
+  , view = \hs liftAction -> holdButton liftAction hs eid variant size contents
+  , subs = []
+  }
 
 -- | Actions for a hold-to-delete interaction.
 data HoldAction id
