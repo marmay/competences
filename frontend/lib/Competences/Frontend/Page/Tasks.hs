@@ -4,19 +4,19 @@ module Competences.Frontend.Page.Tasks
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Task (..))
-import Competences.Document.Task (TaskIxs)
-import Competences.Document.Task (TaskId)
+import Competences.Document (Assignment (..), Document (..), Task (..), User)
+import Competences.Document.Assignment (AssignmentName (..))
+import Competences.Document.Task (TaskId, TaskIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Selector.TaskSelector
   ( SelectedTask (..)
   , taskSelectorComponent
   )
-import Competences.Frontend.Component.TaskEditor.TaskDetailView (taskDetailView)
+import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.Page (Page (..))
-import Competences.Frontend.SyncContext (SyncContext)
-import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs)
+import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
+import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.DefaultSelection qualified as QDefault
@@ -24,7 +24,9 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
 import Miso.Router qualified as M
+import Miso.String (ms)
 
 -- | Model for the unified task editor
 data Model = Model
@@ -81,3 +83,66 @@ tasksPage r mTaskId =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just st) =
       taskDetailView r st.origin st.task
+
+-- ---------------------------------------------------------------------------
+-- Task detail view: assignment-refs banner + standard task component
+-- ---------------------------------------------------------------------------
+
+-- | Lightweight projection: assignment names referencing a given task
+data TaskAssignmentRefs = TaskAssignmentRefs
+  { assignmentNames :: ![AssignmentName]
+  }
+  deriving (Eq, Generic, Show)
+
+-- | Projection function: filter doc.assignments for those containing this taskId
+taskAssignmentRefsProjection :: TaskId -> Document -> Maybe User -> TaskAssignmentRefs
+taskAssignmentRefsProjection taskId doc _mUser =
+  let names =
+        [ a.name
+        | a <- Ix.toList doc.assignments
+        , taskId `elem` a.tasks
+        ]
+   in TaskAssignmentRefs names
+
+-- | Component: subscribes to projection, renders banner showing which assignments reference a task
+assignmentRefsBanner :: SyncContext -> TaskId -> M.Component p TaskAssignmentRefs (ProjectedChange TaskAssignmentRefs)
+assignmentRefsBanner r taskId =
+  (M.component (TaskAssignmentRefs []) update' view')
+    { M.subs = [subscribeWithProjection r (taskAssignmentRefsProjection taskId) id]
+    }
+  where
+    update' change = M.modify $ \_ -> change.projection
+    view' m
+      | null m.assignmentNames = M.text ""
+      | [AssignmentName single] <- m.assignmentNames =
+          banner [M.text (C.translate' C.LblUsedInAssignment <> " " <> ms single)]
+      | otherwise =
+          banner
+            [ M.text (C.translate' C.LblUsedInAssignments)
+            , MH.ul_
+                [class_ "list-disc list-inside mt-1"]
+                [MH.li_ [] [M.text (ms n)] | AssignmentName n <- m.assignmentNames]
+            ]
+    banner content =
+      MH.div_
+        [class_ "rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800"]
+        content
+
+-- | Task detail view: assignment refs banner + standard task component.
+taskDetailView
+  :: SyncContext
+  -> EntityOrigin
+  -> Task
+  -> M.View p a
+taskDetailView r origin task =
+  MH.div_
+    [class_ "space-y-4"]
+    [ inlineComponent
+        ("task-assignment-refs-" <> ms (show task.id))
+        (assignmentRefsBanner r task.id)
+    , inlineComponent
+        ("task-detail-" <> ms (show task.id))
+        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id origin adminSettings))
+    ]
+  where
+    adminSettings = TaskComp.defaultTaskDetailedSettings {TaskComp.enableGoTo = False, TaskComp.enableDelete = True}

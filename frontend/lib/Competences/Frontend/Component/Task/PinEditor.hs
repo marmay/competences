@@ -10,6 +10,7 @@ module Competences.Frontend.Component.Task.PinEditor
 where
 
 import Competences.Command (Command (..), EntityCommand (..), TaskPatch (..), TasksCommand (..))
+import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), Task (..), lockOwner)
 import Competences.Document.Task (TaskId)
@@ -20,12 +21,9 @@ import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
-import Competences.Frontend.Component.TaskEditor.Lenses
-  ( identifierViewLens, identifierPatchLens
-  , titleViewLens, titlePatchLens
-  , contentViewLens, contentPatchLens
-  )
+import Competences.Document.Task (TaskIdentifier (..))
 import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext.WindowManager
   ( WindowMode
   , PinId
@@ -33,10 +31,11 @@ import Competences.Frontend.SyncContext.WindowManager
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Data.Default (Default (..))
+import Data.Text (Text)
 import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Miso.String (ms)
-import Optics.Core ((&), (?~))
+import Optics.Core (Iso', Lens', (&), (?~), iso, (%))
 import Optics.Core qualified as O
 
 -- | Task pin editor factory.
@@ -110,4 +109,46 @@ taskPinEditor r taskId origin pid _mode mSaved =
                         , fileUploadEditorField r #attachments #attachments
                         )
 
+-- ---------------------------------------------------------------------------
+-- Lenses for Task/TaskPatch fields
+-- ---------------------------------------------------------------------------
 
+taskIdentifierTextIso :: Iso' TaskIdentifier Text
+taskIdentifierTextIso = iso (\(TaskIdentifier t) -> t) TaskIdentifier
+
+changeTaskIdentifierTextIso :: Iso' (Change TaskIdentifier) (Change Text)
+changeTaskIdentifierTextIso = iso fwd bwd
+  where
+    fwd Nothing = Nothing
+    fwd (Just (TaskIdentifier a, TaskIdentifier b)) = Just (a, b)
+    bwd Nothing = Nothing
+    bwd (Just (a, b)) = Just (TaskIdentifier a, TaskIdentifier b)
+
+identifierViewLens :: Lens' Task Text
+identifierViewLens = #identifier % taskIdentifierTextIso
+
+identifierPatchLens :: Lens' TaskPatch (Change Text)
+identifierPatchLens = #identifier % changeTaskIdentifierTextIso
+
+titleViewLens :: Lens' Task Text
+titleViewLens = #title
+
+titlePatchLens :: Lens' TaskPatch (Change Text)
+titlePatchLens = #title
+
+contentIso :: Iso' (Maybe RichContent) RichContent
+contentIso = iso (fromMaybe mempty) (\t -> if t == mempty then Nothing else Just t)
+
+changeContentIso :: Iso' (Change (Maybe RichContent)) (Change RichContent)
+changeContentIso = iso fwd bwd
+  where
+    fwd Nothing = Nothing
+    fwd (Just (a, b)) = Just (fromMaybe mempty a, fromMaybe mempty b)
+    bwd Nothing = Nothing
+    bwd (Just (a, b)) = Just (if a == mempty then Nothing else Just a, if b == mempty then Nothing else Just b)
+
+contentViewLens :: Lens' Task RichContent
+contentViewLens = #content % contentIso
+
+contentPatchLens :: Lens' TaskPatch (Change RichContent)
+contentPatchLens = #content % changeContentIso

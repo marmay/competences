@@ -21,7 +21,7 @@ import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Assignment.PinEditor (assignmentPinEditor)
-import Competences.Frontend.Component.Assignment.ViewerDetail (pinAssignmentViewer)
+import Competences.Frontend.Component.Assignment.Detailed (pinAssignmentViewer)
 import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
 import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEditor)
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp

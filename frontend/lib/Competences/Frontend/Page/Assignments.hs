@@ -5,7 +5,7 @@ where
 
 import Competences.Document (Assignment (..), User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Assignment.ViewerDetail (viewerComponent)
+import Competences.Frontend.Component.Assignment.Detailed (viewerComponent)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
 import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
 import Competences.Frontend.SyncContext.WindowManager (inlineComponentAttrs, inlineComponentWith)
