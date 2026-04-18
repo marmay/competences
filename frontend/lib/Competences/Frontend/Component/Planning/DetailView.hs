@@ -43,6 +43,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Data.Maybe (isNothing)
 import Competences.Common.Set qualified as SetUtil
 import Data.Set qualified as Set
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core ((%~))
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
@@ -204,14 +205,12 @@ detailComponent r initialPlan =
       openMesoPlanEditor r plan
 
     update (HoldDeleteMeso ha) =
-      HoldButton.handleHoldAction' #holdDeleteMeso doDelete HoldDeleteMeso ha
-      where
-        doDelete mpId = modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)
+      liftEffect_ #holdDeleteMeso HoldDeleteMeso $
+        HoldButton.updateHold (\mpId -> modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)) ha
 
     update (HoldDeleteLesson ha) =
-      HoldButton.handleHoldAction' #holdDeleteLesson doDelete HoldDeleteLesson ha
-      where
-        doDelete lessonId = modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)
+      liftEffect_ #holdDeleteLesson HoldDeleteLesson $
+        HoldButton.updateHold (\lessonId -> modifySyncDocument r (Lessons $ OnLessons $ Delete lessonId)) ha
 
     update (PinLessonEvaluation lesson) = do
       m <- M.get

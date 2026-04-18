@@ -61,6 +61,7 @@ import Data.Maybe (fromMaybe, isNothing, listToMaybe)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core ((%), (%~), (&), (.~), (?~), (^.))
 
 data Editor a patch f n = Editor
@@ -123,9 +124,8 @@ editorComponent e r defaultPatch =
       M.modify (#reorderFrom .~ Nothing)
     update (Delete a) = M.io_ $ runCommand $ withDelete e.editable a
     update (HoldDelete ha) =
-      HoldButton.handleHoldAction' #holdDeleteState doDelete HoldDelete ha
-      where
-        doDelete a = runCommand $ withDelete e.editable a
+      liftEffect_ #holdDeleteState HoldDelete $
+        HoldButton.updateHold (\a -> runCommand $ withDelete e.editable a) ha
     update (UpdatePatch original patched) =
       M.modify $ #patches %~ Map.insert original patched
     update (UpdateDocument (DocumentChange newDocument _)) = do

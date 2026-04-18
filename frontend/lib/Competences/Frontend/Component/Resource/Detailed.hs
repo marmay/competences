@@ -64,6 +64,7 @@ import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Miso.Router qualified as M
 import Miso.String (MisoString, ms)
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core (Lens', (%), (%~), (.~))
 
 -- ============================================================================
@@ -124,11 +125,8 @@ updateResourceDetailed stateLens r lift = go
       dismiss
       M.io_ $ modifySyncDocument r $ Resources (OnResources (Delete rid))
     go (HoldDeleteEntity ha) =
-      HoldButton.handleHoldAction'
-        (stateLens % #holdDeleteEntity)
-        (\rid -> modifySyncDocument r $ Resources (OnResources (Delete rid)))
-        (lift . HoldDeleteEntity)
-        ha
+      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
+        HoldButton.updateHold (\rid -> modifySyncDocument r $ Resources (OnResources (Delete rid))) ha
     go action = M.modify (stateLens %~ updateResourceDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ Nothing)

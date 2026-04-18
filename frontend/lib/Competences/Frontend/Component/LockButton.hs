@@ -18,7 +18,9 @@ module Competences.Frontend.Component.LockButton
   )
 where
 
+import Control.Monad (when)
 import Competences.Command (Command (..))
+import Competences.Frontend.Common.Effect (liftEffect)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Frontend.Common qualified as C
 import Competences.Document (Document (..), User (..))
@@ -162,17 +164,17 @@ lockButtonComponent r cfg =
             LockedBySelf -> True
             _ -> False
       if canSteal
-        then HoldButton.handleHoldAction #holdState doSteal Hold ha
+        then do
+          executed <- liftEffect #holdState Hold $
+            HoldButton.updateHold (\() -> do
+              sendCommandOnly r (Unlock cfg.lock)
+              sendCommandOnly r cfg.lockCommand
+            ) ha
+          when executed $ do
+            let newGen = m.stealGen + 1
+            M.modify $ \m' -> m' { lockStatus = StealPending, stealGen = newGen }
+            M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
         else pure ()
-      where
-        doSteal () = do
-          m <- M.get
-          let newGen = m.stealGen + 1
-          M.modify $ \m' -> m' { lockStatus = StealPending, stealGen = newGen }
-          M.io_ $ do
-            sendCommandOnly r (Unlock cfg.lock)
-            sendCommandOnly r cfg.lockCommand
-          M.io $ threadDelay 10_000_000 >> pure (StealTimeout newGen)
 
     update (StealRejected err) = do
       m <- M.get

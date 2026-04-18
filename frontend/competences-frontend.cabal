@@ -27,6 +27,7 @@ library
     exposed-modules:
         Competences.Frontend.App,
         Competences.Frontend.BuildInfo,
+        Competences.Frontend.Common.Effect,
         Competences.Frontend.Common.Random,
         Competences.Frontend.Common.ListReorder,
         Competences.Frontend.Common.Reorder,

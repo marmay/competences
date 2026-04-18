@@ -65,6 +65,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Router qualified as M
 import Miso.String (MisoString, ms)
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core (Lens', (%), (%~), (.~))
 
 -- ============================================================================
@@ -129,11 +130,8 @@ updateLessonNotesDetailed stateLens r lift = go
       dismiss
       M.io_ $ modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))
     go (HoldDeleteEntity ha) =
-      HoldButton.handleHoldAction'
-        (stateLens % #holdDeleteEntity)
-        (\lnid -> modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid)))
-        (lift . HoldDeleteEntity)
-        ha
+      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
+        HoldButton.updateHold (\lnid -> modifySyncDocument r $ Cmd.LessonNotes (OnLessonNotes (Delete lnid))) ha
     go action = M.modify (stateLens %~ updateLessonNotesDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ Nothing)

@@ -138,6 +138,7 @@ import Miso.Html qualified as M
 import Miso.Html.Property qualified as MP
 import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core ((&), (.~), (%~))
 import System.Random (randomIO)
 
@@ -610,10 +611,8 @@ viewerComponent r user assignment wm =
       VA.updateAssignmentDetailed #assignmentMenuState r AssignmentMenuAction a
 
     update (LayoutHoldAction ha) =
-      HoldButton.handleHoldAction' #layoutHoldState
-        (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid))))
-        LayoutHoldAction
-        ha
+      liftEffect_ #layoutHoldState LayoutHoldAction $
+        HoldButton.updateHold (\lid -> modifySyncDocument r (Layouts (OnLayouts (Delete lid)))) ha
 
     update OpenSubmissionModal = M.io_ $
       Submission.openSubmissionModal r assignment.id user.id

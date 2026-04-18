@@ -35,6 +35,7 @@ module Competences.Frontend.Component.Task.Detailed
   )
 where
 
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), SolutionsCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
@@ -143,11 +144,8 @@ updateTaskDetailed stateLens r lift = go
       let uid = (syncDocumentEnv r).connectedUser.id
       modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId tid uid)))
     go (HoldDeleteSolution ha) =
-      HoldButton.handleHoldAction'
-        (stateLens % #holdDeleteSolution)
-        (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid)))
-        (lift . HoldDeleteSolution)
-        ha
+      liftEffect_ (stateLens % #holdDeleteSolution) (lift . HoldDeleteSolution) $
+        HoldButton.updateHold (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid))) ha
     go (MenuEdit tid) = do
       dismiss
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Modify tid Lock))
@@ -161,11 +159,8 @@ updateTaskDetailed stateLens r lift = go
       dismiss
       M.io_ $ modifySyncDocument r $ Tasks (OnTasks (Delete tid))
     go (HoldDeleteEntity ha) =
-      HoldButton.handleHoldAction'
-        (stateLens % #holdDeleteEntity)
-        (\tid -> modifySyncDocument r $ Tasks (OnTasks (Delete tid)))
-        (lift . HoldDeleteEntity)
-        ha
+      liftEffect_ (stateLens % #holdDeleteEntity) (lift . HoldDeleteEntity) $
+        HoldButton.updateHold (\tid -> modifySyncDocument r $ Tasks (OnTasks (Delete tid))) ha
     go action = M.modify (stateLens %~ updateTaskDetailedPure action)
 
     dismiss = M.modify (stateLens % #menuOpen .~ Nothing)

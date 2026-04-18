@@ -67,6 +67,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString, fromMisoString, ms)
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core ((&), (.~))
 import Optics.Core qualified as O
 
@@ -274,9 +275,8 @@ submissionModalComponent r assignmentId userId _wm =
       M.io_ $ SubmissionPreview.openSubmissionPeekModal r sid
 
     update (OnHoldDelete ha) =
-      HoldButton.handleHoldAction' #holdingDelete doDelete OnHoldDelete ha
-      where
-        doDelete sid = modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))
+      liftEffect_ #holdingDelete OnHoldDelete $
+        HoldButton.updateHold (\sid -> modifySyncDocument r $ Submissions (OnSubmissions (Delete sid))) ha
 
     -- ========================================================================
     -- View

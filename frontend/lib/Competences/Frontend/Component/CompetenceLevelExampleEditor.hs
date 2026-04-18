@@ -65,6 +65,7 @@ import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
+import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core (Lens', (.~), (?~))
 
 -- ============================================================================
@@ -322,10 +323,9 @@ exampleEditorComponent r compId lvl =
     update (ReorderAfter targetId) = issueReorder (O.After targetId)
 
     update (HoldDeleteAction ha) =
-      HoldButton.handleHoldAction' #holdDeleteState doDelete HoldDeleteAction ha
-      where
-        doDelete exId = modifySyncDocument r $
-          CompetenceLevelExamples $ OnCompetenceLevelExamples $ Delete exId
+      liftEffect_ #holdDeleteState HoldDeleteAction $
+        HoldButton.updateHold (\exId -> modifySyncDocument r $
+          CompetenceLevelExamples $ OnCompetenceLevelExamples $ Delete exId) ha
 
     issueReorder :: O.Reorder CompetenceLevelExample -> M.Effect p Model Action
     issueReorder direction = do
