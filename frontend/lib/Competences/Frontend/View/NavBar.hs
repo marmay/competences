@@ -50,7 +50,7 @@ teacherCategories =
       { categoryIcon = Icon.IcnAssignment
       , categoryLabel = C.translate' C.LblAssignments
       , categoryDescription = "Bearbeite deine Aufträge und verfolge deinen Lernfortschritt."
-      , categoryPage = ManageAssignments
+      , categoryPage = ManageAssignments Nothing
       , subEntries =
           [ NavEntry Icon.IcnTask (C.translate' C.LblTasks) (ManageTasks Nothing)
           , NavEntry Icon.IcnEvidence (C.translate' C.LblEvidences) Evidences
@@ -82,7 +82,7 @@ studentCategories =
       { categoryIcon = Icon.IcnAssignment
       , categoryLabel = C.translate' C.LblAssignments
       , categoryDescription = "Bearbeite deine Aufträge und verfolge deinen Lernfortschritt."
-      , categoryPage = ViewAssignments
+      , categoryPage = ManageAssignments Nothing
       , subEntries = []
       }
   , NavCategory

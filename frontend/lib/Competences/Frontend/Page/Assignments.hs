@@ -3,7 +3,9 @@ module Competences.Frontend.Page.Assignments
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), User (..))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.Detailed (viewerComponent)
 import Competences.Frontend.Component.Selector.AssignmentSelector (assignmentSelectorComponent)
@@ -29,11 +31,16 @@ data Action
 assignmentsPage
   :: SyncContext
   -> User
+  -> Maybe AssignmentId
   -> M.Component p Model Action
-assignmentsPage r user =
+assignmentsPage r user mAssignmentId =
   M.component model update view'
   where
     model = Model Nothing True
+
+    selectionFn = case mAssignmentId of
+      Just aid -> Just (\allAssignments -> Ix.getOne (allAssignments Ix.@= aid))
+      Nothing -> Just (QDefault.defaultAssignment r.env.currentDay)
 
     update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
@@ -42,9 +49,7 @@ assignmentsPage r user =
         m.sidebarOpen
         ToggleSidebar
         ( inlineComponentAttrs "assignment-selector" [class_ "h-full"] $
-            assignmentSelectorComponent r
-              (Just $ QDefault.defaultAssignment r.env.currentDay)
-              #selected
+            assignmentSelectorComponent r selectionFn #selected
         )
         (detailView m.selected)
 

@@ -94,7 +94,7 @@ mkApp ir initialUri =
 
     view :: Model -> M.View Model Action
     view m =
-      let fallbackPage = if isStudent m.connectedUser then ViewAssignments else CompetenceGrid
+      let fallbackPage = if isStudent m.connectedUser then ManageAssignments Nothing else CompetenceGrid
           currentPage = either (const fallbackPage) id $ M.route (m ^. #uri)
           teacher = isTeacher m.connectedUser
           categories = if teacher then NavBar.teacherCategories else NavBar.studentCategories
@@ -131,8 +131,7 @@ mkApp ir initialUri =
         ManageTasks mTaskId -> manageTasks mTaskId
         ManageResources mResId -> manageResources mResId
         ManageLessonNotes mLnId -> manageLessonNotes mLnId
-        ViewAssignments -> viewAssignments
-        ManageAssignments -> manageAssignments
+        ManageAssignments mAsmtId -> assignments mAsmtId
         StatisticsOverview -> statisticsOverview
         ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
@@ -148,10 +147,7 @@ mkApp ir initialUri =
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ tasksPage ir mTaskId
     manageResources mResId = mounted (ManageResources mResId) $ resourcesPage ir mResId
     manageLessonNotes mLnId = mounted (ManageLessonNotes mLnId) $ lessonNotesPage ir (isTeacher model.connectedUser) mLnId
-    -- Both routes use the unified assignment component
-    -- Teachers see Edit/Evaluate/View modes, students see View mode only
-    viewAssignments = mounted ViewAssignments $ assignmentsPage ir model.connectedUser
-    manageAssignments = mounted ManageAssignments $ assignmentsPage ir model.connectedUser
+    assignments mAsmtId = mounted (ManageAssignments mAsmtId) $ assignmentsPage ir model.connectedUser mAsmtId
     statisticsOverview = mounted StatisticsOverview $ statisticsPage ir
     participationTimeline = mounted ParticipationTimeline $ participationPage ir
     manageUsers = mounted ManageUsers $ usersPage ir

@@ -4,6 +4,7 @@ module Competences.Frontend.Page
 where
 
 import Control.Applicative ((<|>))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (TaskId)
@@ -19,8 +20,7 @@ data Page
   | ManageTasks !(Maybe TaskId)
   | ManageResources !(Maybe ResourceId)
   | ManageLessonNotes !(Maybe LessonNotesId)
-  | ViewAssignments
-  | ManageAssignments
+  | ManageAssignments !(Maybe AssignmentId)
   | StatisticsOverview
   | ParticipationTimeline
   | ManageUsers
@@ -36,8 +36,7 @@ instance M.Router Page where
         , M.path "tasks" *> (ManageTasks . Just <$> M.capture <|> pure (ManageTasks Nothing))
         , M.path "resources" *> (ManageResources . Just <$> M.capture <|> pure (ManageResources Nothing))
         , M.path "lesson-notes" *> (ManageLessonNotes . Just <$> M.capture <|> pure (ManageLessonNotes Nothing))
-        , M.path "assignments" $> ViewAssignments
-        , M.path "manage-assignments" $> ManageAssignments
+        , M.path "assignments" *> (ManageAssignments . Just <$> M.capture <|> pure (ManageAssignments Nothing))
         , M.path "statistics-overview" $> StatisticsOverview
         , M.path "participation-timeline" $> ParticipationTimeline
         , M.path "users" $> ManageUsers
@@ -51,8 +50,8 @@ instance M.Router Page where
   fromRoute (ManageResources (Just rid)) = [M.toPath "app", M.toPath "resources", M.toCapture rid]
   fromRoute (ManageLessonNotes Nothing) = [M.toPath "app", M.toPath "lesson-notes"]
   fromRoute (ManageLessonNotes (Just lnid)) = [M.toPath "app", M.toPath "lesson-notes", M.toCapture lnid]
-  fromRoute ViewAssignments = [M.toPath "app", M.toPath "assignments"]
-  fromRoute ManageAssignments = [M.toPath "app", M.toPath "manage-assignments"]
+  fromRoute (ManageAssignments Nothing) = [M.toPath "app", M.toPath "assignments"]
+  fromRoute (ManageAssignments (Just aid)) = [M.toPath "app", M.toPath "assignments", M.toCapture aid]
   fromRoute StatisticsOverview = [M.toPath "app", M.toPath "statistics-overview"]
   fromRoute ParticipationTimeline = [M.toPath "app", M.toPath "participation-timeline"]
   fromRoute ManageUsers = [M.toPath "app", M.toPath "users"]
