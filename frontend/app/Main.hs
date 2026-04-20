@@ -26,7 +26,8 @@ import Competences.Frontend.WebSocket.Handlers (mkInitialHandler, mkReconnectHan
 import Competences.Frontend.WebSocket.Protocol (AuthenticationException (..), withWebSocket)
 import Control.Concurrent (forkIO)
 import Control.Exception (catch)
-import Control.Monad (void)
+import Control.Monad (unless, void)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (isJust)
 import Data.Text qualified as T
 import Data.UUID.Types qualified as UUID
@@ -70,13 +71,19 @@ main = do
         let mImpersonate = parseImpersonateParam search
             imp = isJust mImpersonate
 
-        -- Fork action that starts the Miso app
-        let forkApp ref = void $ forkIO $ do
-              initialUri <- M.getURI
-              -- Set window title with localized text
-              htmlDoc <- jsg "document"
-              setField htmlDoc "title" (C.translate' C.LblPageTitle)
-              runApp $ mkApp ref initialUri
+        -- Track whether the Miso app has been forked (prevents duplicate UI on reconnect)
+        appForkedRef <- newIORef False
+
+        -- Fork action that starts the Miso app (idempotent — skips if already forked)
+        let forkApp ref = do
+              alreadyForked <- readIORef appForkedRef
+              unless alreadyForked $ do
+                writeIORef appForkedRef True
+                void $ forkIO $ do
+                  initialUri <- M.getURI
+                  htmlDoc <- jsg "document"
+                  setField htmlDoc "title" (C.translate' C.LblPageTitle)
+                  runApp $ mkApp ref initialUri
 
         -- Open IndexedDB for checkpoint storage
         idb <- openDatabase
