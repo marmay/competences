@@ -18,4 +18,4 @@ solutionEditButton r sol =
   inlineComponent
     ("sol-edit-btn-" <> ms (show sol.id))
     (lockButtonComponent r
-      (LockButtonConfig (SolutionLock sol.id) (Solutions (OnSolutions (Modify sol.id Lock))) Button.IconOnlyS))
+      (LockButtonConfig (SolutionLock sol.id) (Solutions (OnSolutions (Modify sol.id Lock))) Button.smallButtonSize))

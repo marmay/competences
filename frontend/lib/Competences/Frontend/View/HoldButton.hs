@@ -29,13 +29,9 @@ import Competences.Frontend.Common.Translate qualified as C
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Color.Status (Status (..), statusPalette)
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Notification (notificationBanner)
 import Competences.Frontend.View.Tailwind (class_)
 import Control.Concurrent (threadDelay)
-import Data.Maybe (maybeToList)
-import Data.Text (Text)
-import Data.Text qualified as T
 import Miso qualified as M
 import Miso.CSS qualified as MC
 import Miso.Html qualified as MH
@@ -97,7 +93,7 @@ updateHold onExecute (ExecuteHold eid gen) = do
       pure True
     _ -> pure False
 updateHold _onExecute HideHint = do
-  M.modify $ \hs -> hs{showHint = False}
+  M.modify $ \hs -> hs {showHint = False}
   pure False
 
 -- | Actions for a hold-to-delete interaction.
@@ -121,46 +117,43 @@ holdButton
 holdButton wrap hs eid variant size contents =
   let isHolding = isHoldingId hs eid
    in MH.div_
-        [class_ "relative inline-flex"]
-        [ if hs.showHint && not isHolding
+        [class_ "relative inline-flex isolate"]
+        [ MH.div_
+            [ class_ $ "fixed inset-0" <> if isHolding then "" else " hidden"
+            , MH.onMouseUp (wrap ReleaseHold)
+            , MH.onMouseEnter (wrap ReleaseHold)
+            , MH.onTouchEnd (wrap ReleaseHold)
+            , MH.onTouchCancel (wrap ReleaseHold)
+            ]
+            []
+        , if hs.showHint && not isHolding
             then
-              notificationBanner (statusPalette Pending)
+              notificationBanner
+                (statusPalette Pending)
                 [ Icon.iconVS Icon.Primary Icon.Small Icon.IcnInfo
                 , MH.span_ [class_ "text-sm font-medium"] [M.text $ C.translate' C.LblHoldToDelete]
                 ]
             else M.text ""
         , MH.div_
-            [class_ "relative inline-flex isolate"]
-            [ MH.div_
-                [ class_ $ "fixed inset-0" <> if isHolding then "" else " hidden"
-                , MH.onMouseUp (wrap ReleaseHold)
-                , MH.onMouseEnter (wrap ReleaseHold)
-                , MH.onTouchEnd (wrap ReleaseHold)
-                , MH.onTouchCancel (wrap ReleaseHold)
+            [ class_ "relative inline-flex overflow-hidden rounded-md"
+            , MH.onMouseDown (wrap (StartHold eid))
+            , MH.onMouseUp (wrap ReleaseHold)
+            , MH.onMouseLeave (wrap ReleaseHold)
+            , MH.onTouchStart (wrap (StartHold eid))
+            , MH.onTouchEnd (wrap ReleaseHold)
+            , MH.onTouchCancel (wrap ReleaseHold)
+            ]
+            [ Button.renderActive variant size contents []
+            , MH.div_
+                [ class_ $
+                    "absolute inset-0 bg-white/30 rounded-md pointer-events-none"
+                      <> if isHolding then " w-full" else " w-0"
+                , MC.style_ $
+                    [("transition-property", "width")]
+                      <> [("transition-duration", "2s") | isHolding]
+                      <> [("transition-timing-function", "linear") | isHolding]
                 ]
                 []
-            , MH.div_
-                [ class_ "relative inline-flex overflow-hidden rounded-md"
-                , MH.onMouseDown (wrap (StartHold eid))
-                , MH.onMouseUp (wrap ReleaseHold)
-                , MH.onMouseLeave (wrap ReleaseHold)
-                , MH.onTouchStart (wrap (StartHold eid))
-                , MH.onTouchEnd (wrap ReleaseHold)
-                , MH.onTouchCancel (wrap ReleaseHold)
-                ]
-                [ MH.button_
-                    [class_ $ btnClass variant size contents]
-                    [renderBtnContents size contents]
-                , MH.div_
-                    [ class_ $ "absolute inset-0 bg-white/30 rounded-md pointer-events-none"
-                        <> if isHolding then " w-full" else " w-0"
-                    , MC.style_ $
-                        [("transition-property", "width")]
-                          <> [("transition-duration", "2s") | isHolding]
-                          <> [("transition-timing-function", "linear") | isHolding]
-                    ]
-                    []
-                ]
             ]
         ]
 
@@ -172,7 +165,7 @@ holdDeleteButtonSm
   -> id
   -> M.View m action
 holdDeleteButtonSm wrap hs eid =
-  holdButton wrap hs eid Button.Destructive Button.Small (Button.IconOnly Icon.IcnDelete)
+  holdButton wrap hs eid Button.Destructive Button.smallButtonSize (Button.IconOnly Icon.IcnDelete)
 
 -- | Regular destructive hold button with icon + "Delete" text.
 holdDeleteButton
@@ -182,42 +175,10 @@ holdDeleteButton
   -> id
   -> M.View m action
 holdDeleteButton wrap hs eid =
-  holdButton wrap hs eid Button.Destructive Button.Regular
+  holdButton
+    wrap
+    hs
+    eid
+    Button.Destructive
+    Button.regularButtonSize
     (Button.IconText Icon.IcnDelete (C.translate' C.LblDelete))
-
-btnClass :: Button.ButtonVariant -> Button.ButtonSize -> Button.ButtonContents -> Text
-btnClass v s c =
-  T.intercalate "-" $
-    ["btn"]
-      <> maybeToList (sizeClass s)
-      <> maybeToList (iconClass c)
-      <> maybeToList (variantClass v)
-  where
-    variantClass Button.Primary = Nothing
-    variantClass Button.Secondary = Just "secondary"
-    variantClass Button.Destructive = Just "destructive"
-    variantClass Button.Ghost = Just "ghost"
-    variantClass Button.Link = Just "link"
-    variantClass Button.Outline = Just "outline"
-
-    sizeClass Button.Small = Just "sm"
-    sizeClass Button.Regular = Nothing
-    sizeClass Button.Large = Just "lg"
-
-    iconClass (Button.IconOnly _) = Just "icon"
-    iconClass (Button.SizedIcon _ _) = Just "icon"
-    iconClass _ = Nothing
-
-renderBtnContents :: Button.ButtonSize -> Button.ButtonContents -> M.View m a
-renderBtnContents _s (Button.TextOnly t) = M.text t
-renderBtnContents s (Button.IconOnly i) = Icon.iconS (toIconSize s) i
-renderBtnContents _s (Button.SizedIcon sz i) = Icon.iconS sz i
-renderBtnContents s (Button.IconText i t) =
-  Layout.hFlow
-    (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-    [Icon.iconS (toIconSize s) i, MH.span_ [] [M.text t]]
-
-toIconSize :: Button.ButtonSize -> Icon.Size
-toIconSize Button.Small = Icon.Small
-toIconSize Button.Regular = Icon.Regular
-toIconSize Button.Large = Icon.Large

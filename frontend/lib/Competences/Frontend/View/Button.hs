@@ -4,6 +4,8 @@ module Competences.Frontend.View.Button
   ( -- * Basecoat-style buttons (new approach)
     ButtonVariant (..)
   , ButtonSize (..)
+  , ButtonHSize (..)
+  , ButtonVSize (..)
   , ButtonContents (..)
   , ButtonContentsStyle (..)
   , ButtonConfig (..)
@@ -12,6 +14,9 @@ module Competences.Frontend.View.Button
   , ToAction (..)
   , button
   , render
+  , renderActive
+  , renderDisabled
+  , renderDisabledPulse
   , primary
   , primarySm
   , primaryLg
@@ -47,6 +52,9 @@ module Competences.Frontend.View.Button
   , editButton
   , moveButton
   , buttonGroup
+  , regularButtonSize
+  , smallButtonSize
+  , largeButtonSize
   )
 where
 
@@ -76,11 +84,18 @@ data ButtonVariant
     Outline
   deriving (Eq, Show)
 
--- | Button size
-data ButtonSize
+data ButtonSize = ButtonSize ButtonVSize ButtonHSize
+  deriving (Eq, Show)
+
+data ButtonVSize
   = Small
   | Regular
   | Large
+  deriving (Eq, Show)
+
+data ButtonHSize
+  = Adjust
+  | Full
   deriving (Eq, Show)
 
 -- | Contents of the button
@@ -165,17 +180,18 @@ button c a =
 
 render :: ButtonVariant -> ButtonSize -> ButtonConfig a -> M.View m a
 render v s ButtonConfig {contents = c, action = a} =
-  M.button_ attrs [renderContents c]
+  case a of
+    (Just a') -> renderActive v s c [M.onClick a']
+    Nothing -> renderDisabled s c
+
+renderActive :: ButtonVariant -> ButtonSize -> ButtonContents -> [M.Attribute a] -> M.View m a
+renderActive v (ButtonSize vSize hSize) c attrs =
+  M.button_ (MP.class_ activeClass : hSizeAttrs hSize <> attrs) [renderContents vSize c]
   where
-    attrs = case a of
-      (Just a') -> [M.onClick a', MP.class_ activeClass]
-      Nothing -> [MP.disabled_, MP.class_ disabledClass]
-    -- Basecoat button class naming: btn[-size][-icon][-variant]
-    -- Primary has no variant suffix (btn = primary)
     activeClass =
       intercalate "-" $
         ["btn"]
-          <> maybeToList (sizeClass s)
+          <> maybeToList (sizeClass vSize)
           <> maybeToList (iconClass c)
           <> maybeToList (variantClass v)
       where
@@ -193,20 +209,42 @@ render v s ButtonConfig {contents = c, action = a} =
         iconClass (IconOnly _) = Just "icon"
         iconClass (SizedIcon _ _) = Just "icon"
         iconClass _ = Nothing
+
+renderDisabled :: ButtonSize -> ButtonContents -> M.View m a
+renderDisabled (ButtonSize vSize hSize) c =
+  M.button_ ([MP.disabled_, MP.class_ disabledClass] <> hSizeAttrs hSize)
+    [renderContents vSize c]
+  where
     disabledClass =
-      let baseClass = case s of Small -> "btn-sm"; Regular -> "btn"; Large -> "btn-lg"
+      let baseClass = case vSize of Small -> "btn-sm"; Regular -> "btn"; Large -> "btn-lg"
        in (baseClass <> " bg-gray-300 hover:bg-gray-300 cursor-not-allowed")
 
-    renderContents :: ButtonContents -> M.View m a
-    renderContents (TextOnly t') = M.text_ [t']
-    renderContents (IconOnly i) = Icon.iconS (toIconSize s) i
-    renderContents (SizedIcon sz i) = Icon.iconS sz i
-    renderContents (IconText i t') = Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [Icon.iconS (toIconSize s) i, M.span_ [] [M.text_ [t']]]
+renderDisabledPulse :: ButtonSize -> ButtonContents -> M.View m a
+renderDisabledPulse sz c = Layout.addClass "animate-pulse" $ renderDisabled sz c
 
-toIconSize :: ButtonSize -> Icon.Size
+
+renderContents :: ButtonVSize -> ButtonContents -> M.View m a
+renderContents _s (TextOnly t') = M.text_ [t']
+renderContents s (IconOnly i) = Icon.iconS (toIconSize s) i
+renderContents _s (SizedIcon sz i) = Icon.iconS sz i
+renderContents s (IconText i t') = Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) [Icon.iconS (toIconSize s) i, M.span_ [] [M.text_ [t']]]
+
+toIconSize :: ButtonVSize -> Icon.Size
 toIconSize Small = Icon.Small
 toIconSize Regular = Icon.Regular
 toIconSize Large = Icon.Large
+
+hSizeAttrs :: ButtonHSize -> [M.Attribute a]
+hSizeAttrs Adjust = []
+hSizeAttrs Full = [MP.class_ "w-full"]
+
+regularButtonSize
+  , smallButtonSize
+  , largeButtonSize
+    :: ButtonSize
+regularButtonSize = ButtonSize Regular Adjust
+smallButtonSize = ButtonSize Small Adjust
+largeButtonSize = ButtonSize Large Adjust
 
 primary
   , primarySm
@@ -227,42 +265,42 @@ primary
   , outlineSm
   , outlineLg
     :: ButtonConfig a -> M.View m a
-primary = render Primary Regular
-primarySm = render Primary Small
-primaryLg = render Primary Large
-secondary = render Secondary Regular
-secondarySm = render Secondary Small
-secondaryLg = render Secondary Large
-destructive = render Destructive Regular
-destructiveSm = render Destructive Small
-destructiveLg = render Destructive Large
-ghost = render Ghost Regular
-ghostSm = render Ghost Small
-ghostLg = render Ghost Large
-link = render Link Regular
-linkSm = render Link Small
-linkLg = render Link Large
-outline = render Outline Regular
-outlineSm = render Outline Small
-outlineLg = render Outline Large
+primary = render Primary regularButtonSize
+primarySm = render Primary smallButtonSize
+primaryLg = render Primary largeButtonSize
+secondary = render Secondary regularButtonSize
+secondarySm = render Secondary smallButtonSize
+secondaryLg = render Secondary largeButtonSize
+destructive = render Destructive regularButtonSize
+destructiveSm = render Destructive smallButtonSize
+destructiveLg = render Destructive largeButtonSize
+ghost = render Ghost regularButtonSize
+ghostSm = render Ghost smallButtonSize
+ghostLg = render Ghost largeButtonSize
+link = render Link regularButtonSize
+linkSm = render Link smallButtonSize
+linkLg = render Link largeButtonSize
+outline = render Outline regularButtonSize
+outlineSm = render Outline smallButtonSize
+outlineLg = render Outline largeButtonSize
 
 toggle' :: Bool -> ButtonSize -> ButtonConfig a -> M.View m a
 toggle' True = render Primary
 toggle' False = render Outline
 
 toggle, toggleSm, toggleLg :: Bool -> ButtonConfig a -> M.View m a
-toggle t = toggle' t Regular
-toggleSm t = toggle' t Small
-toggleLg t = toggle' t Large
+toggle t = toggle' t regularButtonSize
+toggleSm t = toggle' t smallButtonSize
+toggleLg t = toggle' t largeButtonSize
 
 toggleGhost' :: Bool -> ButtonSize -> ButtonConfig a -> M.View m a
 toggleGhost' True = render Secondary
 toggleGhost' False = render Ghost
 
 toggleGhost, toggleGhostSm, toggleGhostLg :: Bool -> ButtonConfig a -> M.View m a
-toggleGhost t = toggleGhost' t Regular
-toggleGhostSm t = toggleGhost' t Small
-toggleGhostLg t = toggleGhost' t Large
+toggleGhost t = toggleGhost' t regularButtonSize
+toggleGhostSm t = toggleGhost' t smallButtonSize
+toggleGhostLg t = toggleGhost' t largeButtonSize
 
 applyButtonC
   , cancelButtonC

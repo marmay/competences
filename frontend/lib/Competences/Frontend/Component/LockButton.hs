@@ -60,7 +60,7 @@ import Miso.Subscription.Util (createSub)
 data LockButtonConfig = LockButtonConfig
   { lock :: !Lock
   , lockCommand :: !Command
-  , style :: !Button.ButtonContentsStyle
+  , size :: !Button.ButtonSize
   }
 
 -- ============================================================================
@@ -115,7 +115,7 @@ lockFragmentDef
 lockFragmentDef r cfg = FragmentDef
   { initialModel = initialLockState
   , update = updateLock r cfg
-  , view = lockView cfg.style
+  , view = lockView cfg.size
   , subs =
       [ subscribeWithProjection r (lockProjection cfg.lock) ProjectionChanged
       , subscribeConnection env.commandSender ConnectionChanged
@@ -206,29 +206,29 @@ updateLock r cfg = go
 -- View
 -- ============================================================================
 
-lockView :: Button.ButtonContentsStyle -> LockState -> (LockAction -> a) -> M.View m a
-lockView s m liftAction = case m.lockStatus of
+lockView :: Button.ButtonSize -> LockState -> (LockAction -> a) -> M.View m a
+lockView sz m liftAction = case m.lockStatus of
   LockedByMe -> M.text ""
 
   Free
-    | m.connected -> editButton s liftAction
-    | otherwise -> disabledIcon s (C.translate' C.LblDisconnected)
+    | m.connected -> editButton sz liftAction
+    | otherwise -> disabledIcon sz (C.translate' C.LblDisconnected)
 
-  StealPending -> pendingIcon s
+  StealPending -> pendingIcon sz
 
   LockedByOther name
     | m.connected ->
         withError m.stealError $
-          stealButton s m.holdState liftAction $ C.translate' (C.LblStealFrom name)
+          stealButton sz m.holdState liftAction $ C.translate' (C.LblStealFrom name)
     | otherwise ->
-        lockedIcon s $ C.translate' (C.LblLockedBy name)
+        lockedIcon sz $ C.translate' (C.LblLockedBy name)
 
   LockedBySelf
     | m.connected ->
         withError m.stealError $
-          stealButton s m.holdState liftAction $ C.translate' C.LblStealFromOtherTab
+          stealButton sz m.holdState liftAction $ C.translate' C.LblStealFromOtherTab
     | otherwise ->
-        lockedIcon s $ C.translate' C.LblLockedInOtherTab
+        lockedIcon sz $ C.translate' C.LblLockedInOtherTab
 
 -- ============================================================================
 -- Helpers
@@ -255,34 +255,28 @@ rejectionSub r lock sink = createSub acquire release sink
         _ -> pure ()
     release = id
 
-editButton :: Button.ButtonContentsStyle -> (LockAction -> a) -> M.View m a
-editButton s liftAction = Button.secondary (Button.button (s, Icon.IcnEdit, C.LblEdit) (Just (liftAction Click)))
+editButton :: Button.ButtonSize -> (LockAction -> a) -> M.View m a
+editButton sz liftAction = Button.render Button.Secondary sz (Button.button (Icon.IcnEdit, C.LblEdit) (Just (liftAction Click)))
 
-stealButton :: Button.ButtonContentsStyle -> HoldButton.HoldState () -> (LockAction -> a) -> M.MisoString -> M.View m a
-stealButton s holdState liftAction tooltip =
+stealButton :: Button.ButtonSize -> HoldButton.HoldState () -> (LockAction -> a) -> M.MisoString -> M.View m a
+stealButton sz holdState liftAction tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
-    HoldButton.holdButton (liftAction . Hold) holdState () Button.Secondary (styleToButtonSize s)
-      (styleToContents s Icon.IcnLock)
+    HoldButton.holdButton (liftAction . Hold) holdState () Button.Secondary sz
+      (Button.IconText Icon.IcnLock (C.translate' C.LblTakeOver))
 
-lockedIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View m a
-lockedIcon s tooltip =
+lockedIcon :: Button.ButtonSize -> M.MisoString -> M.View m a
+lockedIcon sz tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
-    MH.div_
-      [class_ "inline-flex items-center justify-center p-1 text-stone-400"]
-      [Icon.iconS (styleToIconSize s) Icon.IcnLock]
+    Button.renderDisabled sz (Button.IconText Icon.IcnLock (C.translate' C.LblTakeOver))
 
-disabledIcon :: Button.ButtonContentsStyle -> M.MisoString -> M.View m a
-disabledIcon s tooltip =
+disabledIcon :: Button.ButtonSize -> M.MisoString -> M.View m a
+disabledIcon sz tooltip =
   Tooltip.withTooltip (Tooltip.PlainTooltip tooltip) $
-    MH.div_
-      [class_ "inline-flex items-center justify-center p-1 text-stone-300"]
-      [Icon.iconS (styleToIconSize s) Icon.IcnEdit]
+    Button.renderDisabled sz (Button.IconText Icon.IcnEdit (C.translate' C.LblEdit))
 
-pendingIcon :: Button.ButtonContentsStyle -> M.View m a
-pendingIcon s =
-  MH.div_
-    [class_ "inline-flex items-center justify-center p-1 text-stone-400"]
-    [Icon.iconFull Icon.Secondary (styleToIconSize s) Icon.Pulse Icon.IcnLock]
+pendingIcon :: Button.ButtonSize -> M.View m a
+pendingIcon sz =
+  Button.renderDisabledPulse sz (Button.IconText Icon.IcnLock (C.translate' C.LblTakeOver))
 
 withError :: Maybe Text -> M.View m a -> M.View m a
 withError Nothing v = v
@@ -293,15 +287,3 @@ withError (Just err) v =
         [M.text (M.ms err)]
     ]
 
-styleToIconSize :: Button.ButtonContentsStyle -> Icon.Size
-styleToIconSize Button.IconOnlyS = Icon.Small
-styleToIconSize Button.IconTextS = Icon.Regular
-styleToIconSize Button.TextOnlyS = Icon.Regular
-
-styleToButtonSize :: Button.ButtonContentsStyle -> Button.ButtonSize
-styleToButtonSize Button.IconOnlyS = Button.Small
-styleToButtonSize _ = Button.Regular
-
-styleToContents :: Button.ButtonContentsStyle -> Icon.Icon -> Button.ButtonContents
-styleToContents Button.IconOnlyS icn = Button.IconOnly icn
-styleToContents _ icn = Button.IconText icn (C.translate' C.LblTakeOver)

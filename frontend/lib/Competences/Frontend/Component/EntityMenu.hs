@@ -43,6 +43,7 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Control.Monad (when)
 import GHC.Generics (Generic)
@@ -131,7 +132,7 @@ entityMenuComponent r cfg =
     }
   where
     lockFrag = case cfg.edit of
-      Just ec -> Just (LB.lockFragmentDef r (LB.LockButtonConfig ec.lock ec.lockCommand Button.IconTextS))
+      Just ec -> Just (LB.lockFragmentDef r (LB.LockButtonConfig ec.lock ec.lockCommand Button.regularButtonSize))
       Nothing -> Nothing
 
     lockSubs = case lockFrag of
@@ -195,12 +196,12 @@ entityMenuComponent r cfg =
     editEntry m = case cfg.edit of
       Nothing -> []
       Just _ ->
-        [MH.div_ [class_ "w-full"] [LB.lockView Button.IconTextS m.lockState LockAction]]
+        [MH.div_ [class_ "w-full"] [LB.lockView Button.regularButtonSize m.lockState LockAction]]
 
     deleteEntry m = case cfg.delete of
       Nothing -> []
       Just _ ->
         [ HoverMenu.hoverMenuSeparator
-        , MH.div_ [class_ "w-full"] [HoldButton.holdDeleteButton DeleteHold m.holdState ()]
+        , Layout.addClass "w-full" $ HoldButton.holdDeleteButton DeleteHold m.holdState ()
         ]
 
