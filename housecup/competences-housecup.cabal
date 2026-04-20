@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               competences-housecup
-version:            1.2.13.0
+version:            1.3.0.0
 license:            BSD-3-Clause
 author:             Markus Mayr
 maintainer:         markus.mayr@tuta.com
