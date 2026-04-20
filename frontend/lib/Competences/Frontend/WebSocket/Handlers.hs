@@ -44,6 +44,7 @@ import Competences.Frontend.WebSocket.CommandSender
   )
 import Competences.Frontend.WebSocket.Protocol
   ( AuthenticationException (..)
+  , DisconnectedException (..)
   , WebSocket (..)
   )
 import Competences.Protocol
@@ -111,8 +112,11 @@ checkpointInterval = 50
 operationLoop :: SyncContext -> Maybe IndexedDB -> WebSocket -> IO ()
 operationLoop ref mIdb ws = do
   counterRef <- newIORef (0 :: Int)
-  loop counterRef
+  loop counterRef `catch` handleDisconnect
   where
+    handleDisconnect :: DisconnectedException -> IO ()
+    handleDisconnect _ = pure ()
+
     loop :: IORef Int -> IO ()
     loop counterRef = forever $ do
       msg <- ws.receive
