@@ -43,12 +43,9 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
-import Competences.Frontend.View.Layout qualified as Layout
-import Competences.Frontend.View.Tailwind (class_)
 import Control.Monad (when)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Html qualified as MH
 import Miso.Router qualified as M
 import Miso.String (MisoString)
 
@@ -186,9 +183,9 @@ entityMenuComponent r cfg =
       let trigger = Icon.iconVS Icon.Ghost Icon.Small Icon.IcnMoreVertical
           items = concat
             [ editEntry m
-            , [HoverMenu.hoverMenuEntry True Icon.IcnPin (C.translate' C.LblPin) DoPinViewer | Just _ <- [cfg.pin]]
-            , [HoverMenu.hoverMenuEntry True Icon.IcnOpenModal (C.translate' C.LblGoTo) DoGoTo | Just _ <- [cfg.goTo]]
-            , concatMap (\(i, e) -> [HoverMenu.hoverMenuEntry True e.icon e.label (DoExtraEntry i)]) (zip [0 ..] cfg.extraEntries)
+            , [menuButton Icon.IcnPin (C.translate' C.LblPin) DoPinViewer | Just _ <- [cfg.pin]]
+            , [menuButton Icon.IcnOpenModal (C.translate' C.LblGoTo) DoGoTo | Just _ <- [cfg.goTo]]
+            , map (\(i, e) -> menuButton e.icon e.label (DoExtraEntry i)) (zip [0 ..] cfg.extraEntries)
             , deleteEntry m
             ]
        in HoverMenu.clickMenuRight m.isOpen Toggle Close trigger items
@@ -196,12 +193,18 @@ entityMenuComponent r cfg =
     editEntry m = case cfg.edit of
       Nothing -> []
       Just _ ->
-        [MH.div_ [class_ "w-full"] [LB.lockView Button.regularButtonSize m.lockState LockAction]]
+        [LB.lockView menuSize m.lockState LockAction]
 
     deleteEntry m = case cfg.delete of
       Nothing -> []
       Just _ ->
         [ HoverMenu.hoverMenuSeparator
-        , Layout.addClass "w-full" $ HoldButton.holdDeleteButton DeleteHold m.holdState ()
+        , HoldButton.holdButton DeleteHold m.holdState () Button.Destructive menuSize
+            (Button.IconText Icon.IcnDelete (C.translate' C.LblDelete))
         ]
+
+    menuSize = Button.ButtonSize Button.Small Button.Full
+
+    menuButton icn label action =
+      Button.render Button.Ghost menuSize (Button.ButtonConfig (Button.IconText icn label) (Just action))
 

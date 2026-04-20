@@ -114,10 +114,13 @@ holdButton
   -> Button.ButtonSize
   -> Button.ButtonContents
   -> M.View m action
-holdButton wrap hs eid variant size contents =
+holdButton wrap hs eid variant size@(Button.ButtonSize _ hSize) contents =
   let isHolding = isHoldingId hs eid
+      wrapCls = case hSize of
+        Button.Full -> "relative flex w-full isolate"
+        Button.Adjust -> "relative inline-flex isolate"
    in MH.div_
-        [class_ "relative inline-flex isolate"]
+        [class_ wrapCls]
         [ MH.div_
             [ class_ $ "fixed inset-0" <> if isHolding then "" else " hidden"
             , MH.onMouseUp (wrap ReleaseHold)
@@ -135,7 +138,9 @@ holdButton wrap hs eid variant size contents =
                 ]
             else M.text ""
         , MH.div_
-            [ class_ "relative inline-flex overflow-hidden rounded-md"
+            [ class_ $ case hSize of
+                Button.Full -> "relative flex w-full overflow-hidden rounded-md"
+                Button.Adjust -> "relative inline-flex overflow-hidden rounded-md"
             , MH.onMouseDown (wrap (StartHold eid))
             , MH.onMouseUp (wrap ReleaseHold)
             , MH.onMouseLeave (wrap ReleaseHold)
