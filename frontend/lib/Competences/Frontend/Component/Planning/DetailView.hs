@@ -77,10 +77,8 @@ data DetailAction
   | TogglePhasesExpanded !LessonId
   | OpenMesoPlanEditorModal !MesoPlan
   | HoldDeleteMeso !(HoldButton.HoldAction MesoPlanId)
-  | PinLessonEvaluation !Lesson
   | PinAssignmentEvaluation !Assignment
   | OpenLessonImportModal
-  | ExportLesson !Lesson
   | StartReorder !LessonId
   | CancelReorder
   | ReorderTo !(Reorder Lesson)
@@ -199,16 +197,8 @@ detailComponent r initialPlan =
       liftEffect_ #holdDeleteMeso HoldDeleteMeso $
         HoldButton.updateHold (\mpId -> modifySyncDocument r (MesoPlans $ OnMesoPlans $ Delete mpId)) ha
 
-    update (PinLessonEvaluation lesson) = do
-      m <- M.get
-      M.io_ $ pinLessonEvaluator r m.mesoPlan.dateFrom lesson
-
     update (PinAssignmentEvaluation assignment) = M.io_ $
       pinAssignmentEvaluator r assignment
-
-    update (ExportLesson lesson) = do
-      m <- M.get
-      M.io_ $ copyToClipboard (exportLesson m.document lesson)
 
     update OpenLessonImportModal = do
       m <- M.get
@@ -267,10 +257,8 @@ detailComponent r initialPlan =
           titleView = Disclosure.titleText $ M.ms $ if Text.null lesson.title then "(Untitled)" else lesson.title
           actions = case m.reorderFrom of
             Nothing ->
-              -- Normal mode: Export, Pin, Reorder, EntityMenu (edit + delete)
-              [ Disclosure.action Icon.IcnExport (ExportLesson lesson)
-              , Disclosure.action Icon.IcnPin (PinLessonEvaluation lesson)
-              , Disclosure.action Icon.IcnReorder (StartReorder lesson.id)
+              -- Normal mode: Reorder (visible icon), EntityMenu (edit + delete + export + pin)
+              [ Disclosure.action Icon.IcnReorder (StartReorder lesson.id)
               , Disclosure.viewAction $
                   inlineComponent ("entity-menu-" <> M.ms (show lesson.id))
                     (EM.entityMenuComponent r EM.EntityMenuConfig
@@ -278,7 +266,18 @@ detailComponent r initialPlan =
                       , pin = Nothing
                       , goTo = Nothing
                       , delete = Just (EM.lessonDelete lesson.id)
-                      , extraEntries = []
+                      , extraEntries =
+                          [ EM.ExtraEntry
+                              { EM.icon = Icon.IcnPin
+                              , EM.label = C.translate' C.LblLessonEvaluation
+                              , EM.action = pinLessonEvaluator r m.mesoPlan.dateFrom lesson
+                              }
+                          , EM.ExtraEntry
+                              { EM.icon = Icon.IcnExport
+                              , EM.label = C.translate' C.LblExport
+                              , EM.action = copyToClipboard (exportLesson m.document lesson)
+                              }
+                          ]
                       })
               ]
             Just fromId

@@ -320,7 +320,7 @@ staticDisclosureImpl style headerColor dc =
 
     actionsView = case dc.actions of
       [] -> []
-      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow Layout.gapT (map renderAction as)]]
+      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow (Layout.gapT <> Layout.crossCenter) (map renderAction as)]]
 
     bodySection = case dc.body of
       Nothing -> M.text ""
@@ -401,7 +401,7 @@ disclosureImpl style headerColor toggleAction dc =
 
     actionsView = case dc.actions of
       [] -> []
-      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow Layout.gapT (map renderAction as)]]
+      as -> [MH.div_ [class_ "shrink-0"] [Layout.hFlow (Layout.gapT <> Layout.crossCenter) (map renderAction as)]]
 
     -- Body section
     bodySection = case dc.body of
