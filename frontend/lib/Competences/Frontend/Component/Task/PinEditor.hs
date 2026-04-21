@@ -18,7 +18,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, textEditorField, richTextWithFilesEditorField, enumEditorField, boolEditorField, fileUploadEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
-import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
+import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Selector.Common (entityPatchLens)
 import Competences.Frontend.Component.Selector.CompetenceLevelSelector (competenceLevelEditorField)
 import Competences.Document.Task (TaskIdentifier (..))
@@ -27,12 +27,13 @@ import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext.WindowManager
   ( WindowMode
   , PinId
+  , justLens
   , pinSaveStateLens
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Data.Default (Default (..))
-import Data.Text (Text)
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import Miso qualified as M
 import Miso.String (ms)
 import Optics.Core (Iso', Lens', (&), (?~), iso, (%))
@@ -43,12 +44,12 @@ import Optics.Core qualified as O
 -- that persists patches to the parent model's pinSaveStates.
 taskPinEditor
   :: SyncContext -> TaskId -> EntityOrigin -> PinId
-  -> WindowMode -> Maybe TaskPatch
+  -> WindowMode -> Maybe (Model Task TaskPatch Maybe)
   -> M.Component WM.Model (Model Task TaskPatch Maybe) (Action Task TaskPatch)
 taskPinEditor r taskId origin pid _mode mSaved =
-  (editorComponent taskEditor r (fromMaybe def mSaved))
+  (editorComponent taskEditor r mSaved def)
         { M.bindings =
-            [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+            [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens
             ]
         }
   where

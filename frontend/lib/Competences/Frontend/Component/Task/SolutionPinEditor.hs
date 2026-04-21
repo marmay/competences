@@ -15,7 +15,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, enumEditorField, richTextEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView)
-import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
+import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Editor.View (EditorView, EditorViewData (..), EditorViewItem (..))
 import Competences.Frontend.Component.Task.Detailed (TaskDetailedConfig (..), TaskDetailedSettings (..), taskDetailedComponent)
 import Competences.Frontend.SyncContext (SyncContext (..))
@@ -23,13 +23,13 @@ import Competences.Frontend.SyncContext.WindowManager
   ( WindowMode
   , PinId
   , inlineComponent
+  , justLens
   , pinSaveStateLens
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Data.Default (Default (..))
-import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
@@ -39,12 +39,12 @@ import Optics.Core qualified as O
 -- | Solution pin editor factory.
 solutionPinEditor
   :: SyncContext -> SolutionId -> PinId
-  -> WindowMode -> Maybe SolutionPatch
+  -> WindowMode -> Maybe (Model Solution SolutionPatch Maybe)
   -> M.Component WM.Model (Model Solution SolutionPatch Maybe) (Action Solution SolutionPatch)
 solutionPinEditor r solId pid _mode mSaved =
-  (editorComponent solEditor r (fromMaybe def mSaved))
+  (editorComponent solEditor r mSaved def)
     { M.bindings =
-        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens
         ]
     }
   where

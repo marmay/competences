@@ -19,7 +19,7 @@ import Competences.Document
 import Competences.Document.Competence (CompetenceIxs)
 import Competences.Document.Id (Id)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorField)
+import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorField)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
   , SelectorTransformedLens
@@ -48,7 +48,6 @@ import Competences.Query.Competence (competenceWithGridIx)
 import Data.Default (Default)
 import Data.List (intercalate)
 import Miso qualified as M
-import Optics.Core qualified as O
 
 -- | The competence-level pipeline: 3 stages leading to (Id Competence, Level)
 --
@@ -160,7 +159,11 @@ competenceLevelEditorField r key minResultsCount eptl =
   selectorEditorField
     key
     eptl
-    ( \entity style -> competenceLevelSelectorComponent r (\_ -> entity O.^. eptl.viewLens) style minResultsCount
+    ( \entity patch style ->
+        competenceLevelSelectorComponent r
+          (\_ -> currentValue entity patch eptl.viewLens eptl.patchLens)
+          style
+          minResultsCount
     )
     ( MultiStageSelectorDisabled
     , MultiStageSelectorEnabled

@@ -10,7 +10,7 @@ import Competences.Document (Assignment (..), AssignmentIxs, Document (..), User
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..), mkAssignment)
 import Competences.Document.User (isTeacher)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
 import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
@@ -319,15 +319,16 @@ searchableSingleAssignmentEditorField
   -> EntityPatchTransformedLens p patch Maybe Assignment Maybe t
   -> EditorField p patch f
 searchableSingleAssignmentEditorField r k eptl =
-  let config e =
+  let config currentAssignmentId =
         AssignmentEditorConfig
-          { isInitialAssignment = \a -> e ^. eptl.viewLens == Just (eptl.transform a)
+          { isInitialAssignment = \a -> currentAssignmentId == Just (eptl.transform a)
           }
    in selectorEditorFieldWithViewer
         k
         eptl
-        (selectedAssignmentViewerComponent r . config)
-        (searchableSingleAssignmentSelectorComponent r . config)
+        (\e -> selectedAssignmentViewerComponent r (config (e ^. eptl.viewLens)))
+        (\e p -> searchableSingleAssignmentSelectorComponent r
+                   (config (currentValue e p eptl.viewLens eptl.patchLens)))
 
 -- | Configuration for assignment editor components
 data AssignmentEditorConfig = AssignmentEditorConfig

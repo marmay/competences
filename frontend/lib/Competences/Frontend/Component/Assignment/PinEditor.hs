@@ -18,17 +18,16 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..), wrapForOrigin)
 import Competences.Frontend.Component.Editor (Editable (..), addNamedField, boolEditorField, dayEditorField, editable, editor, editorComponent, enumEditorField, richTextEditorField, textEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
-import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
+import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
 import Competences.Frontend.SyncContext (SyncContext (..))
-import Competences.Frontend.SyncContext.WindowManager (PinId, WindowMode, pinSaveStateLens)
+import Competences.Frontend.SyncContext.WindowManager (PinId, WindowMode, justLens, pinSaveStateLens)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Icon qualified as Icon
 import Data.Default (Default (..))
 import Data.List (sortOn)
-import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -43,12 +42,12 @@ assignmentPinEditor
   -> EntityOrigin
   -> PinId
   -> WindowMode
-  -> Maybe AssignmentPatch
+  -> Maybe (Model Assignment AssignmentPatch Maybe)
   -> M.Component WM.Model (Model Assignment AssignmentPatch Maybe) (Action Assignment AssignmentPatch)
 assignmentPinEditor r assignmentId origin pid _mode mSaved =
-  (editorComponent assignmentEditor r (fromMaybe def mSaved))
+  (editorComponent assignmentEditor r mSaved def)
     { M.bindings =
-        [O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens]
+        [O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens]
     }
   where
     wrap = wrapForOrigin origin

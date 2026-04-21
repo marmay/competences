@@ -23,7 +23,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent)
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..), mkFieldLens)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
-import Competences.Frontend.Component.Editor.Types (Action (..), Model (..), singlePatchLens)
+import Competences.Frontend.Component.Editor.Types (Action (..), Model (..))
 import Competences.Frontend.Component.FileUpload (fileUploadComponent, showFileSize)
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), richContentEditorComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
@@ -35,6 +35,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , WindowMode
   , inlineComponent
   , inlineComponentAttrs
+  , justLens
   , pinSaveStateLens
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
@@ -58,12 +59,12 @@ import Optics.Core qualified as O
 -- | Resource pin editor factory.
 resourcePinEditor
   :: SyncContext -> ResourceId -> PinId
-  -> WindowMode -> Maybe ResourcePatch
+  -> WindowMode -> Maybe (Model Resource ResourcePatch Maybe)
   -> M.Component WM.Model (Model Resource ResourcePatch Maybe) (Action Resource ResourcePatch)
 resourcePinEditor r resId pid _mode mSaved =
-  (editorComponent resourceEditor r (fromMaybe def mSaved))
+  (editorComponent resourceEditor r mSaved def)
     { M.bindings =
-        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens
         ]
     }
   where

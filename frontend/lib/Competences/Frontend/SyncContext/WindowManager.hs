@@ -67,6 +67,7 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Pin state persistence
   , pinSaveStateLens
+  , justLens
 
     -- * Component mounting
   , inlineComponent
@@ -269,6 +270,13 @@ pinSaveStateLens pid = O.lens getter setter
       { pinSaveStates = Map.insert pid (toDyn a) m.pinSaveStates
       , pinSaveGen = m.pinSaveGen + 1
       }
+
+-- | Lens from a value @a@ to @Maybe a@: getter wraps in 'Just', setter
+-- replaces the value when @Just@ and keeps the old one when @Nothing@.
+-- Useful as the child-side of a binding whose parent slot is a 'Maybe'
+-- (e.g. 'pinSaveStateLens') when the whole child model should be saved.
+justLens :: O.Lens' a (Maybe a)
+justLens = O.lens Just (\a mb -> case mb of Just a' -> a'; Nothing -> a)
 
 -- ---------------------------------------------------------------------------
 -- Public types

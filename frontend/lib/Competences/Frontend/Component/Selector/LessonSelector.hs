@@ -8,7 +8,7 @@ import Competences.Document (Document (..), Lesson (..))
 import Competences.Document.Id (idToText)
 import Competences.Document.Lesson (LessonId)
 import Competences.Frontend.Common.Translate qualified as C
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common
   ( EntityPatchTransformedLens (..)
   , SelectorTransformedLens (..)
@@ -40,12 +40,12 @@ lessonEditorField
   -> EntityPatchTransformedLens entity patch Maybe LessonId Maybe LessonId
   -> EditorField entity patch f'
 lessonEditorField r k eptl =
-  let config e = e ^. eptl.viewLens
+  let config e p = currentValue e p eptl.viewLens eptl.patchLens
    in selectorEditorFieldWithViewer
         k
         (lessonIdToLessonLens eptl)
-        (\e -> lessonViewerComponent r (config e))
-        (\e -> lessonEditorComponent r (config e))
+        (\e -> lessonViewerComponent r (e ^. eptl.viewLens))
+        (\e p -> lessonEditorComponent r (config e p))
 
 -- | Transform a LessonId lens to a Lesson lens for use with selector binding.
 -- The selector components work with @Maybe Lesson@ internally while the entity

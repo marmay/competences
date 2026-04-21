@@ -8,8 +8,9 @@ module Competences.Frontend.Component.Selector.SearchSelectEditorField
   )
 where
 
-import Competences.Frontend.Component.Editor.EditorField (EditorField, selectorEditorFieldWithViewer)
+import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..))
+import Optics.Core ((&), (.~))
 import Competences.Frontend.Component.Selector.SearchSelect
   ( SearchSelectConfig (..)
   , searchSelectComponent
@@ -39,7 +40,7 @@ searchSelectEditorField r k cfg extractIds eptl =
     k
     eptl
     (\e stl -> searchSelectViewerComponent r cfg (extractIds e) stl)
-    (\e stl -> searchSelectComponent r k cfg (extractIds e) stl)
+    (\e p stl -> searchSelectComponent r k cfg (extractIds (withPatchedField eptl e p)) stl)
 
 -- | Single-select variant of 'searchSelectEditorField'.
 --
@@ -54,12 +55,21 @@ searchSelectSingleEditorField
   -> (entity -> Maybe id)
   -> EntityPatchTransformedLens entity patch Maybe a f' a'
   -> EditorField entity patch ef
+-- | Return a copy of the entity with its field replaced by the patched
+-- value (if the patch modifies this field) — lets 'extractIds' see the
+-- in-progress selection state on remount after minimize/restore.
+withPatchedField
+  :: EntityPatchTransformedLens entity patch f b f' b'
+  -> entity -> patch -> entity
+withPatchedField eptl e p =
+  e & eptl.viewLens .~ currentValue e p eptl.viewLens eptl.patchLens
+
 searchSelectSingleEditorField r k cfg extractId eptl =
   selectorEditorFieldWithViewer
     k
     adaptedEptl
     (\e stl -> searchSelectViewerComponent r cfg (maybeToList $ extractId e) stl)
-    (\e stl -> searchSelectComponent r k cfg (maybeToList $ extractId e) stl)
+    (\e p stl -> searchSelectComponent r k cfg (maybeToList $ extractId (withPatchedField eptl e p)) stl)
   where
     -- Adapt from Maybe to []: keep viewLens/patchLens unchanged (they store
     -- Maybe on the model side), but change embed so that the [] coming from

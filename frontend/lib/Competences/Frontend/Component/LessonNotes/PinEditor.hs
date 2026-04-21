@@ -24,7 +24,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, dayEditorField, textEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.EditorField (EditorField)
-import Competences.Frontend.Component.Editor.Types (Action, Model, singlePatchLens)
+import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.LessonSelector (lessonEditorField)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..), keywordsFilter)
@@ -33,6 +33,7 @@ import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.SyncContext.WindowManager
   ( PinId
   , WindowMode
+  , justLens
   , pinSaveStateLens
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
@@ -40,7 +41,6 @@ import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Query.Resource qualified as QResource
 import Competences.Query.Task qualified as QTask
 import Data.Default (Default (..))
-import Data.Maybe (fromMaybe)
 import Miso qualified as M
 import Miso.String (ms)
 import Optics.Core ((&), (?~))
@@ -49,12 +49,12 @@ import Optics.Core qualified as O
 -- | Lesson-notes pin editor factory.
 lessonNotesPinEditor
   :: SyncContext -> LessonNotesId -> PinId
-  -> WindowMode -> Maybe LessonNotesPatch
+  -> WindowMode -> Maybe (Model LessonNotes LessonNotesPatch Maybe)
   -> M.Component WM.Model (Model LessonNotes LessonNotesPatch Maybe) (Action LessonNotes LessonNotesPatch)
 lessonNotesPinEditor r lnId pid _mode mSaved =
-  (editorComponent lnEditor r (fromMaybe def mSaved))
+  (editorComponent lnEditor r mSaved def)
     { M.bindings =
-        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL singlePatchLens
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens
         ]
     }
   where

@@ -235,5 +235,5 @@ observationEditorField r key evidenceId eptl =
   selectorEditorField
     key
     eptl
-    (observationSelectorComponent r . evidenceId)
+    (\entity _patch -> observationSelectorComponent r (evidenceId entity))
     (MultiStageSelectorDisabled, MultiStageSelectorEnabled)

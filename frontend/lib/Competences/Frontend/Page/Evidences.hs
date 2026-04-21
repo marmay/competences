@@ -251,7 +251,7 @@ evidenceEditorDetailView
 evidenceEditorDetailView r evidence =
   V.inlineComponent
     ("evidence-editor-" <> M.ms (show evidence.id))
-    (TE.editorComponent evidenceEditor r def)
+    (TE.editorComponent evidenceEditor r Nothing def)
   where
     evidenceEditorId = "evidence-editor-" <> M.ms (show evidence.id)
     evidenceEditable =

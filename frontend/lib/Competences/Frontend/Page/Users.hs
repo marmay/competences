@@ -78,7 +78,7 @@ usersPage r =
               `TE.addNamedField` (C.translate' C.LblUserName, TE.textEditorField #name #name)
               `TE.addNamedField` (C.translate' C.LblUserRole, TE.enumEditorField' #role #role)
               `TE.addNamedField` (C.translate' C.LblUserEmail, TE.textEditorField (#office365Id % office365IdIso) (#office365Id % office365IdChangeIso))
-          users = inlineComponent "user-list-editor-users-editor" (TE.editorComponent usersEditor r def)
+          users = inlineComponent "user-list-editor-users-editor" (TE.editorComponent usersEditor r Nothing def)
           addButton = Button.primary (Button.button (Icon.IcnAdd, C.LblAddUser) NewUser)
           header =
             M.div_

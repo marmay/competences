@@ -10,6 +10,7 @@ module Competences.Frontend.Component.Editor.EditorField
   , enumEditorField
   , enumEditorField'
   , msIso
+  , currentValue
   , mkFieldLens
   , selectorEditorField
   , selectorEditorFieldNoStyle
@@ -243,6 +244,7 @@ selectorEditorField
   => M.MisoString
   -> EntityPatchTransformedLens a patch f b f' b'
   -> ( a
+       -> patch
        -> s
        -> SelectorTransformedLens (Model a patch ef) f b f' b'
        -> M.Component (Model a patch ef) cm ca
@@ -253,10 +255,10 @@ selectorEditorField k eptl mkEditorComponent (viewerStyle, editorStyle) =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a viewerStyle (l' a))
-        , editor = \refocusTarget a _ ->
+        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a def viewerStyle (l' a))
+        , editor = \refocusTarget a p ->
             inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
-              mkEditorComponent a editorStyle (l' a))
+              mkEditorComponent a p editorStyle (l' a))
         }
 
 -- | Editor field for selectors without style parameter (e.g., searchable selectors)
@@ -267,6 +269,7 @@ selectorEditorFieldNoStyle
   => M.MisoString
   -> EntityPatchTransformedLens a patch f b f' b'
   -> ( a
+       -> patch
        -> SelectorTransformedLens (Model a patch ef) f b f' b'
        -> M.Component (Model a patch ef) cm ca
      )
@@ -275,10 +278,10 @@ selectorEditorFieldNoStyle k eptl mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
-        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a (l' a))
-        , editor = \refocusTarget a _ ->
+        { viewer = \a -> inlineComponent (k <> "-viewer") (mkEditorComponent a def (l' a))
+        , editor = \refocusTarget a p ->
             inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
-              mkEditorComponent a (l' a))
+              mkEditorComponent a p (l' a))
         }
 
 -- | Editor field for selectors with separate viewer and editor components
@@ -295,19 +298,22 @@ selectorEditorFieldWithViewer
      )
   -- ^ Viewer component factory (read-only display)
   -> ( a
+       -> patch
        -> SelectorTransformedLens (Model a patch ef) f b f' b'
        -> M.Component (Model a patch ef) emm ema
      )
-  -- ^ Editor component factory (interactive selection)
+  -- ^ Editor component factory (interactive selection); receives the
+  -- current patch so initial values reflect in-progress edits that were
+  -- persisted across minimize/restore.
   -> EditorField a patch ef
 selectorEditorFieldWithViewer k eptl mkViewerComponent mkEditorComponent =
   let mkLens = mkFieldLens eptl.viewLens eptl.patchLens
       l' a = selectorTransformedLens eptl.transform eptl.embed (mkLens a)
    in EditorField
         { viewer = \a -> inlineComponent (k <> "-viewer") (mkViewerComponent a (l' a))
-        , editor = \refocusTarget a _ ->
+        , editor = \refocusTarget a p ->
             inlineComponentAttrs (k <> "-editor") (refocusTargetAttr refocusTarget) (
-              mkEditorComponent a (l' a))
+              mkEditorComponent a p (l' a))
         }
 
 dayEditorField :: Lens' a Day -> Lens' patch (Change Day) -> EditorField a patch f
