@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- |
 -- Module      : Competences.Frontend.Component.WindowHost
 -- Description : Unified window host for modals and pinned dialogs
@@ -29,6 +31,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , installWindowEventSink
   , mkPinId
   )
+import Control.Monad (when)
 import Data.Dynamic (fromDynamic)
 import Data.IORef (IORef, readIORef)
 import Competences.Frontend.View.Tailwind (class_)
@@ -70,16 +73,19 @@ windowHostComponent installer onPinClosedRef =
     update (WinEvent WECloseTopModal) =
       M.modify $ \m -> m {modalStack = drop 1 m.modalStack}
 
-    update (WinEvent (WEPinDialog dialog@(AnyPinnedDialog _ _ meta))) =
+    update (WinEvent (WEPinDialog dialog@(AnyPinnedDialog _ _ meta))) = do
       M.modify $ \m ->
         let pid = mkPinIdFromMeta meta
          in addPin pid dialog m
+      M.io_ $ setBeforeUnloadGuard True
 
     update (WinEvent (WEUnpinDialog pid)) = do
       M.modify $ \m -> removePin pid m
       M.io_ $ do
         callback <- readIORef onPinClosedRef
         callback pid
+      m <- M.get
+      when (null m.pinOrder) $ M.io_ $ setBeforeUnloadGuard False
 
     update (WinEvent (WETogglePin pid)) =
       M.modify $ \m ->
@@ -122,6 +128,29 @@ mkPinIdFromMeta meta = mkPinId meta.key
 fillSinkSub :: WindowEventSinkInstaller -> M.Sub Action
 fillSinkSub installer actionSink =
   installWindowEventSink installer (\ev -> actionSink (WinEvent ev))
+
+-- | Set or clear 'window.onbeforeunload' so the browser prompts before
+-- navigating away while pin editors are open. Called only by this
+-- component, on pin open / last-pin close. Modern browsers ignore the
+-- returned message and show their own generic prompt; a non-empty
+-- string is enough to trigger it. Client-side (SPA) navigation via
+-- 'M.pushURI' does not fire beforeunload, so internal links keep
+-- working silently.
+setBeforeUnloadGuard :: Bool -> IO ()
+#ifdef WASM
+setBeforeUnloadGuard True = js_enableBeforeUnloadGuard
+setBeforeUnloadGuard False = js_disableBeforeUnloadGuard
+
+foreign import javascript unsafe
+  "window.onbeforeunload = function(e){return ''}"
+  js_enableBeforeUnloadGuard :: IO ()
+
+foreign import javascript unsafe
+  "window.onbeforeunload = null"
+  js_disableBeforeUnloadGuard :: IO ()
+#else
+setBeforeUnloadGuard _ = pure ()  -- JSaddle dev: no-op; real behaviour lives in WASM
+#endif
 
 -- | Add a pin to the model. If the PinId already exists, restore it.
 -- Otherwise add it and make it visible.
