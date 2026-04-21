@@ -158,6 +158,7 @@ ensureTaskPin r sink taskId doc =
         , category = PinCatTask
         , sortKey = SortKey [SortAtom taskId]
         , context = Nothing
+        , isEditor = True
         }
       chrome = WindowChrome title Icon.IcnTask (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (taskPinEditor r taskId origin pid)
@@ -173,6 +174,7 @@ ensureSolutionPin r sink solId doc =
         , category = PinCatTask
         , sortKey = SortKey [SortAtom solId]
         , context = Nothing
+        , isEditor = True
         }
       chrome = WindowChrome title Icon.IcnSolution (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (solutionPinEditor r solId pid)
@@ -189,6 +191,7 @@ ensureResourcePin r sink resId doc =
         , category = PinCatResource
         , sortKey = SortKey [SortAtom resId]
         , context = Nothing
+        , isEditor = True
         }
       chrome = WindowChrome title Icon.IcnResources (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (resourcePinEditor r resId pid)
@@ -203,6 +206,7 @@ ensureLessonNotesPin r sink lnId doc =
         , category = PinCatLessonNotes
         , sortKey = SortKey [SortAtom lnId]
         , context = Nothing
+        , isEditor = True
         }
       chrome = WindowChrome title Icon.IcnLessonNotes (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (lessonNotesPinEditor r lnId pid)
@@ -220,6 +224,7 @@ ensureLessonPin r sink lid doc =
             , category = PinCatLesson
             , sortKey = SortKey [SortAtom lesson.order, SortAtom lid]
             , context = Nothing
+            , isEditor = True
             }
           chrome = WindowChrome title Icon.IcnMesoPlan (Just Icon.IcnEdit)
        in pinDialogWith sink meta chrome (lessonPinEditor r lesson lessonNotesIds pid)
@@ -239,6 +244,7 @@ ensureAssignmentPin r sink aid doc =
         , category = PinCatAssignment
         , sortKey = SortKey [SortAtom aid]
         , context = Nothing
+        , isEditor = True
         }
       chrome = WindowChrome title Icon.IcnAssignment (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (assignmentPinEditor r aid origin pid)
@@ -255,6 +261,7 @@ handleViewerPin r (PinTaskViewer task) =
       , category = PinCatTask
       , sortKey = SortKey [SortAtom task.id]
       , context = Nothing
+      , isEditor = False
       })
     (WindowChrome (ms (taskDisplayName task)) Icon.IcnTask Nothing)
     (\_ (_ :: Maybe ()) -> TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id Published TaskComp.defaultTaskDetailedSettings))
@@ -267,6 +274,7 @@ handleViewerPin r (PinResourceViewer res) =
           , category = PinCatResource
           , sortKey = SortKey [SortAtom res.id]
           , context = Nothing
+          , isEditor = False
           })
         (WindowChrome (ms title) Icon.IcnResources Nothing)
         (\_ (_ :: Maybe ()) -> ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
@@ -277,6 +285,7 @@ handleViewerPin r (PinLessonNotesViewer ln) =
       , category = PinCatLessonNotes
       , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
       , context = Nothing
+      , isEditor = False
       })
     (WindowChrome (ms ln.title) Icon.IcnLessonNotes Nothing)
     (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent renderResolvedItem r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))

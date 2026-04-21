@@ -114,6 +114,7 @@ pinLessonEvaluator r mDateFrom lesson =
         , category = PinCatLessonEvaluation
         , sortKey = SortKey [SortAtom mDateFrom, SortAtom lesson.order, SortAtom lesson.date, SortAtom lesson.id]
         , context = fmap C.formatDayShort lesson.date
+        , isEditor = False
         }
    in pinDialog r.windowManager
         meta

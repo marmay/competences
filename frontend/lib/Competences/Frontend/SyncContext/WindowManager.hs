@@ -189,6 +189,12 @@ data PinMeta = PinMeta
   , category :: !PinCategory
   , sortKey :: !SortKey
   , context :: !(Maybe MisoString)
+  , isEditor :: !Bool
+  -- ^ 'True' if this pin holds in-progress, unsaved user input whose
+  -- loss on page unload would surprise the user. Drives the
+  -- 'window.onbeforeunload' guard in 'WindowHost'. Viewer pins (and
+  -- anything that commits changes immediately via commands rather than
+  -- batching them locally) pass 'False'.
   }
   deriving (Eq, Show)
 

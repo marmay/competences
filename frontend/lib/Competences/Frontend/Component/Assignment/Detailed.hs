@@ -251,6 +251,7 @@ pinAssignmentViewer r user assignment =
         , category = PinCatAssignment
         , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
         , context = Just (C.formatDayShort assignment.assignmentDate)
+        , isEditor = False
         }
    in pinDialogWith r.windowManager
         meta

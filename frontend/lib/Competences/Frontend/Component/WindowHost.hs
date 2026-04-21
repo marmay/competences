@@ -31,7 +31,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , installWindowEventSink
   , mkPinId
   )
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Data.Dynamic (fromDynamic)
 import Data.IORef (IORef, readIORef)
 import Competences.Frontend.View.Tailwind (class_)
@@ -77,7 +77,7 @@ windowHostComponent installer onPinClosedRef =
       M.modify $ \m ->
         let pid = mkPinIdFromMeta meta
          in addPin pid dialog m
-      M.io_ $ setBeforeUnloadGuard True
+      when meta.isEditor $ M.io_ $ setBeforeUnloadGuard True
 
     update (WinEvent (WEUnpinDialog pid)) = do
       M.modify $ \m -> removePin pid m
@@ -85,7 +85,7 @@ windowHostComponent installer onPinClosedRef =
         callback <- readIORef onPinClosedRef
         callback pid
       m <- M.get
-      when (null m.pinOrder) $ M.io_ $ setBeforeUnloadGuard False
+      unless (anyEditorPinned m) $ M.io_ $ setBeforeUnloadGuard False
 
     update (WinEvent (WETogglePin pid)) =
       M.modify $ \m ->
@@ -122,6 +122,12 @@ windowHostComponent installer onPinClosedRef =
 -- | Extract PinId from PinMeta.
 mkPinIdFromMeta :: PinMeta -> PinId
 mkPinIdFromMeta meta = mkPinId meta.key
+
+-- | Does the model currently hold at least one pin marked as an editor?
+anyEditorPinned :: Model -> Bool
+anyEditorPinned m =
+  any (\(AnyPinnedDialog _ _ meta, _vis) -> meta.isEditor)
+      (Map.elems m.pinnedDialogs)
 
 -- | Install the real action sink on component mount, flushing any events
 -- that were emitted while the sink was buffering.
