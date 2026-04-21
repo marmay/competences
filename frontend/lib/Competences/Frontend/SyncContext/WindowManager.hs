@@ -37,6 +37,8 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Construction
   , mkWindowEventSink
+  , WindowEventSinkInstaller
+  , installWindowEventSink
 
     -- * Lock watching
   , LockWatchConfig (..)
@@ -82,7 +84,7 @@ import Competences.Document.Session (SessionId)
 import Competences.Frontend.View.Icon qualified as Icon
 import Control.Monad (forM_, when)
 import Data.Dynamic (Dynamic, Typeable, fromDynamic, toDyn)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -93,7 +95,7 @@ import Optics.Core qualified as O
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString)
-import UnliftIO (MVar, newMVar, readMVar)
+import UnliftIO (newMVar, readMVar, swapMVar)
 
 -- ---------------------------------------------------------------------------
 -- Shared chrome types
@@ -363,13 +365,30 @@ data WindowEvent
 -- mounts, events are silently dropped (the placeholder no-ops).
 newtype WindowEventSink = WindowEventSink (WindowEvent -> IO ())
 
--- | Create a 'WindowEventSink' and the MVar used by the WindowHost to
--- install the real sink. Before the WindowHost mounts, events are no-ops.
-mkWindowEventSink :: IO (WindowEventSink, MVar (WindowEvent -> IO ()))
+-- | Installs the real event handler on WindowHost mount and flushes any
+-- events that were emitted before mount.
+newtype WindowEventSinkInstaller
+  = WindowEventSinkInstaller ((WindowEvent -> IO ()) -> IO ())
+
+-- | Install the real handler. Events emitted before this call are flushed
+-- to the handler in the order they were emitted.
+installWindowEventSink :: WindowEventSinkInstaller -> (WindowEvent -> IO ()) -> IO ()
+installWindowEventSink (WindowEventSinkInstaller f) = f
+
+-- | Create a 'WindowEventSink' and the installer used by the WindowHost
+-- to register the real handler. Events emitted before install are buffered
+-- and flushed in order when 'installWindowEventSink' is called.
+mkWindowEventSink :: IO (WindowEventSink, WindowEventSinkInstaller)
 mkWindowEventSink = do
-  sinkRef <- newMVar (\_ -> pure ())
+  bufferRef <- newIORef []
+  let bufferingHandler ev = modifyIORef' bufferRef (ev :)
+  sinkRef <- newMVar bufferingHandler
   let sink = WindowEventSink (\ev -> do f <- readMVar sinkRef; f ev)
-  pure (sink, sinkRef)
+      installer = WindowEventSinkInstaller $ \realHandler -> do
+        _ <- swapMVar sinkRef realHandler
+        buffered <- atomicModifyIORef' bufferRef (\xs -> ([], reverse xs))
+        mapM_ realHandler buffered
+  pure (sink, installer)
 
 -- ---------------------------------------------------------------------------
 -- Modal API

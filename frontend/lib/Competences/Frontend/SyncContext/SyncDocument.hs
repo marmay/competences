@@ -71,7 +71,7 @@ import Competences.Frontend.SvgEmbed.Manager (FormulaCache, newFormulaCache)
 import Competences.Frontend.SyncContext.WindowManager
   ( PinId
   , WindowEventSink
-  , WindowEvent
+  , WindowEventSinkInstaller
   , mkWindowEventSink
   )
 import Competences.Frontend.SyncContext.UIState
@@ -153,7 +153,7 @@ data SyncContext = SyncContext
   , env :: !SyncDocumentEnv
   , focusedUserRef :: !FocusedUserRef
   , windowManager :: !WindowEventSink
-  , windowEventSinkRef :: !(MVar (WindowEvent -> IO ()))
+  , windowEventSinkInstaller :: !WindowEventSinkInstaller
   , onPinClosedRef :: !(IORef (PinId -> IO ()))
   , onPinViewerRequestRef :: !(IORef (PinViewerRequest -> IO ()))
   , serverInfoRef :: !(IORef ServerInfo)
@@ -209,7 +209,7 @@ mkSyncDocument env = do
   syncDocument <- newMVar emptySyncDocument
   randomGen <- newStdGen >>= newMVar
   focusedUser <- mkFocusedUserRef env.connectedUser
-  (winMgr, sinkRef) <- liftIO mkWindowEventSink
+  (winMgr, installer) <- liftIO mkWindowEventSink
   onPinClosed <- newIORef (\_ -> pure ())
   onPinViewer <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
@@ -221,14 +221,14 @@ mkSyncDocument env = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr sinkRef onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
   syncDocument <- newMVar $ emptySyncDocument & (#remoteDocument .~ m) & (#localDocument .~ m)
   randomGen' <- newMVar rgen
   focusedUser <- mkFocusedUserRef env.connectedUser
-  (winMgr, sinkRef) <- liftIO mkWindowEventSink
+  (winMgr, installer) <- liftIO mkWindowEventSink
   onPinClosed <- newIORef (\_ -> pure ())
   onPinViewer <- newIORef (\_ -> pure ())
   srvInfo <- newIORef defaultServerInfo
@@ -240,7 +240,7 @@ mkSyncDocument' env rgen m = do
   fdr <- newIORef Map.empty
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr sinkRef onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
 
 -- | Request permission to upload a file. The callback is invoked with
 -- Right () on UploadPermitted, or Left reason on UploadDenied.

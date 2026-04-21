@@ -25,6 +25,8 @@ import Competences.Frontend.SyncContext.WindowManager
   , PinMeta (..)
   , PinVisibility (..)
   , WindowEvent (..)
+  , WindowEventSinkInstaller
+  , installWindowEventSink
   , mkPinId
   )
 import Data.Dynamic (fromDynamic)
@@ -36,7 +38,6 @@ import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Event (onClick)
-import UnliftIO (MVar, swapMVar)
 
 -- | Actions for the WindowHost component.
 data Action
@@ -46,12 +47,12 @@ data Action
   | ClosePin !PinId
 
 -- | The WindowHost component owns all window state directly.
--- The sinkRef MVar is filled on mount so that the WindowEventSink
--- can dispatch events to this component's action handler.
-windowHostComponent :: MVar (WindowEvent -> IO ()) -> IORef (PinId -> IO ()) -> M.Component p Model Action
-windowHostComponent sinkRef onPinClosedRef =
+-- The installer is invoked on mount to register the real handler with the
+-- 'WindowEventSink'; any events emitted before mount are flushed in order.
+windowHostComponent :: WindowEventSinkInstaller -> IORef (PinId -> IO ()) -> M.Component p Model Action
+windowHostComponent installer onPinClosedRef =
   (M.component model update view)
-    { M.subs = [fillSinkSub sinkRef]
+    { M.subs = [fillSinkSub installer]
     }
   where
     model =
@@ -116,11 +117,11 @@ windowHostComponent sinkRef onPinClosedRef =
 mkPinIdFromMeta :: PinMeta -> PinId
 mkPinIdFromMeta meta = mkPinId meta.key
 
--- | Fill the sink MVar with the real action sink on component mount.
-fillSinkSub :: MVar (WindowEvent -> IO ()) -> M.Sub Action
-fillSinkSub sinkRef actionSink = do
-  _ <- swapMVar sinkRef (\ev -> actionSink (WinEvent ev))
-  pure ()
+-- | Install the real action sink on component mount, flushing any events
+-- that were emitted while the sink was buffering.
+fillSinkSub :: WindowEventSinkInstaller -> M.Sub Action
+fillSinkSub installer actionSink =
+  installWindowEventSink installer (\ev -> actionSink (WinEvent ev))
 
 -- | Add a pin to the model. If the PinId already exists, restore it.
 -- Otherwise add it and make it visible.
