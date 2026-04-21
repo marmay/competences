@@ -553,6 +553,14 @@
   height: auto;
 }
 
+/* On screen, cap embedded task/rich-content graphics so they never
+   overflow their container. Print has its own caps below. */
+@media screen {
+  .embed-exact img {
+    max-width: 80% !important;
+  }
+}
+
 /* Float right — used only by print renderer for floated images */
 .embed-float-right {
   float: right;

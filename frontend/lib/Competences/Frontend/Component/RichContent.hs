@@ -319,7 +319,7 @@ renderBlock resolver symbols = \case
           [class_ "flex justify-center my-4"]
           [ M.img_
               [ M.textProp (ms ("src" :: Text)) (ms (svgToDataUrl body))
-              , M.textProp (ms ("style" :: Text)) (ms ("max-width:100%;height:auto" :: Text))
+              , M.textProp (ms ("style" :: Text)) (ms ("max-width:80%;height:auto" :: Text))
               ]
           ]
       _ ->
@@ -658,7 +658,7 @@ renderInline resolver symbols = \case
 thumbClasses :: MD.ThumbSize -> Text
 thumbClasses MD.ThumbSmall = "max-w-[20%] mx-auto"
 thumbClasses MD.ThumbMedium = "max-w-[60%] mx-auto"
-thumbClasses MD.ThumbLarge = "max-w-[90%] mx-auto"
+thumbClasses MD.ThumbLarge = "max-w-[80%] mx-auto"
 
 -- | Create view for a MathJax formula with four states:
 -- not-yet-attempted (static placeholder), pending (pulsing placeholder),
