@@ -17,14 +17,17 @@ module Competences.Frontend.Component.EntityMenu
   , lessonNotesEdit
   , lessonNotesDelete
   , assignmentEdit
+  , lessonEdit
+  , lessonDelete
   )
 where
 
-import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), ModifyCommand (..), ResourcesCommand (..), TasksCommand (..))
+import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), LessonsCommand (..), ModifyCommand (..), ResourcesCommand (..), TasksCommand (..))
 import Competences.Command qualified as Cmd
 import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Document (Lock (..))
 import Competences.Document.Assignment (AssignmentId)
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (TaskId)
@@ -100,6 +103,12 @@ lessonNotesDelete lnid = DeleteConfig (Cmd.LessonNotes (OnLessonNotes (Delete ln
 
 assignmentEdit :: AssignmentId -> EntityOrigin -> EditConfig
 assignmentEdit aid origin = EditConfig (AssignmentLock aid) (wrapForOrigin origin $ Assignments (OnAssignments (Modify aid Lock)))
+
+lessonEdit :: LessonId -> EditConfig
+lessonEdit lid = EditConfig (LessonLock lid) (Lessons (OnLessons (Modify lid Lock)))
+
+lessonDelete :: LessonId -> DeleteConfig
+lessonDelete lid = DeleteConfig (Lessons (OnLessons (Delete lid)))
 
 -- ============================================================================
 -- Component internals

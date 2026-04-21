@@ -65,7 +65,7 @@ library
         Competences.Frontend.Page.Planning,
         Competences.Frontend.Component.Planning.DetailView,
         Competences.Frontend.Component.Planning.ImportModal,
-        Competences.Frontend.Component.Planning.LessonEditorModal,
+        Competences.Frontend.Component.Planning.LessonPinEditor,
         Competences.Frontend.Component.Planning.LessonEvaluator,
         Competences.Frontend.Component.Planning.StudentEvaluatorModal,
         Competences.Frontend.Component.CompetenceGrid.Types,

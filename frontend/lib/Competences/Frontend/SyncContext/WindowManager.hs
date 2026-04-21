@@ -153,6 +153,7 @@ data PinCategory
   = PinCatTask
   | PinCatResource
   | PinCatAssignment
+  | PinCatLesson
   | PinCatLessonEvaluation
   | PinCatLessonNotes
   | PinCatCompetenceGrid
