@@ -10,7 +10,7 @@ import Competences.Backend.StaleLockCleanup qualified as SLC
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
 import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), handleCommand)
-import Competences.Document.Session (legacySessionId)
+import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User qualified
@@ -271,11 +271,13 @@ applyStartupMigrations pool = go
           go doc' gen' rest
 
 -- | Replay commands on top of a document
--- Returns error if any command fails to apply
-replayCommands :: Document -> [(Int64, Competences.Document.User.UserId, Command)] -> IO Document
+-- Returns error if any command fails to apply. Each command is replayed
+-- under its original 'SessionId' from the envelope so 'doRelease' matches
+-- the snapshot's preserved lock holders.
+replayCommands :: Document -> [(Int64, Competences.Document.User.UserId, SessionId, Command)] -> IO Document
 replayCommands doc [] = pure doc
-replayCommands doc ((gen, userId, cmd) : rest) =
-  case handleCommand (CommandContext userId legacySessionId) cmd doc of
+replayCommands doc ((gen, userId, sessionId, cmd) : rest) =
+  case handleCommand (CommandContext userId sessionId) cmd doc of
     Left err -> die $ "Failed to replay command at generation " <> show gen <> ": " <> T.unpack err
     Right (doc', _) -> replayCommands doc' rest
 

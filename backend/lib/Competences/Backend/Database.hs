@@ -46,7 +46,7 @@ import Competences.Backend.Envelope
   , wrapSnapshot
   )
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Document.Session (legacySessionId)
+import Competences.Document.Session (SessionId)
 import Competences.Command.Audience (CommandAudience, audienceRecipients, audienceToText)
 import Competences.Document (Document, UserRole (..))
 import Competences.Document.Id (Id (..))
@@ -309,9 +309,12 @@ saveCommandWithAudience pool cmdId ctx cmd audience = withResource pool $ \conn 
 
 -- | Load commands since a given generation (exclusive)
 --
--- Returns list of (generation, userId, command) tuples ordered by generation.
--- Commands are unwrapped from versioned envelopes, with migrations applied if needed.
-loadCommandsSince :: Pool Connection -> Int64 -> IO [(Int64, UserId, Command)]
+-- Returns list of (generation, userId, sessionId, command) tuples ordered
+-- by generation. Commands are unwrapped from versioned envelopes, with
+-- migrations applied if needed. The original 'SessionId' from the envelope
+-- is preserved so a subsequent replay can match the snapshot's lock
+-- holders under 'doRelease''s strict session check.
+loadCommandsSince :: Pool Connection -> Int64 -> IO [(Int64, UserId, SessionId, Command)]
 loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
   rows <-
     query
@@ -325,7 +328,7 @@ loadCommandsSince pool sinceGen = withResource pool $ \conn -> do
       (Only sinceGen) ::
       IO [(Int64, UUID, Value)]
   pure
-    [ (gen, envelope.userId, cmd)
+    [ (gen, envelope.userId, envelope.sessionId, cmd)
     | (gen, _userId, envelopeValue) <- rows
     , Success envelope <- [fromJSON envelopeValue]
     , Right cmd <- [unwrapCommand envelope]
@@ -598,7 +601,7 @@ walkCandidates conn now lastDoc lastGen ((snapId, candidateGen, createdAt, isPro
                 |]
                   (lastGen, candidateGen) :: IO [(UUID, Value)]
               let parsedCmds =
-                    [ (Id uid, cmd)
+                    [ (Id uid, envelope.sessionId, cmd)
                     | (uid, envelopeValue) <- cmds
                     , Success envelope <- [fromJSON envelopeValue]
                     , Right cmd <- [unwrapCommand envelope]
@@ -675,11 +678,13 @@ loadSnapshotTextById conn gen = do
     _ -> pure $ Left $ "Multiple snapshots at generation " <> show gen
 
 -- | Replay a sequence of commands for GC verification.
--- Returns the resulting document, or Left on first failure.
-replayCommandsForGC :: Document -> [(UserId, Command)] -> Either Text Document
+-- Returns the resulting document, or Left on first failure. Uses each
+-- command's original 'SessionId' so 'doRelease' matches the snapshot's
+-- lock holders exactly.
+replayCommandsForGC :: Document -> [(UserId, SessionId, Command)] -> Either Text Document
 replayCommandsForGC doc [] = Right doc
-replayCommandsForGC doc ((userId, cmd) : rest) =
-  case handleCommand (CommandContext userId legacySessionId) cmd doc of
+replayCommandsForGC doc ((userId, sessionId, cmd) : rest) =
+  case handleCommand (CommandContext userId sessionId) cmd doc of
     Left err -> Left err
     Right (doc', _) -> replayCommandsForGC doc' rest
 
