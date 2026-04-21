@@ -236,20 +236,26 @@ searchSelectComponent r instanceKey cfg initIds lensBinding =
               & #highlightIdx .~ Nothing
       M.io_ $ M.focus inputId
     update AddHighlighted = do
-      M.modify $ \m ->
-        case m.highlightIdx of
-          Nothing -> m
-          Just idx ->
-            let query = parseQuery m.searchQuery
-                selectedSet = Set.fromList m.selectedIds
-                matches = getMatches cfg query selectedSet m.allItems
-             in case drop idx matches of
-                  (item : _) ->
-                    m & #selectedIds .~ (m.selectedIds <> [cfg.itemId item])
-                      & #searchQuery .~ ""
-                      & #highlightIdx .~ Nothing
-                  [] -> m
-      M.io_ $ M.focus inputId
+      m <- M.get
+      let query = parseQuery m.searchQuery
+          matches = getMatches cfg query (Set.fromList m.selectedIds) m.allItems
+          mPicked = case m.highlightIdx of
+            Just idx -> case drop idx matches of
+              (item : _) -> Just item
+              [] -> Nothing
+            Nothing -> Nothing
+      case mPicked of
+        Nothing -> pure ()
+        Just item -> do
+          let toggledIds = m.selectedIds <> [cfg.itemId item]
+              remainingMatches = getMatches cfg query
+                (Set.fromList toggledIds) m.allItems
+              shouldClear = null remainingMatches
+          M.modify $ \m' ->
+            m' & #selectedIds .~ toggledIds
+               & #highlightIdx .~ Nothing
+               & (if shouldClear then #searchQuery .~ "" else id)
+          M.io_ $ M.focus inputId
     update (MoveHighlight delta) = M.modify $ \m ->
       let query = parseQuery m.searchQuery
           selectedSet = Set.fromList m.selectedIds
@@ -274,10 +280,16 @@ searchSelectComponent r instanceKey cfg initIds lensBinding =
           (_ : rest) -> m & #selectedIds .~ reverse rest
       M.io_ $ M.focus inputId
     update (ToggleItem i) = do
-      M.modify $ \m ->
-        if i `elem` m.selectedIds
-          then m & #selectedIds .~ filter (/= i) m.selectedIds
-          else m & #selectedIds .~ (m.selectedIds <> [i])
+      m <- M.get
+      let toggledIds
+            | i `elem` m.selectedIds = filter (/= i) m.selectedIds
+            | otherwise = m.selectedIds <> [i]
+          remainingMatches = getMatches cfg (parseQuery m.searchQuery)
+            (Set.fromList toggledIds) m.allItems
+          shouldClear = null remainingMatches
+      M.modify $ \m' ->
+        m' & #selectedIds .~ toggledIds
+           & (if shouldClear then #searchQuery .~ "" else id)
       M.io_ $ M.focus inputId
     update ClearAll =
       M.modify $ #selectedIds .~ []
