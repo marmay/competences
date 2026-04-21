@@ -8,6 +8,8 @@ module Competences.Frontend.Component.Task.Detailed
   , updateTaskDetailedPure
     -- * Embeddable update
   , updateTaskDetailed
+    -- * Menu entries
+  , addSolutionExtraEntry
     -- * Task list rendering
   , taskListView
   , renderSolutionList
@@ -61,7 +63,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -94,7 +95,6 @@ data TaskDetailedState = TaskDetailedState
 data TaskDetailedAction
   = ToggleTask !TaskId
   | ToggleSolution !SolutionId
-  | AddSolution !TaskId
   | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
   deriving (Eq, Show)
 
@@ -123,14 +123,27 @@ updateTaskDetailed
   -> M.Effect parent model action
 updateTaskDetailed stateLens r lift = go
   where
-    go (AddSolution tid) = M.io_ $ do
-      solId <- nextId r
-      let uid = (syncDocumentEnv r).connectedUser.id
-      modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId tid uid)))
     go (HoldDeleteSolution ha) =
       liftEffect_ (stateLens % #holdDeleteSolution) (lift . HoldDeleteSolution) $
         HoldButton.updateHold (\sid -> modifySyncDocument r $ Solutions (OnSolutions (Delete sid))) ha
     go action = M.modify (stateLens %~ updateTaskDetailedPure action)
+
+-- ============================================================================
+-- Menu entries
+-- ============================================================================
+
+-- | EntityMenu entry that creates a new solution for the given task and
+-- hands editing over to the lock-watching flow. Only meaningful for
+-- teachers; callers should gate on 'isTeacher'.
+addSolutionExtraEntry :: SyncContext -> TaskId -> EM.ExtraEntry
+addSolutionExtraEntry r tid = EM.ExtraEntry
+  { EM.icon = Icon.IcnAdd
+  , EM.label = C.translate' C.LblAddSolution
+  , EM.action = do
+      solId <- nextId r
+      let uid = (syncDocumentEnv r).connectedUser.id
+      modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId tid uid)))
+  }
 
 -- ============================================================================
 -- Task list rendering
@@ -179,15 +192,9 @@ renderSolutionList
   -> TaskId
   -> [Solution]
   -> M.View m a
-renderSolutionList r state liftAction tid sols =
+renderSolutionList r state liftAction _tid sols =
   MH.div_ [class_ "space-y-1"]
-    ( map (renderOneSol r state liftAction (isTeacher r)) sols
-        <> [addSolButton | isTeacher r]
-    )
-  where
-    addSolButton =
-      MH.div_ [class_ "flex justify-end"]
-        [Button.ghostSm (Button.ButtonConfig (Button.IconText Icon.IcnAdd (C.translate' C.LblAddSolution)) (Just (liftAction (AddSolution tid))))]
+    (map (renderOneSol r state liftAction (isTeacher r)) sols)
 
 renderOneSol
   :: SyncContext
@@ -398,7 +405,7 @@ headerAnnotations r cfg _m task =
             , pin = Just (PinTaskViewer task)
             , goTo = if cfg.settings.enableGoTo then Just (ManageTasks (Just task.id)) else Nothing
             , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id cfg.origin) else Nothing
-            , extraEntries = []
+            , extraEntries = [addSolutionExtraEntry r task.id]
             })
       | isTeacher r
       ]

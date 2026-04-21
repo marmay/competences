@@ -820,7 +820,7 @@ viewerComponent r user assignment wm =
                     , pin = Just (PinTaskViewer tws.task)
                     , goTo = Just (ManageTasks (Just tws.task.id))
                     , delete = Nothing
-                    , extraEntries = []
+                    , extraEntries = [VT.addSolutionExtraEntry r tws.task.id]
                     })
               | proj.connectedUserRole == Teacher
               ]

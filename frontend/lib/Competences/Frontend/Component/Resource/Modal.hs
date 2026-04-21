@@ -228,7 +228,7 @@ modalAnnotations r _m taskExtra tws =
             , pin = Just (PinTaskViewer tws.task)
             , goTo = Just (ManageTasks (Just tws.task.id))
             , delete = Nothing
-            , extraEntries = []
+            , extraEntries = [VT.addSolutionExtraEntry r tws.task.id]
             })
       ]
     ]
