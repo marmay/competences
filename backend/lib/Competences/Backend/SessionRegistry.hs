@@ -12,10 +12,13 @@ module Competences.Backend.SessionRegistry
   , isSessionAlive
   , findStaleSessions
   , removeStaleSessions
+  , seedFromDocument
   )
 where
 
 import Competences.Backend.CommandProcessor (ConnectionId)
+import Competences.Document (Document (..))
+import Competences.Document.Lock (LockHolder (..))
 import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, readTVarIO, writeTVar)
@@ -86,6 +89,29 @@ findStaleSessions registry threshold = do
     , Just disconnectTime <- [entry.lastDisconnect]
     , diffUTCTime now disconnectTime > threshold
     ]
+
+-- | Seed the registry from sessionIds found in @doc.locks@.
+--
+-- Called once on startup so that locks held by sessions from a
+-- previous backend run become visible to 'findStaleSessions'.
+-- Without this, the in-memory registry starts empty and
+-- pre-restart sessions are invisible to the cleanup thread,
+-- leaving their locks as forever-ghosts.
+--
+-- Seeded entries look like a just-happened disconnect:
+-- @connections = empty@, @lastDisconnect = Just seedTime@. If a
+-- client later reconnects with a matching sessionId,
+-- 'registerSession' clears @lastDisconnect@ and the session keeps
+-- its locks. Otherwise the entry ages out via the normal
+-- threshold.
+seedFromDocument :: SessionRegistry -> Document -> UTCTime -> IO ()
+seedFromDocument registry doc seedTime = atomically $ do
+  reg <- readTVar registry
+  let seeded = foldr insertIfAbsent reg (Map.elems doc.locks)
+      insertIfAbsent holder m =
+        let entry = SessionEntry holder.userId Set.empty (Just seedTime)
+         in Map.insertWith (\_new old -> old) holder.sessionId entry m
+  writeTVar registry seeded
 
 -- | Remove session entries that still have no active connections.
 -- Called after stale lock cleanup to prevent unbounded registry growth.

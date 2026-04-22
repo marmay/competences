@@ -6,6 +6,7 @@ import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
 import Competences.Backend.HTTP (FrontendHashes (..), appAPI, server)
+import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.StaleLockCleanup qualified as SLC
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
@@ -25,6 +26,7 @@ import Data.Int (Int64)
 import Data.Map.Strict qualified as Map
 import Data.Pool (Pool)
 import Data.Text qualified as T
+import Data.Time (getCurrentTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Database.PostgreSQL.Simple (Connection)
@@ -200,6 +202,13 @@ main = do
 
   -- Initialize application state
   state <- initAppState docVar genVar pool cas instId proc
+
+  -- Seed session registry from pre-restart locks so their holders are
+  -- visible to the stale-lock cleanup thread. Without this, locks from
+  -- sessions that existed before this backend start would never be
+  -- cleaned up (the registry is in-memory and otherwise starts empty).
+  startupTime <- getCurrentTime
+  SR.seedFromDocument state.sessionRegistry doc' startupTime
 
   -- Start stale lock cleanup thread (6-hour threshold)
   _ <- SLC.startCleanupThread state.sessionRegistry docVar proc (6 * 3600)
