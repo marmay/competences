@@ -37,6 +37,7 @@ import Data.IORef (IORef, readIORef)
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.WindowFrame (modalDialog, pinFrame, pinSidebarIcon)
 import Data.List (sortOn)
+import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -65,6 +66,7 @@ windowHostComponent installer onPinClosedRef =
         , pinOrder = []
         , pinSaveStates = Map.empty
         , pinSaveGen = 0
+        , pinFollowUps = Map.empty
         }
 
     update (WinEvent (WEOpenModal modal)) =
@@ -75,12 +77,31 @@ windowHostComponent installer onPinClosedRef =
 
     update (WinEvent (WEPinDialog dialog@(AnyPinnedDialog _ _ meta))) = do
       M.modify $ \m ->
-        let pid = mkPinIdFromMeta meta
-         in addPin pid dialog m
+        let newPid = mkPinIdFromMeta meta
+            -- Record follow-up only for commanded opens (followUp = True)
+            -- AND when there's currently a visible pin that isn't this one
+            -- (re-pinning an existing one shouldn't register itself as parent).
+            parentPid = currentlyVisiblePin m
+            shouldChain = meta.followUp && maybe False (/= newPid) parentPid
+            m' = addPin newPid dialog m
+         in case parentPid of
+              Just p | shouldChain ->
+                m' { pinFollowUps = Map.insert newPid p m'.pinFollowUps }
+              _ -> m'
       when meta.isEditor $ M.io_ $ setBeforeUnloadGuard True
 
     update (WinEvent (WEUnpinDialog pid)) = do
-      M.modify $ \m -> removePin pid m
+      m0 <- M.get
+      let mParent = Map.lookup pid m0.pinFollowUps
+      M.modify $ \m ->
+        let m' = removePin pid m
+            -- Drop any follow-up entries that pointed to this pin, too —
+            -- if a grandchild relied on the now-closed parent, it's orphaned.
+            cleaned = m' { pinFollowUps = Map.filter (/= pid) (Map.delete pid m'.pinFollowUps) }
+         in case mParent of
+              Just parent | Map.member parent cleaned.pinnedDialogs ->
+                makeVisible parent cleaned
+              _ -> cleaned
       M.io_ $ do
         callback <- readIORef onPinClosedRef
         callback pid
@@ -128,6 +149,11 @@ anyEditorPinned :: Model -> Bool
 anyEditorPinned m =
   any (\(AnyPinnedDialog _ _ meta, _vis) -> meta.isEditor)
       (Map.elems m.pinnedDialogs)
+
+-- | The PinId of the currently-visible pin, if any.
+currentlyVisiblePin :: Model -> Maybe PinId
+currentlyVisiblePin m =
+  fst <$> List.find (\(_, (_, vis)) -> vis == PinVisible) (Map.toList m.pinnedDialogs)
 
 -- | Install the real action sink on component mount, flushing any events
 -- that were emitted while the sink was buffering.

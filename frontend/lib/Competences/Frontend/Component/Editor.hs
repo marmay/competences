@@ -132,6 +132,15 @@ editorComponent e r mSeed defaultPatch =
     update (UpdateDocument (DocumentChange newDocument _)) = do
       M.modify $ updateModel newDocument
       M.io_ $ M.focus refocusTargetString
+    update (SpawnChild original spec) = do
+      m <- M.get
+      let currentPatch = fromMaybe defaultPatch (Map.lookup original m.patches)
+      M.io $ do
+        (cmd, applyToPatch) <- spec
+        pure (SpawnChildApply original (applyToPatch currentPatch) cmd)
+    update (SpawnChildApply original newPatch cmd) = do
+      M.modify $ #patches %~ Map.insert original newPatch
+      M.io_ $ modifySyncDocument r cmd
 
     updateModel :: Document -> Model a patch f -> Model a patch f
     updateModel d m =

@@ -35,6 +35,7 @@ import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
 import Competences.Frontend.Component.Task.SolutionPinEditor (solutionPinEditor)
 import Competences.Frontend.SyncContext.SyncDocument
   ( DocumentChange (..)
+  , DocumentChangeInfo (..)
   , PinViewerRequest (..)
   , SyncContext (..)
   , SyncDocument (..)
@@ -135,18 +136,18 @@ releaseCommand _ _ = error "releaseCommand: unhandled lock type"
 -- ============================================================================
 
 -- | Create a pin editor for a lock.
-ensureLockPin :: SyncContext -> WindowEventSink -> Lock -> Document -> IO ()
-ensureLockPin r sink lock doc = case lock of
-  TaskLock tid -> ensureTaskPin r sink tid doc
-  SolutionLock sid -> ensureSolutionPin r sink sid doc
-  ResourceLock rid -> ensureResourcePin r sink rid doc
-  LessonNotesLock lnid -> ensureLessonNotesPin r sink lnid doc
-  LessonLock lid -> ensureLessonPin r sink lid doc
-  AssignmentLock aid -> ensureAssignmentPin r sink aid doc
+ensureLockPin :: SyncContext -> WindowEventSink -> Lock -> Document -> Bool -> IO ()
+ensureLockPin r sink lock doc followUp = case lock of
+  TaskLock tid -> ensureTaskPin r sink tid doc followUp
+  SolutionLock sid -> ensureSolutionPin r sink sid doc followUp
+  ResourceLock rid -> ensureResourcePin r sink rid doc followUp
+  LessonNotesLock lnid -> ensureLessonNotesPin r sink lnid doc followUp
+  LessonLock lid -> ensureLessonPin r sink lid doc followUp
+  AssignmentLock aid -> ensureAssignmentPin r sink aid doc followUp
   _ -> pure () -- No pin editor for other lock types yet
 
-ensureTaskPin :: SyncContext -> WindowEventSink -> TaskId -> Document -> IO ()
-ensureTaskPin r sink taskId doc =
+ensureTaskPin :: SyncContext -> WindowEventSink -> TaskId -> Document -> Bool -> IO ()
+ensureTaskPin r sink taskId doc followUp =
   let mPublished = Ix.getOne (doc.tasks Ix.@= taskId)
       mDraft = Ix.getOne (doc.draftTasks Ix.@= taskId)
       mTask = mPublished <|> mDraft
@@ -159,12 +160,13 @@ ensureTaskPin r sink taskId doc =
         , sortKey = SortKey [SortAtom taskId]
         , context = Nothing
         , isEditor = True
+        , followUp = followUp
         }
       chrome = WindowChrome title Icon.IcnTask (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (taskPinEditor r taskId origin pid)
 
-ensureSolutionPin :: SyncContext -> WindowEventSink -> SolutionId -> Document -> IO ()
-ensureSolutionPin r sink solId doc =
+ensureSolutionPin :: SyncContext -> WindowEventSink -> SolutionId -> Document -> Bool -> IO ()
+ensureSolutionPin r sink solId doc followUp =
   let mSol = Ix.getOne (doc.solutions Ix.@= solId)
       mTask = mSol >>= \sol -> Ix.getOne (doc.tasks Ix.@= sol.taskId)
       title = maybe ("Lösung" :: MisoString) (\t -> ms (taskDisplayName t) <> " – Lösung") mTask
@@ -175,12 +177,13 @@ ensureSolutionPin r sink solId doc =
         , sortKey = SortKey [SortAtom solId]
         , context = Nothing
         , isEditor = True
+        , followUp = followUp
         }
       chrome = WindowChrome title Icon.IcnSolution (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (solutionPinEditor r solId pid)
 
-ensureResourcePin :: SyncContext -> WindowEventSink -> ResourceId -> Document -> IO ()
-ensureResourcePin r sink resId doc =
+ensureResourcePin :: SyncContext -> WindowEventSink -> ResourceId -> Document -> Bool -> IO ()
+ensureResourcePin r sink resId doc followUp =
   let mRes = Ix.getOne (doc.resources Ix.@= resId)
       title = case mRes of
         Just res -> let ResourceIdentifier t = res.identifier in ms t
@@ -192,12 +195,13 @@ ensureResourcePin r sink resId doc =
         , sortKey = SortKey [SortAtom resId]
         , context = Nothing
         , isEditor = True
+        , followUp = followUp
         }
       chrome = WindowChrome title Icon.IcnResources (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (resourcePinEditor r resId pid)
 
-ensureLessonNotesPin :: SyncContext -> WindowEventSink -> LessonNotesId -> Document -> IO ()
-ensureLessonNotesPin r sink lnId doc =
+ensureLessonNotesPin :: SyncContext -> WindowEventSink -> LessonNotesId -> Document -> Bool -> IO ()
+ensureLessonNotesPin r sink lnId doc followUp =
   let mLn = Ix.getOne (doc.lessonNotes Ix.@= lnId)
       title = maybe ("Unterrichtsnotiz" :: MisoString) (ms . (.title)) mLn
       pid = lockPinId' (LessonNotesLock lnId)
@@ -207,12 +211,13 @@ ensureLessonNotesPin r sink lnId doc =
         , sortKey = SortKey [SortAtom lnId]
         , context = Nothing
         , isEditor = True
+        , followUp = followUp
         }
       chrome = WindowChrome title Icon.IcnLessonNotes (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (lessonNotesPinEditor r lnId pid)
 
-ensureLessonPin :: SyncContext -> WindowEventSink -> LessonId -> Document -> IO ()
-ensureLessonPin r sink lid doc =
+ensureLessonPin :: SyncContext -> WindowEventSink -> LessonId -> Document -> Bool -> IO ()
+ensureLessonPin r sink lid doc followUp =
   case Ix.getOne (doc.lessons Ix.@= lid) of
     Nothing -> pure ()
     Just lesson ->
@@ -225,12 +230,13 @@ ensureLessonPin r sink lid doc =
             , sortKey = SortKey [SortAtom lesson.order, SortAtom lid]
             , context = Nothing
             , isEditor = True
+            , followUp = followUp
             }
           chrome = WindowChrome title Icon.IcnMesoPlan (Just Icon.IcnEdit)
        in pinDialogWith sink meta chrome (lessonPinEditor r lesson lessonNotesIds pid)
 
-ensureAssignmentPin :: SyncContext -> WindowEventSink -> AssignmentId -> Document -> IO ()
-ensureAssignmentPin r sink aid doc =
+ensureAssignmentPin :: SyncContext -> WindowEventSink -> AssignmentId -> Document -> Bool -> IO ()
+ensureAssignmentPin r sink aid doc followUp =
   let mPublished = Ix.getOne (doc.assignments Ix.@= aid)
       mDraft = Ix.getOne (doc.draftAssignments Ix.@= aid)
       mAssignment = mPublished <|> mDraft
@@ -245,6 +251,7 @@ ensureAssignmentPin r sink aid doc =
         , sortKey = SortKey [SortAtom aid]
         , context = Nothing
         , isEditor = True
+        , followUp = followUp
         }
       chrome = WindowChrome title Icon.IcnAssignment (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (assignmentPinEditor r aid origin pid)
@@ -262,6 +269,7 @@ handleViewerPin r (PinTaskViewer task) =
       , sortKey = SortKey [SortAtom task.id]
       , context = Nothing
       , isEditor = False
+      , followUp = True
       })
     (WindowChrome (ms (taskDisplayName task)) Icon.IcnTask Nothing)
     (\_ (_ :: Maybe ()) -> TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id Published TaskComp.defaultTaskDetailedSettings))
@@ -275,6 +283,7 @@ handleViewerPin r (PinResourceViewer res) =
           , sortKey = SortKey [SortAtom res.id]
           , context = Nothing
           , isEditor = False
+          , followUp = True
           })
         (WindowChrome (ms title) Icon.IcnResources Nothing)
         (\_ (_ :: Maybe ()) -> ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
@@ -286,6 +295,7 @@ handleViewerPin r (PinLessonNotesViewer ln) =
       , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
       , context = Nothing
       , isEditor = False
+      , followUp = True
       })
     (WindowChrome (ms ln.title) Icon.IcnLessonNotes Nothing)
     (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent renderResolvedItem r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))
@@ -301,9 +311,13 @@ mkLockWatchConfig r watcherRemovedRef = LockWatchConfig
   { userId = r.env.connectedUser.id
   , sessionId = r.env.sessionId
   , subscribeDocChanges = \handler ->
-      subscribeDocumentIO r (\change -> handler change.document)
-  , ensurePin = \sink doc lock -> ensureLockPin r sink lock doc
+      subscribeDocumentIO r (\change -> handler change.document (allowsFollowUp change.change))
+  , ensurePin = \sink doc lock followUp -> ensureLockPin r sink lock doc followUp
   , lockPinId = lockPinId'
   , watcherRemovedRef = watcherRemovedRef
   }
+  where
+    allowsFollowUp (DocumentChanged _ _) = True
+    allowsFollowUp InitialUpdate = False
+    allowsFollowUp DocumentReloaded = False
 

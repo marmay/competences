@@ -7,6 +7,7 @@ module Competences.Frontend.Component.Editor.Types
   )
 where
 
+import Competences.Command (Command)
 import Competences.Document (User, UserId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Reorder (..))
@@ -50,7 +51,16 @@ data Action a patch
   | HoldDelete !(HoldAction a)
   | UpdatePatch !a !patch
   | UpdateDocument !DocumentChange
-  deriving (Eq, Show)
+  | SpawnChild !a !(IO (Command, patch -> patch))
+  -- ^ Add button: run an IO that produces (CreateAndLock command, patch
+  -- mutator); the mutator appends the spawned entity's id to the
+  -- relevant field. Dispatches 'SpawnChildApply' next so the patch is
+  -- updated before the command fires — the subsequent 'CreateAndLock'
+  -- makes LockWatching open a child pin, which minimises this editor;
+  -- the patch must already be saved into 'pinSaveStates' by then so the
+  -- spawned entity shows up on parent restore.
+  | SpawnChildApply !a !patch !Command
+  -- ^ Internal: apply the mutated patch, then fire the command.
 
 data Reorder' a
   = Front'

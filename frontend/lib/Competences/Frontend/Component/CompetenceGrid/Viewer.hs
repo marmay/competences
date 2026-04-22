@@ -228,6 +228,7 @@ pinCompetenceGridViewer r grid =
         , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
         , context = Nothing
         , isEditor = False
+        , followUp = True
         }
    in pinDialogWith r.windowManager
         meta

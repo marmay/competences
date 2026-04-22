@@ -195,6 +195,13 @@ data PinMeta = PinMeta
   -- 'window.onbeforeunload' guard in 'WindowHost'. Viewer pins (and
   -- anything that commits changes immediately via commands rather than
   -- batching them locally) pass 'False'.
+  , followUp :: !Bool
+  -- ^ 'True' if this pin should register the currently-visible pin (if
+  -- any) as its follow-up: when this pin is closed, the recorded pin
+  -- is brought back to the front. Used by "Add task" / "Add resource"
+  -- buttons that spawn a child editor from within another. Pass
+  -- 'False' for pins opened from an initial snapshot or a document
+  -- reload where chaining would drill through stale session state.
   }
   deriving (Eq, Show)
 
@@ -351,6 +358,10 @@ data Model = Model
   -- ^ Generation counter, incremented by pinSaveStateLens on each write.
   -- Included in Eq so Miso persists binding-written model updates.
   -- (Dynamic has no Eq instance, so we can't compare pinSaveStates directly.)
+  , pinFollowUps :: !(Map.Map PinId PinId)
+  -- ^ child → parent. Set when a pin is opened with 'PinMeta.followUp'
+  -- while another pin is visible; on child close, the parent is
+  -- brought back to the front.
   }
   deriving (Generic)
 
@@ -521,11 +532,16 @@ data LockWatchConfig = LockWatchConfig
   -- ^ The connected user's ID
   , sessionId :: !SessionId
   -- ^ The session ID
-  , subscribeDocChanges :: !((Document -> IO ()) -> IO (IO ()))
+  , subscribeDocChanges :: !((Document -> Bool -> IO ()) -> IO (IO ()))
   -- ^ Subscribe to document changes; returns unsubscribe action.
-  -- The callback receives the current document on each change.
-  , ensurePin :: !(WindowEventSink -> Document -> Lock -> IO ())
-  -- ^ Create a pin for a locked entity
+  -- The callback receives the current document plus a flag indicating
+  -- whether this update came from a live incremental command (True) as
+  -- opposed to an initial snapshot or a full reload (False). The flag
+  -- is forwarded to 'ensurePin' so pin-stacking follow-ups only arm
+  -- for command-driven opens.
+  , ensurePin :: !(WindowEventSink -> Document -> Lock -> Bool -> IO ())
+  -- ^ Create a pin for a locked entity. The 'Bool' is the followUp
+  -- flag propagated to 'PinMeta'.
   , lockPinId :: !(Lock -> PinId)
   -- ^ Map a lock to its pin ID (deterministic, for deduplication)
   , watcherRemovedRef :: !(IORef (Set PinId))
@@ -548,14 +564,14 @@ startLockWatching cfg sink = do
   cfg.subscribeDocChanges (onDocumentChange cfg sink prevRef)
 
 -- | Handle a document change: diff locks against previous state.
-onDocumentChange :: LockWatchConfig -> WindowEventSink -> IORef (Set Lock) -> Document -> IO ()
-onDocumentChange cfg sink prevRef doc = do
+onDocumentChange :: LockWatchConfig -> WindowEventSink -> IORef (Set Lock) -> Document -> Bool -> IO ()
+onDocumentChange cfg sink prevRef doc followUp = do
   let current = myLocks cfg doc
   prev <- readIORef prevRef
   writeIORef prevRef current
   let added = current `Set.difference` prev
       removed = prev `Set.difference` current
-  mapM_ (cfg.ensurePin sink doc) (Set.toList added)
+  mapM_ (\l -> cfg.ensurePin sink doc l followUp) (Set.toList added)
   -- Mark as watcher-initiated before unpinning, so onPinClosed skips the Release
   forM_ (Set.toList removed) $ \lock -> do
     let pid = cfg.lockPinId lock

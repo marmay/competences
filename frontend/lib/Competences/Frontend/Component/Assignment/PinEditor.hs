@@ -7,7 +7,9 @@ module Competences.Frontend.Component.Assignment.PinEditor
   )
 where
 
-import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..))
+import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), EntityCommand (..), TasksCommand (..))
+import Competences.Document.Task (defaultTask)
+import Competences.Frontend.SyncContext (nextId)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lock (..), User (..), lockOwner)
@@ -21,7 +23,7 @@ import Competences.Frontend.Component.Editor.FormView (editorFormView')
 import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Selector.Common (entityPatchTransformedLens)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
-import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField)
+import Competences.Frontend.Component.Selector.SearchSelectEditorField (AddAction (..), addableSearchSelectEditorField, searchSelectEditorField)
 import Competences.Frontend.SyncContext (SyncContext (..))
 import Competences.Frontend.SyncContext.WindowManager (PinId, WindowMode, justLens, pinSaveStateLens)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
@@ -94,12 +96,25 @@ assignmentPinEditor r assignmentId origin pid _mode mSaved =
                             (entityPatchTransformedLens #studentIds #studentIds (.id) Set.fromList)
                         )
         `addNamedField` ( C.translate' C.LblAssignmentTasks
-                        , searchSelectEditorField
+                        , addableSearchSelectEditorField
                             r
                             (editorId <> "-tasks")
                             taskSearchConfig
                             (.tasks)
                             (entityPatchTransformedLens #tasks #tasks (.id) id)
+                            [ AddAction
+                                { label = C.LblAddTask
+                                , icon = Icon.IcnAdd
+                                , mkSpec = \entity patch -> do
+                                    newTid <- nextId r
+                                    let original = entity.tasks
+                                        currentNew = maybe original snd (patch.tasks)
+                                    pure
+                                      ( Tasks (OnTasks (CreateAndLock (defaultTask newTid)))
+                                      , \p -> p & #tasks ?~ (original, currentNew <> [newTid])
+                                      )
+                                }
+                            ]
                         )
         `addNamedField` ( C.translate' C.LblGroupSubmissionAllowed
                         , boolEditorField #groupSubmissionAllowed #groupSubmissionAllowed

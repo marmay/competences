@@ -4,6 +4,7 @@ module Competences.Frontend.SyncContext.SyncDocument
   , SyncDocumentEnv (..)
   , SyncDocument (..)
   , DocumentChange (..)
+  , DocumentChangeInfo (..)
   , mkSyncDocument
   , mkSyncDocument'
   , subscribeDocument

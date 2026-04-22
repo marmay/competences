@@ -75,6 +75,7 @@ pinAssignmentEvaluator r assignment =
         , sortKey = SortKey [SortAtom assignment.assignmentDate, SortAtom assignment.activityType, SortAtom nameText, SortAtom assignment.id]
         , context = Just (C.formatDayShort assignment.assignmentDate)
         , isEditor = False
+        , followUp = True
         }
    in pinDialog r.windowManager
         meta

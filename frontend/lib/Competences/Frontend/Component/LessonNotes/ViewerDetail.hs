@@ -60,6 +60,7 @@ pinLessonNotesViewer r ln =
         , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
         , context = Just (C.formatDayShort ln.date)
         , isEditor = False
+        , followUp = True
         }
       cfg = LessonNotesDetailedConfig ln.id defaultLessonNotesDetailedSettings
    in pinDialogWith r.windowManager meta chrome
