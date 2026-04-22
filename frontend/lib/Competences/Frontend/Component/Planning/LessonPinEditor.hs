@@ -9,6 +9,7 @@
 -- 'WindowHost' onPinClosed callback handles 'Release def' on cancel.
 module Competences.Frontend.Component.Planning.LessonPinEditor
   ( lessonPinEditor
+  , Model
   )
 where
 
@@ -31,7 +32,7 @@ import Competences.Frontend.Component.Selector.MultiStageSelector (MultiStageSel
 import Competences.Frontend.Component.MarkdownEditor (ContentState (..), contentValue, isContentValid, richContentEditorComponent)
 import Competences.TaskContent.RichContent (RichContent)
 import Competences.Frontend.SyncContext (SyncContext (..), modifySyncDocument)
-import Competences.Frontend.SyncContext.WindowManager (PinId, WindowMode, closeWindow, inlineComponent)
+import Competences.Frontend.SyncContext.WindowManager (PinId, WindowMode, closeWindow, inlineComponent, justLens, pinSaveStateLens)
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -44,6 +45,7 @@ import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Data.Default (def)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day)
@@ -53,6 +55,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.Html.Property qualified as MP
 import Optics.Core (Lens', lens, (&), (.~), (?~))
+import Optics.Core qualified as O
 import Text.Read (readMaybe)
 
 -- ============================================================================
@@ -103,20 +106,28 @@ data Action
 -- linked 'LessonNotesId' list from the current document and passes them
 -- in; this component then owns its edit-time state.
 --
--- The 'PinId' and 'Maybe ()' saved-state slots are unused for now —
--- pin-state persistence across minimize/restore can be added later.
+-- Edit-time state is persisted across minimize/restore through the
+-- standard @pinSaveStates@ binding — identical pattern to the
+-- Editor-framework pin editors (Task/Resource/Assignment/...). The
+-- 'LessonLock' is held by this session for the pin's whole lifetime, so
+-- the restored snapshot cannot diverge from server state.
 lessonPinEditor
   :: SyncContext
   -> Lesson
   -> [LessonNotesId]
   -> PinId
   -> WindowMode
-  -> Maybe ()
+  -> Maybe Model
   -> M.Component WM.Model Model Action
-lessonPinEditor r lesson' lessonNotesIds _pid wm _mSaved =
-  M.component model update (view r)
+lessonPinEditor r lesson' lessonNotesIds pid wm mSaved =
+  (M.component model update (view r))
+    { M.bindings =
+        [ O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens
+        ]
+    }
   where
-    model =
+    model = fromMaybe emptyModel mSaved
+    emptyModel =
       Model
         { lesson = lesson'
         , titleValue = lesson'.title
