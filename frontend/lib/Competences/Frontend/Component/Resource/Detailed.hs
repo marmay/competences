@@ -246,16 +246,19 @@ linkCardView icon ident displayName url title annotations =
   MH.div_
     [class_ "flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"]
     [ MH.a_
-        [ class_ "flex-1 flex items-center gap-2"
+        [ class_ "flex-1 flex items-center gap-2 min-w-0"
         , MP.href_ (ms url)
         , MP.target_ "_blank"
         , MP.rel_ "noopener noreferrer"
         ]
-        [ Icon.icon [class_ "text-sky-600"] icon
-        , MH.span_ [class_ "font-medium"] [M.text (ms displayName)]
-        , if T.null title || title == ident
-            then Layout.empty
-            else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (ms $ "— " <> title)]
+        [ Icon.icon [class_ "text-sky-600 shrink-0"] icon
+        , MH.div_
+            [class_ "flex flex-col min-w-0"]
+            [ MH.span_ [class_ "font-medium truncate"] [M.text (ms displayName)]
+            , if T.null title || title == ident
+                then Layout.empty
+                else MH.span_ [class_ "text-muted-foreground text-sm truncate"] [M.text (ms title)]
+            ]
         ]
     , Layout.hFlow (Layout.gapS <> Layout.crossCenter) annotations
     ]
