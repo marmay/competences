@@ -99,9 +99,13 @@ import Competences.Frontend.SyncContext
   ( PinViewerRequest (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , modifySyncDocument
+  , readSyncDocument
   , subscribeWithProjection
   )
+import Competences.Frontend.Clipboard (copyToClipboard)
+import Competences.Import.Export (exportAssignment)
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
@@ -242,6 +246,14 @@ emptyProjection role assignment = ViewerProjection
 -- ============================================================================
 
 -- | Pin the assignment viewer as a persistent dialog.
+-- | Copy the current assignment to the clipboard in the Markdown-style
+-- export format. Reads the latest local document so referenced tasks
+-- and resources render with their current names.
+exportAssignmentToClipboard :: SyncContext -> Assignment -> Bool -> IO ()
+exportAssignmentToClipboard r assignment isDraft = do
+  sd <- readSyncDocument r
+  copyToClipboard (exportAssignment isDraft sd.localDocument assignment)
+
 pinAssignmentViewer :: SyncContext -> User -> Assignment -> IO ()
 pinAssignmentViewer r user assignment =
   let AssignmentName nameText = assignment.name
@@ -705,6 +717,8 @@ viewerComponent r user assignment wm =
                                     , extraEntries =
                                         [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
                                             (pinAssignmentEvaluator r proj.currentAssignment)
+                                        , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
+                                            (exportAssignmentToClipboard r proj.currentAssignment (m.projection.origin == Draft))
                                         ]
                                     })
                                | proj.connectedUserRole == Teacher
