@@ -3,6 +3,7 @@
 module Competences.Frontend.Fragment.TaskStatus
   ( viewTaskCompletionStatus
   , viewTaskCompletionStatusFromMap
+  , viewTaskCompletionStatusIcon
   )
 where
 
@@ -41,6 +42,16 @@ viewTaskCompletionStatus (TaskNotDone ref) =
 viewTaskCompletionStatusFromMap :: Map TaskId TaskCompletionStatus -> TaskId -> M.View model a
 viewTaskCompletionStatusFromMap statuses taskId =
   maybe Layout.empty viewTaskCompletionStatus (Map.lookup taskId statuses)
+
+-- | Render only the colored status icon (no "Stand: …" label).
+-- For use inside per-row contexts where the assignment + date are
+-- already shown separately.
+viewTaskCompletionStatusIcon :: TaskCompletionStatus -> M.View model a
+viewTaskCompletionStatusIcon TaskNotEvaluated = Layout.empty
+viewTaskCompletionStatusIcon (TaskDone _) =
+  Icon.icon [class_ $ "w-4 h-4 " <> textClass' (Completion.completionPalette Done)] Icon.IcnApply
+viewTaskCompletionStatusIcon (TaskNotDone _) =
+  Icon.icon [class_ $ "w-4 h-4 " <> textClass' (Completion.completionPalette InProgress)] Icon.IcnProgress
 
 -- | Internal: render status icon + "Stand:" text.
 statusView :: Text -> Icon.Icon -> EvidenceRef -> M.View model a

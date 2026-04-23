@@ -396,6 +396,11 @@ data Label
     -- Task remarks
   | LblTaskRemarks
   | LblTaskRemark !TaskRemark
+    -- Task evaluation history
+  | LblTaskEvaluationHistory
+  | LblShowMoreHistory
+  | LblShowLessHistory
+  | LblEvaluatedOn
     -- Assignment references
   | LblUsedInAssignment
   | LblUsedInAssignments
@@ -825,6 +830,11 @@ labels' =
   , LblSelectTasks
     -- Task remarks
   , LblTaskRemarks
+    -- Task evaluation history
+  , LblTaskEvaluationHistory
+  , LblShowMoreHistory
+  , LblShowLessHistory
+  , LblEvaluatedOn
     -- Assignment references
   , LblUsedInAssignment
   , LblUsedInAssignments
@@ -1276,6 +1286,11 @@ defaultTranslation LblTaskRemarks = "Anmerkungen"
 defaultTranslation (LblTaskRemark Exceptional) = "Herausragend"
 defaultTranslation (LblTaskRemark Sloppy) = "Schlampig"
 defaultTranslation (LblTaskRemark Lacking) = "Lückenhaft"
+-- Task evaluation history
+defaultTranslation LblTaskEvaluationHistory = "Bearbeitungshistorie"
+defaultTranslation LblShowMoreHistory = "Mehr anzeigen"
+defaultTranslation LblShowLessHistory = "Weniger anzeigen"
+defaultTranslation LblEvaluatedOn = "bewertet"
 -- Assignment references
 defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"
 defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"
