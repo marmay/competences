@@ -3,8 +3,10 @@
 module Competences.Command
   ( Command (..)
   , MigrationCommand (..)
+  , MigrationPlan (..)
   , CommandId
   , handleCommand
+  , validateLessonNotesMigration
   , module Competences.Command.Common
   , module Competences.Command.CompetenceAssessments
   , module Competences.Command.CompetenceGridGrades
@@ -21,6 +23,7 @@ module Competences.Command
   , module Competences.Command.MesoPlans
   , module Competences.Command.Lessons
   , module Competences.Command.LessonNotes
+  , module Competences.Command.TeachingNotes
   , module Competences.Command.ParticipationRecords
   , module Competences.Command.Absences
   , module Competences.Command.Submissions
@@ -46,14 +49,17 @@ import Competences.Command.Evidences (EvidencesCommand (..), EvidencePatch (..),
 import Competences.Command.Layouts (LayoutsCommand (..), LayoutPatch (..), handleLayoutsCommand)
 import Competences.Command.Lessons (LessonsCommand (..), LessonPatch (..), handleLessonsCommand)
 import Competences.Command.LessonNotes (LessonNotesCommand (..), LessonNotesPatch (..), handleLessonNotesCommand)
+import Competences.Command.TeachingNotes (TeachingNotesCommand (..), handleTeachingNotesCommand)
 import Competences.Command.MesoPlans (MesoPlansCommand (..), MesoPlanPatch (..), handleMesoPlansCommand)
 import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..), ParticipationRecordPatch (..), handleParticipationRecordsCommand)
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
-import Competences.Document (Document (..), Lesson (..), User (..))
+import Competences.Document (Document (..), Lesson (..), TeachingNote (..), TeachingNoteId, User (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
-import Competences.Document.Lesson (LessonId)
+import Competences.Document.Lesson (LessonId, LessonItem (..), LessonItemContent (..), LessonPhase (..))
+import Competences.Document.LessonNotes qualified as DN
+import Competences.Document.LessonNotes (LessonNoteItem (..))
 import Competences.Document.Lock (Lock)
 import Competences.Document.User (Office365Id (..), UserRole (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
@@ -75,14 +81,36 @@ data MigrationCommand
   | InitIfEmpty
   | EnsureTeacherO365 !(Id User) !Text
   | SortAssignmentTasksByIdentifier
+  | MigrateLessonNotesIntoLessons !MigrationPlan
+    -- ^ One-shot: (a) fold each 'LessonNotes' into its linked 'Lesson'
+    -- (items into @supplementalItems@ with @publish = True@, title into
+    -- @notesTitleOverride@); (b) externalise legacy @lesson.notes@ and
+    -- @phase.notes@ prose into 'TeachingNote' entities, setting the
+    -- corresponding @privateNoteRef@; (c) flip @lessonNotesMigrated@.
+    -- The plan supplies pre-allocated 'TeachingNoteId's so the
+    -- migration is fully deterministic on replay.
+  deriving (Eq, Generic, Show)
+
+-- | Pre-allocated 'TeachingNoteId's for the lesson-and-phase notes
+-- externalisation step of 'MigrateLessonNotesIntoLessons'.
+data MigrationPlan = MigrationPlan
+  { lessonNoteIds :: ![(LessonId, TeachingNoteId)]
+  , phaseNoteIds :: ![(LessonId, Int, TeachingNoteId)]
+  -- ^ @(lesson, 0-based phase index, allocated id)@.
+  }
   deriving (Eq, Generic, Show)
 
 instance Binary MigrationCommand
+instance Binary MigrationPlan
 
 #ifdef WITH_AESON
 instance FromJSON MigrationCommand
 
 instance ToJSON MigrationCommand
+
+instance FromJSON MigrationPlan
+
+instance ToJSON MigrationPlan
 #endif
 
 -- | Top-level command type wrapping all context commands
@@ -100,6 +128,7 @@ data Command
   | MesoPlans !MesoPlansCommand
   | Lessons !LessonsCommand
   | LessonNotes !LessonNotesCommand
+  | TeachingNotes !TeachingNotesCommand
   | ParticipationRecords !ParticipationRecordsCommand
   | Absences !AbsencesCommand
   | Submissions !SubmissionsCommand
@@ -142,6 +171,7 @@ handleCommand cmdCtx cmd d = case cmd of
   MesoPlans c -> teacherOnly $ handleMesoPlansCommand cmdCtx c d
   Lessons c -> teacherOnly $ handleLessonsCommand cmdCtx c d
   LessonNotes c -> teacherOnly $ handleLessonNotesCommand cmdCtx c d
+  TeachingNotes c -> teacherOnly $ handleTeachingNotesCommand cmdCtx c d
   ParticipationRecords c -> teacherOnly $ handleParticipationRecordsCommand cmdCtx c d
   Absences c -> teacherOnly $ handleAbsencesCommand cmdCtx c d
   DraftTasks c -> teacherOnly $ handleDraftTasksCommand cmdCtx c d
@@ -204,6 +234,122 @@ handleMigrationCommand SortAssignmentTasksByIdentifier d =
           & #assignments %~ Ix.fromList . map (sortTasks d.tasks) . Ix.toList
           & #draftAssignments %~ Ix.fromList . map (sortTasks d.draftTasks) . Ix.toList
    in Right (d', allUsers d')
+handleMigrationCommand (MigrateLessonNotesIntoLessons plan) d
+  | d.lessonNotesMigrated = Right (d, allUsers d) -- idempotent no-op
+  | otherwise =
+      case validateLessonNotesMigration d of
+        Left reason -> Left reason
+        Right linked ->
+          let docAfterFold = foldl' mergeOneNote d linked
+              docAfterLessonProse = foldl' externaliseLessonNote docAfterFold plan.lessonNoteIds
+              docAfterPhaseProse = foldl' externalisePhaseNote docAfterLessonProse plan.phaseNoteIds
+              d' = docAfterPhaseProse & #lessonNotesMigrated .~ True
+           in Right (d', allUsers d')
+  where
+    mergeOneNote :: Document -> (LessonId, DN.LessonNotes) -> Document
+    mergeOneNote doc (lid, n) =
+      case Ix.getOne (doc.lessons Ix.@= lid) of
+        Nothing -> doc -- can't happen; prevalidated above
+        Just lesson ->
+          let newItems = map (\i -> LessonItem {content = toContent i, publish = True}) n.items
+              titleOverride =
+                if T.null n.title
+                  then lesson.notesTitleOverride
+                  else Just n.title
+              lesson' = lesson
+                & #supplementalItems %~ (<> newItems)
+                & #notesTitleOverride .~ titleOverride
+           in doc & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
+
+    toContent :: LessonNoteItem -> LessonItemContent
+    toContent = \case
+      LessonResource rid -> PhaseResource rid
+      LessonTask tid -> PhaseTask tid
+
+    externaliseLessonNote :: Document -> (LessonId, TeachingNoteId) -> Document
+    externaliseLessonNote doc (lid, tnId) = case Ix.getOne (doc.lessons Ix.@= lid) of
+      Nothing -> doc
+      Just lesson
+        | lesson.notes == mempty -> doc
+        | otherwise ->
+            let tn = TeachingNote {id = tnId, content = lesson.notes}
+                lesson' = lesson
+                  & #notes .~ mempty
+                  & #privateNoteRef .~ Just tnId
+             in doc
+                  & #teachingNotes %~ Ix.insert tn
+                  & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
+
+    externalisePhaseNote :: Document -> (LessonId, Int, TeachingNoteId) -> Document
+    externalisePhaseNote doc (lid, idx, tnId) = case Ix.getOne (doc.lessons Ix.@= lid) of
+      Nothing -> doc
+      Just lesson -> case safeIndex idx lesson.phases of
+        Nothing -> doc
+        Just phase
+          | phase.notes == mempty -> doc
+          | otherwise ->
+              let tn = TeachingNote {id = tnId, content = phase.notes}
+                  phase' = phase
+                    & #notes .~ mempty
+                    & #privateNoteRef .~ Just tnId
+                  lesson' = lesson
+                    & #phases .~ replaceAt idx phase' lesson.phases
+               in doc
+                    & #teachingNotes %~ Ix.insert tn
+                    & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
+
+    safeIndex :: Int -> [a] -> Maybe a
+    safeIndex i xs
+      | i < 0 = Nothing
+      | otherwise = case drop i xs of
+          [] -> Nothing
+          (x : _) -> Just x
+
+    replaceAt :: Int -> a -> [a] -> [a]
+    replaceAt _ _ [] = []
+    replaceAt 0 v (_ : xs) = v : xs
+    replaceAt i v (x : xs) = x : replaceAt (i - 1) v xs
+
+-- | Pure validation used both by 'handleMigrationCommand' and by the
+-- startup-time gate in @backend/Main.hs@. Returns the list of valid
+-- (lessonId, LessonNotes) pairs to migrate, or a human-readable error
+-- listing all issues (orphans, dangling refs, duplicates).
+validateLessonNotesMigration :: Document -> Either Text [(LessonId, DN.LessonNotes)]
+validateLessonNotesMigration d =
+  let notes = Ix.toList d.lessonNotes
+      orphans = [ (n.id, n.title) | n <- notes, Nothing <- [n.lessonId] ]
+      dangling =
+        [ (n.id, n.title, lid)
+        | n <- notes
+        , Just lid <- [n.lessonId]
+        , Ix.null (d.lessons Ix.@= lid)
+        ]
+      linked = [ (lid, n) | n <- notes, Just lid <- [n.lessonId] ]
+      groupedLessons =
+        Map.toList $ Map.fromListWith (<>) [(lid, [n.id]) | (lid, n) <- linked]
+      duplicates =
+        [ (lid, nids) | (lid, nids) <- groupedLessons, length nids > 1 ]
+      section label entries
+        | null entries = Nothing
+        | otherwise = Just (label <> ": " <> T.intercalate ", " entries)
+      issues =
+        [ section
+            "orphans (lessonId = Nothing)"
+            [ T.pack (show nid) <> " " <> title | (nid, title) <- orphans ]
+        , section
+            "dangling lesson references"
+            [ T.pack (show nid) <> " " <> title <> " -> " <> T.pack (show lid)
+            | (nid, title, lid) <- dangling
+            ]
+        , section
+            "duplicates (multiple notes per lesson)"
+            [ T.pack (show lid) <> " <- " <> T.pack (show nids)
+            | (lid, nids) <- duplicates
+            ]
+        ]
+   in case [ s | Just s <- issues ] of
+        [] -> Right linked
+        ss -> Left $ "LessonNotes migration issues: " <> T.intercalate "; " ss
 
 allUsers :: Document -> AffectedUsers
 allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users

@@ -70,8 +70,12 @@ lessonNotesPage r canCreate mLnId =
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just ln) =
-      let adminSettings = defaultLessonNotesDetailedSettings {enableGoTo = False, enableDelete = True}
+      -- Full editor affordances: while release A's gateway migration
+      -- is pending, teachers need to resolve orphans / duplicates from
+      -- this view. Once all records are cleared, the "Archiv" menu
+      -- just ends up empty.
+      let legacySettings = defaultLessonNotesDetailedSettings {enableGoTo = False, enableDelete = True}
        in inlineComponent
             ("lesson-notes-detail-" <> ms (show ln.id))
-            (lessonNotesDetailedComponent renderResolvedItem r (LessonNotesDetailedConfig ln.id adminSettings))
+            (lessonNotesDetailedComponent renderResolvedItem r (LessonNotesDetailedConfig ln.id legacySettings))
 

@@ -217,4 +217,6 @@ emptyDocument =
     , draftAssignments = Ix.empty
     , competenceLevelExamples = Ix.empty
     , layouts = Ix.empty
+    , teachingNotes = Ix.empty
+    , lessonNotesMigrated = False
     }

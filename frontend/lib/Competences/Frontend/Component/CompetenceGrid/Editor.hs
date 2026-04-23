@@ -110,6 +110,8 @@ editorComponent r grid =
         , draftAssignments = Ix.empty
         , competenceLevelExamples = Ix.empty
         , layouts = Ix.empty
+        , teachingNotes = Ix.empty
+        , lessonNotesMigrated = False
         }
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document

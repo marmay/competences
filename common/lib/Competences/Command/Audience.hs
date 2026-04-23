@@ -101,9 +101,10 @@ commandAudience (Resources _) = AudienceAll
 commandAudience (CompetenceLevelExamples _) = AudienceAll
 commandAudience (LessonNotes _) = AudienceAll
 commandAudience (Migration _) = AudienceAll
+commandAudience (Lessons _) = AudienceAll
 -- Teacher-only entities
 commandAudience (MesoPlans _) = AudienceTeachers
-commandAudience (Lessons _) = AudienceTeachers
+commandAudience (TeachingNotes _) = AudienceTeachers
 -- User-specific entities: extract user IDs from Create/CreateAndLock
 commandAudience (Evidences (OnEvidences ec)) = evidenceAudience ec
 commandAudience (CompetenceAssessments (OnCompetenceAssessments ec)) = assessmentAudience ec

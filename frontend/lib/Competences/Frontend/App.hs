@@ -15,6 +15,7 @@ import Competences.Frontend.Page.Assignments (assignmentsPage)
 import Competences.Frontend.Page.CompetenceGrid (CompetenceGridMode (..), competenceGridPage)
 import Competences.Frontend.Page.Evidences (evidencesPage)
 import Competences.Frontend.Page.LessonNotes (lessonNotesPage)
+import Competences.Frontend.Page.LessonRecords (lessonRecordsPage)
 import Competences.Frontend.Page.Participation (participationPage)
 import Competences.Frontend.Page.Planning (planningPage)
 import Competences.Frontend.Page.Resources (resourcesPage)
@@ -131,6 +132,7 @@ mkApp ir initialUri =
         ManageTasks mTaskId -> manageTasks mTaskId
         ManageResources mResId -> manageResources mResId
         ManageLessonNotes mLnId -> manageLessonNotes mLnId
+        LessonRecords mLid -> lessonRecords mLid
         ManageAssignments mAsmtId -> assignments mAsmtId
         StatisticsOverview -> statisticsOverview
         ParticipationTimeline -> participationTimeline
@@ -147,6 +149,7 @@ mkApp ir initialUri =
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ tasksPage ir mTaskId
     manageResources mResId = mounted (ManageResources mResId) $ resourcesPage ir mResId
     manageLessonNotes mLnId = mounted (ManageLessonNotes mLnId) $ lessonNotesPage ir (isTeacher model.connectedUser) mLnId
+    lessonRecords mLid = mounted (LessonRecords mLid) $ lessonRecordsPage ir mLid
     assignments mAsmtId = mounted (ManageAssignments mAsmtId) $ assignmentsPage ir model.connectedUser mAsmtId
     statisticsOverview = mounted StatisticsOverview $ statisticsPage ir
     participationTimeline = mounted ParticipationTimeline $ participationPage ir

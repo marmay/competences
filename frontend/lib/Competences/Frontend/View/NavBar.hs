@@ -64,13 +64,12 @@ teacherCategories =
       , subEntries = []
       }
   , NavCategory
-      { categoryIcon = Icon.IcnLessonNotes
-      , categoryLabel = C.translate' C.LblLessonNotesEntries
-      , categoryDescription = "Notizen und Materialien aus dem Unterricht."
-      , categoryPage = ManageLessonNotes Nothing
+      { categoryIcon = Icon.IcnMesoPlan
+      , categoryLabel = C.translate' C.LblMesoPlanning
+      , categoryDescription = "Unterrichtsplanung und Materialien."
+      , categoryPage = Planning
       , subEntries =
           [ NavEntry Icon.IcnResources (C.translate' C.LblResources) (ManageResources Nothing)
-          , NavEntry Icon.IcnMesoPlan (C.translate' C.LblMesoPlanning) Planning
           ]
       }
   ]
@@ -94,9 +93,9 @@ studentCategories =
       }
   , NavCategory
       { categoryIcon = Icon.IcnLessonNotes
-      , categoryLabel = C.translate' C.LblLessonNotesEntries
+      , categoryLabel = C.translate' C.LblLessonRecord
       , categoryDescription = "Notizen und Materialien aus dem Unterricht."
-      , categoryPage = ManageLessonNotes Nothing
+      , categoryPage = LessonRecords Nothing
       , subEntries = []
       }
   ]
@@ -109,6 +108,9 @@ teacherExtraCategories =
       , NavEntry Icon.IcnSocialFormIndividual (C.translate' C.LblParticipationTimeline) ParticipationTimeline
       ])
   , ("Benutzer", [NavEntry Icon.IcnView (C.translate' C.LblManageUsers) ManageUsers])
+  , ("Archiv",
+      [ NavEntry Icon.IcnLessonNotes (C.translate' C.LblLegacyLessonNotes) (ManageLessonNotes Nothing)
+      ])
   ]
 
 -- | Check if a page belongs to a category (main page or any sub-entry).

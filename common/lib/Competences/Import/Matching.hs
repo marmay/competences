@@ -546,6 +546,9 @@ makeNewLesson mesoPlanId parsed =
     , resources = []
     , phases = map toDomainPhase parsed.phases
     , notes = fromTrustedInput parsed.notes
+    , supplementalItems = []
+    , notesTitleOverride = Nothing
+    , privateNoteRef = Nothing
     }
 
 -- | Update existing lesson with parsed data
@@ -565,6 +568,9 @@ updateLesson existing parsed =
     , resources = existing.resources -- Preserved, will be matched separately
     , phases = if null parsed.phases then existing.phases else map toDomainPhase parsed.phases
     , notes = if T.null parsed.notes then existing.notes else fromTrustedInput parsed.notes
+    , supplementalItems = existing.supplementalItems
+    , notesTitleOverride = existing.notesTitleOverride
+    , privateNoteRef = existing.privateNoteRef
     }
 
 -- | Convert parsed phase to domain phase
@@ -576,6 +582,8 @@ toDomainPhase p =
     , duration = p.duration
     , actionForm = p.actionForm
     , notes = fromTrustedInput p.notes
+    , items = []
+    , privateNoteRef = Nothing
     }
 
 -- | Check if two lessons are equal (for detecting changes)

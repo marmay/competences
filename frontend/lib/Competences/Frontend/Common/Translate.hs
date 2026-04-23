@@ -401,6 +401,19 @@ data Label
   | LblShowMoreHistory
   | LblShowLessHistory
   | LblEvaluatedOn
+    -- Lesson records (student-facing "Schulübung" rendering)
+  | LblLessonRecord
+  | LblLessonRecords
+  | LblFilterLessonRecords
+  | LblHomework
+  | LblSupplemental
+  | LblTitleOverride
+  | LblVisibleToStudents
+  | LblNotVisibleToStudents
+  | LblPinPlan
+  | LblPinLessonRecord
+  | LblLegacyLessonNotes
+  | LblLessonRecordFromPrefix
     -- Assignment references
   | LblUsedInAssignment
   | LblUsedInAssignments
@@ -835,6 +848,19 @@ labels' =
   , LblShowMoreHistory
   , LblShowLessHistory
   , LblEvaluatedOn
+    -- Lesson records (student-facing "Schulübung" rendering)
+  , LblLessonRecord
+  , LblLessonRecords
+  , LblFilterLessonRecords
+  , LblHomework
+  , LblSupplemental
+  , LblTitleOverride
+  , LblVisibleToStudents
+  , LblNotVisibleToStudents
+  , LblPinPlan
+  , LblPinLessonRecord
+  , LblLegacyLessonNotes
+  , LblLessonRecordFromPrefix
     -- Assignment references
   , LblUsedInAssignment
   , LblUsedInAssignments
@@ -1291,6 +1317,19 @@ defaultTranslation LblTaskEvaluationHistory = "Bearbeitungshistorie"
 defaultTranslation LblShowMoreHistory = "Mehr anzeigen"
 defaultTranslation LblShowLessHistory = "Weniger anzeigen"
 defaultTranslation LblEvaluatedOn = "bewertet"
+-- Lesson records (student-facing "Schulübung" rendering)
+defaultTranslation LblLessonRecord = "Schulübung"
+defaultTranslation LblLessonRecords = "Schulübungen"
+defaultTranslation LblFilterLessonRecords = "Schulübungen filtern..."
+defaultTranslation LblHomework = "Hausübungen"
+defaultTranslation LblSupplemental = "Nachtrag"
+defaultTranslation LblTitleOverride = "Titelvorgabe"
+defaultTranslation LblVisibleToStudents = "Sichtbar für Schüler*innen"
+defaultTranslation LblNotVisibleToStudents = "nicht sichtbar"
+defaultTranslation LblPinPlan = "Plan anheften"
+defaultTranslation LblPinLessonRecord = "Schulübung anheften"
+defaultTranslation LblLegacyLessonNotes = "Unterrichtsmitschrift (alt)"
+defaultTranslation LblLessonRecordFromPrefix = "Schulübung vom"
 -- Assignment references
 defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"
 defaultTranslation LblUsedInAssignments = "Verwendet in folgenden Aufträgen:"

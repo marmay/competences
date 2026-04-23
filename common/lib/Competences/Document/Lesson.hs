@@ -7,6 +7,9 @@ module Competences.Document.Lesson
   , LessonIxs
     -- * LessonPhase (plain data)
   , LessonPhase (..)
+    -- * LessonItem
+  , LessonItem (..)
+  , LessonItemContent (..)
     -- * Enums
   , TeachingSocialForm (..)
   , ActionForm (..)
@@ -21,6 +24,8 @@ import Competences.Document.Id (Id)
 import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.Order (Order, Orderable)
 import Competences.Document.Resource (ResourceId)
+import Competences.Document.Task (TaskId)
+import Competences.Document.TeachingNote (TeachingNoteId)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON (..), ToJSON, withObject, (.:), (.:?), (.!=))
 #endif
@@ -73,6 +78,45 @@ instance ToJSON ActionForm
 instance Binary ActionForm
 
 -- ============================================================================
+-- LessonItem (the student-facing content of a LessonPhase, plus
+-- Lesson.supplementalItems)
+-- ============================================================================
+
+-- | What a 'LessonItem' points at: a resource, task, or assignment.
+-- Variants are named with the @Phase@ prefix to avoid collision with
+-- the legacy 'LessonNoteItem' constructors at use sites.
+data LessonItemContent
+  = PhaseResource !ResourceId
+  | PhaseTask !TaskId
+  | PhaseAssignment !AssignmentId
+  deriving (Eq, Generic, Ord, Show)
+
+#ifdef WITH_AESON
+instance FromJSON LessonItemContent
+
+instance ToJSON LessonItemContent
+#endif
+
+instance Binary LessonItemContent
+
+-- | A single entry in a phase's (or lesson's supplemental) item list.
+-- @publish@ controls whether students see it; teacher-side views
+-- always show the item.
+data LessonItem = LessonItem
+  { content :: !LessonItemContent
+  , publish :: !Bool
+  }
+  deriving (Eq, Generic, Ord, Show)
+
+#ifdef WITH_AESON
+instance FromJSON LessonItem
+
+instance ToJSON LessonItem
+#endif
+
+instance Binary LessonItem
+
+-- ============================================================================
 -- LessonPhase (plain data, not an entity)
 -- ============================================================================
 
@@ -85,11 +129,28 @@ data LessonPhase = LessonPhase
   -- ^ Duration in minutes
   , actionForm :: !ActionForm
   , notes :: !RichContent
+  -- ^ Legacy teacher-only prose. Migration moves it into a
+  -- 'TeachingNote' referenced by 'privateNoteRef' and clears this
+  -- field. New code should not write to it.
+  , items :: ![LessonItem]
+  -- ^ Mixed list of resources, tasks and assignments attached to this
+  -- phase. Per-item @publish@ flag controls student visibility.
+  , privateNoteRef :: !(Maybe TeachingNoteId)
+  -- ^ Optional reference to the teacher-only annotation for this phase.
   }
   deriving (Eq, Generic, Ord, Show)
 
 #ifdef WITH_AESON
-instance FromJSON LessonPhase
+instance FromJSON LessonPhase where
+  parseJSON = withObject "LessonPhase" $ \v ->
+    LessonPhase
+      <$> v .: "title"
+      <*> v .: "socialForm"
+      <*> v .: "duration"
+      <*> v .: "actionForm"
+      <*> v .:? "notes" .!= mempty
+      <*> v .:? "items" .!= []
+      <*> v .:? "privateNoteRef" .!= Nothing
 
 instance ToJSON LessonPhase
 #endif
@@ -121,7 +182,17 @@ data Lesson = Lesson
   , resources :: ![ResourceId]
   , phases :: ![LessonPhase]
   , notes :: !RichContent
-  -- ^ Rich text
+  -- ^ Legacy teacher-only rich text. Migration moves it into a
+  -- 'TeachingNote' referenced by 'privateNoteRef' and clears this
+  -- field. New code should not write to it.
+  , supplementalItems :: ![LessonItem]
+  -- ^ Items (resources / tasks / assignments) not tied to a phase.
+  -- Rendered at the bottom of the student view as a supplemental block.
+  , notesTitleOverride :: !(Maybe Text)
+  -- ^ Override for the auto-derived student title (German UI:
+  -- "Schulübung vom …"). @Nothing@ means use the auto default.
+  , privateNoteRef :: !(Maybe TeachingNoteId)
+  -- ^ Optional reference to the teacher-only annotation for the lesson.
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -151,6 +222,9 @@ instance FromJSON Lesson where
       <*> v .:? "resources" .!= []
       <*> v .:? "phases" .!= []
       <*> v .:? "notes" .!= mempty
+      <*> v .:? "supplementalItems" .!= []
+      <*> v .:? "notesTitleOverride" .!= Nothing
+      <*> v .:? "privateNoteRef" .!= Nothing
 
 instance ToJSON Lesson
 #endif

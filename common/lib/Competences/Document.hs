@@ -23,6 +23,7 @@ module Competences.Document
   , module Competences.Document.MesoPlan
   , module Competences.Document.Lesson
   , module Competences.Document.LessonNotes
+  , module Competences.Document.TeachingNote
   , module Competences.Document.ParticipationRecord
   , module Competences.Document.Absence
   , module Competences.Document.Submission
@@ -74,11 +75,14 @@ import Competences.Document.FileRef (FileData (..), FileRef (..), SHA256Hash (..
 import Competences.Document.Lesson
   ( Lesson (..)
   , LessonId
+  , LessonItem (..)
+  , LessonItemContent (..)
   , LessonIxs
   , LessonPhase (..)
   , TeachingSocialForm (..)
   , ActionForm (..)
   )
+import Competences.Document.TeachingNote (TeachingNote (..), TeachingNoteId, TeachingNoteIxs)
 import Competences.Document.LessonNotes
   ( LessonNoteItem (..)
   , LessonNotes (..)
@@ -156,6 +160,14 @@ data Document = Document
   , draftAssignments :: !(Ix.IxSet AssignmentIxs Assignment)
   , competenceLevelExamples :: !(Ix.IxSet CompetenceLevelExampleIxs CompetenceLevelExample)
   , layouts :: !(Ix.IxSet LayoutIxs Layout)
+  , teachingNotes :: !(Ix.IxSet TeachingNoteIxs TeachingNote)
+  -- ^ Teacher-only annotations referenced by 'Lesson.privateNoteRef'
+  -- and 'LessonPhase.privateNoteRef'. Audience: 'AudienceTeachers'.
+  , lessonNotesMigrated :: !Bool
+  -- ^ True once 'MigrateLessonNotesIntoLessons' has folded legacy
+  -- 'LessonNotes' records into their linked lessons. Prevents a
+  -- second run from double-appending items. Default: 'False' for old
+  -- snapshots.
   }
   deriving (Eq, Generic, Show)
 
@@ -186,6 +198,8 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "draftAssignments" .!= [])
       <*> fmap Ix.fromList (v .:? "competenceLevelExamples" .!= [])
       <*> fmap Ix.fromList (v .:? "layouts" .!= [])
+      <*> fmap Ix.fromList (v .:? "teachingNotes" .!= [])
+      <*> v .:? "lessonNotesMigrated" .!= False
 
 -- | Parse locks map, silently dropping entries with unknown Lock constructors
 -- (e.g., removed TaskGroupLock from old snapshots).
@@ -218,6 +232,8 @@ instance ToJSON Document where
       , "draftAssignments" .= Ix.toList d.draftAssignments
       , "competenceLevelExamples" .= Ix.toList d.competenceLevelExamples
       , "layouts" .= Ix.toList d.layouts
+      , "teachingNotes" .= Ix.toList d.teachingNotes
+      , "lessonNotesMigrated" .= d.lessonNotesMigrated
       ]
 #endif
 
@@ -249,6 +265,8 @@ emptyDocument =
     , draftAssignments = Ix.empty
     , competenceLevelExamples = Ix.empty
     , layouts = Ix.empty
+    , teachingNotes = Ix.empty
+    , lessonNotesMigrated = False
     }
 
 
@@ -266,7 +284,11 @@ projectDocument user doc
         & #competenceGridGrades .~ (doc.competenceGridGrades Ix.@= user.id) -- Only grid grades about them
         & #locks .~ M.filterWithKey isLockVisible doc.locks -- Only locks on entities they can see
         & #mesoPlans .~ Ix.empty -- Planning is teacher-only
-        & #lessons .~ Ix.empty
+        & #teachingNotes .~ Ix.empty -- Private teacher annotations
+        -- Lessons themselves are public (they drive the student lesson
+        -- records view); teacher prose lives in 'teachingNotes'
+        -- (filtered above). This keeps lesson patches bidirectionally
+        -- applicable across teacher and student.
         & #participationRecords .~ (doc.participationRecords Ix.@= user.id) -- Own records only
         & #absences .~ (doc.absences Ix.@= user.id) -- Own absences only
         & #submissions .~ (doc.submissions Ix.@= user.id) -- Own submissions only

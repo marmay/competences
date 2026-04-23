@@ -249,4 +249,16 @@ buildLessonPatch old new matchedCompetences =
     , resources = if old.resources == new.resources then Nothing else Just (old.resources, new.resources)
     , phases = if old.phases == new.phases then Nothing else Just (old.phases, new.phases)
     , notes = if old.notes == new.notes then Nothing else Just (old.notes, new.notes)
+    , supplementalItems =
+        if old.supplementalItems == new.supplementalItems
+          then Nothing
+          else Just (old.supplementalItems, new.supplementalItems)
+    , notesTitleOverride =
+        if old.notesTitleOverride == new.notesTitleOverride
+          then Nothing
+          else Just (old.notesTitleOverride, new.notesTitleOverride)
+    , privateNoteRef =
+        if old.privateNoteRef == new.privateNoteRef
+          then Nothing
+          else Just (old.privateNoteRef, new.privateNoteRef)
     }

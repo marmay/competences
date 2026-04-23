@@ -14,9 +14,11 @@ import Competences.Command qualified as Cmd
 import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), LessonNotes (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
+import Competences.Document (TeachingNote (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Document.Id (idToText)
-import Competences.Document.Lesson (Lesson (..), LessonId)
+import Competences.Document.Lesson (Lesson (..), LessonId, LessonPhase (..))
+import Data.Map.Strict qualified as Map
 import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
@@ -222,7 +224,6 @@ ensureLessonPin r sink lid doc followUp =
     Nothing -> pure ()
     Just lesson ->
       let title = if T.null lesson.title then ("Lektion" :: MisoString) else ms lesson.title
-          lessonNotesIds = map (.id) $ Ix.toList $ doc.lessonNotes Ix.@= lid
           pid = lockPinId' (LessonLock lid)
           meta = PinMeta
             { key = "lesson-" <> idToText lid
@@ -233,7 +234,15 @@ ensureLessonPin r sink lid doc followUp =
             , followUp = followUp
             }
           chrome = WindowChrome title Icon.IcnMesoPlan (Just Icon.IcnEdit)
-       in pinDialogWith sink meta chrome (lessonPinEditor r lesson lessonNotesIds pid)
+          lookupContent nid = maybe mempty (.content) (Ix.getOne (doc.teachingNotes Ix.@= nid))
+          lessonNoteContent = maybe mempty lookupContent lesson.privateNoteRef
+          phaseNoteContents = Map.fromList
+            [ (idx, lookupContent nid)
+            | (idx, p) <- zip [0 ..] lesson.phases
+            , Just nid <- [p.privateNoteRef]
+            ]
+       in pinDialogWith sink meta chrome
+            (lessonPinEditor r lesson lessonNoteContent phaseNoteContents pid)
 
 ensureAssignmentPin :: SyncContext -> WindowEventSink -> AssignmentId -> Document -> Bool -> IO ()
 ensureAssignmentPin r sink aid doc followUp =

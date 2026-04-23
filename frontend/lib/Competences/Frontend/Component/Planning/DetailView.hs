@@ -9,7 +9,7 @@ import Competences.Import.Export (exportLesson)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Lesson (ActionForm (..), LessonId, LessonPhase (..))
+import Competences.Document.Lesson (LessonId)
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
 import Competences.Document.Order (Reorder (..), orderMax, orderPosition)
 import Competences.Query.Assignment (getAssignmentOrAssignmentDraft)
@@ -21,7 +21,13 @@ import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
 import Competences.Frontend.Component.Planning.LessonEvaluator (pinLessonEvaluator)
-import Competences.Frontend.Component.RichContent (renderRichText)
+import Competences.Frontend.Component.Lesson.Detailed
+  ( LessonDetailedConfig (..)
+  , LessonDetailedMode (..)
+  , lessonDetailedComponent
+  , pinStudentLessonView
+  , pinTeacherLessonPlan
+  )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -59,8 +65,6 @@ data DetailModel = DetailModel
   , lessons :: ![Lesson]
   , expandedLessonId :: !(Maybe LessonId)
   , expandedAssignments :: !(Set.Set LessonId)  -- Track which lessons have assignments expanded
-  , expandedNotes :: !(Set.Set LessonId)  -- Notes section per lesson
-  , expandedPhases :: !(Set.Set LessonId)  -- Phases section per lesson
   , document :: !Document
   , reorderFrom :: !(Maybe LessonId)  -- Which lesson is being moved (reorder mode)
   , holdDeleteMeso :: !(HoldButton.HoldState MesoPlanId)
@@ -73,8 +77,6 @@ data DetailAction
   | CreateNewLesson
   | ToggleLessonExpansion !LessonId
   | ToggleAssignmentsExpanded !LessonId
-  | ToggleNotesExpanded !LessonId
-  | TogglePhasesExpanded !LessonId
   | OpenMesoPlanEditorModal !MesoPlan
   | HoldDeleteMeso !(HoldButton.HoldAction MesoPlanId)
   | PinAssignmentEvaluation !Assignment
@@ -89,12 +91,10 @@ projectDetail
   :: MesoPlan
   -> Maybe LessonId
   -> Set.Set LessonId
-  -> Set.Set LessonId
-  -> Set.Set LessonId
   -> HoldButton.HoldState MesoPlanId
   -> Document
   -> DetailModel
-projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevExpandedPhases holdMeso doc =
+projectDetail plan prevExpanded prevExpandedAssignments holdMeso doc =
   let -- Get fresh plan from document (may have been updated)
       plan' = maybe plan id $ Ix.getOne (doc.mesoPlans Ix.@= plan.id)
       lessons' = QLesson.mesoPlanLessons doc plan'.id
@@ -103,11 +103,9 @@ projectDetail plan prevExpanded prevExpandedAssignments prevExpandedNotes prevEx
       expanded = case prevExpanded of
         Nothing -> Nothing
         Just lid -> if any (\l -> l.id == lid) lessons' then Just lid else Nothing
-      -- Clean up expanded states for lessons that no longer exist
+      -- Clean up expanded assignments for lessons that no longer exist
       expandedAssignments' = Set.intersection prevExpandedAssignments lessonIds
-      expandedNotes' = Set.intersection prevExpandedNotes lessonIds
-      expandedPhases' = Set.intersection prevExpandedPhases lessonIds
-   in DetailModel plan' lessons' expanded expandedAssignments' expandedNotes' expandedPhases' doc Nothing holdMeso
+   in DetailModel plan' lessons' expanded expandedAssignments' doc Nothing holdMeso
 
 -- | View for planning - allows editing meso plan and lessons
 detailView
@@ -125,7 +123,7 @@ detailComponent r initialPlan =
     { M.subs = [subscribeDocument r DocumentUpdated]
     }
   where
-    initialModel = DetailModel initialPlan [] Nothing Set.empty Set.empty Set.empty emptyDocument Nothing HoldButton.emptyHoldState
+    initialModel = DetailModel initialPlan [] Nothing Set.empty emptyDocument Nothing HoldButton.emptyHoldState
 
     emptyDocument =
       Document
@@ -150,9 +148,11 @@ detailComponent r initialPlan =
         , draftAssignments = Ix.empty
         , competenceLevelExamples = Ix.empty
         , layouts = Ix.empty
+        , teachingNotes = Ix.empty
+        , lessonNotesMigrated = False
         }
 
-    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.expandedNotes m.expandedPhases m.holdDeleteMeso dc.document
+    update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.holdDeleteMeso dc.document
 
     update CreateNewLesson = do
       m <- M.get
@@ -171,6 +171,9 @@ detailComponent r initialPlan =
                 , resources = []
                 , phases = []
                 , notes = mempty
+                , supplementalItems = []
+                , notesTitleOverride = Nothing
+                , privateNoteRef = Nothing
                 }
         -- LockWatching's ensureLessonPin auto-opens the editor pin once the
         -- new lesson's lock arrives in the snapshot — no explicit open needed.
@@ -183,12 +186,6 @@ detailComponent r initialPlan =
 
     update (ToggleAssignmentsExpanded lessonId) =
       M.modify $ #expandedAssignments %~ SetUtil.toggle lessonId
-
-    update (ToggleNotesExpanded lessonId) =
-      M.modify $ #expandedNotes %~ SetUtil.toggle lessonId
-
-    update (TogglePhasesExpanded lessonId) =
-      M.modify $ #expandedPhases %~ SetUtil.toggle lessonId
 
     update (OpenMesoPlanEditorModal plan) = M.io_ $
       openMesoPlanEditor r plan
@@ -273,6 +270,16 @@ detailComponent r initialPlan =
                               , EM.action = pinLessonEvaluator r m.mesoPlan.dateFrom lesson
                               }
                           , EM.ExtraEntry
+                              { EM.icon = Icon.IcnLessonNotes
+                              , EM.label = C.translate' C.LblPinLessonRecord
+                              , EM.action = pinStudentLessonView r lesson
+                              }
+                          , EM.ExtraEntry
+                              { EM.icon = Icon.IcnPin
+                              , EM.label = C.translate' C.LblPinPlan
+                              , EM.action = pinTeacherLessonPlan r lesson
+                              }
+                          , EM.ExtraEntry
                               { EM.icon = Icon.IcnExport
                               , EM.label = C.translate' C.LblExport
                               , EM.action = copyToClipboard (exportLesson m.document lesson)
@@ -303,11 +310,8 @@ detailComponent r initialPlan =
               MH.div_
                 [class_ "text-sm text-muted-foreground"]
                 [M.text $ C.translate' C.LblLessonDate <> ": " <> C.formatDay d]
-        , -- Description
-          if lesson.description == mempty
-            then M.text ""
-            else MH.div_ [class_ "text-sm"] [renderRichText r.formulaCache lesson.description]
-        , -- Assignments collapsible
+        , -- Assignments collapsible — planning workflow, not lecture
+          -- content, so it stays outside the Detailed component.
           if null lessonAssignmentIds
             then M.text ""
             else
@@ -319,53 +323,13 @@ detailComponent r initialPlan =
                     (map (viewAssignmentSummary m.document) lessonAssignmentIds)
                in Disclosure.innerDisclosure (ToggleAssignmentsExpanded lesson.id) $
                     Disclosure.contents assignmentsTitleView assignmentsExpanded assignmentsBody []
-        , -- Notes collapsible
-          if lesson.notes == mempty
-            then M.text ""
-            else
-              let notesExpanded = Set.member lesson.id m.expandedNotes
-                  notesTitleView = Disclosure.titleText $ C.translate' C.LblTeachingNotes
-                  notesBody = MH.div_ [class_ "text-sm"] [renderRichText r.formulaCache lesson.notes]
-               in Disclosure.innerDisclosure (ToggleNotesExpanded lesson.id) $
-                    Disclosure.contents notesTitleView notesExpanded notesBody []
-        , -- Phases collapsible
-          if null lesson.phases
-            then M.text ""
-            else
-              let phasesExpanded = Set.member lesson.id m.expandedPhases
-                  phasesTitleView = Disclosure.titleText $ C.translate' C.LblLessonPhases
-                    <> " (" <> M.ms (show (length lesson.phases)) <> ")"
-                  phasesBody = MH.div_
-                    [class_ "space-y-2"]
-                    (zipWith viewPhaseSummary [1 :: Int ..] lesson.phases)
-               in Disclosure.innerDisclosure (TogglePhasesExpanded lesson.id) $
-                    Disclosure.contents phasesTitleView phasesExpanded phasesBody []
+        , -- Full lecture content (description, teacher notes, phases,
+          -- supplemental) delegated to the shared detailed view. Only
+          -- mounted while the lesson is expanded.
+          inlineComponent
+            ("lesson-detailed-" <> M.ms (show lesson.id))
+            (lessonDetailedComponent r (LessonDetailedConfig lesson.id TeacherMode))
         ]
-
-    viewPhaseSummary idx phase =
-      let borderColor = case phase.actionForm of
-            Presenting -> "border-l-red-500"
-            Collaborating -> "border-l-orange-500"
-            Assigning -> "border-l-green-500"
-          title = M.ms $ if Text.null phase.title then "Phase " <> Text.pack (show idx) else phase.title
-       in MH.div_
-            [class_ $ "text-sm p-2 bg-muted/30 rounded border-l-4 " <> borderColor]
-            [ Layout.hFlow
-                (Layout.gapS <> Layout.hFull <> Layout.crossCenter)
-                [ MH.span_ [class_ "font-medium"] [M.text title]
-                , MH.span_ [class_ "text-muted-foreground"]
-                    [ M.text $ M.ms (show phase.duration) <> " min"
-                    , M.text " · "
-                    , M.text $ C.translate' (C.LblTeachingSocialForm phase.socialForm)
-                    , M.text " · "
-                    , M.text $ C.translate' (C.LblActionForm phase.actionForm)
-                    ]
-                ]
-            , if phase.notes == mempty
-                then M.text ""
-                else MH.div_ [class_ "mt-1 text-muted-foreground pl-2 border-l-2 border-muted text-sm"]
-                  [renderRichText r.formulaCache phase.notes]
-            ]
 
     viewAssignmentSummary doc aId =
       let mPublished = Ix.getOne (doc.assignments Ix.@= aId)
