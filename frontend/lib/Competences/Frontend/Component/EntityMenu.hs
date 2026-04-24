@@ -198,7 +198,7 @@ entityMenuComponent r cfg =
       let trigger =
             MH.span_
               [class_ "inline-flex items-center justify-center p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"]
-              [Icon.iconS Icon.Small Icon.IcnMoreVertical]
+              [Icon.iconS Icon.Small Icon.IcnMenu]
           items = concat
             [ editEntry m
             , [menuButton Icon.IcnPin (C.translate' C.LblPin) DoPinViewer | Just _ <- [cfg.pin]]
