@@ -59,6 +59,7 @@ data Icon
   | IcnCompetenceGrid
   | IcnEvidence
   | IcnAssignment
+  | IcnCircle
   | IcnInfo
   | IcnLock
   | IcnLockOpen
@@ -229,6 +230,7 @@ iconId = \case
   IcnCompetenceGrid -> "icon-competence-grid"
   IcnEvidence -> "icon-evidence"
   IcnAssignment -> "icon-assignment"
+  IcnCircle -> "icon-circle"
   IcnInfo -> "icon-info"
   IcnLock -> "icon-lock"
   IcnLockOpen -> "icon-lock-open"
@@ -463,6 +465,15 @@ iconDefOf' = \case
       [ "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
       , "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"
       ]
+  -- Empty circle (neutral placeholder — "no decision yet")
+  IcnCircle ->
+    [ MS.circle_
+        [ MSP.cx_ "12"
+        , MSP.cy_ "12"
+        , MSP.r_ "10"
+        , MSP.strokeWidth_ "1.5"
+        ]
+    ]
   -- Info icon (circle with i)
   IcnInfo ->
     mkPathesDR
@@ -483,10 +494,30 @@ iconDefOf' = \case
       , "M8 11V7a4 4 0 1 1 8 0"
       ]
   -- Progress icon: zig-zag line going up (growth/learning)
+  -- Faded circle + a "trending up" zig-zag that feeds into a filled
+  -- triangular arrowhead: "started, still developing". The circle is
+  -- drawn with reduced stroke opacity so the arrow reads as the
+  -- primary figure while the checkbox idiom is preserved.
   IcnProgress ->
-    mkPathesDR
-      [ "M3 18l4 -4l3 3l4 -5l4 4l3 -6"  -- zig-zag line trending upward
-      ]
+    [ MS.circle_
+        [ MSP.cx_ "12"
+        , MSP.cy_ "12"
+        , MSP.r_ "10"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.strokeOpacity_ "0.4"
+        ]
+    , MS.path_
+        [ MSP.d_ "M4 16L8 11L11 13L16 8"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.strokeLinecap_ "round"
+        , MSP.strokeLinejoin_ "round"
+        ]
+    , MS.path_
+        [ MSP.d_ "M13 6L19 5L18 11Z"
+        , MSP.fill_ "currentColor"
+        , MSP.stroke_ "none"
+        ]
+    ]
   -- Ability icons (for observation display)
   -- Double checkmark: SelfReliant (fully mastered)
   IcnAbilitySelfReliant ->

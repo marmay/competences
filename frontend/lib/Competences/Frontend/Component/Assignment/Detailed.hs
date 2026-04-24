@@ -128,9 +128,12 @@ import Competences.Document.User (UserRole (..))
 import Competences.Query.Assignment (AssignmentStatus (..), accumulatedObservations, assignmentStatus)
 import Competences.Query.Assignment qualified as Q
 import Competences.Query.TaskStatus (TaskCompletionStatus (..), taskCompletionStatuses)
+import Competences.Frontend.Fragment.Task.History (EvidenceRow, evaluationHistory)
+import Competences.Frontend.Fragment.Task.History qualified as History
 import Competences.Frontend.Fragment.TaskStatus (viewTaskCompletionStatusFromMap)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Competences.Common.Set qualified as SetUtil
 import Data.Set qualified as Set
 import Control.Concurrent (threadDelay)
 import Data.Time (getCurrentTime)
@@ -211,6 +214,8 @@ data ViewerProjection = ViewerProjection
   , tasksWithCompetences :: !(Set.Set TaskId)
     -- | Per-task qualitative remarks (union across all evidences for this assignment/user)
   , taskRemarkMap :: !(Map TaskId (Set.Set TaskRemark))
+    -- | Per-task evaluation history for the focused user (empty when no focus)
+  , taskHistories :: !(Map TaskId [EvidenceRow])
     -- | Pre-computed submission summary for the effective user (students only)
   , submissionSummary :: !Submission.SubmissionSummary
     -- | Saved print layouts for this assignment
@@ -235,6 +240,7 @@ emptyProjection role assignment = ViewerProjection
   , taskStatuses = Map.empty
   , tasksWithCompetences = Set.empty
   , taskRemarkMap = Map.empty
+  , taskHistories = Map.empty
   , submissionSummary = Submission.NoSubmissions
   , assignmentLayouts = []
   , origin = Published
@@ -288,6 +294,7 @@ data ViewerModel = ViewerModel
   { projection :: !ViewerProjection
   , taskListState :: !VT.TaskDetailedState
   , expandedTaskResources :: !(Set.Set TaskId)
+  , collapsedTaskHistory :: !(Set.Set TaskId)
   , pagePrintModal :: !(Maybe PrintModalModel)
   , pagePrintPending :: !(Maybe PrintSettings)
   , pagePrintPendingContent :: !(Maybe ContentSettings)
@@ -302,6 +309,7 @@ data ViewerAction
   | TaskListAction !VT.TaskDetailedAction
   | PinThis
   | ToggleTaskResourcesExpanded !TaskId
+  | ToggleTaskHistory !TaskId
   | OpenPagePrintModal !(Maybe LayoutId)
   | OpenNewLayoutModal !Layout
   | PagePrintMsg !PrintModalAction
@@ -323,6 +331,7 @@ viewerComponent r user assignment wm =
       { projection = emptyProjection user.role assignment
       , taskListState = VT.initialTaskDetailedState []
       , expandedTaskResources = Set.empty
+      , collapsedTaskHistory = Set.empty
       , pagePrintModal = Nothing
       , pagePrintPending = Nothing
       , pagePrintPendingContent = Nothing
@@ -385,6 +394,15 @@ viewerComponent r user assignment wm =
           taskRemarkMap = Map.unionsWith Set.union
             [ ev.taskRemarks | ev <- userEvidences ]
 
+          -- Per-task evaluation history for the focused user (all-evidence,
+          -- not scoped to this assignment — matches 'taskDetailedComponent').
+          taskHistories = case mUser of
+            Nothing -> Map.empty
+            Just u -> Map.fromList
+              [ (task.id, evaluationHistory doc u task)
+              | task <- relevantTasks
+              ]
+
           -- Compute submission summary for this assignment+user
           userSubmissions = Ix.toList $ doc.submissions Ix.@= updatedAssignment.id Ix.@= effectiveUserId
           subSummary = Submission.submissionSummary userSubmissions
@@ -407,6 +425,7 @@ viewerComponent r user assignment wm =
             , taskStatuses
             , tasksWithCompetences
             , taskRemarkMap
+            , taskHistories
             , submissionSummary = subSummary
             , assignmentLayouts = layouts
             , origin = asmtOrigin
@@ -438,12 +457,10 @@ viewerComponent r user assignment wm =
       VT.updateTaskDetailed #taskListState r TaskListAction action
 
     update (ToggleTaskResourcesExpanded taskId) =
-      M.modify $ \m ->
-        let newSet =
-              if Set.member taskId m.expandedTaskResources
-                then Set.delete taskId m.expandedTaskResources
-                else Set.insert taskId m.expandedTaskResources
-         in m & #expandedTaskResources .~ newSet
+      M.modify $ #expandedTaskResources %~ SetUtil.toggle taskId
+
+    update (ToggleTaskHistory taskId) =
+      M.modify $ #collapsedTaskHistory %~ SetUtil.toggle taskId
 
     update (OpenPagePrintModal mLayoutId) = do
       m <- M.get
@@ -783,6 +800,10 @@ viewerComponent r user assignment wm =
     abilityIcon WithSupport = Icon.IcnAbilityWithSupport
     abilityIcon NotYet = Icon.IcnAbilityNotYet
 
+    viewTaskExtras :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskExtras m syncCtx taskId =
+      viewTaskResources m syncCtx taskId <> viewTaskHistory m syncCtx taskId
+
     viewTaskResources :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
     viewTaskResources m syncCtx taskId
       | not (Set.member taskId m.projection.tasksWithCompetences) = []
@@ -793,6 +814,21 @@ viewerComponent r user assignment wm =
                            (TaskResources.taskResourcesComponent syncCtx taskId)
            in [Disclosure.innerDisclosure (ToggleTaskResourcesExpanded taskId) $
                  Disclosure.contents titleView isExpanded bodyView []]
+
+    viewTaskHistory :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskHistory m syncCtx taskId =
+      case Map.lookup taskId m.projection.taskHistories of
+        Nothing -> []
+        Just [] -> []
+        Just rows ->
+          [ History.historySection
+              (renderRichText syncCtx.formulaCache)
+              (VT.historyRowMenu syncCtx)
+              m.collapsedTaskHistory
+              ToggleTaskHistory
+              taskId
+              rows
+          ]
 
     viewTaskRemarkBadges :: Map TaskId (Set.Set TaskRemark) -> TaskId -> [M.View ViewerModel ViewerAction]
     viewTaskRemarkBadges remarkMap taskId =
@@ -816,7 +852,7 @@ viewerComponent r user assignment wm =
         m.taskListState
         (`Map.lookup` proj.taskStatuses)
         (taskAnnotations m proj showPurpose)
-        (viewTaskResources m syncCtx)
+        (viewTaskExtras m syncCtx)
         TaskListAction
         proj.tasksWithSolutions
 

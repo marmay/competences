@@ -8,6 +8,7 @@
 module Competences.Query.TaskStatus
   ( TaskCompletionStatus (..)
   , EvidenceRef (..)
+  , mkEvidenceRef
   , taskCompletionStatus
   , taskCompletionStatuses
   , TaskStatusGroup (..)

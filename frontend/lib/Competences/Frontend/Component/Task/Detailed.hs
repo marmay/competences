@@ -34,6 +34,8 @@ module Competences.Frontend.Component.Task.Detailed
   , TaskDetailedSettings (..)
   , defaultTaskDetailedSettings
   , taskDetailedComponent
+    -- * History row helpers
+  , historyRowMenu
   )
 where
 
@@ -42,8 +44,7 @@ import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Assignment (..), Document (..), Solution (..), Task (..), User (..))
-import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Evidence (Ability (..), Evidence (..), TaskRemark)
+import Competences.Document.Evidence (Evidence (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..), mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Common qualified as C
@@ -52,8 +53,13 @@ import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Fragment.Task.Badge (assessmentStar, taskStatusHeaderBg, taskStatusPalette)
+import Competences.Frontend.Fragment.Task.History
+  ( EvidenceRow (..)
+  , evaluationHistory
+  )
+import Competences.Frontend.Fragment.Task.History qualified as History
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
-import Competences.Frontend.Fragment.TaskStatus (viewTaskCompletionStatus, viewTaskCompletionStatusIcon)
+import Competences.Frontend.Fragment.TaskStatus (viewTaskCompletionStatus)
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
@@ -66,8 +72,6 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
-import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
@@ -77,18 +81,12 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.TaskStatus
-  ( EvidenceRef (..)
-  , TaskCompletionStatus (..)
+  ( TaskCompletionStatus (..)
   , taskCompletionStatus
   )
-import Data.Map.Strict qualified as Map
-import Data.Proxy (Proxy (..))
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
-import Data.Time (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -102,7 +100,9 @@ import Optics.Core (Lens', (%), (%~), (.~))
 data TaskDetailedState = TaskDetailedState
   { expandedTasks :: !(Set TaskId)
   , expandedSolutions :: !(Set SolutionId)
-  , showAllHistory :: !(Set TaskId)
+  , collapsedHistory :: !(Set TaskId)
+  -- ^ Inverted: history is open by default, this set tracks which
+  -- tasks have had their history section explicitly hidden.
   , holdDeleteSolution :: !(HoldButton.HoldState SolutionId)
   }
   deriving (Eq, Generic, Show)
@@ -110,7 +110,7 @@ data TaskDetailedState = TaskDetailedState
 data TaskDetailedAction
   = ToggleTask !TaskId
   | ToggleSolution !SolutionId
-  | ToggleShowAllHistory !TaskId
+  | ToggleHistory !TaskId
   | HoldDeleteSolution !(HoldButton.HoldAction SolutionId)
   deriving (Eq, Show)
 
@@ -119,14 +119,14 @@ initialTaskDetailedState expanded =
   TaskDetailedState
     { expandedTasks = Set.fromList expanded
     , expandedSolutions = Set.empty
-    , showAllHistory = Set.empty
+    , collapsedHistory = Set.empty
     , holdDeleteSolution = HoldButton.emptyHoldState
     }
 
 updateTaskDetailedPure :: TaskDetailedAction -> TaskDetailedState -> TaskDetailedState
 updateTaskDetailedPure (ToggleTask tid) = #expandedTasks %~ toggle tid
 updateTaskDetailedPure (ToggleSolution sid) = #expandedSolutions %~ toggle sid
-updateTaskDetailedPure (ToggleShowAllHistory tid) = #showAllHistory %~ toggle tid
+updateTaskDetailedPure (ToggleHistory tid) = #collapsedHistory %~ toggle tid
 updateTaskDetailedPure _ = id
 
 -- ============================================================================
@@ -366,16 +366,6 @@ data TaskProjection = TaskProjection
   }
   deriving (Eq, Generic, Show)
 
--- | One row in the per-task evaluation history. Carries the resolved
--- assignment (if any) and the per-evidence completion status to keep
--- the view layer free of further document lookups.
-data EvidenceRow = EvidenceRow
-  { evidence :: !Evidence
-  , assignment :: !(Maybe Assignment)
-  , status :: !TaskCompletionStatus
-  }
-  deriving (Eq, Generic, Show)
-
 data ComponentModel = ComponentModel
   { projection :: !TaskProjection
   , viewState :: !TaskDetailedState
@@ -429,49 +419,6 @@ taskProjection cfg doc mUser =
       Published -> Ix.getOne (doc.tasks Ix.@= cfg.taskId)
       Draft -> Ix.getOne (doc.draftTasks Ix.@= cfg.taskId)
 
--- | All evidences for the focused user that mention this task,
--- newest-first, each paired with its resolved assignment and the
--- per-evidence completion status.
-evaluationHistory :: Document -> User -> Task -> [EvidenceRow]
-evaluationHistory doc user task =
-  let userTaskEvs = doc.evidences Ix.@= user.id Ix.@= task.id
-      ordered = Ix.toDescList (Proxy @Day) userTaskEvs
-   in map (mkRow doc task.id) ordered
-
-mkRow :: Document -> TaskId -> Evidence -> EvidenceRow
-mkRow doc taskId ev =
-  EvidenceRow
-    { evidence = ev
-    , assignment = ev.assignmentId >>= \aid -> Ix.getOne (doc.assignments Ix.@= aid)
-    , status = rowStatus doc taskId ev
-    }
-
--- | Per-evidence completion status for a single task. Mirrors phase 1
--- of 'taskCompletionStatusFromIxSet' applied to one evidence: looks up
--- the per-task evaluation map and returns 'TaskDone' iff every ability
--- is satisfactory. Returns 'TaskNotEvaluated' when no per-task data is
--- recorded (the row may still carry a note or remarks).
-rowStatus :: Document -> TaskId -> Evidence -> TaskCompletionStatus
-rowStatus doc taskId ev =
-  case Map.lookup taskId ev.tasks of
-    Nothing -> TaskNotEvaluated
-    Just evals
-      | Map.null evals -> TaskNotEvaluated
-      | all isSatisfactory (Map.elems evals) -> TaskDone (mkEvidenceRef doc ev)
-      | otherwise -> TaskNotDone (mkEvidenceRef doc ev)
-  where
-    isSatisfactory SelfReliant = True
-    isSatisfactory SelfReliantWithSillyMistakes = True
-    isSatisfactory _ = False
-
-mkEvidenceRef :: Document -> Evidence -> EvidenceRef
-mkEvidenceRef doc ev =
-  EvidenceRef
-    { assignmentName = ev.assignmentId >>= \aid -> (.name) <$> Ix.getOne (doc.assignments Ix.@= aid)
-    , activityType = ev.activityType
-    , date = ev.date
-    }
-
 viewTask :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> M.View ComponentModel ComponentAction
 viewTask r cfg m task =
   let displayName = ms (taskDisplayName task)
@@ -519,73 +466,19 @@ taskBody r cfg m task =
 
 historySection :: SyncContext -> TaskDetailedConfig -> ComponentModel -> M.View ComponentModel ComponentAction
 historySection r cfg m =
-  Disclosure.staticDisclosure $
-    Disclosure.contents
-      (Disclosure.titleText (C.translate' C.LblTaskEvaluationHistory))
-      True
-      (historyBody r cfg m)
-      []
+  History.historySection
+    (renderRichText r.formulaCache)
+    (historyRowMenu r)
+    m.viewState.collapsedHistory
+    (ViewAction . ToggleHistory)
+    cfg.taskId
+    m.projection.history
 
-historyBody :: SyncContext -> TaskDetailedConfig -> ComponentModel -> M.View ComponentModel ComponentAction
-historyBody r cfg m =
-  let rows = m.projection.history
-      total = length rows
-      showAll = Set.member cfg.taskId m.viewState.showAllHistory
-      visible = if showAll then rows else take 1 rows
-      hiddenCount = total - length visible
-   in MH.div_ [class_ "space-y-2"] $
-        map (viewHistoryRow r cfg.taskId) visible
-          <> [ MH.div_ [class_ "flex justify-end"]
-                 [Button.ghostSm (Button.button toggleLabel (ViewAction (ToggleShowAllHistory cfg.taskId)))]
-             | total >= 2
-             , let toggleLabel =
-                     if showAll
-                       then C.translate' C.LblShowLessHistory
-                       else C.translate' C.LblShowMoreHistory <> " (" <> ms (show hiddenCount) <> ")"
-             ]
-
-viewHistoryRow :: SyncContext -> TaskId -> EvidenceRow -> M.View ComponentModel ComponentAction
-viewHistoryRow r taskId row =
-  let ev = row.evidence
-      mNote = Map.lookup taskId ev.taskNotes
-      remarks = Map.findWithDefault Set.empty taskId ev.taskRemarks
-   in MH.div_
-        [class_ "border rounded-lg p-3 space-y-2"]
-        $ concat
-            [ [historyRowHeader r taskId row]
-            , [remarksRow remarks | not (Set.null remarks)]
-            , [noteBlock r note | Just note <- [mNote], note /= mempty]
-            ]
-
-historyRowHeader :: SyncContext -> TaskId -> EvidenceRow -> M.View ComponentModel ComponentAction
-historyRowHeader r taskId row =
-  MH.div_
-    [class_ "flex items-start justify-between gap-3"]
-    [ MH.div_
-        [class_ "flex items-center gap-2 min-w-0"]
-        [ viewTaskCompletionStatusIcon row.status
-        , assignmentLabel row
-        , assignmentMenu r taskId row
-        ]
-    , MH.div_
-        [class_ "flex flex-col items-end shrink-0 text-xs text-muted-foreground"]
-        [ MH.span_ [] [M.text (assignmentDateLabel row)]
-        , MH.span_ [] [M.text (C.translate' C.LblEvaluatedOn <> " " <> formatLongDay row.evidence.date)]
-        ]
-    ]
-
-assignmentLabel :: EvidenceRow -> M.View m a
-assignmentLabel row = case row.assignment of
-  Just a ->
-    let AssignmentName name = a.name
-     in MH.span_ [class_ "font-medium truncate"] [M.text (ms name)]
-  Nothing ->
-    MH.span_
-      [class_ "italic text-muted-foreground truncate"]
-      [M.text (C.translate' (C.LblActivityTypeDescription row.evidence.activityType))]
-
-assignmentMenu :: SyncContext -> TaskId -> EvidenceRow -> M.View ComponentModel ComponentAction
-assignmentMenu r taskId row = case row.assignment of
+-- | Entity-menu slot for a single evaluation-history row. Polymorphic
+-- in the parent's model/action so both the standalone task detailed
+-- view and the assignment viewer can reuse it.
+historyRowMenu :: SyncContext -> TaskId -> EvidenceRow -> M.View m a
+historyRowMenu r taskId row = case row.assignment of
   Nothing -> Layout.empty
   Just a ->
     inlineComponent ("history-asn-menu-" <> ms (show taskId) <> "-" <> ms (show row.evidence.id))
@@ -597,25 +490,6 @@ assignmentMenu r taskId row = case row.assignment of
           , extraEntries = []
           }
       )
-
-assignmentDateLabel :: EvidenceRow -> MisoString
-assignmentDateLabel row = case row.assignment of
-  Just a -> formatLongDay a.assignmentDate
-  Nothing -> formatLongDay row.evidence.date
-
-remarksRow :: Set TaskRemark -> M.View ComponentModel ComponentAction
-remarksRow remarks =
-  Layout.hFlow (Layout.gapMicro <> Layout.crossCenter) $
-    map (\r' -> Badge.outline (Badge.badgeLabel (C.LblTaskRemark r'))) (Set.toAscList remarks)
-
-noteBlock :: SyncContext -> RichContent -> M.View ComponentModel ComponentAction
-noteBlock r note =
-  MH.div_
-    [class_ "prose prose-stone prose-sm max-w-none"]
-    [renderRichText r.formulaCache note]
-
-formatLongDay :: Day -> MisoString
-formatLongDay = ms . formatTime defaultTimeLocale "%d.%m.%Y"
 
 hasContent :: Task -> Bool
 hasContent task = case task.content of

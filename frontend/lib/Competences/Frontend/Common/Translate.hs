@@ -398,8 +398,6 @@ data Label
   | LblTaskRemark !TaskRemark
     -- Task evaluation history
   | LblTaskEvaluationHistory
-  | LblShowMoreHistory
-  | LblShowLessHistory
   | LblEvaluatedOn
     -- Lesson records (student-facing "Schulübung" rendering)
   | LblLessonRecord
@@ -845,8 +843,6 @@ labels' =
   , LblTaskRemarks
     -- Task evaluation history
   , LblTaskEvaluationHistory
-  , LblShowMoreHistory
-  , LblShowLessHistory
   , LblEvaluatedOn
     -- Lesson records (student-facing "Schulübung" rendering)
   , LblLessonRecord
@@ -1314,9 +1310,7 @@ defaultTranslation (LblTaskRemark Sloppy) = "Schlampig"
 defaultTranslation (LblTaskRemark Lacking) = "Lückenhaft"
 -- Task evaluation history
 defaultTranslation LblTaskEvaluationHistory = "Bearbeitungshistorie"
-defaultTranslation LblShowMoreHistory = "Mehr anzeigen"
-defaultTranslation LblShowLessHistory = "Weniger anzeigen"
-defaultTranslation LblEvaluatedOn = "bewertet"
+defaultTranslation LblEvaluatedOn = "vom"
 -- Lesson records (student-facing "Schulübung" rendering)
 defaultTranslation LblLessonRecord = "Schulübung"
 defaultTranslation LblLessonRecords = "Schulübungen"

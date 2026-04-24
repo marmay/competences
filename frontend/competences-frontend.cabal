@@ -126,6 +126,7 @@ library
         Competences.Frontend.Component.Task.Detailed,
         Competences.Frontend.Component.Task.EditButton,
         Competences.Frontend.Component.Task.PinEditor,
+        Competences.Frontend.Fragment.Task.History,
         Competences.Frontend.Fragment.Task.Projection,
         Competences.Frontend.Component.Task.SolutionPinEditor,
         Competences.Frontend.Component.Static,
