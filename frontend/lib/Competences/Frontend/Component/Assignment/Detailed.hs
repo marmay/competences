@@ -730,7 +730,7 @@ viewerComponent r user assignment wm =
                                     { edit = Just (EM.assignmentEdit proj.currentAssignment.id m.projection.origin)
                                     , pin = Just (PinAssignmentViewer proj.currentAssignment)
                                     , goTo = Nothing
-                                    , delete = Nothing
+                                    , delete = Just (EM.assignmentDelete proj.currentAssignment.id m.projection.origin)
                                     , extraEntries =
                                         [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
                                             (pinAssignmentEvaluator r proj.currentAssignment)

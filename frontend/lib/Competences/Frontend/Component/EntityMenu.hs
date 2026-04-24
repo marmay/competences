@@ -17,6 +17,7 @@ module Competences.Frontend.Component.EntityMenu
   , lessonNotesEdit
   , lessonNotesDelete
   , assignmentEdit
+  , assignmentDelete
   , lessonEdit
   , lessonDelete
   )
@@ -103,6 +104,9 @@ lessonNotesDelete lnid = DeleteConfig (Cmd.LessonNotes (OnLessonNotes (Delete ln
 
 assignmentEdit :: AssignmentId -> EntityOrigin -> EditConfig
 assignmentEdit aid origin = EditConfig (AssignmentLock aid) (wrapForOrigin origin $ Assignments (OnAssignments (Modify aid Lock)))
+
+assignmentDelete :: AssignmentId -> EntityOrigin -> DeleteConfig
+assignmentDelete aid origin = DeleteConfig (wrapForOrigin origin $ Assignments (OnAssignments (Delete aid)))
 
 lessonEdit :: LessonId -> EditConfig
 lessonEdit lid = EditConfig (LessonLock lid) (Lessons (OnLessons (Modify lid Lock)))
