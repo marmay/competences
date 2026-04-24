@@ -30,6 +30,7 @@ library
         Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Envelope
+        Competences.Backend.Exchange
         Competences.Backend.HashedFile
         Competences.Backend.HTTP
         Competences.Backend.SessionRegistry
@@ -77,7 +78,8 @@ library
         wai-extra,
         wai-websockets,
         warp,
-        websockets
+        websockets,
+        yaml
     autogen-modules:  Paths_competences_backend
     other-modules:    Paths_competences_backend
     hs-source-dirs:   lib

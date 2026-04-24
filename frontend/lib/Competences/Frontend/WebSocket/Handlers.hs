@@ -23,6 +23,7 @@ import Competences.Frontend.FileCache qualified as FC
 import Competences.Frontend.SyncContext
   ( SyncContext (..)
   , applyRemoteCommand
+  , completeExport
   , completeFileDownload
   , completeFileUpload
   , completeUploadPermission
@@ -182,6 +183,14 @@ operationLoop ref mIdb ws = do
       UploadDenied reason -> do
         logWarn $ M.ms $ "Upload denied: " <> T.unpack reason
         completeUploadPermission ref (Left reason)
+
+      ExportText yamlText -> do
+        logInfo $ M.ms ("Received ExportText" :: String)
+        completeExport ref (Right yamlText)
+
+      ExportFailed reason -> do
+        logWarn $ M.ms $ "Export failed: " <> T.unpack reason
+        completeExport ref (Left reason)
 
       SnapshotUpdate cmdId doc mChecksum -> do
         -- Full snapshot (resync or mismatch recovery)

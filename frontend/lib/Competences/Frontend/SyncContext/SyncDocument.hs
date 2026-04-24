@@ -43,6 +43,9 @@ module Competences.Frontend.SyncContext.SyncDocument
     -- * File Download
   , downloadFile
   , completeFileDownload
+    -- * Exchange (export)
+  , requestExport
+  , completeExport
     -- * File Cache
   , FileCache
     -- * Server Info
@@ -65,7 +68,7 @@ import Competences.Document (Assignment, Document, LessonNotes, Resource, Task, 
 import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
-import Competences.Protocol (CommandId, ServerInfo (..))
+import Competences.Protocol (CommandId, ExportTarget, ServerInfo (..))
 import Competences.Frontend.FileCache (FileCache, newFileCache)
 import Competences.Frontend.Logging (logDebug, logError, logWarn)
 import Competences.Frontend.SvgEmbed.Manager (FormulaCache, newFormulaCache)
@@ -95,6 +98,7 @@ import Competences.Frontend.WebSocket.CommandSender
   , getPending
   , sendCommandDirect
   , sendRequestFile
+  , sendRequestExport
   , sendRequestUploadPermission
   , sendUploadFile
   )
@@ -164,6 +168,7 @@ data SyncContext = SyncContext
   , uploadPermissionCallback :: !(IORef (Maybe (Either Text () -> IO ())))
   , fileUploadCallback :: !(IORef (Maybe (Either Text FileRef -> IO ())))
   , fileDownloadResults :: !(IORef (Map.Map SHA256Hash (MVar (Maybe BL.ByteString))))
+  , exportCallback :: !(IORef (Maybe (Either Text Text -> IO ())))
   , rejectionHandlers :: !(MVar (Map.Map Int RejectionHandler))
   , nextRejectionHandlerId :: !(IORef Int)
   }
@@ -220,9 +225,10 @@ mkSyncDocument env = do
   upc <- newIORef Nothing
   fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
+  ec <- newIORef Nothing
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr ec rh rhId
 
 mkSyncDocument' :: (MonadIO m) => SyncDocumentEnv -> StdGen -> Document -> m SyncContext
 mkSyncDocument' env rgen m = do
@@ -239,9 +245,10 @@ mkSyncDocument' env rgen m = do
   upc <- newIORef Nothing
   fuc <- newIORef Nothing
   fdr <- newIORef Map.empty
+  ec <- newIORef Nothing
   rh <- newMVar Map.empty
   rhId <- newIORef 0
-  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr rh rhId
+  pure $ SyncContext syncDocument randomGen' env focusedUser winMgr installer onPinClosed onPinViewer srvInfo cmdIdRef fc filec upc fuc fdr ec rh rhId
 
 -- | Request permission to upload a file. The callback is invoked with
 -- Right () on UploadPermitted, or Left reason on UploadDenied.
@@ -303,6 +310,23 @@ completeFileDownload r hash mData = do
     Just var -> do
       _ <- tryPutMVar var mData
       pure ()
+    Nothing -> pure ()
+
+-- | Request a YAML export from the server. The callback fires when
+-- 'ExportText' (Right) or 'ExportFailed' (Left) arrives.
+requestExport :: SyncContext -> ExportTarget -> (Either Text Text -> IO ()) -> IO ()
+requestExport r target callback = do
+  writeIORef r.exportCallback (Just callback)
+  sendRequestExport r.env.commandSender target
+
+-- | Complete a pending export by invoking the stored callback.
+-- Called from the WebSocket handler when ExportText or ExportFailed is received.
+completeExport :: SyncContext -> Either Text Text -> IO ()
+completeExport r result = do
+  mCb <- readIORef r.exportCallback
+  writeIORef r.exportCallback Nothing
+  case mCb of
+    Just cb -> cb result
     Nothing -> pure ()
 
 readSyncDocument :: (MonadIO m) => SyncContext -> m SyncDocument

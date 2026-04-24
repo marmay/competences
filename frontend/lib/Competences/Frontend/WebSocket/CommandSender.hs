@@ -20,6 +20,8 @@ module Competences.Frontend.WebSocket.CommandSender
   , sendRequestUploadPermission
     -- * File Download
   , sendRequestFile
+    -- * Exchange (export)
+  , sendRequestExport
     -- * Non-optimistic Commands
   , sendCommandDirect
     -- * Subscriptions
@@ -31,7 +33,7 @@ import Competences.Command (Command)
 import Competences.Document.FileRef (FileData, SHA256Hash)
 import Competences.Frontend.Logging (logDebug)
 import Competences.Frontend.WebSocket.Protocol (WebSocket (..))
-import Competences.Protocol (ClientMessage (..))
+import Competences.Protocol (ClientMessage (..), ExportTarget (..))
 import Data.Int (Int64)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, readMVar, takeMVar, tryPutMVar)
@@ -194,6 +196,10 @@ sendRequestUploadPermission sender fileName mimeType fileSize =
 -- | Send a file download request over the WebSocket connection.
 sendRequestFile :: CommandSender -> SHA256Hash -> IO ()
 sendRequestFile sender hash = sendMessage sender (RequestFile hash)
+
+-- | Request a YAML export of the given target.
+sendRequestExport :: CommandSender -> ExportTarget -> IO ()
+sendRequestExport sender target = sendMessage sender (RequestExport target)
 
 -- | Send a command directly via WebSocket, bypassing the command queue.
 -- The command is NOT tracked for local replay — used for non-optimistic
