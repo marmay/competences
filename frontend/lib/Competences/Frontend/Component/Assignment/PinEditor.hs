@@ -110,7 +110,7 @@ assignmentPinEditor r assignmentId origin pid _mode mSaved =
                                     let original = entity.tasks
                                         currentNew = maybe original snd (patch.tasks)
                                     pure
-                                      ( Tasks (OnTasks (CreateAndLock (defaultTask newTid)))
+                                      ( wrap $ Tasks (OnTasks (CreateAndLock (defaultTask newTid)))
                                       , \p -> p & #tasks ?~ (original, currentNew <> [newTid])
                                       )
                                 }
