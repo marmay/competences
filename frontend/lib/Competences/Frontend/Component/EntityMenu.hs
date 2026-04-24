@@ -47,9 +47,11 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.View.Icon qualified as Icon
+import Competences.Frontend.View.Tailwind (class_)
 import Control.Monad (when)
 import GHC.Generics (Generic)
 import Miso qualified as M
+import Miso.Html qualified as MH
 import Miso.Router qualified as M
 import Miso.String (MisoString)
 
@@ -193,7 +195,10 @@ entityMenuComponent r cfg =
 
     view :: MenuModel -> M.View MenuModel MenuAction
     view m =
-      let trigger = Icon.iconVS Icon.Ghost Icon.Small Icon.IcnMoreVertical
+      let trigger =
+            MH.span_
+              [class_ "inline-flex items-center justify-center p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"]
+              [Icon.iconS Icon.Small Icon.IcnMoreVertical]
           items = concat
             [ editEntry m
             , [menuButton Icon.IcnPin (C.translate' C.LblPin) DoPinViewer | Just _ <- [cfg.pin]]
