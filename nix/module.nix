@@ -163,6 +163,19 @@ in {
       '';
     };
 
+    casFileMode = mkOption {
+      type = types.str;
+      default = "640";
+      example = "644";
+      description = ''
+        Octal mode applied to stored CAS blob files. Must allow read for
+        the instance's group so sibling instances sharing the CAS
+        directory can fetch the blob. Default 640 (rw-r-----) grants
+        read to the 'competences' group (set via the sgid bit on the
+        CAS directory) and nothing to other; use 644 for wider sharing.
+      '';
+    };
+
     instances = mkOption {
       type = types.attrsOf (types.submodule instanceOpts);
       default = {};
@@ -326,6 +339,7 @@ in {
             "--config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
             "--cas-dir ${cfg.casDir}"
+            "--cas-file-mode ${cfg.casFileMode}"
             "--backup-dir /var/lib/competences/backups/${name}"
             "--pg-dump ${cfg.postgresql.package}/bin/pg_dump"
           ] ++ optional (instance.ensureTeacherO365 != null) "--ensure-teacher-o365 ${instance.ensureTeacherO365}");

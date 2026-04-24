@@ -37,8 +37,10 @@ import Options.Applicative qualified as Opt
 import Servant (serve)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.WebSockets (defaultConnectionOptions)
+import Numeric (readOct, showOct)
 import System.Exit (die)
 import System.IO (hFlush, stdout)
+import System.Posix.Types (FileMode)
 
 -- | Command-line options
 data Options = Options
@@ -47,6 +49,7 @@ data Options = Options
   , configPath :: !FilePath
   , staticDir :: !FilePath
   , casDir :: !FilePath
+  , casFileMode :: !FileMode
   , backupDir :: !FilePath
   , pgDumpPath :: !FilePath
   , ensureTeacherO365 :: !(Maybe String)
@@ -90,6 +93,14 @@ optionsParser =
           <> Opt.showDefault
           <> Opt.help "Content-addressable store directory for uploaded files"
       )
+    <*> Opt.option
+      (Opt.eitherReader parseOctalMode)
+      ( Opt.long "cas-file-mode"
+          <> Opt.metavar "OCTAL"
+          <> Opt.value 0o640
+          <> Opt.showDefaultWith (\m -> "0o" <> showOct' m)
+          <> Opt.help "File mode (octal) applied to stored CAS blobs; e.g. 640 (rw-r-----) or 644 (rw-r--r--)"
+      )
     <*> Opt.strOption
       ( Opt.long "backup-dir"
           <> Opt.metavar "DIR"
@@ -113,6 +124,14 @@ optionsParser =
       )
 
 -- | Parser info with program description
+parseOctalMode :: String -> Either String FileMode
+parseOctalMode s = case readOct s of
+  [(n, "")] | n >= 0 && n <= 0o7777 -> Right (fromIntegral (n :: Int))
+  _ -> Left $ "invalid octal mode (expected e.g. 640): " <> s
+
+showOct' :: FileMode -> String
+showOct' m = showOct (fromIntegral m :: Int) ""
+
 optsParserInfo :: Opt.ParserInfo Options
 optsParserInfo =
   Opt.info
@@ -194,7 +213,7 @@ main = do
   (doc', latestGen) <- applyStartupMigrations pool doc initialGen (startupCmds <> lessonNotesCmd)
 
   -- Initialize CAS (content-addressable store for files)
-  cas <- newCAS opts.casDir
+  cas <- newCAS opts.casDir opts.casFileMode
 
   -- Derive instance ID from database name in connection string
   let instId = extractDbName (BS.unpack opts.dbConnString)

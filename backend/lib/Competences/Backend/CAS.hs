@@ -36,17 +36,24 @@ import Control.Monad (unless)
 import System.Directory (createDirectoryIfMissing, doesFileExist, renameFile)
 import System.FilePath ((</>))
 import System.IO (hClose, openBinaryTempFile)
+import System.Posix.Files (setFileMode)
+import System.Posix.Types (FileMode)
 
 -- | A content-addressable store backed by a filesystem directory.
-newtype CAS = CAS
+data CAS = CAS
   { rootDir :: FilePath
+  , fileMode :: FileMode
+  -- ^ Mode applied to stored blobs after the atomic rename, since
+  -- 'openBinaryTempFile' hardcodes @0600@ and ignores the process
+  -- umask. Use this to opt blobs into the group sharing the CAS
+  -- directory (sgid'd in the systemd unit); typical value @0o640@.
   }
 
 -- | Create a new CAS handle, ensuring the root directory exists.
-newCAS :: FilePath -> IO CAS
-newCAS root = do
+newCAS :: FilePath -> FileMode -> IO CAS
+newCAS root mode = do
   createDirectoryIfMissing True root
-  pure (CAS root)
+  pure (CAS root mode)
 
 -- | Store file contents in the CAS.
 --
@@ -73,11 +80,15 @@ storeFile cas contents = do
         else do
           -- Ensure subdirectory exists
           createDirectoryIfMissing True subdir
-          -- Write to temp file in CAS root, then atomic rename
+          -- Write to temp file in CAS root, then atomic rename.
+          -- 'openBinaryTempFile' opens at mode 0600 regardless of the
+          -- process umask, so we explicitly reapply the configured
+          -- mode after the rename.
           (tmpPath, tmpHandle) <- openBinaryTempFile cas.rootDir "cas-upload"
           BL.hPut tmpHandle contents
           hClose tmpHandle
           renameFile tmpPath finalPath
+          setFileMode finalPath cas.fileMode
           pure (sha, size)
 
 -- | Fetch file contents from the CAS.
