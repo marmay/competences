@@ -8,9 +8,10 @@ This document is the authoritative schema; if something here disagrees with the 
 
 ## Top-level structure
 
-A document is a record of six lists. **Every list is optional and defaults to empty** — omit the keys you don't need.
+A document is a record of seven lists. **Every list is optional and defaults to empty** — omit the keys you don't need.
 
 ```yaml
+competenceGrids: []    # competence schemas (carry their competences inline)
 tasks: []              # standalone tasks (published pool)
 draftTasks: []         # standalone tasks (draft pool)
 assignments: []        # published assignments
@@ -19,7 +20,7 @@ resources: []
 lessons: []
 ```
 
-Single-entity exports populate just one or two lists. A lesson export populates every list the lesson transitively references (the lesson plus all its assignments, those assignments' tasks, the lesson's resources, plus any tasks/resources directly referenced from phase items).
+Single-entity exports populate just one or two lists. A lesson export populates every list the lesson transitively references. A grid export comes in two flavours: grid-only (just `competenceGrids`) and grid-with-content (also fills `tasks` and `resources` with everything that references the grid's competences).
 
 **References between entities use names/identifiers, never IDs.**
 
@@ -35,18 +36,34 @@ For each incoming entity the importer looks up an existing one by:
 
 | Entity | Matching key |
 |---|---|
+| Competence grid | `title` |
+| Competence (within a grid) | `description`, scoped to the matched grid |
 | Task | `identifier`, scoped to draft/published pool |
 | Assignment | `name`, scoped to draft/published pool |
 | Resource | `identifier` |
 | Lesson | `title` (across all meso plans) |
 
-Match results in one of three actions:
+Match results in one of four actions:
 
 - **Create** — no match found, entity is new.
 - **Update** — match found, fields differ; existing entity is patched in place.
 - **NoChange** — match found, fields identical; nothing happens.
+- **Delete** — emitted only for competences that exist in the document but aren't in the imported grid. The backend rejects deletes of in-use competences (so an import that would orphan task/resource references will fail at apply time, with the error surfaced to the user).
 
 For matched updates the **import is the source of truth**. Replaceable fields (content, attachments, the assignment's task list, the resource's competence levels, etc.) are overwritten with the imported values; previously-attached data not present in the import is dropped on Update. The preview shows the diff before Apply.
+
+### Renames
+
+Every entity payload accepts an optional `replaces` field carrying the **previous** matching key. When present, the matcher tries the old key first; if a match is found, the entity is treated as an Update and renamed to the current `name` / `identifier` / `title` / `description`. If the old key doesn't match either, the matcher falls back to looking up by the current key.
+
+```yaml
+tasks:
+  - identifier: "Buch-3.46"
+    replaces: "Buch-3.45"   # old identifier; matcher updates the existing task and renames it
+    title: "..."
+```
+
+`replaces` is never populated by export — it's always written by hand (or by an LLM acting on user instructions). Omit it if you're not renaming.
 
 ### Conflicts (block Apply)
 
@@ -58,11 +75,45 @@ Soft warnings surface for ambiguous matches (e.g. multiple existing assignments 
 
 ### Apply order
 
-`tasks` → `resources` → `assignments` → `lessons`. Each phase resolves the previous phase's freshly-applied ids when wiring up references.
+`competenceGrids` → `tasks` → `resources` → `assignments` → `lessons`. Each phase resolves the previous phase's freshly-applied ids when wiring up references.
 
 ---
 
 ## Entity schemas
+
+### Competence grid (`competenceGrids`)
+
+```yaml
+competenceGrids:
+  - title: "Lineare Algebra"
+    description: "Schemata für lineare Gleichungen und Vektorrechnung."
+    competences:
+      - description: "Gleichungen lösen"
+        levels:
+          BasicLevel: "Einfache Gleichungen mit einer Unbekannten lösen."
+          IntermediateLevel: "Gleichungssysteme mit zwei Unbekannten lösen."
+          AdvancedLevel: "Gleichungssysteme mit Matrizenrechnung lösen."
+      - description: "Vektoren"
+        replaces: "Vektorrechnung"
+        levels:
+          BasicLevel: "Vektoren addieren und subtrahieren."
+          AdvancedLevel: "Kreuzprodukt berechnen und geometrisch interpretieren."
+```
+
+| Field (grid) | Type | Required | Notes |
+|---|---|---|---|
+| `title` | string | yes | Matching key. |
+| `replaces` | string \| null | no | Previous title for renames. |
+| `description` | string | yes | Free-form schema description. |
+| `competences` | list | yes | The grid's competences, inline. |
+
+| Field (competence) | Type | Required | Notes |
+|---|---|---|---|
+| `description` | string | yes | Matching key, scoped to its grid. |
+| `replaces` | string \| null | no | Previous description for renames. |
+| `levels` | map of Level → string | yes | Per-level description. Absent levels mean "no description at this level". |
+
+**Competence list semantics on Update:** existing competences not present in the import are emitted as Deletes. The backend rejects deletes of in-use competences (referenced by tasks, resources, evidences, etc.), so an apply will fail loudly if the import would orphan references. Use `replaces` on a competence to rename it instead of inadvertently deleting + recreating it under a new name.
 
 ### Task (`tasks` / `draftTasks`)
 
@@ -87,6 +138,7 @@ tasks:
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `identifier` | string | yes | Matching key. Must be unique within its pool. |
+| `replaces` | string \| null | no | Previous identifier for renames. |
 | `title` | string | yes | Human-readable title. |
 | `content` | string \| null | no | Rich-text body. See "Rich-text content" below. |
 | `purpose` | enum | yes | `Practice` (develops competence) or `Assessment` (proves it). |
@@ -113,6 +165,7 @@ assignments:
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `name` | string | yes | Matching key. |
+| `replaces` | string \| null | no | Previous name for renames. |
 | `description` | string | yes | Rich-text body. Empty string allowed. |
 | `assignmentDate` | ISO date `YYYY-MM-DD` | yes | |
 | `activityType` | enum | yes | `Conversation`, `Exam`, `SchoolExercise`, `HomeExercise`, `Correction`. |
@@ -138,6 +191,7 @@ resources:
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `identifier` | string | yes | Matching key. |
+| `replaces` | string \| null | no | Previous identifier for renames. |
 | `content` | tagged sum | yes | One of four variants — see below. |
 | `competenceLevels` | list of competence refs | yes | |
 | `attachments` | list | yes | |
@@ -194,6 +248,7 @@ lessons:
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `title` | string | yes | Matching key. |
+| `replaces` | string \| null | no | Previous title for renames. |
 | `description` | string | yes | Rich text. Empty string allowed. |
 | `date` | ISO date \| null | yes | |
 | `competences` | list of competence refs | yes | |

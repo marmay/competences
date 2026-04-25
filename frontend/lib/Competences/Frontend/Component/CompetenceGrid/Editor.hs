@@ -17,8 +17,11 @@ import Competences.Document
   , orderMax
   )
 import Competences.Document.Order (orderPosition)
+import Competences.Exchange.Build (competenceGridExchange, competenceGridWithContentExchange)
+import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
+import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Frontend.Component.CompetenceLevelExampleEditor (openExampleEditor)
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
@@ -29,8 +32,10 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , modifySyncDocument
   , nextId
+  , readSyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
@@ -64,6 +69,8 @@ newtype EditorModel = EditorModel
 -- | Action for the editor detail component
 data EditorAction
   = CreateNewCompetence
+  | ExportGrid
+  | ExportGridWithContent
   | DocumentUpdated !DocumentChange
   deriving (Eq, Show)
 
@@ -126,6 +133,19 @@ editorComponent r grid =
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
+    update ExportGrid = M.io_ $ exportGridYaml r grid False
+    update ExportGridWithContent = M.io_ $ exportGridYaml r grid True
+
+    exportGridYaml ctx g withContent = do
+      syncDoc <- readSyncDocument ctx
+      let xdoc =
+            if withContent
+              then competenceGridWithContentExchange syncDoc.localDocument g
+              else competenceGridExchange syncDoc.localDocument g
+      encodeExchangeYaml xdoc $ \case
+        Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
+        Right yamlText -> copyToClipboard yamlText
+
     view _m =
       Layout.vFlow
         (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
@@ -137,6 +157,8 @@ editorComponent r grid =
             (TE.editorComponent competencesEditor r Nothing def)
         , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
+            , Button.ghost (Button.button (Icon.IcnExport, ("Raster exportieren" :: M.MisoString)) ExportGrid)
+            , Button.ghost (Button.button (Icon.IcnExport, ("Raster + Inhalt exportieren" :: M.MisoString)) ExportGridWithContent)
             ]
         ]
 

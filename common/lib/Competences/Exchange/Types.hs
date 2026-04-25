@@ -22,6 +22,8 @@ module Competences.Exchange.Types
   , ExchangeLessonPhase (..)
   , ExchangeLessonItem (..)
   , ExchangeLessonItemKind (..)
+  , ExchangeCompetenceGrid (..)
+  , ExchangeCompetence (..)
   , exchangeFormatVersion
   )
 where
@@ -33,6 +35,7 @@ import Competences.Document.Solution (SolutionType)
 import Competences.Document.Task (TaskPurpose)
 import Data.Binary (Binary)
 import Data.Int (Int64)
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
@@ -48,7 +51,8 @@ exchangeFormatVersion = 1
 -- | Top-level exchange document. Every list defaults to empty so the
 -- YAML can omit any pool the export doesn't touch.
 data ExchangeDoc = ExchangeDoc
-  { tasks :: ![ExchangeTask]
+  { competenceGrids :: ![ExchangeCompetenceGrid]
+  , tasks :: ![ExchangeTask]
   , draftTasks :: ![ExchangeTask]
   , assignments :: ![ExchangeAssignment]
   , draftAssignments :: ![ExchangeAssignment]
@@ -67,7 +71,8 @@ instance ToJSON ExchangeDoc
 emptyExchangeDoc :: ExchangeDoc
 emptyExchangeDoc =
   ExchangeDoc
-    { tasks = []
+    { competenceGrids = []
+    , tasks = []
     , draftTasks = []
     , assignments = []
     , draftAssignments = []
@@ -80,6 +85,10 @@ emptyExchangeDoc =
 -- draft storage on import — there is no per-payload @isDraft@ flag.
 data ExchangeAssignment = ExchangeAssignment
   { name :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ When set, the import treats this as a rename of the
+    -- assignment formerly named @replaces@. Matcher tries this first,
+    -- then falls back to matching by 'name'.
   , description :: !Text
   , assignmentDate :: !Day
   , activityType :: !ActivityType
@@ -102,6 +111,8 @@ instance ToJSON ExchangeAssignment
 -- only ever live with a single owning task.
 data ExchangeTask = ExchangeTask
   { identifier :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ Optional rename: matcher tries this old identifier first.
   , title :: !Text
   , content :: !(Maybe Text)
   , purpose :: !TaskPurpose
@@ -170,6 +181,8 @@ instance ToJSON ExchangeCompetenceRef
 
 data ExchangeResource = ExchangeResource
   { identifier :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ Optional rename: matcher tries this old identifier first.
   , content :: !ExchangeResourceContent
   , competenceLevels :: ![ExchangeCompetenceRef]
   , attachments :: ![ExchangeAttachment]
@@ -207,6 +220,8 @@ instance ToJSON ExchangeResourceContent
 -- pools when the export needed to ship them along.
 data ExchangeLesson = ExchangeLesson
   { title :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ Optional rename: matcher tries this old title first.
   , description :: !Text
   , date :: !(Maybe Day)
   , competences :: ![ExchangeCompetenceRef]
@@ -274,4 +289,42 @@ instance Binary ExchangeLessonItemKind
 #ifdef WITH_AESON
 instance FromJSON ExchangeLessonItemKind
 instance ToJSON ExchangeLessonItemKind
+#endif
+
+-- | Competence grid payload. Carries its competences inline (a
+-- competence has no meaning outside its grid).
+data ExchangeCompetenceGrid = ExchangeCompetenceGrid
+  { title :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ Optional rename: matcher tries this old title first.
+  , description :: !Text
+  , competences :: ![ExchangeCompetence]
+  }
+  deriving (Eq, Generic, Show)
+
+instance Binary ExchangeCompetenceGrid
+
+#ifdef WITH_AESON
+instance FromJSON ExchangeCompetenceGrid
+instance ToJSON ExchangeCompetenceGrid
+#endif
+
+-- | Competence within a grid. Matched by 'description' (or 'replaces'
+-- when supplied) within the parent grid.
+data ExchangeCompetence = ExchangeCompetence
+  { description :: !Text
+  , replaces :: !(Maybe Text)
+    -- ^ Optional rename: matcher tries this old description first.
+  , levels :: !(Map Level Text)
+    -- ^ Per-level human-readable description. Empty descriptions and
+    -- absent levels mean the same thing — no description at this
+    -- level.
+  }
+  deriving (Eq, Generic, Show)
+
+instance Binary ExchangeCompetence
+
+#ifdef WITH_AESON
+instance FromJSON ExchangeCompetence
+instance ToJSON ExchangeCompetence
 #endif

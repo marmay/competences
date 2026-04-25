@@ -20,16 +20,20 @@ where
 import Competences.Command
   ( AssignmentPatch (..)
   , Command
+  , CompetenceGridPatch (..)
+  , CompetencePatch (..)
   , LessonPatch (..)
+  , LevelInfoPatch (..)
   , ModifyCommand (..)
   , ResourcePatch (..)
   , SolutionPatch (..)
   , TaskPatch (..)
   )
 import Competences.Command qualified as Cmd
-import Competences.Document (Document (..), Lesson (..), Resource (..))
+import Competences.Document (Competence (..), CompetenceGrid (..), Document (..), Lesson (..), Resource (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
-import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document (CompetenceGridId)
+import Competences.Document.Competence (CompetenceLevelId, Level, LevelInfo (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Lesson (LessonItem (..), LessonItemContent (..), LessonPhase (..))
 import Competences.Document.Resource (ResourceId, ResourceIdentifier (..))
@@ -41,6 +45,7 @@ import Competences.Exchange.Match
   , AssignmentPreview (..)
   , CompetenceMatch (..)
   , ExchangePreview (..)
+  , GridPreview (..)
   , ImportAction (..)
   , LessonPreview (..)
   , ResourceImportPreview (..)
@@ -53,6 +58,7 @@ import Competences.Exchange.Match
   )
 import Competences.Exchange.Types
   ( ExchangeAssignment (..)
+  , ExchangeCompetenceGrid (..)
   , ExchangeDoc
   , ExchangeLesson (..)
   , ExchangeLessonItem (..)
@@ -60,6 +66,8 @@ import Competences.Exchange.Types
   , ExchangeLessonPhase (..)
   , ExchangeTask (..)
   )
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (retargetForDraft)
 import Competences.Frontend.Exchange (decodeExchangeYaml)
@@ -271,6 +279,7 @@ renderPreview p =
   Layout.vFlow Layout.gapL
     [ conflictBanner p.conflicts
     , warningBanner p.warnings
+    , section "Kompetenzraster" (map renderGridRow p.gridPreviews)
     , section "Aufgaben" (map (renderTaskRow False) p.taskPreviews)
     , section "Aufgaben (Entwurf)" (map (renderTaskRow True) p.draftTaskPreviews)
     , section "Schulübungen" (map renderAssignmentRow p.assignmentPreviews)
@@ -284,6 +293,31 @@ renderPreview p =
             [class_ "text-muted-foreground italic"]
             [M.text "Keine Änderungen."]
     ]
+
+renderGridRow :: GridPreview -> M.View Model Action
+renderGridRow gp =
+  M.div_
+    [class_ "border-l-2 border-muted pl-3 py-1"]
+    [ M.div_
+        [class_ "flex items-center gap-2"]
+        [ actionBadge gp.gridAction
+        , M.text (M.ms gp.exchangeGrid.title)
+        ]
+    , M.div_
+        [class_ "ml-3 mt-1 space-y-0.5"]
+        (map renderCompetenceRow gp.competenceActions)
+    ]
+
+renderCompetenceRow :: ImportAction Competence -> M.View Model Action
+renderCompetenceRow a =
+  let label = case a of
+        Create c -> c.description
+        Update _ c -> c.description
+        NoChange c -> c.description
+        Delete c -> c.description
+   in M.div_
+        [class_ "flex items-center gap-2 text-xs"]
+        [actionBadge a, M.text (M.ms label)]
 
 section :: Text -> [M.View Model Action] -> M.View Model Action
 section _ [] = M.text ""
@@ -372,6 +406,7 @@ assignmentLabel p =
     Create a -> a
     Update _ a -> a
     NoChange a -> a
+    Delete a -> a
 
 assignmentName :: Assignment -> Text
 assignmentName a = let AssignmentName n = a.name in n
@@ -381,6 +416,7 @@ taskLabel = \case
   Create t -> taskDisplayName t
   Update _ t -> taskDisplayName t
   NoChange t -> taskDisplayName t
+  Delete t -> taskDisplayName t
 
 resourceLabel :: ImportAction Resource -> Text
 resourceLabel a =
@@ -388,6 +424,7 @@ resourceLabel a =
         Create r' -> r'
         Update _ r' -> r'
         NoChange r' -> r'
+        Delete r' -> r'
       ResourceIdentifier ident = r.identifier
    in ident
 
@@ -399,6 +436,7 @@ actionBadge :: ImportAction a -> M.View Model Action
 actionBadge (Create _) = Badge.primary (Badge.badgeText "Neu")
 actionBadge (Update _ _) = Badge.secondary (Badge.badgeText "Aktualisiert")
 actionBadge (NoChange _) = Badge.outline (Badge.badgeText "Unverändert")
+actionBadge (Delete _) = Badge.destructive (Badge.badgeText "Gelöscht")
 
 conflictBanner :: [Text] -> M.View Model Action
 conflictBanner [] = M.text ""
@@ -434,6 +472,9 @@ warningBanner warnings =
 
 applyExchangePreview :: SyncContext -> WindowMode -> Document -> ExchangePreview -> IO ()
 applyExchangePreview r wm doc p = do
+  -- Phase 0: grids (foundational; create competences before anything
+  -- below tries to reference them).
+  mapM_ (applyGridPreview r) p.gridPreviews
   -- Phase 1: tasks (no deps).
   taskMap <- applyTaskList r doc False p.taskPreviews
   draftTaskMap <- applyTaskList r doc True p.draftTaskPreviews
@@ -463,6 +504,76 @@ x <|> _ = x
 normalizeKey :: Text -> Text
 normalizeKey = T.toLower . T.strip
 
+-- | Apply a grid preview: issue the grid Create/Modify command,
+-- then issue per-competence commands. New competences get the
+-- resulting grid id wired up. Deletes hit the backend, which rejects
+-- in-use competences.
+applyGridPreview :: SyncContext -> GridPreview -> IO ()
+applyGridPreview r gp = do
+  gridId <- applyGridAction r gp.gridAction
+  mapM_ (applyCompetenceAction r gridId) gp.competenceActions
+
+applyGridAction :: SyncContext -> ImportAction CompetenceGrid -> IO CompetenceGridId
+applyGridAction r = \case
+  Create new -> do
+    newId <- nextId r
+    let withId = new & #id .~ newId
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Create withId
+    pure newId
+  Update old new -> do
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Modify old.id Lock
+    let patch = buildGridPatch old new
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetenceGrids $ Cmd.Modify old.id (Release patch)
+    pure old.id
+  NoChange existing -> pure existing.id
+  Delete existing -> pure existing.id  -- unreachable for grids
+
+applyCompetenceAction :: SyncContext -> CompetenceGridId -> ImportAction Competence -> IO ()
+applyCompetenceAction r gridId = \case
+  Create new -> do
+    newId <- nextId r
+    let withId = new & #id .~ newId & #competenceGridId .~ gridId
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Create withId
+  Update old new -> do
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id Lock
+    let patch = buildCompetencePatch old new
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch)
+  NoChange _ -> pure ()
+  Delete c ->
+    modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Delete c.id
+
+buildGridPatch :: CompetenceGrid -> CompetenceGrid -> CompetenceGridPatch
+buildGridPatch old new =
+  CompetenceGridPatch
+    { title = if old.title == new.title then Nothing else Just (old.title, new.title)
+    , description = if old.description == new.description then Nothing else Just (old.description, new.description)
+    }
+
+buildCompetencePatch :: Competence -> Competence -> CompetencePatch
+buildCompetencePatch old new =
+  CompetencePatch
+    { description = if old.description == new.description then Nothing else Just (old.description, new.description)
+    , levels = buildLevelPatches old.levels new.levels
+    }
+
+buildLevelPatches :: Map Level LevelInfo -> Map Level LevelInfo -> Map Level LevelInfoPatch
+buildLevelPatches old new =
+  Map.mapMaybeWithKey
+    (\lvl newInfo ->
+        let oldInfo = Map.lookup lvl old
+            descChange = case oldInfo of
+              Just o | o.description == newInfo.description -> Nothing
+              Just o -> Just (o.description, newInfo.description)
+              Nothing -> Just (mempty, newInfo.description)
+            lockedChange = case oldInfo of
+              Just o | o.locked == newInfo.locked -> Nothing
+              Just o -> Just (o.locked, newInfo.locked)
+              Nothing -> Just (False, newInfo.locked)
+         in case (descChange, lockedChange) of
+              (Nothing, Nothing) -> Nothing
+              _ -> Just (LevelInfoPatch{description = descChange, locked = lockedChange}))
+    new
+
 -- | Apply each task in the list, returning a map from identifier to
 -- resulting 'TaskId' (used by assignment / lesson apply).
 applyTaskList :: SyncContext -> Document -> Bool -> [TaskPreview] -> IO [(Text, TaskId)]
@@ -481,6 +592,7 @@ applyResourceList r = mapM go
             Create new -> let ResourceIdentifier i = new.identifier in i
             Update _ new -> let ResourceIdentifier i = new.identifier in i
             NoChange existing -> let ResourceIdentifier i = existing.identifier in i
+            Delete existing -> let ResourceIdentifier i = existing.identifier in i
       pure (normalizeKey ident, rid)
 
 applyAssignmentList
@@ -503,6 +615,7 @@ applyAssignmentList r isDraft taskMap = mapM go
             Create a -> assignmentNameOf a
             Update _ a -> assignmentNameOf a
             NoChange a -> assignmentNameOf a
+            Delete a -> assignmentNameOf a
       aid <- applyAssignmentPreviewAndGetId r (cmdWrap isDraft) resolvedTaskIds p
       pure (normalizeKey name, aid)
 
@@ -542,6 +655,7 @@ applyLessonPreview r lookA lookT lookR lp = do
       let patch = buildLessonPatch old l assignmentList resourceList phases suppItems
       modifySyncDocument r $ Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (Release patch)
     NoChange _ -> pure ()
+    Delete _ -> pure ()  -- unreachable for lessons
 
 applyAssignmentPreviewAndGetId
   :: SyncContext
@@ -568,6 +682,7 @@ applyAssignmentPreviewAndGetId r wrapCmd resolvedTaskIds p =
       modifySyncDocument r $ wrapCmd (Cmd.Assignments $ Cmd.OnAssignments $ Cmd.Modify old.id (Release patch))
       pure old.id
     NoChange a -> pure a.id
+    Delete a -> pure a.id  -- unreachable for assignments
 
 applyResourcePreviewAndGetId :: SyncContext -> ResourceImportPreview -> IO ResourceId
 applyResourcePreviewAndGetId r rp = do
@@ -584,6 +699,7 @@ applyResourcePreviewAndGetId r rp = do
       modifySyncDocument r $ Cmd.Resources $ Cmd.OnResources $ Cmd.Modify old.id (Release patch)
       pure old.id
     NoChange existing -> pure existing.id
+    Delete existing -> pure existing.id  -- unreachable for resources
 
 applyTaskAndGetId :: SyncContext -> Document -> (Command -> Command) -> TaskImportPreview -> IO TaskId
 applyTaskAndGetId r doc cmd tp = do
@@ -604,7 +720,7 @@ applyTaskAndGetId r doc cmd tp = do
               , secondary = matchedSecondary
               , purpose = t.purpose
               , displayInResources = True
-              , attachments = []
+              , attachments = t.attachments
               }
       modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Create newTask)
       pure newId
@@ -614,6 +730,7 @@ applyTaskAndGetId r doc cmd tp = do
       modifySyncDocument r $ cmd (Cmd.Tasks $ Cmd.OnTasks $ Cmd.Modify old.id (Release patch))
       pure old.id
     NoChange t -> pure t.id
+    Delete t -> pure t.id  -- unreachable for tasks
   mapM_ (applySolutionAction r cmd taskId mTeacherId) tp.solutionActions
   pure taskId
 
@@ -637,6 +754,7 @@ applySolutionAction r cmd taskId mTeacherId = \case
     let patch = buildSolutionPatch old new
     modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Modify old.id (Release patch))
   NoChange _ -> pure ()
+  Delete _ -> pure ()  -- unreachable for solutions
 
 -- ============================================================================
 -- Phase / item resolution for lesson apply
@@ -700,7 +818,7 @@ buildTaskPatch old new matchedPrimary matchedSecondary =
     , secondary = if old.secondary == matchedSecondary then Nothing else Just (old.secondary, matchedSecondary)
     , purpose = if old.purpose == new.purpose then Nothing else Just (old.purpose, new.purpose)
     , displayInResources = Nothing
-    , attachments = Nothing
+    , attachments = if old.attachments == new.attachments then Nothing else Just (old.attachments, new.attachments)
     }
 
 buildResourcePatch :: Resource -> Resource -> [CompetenceLevelId] -> ResourcePatch
@@ -709,7 +827,7 @@ buildResourcePatch old new matchedLevels =
     { identifier = if old.identifier == new.identifier then Nothing else Just (old.identifier, new.identifier)
     , competenceLevels = if old.competenceLevels == matchedLevels then Nothing else Just (old.competenceLevels, matchedLevels)
     , content = if old.content == new.content then Nothing else Just (old.content, new.content)
-    , attachments = Nothing
+    , attachments = if old.attachments == new.attachments then Nothing else Just (old.attachments, new.attachments)
     }
 
 buildSolutionPatch :: Solution -> Solution -> SolutionPatch

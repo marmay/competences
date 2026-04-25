@@ -10,6 +10,8 @@ module Competences.Exchange.Build
   , taskExchange
   , resourceExchange
   , lessonExchange
+  , competenceGridExchange
+  , competenceGridWithContentExchange
     -- * Lower-level pieces (re-exported for the matcher)
   , taskToExchange
   , solutionToExchange
@@ -18,6 +20,7 @@ module Competences.Exchange.Build
   , resourceToExchange
   , assignmentToExchange
   , lessonToExchange
+  , competenceGridToExchange
   )
 where
 
@@ -25,6 +28,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Competence (..)
   , CompetenceGrid (..)
+  , CompetenceGridId
   , Document (..)
   , Lesson (..)
   , Resource (..)
@@ -32,7 +36,7 @@ import Competences.Document
   , Task (..)
   )
 import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
-import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Competence (CompetenceLevelId, LevelInfo (..))
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
 import Competences.Document.Lesson
   ( LessonItem (..)
@@ -44,6 +48,8 @@ import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Exchange.Types
   ( ExchangeAssignment (..)
   , ExchangeAttachment (..)
+  , ExchangeCompetence (..)
+  , ExchangeCompetenceGrid (..)
   , ExchangeCompetenceRef (..)
   , ExchangeDoc (..)
   , ExchangeLesson (..)
@@ -90,6 +96,40 @@ resourceExchange :: Document -> Resource -> ExchangeDoc
 resourceExchange doc r =
   emptyExchangeDoc & #resources .~ [resourceToExchange doc r]
 
+-- | Export a competence grid on its own — schema only, no referenced
+-- tasks or resources.
+competenceGridExchange :: Document -> CompetenceGrid -> ExchangeDoc
+competenceGridExchange doc grid =
+  emptyExchangeDoc & #competenceGrids .~ [competenceGridToExchange doc grid]
+
+-- | Export a competence grid plus every task and resource that
+-- references one of its competences. Useful for sharing a complete
+-- teaching unit (schema + exemplary content).
+competenceGridWithContentExchange :: Document -> CompetenceGrid -> ExchangeDoc
+competenceGridWithContentExchange doc grid =
+  let gridTasks =
+        filter (taskReferencesGrid doc grid.id) (Ix.toList doc.tasks)
+      gridResources =
+        filter (resourceReferencesGrid doc grid.id) (Ix.toList doc.resources)
+   in emptyExchangeDoc
+        & #competenceGrids .~ [competenceGridToExchange doc grid]
+        & #tasks .~ map (taskToExchange doc) gridTasks
+        & #resources .~ map (resourceToExchange doc) gridResources
+
+taskReferencesGrid :: Document -> CompetenceGridId -> Task -> Bool
+taskReferencesGrid doc gridId t =
+  any (referencesGrid doc gridId) (t.primary <> t.secondary)
+
+resourceReferencesGrid :: Document -> CompetenceGridId -> Resource -> Bool
+resourceReferencesGrid doc gridId r =
+  any (referencesGrid doc gridId) r.competenceLevels
+
+referencesGrid :: Document -> CompetenceGridId -> CompetenceLevelId -> Bool
+referencesGrid doc gridId (cid, _) =
+  case Ix.getOne (doc.competences Ix.@= cid) of
+    Just c -> c.competenceGridId == gridId
+    Nothing -> False
+
 -- | Export a lesson, inlining every assignment, resource, and any
 -- task referenced by phase or supplemental items but not already
 -- carried by an embedded assignment.
@@ -119,6 +159,7 @@ assignmentToExchange doc a =
       refs = mapMaybe (fmap taskIdentText . lookupTask doc) a.tasks
    in ExchangeAssignment
         { name = name
+        , replaces = Nothing
         , description = toRawText a.description
         , assignmentDate = a.assignmentDate
         , activityType = a.activityType
@@ -142,6 +183,7 @@ taskToExchange doc t =
       solutions = Ix.toList (doc.solutions Ix.@= t.id)
    in ExchangeTask
         { identifier = ident
+        , replaces = Nothing
         , title = t.title
         , content = fmap toRawText t.content
         , purpose = t.purpose
@@ -183,6 +225,7 @@ resourceToExchange doc r =
   let ResourceIdentifier ident = r.identifier
    in ExchangeResource
         { identifier = ident
+        , replaces = Nothing
         , content = resourceContentToExchange r.content
         , competenceLevels = mapMaybe (competenceRef doc) r.competenceLevels
         , attachments = map attachmentToExchange r.attachments
@@ -199,6 +242,7 @@ lessonToExchange :: Document -> Lesson -> ExchangeLesson
 lessonToExchange doc l =
   ExchangeLesson
     { title = l.title
+    , replaces = Nothing
     , description = toRawText l.description
     , date = l.date
     , competences = mapMaybe (competenceRef doc) l.competenceLevels
@@ -261,3 +305,20 @@ taskIdentText t = let TaskIdentifier n = t.identifier in n
 
 resourceIdentText :: Resource -> Text
 resourceIdentText r = let ResourceIdentifier n = r.identifier in n
+
+competenceGridToExchange :: Document -> CompetenceGrid -> ExchangeCompetenceGrid
+competenceGridToExchange doc grid =
+  ExchangeCompetenceGrid
+    { title = grid.title
+    , replaces = Nothing
+    , description = grid.description
+    , competences = map competenceToExchange (Ix.toList (doc.competences Ix.@= grid.id))
+    }
+
+competenceToExchange :: Competence -> ExchangeCompetence
+competenceToExchange c =
+  ExchangeCompetence
+    { description = c.description
+    , replaces = Nothing
+    , levels = fmap (\li -> li.description) c.levels
+    }
