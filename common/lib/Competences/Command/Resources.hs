@@ -63,13 +63,7 @@ instance Default ResourcePatch where
       , attachments = Nothing
       }
 
--- | Validate that a Resource has at least one competence level
-validateResource :: Resource -> Either Text Resource
-validateResource resource
-  | null resource.competenceLevels = Left "Resource must have at least one competence level"
-  | otherwise = Right resource
-
--- | Apply a patch to a Resource, checking for conflicts and validating invariants
+-- | Apply a patch to a Resource.
 applyResourcePatch :: Resource -> ResourcePatch -> Either Text Resource
 applyResourcePatch resource patch =
   inContext "Resource" resource $
@@ -77,17 +71,11 @@ applyResourcePatch resource patch =
       >=> patchField' @"competenceLevels" patch
       >=> patchField' @"content" patch
       >=> patchField' @"attachments" patch
-      >=> validateResource
 
 -- | Handle a Resources context command
 handleResourcesCommand :: CommandContext -> ResourcesCommand -> Document -> UpdateResult
 handleResourcesCommand cmdCtx (OnResources c) d =
-  case c of
-    -- Validate new resources before creating
-    Create r -> validateResource r >>= \_ -> interpretEntityCommand resourceContext cmdCtx c d
-    CreateAndLock _r -> interpretEntityCommand resourceContext cmdCtx c d
-    -- Other operations use applyPatch which already validates
-    _ -> interpretEntityCommand resourceContext cmdCtx c d
+  interpretEntityCommand resourceContext cmdCtx c d
   where
     resourceContext =
       mkEntityCommandContext
