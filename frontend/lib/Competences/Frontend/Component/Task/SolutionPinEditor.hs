@@ -94,6 +94,7 @@ solEditorView r _solId viewData =
         , showSolutions = False
         , showAnnotations = False
         , startExpanded = False
+        , solutionsExpandedByDefault = False
         , enableGoTo = False
         , enableDelete = False
         }

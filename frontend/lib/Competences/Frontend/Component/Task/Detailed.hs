@@ -219,7 +219,7 @@ taskListView r state statusLookup mkAnnotations mkExtraBody liftAction tasks =
               | contentPresent
               , Just rc <- [tws.taskContent]
               ]
-            , [renderSolutionList r state liftAction tid tws.solutions | solsPresent]
+            , [renderSolutionList r state liftAction False tid tws.solutions | solsPresent]
             , extra
             ]
 
@@ -230,22 +230,26 @@ renderSolutionList
   :: SyncContext
   -> TaskDetailedState
   -> (TaskDetailedAction -> a)
+  -> Bool
+  -- ^ Solutions expanded by default — inverts the membership check.
   -> TaskId
   -> [Solution]
   -> M.View m a
-renderSolutionList r state liftAction _tid sols =
+renderSolutionList r state liftAction openByDefault _tid sols =
   MH.div_ [class_ "space-y-1"]
-    (map (renderOneSol r state liftAction (isTeacher r)) sols)
+    (map (renderOneSol r state liftAction openByDefault (isTeacher r)) sols)
 
 renderOneSol
   :: SyncContext
   -> TaskDetailedState
   -> (TaskDetailedAction -> a)
   -> Bool
+  -> Bool
   -> Solution
   -> M.View m a
-renderOneSol r state liftAction isTeacher' sol =
-  let isExpanded = Set.member sol.id state.expandedSolutions
+renderOneSol r state liftAction openByDefault isTeacher' sol =
+  let toggled = Set.member sol.id state.expandedSolutions
+      isExpanded = if openByDefault then not toggled else toggled
       rendered
         | sol.content == mempty = Typography.muted (C.translate' C.LblNoContent)
         | otherwise = taskContentView (renderRichText r.formulaCache sol.content)
@@ -365,6 +369,7 @@ data TaskDetailedSettings = TaskDetailedSettings
   , showSolutions :: !Bool
   , showAnnotations :: !Bool
   , startExpanded :: !Bool
+  , solutionsExpandedByDefault :: !Bool
   , enableGoTo :: !Bool
   , enableDelete :: !Bool
   }
@@ -376,6 +381,7 @@ defaultTaskDetailedSettings = TaskDetailedSettings
   , showSolutions = True
   , showAnnotations = True
   , startExpanded = True
+  , solutionsExpandedByDefault = False
   , enableGoTo = True
   , enableDelete = False
   }
@@ -476,7 +482,7 @@ taskBody r cfg m task =
   MH.div_ [class_ "space-y-3"] $
     concat
       [ [taskContentRendered r task | hasContent task]
-      , [ renderSolutionList r m.viewState ViewAction cfg.taskId m.projection.solutions
+      , [ renderSolutionList r m.viewState ViewAction cfg.settings.solutionsExpandedByDefault cfg.taskId m.projection.solutions
         | cfg.settings.showSolutions
         , not (null m.projection.solutions) || isTeacher r
         ]

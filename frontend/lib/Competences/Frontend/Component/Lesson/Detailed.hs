@@ -57,6 +57,7 @@ import Competences.Frontend.Component.Resource.Detailed
 import Competences.Frontend.Component.RichContent (renderRichText)
 import Competences.Frontend.Component.Task.Detailed
   ( TaskDetailedConfig (..)
+  , TaskDetailedSettings (..)
   , defaultTaskDetailedSettings
   , taskDetailedComponent
   )
@@ -452,6 +453,13 @@ renderPhaseItems r findAssignment items homeEx seen =
           && not (it.content `Set.member` seen)
    in [ renderOne r findAssignment it | it <- items, keep it ]
 
+-- | Task settings used when mounting a task inside a lesson record.
+-- Solutions are open by default — the lesson record is a teaching
+-- aid, so the teacher wants the answers visible without an extra
+-- click.
+lessonRecordTaskSettings :: TaskDetailedSettings
+lessonRecordTaskSettings = defaultTaskDetailedSettings { solutionsExpandedByDefault = True }
+
 renderOne :: SyncContext -> (AssignmentId -> Maybe Assignment) -> LessonItem -> M.View Model Action
 renderOne r findAssignment item =
   let card = case item.content of
@@ -460,7 +468,7 @@ renderOne r findAssignment item =
             (resourceDetailedComponent r (ResourceDetailedConfig rid defaultResourceDetailedSettings))
         PhaseTask tid ->
           inlineComponent ("lesson-record-task-" <> ms (show tid))
-            (taskDetailedComponent r (TaskDetailedConfig tid Published defaultTaskDetailedSettings))
+            (taskDetailedComponent r (TaskDetailedConfig tid Published lessonRecordTaskSettings))
         PhaseAssignment aid ->
           case findAssignment aid of
             Nothing -> Layout.empty
