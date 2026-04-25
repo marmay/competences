@@ -92,7 +92,7 @@ studentCategories =
       , subEntries = []
       }
   , NavCategory
-      { categoryIcon = Icon.IcnLessonNotes
+      { categoryIcon = Icon.IcnLessonRecord
       , categoryLabel = C.translate' C.LblLessonRecord
       , categoryDescription = "Notizen und Materialien aus dem Unterricht."
       , categoryPage = LessonRecords Nothing
@@ -108,9 +108,6 @@ teacherExtraCategories =
       , NavEntry Icon.IcnSocialFormIndividual (C.translate' C.LblParticipationTimeline) ParticipationTimeline
       ])
   , ("Benutzer", [NavEntry Icon.IcnView (C.translate' C.LblManageUsers) ManageUsers])
-  , ("Archiv",
-      [ NavEntry Icon.IcnLessonNotes (C.translate' C.LblLegacyLessonNotes) (ManageLessonNotes Nothing)
-      ])
   ]
 
 -- | Check if a page belongs to a category (main page or any sub-entry).

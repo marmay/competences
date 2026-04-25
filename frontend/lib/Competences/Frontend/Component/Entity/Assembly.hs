@@ -18,7 +18,6 @@ import Miso qualified as M
 import Miso.String (ms)
 
 -- | Render a resolved item (task or resource) as an inline component.
--- Passed to LessonNotes.Detailed to break the circular dependency.
 renderResolvedItem :: SyncContext -> ResolvedItem -> M.View m a
 renderResolvedItem r (ResolvedResource res) =
   inlineComponent

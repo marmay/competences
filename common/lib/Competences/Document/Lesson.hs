@@ -128,10 +128,6 @@ data LessonPhase = LessonPhase
   , duration :: !Int
   -- ^ Duration in minutes
   , actionForm :: !ActionForm
-  , notes :: !RichContent
-  -- ^ Legacy teacher-only prose. Migration moves it into a
-  -- 'TeachingNote' referenced by 'privateNoteRef' and clears this
-  -- field. New code should not write to it.
   , items :: ![LessonItem]
   -- ^ Mixed list of resources, tasks and assignments attached to this
   -- phase. Per-item @publish@ flag controls student visibility.
@@ -148,7 +144,6 @@ instance FromJSON LessonPhase where
       <*> v .: "socialForm"
       <*> v .: "duration"
       <*> v .: "actionForm"
-      <*> v .:? "notes" .!= mempty
       <*> v .:? "items" .!= []
       <*> v .:? "privateNoteRef" .!= Nothing
 
@@ -179,12 +174,7 @@ data Lesson = Lesson
   , date :: !(Maybe Day)
   , assignments :: ![AssignmentId]
   -- ^ Assignments linked to this lesson
-  , resources :: ![ResourceId]
   , phases :: ![LessonPhase]
-  , notes :: !RichContent
-  -- ^ Legacy teacher-only rich text. Migration moves it into a
-  -- 'TeachingNote' referenced by 'privateNoteRef' and clears this
-  -- field. New code should not write to it.
   , supplementalItems :: ![LessonItem]
   -- ^ Items (resources / tasks / assignments) not tied to a phase.
   -- Rendered at the bottom of the student view as a supplemental block.
@@ -219,9 +209,7 @@ instance FromJSON Lesson where
       <*> v .: "competenceLevels"
       <*> v .: "date"
       <*> v .:? "assignments" .!= []
-      <*> v .:? "resources" .!= []
       <*> v .:? "phases" .!= []
-      <*> v .:? "notes" .!= mempty
       <*> v .:? "supplementalItems" .!= []
       <*> v .:? "notesTitleOverride" .!= Nothing
       <*> v .:? "privateNoteRef" .!= Nothing

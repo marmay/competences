@@ -1,14 +1,15 @@
--- | Unified resource lookup with lesson-note grouping.
+-- | Unified resource lookup with per-lesson grouping.
 --
 -- Given a list of competence levels, discovers matching resources and tasks
--- with complete solutions, groups them by lesson notes, and annotates each
--- item as 'Relevant' or 'ContextOnly'.
+-- with complete solutions, groups them by the lessons whose phase items or
+-- supplemental items reference them, and annotates each item as 'Relevant'
+-- or 'ContextOnly'.
 --
 -- Used by both the Assignment TaskResources component and the Resource Modal.
 module Competences.Frontend.Component.ResourceLookup
   ( -- * Types
     GroupedResources (..)
-  , AnnotatedLessonNoteGroup (..)
+  , AnnotatedLessonGroup (..)
   , ResolvedItem (..)
   , ItemRelevance (..)
     -- * Lookup
@@ -19,13 +20,17 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document
   ( Document (..)
-  , LessonNoteItem (..)
-  , LessonNotes (..)
+  , Lesson (..)
   , Resource (..)
   , SolutionType (..)
   , Task (..)
   )
 import Competences.Document.Competence (CompetenceLevelId)
+import Competences.Document.Lesson
+  ( LessonItem (..)
+  , LessonItemContent (..)
+  , LessonPhase (..)
+  )
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task
   ( TaskId
@@ -49,24 +54,25 @@ data ItemRelevance
   | ContextOnly
   deriving (Eq, Show)
 
--- | An item that can appear in a lesson note group or ungrouped.
+-- | An item that can appear in a lesson group or ungrouped.
 data ResolvedItem
   = ResolvedResource !Resource
   | ResolvedTask !TaskWithSolutions
   deriving (Eq, Show)
 
--- | A lesson note group with all its items annotated by relevance.
--- When a lesson note contains at least one 'Relevant' item, ALL items
--- in that lesson note are included, with non-matching ones marked 'ContextOnly'.
-data AnnotatedLessonNoteGroup = AnnotatedLessonNoteGroup
-  { lessonNotes :: !LessonNotes
+-- | A lesson group with all its items annotated by relevance.
+-- When a lesson contains at least one 'Relevant' item, ALL items in
+-- that lesson are included, with non-matching ones marked
+-- 'ContextOnly'.
+data AnnotatedLessonGroup = AnnotatedLessonGroup
+  { lesson :: !Lesson
   , items :: ![(ResolvedItem, ItemRelevance)]
   }
   deriving (Eq, Generic, Show)
 
 -- | The complete result of a resource lookup.
 data GroupedResources = GroupedResources
-  { lessonNoteGroups :: ![AnnotatedLessonNoteGroup]
+  { lessonGroups :: ![AnnotatedLessonGroup]
   , ungroupedResources :: ![Resource]
   , ungroupedTasks :: ![TaskWithSolutions]
   }
@@ -77,14 +83,15 @@ data GroupedResources = GroupedResources
 -- ============================================================================
 
 -- | Find matching resources and tasks with complete solutions for the given
--- competence levels, grouped by lesson notes.
+-- competence levels, grouped by the lessons that reference them.
 --
 -- Algorithm:
 -- 1. Find all resources matching the competence levels
 -- 2. Find all tasks with competence overlap AND Complete solutions AND displayInResources
--- 3. For each lesson note (sorted by date desc), if it contains at least one
---    matching item: include ALL items, annotating each as Relevant or ContextOnly
--- 4. Resources/tasks not claimed by any lesson note go into ungrouped lists
+-- 3. For each lesson (sorted by date desc), if its phase items or
+--    supplemental items contain at least one matching resource/task:
+--    include ALL such items, annotating each as Relevant or ContextOnly.
+-- 4. Resources/tasks not claimed by any lesson go into ungrouped lists.
 findGroupedResources :: Document -> [CompetenceLevelId] -> GroupedResources
 findGroupedResources doc compLevels =
   let -- Step 1: Find matching resources
@@ -96,12 +103,13 @@ findGroupedResources doc compLevels =
       matchingTaskIds = Set.fromList (map (\tws -> tws.task.id) matchingTasks)
       matchingTaskMap = Map.fromList [(tws.task.id, tws) | tws <- matchingTasks]
 
-      -- Step 3: Group by lesson notes
-      allLessonNotes = sortOn (Down . (.date)) $ Ix.toList doc.lessonNotes
+      -- Step 3: Group by lessons (most recent first; lessons without a
+      -- date sort to the end via 'Maybe' ordering on Down).
+      allLessons = sortOn (Down . (.date)) $ Ix.toList doc.lessons
       (groups, claimedResourceIds, claimedTaskIds) =
-        buildGroups doc matchingResourceIds matchingTaskIds matchingTaskMap allLessonNotes
+        buildGroups doc matchingResourceIds matchingTaskIds matchingTaskMap allLessons
 
-      -- Step 4: Ungrouped items (relevant but not in any lesson note)
+      -- Step 4: Ungrouped items (relevant but not in any lesson)
       ungroupedRes =
         [ r | r <- matchingResources, not (Set.member r.id claimedResourceIds) ]
       ungroupedTsks =
@@ -126,61 +134,70 @@ findMatchingTasks compLevels doc =
       , not (null completeSols)
       ]
 
--- | Build annotated lesson note groups.
+-- | Build annotated lesson groups.
 -- Returns (groups, claimed resource IDs, claimed task IDs).
 --
--- A lesson note is included if it contains at least one relevant (matching) item.
--- When included, ALL items in the lesson note are resolved — matching ones as
--- Relevant, others as ContextOnly.
+-- A lesson is included if its phase items or supplemental items
+-- contain at least one relevant (matching) resource or task. When
+-- included, ALL such items are resolved — matching ones as Relevant,
+-- others as ContextOnly. Assignment items in phases/supplemental are
+-- ignored for this lookup; this view is about resources and tasks.
 buildGroups
   :: Document
   -> Set ResourceId
   -> Set TaskId
   -> Map.Map TaskId TaskWithSolutions
-  -> [LessonNotes]
-  -> ([AnnotatedLessonNoteGroup], Set ResourceId, Set TaskId)
+  -> [Lesson]
+  -> ([AnnotatedLessonGroup], Set ResourceId, Set TaskId)
 buildGroups doc matchingResourceIds matchingTaskIds matchingTaskMap =
   foldr addGroup ([], Set.empty, Set.empty)
   where
-    addGroup ln (groups, claimedRes, claimedTasks) =
-      let -- Check if this lesson note has at least one relevant item
-          hasRelevantItem = any (isRelevantItem matchingResourceIds matchingTaskIds) ln.items
+    addGroup l (groups, claimedRes, claimedTasks) =
+      let contents = lessonItemContents l
+          hasRelevantItem = any (isRelevantItem matchingResourceIds matchingTaskIds) contents
        in if not hasRelevantItem
             then (groups, claimedRes, claimedTasks)
             else
-              let -- Resolve ALL items with relevance annotation
-                  annotatedItems = resolveAndAnnotate doc matchingResourceIds matchingTaskMap ln.items
-                  -- Track claimed IDs (only for relevant items)
-                  newClaimedRes = foldr claimResource claimedRes ln.items
-                  newClaimedTasks = foldr claimTask claimedTasks ln.items
-                  group = AnnotatedLessonNoteGroup ln annotatedItems
+              let annotatedItems = resolveAndAnnotate doc matchingResourceIds matchingTaskMap contents
+                  newClaimedRes = foldr claimResource claimedRes contents
+                  newClaimedTasks = foldr claimTask claimedTasks contents
+                  group = AnnotatedLessonGroup l annotatedItems
                in (group : groups, newClaimedRes, newClaimedTasks)
 
-    claimResource (LessonResource rid) acc
+    claimResource (PhaseResource rid) acc
       | Set.member rid matchingResourceIds = Set.insert rid acc
     claimResource _ acc = acc
 
-    claimTask (LessonTask tid) acc
+    claimTask (PhaseTask tid) acc
       | Set.member tid matchingTaskIds = Set.insert tid acc
     claimTask _ acc = acc
 
--- | Check whether a lesson note item is relevant (matches the requested competences).
-isRelevantItem :: Set ResourceId -> Set TaskId -> LessonNoteItem -> Bool
-isRelevantItem resourceIds taskIds = \case
-  LessonResource rid -> Set.member rid resourceIds
-  LessonTask tid -> Set.member tid taskIds
+-- | Flatten a lesson into its list of item-content references, drawing
+-- from every phase and the supplemental list.
+lessonItemContents :: Lesson -> [LessonItemContent]
+lessonItemContents l =
+  map (.content) (concatMap (.items) l.phases <> l.supplementalItems)
 
--- | Resolve all items in a lesson note, annotating each with relevance.
+-- | Check whether a lesson item content is relevant (matches the requested
+-- competences). Assignment items are never relevant for this lookup.
+isRelevantItem :: Set ResourceId -> Set TaskId -> LessonItemContent -> Bool
+isRelevantItem resourceIds taskIds = \case
+  PhaseResource rid -> Set.member rid resourceIds
+  PhaseTask tid -> Set.member tid taskIds
+  PhaseAssignment _ -> False
+
+-- | Resolve all items in a lesson, annotating each with relevance.
+-- Assignment items are skipped entirely.
 resolveAndAnnotate
   :: Document
   -> Set ResourceId
   -> Map.Map TaskId TaskWithSolutions
-  -> [LessonNoteItem]
+  -> [LessonItemContent]
   -> [(ResolvedItem, ItemRelevance)]
 resolveAndAnnotate doc matchingResourceIds matchingTaskMap =
   concatMap resolveOne
   where
-    resolveOne (LessonResource rid) =
+    resolveOne (PhaseResource rid) =
       case Ix.getOne (doc.resources Ix.@= rid) of
         Nothing -> []
         Just r ->
@@ -189,13 +206,11 @@ resolveAndAnnotate doc matchingResourceIds matchingTaskMap =
                   then Relevant
                   else ContextOnly
            in [(ResolvedResource r, relevance)]
-    resolveOne (LessonTask tid) =
+    resolveOne (PhaseTask tid) =
       case Map.lookup tid matchingTaskMap of
         Just tws ->
-          -- Task is in matching set → Relevant
           [(ResolvedTask tws, Relevant)]
         Nothing ->
-          -- Task not in matching set → resolve from document as ContextOnly
           case Ix.getOne (doc.tasks Ix.@= tid) of
             Nothing -> []
             Just t ->
@@ -207,3 +222,4 @@ resolveAndAnnotate doc matchingResourceIds matchingTaskMap =
                       , solutions = Ix.toList (doc.solutions Ix.@= tid)
                       }
                in [(ResolvedTask tws, ContextOnly)]
+    resolveOne (PhaseAssignment _) = []

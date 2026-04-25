@@ -25,8 +25,8 @@ Single-entity exports populate just one or two lists. A lesson export populates 
 **References between entities use names/identifiers, never IDs.**
 
 - An assignment's `taskRefs` lists the `identifier` strings of tasks it owns; the bodies live in `tasks` (or `draftTasks`).
-- A lesson's `assignmentRefs` / `resourceRefs` list assignment `name`s and resource `identifier`s.
-- A lesson's phase / supplemental items reference by `kind` + `ref` string (assignment `name`, task `identifier`, or resource `identifier`).
+- A lesson's `assignmentRefs` lists assignment `name`s linked from this lesson.
+- A lesson's phase / supplemental items reference by `kind` + `ref` string (assignment `name`, task `identifier`, or resource `identifier`). Resources reach a lesson exclusively via these item lists.
 
 ---
 
@@ -228,21 +228,17 @@ lessons:
         socialForm: WholeClass      # see enum below
         duration: 10                # minutes
         actionForm: Presenting      # see enum below
-        notes: ""
         items:
           - { kind: ItemResource, ref: "Arbeitsblatt-7", publish: true }
       - title: "Erarbeitung"
         socialForm: SmallGroups
         duration: 20
         actionForm: Collaborating
-        notes: ""
         items:
           - { kind: ItemAssignment, ref: "Mathematik-Test 3a", publish: true }
-    notes: ""
     supplementalItems: []
     notesTitleOverride: null
     assignmentRefs: ["Mathematik-Test 3a"]
-    resourceRefs: ["Arbeitsblatt-7"]
 ```
 
 | Field | Type | Required | Notes |
@@ -253,11 +249,9 @@ lessons:
 | `date` | ISO date \| null | yes | |
 | `competences` | list of competence refs | yes | |
 | `phases` | list | yes | See phase shape below. |
-| `notes` | string | yes | Teacher-only rich text. |
 | `supplementalItems` | list | yes | Same shape as phase `items`; rendered below the phase block. |
 | `notesTitleOverride` | string \| null | yes | Override for the auto-derived student-facing title. |
-| `assignmentRefs` | list of strings | yes | Assignment names linked to this lesson, in order. |
-| `resourceRefs` | list of strings | yes | Resource identifiers linked to this lesson, in order. |
+| `assignmentRefs` | list of strings | yes | Assignment names linked to this lesson, in order. Resources reach a lesson via phase / supplemental items only. |
 
 A new lesson lands in the **first** meso plan in the document. Updating an existing lesson preserves its meso plan and order.
 
@@ -268,7 +262,6 @@ title: "Einstieg"
 socialForm: WholeClass        # WholeClass | SmallGroups | PairWork | IndividualWork
 duration: 10                  # integer minutes
 actionForm: Presenting        # Presenting | Collaborating | Assigning
-notes: ""                     # always empty on import; lesson-level notes go on the lesson, not on phases
 items:
   - { kind: ItemAssignment | ItemTask | ItemResource, ref: "<name or identifier>", publish: true }
 ```
@@ -383,21 +376,17 @@ lessons:
         socialForm: WholeClass
         duration: 10
         actionForm: Presenting
-        notes: ""
         items:
           - { kind: ItemResource, ref: "Arbeitsblatt-Lineare-Gleichungen", publish: true }
       - title: "Erarbeitung"
         socialForm: IndividualWork
         duration: 20
         actionForm: Assigning
-        notes: ""
         items:
           - { kind: ItemAssignment, ref: "Übung Lineare Gleichungen", publish: true }
-    notes: ""
     supplementalItems: []
     notesTitleOverride: null
     assignmentRefs: ["Übung Lineare Gleichungen"]
-    resourceRefs: ["Arbeitsblatt-Lineare-Gleichungen"]
 ```
 
 ---

@@ -6,7 +6,6 @@ where
 import Control.Applicative ((<|>))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Lesson (LessonId)
-import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common.MisoId ()
@@ -20,7 +19,6 @@ data Page
   | Evidences
   | ManageTasks !(Maybe TaskId)
   | ManageResources !(Maybe ResourceId)
-  | ManageLessonNotes !(Maybe LessonNotesId)
   | LessonRecords !(Maybe LessonId)
   | ManageAssignments !(Maybe AssignmentId)
   | StatisticsOverview
@@ -37,7 +35,6 @@ instance M.Router Page where
         , M.path "evidences" $> Evidences
         , M.path "tasks" *> (ManageTasks . Just <$> M.capture <|> pure (ManageTasks Nothing))
         , M.path "resources" *> (ManageResources . Just <$> M.capture <|> pure (ManageResources Nothing))
-        , M.path "lesson-notes" *> (ManageLessonNotes . Just <$> M.capture <|> pure (ManageLessonNotes Nothing))
         , M.path "lesson-records" *> (LessonRecords . Just <$> M.capture <|> pure (LessonRecords Nothing))
         , M.path "assignments" *> (ManageAssignments . Just <$> M.capture <|> pure (ManageAssignments Nothing))
         , M.path "statistics-overview" $> StatisticsOverview
@@ -51,8 +48,6 @@ instance M.Router Page where
   fromRoute (ManageTasks (Just tid)) = [M.toPath "app", M.toPath "tasks", M.toCapture tid]
   fromRoute (ManageResources Nothing) = [M.toPath "app", M.toPath "resources"]
   fromRoute (ManageResources (Just rid)) = [M.toPath "app", M.toPath "resources", M.toCapture rid]
-  fromRoute (ManageLessonNotes Nothing) = [M.toPath "app", M.toPath "lesson-notes"]
-  fromRoute (ManageLessonNotes (Just lnid)) = [M.toPath "app", M.toPath "lesson-notes", M.toCapture lnid]
   fromRoute (LessonRecords Nothing) = [M.toPath "app", M.toPath "lesson-records"]
   fromRoute (LessonRecords (Just lid)) = [M.toPath "app", M.toPath "lesson-records", M.toCapture lid]
   fromRoute (ManageAssignments Nothing) = [M.toPath "app", M.toPath "assignments"]

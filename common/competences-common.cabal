@@ -43,7 +43,6 @@ library
         Competences.Command.Interpret
         Competences.Command.Layouts
         Competences.Command.Lessons
-        Competences.Command.LessonNotes
         Competences.Command.TeachingNotes
         Competences.Command.MesoPlans
         Competences.Command.ParticipationRecords
@@ -72,7 +71,6 @@ library
         Competences.Document.Layout
         Competences.Document.Layout.Settings
         Competences.Document.Lesson
-        Competences.Document.LessonNotes
         Competences.Document.TeachingNote
         Competences.Document.Lock
         Competences.Document.MesoPlan

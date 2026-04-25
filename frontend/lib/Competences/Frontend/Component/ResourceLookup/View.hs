@@ -1,6 +1,6 @@
 -- | Shared Miso component for rendering 'GroupedResources'.
 --
--- Renders lesson-note groups as collapsible disclosures, with items
+-- Renders lesson groups as collapsible disclosures, with items
 -- annotated by relevance (non-relevant items are dimmed).
 -- "Other resources" is also a collapsible disclosure.
 module Competences.Frontend.Component.ResourceLookup.View
@@ -14,21 +14,19 @@ where
 
 import Competences.Document
   ( Document
-  , LessonNotes (..)
+  , Lesson (..)
   , Resource (..)
   , Solution (..)
   , Task (..)
   )
-import Competences.Document.Id (idToText)
+import Competences.Document.Id (Id, idToText)
 import Competences.Document.Task (taskDisplayName)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.EntityMenu qualified as EM
-import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
-import Competences.Frontend.Component.LessonNotes.ViewerDetail qualified as LNViewer
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.RichContent (FormulaCache, renderRichText)
 import Competences.Frontend.Component.ResourceLookup
-  ( AnnotatedLessonNoteGroup (..)
+  ( AnnotatedLessonGroup (..)
   , GroupedResources (..)
   , ItemRelevance (..)
   , ResolvedItem (..)
@@ -38,7 +36,6 @@ import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (DocumentChange (..), PinViewerRequest (..), SyncContext (..), isTeacher, subscribeDocument)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -64,7 +61,7 @@ data GroupedResourcesModel = GroupedResourcesModel
   { groupedResources :: !GroupedResources
   -- ^ Computed grouped resources (updated via document subscription)
   , resourceState :: !ResComp.ResourceDetailedState
-  , lessonNotesState :: !LNComp.LessonNotesDetailedState
+  , expandedLessons :: !(Set (Id Lesson))
   , expandedTasks :: !(Set T.Text)
   , otherCollapsed :: !Bool
   -- ^ Whether the "Other resources" section is collapsed
@@ -75,23 +72,15 @@ data GroupedResourcesModel = GroupedResourcesModel
 data GroupedResourcesAction
   = DocChanged !DocumentChange
   | ResourceAction !ResComp.ResourceDetailedAction
-  | LessonNotesAction !LNComp.LessonNotesDetailedAction
+  | ToggleLessonExpanded !(Id Lesson)
   | ToggleTaskExpanded !T.Text
   | ToggleOtherSection
-  | OpenLessonNotes !LessonNotes
   deriving (Eq, Show)
 
 -- ============================================================================
 -- Component
 -- ============================================================================
 
--- | Create a grouped resources component.
---
--- Takes a projection function @(Document -> GroupedResources)@ so the
--- component can recompute its data whenever the document changes.
--- Renders lesson-note groups with collapsible disclosures.
--- Non-relevant items are dimmed with reduced opacity.
--- "Other resources" is wrapped in its own disclosure.
 groupedResourcesComponent
   :: SyncContext
   -> (Document -> GroupedResources)
@@ -106,7 +95,7 @@ groupedResourcesComponent r project =
       GroupedResourcesModel
         { groupedResources = GroupedResources [] [] []
         , resourceState = ResComp.initialResourceDetailedState []
-        , lessonNotesState = LNComp.initialLessonNotesDetailedState []
+        , expandedLessons = Set.empty
         , expandedTasks = Set.empty
         , otherCollapsed = True
         }
@@ -117,8 +106,8 @@ groupedResourcesComponent r project =
     update (ResourceAction a) =
       ResComp.updateResourceDetailed #resourceState a
 
-    update (LessonNotesAction a) =
-      LNComp.updateLessonNotesDetailed #lessonNotesState a
+    update (ToggleLessonExpanded lid) =
+      M.modify $ #expandedLessons %~ SetUtil.toggle lid
 
     update (ToggleTaskExpanded key) =
       M.modify $ #expandedTasks %~ SetUtil.toggle key
@@ -126,58 +115,48 @@ groupedResourcesComponent r project =
     update ToggleOtherSection =
       M.modify $ \m -> m & #otherCollapsed .~ not m.otherCollapsed
 
-    update (OpenLessonNotes ln) =
-      M.io_ $ LNViewer.openLessonNotesModal r ln
-
     view' :: GroupedResourcesModel -> M.View GroupedResourcesModel GroupedResourcesAction
     view' m
-      | null gr.lessonNoteGroups && null gr.ungroupedResources && null gr.ungroupedTasks =
+      | null gr.lessonGroups && null gr.ungroupedResources && null gr.ungroupedTasks =
           Typography.muted $ C.translate' C.LblNoResources
       | otherwise =
           MH.div_
             [class_ "space-y-3"]
-            ( map (viewLessonNoteGroup r m) gr.lessonNoteGroups
+            ( map (viewLessonGroup r m) gr.lessonGroups
                 <> viewOtherSection r m gr
             )
       where
         gr = m.groupedResources
 
 -- ============================================================================
--- Lesson Note Group
+-- Lesson Group
 -- ============================================================================
 
--- | Render a lesson note group as a collapsible disclosure.
-viewLessonNoteGroup
+viewLessonGroup
   :: SyncContext
   -> GroupedResourcesModel
-  -> AnnotatedLessonNoteGroup
+  -> AnnotatedLessonGroup
   -> M.View GroupedResourcesModel GroupedResourcesAction
-viewLessonNoteGroup r m group =
-  let ln = group.lessonNotes
+viewLessonGroup r m group =
+  let l = group.lesson
+      title = if T.null l.title then "(Untitled)" else l.title
+      dateLabel = case l.date of
+        Just d -> " · " <> C.formatDay d
+        Nothing -> ""
+      titleView =
+        Disclosure.titleIconText Icon.IcnLessonRecord (ms (title <> dateLabel))
+      isExpanded = Set.member l.id m.expandedLessons
       bodyView =
         MH.div_
           [class_ "space-y-2"]
           (map (viewAnnotatedItem r m) group.items)
-      annotations =
-        [ Button.ghostSm (Button.ButtonConfig (Button.IconOnly Icon.IcnOpenModal) (Just (OpenLessonNotes ln)))
-        ]
-          <> [ inlineComponent ("entity-menu-" <> ms (show ln.id))
-                  (EM.entityMenuComponent r EM.EntityMenuConfig
-                    { edit = Just (EM.lessonNotesEdit ln.id)
-                    , pin = Just (PinLessonNotesViewer ln)
-                    , goTo = Just (ManageLessonNotes (Just ln.id))
-                    , delete = Nothing
-                    , extraEntries = []
-                    })
-             | isTeacher r
-             ]
-   in LNComp.renderLessonNotesGroup m.lessonNotesState annotations bodyView LessonNotesAction ln
+   in Disclosure.innerDisclosure (ToggleLessonExpanded l.id) $
+        Disclosure.contents titleView isExpanded bodyView []
 
 -- ============================================================================
 -- Other (ungrouped) Section
 -- ============================================================================
 
--- | Render ungrouped resources and tasks in a collapsible "Other" disclosure.
 viewOtherSection
   :: SyncContext
   -> GroupedResourcesModel
@@ -202,7 +181,6 @@ viewOtherSection r m gr'
 -- Annotated Item Rendering
 -- ============================================================================
 
--- | Render an annotated item (resource or task).
 viewAnnotatedItem
   :: SyncContext
   -> GroupedResourcesModel
@@ -213,7 +191,6 @@ viewAnnotatedItem r m (item, relevance) =
     ResolvedResource res -> viewResourceItem r m relevance res
     ResolvedTask tws -> viewTaskItem r.formulaCache m relevance tws
 
--- | Relevance badge shown inline with the entity header.
 relevanceBadge :: ItemRelevance -> Maybe (M.View m a)
 relevanceBadge Relevant = Just (Badge.primary $ Badge.badgeText $ C.translate' C.LblRelevant)
 relevanceBadge ContextOnly = Nothing
@@ -248,9 +225,6 @@ viewResourceItem r m relevance res =
 -- Task Item
 -- ============================================================================
 
--- | Render a single task with its solutions as a disclosure (ad-hoc — task
--- items in this view are still keyed by text; full Fragment migration is
--- deferred).
 viewTaskItem
   :: FormulaCache
   -> GroupedResourcesModel
@@ -270,7 +244,6 @@ viewTaskItem fc m relevance tws =
    in picker (ToggleTaskExpanded key) $
         Disclosure.contents titleView isExpanded bodyView []
 
--- | Render task body content (task content + solutions).
 taskBodyView :: FormulaCache -> TaskWithSolutions -> M.View model action
 taskBodyView fc t =
   MH.div_
@@ -284,7 +257,6 @@ taskBodyView fc t =
         <> map (viewSolutionContent fc) t.solutions
     )
 
--- | Render solution content inline.
 viewSolutionContent :: FormulaCache -> Solution -> M.View model action
 viewSolutionContent fc sol =
   VT.solutionInlineView
@@ -293,4 +265,3 @@ viewSolutionContent fc sol =
         then Layout.empty
         else VT.taskContentView (renderRichText fc sol.content)
     )
-

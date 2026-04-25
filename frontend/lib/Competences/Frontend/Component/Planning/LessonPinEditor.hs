@@ -122,9 +122,9 @@ data Action
 -- Component
 -- ============================================================================
 
--- | Lesson pin editor factory. Caller resolves the 'Lesson' and the
--- linked 'LessonNotesId' list from the current document and passes them
--- in; this component then owns its edit-time state.
+-- | Lesson pin editor factory. Caller resolves the 'Lesson' and any
+-- linked 'TeachingNote' contents from the current document and passes
+-- them in; this component then owns its edit-time state.
 --
 -- Edit-time state is persisted across minimize/restore through the
 -- standard @pinSaveStates@ binding — identical pattern to the
@@ -187,7 +187,6 @@ lessonPinEditor r lesson' lessonNoteContent phaseNoteContents pid wm mSaved =
                 , socialForm = WholeClass
                 , duration = 10
                 , actionForm = Presenting
-                , notes = mempty
                 , items = []
                 , privateNoteRef = Nothing
                 }
@@ -486,7 +485,7 @@ lessonPinEditor r lesson' lessonNoteContent phaseNoteContents pid wm mSaved =
             ]
         , Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
             inlineComponent ("phase-notes-" <> M.ms (show idx))
-              (richContentEditorComponent r.formulaCache phase.notes (phaseNoteStateLens idx))
+              (richContentEditorComponent r.formulaCache (Map.findWithDefault mempty idx phaseNoteContents) (phaseNoteStateLens idx))
         , itemsEditor syncCtx ("lesson-phase-items-" <> M.ms (show idx)) (InPhase idx) phase.items
         ]
 
@@ -724,17 +723,12 @@ listIndex n (_ : xs)
   | otherwise = listIndex (n - 1) xs
 
 phaseNoteState :: Model -> Int -> ContentState RichContent
-phaseNoteState m idx = Map.findWithDefault
-  (Valid $ maybe mempty (.notes) $ listIndex idx m.phases)
-  idx m.phaseNoteStates
+phaseNoteState m idx = Map.findWithDefault (Valid mempty) idx m.phaseNoteStates
 
 phaseNoteStateLens :: Int -> Lens' Model (ContentState RichContent)
 phaseNoteStateLens idx = lens getter setter
   where
     getter m = phaseNoteState m idx
-    setter m cs@(Valid rc) = m
-      & #phaseNoteStates .~ Map.insert idx cs m.phaseNoteStates
-      & #phases .~ updateAt idx (\p -> p & #notes .~ rc) m.phases
     setter m cs = m & #phaseNoteStates .~ Map.insert idx cs m.phaseNoteStates
 
 allContentReady :: Model -> Bool

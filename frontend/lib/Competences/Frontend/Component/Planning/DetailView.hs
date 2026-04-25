@@ -143,7 +143,6 @@ detailComponent r initialPlan =
         , competenceGridGrades = Ix.empty
         , mesoPlans = Ix.empty
         , lessons = Ix.empty
-        , lessonNotes = Ix.empty
         , participationRecords = Ix.empty
         , absences = Ix.empty
         , submissions = Ix.empty
@@ -152,7 +151,6 @@ detailComponent r initialPlan =
         , competenceLevelExamples = Ix.empty
         , layouts = Ix.empty
         , teachingNotes = Ix.empty
-        , lessonNotesMigrated = False
         }
 
     update (DocumentUpdated dc) = M.modify $ \m -> projectDetail m.mesoPlan m.expandedLessonId m.expandedAssignments m.holdDeleteMeso dc.document
@@ -171,9 +169,7 @@ detailComponent r initialPlan =
                 , competenceLevels = []
                 , date = Nothing
                 , assignments = []
-                , resources = []
                 , phases = []
-                , notes = mempty
                 , supplementalItems = []
                 , notesTitleOverride = Nothing
                 , privateNoteRef = Nothing
@@ -272,7 +268,7 @@ detailComponent r initialPlan =
                               , EM.action = pinLessonEvaluator r m.mesoPlan.dateFrom lesson
                               }
                           , EM.ExtraEntry
-                              { EM.icon = Icon.IcnLessonNotes
+                              { EM.icon = Icon.IcnLessonRecord
                               , EM.label = C.translate' C.LblPinLessonRecord
                               , EM.action = pinStudentLessonView r lesson
                               }

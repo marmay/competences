@@ -107,7 +107,6 @@ editorComponent r grid =
         , competenceGridGrades = Ix.empty
         , mesoPlans = Ix.empty
         , lessons = Ix.empty
-        , lessonNotes = Ix.empty
         , participationRecords = Ix.empty
         , absences = Ix.empty
         , submissions = Ix.empty
@@ -116,7 +115,6 @@ editorComponent r grid =
         , competenceLevelExamples = Ix.empty
         , layouts = Ix.empty
         , teachingNotes = Ix.empty
-        , lessonNotesMigrated = False
         }
 
     update (DocumentUpdated dc) = M.modify $ #document .~ dc.document

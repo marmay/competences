@@ -84,7 +84,7 @@ data Icon
   | IcnPrint
   | IcnMenu
   | IcnMoreVertical
-  | IcnLessonNotes
+  | IcnLessonRecord
   | IcnOpenModal -- ^ Square with arrow out (open in modal)
   | IcnCloudCheck -- ^ Connected, all synced (cloud + checkmark)
   | IcnCloudSync -- ^ Connected, sending/receiving (cloud + arrows)
@@ -255,7 +255,7 @@ iconId = \case
   IcnPrint -> "icon-print"
   IcnMenu -> "icon-menu"
   IcnMoreVertical -> "icon-more-vertical"
-  IcnLessonNotes -> "icon-lesson-notes"
+  IcnLessonRecord -> "icon-lesson-record"
   IcnOpenModal -> "icon-open-modal"
   IcnCloudCheck -> "icon-cloud-check"
   IcnCloudSync -> "icon-cloud-sync"
@@ -661,8 +661,8 @@ iconDefOf' = \case
     , MS.circle_ [MSP.cx_ "12", MSP.cy_ "12", MSP.r_ "1", MSP.fill_ "currentColor"]
     , MS.circle_ [MSP.cx_ "12", MSP.cy_ "19", MSP.r_ "1", MSP.fill_ "currentColor"]
     ]
-  -- Lesson notes icon (notebook with lines)
-  IcnLessonNotes ->
+  -- Lesson record icon (notebook with lines)
+  IcnLessonRecord ->
     mkPathesD
       [ "M4 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z"
       , "M8 2v20"

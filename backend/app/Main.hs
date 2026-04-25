@@ -10,11 +10,9 @@ import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.StaleLockCleanup qualified as SLC
 import Competences.Backend.State (AppState (..), initAppState)
 import Competences.Backend.WebSocket (wsHandler)
-import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), MigrationPlan (..), handleCommand, validateLessonNotesMigration)
-import Competences.Common.IxSet qualified as Ix
-import Competences.Document.Lesson (LessonPhase (..))
+import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), handleCommand)
 import Competences.Document.Session (SessionId, legacySessionId)
-import Competences.Document (Document (..), Lesson (..), emptyDocument)
+import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.User qualified
 import Control.Concurrent (forkIO, threadDelay)
@@ -206,11 +204,7 @@ main = do
 
   -- Build and apply startup migration commands
   startupCmds <- buildStartupMigrations opts
-  -- Conditional one-shot: fold LessonNotes into Lesson.supplementalItems
-  -- if the data is in a migratable state. Prints a warning and skips
-  -- otherwise (release-A "gateway" semantics — no hard block).
-  lessonNotesCmd <- checkLessonNotesMigration doc
-  (doc', latestGen) <- applyStartupMigrations pool doc initialGen (startupCmds <> lessonNotesCmd)
+  (doc', latestGen) <- applyStartupMigrations pool doc initialGen startupCmds
 
   -- Initialize CAS (content-addressable store for files)
   cas <- newCAS opts.casDir opts.casFileMode
@@ -286,61 +280,6 @@ buildStartupMigrations opts = do
       newId <- Id <$> UUID.nextRandom
       pure [Migration (EnsureTeacherO365 newId (T.pack email))]
   pure $ initCmd <> teacherCmds
-
--- | Decide at startup whether to emit 'MigrateLessonNotesIntoLessons'.
---
--- Returns the command wrapped in a list when the data passes validation
--- and the flag hasn't been set yet. Returns @[]@ (with a warning
--- printed) when the data is unresolvable — teachers deploying the
--- release must clean up in the previous build before migration kicks
--- in on the next startup.
-checkLessonNotesMigration :: Document -> IO [Command]
-checkLessonNotesMigration doc
-  | doc.lessonNotesMigrated = pure []
-  | otherwise = case validateLessonNotesMigration doc of
-      Left reason
-        | Ix.null doc.lessonNotes -> do
-            -- The validation failure is only about LessonNotes; if there
-            -- are none, it's not really an error — proceed with externalising
-            -- legacy prose only.
-            buildAndDispatch "no legacy records" doc
-        | otherwise -> do
-            putStrLn "[migration] WARNING: Lesson record migration cannot be performed yet."
-            putStrLn $ "[migration]   " <> T.unpack reason
-            putStrLn "[migration]   Resolve the issues (link orphan notes / remove duplicates) and restart."
-            pure []
-      Right _ -> buildAndDispatch "data valid" doc
-
--- | Pre-allocate 'TeachingNoteId's for legacy prose externalisation
--- and emit 'MigrateLessonNotesIntoLessons' wrapped in a list.
-buildAndDispatch :: String -> Document -> IO [Command]
-buildAndDispatch reason doc = do
-  let lessonsNeedingNote =
-        [ l.id
-        | l <- Ix.toList doc.lessons
-        , l.notes /= mempty
-        , l.privateNoteRef == Nothing
-        ]
-      phasesNeedingNote =
-        [ (l.id, idx)
-        | l <- Ix.toList doc.lessons
-        , (idx, p) <- zip [0 ..] l.phases
-        , p.notes /= mempty
-        , p.privateNoteRef == Nothing
-        ]
-  lessonAllocs <- mapM (\lid -> (,) lid . Id <$> UUID.nextRandom) lessonsNeedingNote
-  phaseAllocs <- mapM
-    (\(lid, idx) -> (\u -> (lid, idx, Id u)) <$> UUID.nextRandom)
-    phasesNeedingNote
-  let plan = MigrationPlan
-        { lessonNoteIds = lessonAllocs
-        , phaseNoteIds = phaseAllocs
-        }
-  putStrLn $
-    "[migration] Lesson record migration: " <> reason
-      <> "; externalising " <> show (length lessonAllocs) <> " lesson note(s) and "
-      <> show (length phaseAllocs) <> " phase note(s)."
-  pure [Migration (MigrateLessonNotesIntoLessons plan)]
 
 -- | Apply startup migration commands, persisting only those that succeed.
 -- Commands that fail are silently skipped (they indicate no action needed).

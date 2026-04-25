@@ -17,7 +17,6 @@ import Competences.Document.Layout (LayoutId)
 import Competences.Document.CompetenceGridGrade (CompetenceGridGradeId)
 import Competences.Document.Evidence (EvidenceId)
 import Competences.Document.Lesson (LessonId)
-import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Document.ParticipationRecord (ParticipationRecordId)
 import Competences.Document.Resource (ResourceId)
@@ -48,7 +47,6 @@ data Lock
   | MesoPlanLock !MesoPlanId
   | LessonLock !LessonId
   | ParticipationRecordLock !ParticipationRecordId
-  | LessonNotesLock !LessonNotesId
   | AbsenceLock !AbsenceId
   | SubmissionLock !SubmissionId
   | CompetenceLevelExampleLock !CompetenceLevelExampleId

@@ -21,7 +21,6 @@ import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonItem, LessonPhase)
 import Competences.Document.TeachingNote (TeachingNoteId)
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
-import Competences.Document.Resource (ResourceId)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -42,9 +41,7 @@ data LessonPatch = LessonPatch
   , competenceLevels :: !(Change [CompetenceLevelId])
   , date :: !(Change (Maybe Day))
   , assignments :: !(Change [AssignmentId])
-  , resources :: !(Change [ResourceId])
   , phases :: !(Change [LessonPhase])
-  , notes :: !(Change RichContent)
   , supplementalItems :: !(Change [LessonItem])
   , notesTitleOverride :: !(Change (Maybe Text))
   , privateNoteRef :: !(Change (Maybe TeachingNoteId))
@@ -78,9 +75,7 @@ instance Default LessonPatch where
       , competenceLevels = Nothing
       , date = Nothing
       , assignments = Nothing
-      , resources = Nothing
       , phases = Nothing
-      , notes = Nothing
       , supplementalItems = Nothing
       , notesTitleOverride = Nothing
       , privateNoteRef = Nothing
@@ -95,9 +90,7 @@ applyLessonPatch lesson patch =
       >=> patchField' @"competenceLevels" patch
       >=> patchField' @"date" patch
       >=> patchField' @"assignments" patch
-      >=> patchField' @"resources" patch
       >=> patchField' @"phases" patch
-      >=> patchField' @"notes" patch
       >=> patchField' @"supplementalItems" patch
       >=> patchField' @"notesTitleOverride" patch
       >=> patchField' @"privateNoteRef" patch

@@ -142,7 +142,7 @@ lessonExchange doc l =
       assignmentTasks = mapMaybe (lookupTask doc) assignmentTaskIds
       standaloneTasks = mapMaybe (lookupTask doc) standaloneTaskIds
       inlinedResources =
-        mapMaybe (lookupResource doc) (l.resources <> referencedResources l)
+        mapMaybe (lookupResource doc) (referencedResources l)
    in emptyExchangeDoc
         & #lessons .~ [lessonToExchange doc l]
         & #assignments .~ map (assignmentToExchange doc) inlinedAssignments
@@ -247,11 +247,9 @@ lessonToExchange doc l =
     , date = l.date
     , competences = mapMaybe (competenceRef doc) l.competenceLevels
     , phases = map (lessonPhaseToExchange doc) l.phases
-    , notes = toRawText l.notes
     , supplementalItems = map (lessonItemToExchange doc) l.supplementalItems
     , notesTitleOverride = l.notesTitleOverride
     , assignmentRefs = mapMaybe (fmap assignmentNameText . lookupAssignment doc) l.assignments
-    , resourceRefs = mapMaybe (fmap resourceIdentText . lookupResource doc) l.resources
     }
 
 referencedTasks :: Lesson -> [TaskId]
@@ -272,7 +270,6 @@ lessonPhaseToExchange doc p =
     , socialForm = p.socialForm
     , duration = p.duration
     , actionForm = p.actionForm
-    , notes = toRawText p.notes
     , items = map (lessonItemToExchange doc) p.items
     }
 

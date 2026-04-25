@@ -22,7 +22,6 @@ module Competences.Document
   , module Competences.Document.User
   , module Competences.Document.MesoPlan
   , module Competences.Document.Lesson
-  , module Competences.Document.LessonNotes
   , module Competences.Document.TeachingNote
   , module Competences.Document.ParticipationRecord
   , module Competences.Document.Absence
@@ -83,13 +82,6 @@ import Competences.Document.Lesson
   , ActionForm (..)
   )
 import Competences.Document.TeachingNote (TeachingNote (..), TeachingNoteId, TeachingNoteIxs)
-import Competences.Document.LessonNotes
-  ( LessonNoteItem (..)
-  , LessonNotes (..)
-  , LessonNotesId
-  , LessonNotesIxs
-  , mkLessonNotes
-  )
 import Competences.Document.MesoPlan
   ( MesoPlan (..)
   , MesoPlanId
@@ -152,7 +144,6 @@ data Document = Document
   , solutions :: !(Ix.IxSet SolutionIxs Solution)
   , mesoPlans :: !(Ix.IxSet MesoPlanIxs MesoPlan)
   , lessons :: !(Ix.IxSet LessonIxs Lesson)
-  , lessonNotes :: !(Ix.IxSet LessonNotesIxs LessonNotes)
   , participationRecords :: !(Ix.IxSet ParticipationRecordIxs ParticipationRecord)
   , absences :: !(Ix.IxSet AbsenceIxs Absence)
   , submissions :: !(Ix.IxSet SubmissionIxs Submission)
@@ -163,11 +154,6 @@ data Document = Document
   , teachingNotes :: !(Ix.IxSet TeachingNoteIxs TeachingNote)
   -- ^ Teacher-only annotations referenced by 'Lesson.privateNoteRef'
   -- and 'LessonPhase.privateNoteRef'. Audience: 'AudienceTeachers'.
-  , lessonNotesMigrated :: !Bool
-  -- ^ True once 'MigrateLessonNotesIntoLessons' has folded legacy
-  -- 'LessonNotes' records into their linked lessons. Prevents a
-  -- second run from double-appending items. Default: 'False' for old
-  -- snapshots.
   }
   deriving (Eq, Generic, Show)
 
@@ -190,7 +176,6 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "solutions" .!= [])
       <*> fmap Ix.fromList (v .:? "mesoPlans" .!= [])
       <*> fmap Ix.fromList (v .:? "lessons" .!= [])
-      <*> fmap Ix.fromList (v .:? "lessonNotes" .!= [])
       <*> fmap Ix.fromList (v .:? "participationRecords" .!= [])
       <*> fmap Ix.fromList (v .:? "absences" .!= [])
       <*> fmap Ix.fromList (v .:? "submissions" .!= [])
@@ -199,7 +184,6 @@ instance FromJSON Document where
       <*> fmap Ix.fromList (v .:? "competenceLevelExamples" .!= [])
       <*> fmap Ix.fromList (v .:? "layouts" .!= [])
       <*> fmap Ix.fromList (v .:? "teachingNotes" .!= [])
-      <*> v .:? "lessonNotesMigrated" .!= False
 
 -- | Parse locks map, silently dropping entries with unknown Lock constructors
 -- (e.g., removed TaskGroupLock from old snapshots).
@@ -224,7 +208,6 @@ instance ToJSON Document where
       , "solutions" .= Ix.toList d.solutions
       , "mesoPlans" .= Ix.toList d.mesoPlans
       , "lessons" .= Ix.toList d.lessons
-      , "lessonNotes" .= Ix.toList d.lessonNotes
       , "participationRecords" .= Ix.toList d.participationRecords
       , "absences" .= Ix.toList d.absences
       , "submissions" .= Ix.toList d.submissions
@@ -233,7 +216,6 @@ instance ToJSON Document where
       , "competenceLevelExamples" .= Ix.toList d.competenceLevelExamples
       , "layouts" .= Ix.toList d.layouts
       , "teachingNotes" .= Ix.toList d.teachingNotes
-      , "lessonNotesMigrated" .= d.lessonNotesMigrated
       ]
 #endif
 
@@ -257,7 +239,6 @@ emptyDocument =
     , solutions = Ix.empty
     , mesoPlans = Ix.empty
     , lessons = Ix.empty
-    , lessonNotes = Ix.empty
     , participationRecords = Ix.empty
     , absences = Ix.empty
     , submissions = Ix.empty
@@ -266,7 +247,6 @@ emptyDocument =
     , competenceLevelExamples = Ix.empty
     , layouts = Ix.empty
     , teachingNotes = Ix.empty
-    , lessonNotesMigrated = False
     }
 
 
@@ -295,7 +275,7 @@ projectDocument user doc
         & #draftTasks .~ Ix.empty -- Drafts are teacher-only
         & #draftAssignments .~ Ix.empty
         & #layouts .~ Ix.empty -- Layouts are teacher-only
-        -- competenceGrids, competences, resources, lessonNotes, tasks: students see all (public materials)
+        -- competenceGrids, competences, resources, tasks: students see all (public materials)
   where
     -- Student can see locks on entities they have access to
     isLockVisible lock _ = case lock of
@@ -319,7 +299,6 @@ projectDocument user doc
       SolutionLock _ -> True -- Solutions are visible to all users
       ResourceLock _ -> True -- Resources are visible to all users
       CompetenceLevelExampleLock _ -> True -- Examples are visible to all users
-      LessonNotesLock _ -> True -- Lesson notes are visible to all users
       LayoutLock _ -> False -- Layouts are teacher-only
       MesoPlanLock _ -> False -- Planning is teacher-only
       LessonLock _ -> False

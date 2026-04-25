@@ -636,7 +636,6 @@ applyLessonPreview
 applyLessonPreview r lookA lookT lookR lp = do
   let l = lp.lesson
       assignmentList = mapMaybe lookA l.assignmentRefs
-      resourceList = mapMaybe lookR l.resourceRefs
       phases = mapMaybe (toDomainPhase lookA lookT lookR) l.phases
       suppItems = mapMaybe (toDomainItem lookA lookT lookR) l.supplementalItems
   case lp.lessonAction of
@@ -646,13 +645,12 @@ applyLessonPreview r lookA lookT lookR lp = do
             new
               & #id .~ newId
               & #assignments .~ assignmentList
-              & #resources .~ resourceList
               & #phases .~ phases
               & #supplementalItems .~ suppItems
       modifySyncDocument r $ Cmd.Lessons $ Cmd.OnLessons $ Cmd.Create newLesson
     Update old _ -> do
       modifySyncDocument r $ Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id Lock
-      let patch = buildLessonPatch old l assignmentList resourceList phases suppItems
+      let patch = buildLessonPatch old l assignmentList phases suppItems
       modifySyncDocument r $ Cmd.Lessons $ Cmd.OnLessons $ Cmd.Modify old.id (Release patch)
     NoChange _ -> pure ()
     Delete _ -> pure ()  -- unreachable for lessons
@@ -771,7 +769,6 @@ toDomainPhase lookA lookT lookR p = Just LessonPhase
   , socialForm = p.socialForm
   , duration = p.duration
   , actionForm = p.actionForm
-  , notes = mempty
   , items = mapMaybe (toDomainItem lookA lookT lookR) p.items
   , privateNoteRef = Nothing
   }
@@ -841,20 +838,17 @@ buildLessonPatch
   :: Lesson
   -> ExchangeLesson
   -> [AssignmentId]
-  -> [ResourceId]
   -> [LessonPhase]
   -> [LessonItem]
   -> LessonPatch
-buildLessonPatch old new aids rids phases items =
+buildLessonPatch old new aids phases items =
   LessonPatch
     { title = if old.title == new.title then Nothing else Just (old.title, new.title)
     , description = Nothing
     , competenceLevels = Nothing
     , date = if old.date == new.date then Nothing else Just (old.date, new.date)
     , assignments = if old.assignments == aids then Nothing else Just (old.assignments, aids)
-    , resources = if old.resources == rids then Nothing else Just (old.resources, rids)
     , phases = if old.phases == phases then Nothing else Just (old.phases, phases)
-    , notes = Nothing
     , supplementalItems = if old.supplementalItems == items then Nothing else Just (old.supplementalItems, items)
     , notesTitleOverride = if old.notesTitleOverride == new.notesTitleOverride then Nothing else Just (old.notesTitleOverride, new.notesTitleOverride)
     , privateNoteRef = Nothing
@@ -876,7 +870,6 @@ emptyDocument =
     , competenceGridGrades = mempty
     , mesoPlans = mempty
     , lessons = mempty
-    , lessonNotes = mempty
     , participationRecords = mempty
     , absences = mempty
     , submissions = mempty
@@ -885,5 +878,4 @@ emptyDocument =
     , competenceLevelExamples = mempty
     , layouts = mempty
     , teachingNotes = mempty
-    , lessonNotesMigrated = False
     }

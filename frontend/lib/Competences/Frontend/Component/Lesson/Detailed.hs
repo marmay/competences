@@ -134,7 +134,7 @@ pinDetailed r lsn mode keyPrefix =
         , isEditor = False
         , followUp = True
         }
-      chrome = WindowChrome (ms (lessonDerivedTitle lsn)) Icon.IcnLessonNotes Nothing
+      chrome = WindowChrome (ms (lessonDerivedTitle lsn)) Icon.IcnLessonRecord Nothing
    in pinDialog r.windowManager meta chrome
         (lessonDetailedComponent r (LessonDetailedConfig lsn.id mode))
 

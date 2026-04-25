@@ -226,13 +226,10 @@ data ExchangeLesson = ExchangeLesson
   , date :: !(Maybe Day)
   , competences :: ![ExchangeCompetenceRef]
   , phases :: ![ExchangeLessonPhase]
-  , notes :: !Text
   , supplementalItems :: ![ExchangeLessonItem]
   , notesTitleOverride :: !(Maybe Text)
   , assignmentRefs :: ![Text]
     -- ^ Top-level assignment names linked from this lesson, in order.
-  , resourceRefs :: ![Text]
-    -- ^ Top-level resource identifiers linked from this lesson.
   }
   deriving (Eq, Generic, Show)
 
@@ -249,7 +246,6 @@ data ExchangeLessonPhase = ExchangeLessonPhase
   , socialForm :: !TeachingSocialForm
   , duration :: !Int
   , actionForm :: !ActionForm
-  , notes :: !Text
   , items :: ![ExchangeLessonItem]
   }
   deriving (Eq, Generic, Show)

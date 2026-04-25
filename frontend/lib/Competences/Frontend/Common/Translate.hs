@@ -162,7 +162,6 @@ data Label
   | LblSelectAssignment
   | LblSelectAssignments
   | LblSelectResources
-  | LblSelectLessonNotes
   | LblSelectAll
   | LblDeselectAll
   | LblView
@@ -384,14 +383,6 @@ data Label
   | LblRenumberPrefix !Text !Int
   | LblRenumberSkipped !Int
   | LblRenumberSummary !Int
-    -- Lesson Notes
-  | LblLessonNotesEntries
-  | LblFilterLessonNotes
-  | LblNewLessonNotes
-  | LblLessonNotesDate
-  | LblLessonNotesTitle
-  | LblLessonNotesResources
-  | LblLessonNotesItems
   | LblSelectTasks
     -- Task remarks
   | LblTaskRemarks
@@ -410,7 +401,6 @@ data Label
   | LblNotVisibleToStudents
   | LblPinPlan
   | LblPinLessonRecord
-  | LblLegacyLessonNotes
   | LblLessonRecordFromPrefix
     -- Assignment references
   | LblUsedInAssignment
@@ -598,7 +588,6 @@ labels' =
   , LblSelectAssignment
   , LblSelectAssignments
   , LblSelectResources
-  , LblSelectLessonNotes
   , LblSelectAll
   , LblDeselectAll
   , LblView
@@ -830,14 +819,6 @@ labels' =
   , LblRenumberPrefix "" 0
   , LblRenumberSkipped 0
   , LblRenumberSummary 0
-    -- Lesson Notes
-  , LblLessonNotesEntries
-  , LblFilterLessonNotes
-  , LblNewLessonNotes
-  , LblLessonNotesDate
-  , LblLessonNotesTitle
-  , LblLessonNotesResources
-  , LblLessonNotesItems
   , LblSelectTasks
     -- Task remarks
   , LblTaskRemarks
@@ -855,7 +836,6 @@ labels' =
   , LblNotVisibleToStudents
   , LblPinPlan
   , LblPinLessonRecord
-  , LblLegacyLessonNotes
   , LblLessonRecordFromPrefix
     -- Assignment references
   , LblUsedInAssignment
@@ -1056,7 +1036,6 @@ defaultTranslation LblNoAssignmentSelected = "Kein Auftrag ausgewählt"
 defaultTranslation LblSelectAssignment = "Auftrag auswählen..."
 defaultTranslation LblSelectAssignments = "Aufträge auswählen..."
 defaultTranslation LblSelectResources = "Ressourcen auswählen..."
-defaultTranslation LblSelectLessonNotes = "Unterrichtsnotizen auswählen..."
 defaultTranslation LblSelectAll = "Alle auswählen"
 defaultTranslation LblDeselectAll = "Alle abwählen"
 defaultTranslation LblView = "Anzeigen"
@@ -1294,14 +1273,6 @@ defaultTranslation LblRenumberTasks = "Nummerierung"
 defaultTranslation (LblRenumberPrefix prefix n) = "Präfix «" <> ms prefix <> "» (" <> ms (show n) <> ")"
 defaultTranslation (LblRenumberSkipped n) = ms (show n) <> " Aufgabe(n) ohne Präfix übersprungen"
 defaultTranslation (LblRenumberSummary n) = ms (show n) <> " Aufgabe(n) werden umbenannt"
--- Lesson Notes
-defaultTranslation LblLessonNotesEntries = "Unterrichtsnotizen"
-defaultTranslation LblFilterLessonNotes = "Unterrichtsnotizen filtern..."
-defaultTranslation LblNewLessonNotes = "Neue Unterrichtsnotiz"
-defaultTranslation LblLessonNotesDate = "Datum"
-defaultTranslation LblLessonNotesTitle = "Titel"
-defaultTranslation LblLessonNotesResources = "Ressourcen"
-defaultTranslation LblLessonNotesItems = "Materialien"
 defaultTranslation LblSelectTasks = "Aufgaben auswählen..."
 -- Task remarks
 defaultTranslation LblTaskRemarks = "Anmerkungen"
@@ -1322,7 +1293,6 @@ defaultTranslation LblVisibleToStudents = "Sichtbar für Schüler*innen"
 defaultTranslation LblNotVisibleToStudents = "nicht sichtbar"
 defaultTranslation LblPinPlan = "Plan anheften"
 defaultTranslation LblPinLessonRecord = "Schulübung anheften"
-defaultTranslation LblLegacyLessonNotes = "Unterrichtsmitschrift (alt)"
 defaultTranslation LblLessonRecordFromPrefix = "Schulübung vom"
 -- Assignment references
 defaultTranslation LblUsedInAssignment = "Verwendet in folgendem Auftrag:"

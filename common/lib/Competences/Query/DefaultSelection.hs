@@ -1,7 +1,6 @@
 module Competences.Query.DefaultSelection
   ( defaultAssignment
   , defaultCompetenceGrid
-  , defaultLessonNotes
   , defaultMesoPlan
   , defaultTask
   )
@@ -12,7 +11,6 @@ import Competences.Document.ActivityType (ActivityType (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentIxs)
 import Competences.Document.CompetenceGrid (CompetenceGrid (..), CompetenceGridIxs)
 import Competences.Document.Task (Task, TaskIdentifier, TaskIxs)
-import Competences.Document.LessonNotes (LessonNotes (..), LessonNotesIxs)
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanIxs)
 import Competences.Document.Order (Order)
 import Data.List (find, sortOn)
@@ -33,11 +31,6 @@ defaultAssignment _today assignments =
 defaultCompetenceGrid :: Ix.IxSet CompetenceGridIxs CompetenceGrid -> Maybe CompetenceGrid
 defaultCompetenceGrid grids =
   listToMaybe $ Ix.toDescList (Proxy @Order) grids
-
--- | First lesson notes entry on or after today.
-defaultLessonNotes :: Day -> Ix.IxSet LessonNotesIxs LessonNotes -> Maybe LessonNotes
-defaultLessonNotes today notes =
-  listToMaybe $ Ix.toAscList (Proxy @Day) $ notes Ix.@>= today
 
 -- | First task by identifier (alphabetical order).
 defaultTask :: Ix.IxSet TaskIxs Task -> Maybe Task

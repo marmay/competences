@@ -10,27 +10,21 @@ where
 
 import Control.Applicative ((<|>))
 import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), LessonsCommand (..), ModifyCommand (..), ResourcesCommand (..), SolutionsCommand (..), TasksCommand (..))
-import Competences.Command qualified as Cmd
-import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), LessonNotes (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
+import Competences.Document (Assignment (..), Document (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
 import Competences.Document (TeachingNote (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
-import Competences.Document.Id (idToText)
+import Competences.Document.Id (idToText, mkId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonPhase (..))
 import Data.Map.Strict qualified as Map
-import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Assignment.PinEditor (assignmentPinEditor)
 import Competences.Frontend.Component.Assignment.Detailed (pinAssignmentViewer)
-import Competences.Frontend.Component.LessonNotes.Detailed qualified as LNComp
-import Competences.Frontend.Component.LessonNotes.PinEditor (lessonNotesPinEditor)
 import Competences.Frontend.Component.Planning.LessonPinEditor (lessonPinEditor)
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
-import Competences.Frontend.Component.Entity.Assembly (renderResolvedItem)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.Component.Draft (EntityOrigin (..), retargetForDraft)
 import Competences.Frontend.Component.Task.PinEditor (taskPinEditor)
@@ -66,7 +60,6 @@ import Data.IORef (IORef, atomicModifyIORef', newIORef, writeIORef)
 import Data.Maybe (isJust)
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Competences.Document.Id (mkId)
 import Miso.String (MisoString, ms)
 
 -- | Initialize lock-watching for a 'SyncContext'.
@@ -103,7 +96,6 @@ lockPinId' :: Lock -> PinId
 lockPinId' (TaskLock tid) = mkPinId ("task-" <> idToText tid)
 lockPinId' (SolutionLock sid) = mkPinId ("solution-" <> idToText sid)
 lockPinId' (ResourceLock rid) = mkPinId ("resource-" <> idToText rid)
-lockPinId' (LessonNotesLock lnid) = mkPinId ("lesson-notes-" <> idToText lnid)
 lockPinId' (LessonLock lid) = mkPinId ("lesson-" <> idToText lid)
 lockPinId' (AssignmentLock aid) = mkPinId ("assignment-" <> idToText aid)
 lockPinId' lock = mkPinId (T.pack (show lock))
@@ -115,7 +107,6 @@ parsePinLock pid =
    in (TaskLock <$> (T.stripPrefix "task-" key >>= mkId))
         <|> (SolutionLock <$> (T.stripPrefix "solution-" key >>= mkId))
         <|> (ResourceLock <$> (T.stripPrefix "resource-" key >>= mkId))
-        <|> (LessonNotesLock <$> (T.stripPrefix "lesson-notes-" key >>= mkId))
         <|> (LessonLock <$> (T.stripPrefix "lesson-" key >>= mkId))
         <|> (AssignmentLock <$> (T.stripPrefix "assignment-" key >>= mkId))
 
@@ -126,7 +117,6 @@ releaseCommand doc (TaskLock tid) =
    in if Ix.null (doc.draftTasks Ix.@= tid) then cmd else retargetForDraft cmd
 releaseCommand _doc (SolutionLock sid) = Solutions (OnSolutions (Modify sid (Release def)))
 releaseCommand _doc (ResourceLock rid) = Resources (OnResources (Modify rid (Release def)))
-releaseCommand _doc (LessonNotesLock lnid) = Cmd.LessonNotes (OnLessonNotes (Modify lnid (Release def)))
 releaseCommand _doc (LessonLock lid) = Lessons (OnLessons (Modify lid (Release def)))
 releaseCommand doc (AssignmentLock aid) =
   let cmd = Assignments (OnAssignments (Modify aid (Release def)))
@@ -143,7 +133,6 @@ ensureLockPin r sink lock doc followUp = case lock of
   TaskLock tid -> ensureTaskPin r sink tid doc followUp
   SolutionLock sid -> ensureSolutionPin r sink sid doc followUp
   ResourceLock rid -> ensureResourcePin r sink rid doc followUp
-  LessonNotesLock lnid -> ensureLessonNotesPin r sink lnid doc followUp
   LessonLock lid -> ensureLessonPin r sink lid doc followUp
   AssignmentLock aid -> ensureAssignmentPin r sink aid doc followUp
   _ -> pure () -- No pin editor for other lock types yet
@@ -201,22 +190,6 @@ ensureResourcePin r sink resId doc followUp =
         }
       chrome = WindowChrome title Icon.IcnResources (Just Icon.IcnEdit)
    in pinDialogWith sink meta chrome (resourcePinEditor r resId pid)
-
-ensureLessonNotesPin :: SyncContext -> WindowEventSink -> LessonNotesId -> Document -> Bool -> IO ()
-ensureLessonNotesPin r sink lnId doc followUp =
-  let mLn = Ix.getOne (doc.lessonNotes Ix.@= lnId)
-      title = maybe ("Unterrichtsnotiz" :: MisoString) (ms . (.title)) mLn
-      pid = lockPinId' (LessonNotesLock lnId)
-      meta = PinMeta
-        { key = "lesson-notes-" <> idToText lnId
-        , category = PinCatLessonNotes
-        , sortKey = SortKey [SortAtom lnId]
-        , context = Nothing
-        , isEditor = True
-        , followUp = followUp
-        }
-      chrome = WindowChrome title Icon.IcnLessonNotes (Just Icon.IcnEdit)
-   in pinDialogWith sink meta chrome (lessonNotesPinEditor r lnId pid)
 
 ensureLessonPin :: SyncContext -> WindowEventSink -> LessonId -> Document -> Bool -> IO ()
 ensureLessonPin r sink lid doc followUp =
@@ -296,18 +269,6 @@ handleViewerPin r (PinResourceViewer res) =
           })
         (WindowChrome (ms title) Icon.IcnResources Nothing)
         (\_ (_ :: Maybe ()) -> ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
-handleViewerPin r (PinLessonNotesViewer ln) =
-  pinDialogWith r.windowManager
-    (PinMeta
-      { key = "lesson-notes-ref-" <> idToText ln.id
-      , category = PinCatLessonNotes
-      , sortKey = SortKey [SortAtom ln.date, SortAtom ln.title, SortAtom ln.id]
-      , context = Nothing
-      , isEditor = False
-      , followUp = True
-      })
-    (WindowChrome (ms ln.title) Icon.IcnLessonNotes Nothing)
-    (\_ (_ :: Maybe ()) -> LNComp.lessonNotesDetailedComponent renderResolvedItem r (LNComp.LessonNotesDetailedConfig ln.id LNComp.defaultLessonNotesDetailedSettings))
 handleViewerPin r (PinAssignmentViewer assignment) =
   pinAssignmentViewer r r.env.connectedUser assignment
 

@@ -156,7 +156,6 @@ data PinCategory
   | PinCatAssignment
   | PinCatLesson
   | PinCatLessonEvaluation
-  | PinCatLessonNotes
   | PinCatCompetenceGrid
   deriving (Eq, Ord, Enum, Bounded, Show)
 

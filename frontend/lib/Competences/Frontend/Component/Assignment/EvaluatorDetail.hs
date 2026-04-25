@@ -702,7 +702,7 @@ evaluatorComponent r assignment =
             | hasOpenDigital = Button.toButtonContents (Icon.IcnImport, ms student.name)
             | hasEvidenceOnDate = Button.toButtonContents (Icon.IcnApply, ms student.name)
             | hasVoid = Button.toButtonContents (Icon.IcnCancel, ms student.name)
-            | hasNonDigital = Button.toButtonContents (Icon.IcnLessonNotes, ms student.name)
+            | hasNonDigital = Button.toButtonContents (Icon.IcnLessonRecord, ms student.name)
             | hasAnyEvidence = Button.toButtonContents (Icon.IcnEvidence, ms student.name)
             | otherwise = Button.toButtonContents (ms student.name)
       in Button.toggleSm isActive $ Button.button contents (not isDisabled, ToggleStudentSelection student.id)
@@ -724,7 +724,7 @@ evaluatorComponent r assignment =
               ]
           NonDigitalSubmission mLocation ->
             M.div_ [class_ bannerClasses]
-              [ Icon.icon [] Icon.IcnLessonNotes
+              [ Icon.icon [] Icon.IcnLessonRecord
               , Badge.outline (Badge.badgeLabel C.LblGemacht)
               , case mLocation of
                   Just loc -> M.span_ [class_ "text-sm text-muted-foreground"] [M.text $ ms loc]

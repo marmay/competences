@@ -14,8 +14,6 @@ module Competences.Frontend.Component.EntityMenu
   , taskDelete
   , resourceEdit
   , resourceDelete
-  , lessonNotesEdit
-  , lessonNotesDelete
   , assignmentEdit
   , assignmentDelete
   , lessonEdit
@@ -24,12 +22,9 @@ module Competences.Frontend.Component.EntityMenu
 where
 
 import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), LessonsCommand (..), ModifyCommand (..), ResourcesCommand (..), TasksCommand (..))
-import Competences.Command qualified as Cmd
-import Competences.Command.LessonNotes (LessonNotesCommand (..))
 import Competences.Document (Lock (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Lesson (LessonId)
-import Competences.Document.LessonNotes (LessonNotesId)
 import Competences.Document.Resource (ResourceId)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
@@ -97,12 +92,6 @@ resourceEdit rid = EditConfig (ResourceLock rid) (Resources (OnResources (Modify
 
 resourceDelete :: ResourceId -> DeleteConfig
 resourceDelete rid = DeleteConfig (Resources (OnResources (Delete rid)))
-
-lessonNotesEdit :: LessonNotesId -> EditConfig
-lessonNotesEdit lnid = EditConfig (LessonNotesLock lnid) (Cmd.LessonNotes (OnLessonNotes (Modify lnid Lock)))
-
-lessonNotesDelete :: LessonNotesId -> DeleteConfig
-lessonNotesDelete lnid = DeleteConfig (Cmd.LessonNotes (OnLessonNotes (Delete lnid)))
 
 assignmentEdit :: AssignmentId -> EntityOrigin -> EditConfig
 assignmentEdit aid origin = EditConfig (AssignmentLock aid) (wrapForOrigin origin $ Assignments (OnAssignments (Modify aid Lock)))
