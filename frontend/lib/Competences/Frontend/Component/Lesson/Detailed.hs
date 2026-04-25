@@ -86,7 +86,6 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isNothing)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -388,22 +387,23 @@ homeExerciseBlock r m rows =
       (MH.div_ [class_ "space-y-1"] (map (assignmentRow r . snd) rows))
       []
 
+-- | Always renders the phase header so the teacher sees the planned
+-- structure of the lesson even when a phase is empty (no items, no
+-- note). The note and items are only included when present.
 phaseShell
   :: SyncContext
   -> LessonPhase
   -> Maybe RichContent
   -> [M.View Model Action]
   -> M.View Model Action
-phaseShell r phase phaseNote renderedItems
-  | null renderedItems && isNothing phaseNote = Layout.empty
-  | otherwise =
-      MH.div_
-        [class_ "space-y-2"]
-        $ concat
-          [ [phaseHeader phase]
-          , [phaseNoteBlock r note | Just note <- [phaseNote]]
-          , [MH.div_ [class_ "space-y-2"] renderedItems | not (null renderedItems)]
-          ]
+phaseShell r phase phaseNote renderedItems =
+  MH.div_
+    [class_ "space-y-2"]
+    $ concat
+      [ [phaseHeader phase]
+      , [phaseNoteBlock r note | Just note <- [phaseNote]]
+      , [MH.div_ [class_ "space-y-2"] renderedItems | not (null renderedItems)]
+      ]
 
 phaseHeader :: LessonPhase -> M.View Model Action
 phaseHeader phase =
