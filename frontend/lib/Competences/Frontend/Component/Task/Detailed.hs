@@ -10,6 +10,7 @@ module Competences.Frontend.Component.Task.Detailed
   , updateTaskDetailed
     -- * Menu entries
   , addSolutionExtraEntry
+  , exportTaskExtraEntry
     -- * Task list rendering
   , taskListView
   , renderSolutionList
@@ -47,9 +48,12 @@ import Competences.Document (Assignment (..), Document (..), Solution (..), Task
 import Competences.Document.Evidence (Evidence (..))
 import Competences.Document.Solution (SolutionId, SolutionType (..), mkSolution)
 import Competences.Document.Task (TaskId, taskDisplayName)
+import Competences.Exchange.Build (taskExchange)
+import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.EntityMenu qualified as EM
+import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Frontend.Component.RichContent (renderRichText, renderRichTextWithFiles)
 import Competences.Frontend.Component.Task.EditButton (solutionEditButton)
 import Competences.Frontend.Fragment.Task.Badge (assessmentStar, taskStatusHeaderBg, taskStatusPalette)
@@ -70,7 +74,7 @@ import Competences.Frontend.SyncContext
   , nextId
   , subscribeWithProjection
   )
-import Competences.Frontend.SyncContext.SyncDocument (SyncDocumentEnv (..), syncDocumentEnv)
+import Competences.Frontend.SyncContext.SyncDocument (SyncDocument (..), SyncDocumentEnv (..), readSyncDocument, syncDocumentEnv)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.Color (PaletteName)
@@ -87,6 +91,7 @@ import Competences.Query.TaskStatus
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
@@ -162,6 +167,24 @@ addSolutionExtraEntry r tid = EM.ExtraEntry
       let uid = (syncDocumentEnv r).connectedUser.id
       modifySyncDocument r $ Solutions (OnSolutions (CreateAndLock (mkSolution solId tid uid)))
   }
+
+-- | EntityMenu entry that copies the task as YAML onto the clipboard.
+-- The 'EntityOrigin' selects whether the task lives in the published
+-- or draft pool — exporters round-trip back into the same one.
+exportTaskExtraEntry :: SyncContext -> Task -> EntityOrigin -> EM.ExtraEntry
+exportTaskExtraEntry r task origin = EM.ExtraEntry
+  { EM.icon = Icon.IcnExport
+  , EM.label = C.translate' C.LblExport
+  , EM.action = exportTaskToClipboard r task origin
+  }
+
+exportTaskToClipboard :: SyncContext -> Task -> EntityOrigin -> IO ()
+exportTaskToClipboard r task origin = do
+  syncDoc <- readSyncDocument r
+  let xdoc = taskExchange syncDoc.localDocument (origin == Draft) task
+  encodeExchangeYaml xdoc $ \case
+    Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
+    Right yamlText -> copyToClipboard yamlText
 
 -- ============================================================================
 -- Task list rendering
@@ -442,7 +465,7 @@ headerAnnotations r cfg m task =
             , pin = Just (PinTaskViewer task)
             , goTo = if cfg.settings.enableGoTo then Just (ManageTasks (Just task.id)) else Nothing
             , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id cfg.origin) else Nothing
-            , extraEntries = [addSolutionExtraEntry r task.id]
+            , extraEntries = [addSolutionExtraEntry r task.id, exportTaskExtraEntry r task cfg.origin]
             })
       | isTeacher r
       ]

@@ -7,13 +7,11 @@ module Competences.Protocol
   , ServerInfo (..)
   , CommandVersion
   , CommandId
-  , ExportTarget (..)
   )
 where
 
 import Competences.Command (Command, CommandContext (..))
 import Competences.Document (Document, User, UserId)
-import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.FileRef (FileData, FileRef, SHA256Hash)
 import Competences.Document.Id (Id)
 import Competences.Document.Session (SessionId)
@@ -61,22 +59,6 @@ instance FromJSON ServerInfo
 instance ToJSON ServerInfo
 #endif
 
--- | Target for an export request. Carries the entity reference plus
--- any export-time options (currently none; attachment embedding will
--- grow this type).
-data ExportTarget
-  = -- | Export an assignment. 'Bool' selects draft ('True') vs
-    -- published ('False') storage.
-    ExportAssignment !AssignmentId !Bool
-  deriving (Eq, Generic, Show)
-
-instance Binary ExportTarget
-
-#ifdef WITH_AESON
-instance FromJSON ExportTarget
-instance ToJSON ExportTarget
-#endif
-
 -- | Messages sent from client to server over WebSocket.
 data ClientMessage
   = -- | Authenticate with JWT token (must be first message after connection).
@@ -101,9 +83,6 @@ data ClientMessage
   | -- | Request permission to upload a file.
     -- Fields: fileName, mimeType, fileSize.
     RequestUploadPermission !Text !Text !Int64
-  | -- | Request a YAML export of the given target. Server responds
-    -- with 'ExportText' or 'ExportFailed'.
-    RequestExport !ExportTarget
   deriving (Eq, Generic, Show)
 
 instance Binary ClientMessage
@@ -143,10 +122,6 @@ data ServerMessage
     UploadPermitted
   | -- | Server denies upload with reason.
     UploadDenied !Text
-  | -- | YAML export of the requested target, ready for the clipboard.
-    ExportText !Text
-  | -- | Export request rejected (unknown target, missing entity, etc.).
-    ExportFailed !Text
   deriving (Eq, Generic, Show)
 
 instance Binary ServerMessage

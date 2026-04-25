@@ -12,7 +12,6 @@ import Competences.Backend.Checkpoint (computeDocumentChecksum)
 import Competences.Backend.CommandProcessor (ConnectionId (..))
 import Competences.Backend.CommandProcessor qualified as CP
 import Competences.Backend.Database qualified as DB
-import Competences.Backend.Exchange qualified as Exchange
 import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.State
   ( AppState (..)
@@ -407,10 +406,6 @@ handleClientMessage state uid sessionId user clientMsg conn ackSignal resyncFlag
       then WS.sendBinaryData conn (Bin.encode $ UploadDenied $
              "File too large (" <> T.pack (show fileSize) <> " bytes, max " <> T.pack (show maxUploadSize) <> ")")
       else WS.sendBinaryData conn (Bin.encode UploadPermitted)
-
-  RequestExport target -> do
-    doc <- getDocument state
-    Exchange.handleRequestExport conn doc target
 
 -- | Validate an Unlock command against the session registry.
 -- Checks that the lock exists and the holder's session is dead.

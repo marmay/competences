@@ -9,7 +9,7 @@ import Competences.Document (Document (..), Resource (..), ResourceContent (..),
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
 import Competences.Document.Resource (ResourceIdentifier (..), mkResource)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Resource.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -112,7 +112,7 @@ resourceSelectorComponent r initialSelection onSelect parentLens =
 
     update OpenImportModal = do
       M.modify $ #dropdownOpen .~ False
-      M.io_ $ ImportModal.openResourceImportModal r
+      M.io_ $ ImportModal.openImportModal r
 
     createResource content = M.withSink $ \s -> do
       resourceId <- nextId r

@@ -99,12 +99,14 @@ import Competences.Frontend.SyncContext
   ( PinViewerRequest (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , modifySyncDocument
-  , requestExport
+  , readSyncDocument
   , subscribeWithProjection
   )
 import Competences.Frontend.Clipboard (copyToClipboard)
-import Competences.Protocol (ExportTarget (..))
+import Competences.Frontend.Exchange (encodeExchangeYaml)
+import Competences.Exchange.Build (assignmentExchange)
 import Data.Text qualified as T
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
@@ -256,8 +258,10 @@ emptyProjection role assignment = ViewerProjection
 -- copy the result to the clipboard. Always reflects the server's
 -- current document state, so no local read is needed here.
 exportAssignmentToClipboard :: SyncContext -> Assignment -> Bool -> IO ()
-exportAssignmentToClipboard r assignment isDraft =
-  requestExport r (ExportAssignment assignment.id isDraft) $ \case
+exportAssignmentToClipboard r assignment isDraft = do
+  syncDoc <- readSyncDocument r
+  let xdoc = assignmentExchange syncDoc.localDocument isDraft assignment
+  encodeExchangeYaml xdoc $ \case
     Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
     Right yamlText -> copyToClipboard yamlText
 
@@ -873,7 +877,10 @@ viewerComponent r user assignment wm =
                     , pin = Just (PinTaskViewer tws.task)
                     , goTo = Just (ManageTasks (Just tws.task.id))
                     , delete = Nothing
-                    , extraEntries = [VT.addSolutionExtraEntry r tws.task.id]
+                    , extraEntries =
+                        [ VT.addSolutionExtraEntry r tws.task.id
+                        , VT.exportTaskExtraEntry r tws.task Published
+                        ]
                     })
               | proj.connectedUserRole == Teacher
               ]

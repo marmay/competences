@@ -13,7 +13,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorFieldWithViewer)
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.EnumSelector qualified as ES
-import Competences.Frontend.Component.Assignment.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
@@ -189,7 +189,7 @@ assignmentSelectorComponent r initialSelection parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ ImportModal.openAssignmentImportModal r
+      M.io_ $ ImportModal.openImportModal r
 
     updateFromProjection :: SelectorProjection -> Model -> Model
     updateFromProjection proj m =

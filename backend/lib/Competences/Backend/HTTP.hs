@@ -17,11 +17,14 @@ import Competences.Backend.Auth
   , generateJWT
   , getUserInfo
   )
+import Competences.Backend.Exchange (exchangeFromYaml, exchangeToYaml)
 import Competences.Backend.HashedFile (FileHashRef, readFileHash)
 import Competences.Backend.State (AppState, getDocument)
 import Competences.Document (Document (..), User (..))
 import Competences.Document.User (Office365Id (..))
+import Competences.Exchange.Types (ExchangeDoc)
 import Control.Monad.IO.Class (liftIO)
+import Data.Binary qualified as Bin
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Char qualified as Char
@@ -30,6 +33,8 @@ import Data.Tagged (Tagged (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TLE
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Types (status302, urlEncode)
@@ -40,14 +45,19 @@ import Servant
   , Get
   , Handler
   , Header
+  , OctetStream
+  , PlainText
+  , Post
   , Proxy (..)
   , QueryParam
   , Raw
+  , ReqBody
   , Server
   , ServerError (..)
   , err302
   , err400
   , err500
+  , errBody
   , errHeaders
   , serveDirectoryWebApp
   , throwError
@@ -77,6 +87,17 @@ type AppAPI =
            :> QueryParam "state" Text
            :> Header "Cookie" Text
            :> Get '[HTML] Html
+    -- Exchange codec: ExchangeDoc (Binary) -> YAML.
+    :<|> "api" :> "exchange" :> "encode"
+           :> ReqBody '[OctetStream] BL.ByteString
+           :> Post '[PlainText] Text
+    -- Exchange codec: YAML (UTF-8 bytes) -> ExchangeDoc (Binary).
+    -- 400 on parse error. We ship YAML as octet-stream rather than
+    -- text/plain to dodge servant's strict charset matching against
+    -- the browser-supplied Content-Type.
+    :<|> "api" :> "exchange" :> "decode"
+           :> ReqBody '[OctetStream] BL.ByteString
+           :> Post '[OctetStream] BL.ByteString
     -- Static files
     :<|> "static" :> Raw
     -- App catch-all - initiate OAuth with return URL preservation
@@ -89,8 +110,35 @@ server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FrontendHashes ->
 server state oauth2Config jwtSecret staticDir hashes =
   rootRedirectHandler
     :<|> oauthCallbackHandler state oauth2Config jwtSecret hashes
+    :<|> exchangeEncodeHandler
+    :<|> exchangeDecodeHandler
     :<|> serveDirectoryWebApp staticDir
     :<|> appCatchAllHandler oauth2Config
+
+-- | Encode endpoint: deserialise a 'Binary' 'ExchangeDoc' and emit its
+-- YAML rendering. Malformed input yields 400.
+exchangeEncodeHandler :: BL.ByteString -> Handler Text
+exchangeEncodeHandler body =
+  case Bin.decodeOrFail body of
+    Left (_, _, err) ->
+      throwError err400 {errBody = TLE.encodeUtf8 (TL.pack ("Invalid ExchangeDoc binary: " <> err))}
+    Right (_, _, xdoc :: ExchangeDoc) ->
+      pure (exchangeToYaml xdoc)
+
+-- | Decode endpoint: parse UTF-8-encoded YAML bytes into an
+-- 'ExchangeDoc' and return its 'Binary' encoding. Parse failures
+-- (including non-UTF-8 input) surface as 400 with a plain-text body.
+exchangeDecodeHandler :: BL.ByteString -> Handler BL.ByteString
+exchangeDecodeHandler body =
+  case TLE.decodeUtf8' body of
+    Left _ ->
+      throwError err400 {errBody = "request body is not valid UTF-8"}
+    Right lazyText ->
+      case exchangeFromYaml (TL.toStrict lazyText) of
+        Left reason ->
+          throwError err400 {errBody = TLE.encodeUtf8 (TL.fromStrict reason)}
+        Right xdoc ->
+          pure (Bin.encode xdoc)
 
 -- | Cookie name for OAuth state parameter
 oauthStateCookieName :: BS.ByteString

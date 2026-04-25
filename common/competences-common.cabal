@@ -84,17 +84,9 @@ library
         Competences.Document.Submission
         Competences.Document.Task
         Competences.Document.User
+        Competences.Exchange.Build
+        Competences.Exchange.Match
         Competences.Exchange.Types
-        Competences.Import.ASTExtract
-        Competences.Import.AssignmentParser
-        Competences.Import.CompetenceGridParser
-        Competences.Import.Export
-        Competences.Import.LessonParser
-        Competences.Import.Matching
-        Competences.Import.ParserUtils
-        Competences.Import.ResourceParser
-        Competences.Import.TaskParser
-        Competences.Import.Types
         Competences.Protocol
         Competences.Query.Assignment
         Competences.Query.DefaultSelection

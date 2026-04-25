@@ -25,7 +25,6 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
-import Competences.Frontend.Component.ExportButton (exportButtonComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
@@ -41,7 +40,6 @@ import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Import.Export (exportCompetenceGrid)
 import Data.Default (def)
 import Data.Map qualified as Map
 import Data.Proxy (Proxy (..))
@@ -139,9 +137,6 @@ editorComponent r grid =
             (TE.editorComponent competencesEditor r Nothing def)
         , Layout.hFlow Layout.gapS
             [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
-            , inlineComponent
-                ("export-btn-" <> M.ms (show grid.id))
-                (exportButtonComponent (\m' -> exportCompetenceGrid m'.document grid))
             ]
         ]
 

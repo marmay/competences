@@ -4,8 +4,9 @@ module Competences.Frontend.Component.Planning.DetailView
 where
 
 import Competences.Command (Command (..), EntityCommand (..), LessonsCommand (..), MesoPlansCommand (..))
+import Competences.Exchange.Build (lessonExchange)
 import Competences.Frontend.Clipboard (copyToClipboard)
-import Competences.Import.Export (exportLesson)
+import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Lesson (..))
 import Competences.Document.Assignment (AssignmentName (..))
@@ -18,7 +19,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
 import Competences.Frontend.Component.CompetenceGrid.MesoPlanEditorModal (openMesoPlanEditor)
 import Competences.Frontend.Component.EntityMenu qualified as EM
-import Competences.Frontend.Component.Planning.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.ImportModal qualified as ImportModal
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
 import Competences.Frontend.Component.Planning.LessonEvaluator (pinLessonEvaluator)
 import Competences.Frontend.Component.Lesson.Detailed
@@ -32,8 +33,10 @@ import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , modifySyncDocument
   , nextId
+  , readSyncDocument
   , subscribeDocument
   )
 import Competences.Frontend.View.Badge qualified as Badge
@@ -197,9 +200,8 @@ detailComponent r initialPlan =
     update (PinAssignmentEvaluation assignment) = M.io_ $
       pinAssignmentEvaluator r assignment
 
-    update OpenLessonImportModal = do
-      m <- M.get
-      M.io_ $ ImportModal.openLessonImportModal r m.mesoPlan.id
+    update OpenLessonImportModal =
+      M.io_ $ ImportModal.openImportModal r
 
     update (StartReorder lid) =
       M.modify $ \m -> m{reorderFrom = Just lid}
@@ -282,7 +284,7 @@ detailComponent r initialPlan =
                           , EM.ExtraEntry
                               { EM.icon = Icon.IcnExport
                               , EM.label = C.translate' C.LblExport
-                              , EM.action = copyToClipboard (exportLesson m.document lesson)
+                              , EM.action = exportLessonToClipboard r lesson
                               }
                           ]
                       })
@@ -347,5 +349,21 @@ detailComponent r initialPlan =
                           <> [ Button.ghost (Button.button Icon.IcnPin (PinAssignmentEvaluation a)) ]
                         )
                     ]
+
+-- ============================================================================
+-- Lesson export
+-- ============================================================================
+
+-- | YAML-encode a lesson via the @\/api\/exchange\/encode@ endpoint and
+-- copy the result onto the clipboard. Pulls the latest local document
+-- so freshly-edited assignments and resources are inlined into the
+-- payload.
+exportLessonToClipboard :: SyncContext -> Lesson -> IO ()
+exportLessonToClipboard r lesson = do
+  syncDoc <- readSyncDocument r
+  let xdoc = lessonExchange syncDoc.localDocument lesson
+  encodeExchangeYaml xdoc $ \case
+    Left reason -> putStrLn $ "Export failed: " <> Text.unpack reason
+    Right yamlText -> copyToClipboard yamlText
 
 

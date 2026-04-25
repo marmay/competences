@@ -32,15 +32,21 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Document (..), FileRef (..), Resource (..), ResourceContent (..), ResourceId, ResourceIdentifier (..), User)
+import Competences.Exchange.Build (resourceExchange)
+import Competences.Frontend.Clipboard (copyToClipboard)
+import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.FileGallery (fileGalleryComponent)
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
+import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
   ( PinViewerRequest (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , SyncDocument (..)
   , isTeacher
+  , readSyncDocument
   , subscribeWithProjection
   )
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
@@ -334,10 +340,27 @@ resourceDetailedComponent r cfg =
                 , pin = Just (PinResourceViewer res)
                 , goTo = if cfg.settings.enableGoTo then Just (ManageResources (Just res.id)) else Nothing
                 , delete = if cfg.settings.enableDelete then Just (EM.resourceDelete res.id) else Nothing
-                , extraEntries = []
+                , extraEntries = [exportResourceExtraEntry r res]
                 })
           ]
       | otherwise = []
+
+-- | EntityMenu entry that copies the resource as YAML onto the
+-- clipboard.
+exportResourceExtraEntry :: SyncContext -> Resource -> EM.ExtraEntry
+exportResourceExtraEntry r res = EM.ExtraEntry
+  { EM.icon = Icon.IcnExport
+  , EM.label = C.translate' C.LblExport
+  , EM.action = exportResourceToClipboard r res
+  }
+
+exportResourceToClipboard :: SyncContext -> Resource -> IO ()
+exportResourceToClipboard r res = do
+  syncDoc <- readSyncDocument r
+  let xdoc = resourceExchange syncDoc.localDocument res
+  encodeExchangeYaml xdoc $ \case
+    Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
+    Right yamlText -> copyToClipboard yamlText
 
 resourceProjection :: ResourceDetailedConfig -> Document -> Maybe User -> ResourceProjection
 resourceProjection cfg doc _mUser =

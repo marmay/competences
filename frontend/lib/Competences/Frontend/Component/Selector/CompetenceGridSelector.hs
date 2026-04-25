@@ -17,7 +17,7 @@ import Competences.Document
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..), CompetenceGridGradeIxs)
 import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceGrid.ImportModal qualified as ImportModal
+import Competences.Frontend.Component.ImportModal qualified as ImportModal
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
   , ProjectedChange (..)
@@ -122,7 +122,7 @@ competenceGridSelectorComponent r style initialSelection parentLens =
 
     update OpenImportModal = do
       M.modify $ #isDropdownOpen .~ False
-      M.io_ $ ImportModal.openCompetenceGridImportModal r
+      M.io_ $ ImportModal.openImportModal r
 
     updateFromProjection :: GridSelectorProjection -> Model -> Model
     updateFromProjection proj m =
