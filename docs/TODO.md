@@ -38,6 +38,7 @@
 
 ## Common / Architecture
 
+- [ ] **File attachments in import/export** — Same-server imports already round-trip attachment metadata via the shared CAS (the `sha256` from `ExchangeAttachment` resolves directly). Cross-server imports currently leave attachments dangling. Plan: extend the payload with a resolver hint (source URL + short-lived access token) so the receiving instance can fetch the blob from the source CAS on apply. The fetch can run server-side (one CAS to another) or client-side; either way the YAML stays compact for the common case. Embedded base64 content stays available as a second path for use cases where no source CAS exists — notably LLM-generated YAML, where the LLM produces the bytes directly. Only matters when teachers start sharing across instances; expected timeline is a few months out.
 - [ ] **Reconsider `mkEntityCommandContext` abstraction** — The complex cases (Tasks, DraftTasks, Lessons) diverge significantly from the standard pattern and lead to code duplication. Evaluate whether a different abstraction would reduce boilerplate.
 - [ ] **Deduplicate Tasks.hs / DraftTasks.hs** — Shared logic between these command modules (reduced after TaskGroup removal but still duplicated).
 - [ ] **Extract shared AffectedUsers helpers to Command.Common** — Currently scattered across individual command modules.

@@ -1,340 +1,360 @@
 # Import & Export Reference
 
-The application supports importing and exporting competence grids, tasks, assignments, resources, and lessons via a markdown-based text format. The import modal shows a preview of changes before applying them. Export copies the same format to the clipboard for external editing (e.g., with AI tools).
+Round-trip format for teaching content (tasks, assignments, resources, lessons). YAML on the clipboard, encoded and decoded by the backend's `/api/exchange/{encode,decode}` endpoints. Designed to be readable and writeable by both humans and language models.
 
-## General Concepts
+This document is the authoritative schema; if something here disagrees with the running code, the code wins and this file is wrong.
 
-**Round-trip**: Export produces the same format that the import parser accepts. You can export, edit externally, and re-import without losing data.
+---
 
-**Preview before apply**: The import modal shows the status of each entity:
+## Top-level structure
 
-- **Create** — new entity, will be added
-- **Update** — existing entity found, will be modified
-- **No Change** — existing entity found, content is identical
+A document is a record of six lists. **Every list is optional and defaults to empty** — omit the keys you don't need.
 
-**Renaming**: To rename an entity during re-import, add `(Ersetzt: Original Name)` to the heading. The original name is used for matching; the new name replaces it. Example:
-
-```
-## Bruchrechnung (Ersetzt: Brüche)
-```
-
-This renames the competence "Brüche" to "Bruchrechnung". Omit the clause for new entities or unchanged re-imports.
-
-**Markdown content**: Body sections (Angabe, Beschreibung, solutions) use the application's markdown syntax. See [MARKDOWN.md](MARKDOWN.md) for the full reference, including math, callouts, and formatting.
-
-**Multiple entities**: Each import can contain multiple grids, tasks, assignments, resources, or lessons. Each top-level `#` heading starts a new entity.
-
-## Competence Grid Format
-
-### Example
-
-```markdown
-# Lineare Algebra
-
-## Gleichungen lösen
-- Wesentlich: Einfache Gleichungen mit einer Unbekannten lösen
-- Mittelstufe: Gleichungssysteme mit zwei Unbekannten lösen
-- Fortgeschritten: Gleichungssysteme mit Matrizenrechnung lösen
-
-## Vektoren (Ersetzt: Vektorrechnung)
-- Wesentlich: Vektoren addieren und subtrahieren
-- Fortgeschritten: Kreuzprodukt berechnen und geometrisch interpretieren
+```yaml
+tasks: []              # standalone tasks (published pool)
+draftTasks: []         # standalone tasks (draft pool)
+assignments: []        # published assignments
+draftAssignments: []   # draft assignments
+resources: []
+lessons: []
 ```
 
-### Format Rules
+Single-entity exports populate just one or two lists. A lesson export populates every list the lesson transitively references (the lesson plus all its assignments, those assignments' tasks, the lesson's resources, plus any tasks/resources directly referenced from phase items).
 
-| Element | Syntax | Required |
-|---|---|---|
-| Grid title | `#` heading | Yes |
-| Competence | `##` heading | At least one |
-| Rename clause | `(Ersetzt: Original)` in `##` heading | No |
-| Level description | `- Levelname: Description` | No |
+**References between entities use names/identifiers, never IDs.**
 
-**Level names** (case-sensitive, exactly as shown):
+- An assignment's `taskRefs` lists the `identifier` strings of tasks it owns; the bodies live in `tasks` (or `draftTasks`).
+- A lesson's `assignmentRefs` / `resourceRefs` list assignment `name`s and resource `identifier`s.
+- A lesson's phase / supplemental items reference by `kind` + `ref` string (assignment `name`, task `identifier`, or resource `identifier`).
 
-| Name | Meaning |
+---
+
+## Matching semantics on import
+
+For each incoming entity the importer looks up an existing one by:
+
+| Entity | Matching key |
 |---|---|
-| `Wesentlich` | Basic level |
-| `Mittelstufe` | Intermediate level |
-| `Fortgeschritten` | Advanced level |
+| Task | `identifier`, scoped to draft/published pool |
+| Assignment | `name`, scoped to draft/published pool |
+| Resource | `identifier` |
+| Lesson | `title` (across all meso plans) |
 
-- Levels without a description can be omitted entirely.
-- Competence ordering follows the order of `##` headings in the document.
-- Multiple grids in one import — each `#` heading starts a new grid.
+Match results in one of three actions:
 
-## Task Format
+- **Create** — no match found, entity is new.
+- **Update** — match found, fields differ; existing entity is patched in place.
+- **NoChange** — match found, fields identical; nothing happens.
 
-### Example
+For matched updates the **import is the source of truth**. Replaceable fields (content, attachments, the assignment's task list, the resource's competence levels, etc.) are overwritten with the imported values; previously-attached data not present in the import is dropped on Update. The preview shows the diff before Apply.
 
-```markdown
-# Buch-3.45 (Ersetzt: Buch-3.44)
+### Conflicts (block Apply)
 
-## Angabe
-Löse die Gleichung $2x + 5 = 17$ und gib die Lösungsmenge an.
+The importer surfaces a hard conflict when an inlined assignment is already linked to a lesson **not** in the import. Applying would silently steal the assignment from its existing lesson, so Apply is gated until the conflict is resolved (rename the imported assignment, or delete the existing one, then re-paste).
 
-## Kompetenzen
-- Lineare Algebra / Gleichungen lösen / Wesentlich
+### Warnings (hold-to-confirm)
 
-## Hinweis
-Bringe alle Terme mit $x$ auf eine Seite.
+Soft warnings surface for ambiguous matches (e.g. multiple existing assignments share an imported name). Apply is gated behind an explicit "accept warnings" click rather than blocked outright.
 
-## Ergebnis
-$\mathbb{L} = \{6\}$
+### Apply order
 
-## Komplettlösung
-$$2x + 5 = 17$$
-$$2x = 12$$
-$$x = 6$$
-Die Lösungsmenge ist $\mathbb{L} = \{6\}$.
+`tasks` → `resources` → `assignments` → `lessons`. Each phase resolves the previous phase's freshly-applied ids when wiring up references.
+
+---
+
+## Entity schemas
+
+### Task (`tasks` / `draftTasks`)
+
+```yaml
+tasks:
+  - identifier: "Buch-3.45"
+    title: "Lineare Gleichung"
+    content: |
+      Löse die Gleichung $2x + 5 = 17$ und gib die Lösungsmenge an.
+    purpose: Practice          # Practice | Assessment
+    primary:
+      - { grid: "Lineare Algebra", description: "Gleichungen lösen", level: BasicLevel }
+    secondary: []
+    solutions:
+      - solutionType: Hint     # Hint | Results | Complete
+        content: "Bringe alle Terme mit $x$ auf eine Seite."
+      - solutionType: Results
+        content: "$\\mathbb{L} = \\{6\\}$"
+    attachments: []            # see "Attachments" section below
 ```
 
-### Format Rules
-
-| Element | Syntax | Required |
-|---|---|---|
-| Task identifier | `#` heading (e.g., `Buch-3.45`) | Yes |
-| Rename clause | `(Ersetzt: Original)` in `#` heading | No |
-| Task content | `## Angabe` section | No |
-| Competence references | `## Kompetenzen` section | No |
-| Hint solution | `## Hinweis` section | No |
-| Results solution | `## Ergebnis` section | No |
-| Complete solution | `## Komplettlösung` section | No |
-
-**Competence references** use `/` separators:
-
-```
-- Grid Title / Competence Description / Level
-```
-
-Each part is trimmed of surrounding whitespace. The level must be one of the three German level names (`Wesentlich`, `Mittelstufe`, `Fortgeschritten`).
-
-- Sections can appear in any order.
-- All sections except the `#` heading are optional.
-- Multiple tasks in one import — each `#` heading starts a new task.
-
-## Assignment Format
-
-### Example
-
-```markdown
-# Mathematik-Test 3a (Ersetzt: Mathe-Test 3a)
-
-## Beschreibung
-Überprüfung zum Thema lineare Gleichungen und Vektorrechnung.
-
-## Angaben
-Date: 2026-02-15
-Type: Prüfung
-
-### Aufgabe-1
-
-#### Angabe
-Löse die Gleichung $3x - 7 = 2x + 5$.
-
-#### Kompetenzen
-- Lineare Algebra / Gleichungen lösen / Wesentlich
-
-#### Ergebnis
-$\mathbb{L} = \{12\}$
-
-#### Komplettlösung
-$$3x - 7 = 2x + 5$$
-$$x = 12$$
-
-### Aufgabe-2 (Ersetzt: Aufgabe-2-alt)
-
-#### Angabe
-Berechne das Kreuzprodukt der Vektoren $\vec{a} = (1, 2, 3)$ und $\vec{b} = (4, 5, 6)$.
-
-#### Kompetenzen
-- Lineare Algebra / Vektoren / Fortgeschritten
-
-#### Hinweis
-Verwende die Formel $\vec{a} \times \vec{b} = \begin{pmatrix} a_2 b_3 - a_3 b_2 \\ a_3 b_1 - a_1 b_3 \\ a_1 b_2 - a_2 b_1 \end{pmatrix}$.
-```
-
-### Format Rules
-
-| Element | Syntax | Required |
-|---|---|---|
-| Assignment name | `#` heading | Yes |
-| Rename clause | `(Ersetzt: Original)` in `#` heading | No |
-| Description | `## Beschreibung` section | No |
-| Metadata | `## Angaben` section | No |
-| Embedded task | `###` heading (task identifier) | No |
-| Task rename clause | `(Ersetzt: Original)` in `###` heading | No |
-| Task sections | `####` headings (Angabe, Kompetenzen, etc.) | No |
-
-Embedded tasks use the same section names as standalone tasks, but one heading level deeper (`####` instead of `##`).
-
-**Metadata** in the `## Angaben` section uses `Key: Value` lines:
-
-| Key | Format | Default |
-|---|---|---|
-| `Date` | `YYYY-MM-DD` (ISO date) | `2000-01-01` |
-| `Type` | Activity type name | `Schulübung` |
-
-### Activity Types
-
-Both German (with or without umlauts) and English names are accepted during import. Export always uses the German form with umlauts.
-
-| German | Without umlauts | English | Meaning |
+| Field | Type | Required | Notes |
 |---|---|---|---|
-| Gespräch | Gespraech | Conversation | Oral conversation |
-| Prüfung | Pruefung | Exam | Written exam |
-| Schulübung | Schuluebung | SchoolExercise | In-class exercise |
-| Hausübung | Hausuebung | HomeExercise | Homework |
+| `identifier` | string | yes | Matching key. Must be unique within its pool. |
+| `title` | string | yes | Human-readable title. |
+| `content` | string \| null | no | Rich-text body. See "Rich-text content" below. |
+| `purpose` | enum | yes | `Practice` (develops competence) or `Assessment` (proves it). |
+| `primary` | list of competence refs | yes | Competences this task primarily tests. Empty list is fine. |
+| `secondary` | list of competence refs | yes | Competences this task may also test. |
+| `solutions` | list | yes | See solution shape below. Empty list means no solutions provided. |
+| `attachments` | list | yes | See attachment shape below. |
 
-## Resource Format
+**Solution replace-by-type:** on Update, any existing solution whose `solutionType` matches an imported one is overwritten; existing solutions of types not in the import are preserved. So a re-import that only ships a `Results` solution updates that one without touching an existing `Hint`.
 
-### Example
+### Assignment (`assignments` / `draftAssignments`)
 
-```markdown
-# Arbeitsblatt-7 (Ersetzt: Arbeitsblatt-7-alt)
-
-## Inhalt
-Übungsaufgaben zum Thema **Bruchrechnung**.
-
-Bearbeite die Aufgaben 1–5 auf Seite 42.
-
-## Kompetenzen
-- Lineare Algebra / Gleichungen lösen / Wesentlich
-- Lineare Algebra / Vektoren / Fortgeschritten
+```yaml
+assignments:
+  - name: "Mathematik-Test 3a"
+    description: |
+      Überprüfung zum Thema lineare Gleichungen.
+    assignmentDate: 2026-02-15      # ISO date
+    activityType: Exam              # see enum below
+    groupSubmissionAllowed: false
+    taskRefs: ["Buch-3.45", "Buch-3.46"]
 ```
 
-### Format Rules
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Matching key. |
+| `description` | string | yes | Rich-text body. Empty string allowed. |
+| `assignmentDate` | ISO date `YYYY-MM-DD` | yes | |
+| `activityType` | enum | yes | `Conversation`, `Exam`, `SchoolExercise`, `HomeExercise`, `Correction`. |
+| `groupSubmissionAllowed` | bool | yes | |
+| `taskRefs` | list of strings | yes | Task identifiers. The bodies must appear in the top-level `tasks` (or `draftTasks` if the assignment is in `draftAssignments`) list, otherwise the reference drops silently on apply. |
 
-| Element | Syntax | Required |
+The pool (`assignments` vs `draftAssignments`) decides draft/published; there is **no per-payload `isDraft` flag**.
+
+### Resource (`resources`)
+
+```yaml
+resources:
+  - identifier: "Arbeitsblatt-7"
+    content:
+      tag: ExInlineContent           # see content variants below
+      contents: |
+        Übungsaufgaben zum Thema **Bruchrechnung**. Bearbeite Aufgaben 1–5.
+    competenceLevels:
+      - { grid: "Lineare Algebra", description: "Gleichungen lösen", level: BasicLevel }
+    attachments: []
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `identifier` | string | yes | Matching key. |
+| `content` | tagged sum | yes | One of four variants — see below. |
+| `competenceLevels` | list of competence refs | yes | |
+| `attachments` | list | yes | |
+
+**Content variants** (tagged sum):
+
+```yaml
+# Inline rich text
+{ tag: ExInlineContent, contents: "..." }
+
+# Web link
+{ tag: ExWebLink, contents: ["https://example.com", "Description"] }
+
+# Video link
+{ tag: ExVideoLink, contents: ["https://example.com/v", "Description"] }
+
+# File-backed (resolves via the receiving instance's CAS by sha256)
+{ tag: ExFileContent
+, contents: { fileName: "...", mimeType: "...", sha256: "...", bytes: 12345 } }
+```
+
+### Lesson (`lessons`)
+
+```yaml
+lessons:
+  - title: "Lineare Gleichungen einführen"
+    description: |
+      Einführung in das Lösen linearer Gleichungen.
+    date: 2026-03-15                # nullable
+    competences:
+      - { grid: "Lineare Algebra", description: "Gleichungen lösen", level: BasicLevel }
+    phases:
+      - title: "Einstieg"
+        socialForm: WholeClass      # see enum below
+        duration: 10                # minutes
+        actionForm: Presenting      # see enum below
+        notes: ""
+        items:
+          - { kind: ItemResource, ref: "Arbeitsblatt-7", publish: true }
+      - title: "Erarbeitung"
+        socialForm: SmallGroups
+        duration: 20
+        actionForm: Collaborating
+        notes: ""
+        items:
+          - { kind: ItemAssignment, ref: "Mathematik-Test 3a", publish: true }
+    notes: ""
+    supplementalItems: []
+    notesTitleOverride: null
+    assignmentRefs: ["Mathematik-Test 3a"]
+    resourceRefs: ["Arbeitsblatt-7"]
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `title` | string | yes | Matching key. |
+| `description` | string | yes | Rich text. Empty string allowed. |
+| `date` | ISO date \| null | yes | |
+| `competences` | list of competence refs | yes | |
+| `phases` | list | yes | See phase shape below. |
+| `notes` | string | yes | Teacher-only rich text. |
+| `supplementalItems` | list | yes | Same shape as phase `items`; rendered below the phase block. |
+| `notesTitleOverride` | string \| null | yes | Override for the auto-derived student-facing title. |
+| `assignmentRefs` | list of strings | yes | Assignment names linked to this lesson, in order. |
+| `resourceRefs` | list of strings | yes | Resource identifiers linked to this lesson, in order. |
+
+A new lesson lands in the **first** meso plan in the document. Updating an existing lesson preserves its meso plan and order.
+
+#### Phase shape
+
+```yaml
+title: "Einstieg"
+socialForm: WholeClass        # WholeClass | SmallGroups | PairWork | IndividualWork
+duration: 10                  # integer minutes
+actionForm: Presenting        # Presenting | Collaborating | Assigning
+notes: ""                     # always empty on import; lesson-level notes go on the lesson, not on phases
+items:
+  - { kind: ItemAssignment | ItemTask | ItemResource, ref: "<name or identifier>", publish: true }
+```
+
+`ref` strings are matched against the freshly-applied entities by the keys in the matching table above (`name` for assignments, `identifier` for tasks/resources). Items whose `ref` doesn't resolve drop silently — they're not loud failures because partial paste is a legitimate workflow.
+
+---
+
+## Shared sub-schemas
+
+### Competence reference
+
+```yaml
+{ grid: "Lineare Algebra", description: "Gleichungen lösen", level: BasicLevel }
+```
+
+| Field | Type | Notes |
 |---|---|---|
-| Resource identifier | `#` heading | Yes |
-| Rename clause | `(Ersetzt: Original)` in `#` heading | No |
-| Inline content | `## Inhalt` section | No |
-| Competence references | `## Kompetenzen` section | No |
+| `grid` | string | Grid title, matched case- and whitespace-insensitively. |
+| `description` | string | Competence description, matched within the grid the same way. |
+| `level` | enum | `BasicLevel`, `IntermediateLevel`, `AdvancedLevel`. |
 
-**Competence references** use the same `/`-separated format as tasks: `Grid / Competence / Level`.
+Unmatched references appear in the preview with a "?" marker. They drop on apply rather than blocking — a teacher can fix the grid afterwards.
 
-- All sections except the `#` heading are optional.
-- Only inline content is supported. WebLink and VideoLink resources cannot be imported via this format.
-- Multiple resources in one import — each `#` heading starts a new resource.
+### Attachment
 
-## Lesson Format
-
-### Example
-
-```markdown
-# Lineare Gleichungen einführen (Ersetzt: Gleichungen Einführung)
-
-## Angaben
-Date: 2026-03-15
-
-## Beschreibung
-Einführung in das Lösen linearer Gleichungen mit einer Unbekannten.
-
-## Kompetenzen
-- Lineare Algebra / Gleichungen lösen / Wesentlich
-
-## Materialien
-- Arbeitsblatt-7
-- Buch S.42
-
-## Aufgaben
-- Mathematik-Test 3a
-
-## Phasen
-- Einstieg / Plenum / Darbietend / 10 min
-  Wiederholung der letzten Stunde.
-- Erarbeitung / Gruppenarbeit / Zusammenwirkend / 20 min
-  Schüler lösen Aufgaben in Kleingruppen.
-- Input\/Output Phase / Einzelarbeit / Aufgebend / 15 min
-  Selbstständiges Arbeiten am Arbeitsblatt.
-
-## Notizen
-Differenzierung: Leistungsstarke Schüler bearbeiten Zusatzaufgaben.
+```yaml
+{ fileName: "diagram.svg", mimeType: "image/svg+xml", sha256: "<64-hex>", bytes: 1234 }
 ```
 
-### Format Rules
-
-| Element | Syntax | Required |
+| Field | Type | Notes |
 |---|---|---|
-| Lesson title | `#` heading | Yes |
-| Rename clause | `(Ersetzt: Original)` in `#` heading | No |
-| Metadata | `## Angaben` section | No |
-| Description | `## Beschreibung` section | No |
-| Competence references | `## Kompetenzen` section | No |
-| Resource references | `## Materialien` section | No |
-| Assignment references | `## Aufgaben` section | No |
-| Phases | `## Phasen` section | No |
-| Notes | `## Notizen` section | No |
+| `fileName` | string | Display name. |
+| `mimeType` | string | |
+| `sha256` | string | Lowercase hex, length 64. The receiving instance resolves the blob from its CAS by this hash. |
+| `bytes` | integer | File size in bytes. |
 
-**Metadata** in the `## Angaben` section uses `Key: Value` lines:
+**Same-server only.** Cross-server imports leave attachments dangling because the sha256 won't resolve in the receiving CAS. Cross-server attachment support is planned (see `TODO.md`) and will extend this shape; the same-server schema above stays valid.
 
-| Key | Format | Default |
-|---|---|---|
-| `Date` | `YYYY-MM-DD` (ISO date) | None |
+---
 
-**Competence references** use the same `/`-separated format as tasks: `Grid / Competence / Level`.
+## Enum reference
 
-**Resource and assignment references** are bullet lists of identifiers/names that reference existing entities. They are not created during lesson import — they must already exist in the document.
+All enums use their Haskell constructor names verbatim. Spellings are case-sensitive.
 
-### Phase Format
-
-Each phase is a bullet list item with exactly four `/`-separated parts:
-
-```
-- Title / SocialForm / ActionForm / Duration min
-```
-
-Optional indented notes can follow on subsequent lines:
-
-```
-- Einstieg / Plenum / Darbietend / 10 min
-  Notes for this phase go here.
-```
-
-To include a literal `/` in the phase title, escape it as `\/`:
-
-```
-- Input\/Output Phase / Plenum / Darbietend / 10 min
-```
-
-**Social form names** (case-sensitive, exactly as shown):
-
-| Name | Meaning |
+| Enum | Values |
 |---|---|
-| `Plenum` | Whole class |
-| `Gruppenarbeit` | Small groups |
-| `Partnerarbeit` | Pair work |
-| `Einzelarbeit` | Individual work |
+| `purpose` (TaskPurpose) | `Practice`, `Assessment` |
+| `solutionType` | `Hint`, `Results`, `Complete` |
+| `level` | `BasicLevel`, `IntermediateLevel`, `AdvancedLevel` |
+| `activityType` | `Conversation`, `Exam`, `SchoolExercise`, `HomeExercise`, `Correction` |
+| `socialForm` (TeachingSocialForm) | `WholeClass`, `SmallGroups`, `PairWork`, `IndividualWork` |
+| `actionForm` | `Presenting`, `Collaborating`, `Assigning` |
+| `kind` (lesson item) | `ItemAssignment`, `ItemTask`, `ItemResource` |
+| `tag` (resource content) | `ExInlineContent`, `ExWebLink`, `ExVideoLink`, `ExFileContent` |
 
-**Action form names** (case-sensitive, exactly as shown):
+---
 
-| Name | Meaning |
-|---|---|
-| `Darbietend` | Presenting |
-| `Zusammenwirkend` | Collaborating |
-| `Aufgebend` | Assigning |
+## Rich-text content
 
-- All sections except the `#` heading are optional.
-- Lessons are imported into a specific MesoPlan, selected in the UI.
-- Multiple lessons in one import — each `#` heading starts a new lesson.
+Fields documented as "rich text" (task `content`, assignment `description`, lesson `description` and `notes`, solution `content`, inline resource content) are interpreted by the application's own markdown dialect — same syntax used in the editor. The dialect supports:
 
-## How to Use
+- standard CommonMark prose (paragraphs, bold/italic, lists, headings, code blocks, tables)
+- inline math `$...$` and display math `$$...$$` (LaTeX/MathJax)
+- callouts: blockquote-with-prefix syntax (`> [!note]`, `> [!tip]`, etc.)
+- a custom geometry DSL inside fenced ```geometry blocks (see `docs/GEOMETRY-DSL.md`)
 
-1. **Import**: Open the import modal, paste the formatted text, click "Vorschau" to see a preview of changes, review the Create/Update/No Change status for each entity, then click "Anwenden" to apply.
-2. **Export**: Click the export button on a competence grid, assignment, resource, or lesson. The formatted text is copied to the clipboard.
-3. **AI editing workflow**: Export an entity, paste the text into an AI chat, describe the changes you want, then paste the AI's output back into the import modal.
-4. **Lesson import**: Accessed from the Planning detail view. Select a MesoPlan first, then use the import modal to add lessons to it.
+YAML block-literal scalars (`|` or `|+`) preserve newlines verbatim — use them for any content with line breaks. Plain quoted strings work for one-liners.
 
-## Tips and Gotchas
+---
 
-- Level names must be exactly `Wesentlich`, `Mittelstufe`, or `Fortgeschritten` (case-sensitive).
-- Competence references in tasks use `/` as separators: `Grid / Competence / Level`. All three parts are required for a match.
-- The `(Ersetzt: ...)` clause is only needed when renaming. Omit it for new entities or unchanged re-imports.
-- Date format is ISO: `YYYY-MM-DD`. Missing date defaults to `2000-01-01`, so always include it.
-- Unrecognized activity types default to Schulübung (in-class exercise).
-- Exported text uses German activity type names with umlauts (e.g., `Hausübung`). Both umlaut and non-umlaut forms are accepted on import.
-- Empty sections (e.g., a solution with no content) are skipped during export and ignored during import.
-- Phase format requires exactly four `/`-separated parts: `Title / SocialForm / ActionForm / Duration min`. Missing or extra parts cause the phase to be skipped.
-- Social form names (`Plenum`, `Gruppenarbeit`, `Partnerarbeit`, `Einzelarbeit`) and action form names (`Darbietend`, `Zusammenwirkend`, `Aufgebend`) are case-sensitive.
-- Use `\/` to escape literal slashes in phase titles (e.g., `Input\/Output`).
-- Lesson import targets the currently selected MesoPlan. Make sure the correct plan is selected before importing.
+## Worked end-to-end example
+
+A lesson plus its dependencies, suitable for paste into another instance:
+
+```yaml
+tasks:
+  - identifier: "1.1"
+    title: "Einfache Gleichung"
+    content: "Löse $2x = 10$."
+    purpose: Practice
+    primary:
+      - { grid: "Lineare Algebra", description: "Gleichungen lösen", level: BasicLevel }
+    secondary: []
+    solutions:
+      - { solutionType: Results, content: "$x = 5$" }
+    attachments: []
+
+assignments:
+  - name: "Übung Lineare Gleichungen"
+    description: "Hausübung zu linearen Gleichungen."
+    assignmentDate: 2026-03-15
+    activityType: HomeExercise
+    groupSubmissionAllowed: false
+    taskRefs: ["1.1"]
+
+resources:
+  - identifier: "Arbeitsblatt-Lineare-Gleichungen"
+    content:
+      tag: ExInlineContent
+      contents: "Übungen zum Thema."
+    competenceLevels: []
+    attachments: []
+
+lessons:
+  - title: "Lineare Gleichungen einführen"
+    description: "Einführung in das Lösen linearer Gleichungen."
+    date: 2026-03-15
+    competences: []
+    phases:
+      - title: "Einstieg"
+        socialForm: WholeClass
+        duration: 10
+        actionForm: Presenting
+        notes: ""
+        items:
+          - { kind: ItemResource, ref: "Arbeitsblatt-Lineare-Gleichungen", publish: true }
+      - title: "Erarbeitung"
+        socialForm: IndividualWork
+        duration: 20
+        actionForm: Assigning
+        notes: ""
+        items:
+          - { kind: ItemAssignment, ref: "Übung Lineare Gleichungen", publish: true }
+    notes: ""
+    supplementalItems: []
+    notesTitleOverride: null
+    assignmentRefs: ["Übung Lineare Gleichungen"]
+    resourceRefs: ["Arbeitsblatt-Lineare-Gleichungen"]
+```
+
+---
+
+## Tips for LLM use
+
+- All field names and enum values are **English** and case-sensitive — never localise them. UI text shown to the user is German; format identifiers are not.
+- Default to using YAML `|` block scalars for any rich-text field with newlines or special characters.
+- An empty document `{}` is valid (all six lists default to empty); useful as a starting template.
+- When generating from scratch, populate **only the lists you need** — omitted keys are equivalent to empty lists.
+- The matcher is whitespace- and case-insensitive on grid titles and competence descriptions, so don't sweat exact whitespace there.
+- The matcher is **case-sensitive** on task identifiers and resource identifiers — those are matched verbatim after a `.toLower . strip`, so consistent casing helps.
+- If you need to introduce a new entity that doesn't exist on the receiving side yet, just include it in the appropriate list — the importer creates it.
+- If you want to update an existing entity, use the same `name` / `identifier` / `title` and the importer will patch instead of duplicate.
+- Lesson `phases[].items[].ref` and a lesson's `assignmentRefs` / `resourceRefs` are looked up against the freshly-applied entities, so referenced entities **must also appear** in the corresponding top-level list of the same import. (The export side handles this automatically; just make sure the LLM does too when generating from scratch.)
