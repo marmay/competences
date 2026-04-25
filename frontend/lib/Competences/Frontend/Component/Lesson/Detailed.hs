@@ -28,6 +28,7 @@ module Competences.Frontend.Component.Lesson.Detailed
 where
 
 import Competences.Common.IxSet qualified as Ix
+import Competences.Common.Set (toggle)
 import Competences.Document
   ( Assignment (..)
   , Document (..)
@@ -47,6 +48,11 @@ import Competences.Document.Lesson
   )
 import Competences.Document.TeachingNote (TeachingNote (..), TeachingNoteId)
 import Competences.Frontend.Common qualified as C
+import Competences.Frontend.Component.Assignment.Detailed
+  ( exportAssignmentToClipboard
+  , viewerDetailView
+  )
+import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.Resource.Detailed
@@ -66,7 +72,9 @@ import Competences.Frontend.SyncContext
   ( PinViewerRequest (..)
   , ProjectedChange (..)
   , SyncContext (..)
+  , SyncDocumentEnv (..)
   , subscribeWithProjection
+  , syncDocumentEnv
   )
 import Competences.Frontend.SyncContext.WindowManager
   ( PinCategory (..)
@@ -86,6 +94,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -152,12 +161,14 @@ data Projection = Projection
 data Model = Model
   { projection :: !Projection
   , homeExercisesExpanded :: !Bool
+  , expandedAssignments :: !(Set AssignmentId)
   }
   deriving (Eq, Generic, Show)
 
 data Action
   = ProjectionChanged !(ProjectedChange Projection)
   | ToggleHomeExercises
+  | ToggleAssignment !AssignmentId
   deriving (Eq, Show)
 
 lessonDetailedComponent
@@ -178,10 +189,12 @@ lessonDetailedComponent r cfg =
               , focusedUser = Nothing
               }
         , homeExercisesExpanded = True
+        , expandedAssignments = Set.empty
         }
 
     update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
     update' ToggleHomeExercises = M.modify $ #homeExercisesExpanded %~ not
+    update' (ToggleAssignment aid) = M.modify $ #expandedAssignments %~ toggle aid
 
     view' m = case m.projection.lesson of
       Nothing -> Layout.empty
@@ -269,21 +282,22 @@ teacherBody
   -> [(AssignmentId, Assignment)]
   -> [M.View Model Action]
 teacherBody r m lsn findAssignment visibleItems homeExIds homeExerciseRows =
-  let phasesWithNotes = zip lsn.phases (m.projection.phaseNoteContents <> repeat Nothing)
+  let renderAssignment = expandableAssignmentRow r m
+      phasesWithNotes = zip lsn.phases (m.projection.phaseNoteContents <> repeat Nothing)
       renderPhaseSection (phase, phaseNote) seenBefore =
         let phaseItems = visibleItems phase.items
-            rendered = renderPhaseItems r findAssignment phaseItems homeExIds seenBefore
+            rendered = renderPhaseItems r renderAssignment findAssignment phaseItems homeExIds seenBefore
             newlySeen = seenAfter phaseItems homeExIds seenBefore
          in (phaseShell r phase phaseNote rendered, newlySeen)
       phaseBlocks = phasesAccum renderPhaseSection homeExIds phasesWithNotes
       suppItems = visibleItems lsn.supplementalItems
       suppBlock =
         let afterPhases = lastSeen phaseBlocks
-         in renderPhaseItems r findAssignment suppItems homeExIds afterPhases
+         in renderPhaseItems r renderAssignment findAssignment suppItems homeExIds afterPhases
    in concat
         [ [descriptionBlock r lsn.description | lsn.description /= mempty]
         , [lessonNoteBlock r content | Just content <- [m.projection.lessonNoteContent]]
-        , [homeExerciseBlock r m homeExerciseRows | not (null homeExerciseRows)]
+        , [homeExerciseBlock m renderAssignment homeExerciseRows | not (null homeExerciseRows)]
         , [blocks | (blocks, _) <- phaseBlocks]
         , [supplementalBlock suppBlock | not (null suppBlock)]
         ]
@@ -301,10 +315,11 @@ studentBody
   -> [(AssignmentId, Assignment)]
   -> [M.View Model Action]
 studentBody r m _lsn findAssignment allVisibleItems homeExIds homeExerciseRows =
-  let flatRendered =
-        renderPhaseItems r findAssignment allVisibleItems homeExIds Set.empty
+  let renderAssignment = assignmentRow r
+      flatRendered =
+        renderPhaseItems r renderAssignment findAssignment allVisibleItems homeExIds Set.empty
    in concat
-        [ [homeExerciseBlock r m homeExerciseRows | not (null homeExerciseRows)]
+        [ [homeExerciseBlock m renderAssignment homeExerciseRows | not (null homeExerciseRows)]
         , [MH.div_ [class_ "space-y-2"] flatRendered | not (null flatRendered)]
         ]
 
@@ -378,13 +393,16 @@ lessonNoteBlock r content =
     ]
 
 homeExerciseBlock
-  :: SyncContext -> Model -> [(AssignmentId, Assignment)] -> M.View Model Action
-homeExerciseBlock r m rows =
+  :: Model
+  -> (Assignment -> M.View Model Action)
+  -> [(AssignmentId, Assignment)]
+  -> M.View Model Action
+homeExerciseBlock m renderAssignment rows =
   Disclosure.disclosure ToggleHomeExercises $
     Disclosure.contents
       (Disclosure.titleIconText Icon.IcnAssignment (C.translate' C.LblHomework))
       m.homeExercisesExpanded
-      (MH.div_ [class_ "space-y-1"] (map (assignmentRow r . snd) rows))
+      (MH.div_ [class_ "space-y-1"] (map (renderAssignment . snd) rows))
       []
 
 -- | Always renders the phase header so the teacher sees the planned
@@ -442,16 +460,17 @@ supplementalBlock rendered
 
 renderPhaseItems
   :: SyncContext
+  -> (Assignment -> M.View Model Action)
   -> (AssignmentId -> Maybe Assignment)
   -> [LessonItem]
   -> Set.Set LessonItemContent
   -> Set.Set LessonItemContent
   -> [M.View Model Action]
-renderPhaseItems r findAssignment items homeEx seen =
+renderPhaseItems r renderAssignment findAssignment items homeEx seen =
   let keep it =
         not (it.content `Set.member` homeEx)
           && not (it.content `Set.member` seen)
-   in [ renderOne r findAssignment it | it <- items, keep it ]
+   in [ renderOne r renderAssignment findAssignment it | it <- items, keep it ]
 
 -- | Task settings used when mounting a task inside a lesson record.
 -- Solutions are open by default — the lesson record is a teaching
@@ -460,8 +479,13 @@ renderPhaseItems r findAssignment items homeEx seen =
 lessonRecordTaskSettings :: TaskDetailedSettings
 lessonRecordTaskSettings = defaultTaskDetailedSettings { solutionsExpandedByDefault = True }
 
-renderOne :: SyncContext -> (AssignmentId -> Maybe Assignment) -> LessonItem -> M.View Model Action
-renderOne r findAssignment item =
+renderOne
+  :: SyncContext
+  -> (Assignment -> M.View Model Action)
+  -> (AssignmentId -> Maybe Assignment)
+  -> LessonItem
+  -> M.View Model Action
+renderOne r renderAssignment findAssignment item =
   let card = case item.content of
         PhaseResource rid ->
           inlineComponent ("lesson-record-res-" <> ms (show rid))
@@ -472,7 +496,7 @@ renderOne r findAssignment item =
         PhaseAssignment aid ->
           case findAssignment aid of
             Nothing -> Layout.empty
-            Just a -> assignmentRow r a
+            Just a -> renderAssignment a
    in if item.publish
         then card
         else unpublishedWrapper card
@@ -490,8 +514,8 @@ unpublishedWrapper card =
     , card
     ]
 
--- | Compact assignment row — used by the home-exercise top block and
--- by the inline non-home-exercise case.
+-- | Compact assignment row — used in student mode (home-exercise list
+-- and inline non-home-exercise case). Read-only menu (pin + go-to).
 assignmentRow :: SyncContext -> Assignment -> M.View Model Action
 assignmentRow r a =
   let AssignmentName nameText = a.name
@@ -512,6 +536,41 @@ assignmentRow r a =
                 }
             )
         ]
+
+-- | Teacher-mode assignment row: collapsible disclosure that mounts
+-- the canonical 'viewerDetailView' inline when expanded, with the
+-- complete assignment 'EntityMenu' (edit, pin, go-to, delete, evaluate,
+-- export) — mirroring the menu the assignment viewer itself shows.
+expandableAssignmentRow :: SyncContext -> Model -> Assignment -> M.View Model Action
+expandableAssignmentRow r m a =
+  let AssignmentName nameText = a.name
+      isExpanded = Set.member a.id m.expandedAssignments
+      origin = Published
+      title =
+        Disclosure.titleWithAnnotation
+          (Disclosure.titleIconText Icon.IcnAssignment (ms nameText))
+          ( MH.span_
+              [class_ "text-xs text-muted-foreground shrink-0"]
+              [M.text (C.formatDay a.assignmentDate)]
+          )
+      menu =
+        inlineComponent ("lesson-record-asn-menu-" <> ms (show a.id))
+          ( EM.entityMenuComponent r EM.EntityMenuConfig
+              { edit = Just (EM.assignmentEdit a.id origin)
+              , pin = Just (PinAssignmentViewer a)
+              , goTo = Just (ManageAssignments (Just a.id))
+              , delete = Just (EM.assignmentDelete a.id origin)
+              , extraEntries =
+                  [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
+                      (pinAssignmentEvaluator r a)
+                  , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
+                      (exportAssignmentToClipboard r a False)
+                  ]
+              }
+          )
+      body = viewerDetailView r (syncDocumentEnv r).connectedUser a
+   in Disclosure.disclosure (ToggleAssignment a.id) $
+        Disclosure.contents title isExpanded body [Disclosure.viewAction menu]
 
 -- ============================================================================
 -- Phase metadata icons

@@ -2,6 +2,7 @@ module Competences.Frontend.Component.Assignment.Detailed
   ( viewerDetailView
   , viewerComponent
   , pinAssignmentViewer
+  , exportAssignmentToClipboard
   , AssignmentStatus (..)
   , assignmentStatus
   , statusLabel
@@ -85,7 +86,6 @@ import Competences.Frontend.Component.PrintEngine.Types
   , taskContentSetting
   )
 import Competences.Frontend.Component.RenumberModal (RenumberTaskInfo (..), openRenumberModal)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Component.RichContent (ResolveResult (..), mkFileResolver, renderRichText, renderRichTextWithResolver, resolveFileView)
 import Competences.Frontend.Component.Task.Detailed qualified as VT
 import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
@@ -288,7 +288,7 @@ viewerDetailView
   :: SyncContext
   -> User
   -> Assignment
-  -> M.View (SD.Model Assignment mode) (SD.Action mode)
+  -> M.View parent action
 viewerDetailView r user assignment =
   inlineComponentWith
     ("assignment-viewer-" <> M.ms (show assignment.id))
