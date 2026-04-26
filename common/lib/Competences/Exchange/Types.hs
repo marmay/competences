@@ -40,7 +40,7 @@ import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, withObject, (.!=), (.:), (.:?))
 #endif
 
 -- | Bump when the wire format changes in a way that breaks
@@ -64,7 +64,19 @@ data ExchangeDoc = ExchangeDoc
 instance Binary ExchangeDoc
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeDoc
+-- | All seven pools default to empty so a YAML file can omit any pool
+-- it has no entries for (very common — a single-entity export only
+-- populates one list).
+instance FromJSON ExchangeDoc where
+  parseJSON = withObject "ExchangeDoc" $ \o ->
+    ExchangeDoc
+      <$> o .:? "competenceGrids" .!= []
+      <*> o .:? "tasks" .!= []
+      <*> o .:? "draftTasks" .!= []
+      <*> o .:? "assignments" .!= []
+      <*> o .:? "draftAssignments" .!= []
+      <*> o .:? "resources" .!= []
+      <*> o .:? "lessons" .!= []
 instance ToJSON ExchangeDoc
 #endif
 
@@ -103,7 +115,16 @@ data ExchangeAssignment = ExchangeAssignment
 instance Binary ExchangeAssignment
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeAssignment
+instance FromJSON ExchangeAssignment where
+  parseJSON = withObject "ExchangeAssignment" $ \o ->
+    ExchangeAssignment
+      <$> o .: "name"
+      <*> o .:? "replaces"
+      <*> o .:? "description" .!= ""
+      <*> o .: "assignmentDate"
+      <*> o .: "activityType"
+      <*> o .:? "groupSubmissionAllowed" .!= False
+      <*> o .:? "taskRefs" .!= []
 instance ToJSON ExchangeAssignment
 #endif
 
@@ -126,7 +147,18 @@ data ExchangeTask = ExchangeTask
 instance Binary ExchangeTask
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeTask
+instance FromJSON ExchangeTask where
+  parseJSON = withObject "ExchangeTask" $ \o ->
+    ExchangeTask
+      <$> o .: "identifier"
+      <*> o .:? "replaces"
+      <*> o .:? "title" .!= ""
+      <*> o .:? "content"
+      <*> o .: "purpose"
+      <*> o .:? "primary" .!= []
+      <*> o .:? "secondary" .!= []
+      <*> o .:? "solutions" .!= []
+      <*> o .:? "attachments" .!= []
 instance ToJSON ExchangeTask
 #endif
 
@@ -192,7 +224,14 @@ data ExchangeResource = ExchangeResource
 instance Binary ExchangeResource
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeResource
+instance FromJSON ExchangeResource where
+  parseJSON = withObject "ExchangeResource" $ \o ->
+    ExchangeResource
+      <$> o .: "identifier"
+      <*> o .:? "replaces"
+      <*> o .: "content"
+      <*> o .:? "competenceLevels" .!= []
+      <*> o .:? "attachments" .!= []
 instance ToJSON ExchangeResource
 #endif
 
@@ -236,7 +275,18 @@ data ExchangeLesson = ExchangeLesson
 instance Binary ExchangeLesson
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeLesson
+instance FromJSON ExchangeLesson where
+  parseJSON = withObject "ExchangeLesson" $ \o ->
+    ExchangeLesson
+      <$> o .: "title"
+      <*> o .:? "replaces"
+      <*> o .:? "description" .!= ""
+      <*> o .:? "date"
+      <*> o .:? "competences" .!= []
+      <*> o .:? "phases" .!= []
+      <*> o .:? "supplementalItems" .!= []
+      <*> o .:? "notesTitleOverride"
+      <*> o .:? "assignmentRefs" .!= []
 instance ToJSON ExchangeLesson
 #endif
 
@@ -253,7 +303,14 @@ data ExchangeLessonPhase = ExchangeLessonPhase
 instance Binary ExchangeLessonPhase
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeLessonPhase
+instance FromJSON ExchangeLessonPhase where
+  parseJSON = withObject "ExchangeLessonPhase" $ \o ->
+    ExchangeLessonPhase
+      <$> o .:? "title" .!= ""
+      <*> o .: "socialForm"
+      <*> o .: "duration"
+      <*> o .: "actionForm"
+      <*> o .:? "items" .!= []
 instance ToJSON ExchangeLessonPhase
 #endif
 
@@ -301,7 +358,13 @@ data ExchangeCompetenceGrid = ExchangeCompetenceGrid
 instance Binary ExchangeCompetenceGrid
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeCompetenceGrid
+instance FromJSON ExchangeCompetenceGrid where
+  parseJSON = withObject "ExchangeCompetenceGrid" $ \o ->
+    ExchangeCompetenceGrid
+      <$> o .: "title"
+      <*> o .:? "replaces"
+      <*> o .:? "description" .!= ""
+      <*> o .:? "competences" .!= []
 instance ToJSON ExchangeCompetenceGrid
 #endif
 
@@ -321,6 +384,11 @@ data ExchangeCompetence = ExchangeCompetence
 instance Binary ExchangeCompetence
 
 #ifdef WITH_AESON
-instance FromJSON ExchangeCompetence
+instance FromJSON ExchangeCompetence where
+  parseJSON = withObject "ExchangeCompetence" $ \o ->
+    ExchangeCompetence
+      <$> o .: "description"
+      <*> o .:? "replaces"
+      <*> o .:? "levels" .!= mempty
 instance ToJSON ExchangeCompetence
 #endif
