@@ -578,13 +578,13 @@ expandableAssignmentRow r m a =
 
 actionFormIcon :: ActionForm -> Icon.Icon
 actionFormIcon = \case
-  Presenting -> Icon.IcnInfo
-  Collaborating -> Icon.IcnSocialFormGroup
-  Assigning -> Icon.IcnTask
+  Presenting -> Icon.IcnPhaseActPresenting
+  Collaborating -> Icon.IcnPhaseActCollaborating
+  Assigning -> Icon.IcnPhaseActAssigning
 
 socialFormIcon :: TeachingSocialForm -> Icon.Icon
 socialFormIcon = \case
-  WholeClass -> Icon.IcnSocialFormGroup
-  SmallGroups -> Icon.IcnSocialFormGroup
-  PairWork -> Icon.IcnSocialFormGroup
+  WholeClass -> Icon.IcnPhaseWholeClass
+  SmallGroups -> Icon.IcnPhaseSmallGroup
+  PairWork -> Icon.IcnPhasePair
   IndividualWork -> Icon.IcnSocialFormIndividual

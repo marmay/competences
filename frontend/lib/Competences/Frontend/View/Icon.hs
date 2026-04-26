@@ -91,6 +91,14 @@ data Icon
   | IcnCloudOff -- ^ Disconnected (cloud + slash)
   | IcnSick -- ^ Thermometer (absence/sick)
   | IcnStar -- ^ Star (assessment marker)
+  -- Lesson-phase social forms: dots on a circle, count = group size.
+  | IcnPhasePair         -- ^ 2 dots (Partnerarbeit)
+  | IcnPhaseSmallGroup   -- ^ 3 dots (Gruppenarbeit)
+  | IcnPhaseWholeClass   -- ^ 5 dots (Plenum)
+  -- Lesson-phase action forms: who is the primary actor in the scene.
+  | IcnPhaseActPresenting    -- ^ Teacher standing in front of a board
+  | IcnPhaseActCollaborating -- ^ Two figures at a desk facing each other
+  | IcnPhaseActAssigning     -- ^ Single figure sitting at a desk
   deriving (Bounded, Eq, Enum, Ord, Show)
 
 -- | Icon color variants based on theme colors
@@ -262,6 +270,12 @@ iconId = \case
   IcnCloudOff -> "icon-cloud-off"
   IcnSick -> "icon-sick"
   IcnStar -> "icon-star"
+  IcnPhasePair -> "icon-phase-pair"
+  IcnPhaseSmallGroup -> "icon-phase-small-group"
+  IcnPhaseWholeClass -> "icon-phase-whole-class"
+  IcnPhaseActPresenting -> "icon-phase-act-presenting"
+  IcnPhaseActCollaborating -> "icon-phase-act-collaborating"
+  IcnPhaseActAssigning -> "icon-phase-act-assigning"
 
 iconDefOf :: Icon -> View m a
 iconDefOf icn = MS.symbol_ [M.id_ $ iconId icn, MSP.viewBox_ "0 0 24 24"] (iconDefOf' icn)
@@ -711,6 +725,50 @@ iconDefOf' = \case
         , MSP.strokeLinejoin_ "round"
         ]
     ]
+  -- People-on-a-circle social-form icons. The reference circle (r=7,
+  -- centered) sits behind the group; each participant is a small filled
+  -- dot (r=2) on the perimeter. Pair: opposite ends. SmallGroup:
+  -- equilateral triangle. WholeClass: regular pentagon.
+  IcnPhasePair -> circleWithDots [(5, 12), (19, 12)]
+  IcnPhaseSmallGroup ->
+    circleWithDots [(12, 5), (5.94, 15.5), (18.06, 15.5)]
+  IcnPhaseWholeClass ->
+    circleWithDots
+      [ (12, 5)
+      , (5.34, 9.84)
+      , (7.89, 17.66)
+      , (16.11, 17.66)
+      , (18.66, 9.84)
+      ]
+  -- Teacher standing in front of a board on the left.
+  IcnPhaseActPresenting ->
+    mkPathesDR
+      [ "M2 4h9v11h-9z"                                        -- board
+      , "M16 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"                   -- head
+      , "M14 22v-4a4 4 0 0 1 4 -4h0a4 4 0 0 1 4 4v4"           -- shoulders
+      ]
+  -- Two figures sitting at a small desk in the middle, facing each
+  -- other. Each figure: head + a triangular shoulder mark.
+  IcnPhaseActCollaborating ->
+    mkPathesDR
+      [ "M2 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"                    -- left head
+      , "M1 16l3-4 3 4"                                        -- left shoulders
+      , "M18 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"                   -- right head
+      , "M17 16l3-4 3 4"                                       -- right shoulders
+      , "M9 16h6"                                              -- desk top
+      , "M10 16v5"                                             -- desk leg L
+      , "M14 16v5"                                             -- desk leg R
+      ]
+  -- A single figure sitting at a desk on the right.
+  IcnPhaseActAssigning ->
+    mkPathesDR
+      [ "M2 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"                    -- head
+      , "M1 16l3-4 3 4"                                        -- shoulders
+      , "M2 21h4"                                              -- chair seat hint
+      , "M9 16h13"                                             -- desk top
+      , "M10 16v5"                                             -- desk leg near
+      , "M20 16v5"                                             -- desk leg far
+      ]
   where
     -- Consistent cloud outline shared by all cloud status icons (Lucide cloud)
     cloudBase :: M.MisoString
@@ -721,3 +779,28 @@ iconDefOf' = \case
     mkPathesDR =
       mkPathes
         [MSP.strokeWidth_ "1.5", MSP.fill_ "none", MSP.strokeLinecap_ "round", MSP.strokeLinejoin_ "round"]
+    -- Reference circle (stroke only) plus a filled dot at each given
+    -- centre. Dot radius is 2 — large enough to read at w-4.
+    circleWithDots :: [(Double, Double)] -> [M.View m a]
+    circleWithDots centres =
+      MS.circle_
+        [ MSP.cx_ "12"
+        , MSP.cy_ "12"
+        , MSP.r_ "7"
+        , MSP.strokeWidth_ "1.5"
+        , MSP.fill_ "none"
+        ]
+        : map dot centres
+    dot :: (Double, Double) -> M.View m a
+    dot (x, y) =
+      MS.circle_
+        [ MSP.cx_ (ms (showCoord x))
+        , MSP.cy_ (ms (showCoord y))
+        , MSP.r_ "2"
+        , MSP.fill_ "currentColor"
+        , MSP.stroke_ "none"
+        ]
+    showCoord :: Double -> String
+    showCoord d
+      | abs (d - fromIntegral (round d :: Int)) < 0.05 = show (round d :: Int)
+      | otherwise = show d
