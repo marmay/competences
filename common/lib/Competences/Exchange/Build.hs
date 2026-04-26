@@ -133,9 +133,15 @@ referencesGrid doc gridId (cid, _) =
 -- | Export a lesson, inlining every assignment, resource, and any
 -- task referenced by phase or supplemental items but not already
 -- carried by an embedded assignment.
+--
+-- Assignments come from two places: the lesson's top-level
+-- 'Lesson.assignments' list and any 'PhaseAssignment' items inside
+-- phases or supplemental items. Both sets are unioned so the export
+-- closes over every entity the import side needs.
 lessonExchange :: Document -> Lesson -> ExchangeDoc
 lessonExchange doc l =
-  let inlinedAssignments = mapMaybe (lookupAssignment doc) l.assignments
+  let assignmentIds = nubOrdered (l.assignments <> referencedAssignments l)
+      inlinedAssignments = mapMaybe (lookupAssignment doc) assignmentIds
       assignmentTaskIds = concatMap (.tasks) inlinedAssignments
       standaloneTaskIds =
         filter (`notElem` assignmentTaskIds) (referencedTasks l)
@@ -148,6 +154,15 @@ lessonExchange doc l =
         & #assignments .~ map (assignmentToExchange doc) inlinedAssignments
         & #tasks .~ map (taskToExchange doc) (assignmentTasks <> standaloneTasks)
         & #resources .~ map (resourceToExchange doc) inlinedResources
+
+-- | Order-preserving deduplication.
+nubOrdered :: Eq a => [a] -> [a]
+nubOrdered = go []
+  where
+    go _ [] = []
+    go seen (x : xs)
+      | x `elem` seen = go seen xs
+      | otherwise = x : go (x : seen) xs
 
 -- ============================================================================
 -- Lower-level builders
@@ -259,6 +274,10 @@ referencedTasks l =
 referencedResources :: Lesson -> [ResourceId]
 referencedResources l =
   [rid | LessonItem (PhaseResource rid) _ <- allItems l]
+
+referencedAssignments :: Lesson -> [AssignmentId]
+referencedAssignments l =
+  [aid | LessonItem (PhaseAssignment aid) _ <- allItems l]
 
 allItems :: Lesson -> [LessonItem]
 allItems l = concatMap (.items) l.phases <> l.supplementalItems
