@@ -139,12 +139,13 @@ viewLessonGroup
   -> M.View GroupedResourcesModel GroupedResourcesAction
 viewLessonGroup r m group =
   let l = group.lesson
+      title :: T.Text
       title = if T.null l.title then "(Untitled)" else l.title
       dateLabel = case l.date of
         Just d -> " · " <> C.formatDay d
         Nothing -> ""
       titleView =
-        Disclosure.titleIconText Icon.IcnLessonRecord (ms (title <> dateLabel))
+        Disclosure.titleIconText Icon.IcnLessonRecord (ms title <> dateLabel)
       isExpanded = Set.member l.id m.expandedLessons
       bodyView =
         MH.div_
