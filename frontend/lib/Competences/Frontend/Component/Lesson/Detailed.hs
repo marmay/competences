@@ -78,13 +78,18 @@ import Competences.Frontend.SyncContext
   )
 import Competences.Frontend.SyncContext.WindowManager
   ( PinCategory (..)
+  , PinId
   , PinMeta (..)
   , SortAtom (..)
   , SortKey (..)
   , WindowChrome (..)
   , inlineComponent
-  , pinDialog
+  , justLens
+  , mkPinId
+  , pinDialogWith
+  , pinSaveStateLens
   )
+import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Badge qualified as Badge
 import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
@@ -94,6 +99,7 @@ import Competences.Frontend.View.Typography qualified as Typography
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -103,6 +109,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
 import Optics.Core ((.~), (%~))
+import Optics.Core qualified as O
 
 -- | Audience the rendering is tuned for.
 data LessonDetailedMode
@@ -144,8 +151,10 @@ pinDetailed r lsn mode keyPrefix =
         , followUp = True
         }
       chrome = WindowChrome (ms (lessonDerivedTitle lsn)) Icon.IcnLessonRecord Nothing
-   in pinDialog r.windowManager meta chrome
-        (lessonDetailedComponent r (LessonDetailedConfig lsn.id mode))
+      pid = mkPinId meta.key
+      cfg = LessonDetailedConfig lsn.id mode
+   in pinDialogWith r.windowManager meta chrome
+        (\_wm mSaved -> lessonDetailedPinComponent r cfg pid mSaved)
 
 data Projection = Projection
   { lesson :: !(Maybe Lesson)
@@ -171,14 +180,40 @@ data Action
   | ToggleAssignment !AssignmentId
   deriving (Eq, Show)
 
+-- | Mount the lesson detailed view inline. No save-state binding —
+-- the component's lifetime is tied to its parent's. For pin use, see
+-- 'lessonDetailedPinComponent'.
 lessonDetailedComponent
   :: SyncContext -> LessonDetailedConfig -> M.Component p Model Action
 lessonDetailedComponent r cfg =
-  (M.component model update' view')
+  (M.component (initialModel Nothing) (update' r cfg) (view' r cfg))
     { M.subs = [subscribeWithProjection r (projection cfg) ProjectionChanged]
     }
+
+-- | Mount the lesson detailed view as a pinned dialog. The pin's
+-- 'PinId' wires the save-state binding so the top-level expansion
+-- state (homework disclosure, expanded assignments) survives the pin
+-- being closed and re-opened.
+--
+-- Note: child components mounted inline (tasks, resources, assignment
+-- viewers) keep their own state and currently DO reset on remount.
+-- Preserving theirs requires a separate per-child save-state design.
+lessonDetailedPinComponent
+  :: SyncContext
+  -> LessonDetailedConfig
+  -> PinId
+  -> Maybe Model
+  -> M.Component WM.Model Model Action
+lessonDetailedPinComponent r cfg pid mSaved =
+  (M.component (initialModel mSaved) (update' r cfg) (view' r cfg))
+    { M.subs = [subscribeWithProjection r (projection cfg) ProjectionChanged]
+    , M.bindings = [O.toLensVL (pinSaveStateLens pid) M.<--- O.toLensVL justLens]
+    }
+
+initialModel :: Maybe Model -> Model
+initialModel = fromMaybe emptyModel
   where
-    model =
+    emptyModel =
       Model
         { projection =
             Projection
@@ -192,13 +227,15 @@ lessonDetailedComponent r cfg =
         , expandedAssignments = Set.empty
         }
 
-    update' (ProjectionChanged change) = M.modify $ #projection .~ change.projection
-    update' ToggleHomeExercises = M.modify $ #homeExercisesExpanded %~ not
-    update' (ToggleAssignment aid) = M.modify $ #expandedAssignments %~ toggle aid
+update' :: SyncContext -> LessonDetailedConfig -> Action -> M.Effect p Model Action
+update' _ _ (ProjectionChanged change) = M.modify $ #projection .~ change.projection
+update' _ _ ToggleHomeExercises = M.modify $ #homeExercisesExpanded %~ not
+update' _ _ (ToggleAssignment aid) = M.modify $ #expandedAssignments %~ toggle aid
 
-    view' m = case m.projection.lesson of
-      Nothing -> Layout.empty
-      Just lsn -> renderLesson r cfg.mode m lsn
+view' :: SyncContext -> LessonDetailedConfig -> Model -> M.View Model Action
+view' r cfg m = case m.projection.lesson of
+  Nothing -> Layout.empty
+  Just lsn -> renderLesson r cfg.mode m lsn
 
 projection :: LessonDetailedConfig -> Document -> Maybe User -> Projection
 projection cfg doc mUser =
