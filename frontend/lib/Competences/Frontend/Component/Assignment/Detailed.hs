@@ -229,25 +229,6 @@ data ViewerProjection = ViewerProjection
   }
   deriving (Eq, Generic, Show)
 
--- | Empty projection for initial state
-emptyProjection :: UserRole -> Assignment -> ViewerProjection
-emptyProjection role assignment = ViewerProjection
-  { tasksWithSolutions = []
-  , accumulatedObs = Map.empty
-  , competences = Ix.empty
-  , status = NotGraded
-  , currentAssignment = assignment
-  , focusedUser = Nothing
-  , connectedUserRole = role
-  , taskStatuses = Map.empty
-  , tasksWithCompetences = Set.empty
-  , taskRemarkMap = Map.empty
-  , taskHistories = Map.empty
-  , submissionSummary = Submission.NoSubmissions
-  , assignmentLayouts = []
-  , origin = Published
-  , draftTaskIds = Set.empty
-  }
 
 -- ============================================================================
 -- Viewer Detail Component
@@ -294,9 +275,15 @@ viewerDetailView r user assignment =
     ("assignment-viewer-" <> M.ms (show assignment.id))
     (viewerComponent r user assignment)
 
--- | Model with projection and task list state
+-- | Model with projection and task list state.
+--
+-- @projection@ is 'Nothing' until the first 'ProjectionChanged' has
+-- run. The view short-circuits while it's 'Nothing', which prevents
+-- inline-component closures (the 'EntityMenuConfig' in particular)
+-- from capturing placeholder values. Update handlers that need a
+-- loaded projection no-op when it isn't loaded yet.
 data ViewerModel = ViewerModel
-  { projection :: !ViewerProjection
+  { projection :: !(Maybe ViewerProjection)
   , taskListState :: !VT.TaskDetailedState
   , expandedTaskResources :: !(Set.Set TaskId)
   , collapsedTaskHistory :: !(Set.Set TaskId)
@@ -333,7 +320,7 @@ viewerComponent r user assignment wm =
     }
   where
     model = ViewerModel
-      { projection = emptyProjection user.role assignment
+      { projection = Nothing
       , taskListState = VT.initialTaskDetailedState []
       , expandedTaskResources = Set.empty
       , collapsedTaskHistory = Set.empty
@@ -437,6 +424,16 @@ viewerComponent r user assignment wm =
             , draftTaskIds = draftTids
             }
 
+    -- | Run an effect when the projection has loaded; no-op otherwise.
+    -- Update handlers fire from view-mounted controls, so the projection
+    -- is normally loaded by the time they run; this guard is just to
+    -- keep the types honest after we made @projection :: Maybe …@.
+    withProj action = do
+      m <- M.get
+      case m.projection of
+        Nothing -> pure ()
+        Just proj -> action proj
+
     update (ProjectionChanged change) =
       M.modify $ \m ->
         let newTasks = change.projection.tasksWithSolutions
@@ -454,7 +451,7 @@ viewerComponent r user assignment wm =
             updateModal modal = modal
               { taskInfos = mapMaybe (\ti -> Map.lookup ti.taskId freshMap) modal.taskInfos
               }
-         in m & #projection .~ change.projection
+         in m & #projection .~ Just change.projection
               & #taskListState .~ newTaskListState
               & #pagePrintModal %~ fmap updateModal
 
@@ -467,12 +464,11 @@ viewerComponent r user assignment wm =
     update (ToggleTaskHistory taskId) =
       M.modify $ #collapsedTaskHistory %~ SetUtil.toggle taskId
 
-    update (OpenPagePrintModal mLayoutId) = do
-      m <- M.get
-      let infos = taskInfosFromTws m.projection.tasksWithSolutions
+    update (OpenPagePrintModal mLayoutId) = withProj $ \proj -> do
+      let infos = taskInfosFromTws proj.tasksWithSolutions
       case mLayoutId of
         -- Load existing layout
-        Just lid -> case filter (\l -> l.id == lid) m.projection.assignmentLayouts of
+        Just lid -> case filter (\l -> l.id == lid) proj.assignmentLayouts of
           (layout : _) -> do
             M.modify $ \m' ->
               m' & #pagePrintModal .~ Just (initFromLayout layout infos)
@@ -506,7 +502,7 @@ viewerComponent r user assignment wm =
 
     update (OpenNewLayoutModal layout) = do
       M.modify $ \m ->
-        let infos = taskInfosFromTws m.projection.tasksWithSolutions
+        let infos = taskInfosFromTws (maybe [] (.tasksWithSolutions) m.projection)
          in m & #pagePrintModal .~ Just (initPrintModalModel layout infos)
       M.io $ do
         threadDelay 100000
@@ -520,7 +516,7 @@ viewerComponent r user assignment wm =
             finalGrouping = adjustForFooter footerH firstAvail restAvail gap s.distributeLastPage baseGrouping heights
         pure (PagePrintMsg (MeasuredPageGrouping finalGrouping))
 
-    update (PagePrintMsg ToggleReorderMode) = do
+    update (PagePrintMsg ToggleReorderMode) = withProj $ \proj -> do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
@@ -528,40 +524,40 @@ viewerComponent r user assignment wm =
           if not mm.reorderMode
             then do
               -- Entering reorder mode: lock assignment, store original order
-              let assignId = m.projection.currentAssignment.id
-                  origOrder = m.projection.currentAssignment.tasks
+              let assignId = proj.currentAssignment.id
+                  origOrder = proj.currentAssignment.tasks
                   mm' = updatePrintModal ToggleReorderMode 0 mm
-              M.io_ $ modifySyncDocument r $ wrapForOrigin m.projection.origin $ Assignments (OnAssignments (Modify assignId Lock))
+              M.io_ $ modifySyncDocument r $ wrapForOrigin proj.origin $ Assignments (OnAssignments (Modify assignId Lock))
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (mm' & #originalTaskOrder .~ origOrder)
             else do
               -- Exiting reorder mode: release assignment with new task order
-              releaseReorderedTasks m.projection.origin mm m.projection.currentAssignment.id
+              releaseReorderedTasks proj.origin mm proj.currentAssignment.id
               M.modify $ \m' ->
                 m' & #pagePrintModal .~ Just (updatePrintModal ToggleReorderMode 0 mm)
 
-    update (PagePrintMsg CancelPrint) = do
+    update (PagePrintMsg CancelPrint) = withProj $ \proj -> do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
-        Just mm -> when mm.reorderMode $ cancelReorder m.projection.origin m.projection.currentAssignment.id
+        Just mm -> when mm.reorderMode $ cancelReorder proj.origin proj.currentAssignment.id
       M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
-    update (PagePrintMsg SaveLayout) = do
+    update (PagePrintMsg SaveLayout) = withProj $ \proj -> do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
-          releaseIfReordering m.projection.origin mm m.projection.currentAssignment.id
+          releaseIfReordering proj.origin mm proj.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           M.modify $ \m' -> m' & #pagePrintModal .~ Nothing
 
-    update (PagePrintMsg PrintAndSaveLayout) = do
+    update (PagePrintMsg PrintAndSaveLayout) = withProj $ \proj -> do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> do
-          releaseIfReordering m.projection.origin mm m.projection.currentAssignment.id
+          releaseIfReordering proj.origin mm proj.currentAssignment.id
           M.io_ $ saveLayoutFromModal r mm
           let settings = mm.settings
               cs = mm.contentSettings
@@ -576,19 +572,19 @@ viewerComponent r user assignment wm =
             triggerPrint
             pure ClearPagePrint
 
-    update (PagePrintMsg OpenRenumberModal) = do
+    update (PagePrintMsg OpenRenumberModal) = withProj $ \proj -> do
       m <- M.get
       case m.pagePrintModal of
         Nothing -> pure ()
         Just mm -> M.io_ $ do
           let taskOrder = reorderedTaskIds mm
-              twsMap = Map.fromList [(tws.task.id, tws) | tws <- m.projection.tasksWithSolutions]
+              twsMap = Map.fromList [(tws.task.id, tws) | tws <- proj.tasksWithSolutions]
               mkInfo tid tws = RenumberTaskInfo
                 { taskId = tid
                 , identifier = tws.task.identifier
                 , title = tws.task.title
                 , isMultiAssignment = False
-                , origin = if Set.member tid m.projection.draftTaskIds then Draft else Published
+                , origin = if Set.member tid proj.draftTaskIds then Draft else Published
                 }
               infos = mapMaybe (\tid -> mkInfo tid <$> Map.lookup tid twsMap) taskOrder
           openRenumberModal r infos
@@ -601,9 +597,11 @@ viewerComponent r user assignment wm =
 
     update (PagePrintMsg action) = do
       M.modify $ \m ->
-        let expanded = case m.pagePrintModal of
-              Nothing -> m.projection.tasksWithSolutions
-              Just mm -> expandedTasks (Just (reorderedTaskIds mm)) mm.settings mm.contentSettings m.projection
+        let mProj = m.projection
+            expanded = case (mProj, m.pagePrintModal) of
+              (Just proj, Nothing) -> proj.tasksWithSolutions
+              (Just proj, Just mm) -> expandedTasks (Just (reorderedTaskIds mm)) mm.settings mm.contentSettings proj
+              (Nothing, _) -> []
             total = length expanded
          in m & #pagePrintModal .~ fmap (updatePrintModal action total) m.pagePrintModal
       case remeasurePolicy action of
@@ -669,50 +667,51 @@ viewerComponent r user assignment wm =
     cancelReorder origin assignId =
       releaseAssignment origin assignId (def :: AssignmentPatch)
 
-    view' m =
-      M.div_
-        []
-        [ M.div_
-            [class_ "space-y-6 print-hide"]
-            [ viewAssignment m
-            ]
-        , -- Page-print modal (when open)
-          case m.pagePrintModal of
-            Nothing -> M.text ""
-            Just modalModel ->
-              let taskOrder = reorderedTaskIds modalModel
-                  reordered = reorderTasks taskOrder m.projection.tasksWithSolutions
-                  expanded = expandedTasks (Just taskOrder) modalModel.settings modalModel.contentSettings m.projection
-                  expandedCount = length expanded
-                  taskNumMap = originalTaskNumbers reordered
-                  renderFn = renderExpandedTaskForPrint modalModel.settings modalModel.contentSettings taskNumMap expanded
-               in M.div_
-                    []
-                    [ printModalView
-                        r.formulaCache
-                        renderFn
-                        expandedCount
-                        (assignmentNameToText m.projection.currentAssignment.name)
-                        (C.formatDay m.projection.currentAssignment.assignmentDate)
-                        modalModel
-                        PagePrintMsg
-                    , -- Off-screen measurement container for continuous layout
-                      case modalModel.settings.taskLayout of
-                        Continuous ->
-                          M.div_
-                            []
-                            [ measurementContainer renderFn expandedCount modalModel
-                            , footerMeasureContainer r.formulaCache modalModel
-                            ]
-                        _ -> M.text ""
-                    ]
-        , viewPagePrintContent m.pagePrintPending m.pagePrintPendingContent
-            m.pagePrintPageGrouping m.projection
-        ]
+    view' m = case m.projection of
+      Nothing -> Layout.empty
+      Just proj ->
+        M.div_
+          []
+          [ M.div_
+              [class_ "space-y-6 print-hide"]
+              [ viewAssignment m proj
+              ]
+          , -- Page-print modal (when open)
+            case m.pagePrintModal of
+              Nothing -> M.text ""
+              Just modalModel ->
+                let taskOrder = reorderedTaskIds modalModel
+                    reordered = reorderTasks taskOrder proj.tasksWithSolutions
+                    expanded = expandedTasks (Just taskOrder) modalModel.settings modalModel.contentSettings proj
+                    expandedCount = length expanded
+                    taskNumMap = originalTaskNumbers reordered
+                    renderFn = renderExpandedTaskForPrint modalModel.settings modalModel.contentSettings taskNumMap expanded
+                 in M.div_
+                      []
+                      [ printModalView
+                          r.formulaCache
+                          renderFn
+                          expandedCount
+                          (assignmentNameToText proj.currentAssignment.name)
+                          (C.formatDay proj.currentAssignment.assignmentDate)
+                          modalModel
+                          PagePrintMsg
+                      , -- Off-screen measurement container for continuous layout
+                        case modalModel.settings.taskLayout of
+                          Continuous ->
+                            M.div_
+                              []
+                              [ measurementContainer renderFn expandedCount modalModel
+                              , footerMeasureContainer r.formulaCache modalModel
+                              ]
+                          _ -> M.text ""
+                      ]
+          , viewPagePrintContent m.pagePrintPending m.pagePrintPendingContent
+              m.pagePrintPageGrouping proj
+          ]
 
-    viewAssignment m =
-      let proj = m.projection
-          desc = proj.currentAssignment.description
+    viewAssignment m proj =
+      let desc = proj.currentAssignment.description
           showPurposeBadge = proj.connectedUserRole == Teacher
        in Card.card
             [ M.div_
@@ -729,18 +728,18 @@ viewerComponent r user assignment wm =
                               then [viewSubmissionStatusButton proj.submissionSummary]
                               else [statusIcon proj.status])
                             <> [ pinButton PinThis | not (isPinned wm) ]
-                            <> [ viewPagePrintButton m | proj.connectedUserRole == Teacher ]
+                            <> [ viewPagePrintButton m proj | proj.connectedUserRole == Teacher ]
                             <> [ inlineComponent ("entity-menu-" <> ms (show proj.currentAssignment.id))
                                   (EM.entityMenuComponent r EM.EntityMenuConfig
-                                    { edit = Just (EM.assignmentEdit proj.currentAssignment.id m.projection.origin)
+                                    { edit = Just (EM.assignmentEdit proj.currentAssignment.id proj.origin)
                                     , pin = Just (PinAssignmentViewer proj.currentAssignment)
                                     , goTo = Nothing
-                                    , delete = Just (EM.assignmentDelete proj.currentAssignment.id m.projection.origin)
+                                    , delete = Just (EM.assignmentDelete proj.currentAssignment.id proj.origin)
                                     , extraEntries =
                                         [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
                                             (pinAssignmentEvaluator r proj.currentAssignment)
                                         , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
-                                            (exportAssignmentToClipboard r proj.currentAssignment (m.projection.origin == Draft))
+                                            (exportAssignmentToClipboard r proj.currentAssignment (proj.origin == Draft))
                                         ]
                                     })
                                | proj.connectedUserRole == Teacher
@@ -805,13 +804,13 @@ viewerComponent r user assignment wm =
     abilityIcon WithSupport = Icon.IcnAbilityWithSupport
     abilityIcon NotYet = Icon.IcnAbilityNotYet
 
-    viewTaskExtras :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
-    viewTaskExtras m syncCtx taskId =
-      viewTaskResources m syncCtx taskId <> viewTaskHistory m syncCtx taskId
+    viewTaskExtras :: ViewerModel -> ViewerProjection -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskExtras m proj syncCtx taskId =
+      viewTaskResources m proj syncCtx taskId <> viewTaskHistory m proj syncCtx taskId
 
-    viewTaskResources :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
-    viewTaskResources m syncCtx taskId
-      | not (Set.member taskId m.projection.tasksWithCompetences) = []
+    viewTaskResources :: ViewerModel -> ViewerProjection -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskResources m proj syncCtx taskId
+      | not (Set.member taskId proj.tasksWithCompetences) = []
       | otherwise =
           let isExpanded = Set.member taskId m.expandedTaskResources
               titleView = Disclosure.titleIconText Icon.IcnResources (C.translate' C.LblMaterials)
@@ -820,9 +819,9 @@ viewerComponent r user assignment wm =
            in [Disclosure.innerDisclosure (ToggleTaskResourcesExpanded taskId) $
                  Disclosure.contents titleView isExpanded bodyView []]
 
-    viewTaskHistory :: ViewerModel -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
-    viewTaskHistory m syncCtx taskId =
-      case Map.lookup taskId m.projection.taskHistories of
+    viewTaskHistory :: ViewerModel -> ViewerProjection -> SyncContext -> TaskId -> [M.View ViewerModel ViewerAction]
+    viewTaskHistory m proj syncCtx taskId =
+      case Map.lookup taskId proj.taskHistories of
         Nothing -> []
         Just [] -> []
         Just rows ->
@@ -857,7 +856,7 @@ viewerComponent r user assignment wm =
         m.taskListState
         (`Map.lookup` proj.taskStatuses)
         (taskAnnotations m proj showPurpose)
-        (viewTaskExtras m syncCtx)
+        (viewTaskExtras m proj syncCtx)
         TaskListAction
         proj.tasksWithSolutions
 
@@ -910,9 +909,9 @@ viewerComponent r user assignment wm =
     -- Page Print
     -- ========================================================================
 
-    viewPagePrintButton :: ViewerModel -> M.View ViewerModel ViewerAction
-    viewPagePrintButton m =
-      case m.projection.assignmentLayouts of
+    viewPagePrintButton :: ViewerModel -> ViewerProjection -> M.View ViewerModel ViewerAction
+    viewPagePrintButton m proj =
+      case proj.assignmentLayouts of
         [] -> Button.ghostSm (Button.button Icon.IcnPrint (OpenPagePrintModal Nothing))
         layouts ->
           HoverMenu.hoverMenuRight
