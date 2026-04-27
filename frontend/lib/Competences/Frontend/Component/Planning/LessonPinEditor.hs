@@ -448,10 +448,10 @@ lessonPinEditor r lesson' lessonNoteContent phaseNoteContents pid wm mSaved =
               , Disclosure.action Icon.IcnArrowDown (PhaseReorder (ListReorderTo fromIdx (thisIdx + 1)))
               ]
        in Disclosure.disclosure (TogglePhaseEdit idx) $
-            Disclosure.contents titleView isExpanded (viewPhaseEditor syncCtx idx phase) actions
+            Disclosure.contents titleView isExpanded (viewPhaseEditor syncCtx m idx phase) actions
 
-    viewPhaseEditor :: SyncContext -> Int -> LessonPhase -> M.View Model Action
-    viewPhaseEditor syncCtx idx phase =
+    viewPhaseEditor :: SyncContext -> Model -> Int -> LessonPhase -> M.View Model Action
+    viewPhaseEditor syncCtx m idx phase =
       MH.div_
         [class_ "p-4 border-t border-border space-y-3 bg-muted/30"]
         [ Input.fieldWrapper (C.translate' C.LblPhaseTitle) $
@@ -485,7 +485,7 @@ lessonPinEditor r lesson' lessonNoteContent phaseNoteContents pid wm mSaved =
             ]
         , Input.fieldWrapper (C.translate' C.LblPhaseNotes) $
             inlineComponent ("phase-notes-" <> M.ms (show idx))
-              (richContentEditorComponent r.formulaCache (Map.findWithDefault mempty idx phaseNoteContents) (phaseNoteStateLens idx))
+              (richContentEditorComponent r.formulaCache (contentValue mempty (phaseNoteState m idx)) (phaseNoteStateLens idx))
         , itemsEditor syncCtx ("lesson-phase-items-" <> M.ms (show idx)) (InPhase idx) phase.items
         ]
 
