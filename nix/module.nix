@@ -62,8 +62,36 @@ let
       };
 
       subdomain = mkOption {
-        type = types.str;
-        description = "Subdomain for this instance (e.g., '9a' for 9a.competences.example.com)";
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Subdomain for this instance (e.g., '9a' for
+          9a.competences.example.com). Mutually exclusive with
+          'pathPrefix' — set exactly one.
+        '';
+      };
+
+      pathPrefix = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "9c";
+        description = ''
+          Path prefix for this instance under the shared domain
+          (e.g., '9c' for mathe.example.com/9c/). Mutually exclusive
+          with 'subdomain' — set exactly one. The leading slash is
+          implied; do not include it.
+        '';
+      };
+
+      displayName = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "Klasse 9c";
+        description = ''
+          Human-readable label for this instance, shown on the index
+          landing page when path-prefix mode is in use. Falls back to
+          the instance attribute name if unset.
+        '';
       };
 
       database = mkOption {
@@ -355,43 +383,162 @@ in {
       }
     ) (attrNames cfg.instances));
 
+    # Enforce that each instance picks exactly one routing mode.
+    assertions = map (name:
+      let i = cfg.instances.${name};
+          hasSub = i.subdomain != null;
+          hasPath = i.pathPrefix != null;
+      in {
+        assertion = (hasSub && !hasPath) || (!hasSub && hasPath);
+        message = ''
+          services.competences.instances.${name}: set exactly one of
+          'subdomain' or 'pathPrefix' (got subdomain=${toString i.subdomain},
+          pathPrefix=${toString i.pathPrefix}).
+        '';
+      }
+    ) (attrNames cfg.instances);
+
     # Configure Nginx reverse proxy
-    services.nginx = mkIf cfg.nginx.enable {
-      enable = true;
+    services.nginx = mkIf cfg.nginx.enable (
+      let
+        subdomainNames = filter (n: cfg.instances.${n}.subdomain != null) (attrNames cfg.instances);
+        pathPrefixNames = filter (n: cfg.instances.${n}.pathPrefix != null) (attrNames cfg.instances);
 
-      recommendedProxySettings = true;
-      recommendedTlsSettings = true;
-      recommendedOptimisation = true;
-      recommendedGzipSettings = true;
+        # Per-subdomain vhost: each instance owns its own hostname.
+        subdomainVhosts = listToAttrs (map (name:
+          let
+            instance = cfg.instances.${name};
+            fqdn = "${instance.subdomain}.${cfg.nginx.domain}";
+          in
+          nameValuePair fqdn {
+            enableACME = cfg.nginx.enableACME;
+            forceSSL = cfg.nginx.forceSSL;
 
-      virtualHosts = listToAttrs (map (name:
-        let
-          instance = cfg.instances.${name};
-          fqdn = "${instance.subdomain}.${cfg.nginx.domain}";
-        in
-        nameValuePair fqdn {
-          enableACME = cfg.nginx.enableACME;
-          forceSSL = cfg.nginx.forceSSL;
+            locations."/" = {
+              proxyPass = "http://127.0.0.1:${toString instance.port}";
+              proxyWebsockets = true;
+              extraConfig = ''
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_intercept_errors on;
+                error_page 502 503 504 /maintenance.html;
+              '';
+            };
 
-          locations."/" = {
-            proxyPass = "http://127.0.0.1:${toString instance.port}";
+            locations."= /maintenance.html" = {
+              root = "${maintenancePage}";
+              extraConfig = "internal;";
+            };
+          }
+        ) subdomainNames);
+
+        # Index landing page for the shared vhost — lists path-prefix instances.
+        # Generated at evaluation time so the user only has to rebuild NixOS to
+        # update the list.
+        landingPage = pkgs.writeTextDir "index.html" ''
+          <!DOCTYPE html>
+          <html lang="de">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Meine Mathe-Kompetenzen</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: system-ui, -apple-system, sans-serif;
+                     min-height: 100vh; display: flex; flex-direction: column;
+                     background: #fafaf9; color: #1c1917; }
+              .bar { background: #0284c7; height: 6px; flex-shrink: 0; }
+              .content { flex: 1; display: flex; justify-content: center;
+                         align-items: center; padding: 2rem; }
+              .card { background: white; border-radius: 12px; padding: 2.5rem;
+                      max-width: 32rem; width: 100%;
+                      box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+              h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
+              ul { list-style: none; }
+              li { border-top: 1px solid #e7e5e4; }
+              li:last-child { border-bottom: 1px solid #e7e5e4; }
+              a { display: block; padding: .85rem 0; text-decoration: none;
+                  color: #0c4a6e; font-weight: 500; }
+              a:hover { color: #0284c7; }
+              .empty { color: #78716c; font-style: italic; }
+            </style>
+          </head>
+          <body>
+            <div class="bar"></div>
+            <div class="content">
+              <div class="card">
+                <h1>Meine Mathe-Kompetenzen</h1>
+                ${
+                  if pathPrefixNames == []
+                  then ''<p class="empty">Keine Instanzen konfiguriert.</p>''
+                  else ''
+                    <ul>
+                      ${concatStringsSep "\n" (map (name:
+                        let i = cfg.instances.${name};
+                            label = if i.displayName != null then i.displayName else name;
+                        in ''<li><a href="/${i.pathPrefix}/">${label}</a></li>''
+                      ) pathPrefixNames)}
+                    </ul>
+                  ''
+                }
+              </div>
+            </div>
+          </body>
+          </html>
+        '';
+
+        # Per-instance proxy locations under the shared vhost.
+        pathPrefixLocations = listToAttrs (map (name:
+          let
+            instance = cfg.instances.${name};
+            prefix = instance.pathPrefix;
+          in
+          nameValuePair "/${prefix}/" {
+            proxyPass = "http://127.0.0.1:${toString instance.port}/";
             proxyWebsockets = true;
             extraConfig = ''
               proxy_set_header Host $host;
               proxy_set_header X-Real-IP $remote_addr;
               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
               proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header X-Forwarded-Prefix /${prefix};
               proxy_intercept_errors on;
               error_page 502 503 504 /maintenance.html;
             '';
-          };
+          }
+        ) pathPrefixNames);
 
-          locations."= /maintenance.html" = {
-            root = "${maintenancePage}";
-            extraConfig = "internal;";
+        # Shared vhost: one host serves the landing page plus all path-prefix
+        # instances under their /<prefix>/ locations.
+        sharedVhost = optionalAttrs (pathPrefixNames != []) {
+          ${cfg.nginx.domain} = {
+            enableACME = cfg.nginx.enableACME;
+            forceSSL = cfg.nginx.forceSSL;
+            locations = {
+              "= /" = {
+                root = "${landingPage}";
+                extraConfig = ''
+                  try_files /index.html =404;
+                '';
+              };
+              "= /maintenance.html" = {
+                root = "${maintenancePage}";
+                extraConfig = "internal;";
+              };
+            } // pathPrefixLocations;
           };
-        }
-      ) (attrNames cfg.instances));
-    };
+        };
+      in {
+        enable = true;
+
+        recommendedProxySettings = true;
+        recommendedTlsSettings = true;
+        recommendedOptimisation = true;
+        recommendedGzipSettings = true;
+
+        virtualHosts = subdomainVhosts // sharedVhost;
+      });
   };
 }

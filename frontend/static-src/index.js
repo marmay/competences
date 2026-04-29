@@ -1,8 +1,11 @@
 import { WASI, OpenFile, File, ConsoleStdout } from "../../static/wasi/index.js";
 
-// Build ghc_wasm_jsffi URL with cache-busting hash if available
+// Build ghc_wasm_jsffi URL with cache-busting hash if available.
+// COMPETENCES_BASE is the mount-point prefix (e.g. "/9c") injected by the
+// backend; empty for subdomain mode so URLs stay absolute-from-root.
+const basePath = window.COMPETENCES_BASE || '';
 const jsffiHash = window.COMPETENCES_JSFFI_HASH || '';
-const jsffiUrl = jsffiHash ? `/static/ghc_wasm_jsffi.js?v=${jsffiHash}` : '/static/ghc_wasm_jsffi.js';
+const jsffiUrl = jsffiHash ? `${basePath}/static/ghc_wasm_jsffi.js?v=${jsffiHash}` : `${basePath}/static/ghc_wasm_jsffi.js`;
 console.log(`Loading JSFFI from: ${jsffiUrl}`);
 
 // Dynamic import for cache-busting support
@@ -20,7 +23,7 @@ const wasi = new WASI(args, env, fds, options);
 
 // Build WASM URL with cache-busting hash if available
 const wasmHash = window.COMPETENCES_WASM_HASH || '';
-const wasmUrl = wasmHash ? `/static/app.wasm?v=${wasmHash}` : '/static/app.wasm';
+const wasmUrl = wasmHash ? `${basePath}/static/app.wasm?v=${wasmHash}` : `${basePath}/static/app.wasm`;
 console.log(`Loading WASM from: ${wasmUrl}`);
 
 const instance_exports = {};

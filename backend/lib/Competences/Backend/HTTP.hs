@@ -38,7 +38,7 @@ import Data.Text.Lazy.Encoding qualified as TLE
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Types (status302, urlEncode)
-import Network.Wai (Application, pathInfo, rawQueryString, responseLBS)
+import Network.Wai (Application, pathInfo, rawQueryString, requestHeaders, responseLBS)
 import Servant
   ( (:<|>) (..)
   , (:>)
@@ -80,12 +80,13 @@ data FrontendHashes = FrontendHashes
 
 type AppAPI =
   -- Root redirect to /app/grid
-  Get '[HTML] NoContent
+  Header "X-Forwarded-Prefix" Text :> Get '[HTML] NoContent
     -- OAuth callback - exchange code for token and serve frontend
     :<|> "oauth" :> "callback"
            :> QueryParam "code" Text
            :> QueryParam "state" Text
            :> Header "Cookie" Text
+           :> Header "X-Forwarded-Prefix" Text
            :> Get '[HTML] Html
     -- Exchange codec: ExchangeDoc (Binary) -> YAML.
     :<|> "api" :> "exchange" :> "encode"
@@ -114,6 +115,17 @@ server state oauth2Config jwtSecret staticDir hashes =
     :<|> exchangeDecodeHandler
     :<|> serveDirectoryWebApp staticDir
     :<|> appCatchAllHandler oauth2Config
+
+-- | Read the request's mount-point prefix from the @X-Forwarded-Prefix@
+-- header set by nginx in path-prefix mode (e.g. @/9c@). Subdomain mode
+-- omits the header and returns the empty string, so URLs render exactly
+-- as before. Trailing slashes are stripped so @"\/9c"@ and @"\/9c\/"@
+-- normalize identically.
+basePathFromHeader :: Maybe Text -> Text
+basePathFromHeader Nothing = ""
+basePathFromHeader (Just raw) =
+  let trimmed = T.dropWhileEnd (== '/') raw
+   in if T.null trimmed || T.head trimmed == '/' then trimmed else "/" <> trimmed
 
 -- | Encode endpoint: deserialise a 'Binary' 'ExchangeDoc' and emit its
 -- YAML rendering. Malformed input yields 400.
@@ -148,10 +160,11 @@ oauthStateCookieName = "oauth_state"
 oauthReturnUrlCookieName :: BS.ByteString
 oauthReturnUrlCookieName = "oauth_return_url"
 
--- | Redirect root "/" to "/app/grid"
-rootRedirectHandler :: Handler NoContent
-rootRedirectHandler =
-  throwError err302 {errHeaders = [("Location", "/app/grid")]}
+-- | Redirect root "/" to "/app/grid", honoring the forwarded mount prefix.
+rootRedirectHandler :: Maybe Text -> Handler NoContent
+rootRedirectHandler hdr =
+  let basePath = basePathFromHeader hdr
+   in throwError err302 {errHeaders = [("Location", encodeUtf8 (basePath <> "/app/grid"))]}
 
 -- | Catch-all handler for /app/* routes
 -- Saves the requested URL in a cookie and redirects to Office365 OAuth
@@ -163,19 +176,25 @@ appCatchAllHandler config = Tagged $ \req respond -> do
       queryStr = decodeUtf8 $ rawQueryString req
       returnUrl = validateReturnUrl $ "/app/" <> T.intercalate "/" segments <> queryStr
 
+  -- Read mount-point prefix from nginx header (empty for subdomain mode).
+  let basePath = basePathFromHeader $
+        decodeUtf8 <$> lookup "X-Forwarded-Prefix" (requestHeaders req)
+      cookiePath = Just $ encodeUtf8 (basePath <> "/oauth/callback")
+
   -- Generate random state for CSRF protection
   csrfState <- UUID.toText <$> UUID.nextRandom
 
   -- Build authorization URL with state parameter
   let authUrl = getAuthorizationUrlWithState config csrfState
 
-  -- Create cookies (both scoped to /oauth/callback, HttpOnly)
+  -- Cookies must be scoped to the *external* /oauth/callback path the
+  -- browser will hit, which includes the forwarded prefix.
   let stateCookie =
         renderSetCookieBS $
           defaultSetCookie
             { setCookieName = oauthStateCookieName
             , setCookieValue = encodeUtf8 csrfState
-            , setCookiePath = Just "/oauth/callback"
+            , setCookiePath = cookiePath
             , setCookieHttpOnly = True
             }
       returnUrlCookie =
@@ -183,7 +202,7 @@ appCatchAllHandler config = Tagged $ \req respond -> do
           defaultSetCookie
             { setCookieName = oauthReturnUrlCookieName
             , setCookieValue = encodeUtf8 returnUrl
-            , setCookiePath = Just "/oauth/callback"
+            , setCookiePath = cookiePath
             , setCookieHttpOnly = True
             }
 
@@ -215,8 +234,9 @@ getAuthorizationUrlWithState config state =
 
 -- | OAuth callback - exchange code for token and serve frontend with JWT
 -- Validates state parameter to prevent CSRF attacks
-oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FrontendHashes -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
-oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState maybeCookie = do
+oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FrontendHashes -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
+oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState maybeCookie maybePrefix = do
+  let basePath = basePathFromHeader maybePrefix
   -- Validate state parameter (CSRF protection)
   stateFromQuery <- case maybeState of
     Nothing -> throwError err400 {errBody = "Missing state parameter"}
@@ -274,7 +294,7 @@ oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState
   outputCssHash <- liftIO $ readFileHash hashes.outputCssHash
 
   -- Serve frontend HTML with JWT and hashes embedded
-  pure $ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
+  pure $ renderFrontendHTML basePath jwt (basePath <> returnUrl) wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
 
 -- | Extract state value from Cookie header
 -- Parses the Cookie header and looks for the oauth_state cookie
@@ -327,9 +347,12 @@ cspHeaderValue = T.intercalate "; "
   , "form-action 'self'"                 -- Restrict form submissions
   ]
 
--- | Render frontend HTML with JWT, return URL, and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Text -> Html
-renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash = H.docTypeHtml $ do
+-- | Render frontend HTML with JWT, return URL, and WASM hash embedded.
+-- @basePath@ is the request's mount-point prefix (e.g. @"\/9c"@) or empty
+-- for subdomain mode; every static asset URL and the @returnUrl@ are
+-- expected to be already prefixed.
+renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Text -> Text -> Html
+renderFrontendHTML basePath jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
@@ -341,23 +364,26 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
     H.link ! A.rel "icon" ! A.type_ "image/svg+xml"
       ! A.href "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='1.5'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>"
     -- Load Tailwind CSS + Basecoat (single unified build)
-    let outputCssUrl = "/static/output.css?v=" <> outputCssHash
+    let outputCssUrl = basePath <> "/static/output.css?v=" <> outputCssHash
     H.link ! A.rel "stylesheet" ! A.href (H.toValue outputCssUrl)
     -- MathJax configuration (must come before loading MathJax)
     H.script $ H.toHtml
       ("window.MathJax = {\
-        \loader: { paths: { fonts: '/static' } },\
+        \loader: { paths: { fonts: '" <> basePath <> "/static' } },\
         \startup: { typeset: false },\
         \tex: { packages: ['base', 'ams'] },\
         \svg: { fontCache: 'local' },\
         \options: { enableMenu: false, enableEnrichment: false, enableSpeech: false, enableBraille: false, enableExplorer: false, enableComplexity: false, menuOptions: { settings: { enrich: false, speech: false, braille: false, collapsible: false } } }\
-      \};" :: Text)
+      \};")
     -- Load MathJax 4 for LaTeX rendering (async to not block page load)
-    let mathjaxUrl = "/static/mathjax-tex-svg.js?v=" <> mathjaxHash
+    let mathjaxUrl = basePath <> "/static/mathjax-tex-svg.js?v=" <> mathjaxHash
     H.script ! A.src (H.toValue mathjaxUrl) ! H.customAttribute "async" "" $ ""
     H.script $ H.toHtml $
       "// JWT token for WebSocket authentication\n\
       \window.COMPETENCES_JWT = '" <> jwt <> "';\n\
+      \// Mount-point prefix injected by the backend (empty for subdomain mode).\n\
+      \// Read by index.js for asset URLs and by Main.hs for the WebSocket URL.\n\
+      \window.COMPETENCES_BASE = '" <> basePath <> "';\n\
       \// Debug logging flag (set to true for verbose console output)\n\
       \window.COMPETENCES_DEBUG = false;\n\
       \// File hashes for cache busting\n\
@@ -371,5 +397,5 @@ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outp
       H.p ! A.class_ "text-lg text-muted-foreground" $
         "Anwendung wird geladen\x2026"
     -- Load application code (with cache-busting hash)
-    let indexJsUrl = "/static/index.js?v=" <> indexJsHash
+    let indexJsUrl = basePath <> "/static/index.js?v=" <> indexJsHash
     H.script ! A.src (H.toValue indexJsUrl) ! A.type_ "module" $ ""

@@ -59,12 +59,16 @@ main = do
       Just jwtToken -> do
         logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
 
-        -- Determine WebSocket URL from current location
+        -- Determine WebSocket URL from current location plus the mount-point
+        -- prefix the backend injected (empty for subdomain mode, e.g. "/9c"
+        -- when served at mathe.example.com/9c/).
         location <- jsg "window" ! "location"
         (Just protocol) <- location ! "protocol" >>= fromJSVal @T.Text
         (Just host) <- location ! "host" >>= fromJSVal @T.Text
-        let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
-        let wsUrl = wsProtocol <> host <> "/"
+        mBasePath <- jsg "window" ! "COMPETENCES_BASE" >>= fromJSVal @T.Text
+        let basePath = maybe "" id mBasePath
+            wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
+            wsUrl = wsProtocol <> host <> basePath <> "/"
 
         -- Parse ?impersonate=<uuid> query parameter
         (Just search) <- location ! "search" >>= fromJSVal @T.Text
