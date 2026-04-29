@@ -11,7 +11,7 @@ where
 import Control.Applicative ((<|>))
 import Competences.Command (AssignmentsCommand (..), Command (..), EntityCommand (..), LessonsCommand (..), ModifyCommand (..), ResourcesCommand (..), SolutionsCommand (..), TasksCommand (..))
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), Lock (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
+import Competences.Document (Assignment (..), Document (..), Lock (..), LockHolder (..), Resource (..), ResourceIdentifier (..), Solution (..), Task (..), User (..))
 import Competences.Document (TeachingNote (..))
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Document.Id (idToText, mkId)
@@ -70,18 +70,25 @@ initLockWatching r = do
   -- trigger a Release command in onPinClosed.
   watcherRemovedRef <- newIORef Set.empty
 
-  -- Install the onPinClosed callback that releases locks
+  -- Install the onPinClosed callback that releases locks.
+  -- Idempotent w.r.t. lock state: only emits Release if the local document
+  -- still shows the lock held by us (same user + session). This handles
+  -- both server-driven removals (watcher unpins) and client-driven Release
+  -- patches (e.g. LessonPinEditor's SaveAndClose) without sending a redundant
+  -- Release that the server would reject as "entity is not locked!".
   writeIORef r.onPinClosedRef $ \pid -> do
-    -- Check if this removal was initiated by the watcher (lock already gone)
-    wasWatcherRemoval <- atomicModifyIORef' watcherRemovedRef $ \s ->
-      (Set.delete pid s, Set.member pid s)
-    if wasWatcherRemoval
-      then pure () -- Lock already gone, no command needed
-      else case parsePinLock pid of
-        Just lock -> do
-          sd <- readSyncDocument r
-          sendCommandOnly r (releaseCommand sd.localDocument lock)
-        Nothing -> pure ()
+    -- Drain watcherRemovedRef so it does not grow unbounded.
+    atomicModifyIORef' watcherRemovedRef $ \s -> (Set.delete pid s, ())
+    case parsePinLock pid of
+      Nothing -> pure ()
+      Just lock -> do
+        sd <- readSyncDocument r
+        case Map.lookup lock sd.localDocument.locks of
+          Just holder
+            | holder.userId == r.env.connectedUser.id
+            , holder.sessionId == r.env.sessionId ->
+                sendCommandOnly r (releaseCommand sd.localDocument lock)
+          _ -> pure () -- lock already released or not ours; nothing to do
 
   writeIORef r.onPinViewerRequestRef (handleViewerPin r)
 
