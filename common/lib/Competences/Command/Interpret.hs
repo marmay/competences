@@ -9,7 +9,8 @@ module Competences.Command.Interpret
   )
 where
 
-import Competences.Command.Common (AffectedUsers, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
+import Competences.Command.Audience (CommandAudience)
+import Competences.Command.Common (CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult)
 import Competences.Document (Document (..), Lock, LockHolder (..))
 import Competences.Document.Id (Id)
 import Competences.Document.Order (OrderableSet, reordered, reordered')
@@ -28,7 +29,7 @@ data EntityCommandContext a patch = EntityCommandContext
   , fetch :: Id a -> Document -> Either Text a
   , applyPatch :: a -> patch -> Either Text a
     -- ^ Apply a patch to an entity, checking for conflicts
-  , affectedUsers :: a -> Document -> AffectedUsers
+  , affectedUsers :: a -> Document -> CommandAudience
   , lock :: Id a -> Lock
   , getId :: a -> Id a
     -- ^ Extract the ID from an entity (for CreateAndLock)
@@ -45,7 +46,7 @@ mkGroupOrderedEntityCommandContext
   -> (Id a -> Lock)
   -> (a -> ix)
   -> (a -> patch -> Either Text a)
-  -> (a -> Document -> AffectedUsers)
+  -> (a -> Document -> CommandAudience)
   -> EntityCommandContext a patch
 mkGroupOrderedEntityCommandContext l idOf lock orderGroup applyPatch affectedUsers =
   let ctx = mkEntityCommandContext l idOf lock applyPatch affectedUsers
@@ -63,7 +64,7 @@ mkOrderedEntityCommandContext
   -> Lens' a (Id a)
   -> (Id a -> Lock)
   -> (a -> patch -> Either Text a)
-  -> (a -> Document -> AffectedUsers)
+  -> (a -> Document -> CommandAudience)
   -> EntityCommandContext a patch
 mkOrderedEntityCommandContext l idOf lock applyPatch affectedUsers =
   let ctx = mkEntityCommandContext l idOf lock applyPatch affectedUsers
@@ -80,7 +81,7 @@ mkEntityCommandContext
   -> Lens' a (Id a)
   -> (Id a -> Lock)
   -> (a -> patch -> Either Text a)
-  -> (a -> Document -> AffectedUsers)
+  -> (a -> Document -> CommandAudience)
   -> EntityCommandContext a patch
 mkEntityCommandContext l idOf lock applyPatch affectedUsers =
   let create a d = do
@@ -127,26 +128,34 @@ doRelease ctx l d =
     Nothing -> Left "entity is not locked!"
 
 -- | Interpret an entity command using the provided context.
--- The CommandContext provides the authenticated user identity for
--- lock acquisition and release.
+--
+-- Each branch computes the affected-users audience as the union of the
+-- pre-state side (entity before, document before) and the post-state side
+-- (entity after, document after). Create degenerates to the after side,
+-- Delete to the before side. The symmetric union is what guarantees that a
+-- modification which shifts an entity's audience (e.g. reassigning an
+-- Assignment from student A to student B) reaches both the previous and the
+-- new audiences — without it, A would never learn the entity changed away
+-- from them and the update would leak only to B.
 interpretEntityCommand
   :: (Eq a) => EntityCommandContext a patch -> CommandContext -> EntityCommand a patch -> Document -> UpdateResult
-interpretEntityCommand ctx _ (Create a) d =
-  (,ctx.affectedUsers a d) <$> ctx.create a d
+interpretEntityCommand ctx _ (Create a) d = do
+  d' <- ctx.create a d
+  pure (d', ctx.affectedUsers a d')
 interpretEntityCommand ctx cmdCtx (CreateAndLock a) d = do
   d' <- ctx.create a d
   d'' <- doLock cmdCtx (ctx.lock (ctx.getId a)) d'
-  pure (d'', ctx.affectedUsers a d)
+  pure (d'', ctx.affectedUsers a d'')
 interpretEntityCommand ctx _ (Delete i) d = do
   (d', a) <- ctx.delete i d
   pure (d', ctx.affectedUsers a d)
 interpretEntityCommand ctx cmdCtx (Modify i Lock) d = do
+  a <- ctx.fetch i d
   d' <- doLock cmdCtx (ctx.lock i) d
-  a <- ctx.fetch i d'
-  pure (d', ctx.affectedUsers a d)
+  pure (d', ctx.affectedUsers a d <> ctx.affectedUsers a d')
 interpretEntityCommand ctx cmdCtx (Modify i (Release patch)) d = do
+  aBefore <- ctx.fetch i d
   d' <- doRelease cmdCtx (ctx.lock i) d
-  aCurrent <- ctx.fetch i d'
-  aModified <- ctx.applyPatch aCurrent patch
-  let d'' = ctx.update aModified d'
-  pure (d'', ctx.affectedUsers aModified d <> ctx.affectedUsers aCurrent d)
+  aAfter <- ctx.applyPatch aBefore patch
+  let d'' = ctx.update aAfter d'
+  pure (d'', ctx.affectedUsers aBefore d <> ctx.affectedUsers aAfter d'')

@@ -7,9 +7,10 @@ module Competences.Command.CompetenceGridGrades
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (EntityCommandContext (..), interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.CompetenceGridGrade (CompetenceGridGrade (..))
 import Competences.Document.Grade (Grade)
 import Control.Monad ((>=>))
@@ -91,10 +92,5 @@ handleCompetenceGridGradesCommand cmdCtx (OnCompetenceGridGrades c) = interpretE
        in baseContext.create newGrade d'
 
     -- Teachers see all grades; students only see grades about themselves
-    affectedUsers :: CompetenceGridGrade -> Document -> AffectedUsers
-    affectedUsers gridGrade d' =
-      AffectedUsers $
-        map (.id) $
-          filter (\u -> u.role == Teacher || u.id == gridGrade.userId) $
-            Ix.toList $
-              d' ^. #users
+    affectedUsers :: CompetenceGridGrade -> Document -> CommandAudience
+    affectedUsers gridGrade _ = AudienceTeachersAnd [gridGrade.userId]

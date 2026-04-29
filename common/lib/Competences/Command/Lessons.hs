@@ -8,14 +8,15 @@ module Competences.Command.Lessons
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
   , mkGroupOrderedEntityCommandContext
   )
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.Lesson (Lesson (..), LessonId, LessonItem, LessonPhase)
@@ -115,7 +116,7 @@ handleLessonsCommand cmdCtx cmd d = case cmd of
   ReorderLesson p t ->
     case reorder p t d.lessons (.mesoPlanId) of
       Left err -> Left $ explainReorderError err
-      Right lessons' -> Right (d & (#lessons .~ lessons'), allUsers d)
+      Right lessons' -> Right (d & (#lessons .~ lessons'), AudienceAll)
   where
     lessonContext =
       mkGroupOrderedEntityCommandContext
@@ -124,5 +125,4 @@ handleLessonsCommand cmdCtx cmd d = case cmd of
         LessonLock
         (^. #mesoPlanId)
         applyLessonPatch
-        (\_ d' -> allUsers d')
-    allUsers d' = AffectedUsers $ map (.id) $ IxSet.toList $ d' ^. #users
+        (\_ _ -> AudienceAll)

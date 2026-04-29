@@ -8,9 +8,10 @@ module Competences.Command.Tasks
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (EntityCommandContext (..), doLock, doRelease, mkEntityCommandContext)
-import Competences.Document (Document (..), Evidence (..), Lock (..), Task (..), User (..))
+import Competences.Document (Document (..), Evidence (..), Lock (..), Task (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Task
@@ -98,9 +99,9 @@ applyTaskPatch task patch =
       >=> patchField' @"displayInResources" patch
       >=> patchField' @"attachments" patch
 
--- | Get all users (tasks affect all users because evidences reference tasks)
-allUsers :: Document -> AffectedUsers
-allUsers d = AffectedUsers $ map (.id) $ IxSet.toList $ d.users
+-- | Tasks are general knowledge — every user sees them (evidences reference tasks).
+broadcastAudience :: Task -> Document -> CommandAudience
+broadcastAudience _ _ = AudienceAll
 
 -- | Validate that no evidences reference this task
 validateTaskNotReferencedInEvidences :: Document -> TaskId -> Either Text ()
@@ -115,28 +116,29 @@ validateTaskNotReferencedInEvidences doc taskId = do
 handleTasksCommand :: CommandContext -> TasksCommand -> Document -> UpdateResult
 handleTasksCommand cmdCtx cmd d = case cmd of
   OnTasks c -> case c of
-    Create task ->
-      (,taskContext.affectedUsers task d) <$> taskContext.create task d
+    Create task -> do
+      d' <- taskContext.create task d
+      pure (d', taskContext.affectedUsers task d')
     CreateAndLock task -> do
       d' <- taskContext.create task d
       d'' <- doLock cmdCtx (TaskLock task.id) d'
-      pure (d'', taskContext.affectedUsers task d)
+      pure (d'', taskContext.affectedUsers task d'')
     Delete taskId -> do
       validateTaskNotReferencedInEvidences d taskId
       (d', task') <- taskContext.delete taskId d
       pure (d', taskContext.affectedUsers task' d)
     Modify taskId modCmd -> case modCmd of
       Lock -> do
+        task <- taskContext.fetch taskId d
         d' <- doLock cmdCtx (TaskLock taskId) d
-        task <- taskContext.fetch taskId d'
-        pure (d', taskContext.affectedUsers task d)
+        pure (d', taskContext.affectedUsers task d <> taskContext.affectedUsers task d')
       Release patch -> do
+        taskOld <- taskContext.fetch taskId d
         d' <- doRelease cmdCtx (TaskLock taskId) d
-        taskCurrent <- taskContext.fetch taskId d'
-        taskModified <- applyTaskPatch taskCurrent patch
-        (d'', taskOld) <- taskContext.delete taskId d'
+        taskModified <- applyTaskPatch taskOld patch
+        (d'', _) <- taskContext.delete taskId d'
         d''' <- taskContext.create taskModified d''
-        pure (d''', taskContext.affectedUsers taskModified d <> taskContext.affectedUsers taskOld d)
+        pure (d''', taskContext.affectedUsers taskOld d <> taskContext.affectedUsers taskModified d''')
   where
     taskContext =
       mkEntityCommandContext
@@ -144,4 +146,4 @@ handleTasksCommand cmdCtx cmd d = case cmd of
         #id
         TaskLock
         applyTaskPatch
-        (\_ d' -> allUsers d')
+        broadcastAudience

@@ -7,9 +7,10 @@ module Competences.Command.Resources
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
 import Competences.Document.Resource (Resource (..), ResourceContent, ResourceIdentifier)
@@ -19,10 +20,8 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as IxSet
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
 
 -- | Patch for modifying a Resource
 data ResourcePatch = ResourcePatch
@@ -86,6 +85,5 @@ handleResourcesCommand cmdCtx (OnResources c) d =
         affectedUsersForResource
 
     -- All users can see resources
-    affectedUsersForResource :: Resource -> Document -> AffectedUsers
-    affectedUsersForResource _ d' =
-      AffectedUsers $ map (.id) $ IxSet.toList $ d' ^. #users
+    affectedUsersForResource :: Resource -> Document -> CommandAudience
+    affectedUsersForResource _ _ = AudienceAll

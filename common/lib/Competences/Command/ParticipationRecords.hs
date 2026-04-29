@@ -7,7 +7,8 @@ module Competences.Command.ParticipationRecords
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
@@ -15,7 +16,7 @@ import Competences.Command.Interpret
   , doLock
   )
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.ParticipationRecord (ParticipationRecord (..))
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -23,10 +24,8 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as IxSet
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (^.))
 
 -- | Patch for modifying a ParticipationRecord
 data ParticipationRecordPatch = ParticipationRecordPatch
@@ -70,14 +69,14 @@ handleParticipationRecordsCommand cmdCtx (OnParticipationRecords c) d = case c o
     unless (Ix.null existing) $
       Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
-    pure (d', ctx.affectedUsers pr d)
+    pure (d', ctx.affectedUsers pr d')
   CreateAndLock pr -> do
     let existing = d.participationRecords Ix.@= pr.lessonId Ix.@= pr.userId Ix.@= pr.participationType
     unless (Ix.null existing) $
       Left "A ParticipationRecord already exists for this Lesson, User, and ParticipationType"
     d' <- ctx.create pr d
     d'' <- doLock cmdCtx (ctx.lock (ctx.getId pr)) d'
-    pure (d'', ctx.affectedUsers pr d)
+    pure (d'', ctx.affectedUsers pr d'')
   _ -> interpretEntityCommand ctx cmdCtx c d
   where
     ctx =
@@ -86,8 +85,4 @@ handleParticipationRecordsCommand cmdCtx (OnParticipationRecords c) d = case c o
         #id
         ParticipationRecordLock
         applyParticipationRecordPatch
-        (\pr d' -> allTeachersAnd d' [pr.userId])
-    allTeachersAnd d' us =
-      AffectedUsers $
-        map (.id) $
-          IxSet.toList (d' ^. #users) & filter (\u -> u.id `elem` us || u.role == Teacher)
+        (\pr _ -> AudienceTeachersAnd [pr.userId])

@@ -1,8 +1,7 @@
 {-# LANGUAGE CPP #-}
 
 module Competences.Command.Common
-  ( AffectedUsers (..)
-  , UpdateResult
+  ( UpdateResult
   , Change
   , CommandContext (..)
   , ModifyCommand (..)
@@ -17,6 +16,7 @@ module Competences.Command.Common
   )
 where
 
+import Competences.Command.Audience (CommandAudience)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserRole (..))
 import Competences.Document.Id (Id (..))
@@ -38,11 +38,7 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Optics.Core (A_Lens, LabelOptic (labelOptic), Lens', (&), (.~), (^.))
 
-newtype AffectedUsers = AffectedUsers [UserId]
-  deriving (Eq, Show)
-  deriving newtype (Semigroup, Monoid)
-
-type UpdateResult = Either Text (Document, AffectedUsers)
+type UpdateResult = Either Text (Document, CommandAudience)
 
 -- | Context for command execution, carrying the authenticated user and session.
 data CommandContext = CommandContext

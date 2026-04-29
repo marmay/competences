@@ -7,12 +7,13 @@ module Competences.Command.CompetenceLevelExamples
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( interpretEntityCommand
   , mkGroupOrderedEntityCommandContext
   )
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.FileRef (FileRef)
@@ -24,10 +25,9 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (.~), (^.))
+import Optics.Core ((&), (.~))
 
 -- | Patch for modifying a CompetenceLevelExample
 data CompetenceLevelExamplePatch = CompetenceLevelExamplePatch
@@ -80,7 +80,7 @@ handleCompetenceLevelExamplesCommand cmdCtx cmd d = case cmd of
   ReorderCompetenceLevelExample p t -> do
     case reorder p t d.competenceLevelExamples competenceLevelIdOf of
       Left err -> Left $ explainReorderError err
-      Right c' -> Right (d & #competenceLevelExamples .~ c', allUsers d)
+      Right c' -> Right (d & #competenceLevelExamples .~ c', AudienceAll)
   where
     exampleContext =
       mkGroupOrderedEntityCommandContext
@@ -89,10 +89,7 @@ handleCompetenceLevelExamplesCommand cmdCtx cmd d = case cmd of
         CompetenceLevelExampleLock
         competenceLevelIdOf
         applyCompetenceLevelExamplePatch
-        (\_ d' -> allUsers d')
-
-    allUsers :: Document -> AffectedUsers
-    allUsers d' = AffectedUsers $ map (.id) $ Ix.toList $ d' ^. #users
+        (\_ _ -> AudienceAll)
 
 -- | Extract the CompetenceLevelId (group key) from a CompetenceLevelExample
 competenceLevelIdOf :: CompetenceLevelExample -> CompetenceLevelId

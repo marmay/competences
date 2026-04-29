@@ -36,7 +36,8 @@ import Competences.Command.DraftAssignments (DraftAssignmentsCommand (..), handl
 import Competences.Command.DraftTasks (DraftTasksCommand (..), handleDraftTasksCommand)
 import Competences.Command.Publish (PublishData (..), handlePublish)
 import Competences.Command.Resources (ResourcePatch (..), ResourcesCommand (..), handleResourcesCommand)
-import Competences.Command.Common (AffectedUsers (..), CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, requireTeacher)
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, requireTeacher)
 import Competences.Command.Solutions (SolutionPatch (..), SolutionsCommand (..), handleSolutionsCommand)
 import Competences.Command.Submissions (SubmissionPatch (..), SubmissionsCommand (..), handleSubmissionsCommand)
 import Competences.Command.CompetenceAssessments (CompetenceAssessmentPatch (..), CompetenceAssessmentsCommand (..), handleCompetenceAssessmentsCommand)
@@ -127,8 +128,7 @@ handleCommand :: CommandContext -> Command -> Document -> UpdateResult
 handleCommand cmdCtx cmd d = case cmd of
   SetDocument newDoc ->
     -- Replace entire document, all users affected
-    let allUserIds = map (.id) $ Ix.toList $ newDoc ^. #users
-     in Right (newDoc, AffectedUsers allUserIds)
+    Right (newDoc, AudienceAll)
   -- Teacher-only commands: require the acting user to be a teacher
   Competences c -> teacherOnly $ handleCompetencesCommand cmdCtx c d
   Users c -> teacherOnly $ handleUsersCommand cmdCtx c d
@@ -155,7 +155,8 @@ handleCommand cmdCtx cmd d = case cmd of
   Migration c -> handleMigrationCommand c d
   -- Lock cleanup: permissive and idempotent — server validates ownership/staleness
   -- before persisting. Safe during replay even if the lock was already released.
-  Unlock lock -> Right (d & #locks %~ Map.delete lock, mempty)
+  -- All clients need to learn the lock was removed (UI lock indicators clear).
+  Unlock lock -> Right (d & #locks %~ Map.delete lock, AudienceAll)
   where
     teacherOnly result = requireTeacher cmdCtx.userId d >> result
 
@@ -170,9 +171,9 @@ handleMigrationCommand (UpdateLessonAssignments updates) d =
             let lesson' = lesson & #assignments .~ aids
              in doc & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
       doc' = foldl' applyUpdate d updates
-   in Right (doc', allUsers doc')
+   in Right (doc', AudienceAll)
 handleMigrationCommand InitIfEmpty d
-  | Ix.null (d ^. #users) = Right (d, allUsers d)
+  | Ix.null (d ^. #users) = Right (d, AudienceAll)
   | otherwise = Left "Document is not empty"
 handleMigrationCommand (EnsureTeacherO365 newId email) d =
   let o365Id = Office365Id email
@@ -182,7 +183,7 @@ handleMigrationCommand (EnsureTeacherO365 newId email) d =
           | otherwise ->
               let user' = user & #role .~ Teacher
                   d' = d & #users %~ Ix.insert user' . Ix.deleteIx user.id
-               in Right (d', allUsers d')
+               in Right (d', AudienceAll)
         Nothing ->
           let user =
                 User
@@ -192,7 +193,7 @@ handleMigrationCommand (EnsureTeacherO365 newId email) d =
                   , office365Id = o365Id
                   }
               d' = d & #users %~ Ix.insert user
-           in Right (d', allUsers d')
+           in Right (d', AudienceAll)
 handleMigrationCommand SortAssignmentTasksByIdentifier d =
   let lookupIdentifier taskSet tid =
         case Ix.getOne (taskSet Ix.@= tid) of
@@ -204,6 +205,4 @@ handleMigrationCommand SortAssignmentTasksByIdentifier d =
         d
           & #assignments %~ Ix.fromList . map (sortTasks d.tasks) . Ix.toList
           & #draftAssignments %~ Ix.fromList . map (sortTasks d.draftTasks) . Ix.toList
-   in Right (d', allUsers d')
-allUsers :: Document -> AffectedUsers
-allUsers d = AffectedUsers $ map (.id) $ Ix.toList $ d ^. #users
+   in Right (d', AudienceAll)

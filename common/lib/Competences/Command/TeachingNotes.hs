@@ -12,16 +12,14 @@ module Competences.Command.TeachingNotes
   )
 where
 
+import Competences.Command.Audience (CommandAudience (..))
 import Competences.Command.Common
-  ( AffectedUsers (..)
-  , CommandContext (..)
+  ( CommandContext (..)
   , UpdateResult
   , requireTeacher
   )
-import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), User (..))
+import Competences.Document (Document (..))
 import Competences.Document.TeachingNote (TeachingNote (..), TeachingNoteId)
-import Competences.Document.User (UserRole (..))
 import Competences.TaskContent.RichContent (RichContent)
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -29,7 +27,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
-import Optics.Core ((%~), (&), (^.))
+import Optics.Core ((%~), (&))
 
 data TeachingNotesCommand
   = -- | Upsert: create the note if it doesn't exist, else replace its
@@ -53,11 +51,7 @@ handleTeachingNotesCommand cmdCtx cmd d = do
     SetTeachingNote nid content ->
       let note = TeachingNote {id = nid, content = content}
           d' = d & #teachingNotes %~ IxSet.insert note . IxSet.deleteIx nid
-       in pure (d', teacherAudience d')
+       in pure (d', AudienceTeachers)
     DeleteTeachingNote nid ->
       let d' = d & #teachingNotes %~ IxSet.deleteIx nid
-       in pure (d', teacherAudience d')
-
-teacherAudience :: Document -> AffectedUsers
-teacherAudience d =
-  AffectedUsers $ map (.id) $ filter ((== Teacher) . (.role)) $ Ix.toList (d ^. #users)
+       in pure (d', AudienceTeachers)

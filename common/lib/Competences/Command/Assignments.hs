@@ -8,9 +8,10 @@ module Competences.Command.Assignments
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (EntityCommandContext (..), interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.User (UserId)
 import Competences.Document.Assignment
   ( Assignment (..)
@@ -32,7 +33,6 @@ import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text, pack)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (^.))
 
 -- | Patch for modifying an Assignment
 data AssignmentPatch = AssignmentPatch
@@ -116,13 +116,6 @@ handleAssignmentsCommand cmdCtx (OnAssignments c) d = case c of
         applyAssignmentPatch
         affectedUsersForAssignment
 
-    -- Affected users: all teachers + assigned students
-    affectedUsersForAssignment :: Assignment -> Document -> AffectedUsers
-    affectedUsersForAssignment a doc =
-      AffectedUsers $
-        map (.id) $
-          IxSet.toList (doc ^. #users)
-            & filter
-              ( \u ->
-                  u.id `Set.member` a.studentIds || u.role == Teacher
-              )
+    -- Audience: all teachers + assigned students
+    affectedUsersForAssignment :: Assignment -> Document -> CommandAudience
+    affectedUsersForAssignment a _ = AudienceTeachersAnd (Set.toList a.studentIds)

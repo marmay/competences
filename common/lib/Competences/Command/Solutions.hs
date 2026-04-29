@@ -7,9 +7,10 @@ module Competences.Command.Solutions
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Solution (Solution (..), SolutionType)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
@@ -17,11 +18,9 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as IxSet
 import Competences.TaskContent.RichContent (RichContent)
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
 
 -- | Patch for modifying a Solution
 data SolutionPatch = SolutionPatch
@@ -79,6 +78,5 @@ handleSolutionsCommand cmdCtx (OnSolutions c) =
         affectedUsersForSolution
 
     -- All users can see solutions
-    affectedUsersForSolution :: Solution -> Document -> AffectedUsers
-    affectedUsersForSolution _ d =
-      AffectedUsers $ map (.id) $ IxSet.toList $ d ^. #users
+    affectedUsersForSolution :: Solution -> Document -> CommandAudience
+    affectedUsersForSolution _ _ = AudienceAll

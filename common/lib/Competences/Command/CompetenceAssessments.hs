@@ -7,9 +7,10 @@ module Competences.Command.CompetenceAssessments
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Assessment (CompetenceAssessment (..))
 import Competences.Document.User (UserId)
 import Competences.Document.Competence (CompetenceId, Level)
@@ -24,7 +25,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((%~), (&), (^.))
+import Optics.Core ((%~), (&))
 
 -- | Patch for modifying a CompetenceAssessment.
 -- Note: userId and competenceId are NOT patchable - they define the assessment subject.
@@ -107,7 +108,7 @@ handleCompetenceAssessmentsCommand cmdCtx (OnCompetenceAssessments c) d = case c
                   , comment = newAssessment.comment
                   }
               doc' = doc & #competenceAssessments %~ Ix.updateIx existing.id updated
-           in Right (doc', affectedUsers updated doc')
+           in Right (doc', affectedUsers existing doc <> affectedUsers updated doc')
         Nothing ->
           -- No existing assessment for this day, create new
           interpretEntityCommand assessmentContext cmdCtx (Create newAssessment) doc
@@ -120,10 +121,5 @@ handleCompetenceAssessmentsCommand cmdCtx (OnCompetenceAssessments c) d = case c
           Ix.toList (doc.competenceAssessments Ix.@= uid)
 
     -- Teachers see all assessments; students only see assessments about themselves
-    affectedUsers :: CompetenceAssessment -> Document -> AffectedUsers
-    affectedUsers assessment d' =
-      AffectedUsers $
-        map (.id) $
-          filter (\u -> u.role == Teacher || u.id == assessment.userId) $
-            Ix.toList $
-              d' ^. #users
+    affectedUsers :: CompetenceAssessment -> Document -> CommandAudience
+    affectedUsers assessment _ = AudienceTeachersAnd [assessment.userId]

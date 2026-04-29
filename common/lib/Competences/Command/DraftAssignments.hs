@@ -7,18 +7,16 @@ module Competences.Command.DraftAssignments
 where
 
 import Competences.Command.Assignments (AssignmentPatch (..), applyAssignmentPatch)
-import Competences.Command.Common (AffectedUsers (..), CommandContext (..), EntityCommand (..), UpdateResult)
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (CommandContext (..), EntityCommand (..), UpdateResult)
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Assignment (Assignment (..))
-import Competences.Document.User (UserRole (..))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
-import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
 
 -- | Commands for draft assignments (teacher-only, targeting draft collection)
 data DraftAssignmentsCommand
@@ -30,10 +28,6 @@ instance Binary DraftAssignmentsCommand
 instance FromJSON DraftAssignmentsCommand
 instance ToJSON DraftAssignmentsCommand
 #endif
-
--- | All teachers (draft entities only visible to teachers)
-allTeachers :: Document -> AffectedUsers
-allTeachers d = AffectedUsers $ map (.id) $ filter (\u -> u.role == Teacher) $ IxSet.toList $ d ^. #users
 
 -- | Handle a DraftAssignments context command
 handleDraftAssignmentsCommand :: CommandContext -> DraftAssignmentsCommand -> Document -> UpdateResult
@@ -47,4 +41,4 @@ handleDraftAssignmentsCommand cmdCtx (OnDraftAssignments c) d =
         #id
         AssignmentLock
         applyAssignmentPatch
-        (\_ d' -> allTeachers d')
+        (\_ _ -> AudienceTeachers)

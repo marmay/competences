@@ -7,11 +7,12 @@ module Competences.Command.Evidences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Common.IxSet qualified as Ix
 import Data.Default (Default (..))
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Lesson (LessonId)
 import Competences.Document.User (UserId)
@@ -34,12 +35,10 @@ import Data.Aeson.Types (Parser)
 import Data.Map.Strict qualified as Map
 #endif
 import Data.Binary (Binary)
-import Data.IxSet.Typed qualified as IxSet
 import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (^.))
 import Control.Monad ((>=>))
 
 -- | Patch for modifying an Evidence (only editable fields)
@@ -152,8 +151,4 @@ handleEvidencesCommand cmdCtx (OnEvidences c) = interpretEntityCommand evidenceC
         #id
         EvidenceLock
         applyEvidencePatch
-        (\e d' -> allTeachersAnd d' (maybeToList e.userId))
-    allTeachersAnd d' us =
-      AffectedUsers $
-        map (.id) $
-          IxSet.toList (d' ^. #users) & filter (\u -> u.id `elem` us || u.role == Teacher)
+        (\e _ -> AudienceTeachersAnd (maybeToList e.userId))

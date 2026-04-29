@@ -6,9 +6,10 @@ module Competences.Command.Publish
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), UpdateResult)
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (UpdateResult)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Task (..), User (..))
+import Competences.Document (Document (..), Task (..))
 import Competences.Document.Assignment (Assignment (..))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -16,7 +17,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
-import Optics.Core ((&), (%~), (^.))
+import Optics.Core ((&), (%~))
 
 -- | Data for publishing draft entities into the real collections.
 -- Contains full entity snapshots so students (who never received draft commands)
@@ -45,6 +46,4 @@ handlePublish pd doc =
           -- Delete drafts (Ix.deleteIx is no-op if not found — tolerant)
           & #draftTasks %~ (\s -> foldl' (\s' t -> IxSet.deleteIx t.id s') s pd.tasks)
           & #draftAssignments %~ maybe id (\a s -> IxSet.deleteIx a.id s) pd.assignment
-   in Right (doc', allUsers doc')
-  where
-    allUsers d = AffectedUsers $ map (.id) $ IxSet.toList $ d ^. #users
+   in Right (doc', AudienceAll)

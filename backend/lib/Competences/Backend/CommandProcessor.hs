@@ -22,7 +22,7 @@ where
 
 import Competences.Backend.Database qualified as DB
 import Competences.Command (AssignmentPatch (..), AssignmentsCommand (..), Command (..), CommandContext (..), EntityCommand (..), ModifyCommand (..), handleCommand)
-import Competences.Command.Audience (CommandAudience (..), commandAudience)
+import Competences.Command.Audience (CommandAudience (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), UserRole (..))
 import Competences.Document.Id (Id (..))
@@ -158,33 +158,30 @@ processorLoop inputQ docVar genVar pool clientsRef = go
       -- Read current clients (safe: processor is single-threaded)
       clients <- readIORef clientsRef
 
-      -- Determine audience and recipients
-      let audience = commandAudience cmd
-
-      -- Compute which clients should receive this command and their checkpoint flags.
-      -- We do this BEFORE the STM transaction so we know exactly what to push.
-      let clientActions = Map.mapMaybe
-            (\cs ->
-              if isVisibleTo cs.role cs.clientUserId audience
-                then
-                  let newCount = cs.commandCounter + 1
-                      isCheckpoint = newCount >= checksumInterval
-                  in Just (cs.queue, newCount, isCheckpoint, cs.clientUserId)
-                else Nothing
-            )
-            clients
-
-      -- Single STM transaction: apply command + push to all affected client queues.
-      -- SenderThreads read queue + docVar atomically → always consistent.
+      -- Apply the command, derive its audience from the result, then push to
+      -- the clients it actually affects. Audience derivation lives inside the
+      -- STM block because it depends on the document's pre/post state — the
+      -- old pre-STM derivation via a pure 'commandAudience' gave the wrong
+      -- answer for Modify/Delete on user-specific entities.
       result <- atomically $ do
         doc <- readTVar docVar
         case handleCommand cmdCtx cmd doc of
           Left err -> do
             putTMVar responseVar (Left err)
             pure Nothing
-          Right (doc', _affected) -> do
+          Right (doc', audience) -> do
             writeTVar docVar doc'
-            let cmdsFor = clientCommands doc cmd
+            let clientActions = Map.mapMaybe
+                  (\cs ->
+                    if isVisibleTo cs.role cs.clientUserId audience
+                      then
+                        let newCount = cs.commandCounter + 1
+                            isCheckpoint = newCount >= checksumInterval
+                        in Just (cs.queue, newCount, isCheckpoint, cs.clientUserId)
+                      else Nothing
+                  )
+                  clients
+                cmdsFor = clientCommands doc cmd
                 pushItem q ck c = writeTQueue q ClientQueueItem
                   { commandId = cmdId, context = cmdCtx, command = c, checkpoint = ck }
             -- Push per-client commands; checkpoint flag goes on the last item
@@ -198,12 +195,12 @@ processorLoop inputQ docVar genVar pool clientsRef = go
               )
               (Map.toList clientActions)
             putTMVar responseVar (Right cmdId)
-            pure (Just ())
+            pure (Just (clientActions, audience))
 
       -- Post-STM: update counters (single-threaded, no race)
       case result of
         Nothing -> pure ()
-        Just () -> do
+        Just (clientActions, audience) -> do
           -- Update command counters for clients that received the command
           let updateCounter connId cs = case Map.lookup connId clientActions of
                 Just (_, newCount, isCheckpoint, _) ->

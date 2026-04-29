@@ -7,7 +7,8 @@ module Competences.Command.MesoPlans
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
@@ -15,7 +16,7 @@ import Competences.Command.Interpret
   )
 import Competences.Command.Lessons (deleteLessonChildren)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lesson (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lesson (..), Lock (..))
 import Competences.Document.MesoPlan (MesoPlan (..), MesoPlanId)
 import Control.Monad (foldM, (>=>))
 #ifdef WITH_AESON
@@ -27,7 +28,7 @@ import Data.IxSet.Typed qualified as IxSet
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
-import Optics.Core ((&), (%~), (^.))
+import Optics.Core ((&), (%~))
 
 -- | Patch for modifying a MesoPlan
 data MesoPlanPatch = MesoPlanPatch
@@ -97,5 +98,4 @@ handleMesoPlansCommand cmdCtx cmd d = case cmd of
         #id
         MesoPlanLock
         applyMesoPlanPatch
-        (\_ d' -> allUsers d')
-    allUsers d' = AffectedUsers $ map (.id) $ IxSet.toList $ d' ^. #users
+        (\_ _ -> AudienceTeachers)

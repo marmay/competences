@@ -7,7 +7,8 @@ module Competences.Command.Users
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Data.Default (Default (..))
 import Competences.Document (Document (..), Lock (..))
@@ -16,10 +17,8 @@ import Competences.Document.User (Office365Id, User (..), UserRole)
 import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
-import Data.IxSet.Typed qualified as Ix
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Optics.Core ((^.))
 import Control.Monad ((>=>))
 
 -- | Patch for modifying a User (only editable fields)
@@ -72,5 +71,4 @@ handleUsersCommand cmdCtx (OnUsers c) = interpretEntityCommand userContext cmdCt
         #id
         UserLock
         applyUserPatch
-        (\_ d' -> allUsers d')
-    allUsers d' = AffectedUsers $ map (.id) $ Ix.toList $ d' ^. #users
+        (\_ _ -> AudienceAll)

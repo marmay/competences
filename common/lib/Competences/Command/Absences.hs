@@ -7,14 +7,15 @@ module Competences.Command.Absences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), CommandContext (..), EntityCommand (..), UpdateResult)
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (CommandContext (..), EntityCommand (..), UpdateResult)
 import Competences.Command.Interpret
   ( EntityCommandContext (..)
   , interpretEntityCommand
   , mkEntityCommandContext
   )
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Document (..), Lock (..), User (..), UserRole (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Absence (Absence (..))
 import Control.Monad (unless)
 #ifdef WITH_AESON
@@ -22,9 +23,8 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
-import Optics.Core ((&), (%~), (^.))
+import Optics.Core ((&), (%~))
 
 -- | Patch for modifying an Absence (no editable fields)
 data AbsencePatch = AbsencePatch
@@ -66,7 +66,7 @@ handleAbsencesCommand cmdCtx (OnAbsences c) d = case c of
     -- Clear participation records for this (lesson, user)
     let prsToDelete = d'.participationRecords Ix.@= a.lessonId Ix.@= a.userId
         d'' = d' & #participationRecords %~ \prs -> foldr Ix.delete prs (Ix.toList prsToDelete)
-    pure (d'', ctx.affectedUsers a d)
+    pure (d'', ctx.affectedUsers a d'')
   _ -> interpretEntityCommand ctx cmdCtx c d
   where
     ctx =
@@ -75,8 +75,4 @@ handleAbsencesCommand cmdCtx (OnAbsences c) d = case c of
         #id
         AbsenceLock
         applyAbsencePatch
-        (\a d' -> allTeachersAnd d' [a.userId])
-    allTeachersAnd d' us =
-      AffectedUsers $
-        map (.id) $
-          IxSet.toList (d' ^. #users) & filter (\u -> u.id `elem` us || u.role == Teacher)
+        (\a _ -> AudienceTeachersAnd [a.userId])

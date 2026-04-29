@@ -7,12 +7,12 @@ module Competences.Command.Layouts
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Layout (Layout (..))
 import Competences.Document.Layout.Settings (ContentPreset, ContentSettings, PrintSettings)
-import Competences.Document.User (UserRole (..))
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
 import Data.Aeson (FromJSON, ToJSON)
@@ -20,7 +20,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.Default (Default (..))
 import Data.Text (Text)
-import Data.IxSet.Typed qualified as IxSet
 import GHC.Generics (Generic)
 
 -- | Patch for modifying a Layout
@@ -80,7 +79,6 @@ handleLayoutsCommand cmdCtx (OnLayouts c) =
         applyLayoutPatch
         affectedUsersForLayout
 
-    -- Only teachers see layouts, so affect all teachers
-    affectedUsersForLayout :: Layout -> Document -> AffectedUsers
-    affectedUsersForLayout _ d =
-      AffectedUsers $ map (.id) $ filter (\u -> u.role == Teacher) $ IxSet.toList d.users
+    -- Only teachers see layouts
+    affectedUsersForLayout :: Layout -> Document -> CommandAudience
+    affectedUsersForLayout _ _ = AudienceTeachers

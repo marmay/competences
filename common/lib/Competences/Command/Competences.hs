@@ -9,13 +9,14 @@ module Competences.Command.Competences
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret
   ( interpretEntityCommand
   , mkGroupOrderedEntityCommandContext
   , mkOrderedEntityCommandContext
   )
-import Competences.Document (Document (..), Lock (..), User (..))
+import Competences.Document (Document (..), Lock (..))
 import Competences.Document.Competence (Competence (..), Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
 import Competences.Document.Order (OrderPosition, Reorder, explainReorderError, reorder)
@@ -24,7 +25,6 @@ import Data.Aeson (FromJSON, ToJSON)
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
-import Data.IxSet.Typed qualified as Ix
 import Control.Monad (foldM, when, (>=>))
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -156,7 +156,7 @@ handleCompetencesCommand cmdCtx cmd d = case cmd of
   ReorderCompetence p t -> do
     case reorder p t d.competences (.competenceGridId) of
       Left err -> Left $ explainReorderError err
-      Right c' -> Right (d & (#competences .~ c'), allUsers d)
+      Right c' -> Right (d & (#competences .~ c'), AudienceAll)
   where
     competenceGridContext =
       mkOrderedEntityCommandContext
@@ -164,7 +164,7 @@ handleCompetencesCommand cmdCtx cmd d = case cmd of
         #id
         CompetenceGridLock
         applyCompetenceGridPatch
-        (\_ d' -> allUsers d')
+        (\_ _ -> AudienceAll)
     competenceContext =
       mkGroupOrderedEntityCommandContext
         #competences
@@ -172,5 +172,4 @@ handleCompetencesCommand cmdCtx cmd d = case cmd of
         CompetenceLock
         (^. #competenceGridId)
         applyCompetencePatch
-        (\_ d' -> allUsers d')
-    allUsers d' = AffectedUsers $ map (.id) $ Ix.toList $ d' ^. #users
+        (\_ _ -> AudienceAll)

@@ -7,7 +7,8 @@ module Competences.Command.Submissions
   )
 where
 
-import Competences.Command.Common (AffectedUsers (..), Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, patchField')
+import Competences.Command.Audience (CommandAudience (..))
+import Competences.Command.Common (Change, CommandContext (..), EntityCommand (..), ModifyCommand (..), UpdateResult, patchField')
 import Competences.Command.Interpret (doLock, doRelease)
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), Lock (..), User (..), UserRole (..), Assignment (..))
@@ -126,7 +127,7 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       unless (Ix.null $ d.submissions Ix.@= s.id) $
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
-      Right (d', affectedUsersFor s d)
+      Right (d', affectedUsersFor s d')
 
     CreateAndLock s -> do
       unless (isOwner cmdCtx.userId s) $
@@ -140,7 +141,7 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
         Left "Submission: entity with that id already exists."
       let d' = d & #submissions %~ Ix.insert s
       d'' <- doLock cmdCtx (SubmissionLock s.id) d'
-      Right (d'', affectedUsersFor s d)
+      Right (d'', affectedUsersFor s d'')
 
     Delete submissionId -> do
       s <- fetchSubmission submissionId d
@@ -154,7 +155,7 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       unless (isOwner cmdCtx.userId s) $
         Left "Submission: can only modify your own submission"
       d' <- doLock cmdCtx (SubmissionLock submissionId) d
-      Right (d', affectedUsersFor s d)
+      Right (d', affectedUsersFor s d <> affectedUsersFor s d')
 
     Modify submissionId (Release patch) -> do
       s <- fetchSubmission submissionId d
@@ -164,7 +165,10 @@ handleSubmissionsCommand cmdCtx (OnSubmissions cmd) d = do
       s' <- applySubmissionPatch s patch
       validateKind s'.kind
       let d'' = d' & #submissions %~ Ix.insert s' . Ix.deleteIx submissionId
-      Right (d'', affectedUsersFor s d <> affectedUsersFor s' d)
+      -- Symmetric union: pre-state owners (s in d) plus post-state owners
+      -- (s' in d''). Required when ownership shifts so the previous owner set
+      -- still receives the update.
+      Right (d'', affectedUsersFor s d <> affectedUsersFor s' d'')
 
 -- | Fetch a submission by ID, or fail
 fetchSubmission :: SubmissionId -> Document -> Either Text Submission
@@ -173,11 +177,6 @@ fetchSubmission submissionId d =
     Nothing -> Left "Submission: not found"
     Just s -> Right s
 
--- | Affected users: all teachers + all owners of the submission
-affectedUsersFor :: Submission -> Document -> AffectedUsers
-affectedUsersFor s d =
-  let owners = Set.fromList (ownerIds s.ownership)
-   in AffectedUsers $
-        map (.id) $
-          filter (\u -> u.role == Teacher || Set.member u.id owners) $
-            Ix.toList d.users
+-- | Audience: all teachers + the submission's owners.
+affectedUsersFor :: Submission -> Document -> CommandAudience
+affectedUsersFor s _ = AudienceTeachersAnd (ownerIds s.ownership)
