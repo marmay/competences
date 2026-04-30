@@ -241,6 +241,7 @@ data Label
   | LblUploading
     -- Import
   | LblCreate
+  | LblImport
   | LblImportCompetenceGrids
   | LblImportTasks
   | LblImportAssignments
@@ -666,6 +667,7 @@ labels' =
   , LblUploading
     -- Import
   , LblCreate
+  , LblImport
   , LblImportCompetenceGrids
   , LblImportTasks
   , LblImportAssignments
@@ -1121,6 +1123,7 @@ defaultTranslation LblFileUploadFailed = "Upload fehlgeschlagen"
 defaultTranslation LblUploading = "Wird hochgeladen..."
 -- Import
 defaultTranslation LblCreate = "Erstellen"
+defaultTranslation LblImport = "Importieren"
 defaultTranslation LblImportCompetenceGrids = "Kompetenzraster importieren"
 defaultTranslation LblImportTasks = "Aufgaben importieren"
 defaultTranslation LblImportAssignments = "Aufgaben importieren"

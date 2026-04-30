@@ -56,6 +56,7 @@ module Competences.Frontend.SyncContext.WindowManager
 
     -- * Window mode (opaque)
   , WindowMode -- no (..)
+  , inlineMode
   , isModal
   , isPinned
   , isPinnedOrModal

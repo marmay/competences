@@ -13,6 +13,7 @@
 module Competences.Frontend.Component.ImportModal
   ( importModalComponent
   , openImportModal
+  , Model
   , Action
   )
 where

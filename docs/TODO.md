@@ -1,15 +1,5 @@
 # TODO
 
-## Immediate follow-ups
-
-- [ ] **Universal "Import" entry in the main menu** — After the
-  selector refactor, the per-selector "Import resources" dropdown
-  entry was dropped (the resource selector's create dropdown is now
-  strictly for entity creation; import is a cross-cutting concern).
-  Surface a single entry in the main menu/nav that opens
-  `ImportModal.openImportModal`, replacing the per-selector entry.
-
-
 ## Frontend
 
 - [ ] **Migrate PrintEngine modal to WindowManager** — `PrintEngine/Modal.hs` calls `modalFrame` directly, bypassing the window manager stack. `ViewerDetail.hs` manages the modal state/lifecycle manually via `Maybe PrintModalModel`. To migrate: extract into a proper `M.Component` and open via `openFramedModal`. Non-trivial due to tight coupling with ViewerDetail (shared task rendering, measurement container, post-print actions).

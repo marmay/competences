@@ -108,6 +108,7 @@ teacherExtraCategories =
       , NavEntry Icon.IcnSocialFormIndividual (C.translate' C.LblParticipationTimeline) ParticipationTimeline
       ])
   , ("Benutzer", [NavEntry Icon.IcnView (C.translate' C.LblManageUsers) ManageUsers])
+  , ("Werkzeuge", [NavEntry Icon.IcnImport (C.translate' C.LblImport) Import])
   ]
 
 -- | Check if a page belongs to a category (main page or any sub-entry).

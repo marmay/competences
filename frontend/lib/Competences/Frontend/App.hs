@@ -15,6 +15,7 @@ import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Page.Assignments (assignmentsPage)
 import Competences.Frontend.Page.CompetenceGrid (competenceGridPage)
 import Competences.Frontend.Page.Evidences (evidencesPage)
+import Competences.Frontend.Page.Import (importPage)
 import Competences.Frontend.Page.LessonRecords (lessonRecordsPage)
 import Competences.Frontend.Page.Participation (participationPage)
 import Competences.Frontend.Page.Planning (planningPage)
@@ -135,6 +136,7 @@ mkApp ir initialUri =
         StatisticsOverview -> statisticsOverview
         ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
+        Import -> importView
 
     competenceGrid mGridId = mounted (CompetenceGrid mGridId) $ competenceGridPage ir mGridId
     planning mPlanId = mounted (Planning mPlanId) $ planningPage ir mPlanId
@@ -146,6 +148,7 @@ mkApp ir initialUri =
     statisticsOverview = mounted StatisticsOverview $ statisticsPage ir
     participationTimeline = mounted ParticipationTimeline $ participationPage ir
     manageUsers = mounted ManageUsers $ usersPage ir
+    importView = mounted Import $ importPage ir
 
     mounted key = inlineComponentAttrs (M.ms (pageKey key)) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
 
@@ -161,6 +164,7 @@ mkApp ir initialUri =
     pageKey ManageTasks{} = "manage-tasks"
     pageKey ManageResources{} = "manage-resources"
     pageKey LessonRecords{} = "lesson-records"
+    pageKey Import = "import"
     pageKey ManageAssignments{} = "manage-assignments"
     pageKey StatisticsOverview = "statistics-overview"
     pageKey ParticipationTimeline = "participation-timeline"

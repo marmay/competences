@@ -109,6 +109,7 @@ library
         Competences.Frontend.Component.FileUpload,
         Competences.Frontend.Component.Submission,
         Competences.Frontend.Component.SubmissionPreview,
+        Competences.Frontend.Page.Import,
         Competences.Frontend.Page.LessonRecords,
         Competences.Frontend.Page.Resources,
         Competences.Frontend.Component.SelectorDetail,

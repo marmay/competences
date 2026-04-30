@@ -27,6 +27,7 @@ data Page
   | StatisticsOverview
   | ParticipationTimeline
   | ManageUsers
+  | Import
   deriving (Eq, Show)
 
 instance M.Router Page where
@@ -43,6 +44,7 @@ instance M.Router Page where
         , M.path "statistics-overview" $> StatisticsOverview
         , M.path "participation-timeline" $> ParticipationTimeline
         , M.path "users" $> ManageUsers
+        , M.path "import" $> Import
         ]
   fromRoute (CompetenceGrid Nothing) = [M.toPath "app", M.toPath "grid"]
   fromRoute (CompetenceGrid (Just gid)) = [M.toPath "app", M.toPath "grid", M.toCapture gid]
@@ -61,6 +63,7 @@ instance M.Router Page where
   fromRoute StatisticsOverview = [M.toPath "app", M.toPath "statistics-overview"]
   fromRoute ParticipationTimeline = [M.toPath "app", M.toPath "participation-timeline"]
   fromRoute ManageUsers = [M.toPath "app", M.toPath "users"]
+  fromRoute Import = [M.toPath "app", M.toPath "import"]
 
 instance M.ToKey Page where
   toKey = M.toKey . show
