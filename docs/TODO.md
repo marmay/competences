@@ -1,5 +1,20 @@
 # TODO
 
+## Roadmap
+
+- **1.6.0 — Toolchain refresh**
+  - [ ] Upgrade to upstream `haskell-miso` 1.9.0 and verify which fork
+    fixes are still needed.
+  - [ ] Build the WASM binary via haskell.nix (it now supports this)
+    instead of the current shell-script flow.
+- **1.7.x — Student-driven assignments**: improvements to handing in
+  assignments, plus handing in tasks without an assignment.
+- **1.8.x — TODO tracking**: capture todos from class and from
+  corrections (see existing TODO entity entry below).
+- **1.9.x — Q&A**: students raise questions, teachers answer.
+- **Consolidation phase** (post-1.9): clean up and streamline the
+  application.
+
 ## Frontend
 
 - [ ] **Migrate PrintEngine modal to WindowManager** — `PrintEngine/Modal.hs` calls `modalFrame` directly, bypassing the window manager stack. `ViewerDetail.hs` manages the modal state/lifecycle manually via `Maybe PrintModalModel`. To migrate: extract into a proper `M.Component` and open via `openFramedModal`. Non-trivial due to tight coupling with ViewerDetail (shared task rendering, measurement container, post-print actions).
