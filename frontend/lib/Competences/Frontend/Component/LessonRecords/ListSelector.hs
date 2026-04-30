@@ -93,8 +93,8 @@ config mDeepLink parentLens =
     , itemView = ItemRenderer renderItem
     , createActions = []
     , uriBinding =
-        Just $ pageBinding (LessonRecords . Just) $ \case
-          LessonRecords (Just lid) -> Just lid
+        Just $ pageBinding LessonRecords $ \case
+          LessonRecords mLid -> Just mLid
           _ -> Nothing
     , initialPick = Just $ \xs ->
         case mDeepLink of

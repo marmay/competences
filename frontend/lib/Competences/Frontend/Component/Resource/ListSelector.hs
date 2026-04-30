@@ -72,8 +72,8 @@ config parentLens mResourceId =
         , mkCreate Icon.IcnExport C.LblFile (FileContent (FileRef (SHA256Hash "") "" "" 0))
         ]
     , uriBinding =
-        Just $ pageBinding (ManageResources . Just) $ \case
-          ManageResources (Just rid) -> Just rid
+        Just $ pageBinding ManageResources $ \case
+          ManageResources mRid -> Just mRid
           _ -> Nothing
     , initialPick = Just $ \xs ->
         case mResourceId of

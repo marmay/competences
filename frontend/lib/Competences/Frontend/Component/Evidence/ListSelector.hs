@@ -78,8 +78,8 @@ config mDeepLink parentLens =
     , itemView = ItemRenderer renderItem
     , createActions = []
     , uriBinding =
-        Just $ pageBinding (Evidences . Just) $ \case
-          Evidences (Just eid) -> Just eid
+        Just $ pageBinding Evidences $ \case
+          Evidences mEid -> Just mEid
           _ -> Nothing
     , initialPick = case mDeepLink of
         Just eid -> Just (\xs -> Ix.getOne (xs Ix.@= eid))

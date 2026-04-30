@@ -301,8 +301,8 @@ config r initialPickFn parentLens =
             ]
           else []
     , uriBinding =
-        Just $ pageBinding (ManageAssignments . Just) $ \case
-          ManageAssignments (Just aid) -> Just aid
+        Just $ pageBinding ManageAssignments $ \case
+          ManageAssignments mAid -> Just mAid
           _ -> Nothing
     , initialPick = initialPickFn
     , filter = assignmentFilter r

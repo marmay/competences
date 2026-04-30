@@ -82,8 +82,8 @@ config initialPickFn parentLens =
             }
         ]
     , uriBinding =
-        Just $ pageBinding (Planning . Just) $ \case
-          Planning (Just pid) -> Just pid
+        Just $ pageBinding Planning $ \case
+          Planning mPid -> Just mPid
           _ -> Nothing
     , initialPick = initialPickFn
     , filter = searchOnlyFilter (C.translate' C.LblFilterMesoPlans) (.title)

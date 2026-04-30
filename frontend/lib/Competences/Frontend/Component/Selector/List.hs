@@ -193,12 +193,25 @@ listSelectorComponent r cfg =
     update (UriArrived uri) = do
       m <- M.get
       case cfg.uriBinding of
-        Just b
-          | Just newId <- b.extract uri
-          , (cfg.idOf <$> m.selected) /= Just newId
-          , Just sel <- lookupOne (cfg.entitiesOf m.projection) newId ->
-              M.modify $ \mm -> mm & (#selected ?~ sel)
-        _ -> pure ()
+        Just b -> case b.extract uri of
+          -- URI is our route, with a specific id: select it (if it
+          -- resolves and differs from the current selection).
+          Just (Just newId)
+            | (cfg.idOf <$> m.selected) /= Just newId
+            , Just sel <- lookupOne (cfg.entitiesOf m.projection) newId ->
+                M.modify $ \mm -> mm & (#selected ?~ sel)
+            | otherwise -> pure ()
+          -- URI is our base route (no id): restore the default pick
+          -- so e.g. browser-back from /app/grid/<id> to /app/grid
+          -- doesn't leave the previous selection stuck.
+          Just Nothing
+            | Just f <- cfg.initialPick ->
+                M.modify $ \mm ->
+                  mm & #selected .~ f (cfg.entitiesOf mm.projection)
+            | otherwise -> pure ()
+          -- URI is for a different page: ignore.
+          Nothing -> pure ()
+        Nothing -> pure ()
 
     update (FilterAct fa) =
       M.modify $ \m -> m{filterState = cfg.filter.update fa m.filterState}

@@ -106,8 +106,8 @@ config style initialPickFn parentLens =
               }
           ]
     , uriBinding =
-        Just $ pageBinding (Page.CompetenceGrid . Just) $ \case
-          Page.CompetenceGrid (Just gid) -> Just gid
+        Just $ pageBinding Page.CompetenceGrid $ \case
+          Page.CompetenceGrid mGid -> Just mGid
           _ -> Nothing
     , initialPick = initialPickFn
     , filter = noopFilter

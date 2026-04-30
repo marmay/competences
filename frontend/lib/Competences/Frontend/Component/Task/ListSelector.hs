@@ -102,8 +102,8 @@ config parentLens mTaskId =
             }
         ]
     , uriBinding =
-        Just $ pageBinding (ManageTasks . Just) $ \case
-          ManageTasks (Just tid) -> Just tid
+        Just $ pageBinding ManageTasks $ \case
+          ManageTasks mTid -> Just mTid
           _ -> Nothing
     , initialPick = Just $ \xs ->
         case mTaskId of
