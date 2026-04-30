@@ -10,6 +10,7 @@ import Competences.Document.User (isStudent, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.AboutDialog (aboutButtonView)
 import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
+import Competences.Frontend.Component.SidebarAddButton (sidebarAddButton)
 import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Page.Assignments (assignmentsPage)
 import Competences.Frontend.Page.CompetenceGrid (CompetenceGridMode (..), competenceGridPage)
@@ -119,7 +120,7 @@ mkApp ir initialUri =
                           (page (m ^. #uri))
                        ]
                 )
-            , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowEventSinkInstaller ir.onPinClosedRef)]
+            , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowEventSinkInstaller ir.onPinClosedRef (sidebarAddButton ir))]
             ]
 
     page uri = case M.route uri of

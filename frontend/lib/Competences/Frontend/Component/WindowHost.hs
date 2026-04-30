@@ -53,8 +53,16 @@ data Action
 -- | The WindowHost component owns all window state directly.
 -- The installer is invoked on mount to register the real handler with the
 -- 'WindowEventSink'; any events emitted before mount are flushed in order.
-windowHostComponent :: WindowEventSinkInstaller -> IORef (PinId -> IO ()) -> M.Component p Model Action
-windowHostComponent installer onPinClosedRef =
+--
+-- @sidebarTail@ is appended to the right-edge sidebar after the pin
+-- entries and pinned at the bottom (via @mt-auto@). It only renders
+-- when the sidebar itself is visible (i.e., at least one pin is open).
+windowHostComponent
+  :: WindowEventSinkInstaller
+  -> IORef (PinId -> IO ())
+  -> M.View Model Action
+  -> M.Component p Model Action
+windowHostComponent installer onPinClosedRef sidebarTail =
   (M.component model update view)
     { M.subs = [fillSinkSub installer]
     }
@@ -136,7 +144,7 @@ windowHostComponent installer onPinClosedRef =
         []
         [ renderPinBackdrop m
         , renderPinnedDialogs m
-        , renderSidebar m
+        , renderSidebar sidebarTail m
         , renderModal m
         ]
 
@@ -251,15 +259,17 @@ renderPinnedDialogs m =
 -- | Render the sidebar icon strip on the right edge.
 -- Only shown when there are pinned dialogs.
 -- Sorted by (category, sortKey) for deterministic ordering.
-renderSidebar :: Model -> M.View Model Action
-renderSidebar m
+renderSidebar :: M.View Model Action -> Model -> M.View Model Action
+renderSidebar sidebarTail m
   | null m.pinOrder = M.text ""
   | otherwise =
       MH.div_
         [ class_
             "relative z-40 w-16 h-screen flex-shrink-0 flex flex-col items-center gap-2 py-16 bg-muted/80 border-l border-border"
         ]
-        (map renderSidebarEntry (sortedPins m))
+        ( map renderSidebarEntry (sortedPins m)
+            <> [MH.div_ [class_ "mt-auto"] [sidebarTail]]
+        )
   where
     renderSidebarEntry (pid, AnyPinnedDialog _ chrome meta, visibility) =
       let isActive = visibility == PinVisible
