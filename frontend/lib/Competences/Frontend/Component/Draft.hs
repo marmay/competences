@@ -16,7 +16,7 @@ import Competences.Command
 
 -- | Whether an entity comes from the published or draft collection
 data EntityOrigin = Published | Draft
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 isDraft :: EntityOrigin -> Bool
 isDraft Draft = True

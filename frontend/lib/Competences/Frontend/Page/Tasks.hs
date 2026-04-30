@@ -6,33 +6,24 @@ where
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Assignment (..), Document (..), Task (..), User)
 import Competences.Document.Assignment (AssignmentName (..))
-import Competences.Document.Task (TaskId, TaskIxs)
+import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Selector.TaskSelector
-  ( SelectedTask (..)
-  , TaskSelectorConfig (..)
-  , defaultTaskSelectorConfig
-  , taskSelectorComponent
-  )
+import Competences.Frontend.Common.WithOrigin (WithOrigin (..))
+import Competences.Frontend.Component.Draft (EntityOrigin)
+import Competences.Frontend.Component.Task.Selector (taskSelectorComponent)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
-import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Query.DefaultSelection qualified as QDefault
-import Data.Set (Set)
-import Data.Set qualified as Set
 import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
-import Miso.Router qualified as M
 import Miso.String (ms)
 
 -- | Model for the unified task editor
 data Model = Model
-  { selected :: !(Maybe SelectedTask)
+  { selected :: !(Maybe (WithOrigin Task))
   , sidebarOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -57,41 +48,17 @@ tasksPage r mTaskId =
 
     update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
-    selectorConfig =
-      defaultTaskSelectorConfig
-        { initialSelection = Just $ \tasks draftIds ->
-            case mTaskId of
-              Just tid -> case Ix.getOne (tasks Ix.@= tid) of
-                Just t -> Just (mkSelected t draftIds)
-                Nothing -> smartDefault tasks draftIds
-              Nothing -> smartDefault tasks draftIds
-        , uriExtractor = Just $ \uri -> case M.route uri of
-            Right (ManageTasks (Just tid)) -> Just tid
-            _ -> Nothing
-        , onSelect = Just (\st -> M.pushURI (M.toURI (ManageTasks (Just st.task.id))))
-        }
-
-    smartDefault :: Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask
-    smartDefault tasks draftIds =
-      mkSelected <$> QDefault.defaultTask tasks <*> pure draftIds
-
-    mkSelected :: Task -> Set TaskId -> SelectedTask
-    mkSelected t draftIds =
-      SelectedTask
-        (if Set.member t.id draftIds then Draft else Published)
-        t
-
     view' m =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r selectorConfig #selected)
+        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r mTaskId #selected)
         (detailView m.selected)
 
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-    detailView (Just st) =
-      taskDetailView r st.origin st.task
+    detailView (Just w) =
+      taskDetailView r w.origin w.value
 
 -- ---------------------------------------------------------------------------
 -- Task detail view: assignment-refs banner + standard task component
