@@ -35,7 +35,7 @@ import Competences.Document
   , User
   )
 import Competences.Document.ActivityType (ActivityType (..))
-import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
+import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (idToText)
 import Competences.Document.Lesson
   ( ActionForm (..)
@@ -54,7 +54,6 @@ import Competences.Frontend.Component.Assignment.Detailed
   , viewerComponent
   )
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.Resource.Detailed
   ( ResourceDetailedConfig (..)
   , defaultResourceDetailedSettings
@@ -67,10 +66,8 @@ import Competences.Frontend.Component.Task.Detailed
   , defaultTaskDetailedSettings
   , taskDetailedComponent
   )
-import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
-  ( PinViewerRequest (..)
-  , ProjectedChange (..)
+  ( ProjectedChange (..)
   , SyncContext (..)
   , SyncDocumentEnv (..)
   , subscribeWithProjection
@@ -318,7 +315,7 @@ teacherBody
   -> [(AssignmentId, Assignment)]
   -> [M.View Model Action]
 teacherBody r m lsn findAssignment visibleItems homeExIds homeExerciseRows =
-  let renderAssignment = expandableAssignmentRow r m
+  let renderAssignment = assignmentRow r m
       phasesWithNotes = zip lsn.phases (m.projection.phaseNoteContents <> repeat Nothing)
       renderPhaseSection (phase, phaseNote) seenBefore =
         let phaseItems = visibleItems phase.items
@@ -350,8 +347,8 @@ studentBody
   -> Set.Set LessonItemContent
   -> [(AssignmentId, Assignment)]
   -> [M.View Model Action]
-studentBody r _m _lsn findAssignment allVisibleItems homeExIds homeExerciseRows =
-  let renderAssignment = assignmentRow r
+studentBody r m _lsn findAssignment allVisibleItems homeExIds homeExerciseRows =
+  let renderAssignment = assignmentRow r m
       flatRendered =
         renderPhaseItems r renderAssignment findAssignment allVisibleItems homeExIds Set.empty
    in concat
@@ -547,37 +544,16 @@ unpublishedWrapper card =
     , card
     ]
 
--- | Compact assignment row — used in student mode (home-exercise list
--- and inline non-home-exercise case). Read-only menu (pin + go-to).
-assignmentRow :: SyncContext -> Assignment -> M.View Model Action
-assignmentRow r a =
-  let AssignmentName nameText = a.name
-   in MH.div_
-        [class_ "flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-muted/50"]
-        [ Icon.icon [class_ "text-muted-foreground shrink-0"] Icon.IcnAssignment
-        , MH.span_ [class_ "flex-1 truncate font-medium"] [M.text (ms nameText)]
-        , MH.span_
-            [class_ "text-xs text-muted-foreground shrink-0"]
-            [M.text (C.formatDay a.assignmentDate)]
-        , inlineComponent ("lesson-record-asn-menu-" <> ms (show a.id))
-            ( EM.entityMenuComponent r EM.EntityMenuConfig
-                { edit = Nothing
-                , pin = Just (PinAssignmentViewer a)
-                , goTo = Just (ManageAssignments (Just a.id))
-                , delete = Nothing
-                , extraEntries = []
-                }
-            )
-        ]
-
--- | Teacher-mode assignment row: mounts the assignment viewer in
--- 'Embedded' render style. Expansion state is bound bidirectionally
--- to the lesson's 'expandedAssignments' set, with the initial value
--- read from the same slot at construction time so a freshly mounted
--- child renders the saved state immediately. Lets a pinned lesson
--- restore the same open assignments after close/reopen.
-expandableAssignmentRow :: SyncContext -> Model -> Assignment -> M.View Model Action
-expandableAssignmentRow r m a =
+-- | Mounts the assignment viewer inline in 'Embedded' render style for
+-- both students and teachers. The viewer's action cluster branches by
+-- role (students see the submission-status button + pin; teachers see
+-- the status icon + pin + print + entity menu). Expansion state is
+-- bound bidirectionally to the lesson's 'expandedAssignments' set,
+-- seeded from the same slot at construction time so a freshly mounted
+-- child renders the saved state immediately — a pinned lesson
+-- restores the same open assignments after close/reopen.
+assignmentRow :: SyncContext -> Model -> Assignment -> M.View Model Action
+assignmentRow r m a =
   inlineComponentWith
     ("assignment-viewer-" <> ms (show a.id))
     (\wm ->
