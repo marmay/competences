@@ -110,7 +110,7 @@ import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Exchange.Build (assignmentExchange)
 import Data.Text qualified as T
-import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, pinDialogWith)
 import Competences.Frontend.View.HoldButton qualified as HoldButton
 import Competences.Frontend.View.HoverMenu qualified as HoverMenu
 import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
@@ -125,7 +125,6 @@ import Competences.Frontend.View.Color.Completion (CompletionStatus (..))
 import Competences.Frontend.View.StatusIcon (completionIcon)
 import Competences.Frontend.View.Button qualified as Button
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Document.Competence (CompetenceLevelId)
 import Competences.Document.User (UserRole (..))
@@ -374,7 +373,7 @@ data ViewerAction
 -- @style@ controls layout: 'Standalone' shows the full header,
 -- 'Embedded' wraps everything in a self-contained disclosure.
 viewerComponent :: SyncContext -> User -> Assignment -> RenderStyle -> WindowMode -> M.Component p ViewerModel ViewerAction
-viewerComponent r user assignment renderStyle wm =
+viewerComponent r user assignment renderStyle _wm =
   (M.component model update view')
     { M.subs = [subscribeWithProjection r (viewerProjection assignment user.id user.role) ProjectionChanged]
     }
@@ -820,7 +819,6 @@ viewerComponent r user assignment renderStyle wm =
             (if proj.connectedUserRole == Student
               then [viewSubmissionStatusButton proj.submissionSummary]
               else [statusIcon proj.status])
-            <> [ pinButton PinThis | not (isPinned wm) ]
             <> [ viewPagePrintButton m proj | proj.connectedUserRole == Teacher ]
             <> [ inlineComponent ("entity-menu-" <> ms (show proj.currentAssignment.id))
                   (EM.entityMenuComponent r EM.EntityMenuConfig
