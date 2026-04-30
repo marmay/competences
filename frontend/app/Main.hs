@@ -33,72 +33,70 @@ import Data.Text qualified as T
 import Data.UUID.Types qualified as UUID
 import Miso qualified as M
 import Miso.DSL (jsg, fromJSVal, (!), (#), setField)
-import Miso.Run (run)
 import System.Random (randomIO)
 
 main :: IO ()
 main = do
   logDebug "App loaded."
-  run $ do
-    -- Get JWT token from window.COMPETENCES_JWT
-    maybeToken <- getJWTToken
-    case maybeToken of
-      Nothing -> do
-        logError "No JWT token found in window.COMPETENCES_JWT"
-        -- Fallback: use test user with disconnected CommandSender
-        let user = User nilId "Test User" Teacher (Office365Id "")
-        sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
-        env <- mkSyncDocumentEnv user legacySessionId sender False
-        ref <- mkSyncDocument env
-        _ <- initLockWatching ref
-        setSyncDocument ref emptyDocument
-        modifySyncDocument ref $ Users $ OnUsers $ Create user
-        uri <- M.getURI
-        runApp $ mkApp ref uri
+  -- Get JWT token from window.COMPETENCES_JWT
+  maybeToken <- getJWTToken
+  case maybeToken of
+    Nothing -> do
+      logError "No JWT token found in window.COMPETENCES_JWT"
+      -- Fallback: use test user with disconnected CommandSender
+      let user = User nilId "Test User" Teacher (Office365Id "")
+      sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
+      env <- mkSyncDocumentEnv user legacySessionId sender False
+      ref <- mkSyncDocument env
+      _ <- initLockWatching ref
+      setSyncDocument ref emptyDocument
+      modifySyncDocument ref $ Users $ OnUsers $ Create user
+      uri <- M.getURI
+      runApp $ mkApp ref uri
 
-      Just jwtToken -> do
-        logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
+    Just jwtToken -> do
+      logDebug $ M.ms $ "Found JWT token: " <> T.unpack (T.take 20 jwtToken) <> "..."
 
-        -- Determine WebSocket URL from current location
-        location <- jsg "window" ! "location"
-        (Just protocol) <- location ! "protocol" >>= fromJSVal @T.Text
-        (Just host) <- location ! "host" >>= fromJSVal @T.Text
-        let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
-        let wsUrl = wsProtocol <> host <> "/"
+      -- Determine WebSocket URL from current location
+      location <- jsg "window" ! "location"
+      (Just protocol) <- location ! "protocol" >>= fromJSVal @T.Text
+      (Just host) <- location ! "host" >>= fromJSVal @T.Text
+      let wsProtocol = if T.isPrefixOf "https:" protocol then "wss://" else "ws://"
+      let wsUrl = wsProtocol <> host <> "/"
 
-        -- Parse ?impersonate=<uuid> query parameter
-        (Just search) <- location ! "search" >>= fromJSVal @T.Text
-        let mImpersonate = parseImpersonateParam search
-            imp = isJust mImpersonate
+      -- Parse ?impersonate=<uuid> query parameter
+      (Just search) <- location ! "search" >>= fromJSVal @T.Text
+      let mImpersonate = parseImpersonateParam search
+          imp = isJust mImpersonate
 
-        -- Track whether the Miso app has been forked (prevents duplicate UI on reconnect)
-        appForkedRef <- newIORef False
+      -- Track whether the Miso app has been forked (prevents duplicate UI on reconnect)
+      appForkedRef <- newIORef False
 
-        -- Fork action that starts the Miso app (idempotent — skips if already forked)
-        let forkApp ref = do
-              alreadyForked <- readIORef appForkedRef
-              unless alreadyForked $ do
-                writeIORef appForkedRef True
-                void $ forkIO $ do
-                  initialUri <- M.getURI
-                  htmlDoc <- jsg "document"
-                  setField htmlDoc "title" (C.translate' C.LblPageTitle)
-                  runApp $ mkApp ref initialUri
+      -- Fork action that starts the Miso app (idempotent — skips if already forked)
+      let forkApp ref = do
+            alreadyForked <- readIORef appForkedRef
+            unless alreadyForked $ do
+              writeIORef appForkedRef True
+              void $ forkIO $ do
+                initialUri <- M.getURI
+                htmlDoc <- jsg "document"
+                setField htmlDoc "title" (C.translate' C.LblPageTitle)
+                runApp $ mkApp ref initialUri
 
-        -- Open IndexedDB for checkpoint storage
-        idb <- openDatabase
-        let mIdb = Just idb
+      -- Open IndexedDB for checkpoint storage
+      idb <- openDatabase
+      let mIdb = Just idb
 
-        -- Get or create session ID from sessionStorage
-        sessionId <- getOrCreateSessionId
+      -- Get or create session ID from sessionStorage
+      sessionId <- getOrCreateSessionId
 
-        -- Connect and run with automatic reconnection
-        logDebug "Connecting to server..."
-        let initial = mkInitialHandler jwtToken sessionId mImpersonate imp mIdb forkApp
-            reconnect = mkReconnectHandler jwtToken sessionId mImpersonate mIdb
+      -- Connect and run with automatic reconnection
+      logDebug "Connecting to server..."
+      let initial = mkInitialHandler jwtToken sessionId mImpersonate imp mIdb forkApp
+          reconnect = mkReconnectHandler jwtToken sessionId mImpersonate mIdb
 
-        withWebSocket wsUrl initial reconnect
-          `catch` handleAuthFailure location
+      withWebSocket wsUrl initial reconnect
+        `catch` handleAuthFailure location
 
 -- | Parse the ?impersonate=<uuid> query parameter from a URL search string
 parseImpersonateParam :: T.Text -> Maybe UserId

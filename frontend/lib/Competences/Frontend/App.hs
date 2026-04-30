@@ -75,7 +75,7 @@ appEvents = M.defaultEvents <> M.keyboardEvents <> M.mouseEvents
   <> Map.fromList [("beforeinput", M.BUBBLE)]
 
 runApp :: App -> IO ()
-runApp = M.startComponent appEvents
+runApp = M.startApp appEvents
 
 mkApp :: SyncContext -> M.URI -> App
 mkApp ir initialUri =

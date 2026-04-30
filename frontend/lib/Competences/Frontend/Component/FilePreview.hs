@@ -44,7 +44,7 @@ data FilePreviewAction
 filePreviewComponent :: SyncContext -> FileRef -> M.Component p FilePreviewModel FilePreviewAction
 filePreviewComponent syncCtx ref =
   (M.component model update view)
-    { M.initialAction = Just LoadFile
+    { M.mount = Just LoadFile
     }
   where
     model =

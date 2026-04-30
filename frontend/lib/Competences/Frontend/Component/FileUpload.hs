@@ -95,7 +95,7 @@ fileUploadComponent
 fileUploadComponent syncCtx mTitle initialFiles parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #files]
-    , M.initialAction = Just GenerateInputId
+    , M.mount = Just GenerateInputId
     }
   where
     model =

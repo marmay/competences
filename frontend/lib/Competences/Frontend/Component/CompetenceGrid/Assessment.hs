@@ -129,7 +129,7 @@ assessmentComponent :: SyncContext -> CompetenceGrid -> M.Component p Assessment
 assessmentComponent r grid =
   (M.component model update view)
     { M.subs = [subscribeWithProjection r assessmentProjection AssessmentProjectionChanged]
-    , M.initialAction = Just initTodayAction
+    , M.mount = Just initTodayAction
     }
   where
     -- Projection function captures the grid parameter

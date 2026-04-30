@@ -118,7 +118,7 @@ gradingComponent :: SyncContext -> CompetenceGrid -> M.Component p GradingModel 
 gradingComponent r grid =
   (M.component model update view)
     { M.subs = [subscribeWithProjection r gradingProjection GradingProjectionChanged]
-    , M.initialAction = Just initTodayAction
+    , M.mount = Just initTodayAction
     }
   where
     -- Projection function captures the grid parameter

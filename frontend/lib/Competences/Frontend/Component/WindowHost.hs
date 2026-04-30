@@ -249,7 +249,7 @@ renderPinnedDialogs m =
                     (TogglePin pid)
                     (ClosePin pid)
                     [MH.div_ [class_ "h-full"]
-                      [M.mount_ [M.key_ (M.ms ("pin-" <> M.ms meta.key))] comp]]
+                      [("pin-" <> M.ms meta.key) M.+> comp]]
                 ]
         PinMinimized ->
           -- Full unmount: component is removed from DOM to save memory.

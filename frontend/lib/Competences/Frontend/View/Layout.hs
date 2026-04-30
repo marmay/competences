@@ -65,7 +65,7 @@ where
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Tailwind (class_, classes)
 import Data.Text qualified as T
-import Miso (Attribute (..), NS (..), View (..))
+import Miso (Attribute (..), Namespace (..), View (..))
 import Miso qualified as M
 import Miso.CSS qualified as MS
 import Miso.Html qualified as M

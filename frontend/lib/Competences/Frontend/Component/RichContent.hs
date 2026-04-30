@@ -185,7 +185,7 @@ richContentComponent
   -> M.Component p RichContentModel RichContentAction
 richContentComponent fc resolver footer _key doc =
   (M.component model update view)
-    { M.initialAction = Just RenderMath
+    { M.mount = Just RenderMath
     , M.eventPropagation = True
     }
   where

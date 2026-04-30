@@ -159,7 +159,7 @@ richContentEditorComponent
 richContentEditorComponent fc initialContent parentLens =
   (M.component model update view)
     { M.bindings = [O.toLensVL parentLens M.<--- O.toLensVL #contentState]
-    , M.initialAction = Just (RCValidate 0)
+    , M.mount = Just (RCValidate 0)
     }
   where
     model =

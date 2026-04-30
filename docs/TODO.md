@@ -3,8 +3,10 @@
 ## Roadmap
 
 - **1.6.0 — Toolchain refresh**
-  - [ ] Upgrade to upstream `haskell-miso` 1.9.0 and verify which fork
-    fixes are still needed.
+  - [x] Upgrade to upstream `haskell-miso` 1.9.0. Fork retired —
+    component-lifecycle fixes are upstreamed; the `propagateChildren`
+    safe-lookup patch became unnecessary after upstream restructured
+    component bookkeeping.
   - [ ] Build the WASM binary via haskell.nix (it now supports this)
     instead of the current shell-script flow.
 - **1.7.x — Student-driven assignments**: improvements to handing in

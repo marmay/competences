@@ -48,7 +48,7 @@ statisticsPage :: SyncContext -> M.Component p Model Action
 statisticsPage docRef =
   (M.component model update view)
     { M.subs = [subscribeDocument docRef UpdateDocument]
-    , M.initialAction = Nothing
+    , M.mount = Nothing
     }
   where
     model = emptyModel

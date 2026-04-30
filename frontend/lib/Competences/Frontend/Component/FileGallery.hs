@@ -90,7 +90,7 @@ fileGalleryComponent
   -> M.Component p FileGalleryModel FileGalleryAction
 fileGalleryComponent r files =
   (M.component model update view')
-    { M.initialAction = Just LoadFiles
+    { M.mount = Just LoadFiles
     }
   where
     imgs = filter (isImageMime . (.mimeType)) files

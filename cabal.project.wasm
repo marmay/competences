@@ -26,9 +26,8 @@ source-repository-package
     location: https://github.com/well-typed/ixset-typed
     tag: 460901368dcb452d352a17bcd4b8f60200a6fa71
 
--- Local miso checkout with component leak fix
 source-repository-package
-    --sha256: 18gh0svvhrm2gr6jb6pbqizw6sri85ry9slfc3a13gm21xvjza4q
+    --sha256: 1fyx18d7cyh6zfhyrk4skcw0k6aqpl65s3h3sb2kd3iza1hw42ss
     type: git
-    location: https://github.com/marmay/miso
-    tag: 6395a4821d22fd0baec14d7f32ce816bedde7c4e
+    location: https://github.com/dmjio/miso
+    tag: 822889bd49f907a14b38cbd20b8b5a5169fc7d22
