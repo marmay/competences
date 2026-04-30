@@ -153,7 +153,25 @@ mkApp ir initialUri =
     participationTimeline = mounted ParticipationTimeline $ participationPage ir
     manageUsers = mounted ManageUsers $ usersPage ir
 
-    mounted key = inlineComponentAttrs (M.ms $ show key) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
+    mounted key = inlineComponentAttrs (M.ms (pageKey key)) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
+
+    -- Stable per-constructor key. Pages whose route carries a parameter
+    -- (e.g. ManageTasks (Just tid)) must NOT have that parameter in
+    -- their mount key — otherwise selecting an item in the page pushes
+    -- a new URL and Miso unmounts/remounts the whole page, losing
+    -- selector scroll position. Such pages subscribe to uriSub
+    -- internally and reconcile their state on URL change.
+    pageKey :: Page -> String
+    pageKey CompetenceGrid = "competence-grid"
+    pageKey Planning = "planning"
+    pageKey Evidences = "evidences"
+    pageKey ManageTasks{} = "manage-tasks"
+    pageKey ManageResources{} = "manage-resources"
+    pageKey LessonRecords{} = "lesson-records"
+    pageKey ManageAssignments{} = "manage-assignments"
+    pageKey StatisticsOverview = "statistics-overview"
+    pageKey ParticipationTimeline = "participation-timeline"
+    pageKey ManageUsers = "manage-users"
 
 -- ============================================================================
 -- FOCUSED USER VIEW (Nav bar component)

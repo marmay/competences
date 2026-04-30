@@ -1,5 +1,7 @@
 module Competences.Frontend.Component.Selector.TaskSelector
   ( SelectedTask (..)
+  , TaskSelectorConfig (..)
+  , defaultTaskSelectorConfig
   , taskSelectorComponent
   )
 where
@@ -41,6 +43,30 @@ data SelectedTask = SelectedTask
   }
   deriving (Eq, Show)
 
+-- | Customisations for the task selector. All fields default to 'Nothing';
+-- enable the ones you need at the call site via record-update on
+-- 'defaultTaskSelectorConfig'.
+data TaskSelectorConfig = TaskSelectorConfig
+  { initialSelection :: !(Maybe (Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask))
+  -- ^ Fallback selection applied on first document load when no task
+  -- is selected yet (e.g. smart default, or the deep-linked task).
+  , uriExtractor :: !(Maybe (M.URI -> Maybe TaskId))
+  -- ^ Pull our entity ID out of a URI. When set, the selector subscribes
+  -- to URI changes and updates its selection on back/forward navigation.
+  -- Returning 'Nothing' (URI doesn't apply) leaves the current selection
+  -- alone.
+  , onSelect :: !(Maybe (SelectedTask -> IO ()))
+  -- ^ Run on user click. Typically pushes the URL via 'M.pushURI'.
+  }
+
+defaultTaskSelectorConfig :: TaskSelectorConfig
+defaultTaskSelectorConfig =
+  TaskSelectorConfig
+    { initialSelection = Nothing
+    , uriExtractor = Nothing
+    , onSelect = Nothing
+    }
+
 data Model = Model
   { allTasks :: !(Ix.IxSet TaskIxs Task)
   , draftTaskIds :: !(Set TaskId)
@@ -59,18 +85,18 @@ data Action
   | CloseDropdown
   | SetSearchQuery !Text
   | UpdateDocument !DocumentChange
+  | UriChanged !M.URI
   deriving (Eq, Show)
 
 taskSelectorComponent
   :: SyncContext
-  -> Maybe (Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask)
-  -> Maybe (SelectedTask -> IO ())
+  -> TaskSelectorConfig
   -> Lens' p (Maybe SelectedTask)
   -> M.Component p Model Action
-taskSelectorComponent r initialSelection onSelect parentLens =
+taskSelectorComponent r cfg parentLens =
   (M.component model update view')
     { M.bindings = [toLensVL parentLens M.<--- toLensVL #selectedItem]
-    , M.subs = [subscribeDocument r UpdateDocument]
+    , M.subs = subscribeDocument r UpdateDocument : [M.uriSub UriChanged | Just _ <- [cfg.uriExtractor]]
     }
   where
     model = Model Ix.empty Set.empty Nothing Nothing False ""
@@ -80,9 +106,21 @@ taskSelectorComponent r initialSelection onSelect parentLens =
         case Ix.getOne (m.allTasks Ix.@= item.task.id) of
           Just t' -> m & (#selectedItem ?~ SelectedTask item.origin t') & (#newItem .~ Nothing)
           Nothing -> m & (#newItem ?~ item)
-      case onSelect of
+      case cfg.onSelect of
         Just f -> M.io_ (f item)
         Nothing -> pure ()
+
+    update (UriChanged uri) = do
+      m <- M.get
+      case cfg.uriExtractor of
+        Just extract
+          | Just tid <- extract uri
+          , maybe True (\sel -> sel.task.id /= tid) m.selectedItem
+          , Just t <- Ix.getOne (m.allTasks Ix.@= tid) ->
+              let origin = if Set.member tid m.draftTaskIds then Draft else Published
+               in M.modify $ \mm ->
+                    mm & (#selectedItem ?~ SelectedTask origin t) & (#newItem .~ Nothing)
+        _ -> pure ()
 
     update CreateNewTask = M.withSink $ \s -> do
       taskId <- nextId r
@@ -125,7 +163,7 @@ taskSelectorComponent r initialSelection onSelect parentLens =
                 Nothing -> m.newItem
             Nothing -> Nothing
           -- Apply initial selection on first document load when nothing is selected
-          selected' = case (isInitialUpdate dc.change, validatedSelected, initialSelection) of
+          selected' = case (isInitialUpdate dc.change, validatedSelected, cfg.initialSelection) of
             (True, Nothing, Just f) -> f mergedTasks draftTaskIds'
             _ -> validatedSelected
        in m

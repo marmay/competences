@@ -11,6 +11,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Selector.TaskSelector
   ( SelectedTask (..)
+  , TaskSelectorConfig (..)
+  , defaultTaskSelectorConfig
   , taskSelectorComponent
   )
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
@@ -41,8 +43,12 @@ data Action
   deriving (Eq, Show)
 
 -- | Unified task editor component.
--- When a 'TaskId' is provided (from URL deep link), that task is selected
--- on initial load. Otherwise falls back to smart default (first by identifier).
+--
+-- The page stays mounted across URL pushes (the App's mount key is
+-- constructor-only). Selection state lives in 'm.selected', written
+-- by the task selector via its parent-binding. The selector also
+-- owns URL synchronisation: it parses incoming URIs, dispatches its
+-- own selection on back/forward, and pushes the URL on user click.
 tasksPage :: SyncContext -> Maybe TaskId -> M.Component p Model Action
 tasksPage r mTaskId =
   M.component model update view'
@@ -51,16 +57,19 @@ tasksPage r mTaskId =
 
     update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
-    onSelect = Just (\st -> M.pushURI (M.toURI (ManageTasks (Just st.task.id))))
-
-    selectionFn = Just $ \tasks draftIds ->
-      case mTaskId of
-        Just tid ->
-          -- Deep link: select the specific task
-          case Ix.getOne (tasks Ix.@= tid) of
-            Just t -> Just (mkSelected t draftIds)
-            Nothing -> smartDefault tasks draftIds
-        Nothing -> smartDefault tasks draftIds
+    selectorConfig =
+      defaultTaskSelectorConfig
+        { initialSelection = Just $ \tasks draftIds ->
+            case mTaskId of
+              Just tid -> case Ix.getOne (tasks Ix.@= tid) of
+                Just t -> Just (mkSelected t draftIds)
+                Nothing -> smartDefault tasks draftIds
+              Nothing -> smartDefault tasks draftIds
+        , uriExtractor = Just $ \uri -> case M.route uri of
+            Right (ManageTasks (Just tid)) -> Just tid
+            _ -> Nothing
+        , onSelect = Just (\st -> M.pushURI (M.toURI (ManageTasks (Just st.task.id))))
+        }
 
     smartDefault :: Ix.IxSet TaskIxs Task -> Set TaskId -> Maybe SelectedTask
     smartDefault tasks draftIds =
@@ -76,7 +85,7 @@ tasksPage r mTaskId =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r selectionFn onSelect #selected)
+        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r selectorConfig #selected)
         (detailView m.selected)
 
     detailView Nothing =
