@@ -102,7 +102,6 @@ data ListSelectorConfig p selected projection ixs id fState fAction = ListSelect
   , entitiesOf :: !(projection -> Ix.IxSet ixs selected)
   , itemsInOrder :: !(Ix.IxSet ixs selected -> [selected])
   , idOf :: !(selected -> id)
-  , lookupBy :: !(Ix.IxSet ixs selected -> id -> Maybe selected)
   , itemView :: !(ItemRenderer selected projection fAction)
   , createActions :: ![CreateAction selected]
   , uriBinding :: !(Maybe (UriBinding id))
@@ -156,6 +155,8 @@ listSelectorComponent
      , Eq fState
      , Eq fAction
      , Eq id
+     , Ix.Indexable ixs selected
+     , Ix.IsIndexOf id ixs
      )
   => SyncContext
   -> ListSelectorConfig p selected projection ixs id fState fAction
@@ -195,7 +196,7 @@ listSelectorComponent r cfg =
         Just b
           | Just newId <- b.extract uri
           , (cfg.idOf <$> m.selected) /= Just newId
-          , Just sel <- cfg.lookupBy (cfg.entitiesOf m.projection) newId ->
+          , Just sel <- lookupOne (cfg.entitiesOf m.projection) newId ->
               M.modify $ \mm -> mm & (#selected ?~ sel)
         _ -> pure ()
 
@@ -224,11 +225,11 @@ listSelectorComponent r cfg =
             xs = cfg.entitiesOf proj
             -- Re-validate 'selected' against the new projection.
             validatedSelected =
-              m.selected >>= \s -> cfg.lookupBy xs (cfg.idOf s)
+              m.selected >>= \s -> lookupOne xs (cfg.idOf s)
             -- If 'pending' resolves now, promote it; otherwise keep
             -- it parked.
             (selected', pending') = case m.pending of
-              Just p -> case cfg.lookupBy xs (cfg.idOf p) of
+              Just p -> case lookupOne xs (cfg.idOf p) of
                 Just promoted -> (Just promoted, Nothing)
                 Nothing -> (validatedSelected, Just p)
               Nothing -> (validatedSelected, Nothing)
@@ -291,3 +292,9 @@ xs !? i
   | otherwise = case drop i xs of
       [] -> Nothing
       (x : _) -> Just x
+
+-- | Standard primary-id lookup: every entity selector resolves an id
+-- via 'Ix.@=' on the indexed collection. Inlined here so the config
+-- doesn't need a per-entity 'lookupBy' field.
+lookupOne :: (Ix.Indexable ixs s, Ix.IsIndexOf id ixs) => Ix.IxSet ixs s -> id -> Maybe s
+lookupOne xs i = Ix.getOne (xs Ix.@= i)

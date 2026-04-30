@@ -61,7 +61,6 @@ config initialPickFn parentLens =
     , entitiesOf = id
     , itemsInOrder = sortOn (\p -> (isNothing p.dateFrom, p.dateFrom, p.title)) . Ix.toList
     , idOf = (.id)
-    , lookupBy = \xs pid -> Ix.getOne (xs Ix.@= pid)
     , itemView = ItemRenderer renderItem
     , createActions =
         [ CreateAction

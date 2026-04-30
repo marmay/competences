@@ -8,10 +8,7 @@
 -- and the create-then-promote workflow.
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Competences.Frontend.Component.Task.ListSelector
-  ( TaskWithOriginIxs
-  , Selected
-  , Projection
-  , taskListSelectorComponent
+  ( taskListSelectorComponent
   )
 where
 
@@ -83,7 +80,6 @@ config parentLens mTaskId =
     , entitiesOf = id
     , itemsInOrder = Ix.toAscList (Proxy @TaskIdentifier)
     , idOf = (.value.id)
-    , lookupBy = \xs tid -> Ix.getOne (xs Ix.@= tid)
     , itemView = ItemRenderer renderItem
     , createActions =
         [ CreateAction

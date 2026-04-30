@@ -1,16 +1,8 @@
--- | Competence-grid list selector — config wrapper around
--- 'listSelectorComponent'.
---
--- Rich projection: alongside the grids themselves, it carries the
--- focused user's grid grades so the per-row grade badge can be
--- derived without re-walking the document. The badge is rendered by
--- the 'ItemRenderer' (which receives the projection in addition to
--- the grid).
---
--- Style flag controls whether the create dropdown is shown
--- (view-only vs. teacher's view-and-create). The "import grids"
--- dropdown entry is intentionally absent; see docs/TODO.md
--- immediate follow-ups for the universal-import plan.
+-- | Competence-grid list selector — config builder for
+-- 'listSelectorComponent'. Projection carries the focused user's
+-- grid grades so the per-row grade badge can be derived in
+-- 'renderItem'. Style flag toggles the teacher-only create
+-- dropdown.
 module Competences.Frontend.Component.CompetenceGrid.ListSelector
   ( CompetenceGridSelectorStyle (..)
   , competenceGridListSelectorComponent
@@ -39,7 +31,7 @@ import Competences.Frontend.Component.Selector.List
   , listSelectorComponent
   )
 import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
-import Competences.Frontend.Fragment.SelectorFilter (FilterFragment (..))
+import Competences.Frontend.Fragment.SelectorFilter (noopFilter)
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -97,7 +89,6 @@ config style initialPickFn parentLens =
     , entitiesOf = (.allGrids)
     , itemsInOrder = Ix.toAscList (Proxy @Order)
     , idOf = (.id)
-    , lookupBy = \xs gid -> Ix.getOne (xs Ix.@= gid)
     , itemView = ItemRenderer renderItem
     , createActions = case style of
         CompetenceGridSelectorViewOnlyStyle -> []
@@ -116,17 +107,6 @@ config style initialPickFn parentLens =
     , initialPick = initialPickFn
     , filter = noopFilter
     , parentLens = parentLens
-    }
-
--- The original selector has no search field; replicate that with a
--- pass-through filter rather than imposing search on every selector.
-noopFilter :: FilterFragment Projection () () Selected
-noopFilter =
-  FilterFragment
-    { initialState = ()
-    , update = \_act s -> s
-    , view = \_st _proj -> M.text ""
-    , apply = \_st _proj items -> items
     }
 
 renderItem

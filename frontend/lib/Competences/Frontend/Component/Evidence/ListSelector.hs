@@ -21,7 +21,7 @@ import Competences.Frontend.Component.Selector.List
   , Model
   , listSelectorComponent
   )
-import Competences.Frontend.Fragment.SelectorFilter (FilterFragment (..))
+import Competences.Frontend.Fragment.SelectorFilter (noopFilter)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -71,22 +71,12 @@ config parentLens =
     , entitiesOf = (.userEvidences)
     , itemsInOrder = Ix.toDescList (Proxy @Day)
     , idOf = (.id)
-    , lookupBy = \xs eid -> Ix.getOne (xs Ix.@= eid)
     , itemView = ItemRenderer renderItem
     , createActions = []
     , uriBinding = Nothing
     , initialPick = Nothing
     , filter = noopFilter
     , parentLens = parentLens
-    }
-
-noopFilter :: FilterFragment Projection () () Selected
-noopFilter =
-  FilterFragment
-    { initialState = ()
-    , update = \_act s -> s
-    , view = \_st _proj -> M.text ""
-    , apply = \_st _proj items -> items
     }
 
 renderItem

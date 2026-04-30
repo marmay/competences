@@ -10,12 +10,8 @@
 -- URL-bound via the @ManageLessonRecords@ route. On first projection
 -- snapshot the deep-link (if any) is preserved when it resolves
 -- against the current rows; otherwise the most recent row is picked.
-{-# OPTIONS_GHC -Wno-orphans #-}
 module Competences.Frontend.Component.LessonRecords.ListSelector
   ( LessonRow (..)
-  , LessonRowIxs
-  , Selected
-  , Projection
   , lessonRecordsListSelectorComponent
   )
 where
@@ -94,7 +90,6 @@ config mDeepLink parentLens =
     , entitiesOf = id
     , itemsInOrder = sortOn (Down . (.date)) . Ix.toList
     , idOf = (.lessonId)
-    , lookupBy = \xs lid -> Ix.getOne (xs Ix.@= lid)
     , itemView = ItemRenderer renderItem
     , createActions = []
     , uriBinding =

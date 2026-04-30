@@ -1,12 +1,7 @@
--- | Resource list selector — a thin config wrapper around
--- 'listSelectorComponent'.
---
--- Resources have no draft/published distinction (no 'WithOrigin'),
--- so the selected type is plain 'Resource'. The dropdown carries
--- four creation entries (inline / web link / video link / file).
--- The "import resources" entry is intentionally absent here; it is
--- a cross-cutting concern and lives in the main menu (see
--- docs/TODO.md immediate follow-ups).
+-- | Resource list selector — config builder for
+-- 'listSelectorComponent'. Resources have no drafts; selected type
+-- is plain 'Resource'. Four creation entries (inline / web link /
+-- video link / file).
 module Competences.Frontend.Component.Resource.ListSelector
   ( resourceListSelectorComponent
   )
@@ -69,7 +64,6 @@ config parentLens mResourceId =
     , entitiesOf = id
     , itemsInOrder = sortOn resourceIdentifierText . Ix.toList
     , idOf = (.id)
-    , lookupBy = \xs rid -> Ix.getOne (xs Ix.@= rid)
     , itemView = ItemRenderer renderItem
     , createActions =
         [ mkCreate Icon.IcnResources C.LblInlineContent (InlineContent mempty)

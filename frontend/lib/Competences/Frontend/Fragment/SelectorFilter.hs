@@ -12,6 +12,7 @@
 module Competences.Frontend.Fragment.SelectorFilter
   ( FilterFragment (..)
   , searchOnlyFilter
+  , noopFilter
   )
 where
 
@@ -67,4 +68,16 @@ searchOnlyFilter placeholder displayText =
           else
             let lq = T.toLower q
              in filter (\s -> lq `T.isInfixOf` T.toLower (displayText s)) items
+    }
+
+-- | Filter fragment that does nothing — no UI, all items pass. Use
+-- when a list selector wants no filtering (e.g. a small fixed list
+-- where search would be noise).
+noopFilter :: FilterFragment projection () () selected
+noopFilter =
+  FilterFragment
+    { initialState = ()
+    , update = \_act s -> s
+    , view = \_st _proj -> M.text ""
+    , apply = \_st _proj items -> items
     }

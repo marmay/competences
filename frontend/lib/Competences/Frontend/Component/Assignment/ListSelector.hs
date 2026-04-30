@@ -14,10 +14,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Competences.Frontend.Component.Assignment.ListSelector
-  ( AssignmentWithOriginIxs
-  , Selected
-  , Projection
-  , assignmentListSelectorComponent
+  ( assignmentListSelectorComponent
   )
 where
 
@@ -277,7 +274,6 @@ config r initialPickFn parentLens =
     , entitiesOf = (.assignments)
     , itemsInOrder = sortOn (.value.assignmentDate) . Ix.toList
     , idOf = (.value.id)
-    , lookupBy = \xs aid -> Ix.getOne (xs Ix.@= aid)
     , itemView = ItemRenderer renderItem
     , createActions =
         if teacher

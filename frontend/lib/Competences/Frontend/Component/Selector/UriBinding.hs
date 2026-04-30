@@ -36,23 +36,12 @@ pageBinding intoPage fromPage =
     , push = M.pushURI . M.toURI . intoPage
     }
 
--- | Subscription that fires only on browser-driven URL changes
--- (back/forward, deep-link load) — i.e. @popstate@ events.
---
--- Unlike Miso's 'M.uriSub', this does NOT subscribe to the global
--- chan that 'M.pushURI' notifies. That chan is single-consumer
--- ('takeMVar'-backed), so multiple 'M.uriSub' subscribers starve
--- each other on every programmatic push: each push wakes exactly
--- one waiter. With the App's 'M.uriSub' and a per-selector
--- subscription both registered, the App's @SetURI@ handler would
--- only fire on every other push, leaving 'm.uri' stale and
--- breaking page navigation after a click.
---
--- Selectors don't need the chan side anyway: programmatic pushes
--- come from their own 'Pick' handlers, which already updated state
--- before pushing. They only need to react to /external/ URL changes
--- (browser back/forward, fresh deep link), and that's exactly what
--- the @popstate@ DOM event covers — broadcast to every listener.
+-- | Subscription for @popstate@ events only. Unlike 'M.uriSub' it
+-- does not listen on Miso's global chan, which is single-consumer
+-- ('takeMVar'-backed) and so starves additional subscribers on
+-- programmatic 'pushURI'. Selectors only need browser-driven URL
+-- changes (back/forward, deep links) — their own 'Pick' handler
+-- updates state before pushing, so the chan event is redundant.
 popstateSub :: (M.URI -> action) -> M.Sub action
 popstateSub f sink = createSub acquire release sink
   where
