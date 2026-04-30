@@ -21,7 +21,7 @@ where
 
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document, User)
-import Competences.Frontend.Component.Selector.UriBinding (UriBinding (..))
+import Competences.Frontend.Component.Selector.UriBinding (UriBinding (..), popstateSub)
 import Competences.Frontend.Fragment.SelectorFilter (FilterFragment (..))
 import Competences.Frontend.SyncContext
   ( ChangeInfo (..)
@@ -43,14 +43,16 @@ import Optics.Core (Lens', toLensVL, (&), (.~), (?~))
 -- Public types
 -- ---------------------------------------------------------------------------
 
--- | A create button's payload: icon, label, and an effect that
--- materialises a new entity (typically by issuing a
--- 'modifySyncDocument' command and returning the value to be stashed
--- in the slot's 'pending' bucket).
+-- | A dropdown entry's payload: icon, label, and an effect.
+--
+-- 'run' is allowed to return 'Nothing' for entries that have a
+-- side-effect but do not produce a freshly-created entity (e.g.
+-- "open import modal"). When it returns 'Just sel', the generic
+-- body dispatches 'StashPending sel'.
 data CreateAction selected = CreateAction
   { icon :: !Icon.Icon
   , label :: !MisoString
-  , run :: !(SyncContext -> IO selected)
+  , run :: !(SyncContext -> IO (Maybe selected))
   }
 
 -- | RankN newtype carrying a polymorphic per-item view. The wrapper
@@ -83,6 +85,11 @@ newtype ItemRenderer selected projection fAction
 data EntitySelectorConfig p selected projection ixs id fState fAction = EntitySelectorConfig
   { title :: !MisoString
   , project :: !(Document -> Maybe User -> projection)
+  , emptyProjection :: !projection
+  -- ^ Used as the initial model value before the first
+  -- 'subscribeWithProjection' notification arrives. For simple
+  -- selectors this is just 'Ix.empty'; for richer projections
+  -- (assignments) it's the corresponding empty record.
   , entitiesOf :: !(projection -> Ix.IxSet ixs selected)
   , itemsInOrder :: !(Ix.IxSet ixs selected -> [selected])
   , idOf :: !(selected -> id)
@@ -118,7 +125,7 @@ deriving instance (Show selected, Show projection, Show fAction) => Show (Action
 -- round-trip; promoted to 'selected' by 'ProjectionChanged' once it
 -- appears in the projection.
 data Model selected projection fState = Model
-  { projection :: !(Maybe projection)
+  { projection :: !projection
   , selected :: !(Maybe selected)
   , pending :: !(Maybe selected)
   , filterState :: !fState
@@ -149,12 +156,12 @@ entitySelectorComponent r cfg =
     { M.bindings = [toLensVL cfg.parentLens M.<--- toLensVL #selected]
     , M.subs =
         subscribeWithProjection r cfg.project ProjectionChanged
-          : [M.uriSub UriArrived | Just _ <- [cfg.uriBinding]]
+          : [popstateSub UriArrived | Just _ <- [cfg.uriBinding]]
     }
   where
     initial =
       Model
-        { projection = Nothing
+        { projection = cfg.emptyProjection
         , selected = Nothing
         , pending = Nothing
         , filterState = cfg.filter.initialState
@@ -175,11 +182,11 @@ entitySelectorComponent r cfg =
 
     update (UriArrived uri) = do
       m <- M.get
-      case (cfg.uriBinding, m.projection) of
-        (Just b, Just proj)
+      case cfg.uriBinding of
+        Just b
           | Just newId <- b.extract uri
           , (cfg.idOf <$> m.selected) /= Just newId
-          , Just sel <- cfg.lookupBy (cfg.entitiesOf proj) newId ->
+          , Just sel <- cfg.lookupBy (cfg.entitiesOf m.projection) newId ->
               M.modify $ \mm -> mm & (#selected ?~ sel)
         _ -> pure ()
 
@@ -189,9 +196,11 @@ entitySelectorComponent r cfg =
     update (CreateAct ix) = M.withSink $ \sink -> do
       case cfg.createActions !? ix of
         Just ca -> do
-          newSel <- ca.run r
+          mNewSel <- ca.run r
           sink CloseDropdown
-          sink (StashPending newSel)
+          case mNewSel of
+            Just newSel -> sink (StashPending newSel)
+            Nothing -> pure ()
         Nothing -> pure ()
 
     update ToggleDropdown =
@@ -221,7 +230,7 @@ entitySelectorComponent r cfg =
               (InitialSnapshot, Nothing, Just f) -> f xs
               _ -> selected'
          in m
-              { projection = Just proj
+              { projection = proj
               , selected = selected''
               , pending = pending'
               }
@@ -235,7 +244,7 @@ entitySelectorComponent r cfg =
           [ Layout.vFlow
               (Layout.gapS <> Layout.hFull)
               [ header m
-              , FilterAct <$> filterView m.filterState
+              , FilterAct <$> filterView m.filterState m.projection
               , viewItems m
               ]
           ]
@@ -254,13 +263,8 @@ entitySelectorComponent r cfg =
       SL.dropdownItem ca.icon ca.label (CreateAct i)
 
     viewItems m =
-      let proj = m.projection
-          allItems = case proj of
-            Just p -> cfg.itemsInOrder (cfg.entitiesOf p)
-            Nothing -> []
-          shown = case proj of
-            Just p -> cfg.filter.apply m.filterState p allItems
-            Nothing -> []
+      let allItems = cfg.itemsInOrder (cfg.entitiesOf m.projection)
+          shown = cfg.filter.apply m.filterState m.projection allItems
           isSelected s =
             (cfg.idOf <$> m.selected) == Just (cfg.idOf s)
               || (cfg.idOf <$> m.pending) == Just (cfg.idOf s)

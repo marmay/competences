@@ -79,6 +79,7 @@ config parentLens mTaskId =
   EntitySelectorConfig
     { title = C.translate' C.LblTasks
     , project = \doc _user -> projectTasks doc
+    , emptyProjection = Ix.empty
     , entitiesOf = id
     , itemsInOrder = Ix.toAscList (Proxy @TaskIdentifier)
     , idOf = (.value.id)
@@ -92,7 +93,7 @@ config parentLens mTaskId =
                 tid <- nextId r
                 let t = defaultTask tid
                 modifySyncDocument r $ Tasks (OnTasks (CreateAndLock t))
-                pure (WithOrigin Published t)
+                pure (Just (WithOrigin Published t))
             }
         , CreateAction
             { icon = Icon.IcnTask
@@ -101,7 +102,7 @@ config parentLens mTaskId =
                 tid <- nextId r
                 let t = defaultTask tid
                 modifySyncDocument r $ DraftTasks (OnDraftTasks (CreateAndLock t))
-                pure (WithOrigin Draft t)
+                pure (Just (WithOrigin Draft t))
             }
         ]
     , uriBinding =

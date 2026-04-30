@@ -36,7 +36,11 @@ import Miso.String (fromMisoString, ms)
 data FilterFragment projection state action selected = FilterFragment
   { initialState :: !state
   , update :: action -> state -> state
-  , view :: forall p. state -> M.View p action
+  , view :: forall p. state -> projection -> M.View p action
+  -- ^ The projection is supplied so projection-aware filters can
+  -- render UI that depends on it (e.g. a role-aware enum dropdown
+  -- whose mode list reflects whether a focused user is set). Pure
+  -- search filters can ignore it.
   , apply :: state -> projection -> [selected] -> [selected]
   }
 
@@ -55,7 +59,7 @@ searchOnlyFilter placeholder displayText =
   FilterFragment
     { initialState = ""
     , update = \new _old -> new
-    , view = \q ->
+    , view = \q _proj ->
         SL.selectorSearchField (ms q) placeholder (fromMisoString :: M.MisoString -> Text)
     , apply = \q _proj items ->
         if T.null q

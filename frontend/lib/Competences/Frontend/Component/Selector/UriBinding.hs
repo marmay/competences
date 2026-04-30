@@ -7,12 +7,17 @@
 module Competences.Frontend.Component.Selector.UriBinding
   ( UriBinding (..)
   , pageBinding
+  , popstateSub
   )
 where
 
 import Competences.Frontend.Page (Page)
 import Miso qualified as M
+import Miso.DSL (jsg)
+import Miso.FFI qualified as FFI
 import Miso.Router qualified as M
+import Miso.Subscription.History (getURI)
+import Miso.Subscription.Util (createSub)
 
 data UriBinding id = UriBinding
   { extract :: M.URI -> Maybe id
@@ -30,3 +35,31 @@ pageBinding intoPage fromPage =
         Left _ -> Nothing
     , push = M.pushURI . M.toURI . intoPage
     }
+
+-- | Subscription that fires only on browser-driven URL changes
+-- (back/forward, deep-link load) — i.e. @popstate@ events.
+--
+-- Unlike Miso's 'M.uriSub', this does NOT subscribe to the global
+-- chan that 'M.pushURI' notifies. That chan is single-consumer
+-- ('takeMVar'-backed), so multiple 'M.uriSub' subscribers starve
+-- each other on every programmatic push: each push wakes exactly
+-- one waiter. With the App's 'M.uriSub' and a per-selector
+-- subscription both registered, the App's @SetURI@ handler would
+-- only fire on every other push, leaving 'm.uri' stale and
+-- breaking page navigation after a click.
+--
+-- Selectors don't need the chan side anyway: programmatic pushes
+-- come from their own 'Pick' handlers, which already updated state
+-- before pushing. They only need to react to /external/ URL changes
+-- (browser back/forward, fresh deep link), and that's exactly what
+-- the @popstate@ DOM event covers — broadcast to every listener.
+popstateSub :: (M.URI -> action) -> M.Sub action
+popstateSub f sink = createSub acquire release sink
+  where
+    release cb = do
+      win <- jsg "window"
+      FFI.removeEventListener win "popstate" cb
+    acquire = do
+      win <- jsg "window"
+      FFI.addEventListener win "popstate" $ \_ ->
+        sink . f =<< getURI
