@@ -28,7 +28,7 @@ module Competences.Frontend.Component.Lesson.Detailed
 where
 
 import Competences.Common.IxSet qualified as Ix
-import Competences.Common.Set (toggle)
+import Competences.Common.Set (memberLens)
 import Competences.Document
   ( Assignment (..)
   , Document (..)
@@ -49,10 +49,10 @@ import Competences.Document.Lesson
 import Competences.Document.TeachingNote (TeachingNote (..), TeachingNoteId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Assignment.Detailed
-  ( exportAssignmentToClipboard
-  , viewerDetailView
+  ( RenderStyle (..)
+  , bindVisibility
+  , viewerComponent
   )
-import Competences.Frontend.Component.Assignment.EvaluatorDetail (pinAssignmentEvaluator)
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.Component.Resource.Detailed
@@ -84,6 +84,7 @@ import Competences.Frontend.SyncContext.WindowManager
   , SortKey (..)
   , WindowChrome (..)
   , inlineComponent
+  , inlineComponentWith
   , justLens
   , mkPinId
   , pinDialogWith
@@ -91,7 +92,6 @@ import Competences.Frontend.SyncContext.WindowManager
   )
 import Competences.Frontend.SyncContext.WindowManager qualified as WM (Model)
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Disclosure qualified as Disclosure
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
@@ -108,7 +108,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (ms)
-import Optics.Core ((.~), (%~))
+import Optics.Core ((.~), (&), (%), (^.))
 import Optics.Core qualified as O
 
 -- | Audience the rendering is tuned for.
@@ -169,15 +169,17 @@ data Projection = Projection
 
 data Model = Model
   { projection :: !Projection
-  , homeExercisesExpanded :: !Bool
   , expandedAssignments :: !(Set AssignmentId)
+    -- ^ Which embedded assignment disclosures are open. Owned here
+    -- (rather than per assignment-component) so the set is captured
+    -- by the pin's save state — closing and re-opening a pinned
+    -- lesson restores the same expansion. Synced bidirectionally
+    -- via 'Assignment.Detailed.bindVisibility'.
   }
   deriving (Eq, Generic, Show)
 
 data Action
   = ProjectionChanged !(ProjectedChange Projection)
-  | ToggleHomeExercises
-  | ToggleAssignment !AssignmentId
   deriving (Eq, Show)
 
 -- | Mount the lesson detailed view inline. No save-state binding —
@@ -223,14 +225,11 @@ initialModel = fromMaybe emptyModel
               , phaseNoteContents = []
               , focusedUser = Nothing
               }
-        , homeExercisesExpanded = True
         , expandedAssignments = Set.empty
         }
 
 update' :: SyncContext -> LessonDetailedConfig -> Action -> M.Effect p Model Action
 update' _ _ (ProjectionChanged change) = M.modify $ #projection .~ change.projection
-update' _ _ ToggleHomeExercises = M.modify $ #homeExercisesExpanded %~ not
-update' _ _ (ToggleAssignment aid) = M.modify $ #expandedAssignments %~ toggle aid
 
 view' :: SyncContext -> LessonDetailedConfig -> Model -> M.View Model Action
 view' r cfg m = case m.projection.lesson of
@@ -334,7 +333,7 @@ teacherBody r m lsn findAssignment visibleItems homeExIds homeExerciseRows =
    in concat
         [ [descriptionBlock r lsn.description | lsn.description /= mempty]
         , [lessonNoteBlock r content | Just content <- [m.projection.lessonNoteContent]]
-        , [homeExerciseBlock m renderAssignment homeExerciseRows | not (null homeExerciseRows)]
+        , [homeExerciseBlock renderAssignment homeExerciseRows | not (null homeExerciseRows)]
         , [blocks | (blocks, _) <- phaseBlocks]
         , [supplementalBlock suppBlock | not (null suppBlock)]
         ]
@@ -351,12 +350,12 @@ studentBody
   -> Set.Set LessonItemContent
   -> [(AssignmentId, Assignment)]
   -> [M.View Model Action]
-studentBody r m _lsn findAssignment allVisibleItems homeExIds homeExerciseRows =
+studentBody r _m _lsn findAssignment allVisibleItems homeExIds homeExerciseRows =
   let renderAssignment = assignmentRow r
       flatRendered =
         renderPhaseItems r renderAssignment findAssignment allVisibleItems homeExIds Set.empty
    in concat
-        [ [homeExerciseBlock m renderAssignment homeExerciseRows | not (null homeExerciseRows)]
+        [ [homeExerciseBlock renderAssignment homeExerciseRows | not (null homeExerciseRows)]
         , [MH.div_ [class_ "space-y-2"] flatRendered | not (null flatRendered)]
         ]
 
@@ -430,17 +429,14 @@ lessonNoteBlock r content =
     ]
 
 homeExerciseBlock
-  :: Model
-  -> (Assignment -> M.View Model Action)
+  :: (Assignment -> M.View Model Action)
   -> [(AssignmentId, Assignment)]
   -> M.View Model Action
-homeExerciseBlock m renderAssignment rows =
-  Disclosure.disclosure ToggleHomeExercises $
-    Disclosure.contents
-      (Disclosure.titleIconText Icon.IcnAssignment (C.translate' C.LblHomework))
-      m.homeExercisesExpanded
-      (MH.div_ [class_ "space-y-1"] (map (renderAssignment . snd) rows))
-      []
+homeExerciseBlock renderAssignment rows =
+  -- Plain flat list — most lessons have a single home exercise; even
+  -- with several, the assignment rows are themselves disclosures, so
+  -- a wrapping "Hausübungen" heading would just nest.
+  MH.div_ [class_ "space-y-1"] (map (renderAssignment . snd) rows)
 
 -- | Always renders the phase header so the teacher sees the planned
 -- structure of the lesson even when a phase is empty (no items, no
@@ -574,40 +570,21 @@ assignmentRow r a =
             )
         ]
 
--- | Teacher-mode assignment row: collapsible disclosure that mounts
--- the canonical 'viewerDetailView' inline when expanded, with the
--- complete assignment 'EntityMenu' (edit, pin, go-to, delete, evaluate,
--- export) — mirroring the menu the assignment viewer itself shows.
+-- | Teacher-mode assignment row: mounts the assignment viewer in
+-- 'Embedded' render style. Expansion state is bound bidirectionally
+-- to the lesson's 'expandedAssignments' set, with the initial value
+-- read from the same slot at construction time so a freshly mounted
+-- child renders the saved state immediately. Lets a pinned lesson
+-- restore the same open assignments after close/reopen.
 expandableAssignmentRow :: SyncContext -> Model -> Assignment -> M.View Model Action
 expandableAssignmentRow r m a =
-  let AssignmentName nameText = a.name
-      isExpanded = Set.member a.id m.expandedAssignments
-      origin = Published
-      title =
-        Disclosure.titleWithAnnotation
-          (Disclosure.titleIconText Icon.IcnAssignment (ms nameText))
-          ( MH.span_
-              [class_ "text-xs text-muted-foreground shrink-0"]
-              [M.text (C.formatDay a.assignmentDate)]
-          )
-      menu =
-        inlineComponent ("lesson-record-asn-menu-" <> ms (show a.id))
-          ( EM.entityMenuComponent r EM.EntityMenuConfig
-              { edit = Just (EM.assignmentEdit a.id origin)
-              , pin = Just (PinAssignmentViewer a)
-              , goTo = Just (ManageAssignments (Just a.id))
-              , delete = Just (EM.assignmentDelete a.id origin)
-              , extraEntries =
-                  [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
-                      (pinAssignmentEvaluator r a)
-                  , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
-                      (exportAssignmentToClipboard r a False)
-                  ]
-              }
-          )
-      body = viewerDetailView r (syncDocumentEnv r).connectedUser a
-   in Disclosure.disclosure (ToggleAssignment a.id) $
-        Disclosure.contents title isExpanded body [Disclosure.viewAction menu]
+  inlineComponentWith
+    ("assignment-viewer-" <> ms (show a.id))
+    (\wm ->
+       viewerComponent r (syncDocumentEnv r).connectedUser a Embedded wm
+         & bindVisibility lens (m ^. lens))
+  where
+    lens = #expandedAssignments % memberLens a.id
 
 -- ============================================================================
 -- Phase metadata icons

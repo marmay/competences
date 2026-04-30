@@ -1,6 +1,8 @@
 module Competences.Frontend.Component.Assignment.Detailed
   ( viewerDetailView
   , viewerComponent
+  , bindVisibility
+  , RenderStyle (..)
   , pinAssignmentViewer
   , exportAssignmentToClipboard
   , AssignmentStatus (..)
@@ -149,6 +151,7 @@ import Miso.String (MisoString, ms)
 import Miso.Svg.Property qualified as MSP
 import Competences.Frontend.Common.Effect (liftEffect_)
 import Optics.Core ((&), (.~), (%~))
+import Optics.Core qualified as O
 import System.Random (randomIO)
 
 
@@ -261,19 +264,49 @@ pinAssignmentViewer r user assignment =
    in pinDialogWith r.windowManager
         meta
         chrome
-        (\mode (_savedState :: Maybe ()) -> viewerComponent r user assignment mode)
+        (\mode (_savedState :: Maybe ()) -> viewerComponent r user assignment Standalone mode)
 
--- | Detail view for viewing an assignment (read-only)
--- Shows assignment details and renders task content with MathJax
+-- | Detail view for viewing an assignment (read-only).
+-- @style@ controls layout: 'Standalone' shows the full header,
+-- 'Embedded' wraps the body in a self-contained disclosure.
 viewerDetailView
   :: SyncContext
   -> User
   -> Assignment
+  -> RenderStyle
   -> M.View parent action
-viewerDetailView r user assignment =
+viewerDetailView r user assignment style =
   inlineComponentWith
     ("assignment-viewer-" <> M.ms (show assignment.id))
-    (viewerComponent r user assignment)
+    (viewerComponent r user assignment style)
+
+-- | Bidirectionally bind the embedded disclosure's expansion state to a
+-- 'Bool' slot in the parent's model, and seed the component's initial
+-- state from the same slot. Compose at the inline-mount site:
+--
+-- @
+-- inlineComponentWith key
+--   $ \\wm -> viewerComponent r user a Embedded wm
+--          & bindVisibility (#expandedAssignments % memberLens a.id) initial
+--   where initial = parentModel ^. (#expandedAssignments % memberLens a.id)
+-- @
+--
+-- The seed matters: Miso's bindings only propagate when actions commit,
+-- so a freshly mounted child would otherwise render with its default
+-- value (and a child→parent pass would overwrite the parent's saved
+-- value). Reading the parent's slot at construction time bypasses that.
+bindVisibility
+  :: O.Lens' parent Bool
+  -> Bool
+  -> M.Component parent ViewerModel ViewerAction
+  -> M.Component parent ViewerModel ViewerAction
+bindVisibility parentLens initial comp =
+  comp
+    { M.model = M.model comp & #embeddedExpanded .~ initial
+    , M.bindings =
+        (O.toLensVL parentLens M.<---> O.toLensVL #embeddedExpanded)
+          : M.bindings comp
+    }
 
 -- | Model with projection and task list state.
 --
@@ -282,6 +315,25 @@ viewerDetailView r user assignment =
 -- inline-component closures (the 'EntityMenuConfig' in particular)
 -- from capturing placeholder values. Update handlers that need a
 -- loaded projection no-op when it isn't loaded yet.
+-- | How the assignment view positions itself within its host.
+--
+-- 'Standalone' renders the full header (h2 title + action cluster) on
+-- top of the body content; used by the dedicated assignments page and
+-- the pin viewer where the assignment is the only thing on screen.
+--
+-- 'Embedded' wraps the body in a self-contained disclosure: the
+-- collapsible summary shows name + date + the action cluster (always
+-- clickable without expanding), and the body — visible when expanded —
+-- starts directly with the date row, without a duplicated heading.
+-- Used inline in the lesson page.
+data RenderStyle = Standalone | Embedded
+  deriving (Eq, Show)
+
+-- | Whether the body's metadata block leads with the assignment date.
+-- 'Standalone' wants it (the date sits under the h2); 'Embedded'
+-- doesn't (the date is already in the disclosure summary).
+data DateMode = WithDate | WithoutDate
+
 data ViewerModel = ViewerModel
   { projection :: !(Maybe ViewerProjection)
   , taskListState :: !VT.TaskDetailedState
@@ -293,6 +345,11 @@ data ViewerModel = ViewerModel
   , pagePrintPageGrouping :: !PageGrouping
   , layoutHoldState :: !(HoldButton.HoldState LayoutId)
   , footerDraftGen :: !Int
+  , embeddedExpanded :: !Bool
+    -- ^ Disclosure state for 'Embedded' mode. Defaults to 'False' so
+    -- assignments stay collapsed until the user opens them — keeps
+    -- first-paint cost low when a lesson has multiple home
+    -- exercises. Ignored in 'Standalone' mode.
   }
   deriving (Eq, Generic, Show)
 
@@ -309,12 +366,15 @@ data ViewerAction
   | OpenSubmissionModal
   | LayoutHoldAction !(HoldButton.HoldAction LayoutId)
   | DebouncedRemeasure !Int
+  | ToggleEmbedded
   | NoOp
   deriving (Eq, Show)
 
--- | The viewer component using subscribeWithProjection pattern
-viewerComponent :: SyncContext -> User -> Assignment -> WindowMode -> M.Component p ViewerModel ViewerAction
-viewerComponent r user assignment wm =
+-- | The viewer component using subscribeWithProjection pattern.
+-- @style@ controls layout: 'Standalone' shows the full header,
+-- 'Embedded' wraps everything in a self-contained disclosure.
+viewerComponent :: SyncContext -> User -> Assignment -> RenderStyle -> WindowMode -> M.Component p ViewerModel ViewerAction
+viewerComponent r user assignment renderStyle wm =
   (M.component model update view')
     { M.subs = [subscribeWithProjection r (viewerProjection assignment user.id user.role) ProjectionChanged]
     }
@@ -330,6 +390,7 @@ viewerComponent r user assignment wm =
       , pagePrintPageGrouping = []
       , layoutHoldState = HoldButton.emptyHoldState
       , footerDraftGen = 0
+      , embeddedExpanded = False
       }
 
     -- Projection function captures assignment, currentUserId, and role from closure
@@ -645,6 +706,8 @@ viewerComponent r user assignment wm =
     update OpenSubmissionModal = M.io_ $
       Submission.openSubmissionModal r assignment.id user.id
 
+    update ToggleEmbedded = M.modify $ #embeddedExpanded %~ not
+
     update NoOp = pure ()
 
     -- | Release an assignment lock with the given patch, routed by origin
@@ -710,61 +773,99 @@ viewerComponent r user assignment wm =
               m.pagePrintPageGrouping proj
           ]
 
-    viewAssignment m proj =
-      let desc = proj.currentAssignment.description
-          showPurposeBadge = proj.connectedUserRole == Teacher
-       in Card.card
-            [ M.div_
-                [class_ "space-y-2"]
-                [ -- Title line with action buttons on the right
-                  Layout.hFlow (Layout.hFull <> Layout.crossCenter)
-                    [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
-                    , Layout.flowSpring
-                    , M.div_
-                        [class_ "text-sm"]
-                        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) $
-                            -- Students: status button; Teachers: status icon
-                            (if proj.connectedUserRole == Student
-                              then [viewSubmissionStatusButton proj.submissionSummary]
-                              else [statusIcon proj.status])
-                            <> [ pinButton PinThis | not (isPinned wm) ]
-                            <> [ viewPagePrintButton m proj | proj.connectedUserRole == Teacher ]
-                            <> [ inlineComponent ("entity-menu-" <> ms (show proj.currentAssignment.id))
-                                  (EM.entityMenuComponent r EM.EntityMenuConfig
-                                    { edit = Just (EM.assignmentEdit proj.currentAssignment.id proj.origin)
-                                    , pin = Just (PinAssignmentViewer proj.currentAssignment)
-                                    , goTo = Nothing
-                                    , delete = Just (EM.assignmentDelete proj.currentAssignment.id proj.origin)
-                                    , extraEntries =
-                                        [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
-                                            (pinAssignmentEvaluator r proj.currentAssignment)
-                                        , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
-                                            (exportAssignmentToClipboard r proj.currentAssignment (proj.origin == Draft))
-                                        ]
-                                    })
-                               | proj.connectedUserRole == Teacher
-                               ]
+    viewAssignment m proj = case renderStyle of
+      Standalone ->
+        Card.card
+          [ M.div_
+              [class_ "space-y-2"]
+              [ Layout.hFlow (Layout.hFull <> Layout.crossCenter)
+                  [ Typography.h2 (assignmentNameToText proj.currentAssignment.name)
+                  , Layout.flowSpring
+                  , actionCluster m proj
+                  ]
+              , bodyMetadata WithDate proj
+              ]
+          , bodyTaskList m proj
+          ]
+      Embedded ->
+        let nameText = assignmentNameToText proj.currentAssignment.name
+            dateBadge =
+              M.span_
+                [class_ "text-xs text-muted-foreground shrink-0"]
+                [M.text (C.formatDay proj.currentAssignment.assignmentDate)]
+            title =
+              Disclosure.titleWithAnnotation
+                (Disclosure.titleIconText Icon.IcnAssignment nameText)
+                dateBadge
+            -- Date is in the disclosure summary, so the body skips it.
+            embeddedBody = M.div_ [class_ "space-y-4"]
+              [ bodyMetadata WithoutDate proj
+              , bodyTaskList m proj
+              ]
+         in Disclosure.disclosure ToggleEmbedded $
+              Disclosure.contents
+                title
+                m.embeddedExpanded
+                embeddedBody
+                [Disclosure.viewAction (actionCluster m proj)]
+
+    -- | The right-hand action row used by both render styles. Single
+    -- source of truth for the entity-menu config that previously drifted
+    -- between the standalone view and the lesson-page row.
+    actionCluster m proj =
+      M.div_
+        [class_ "text-sm"]
+        [ Layout.hFlow (Layout.gapS <> Layout.hFull <> Layout.crossCenter) $
+            -- Students: status button; Teachers: status icon
+            (if proj.connectedUserRole == Student
+              then [viewSubmissionStatusButton proj.submissionSummary]
+              else [statusIcon proj.status])
+            <> [ pinButton PinThis | not (isPinned wm) ]
+            <> [ viewPagePrintButton m proj | proj.connectedUserRole == Teacher ]
+            <> [ inlineComponent ("entity-menu-" <> ms (show proj.currentAssignment.id))
+                  (EM.entityMenuComponent r EM.EntityMenuConfig
+                    { edit = Just (EM.assignmentEdit proj.currentAssignment.id proj.origin)
+                    , pin = Just (PinAssignmentViewer proj.currentAssignment)
+                    , goTo = Nothing
+                    , delete = Just (EM.assignmentDelete proj.currentAssignment.id proj.origin)
+                    , extraEntries =
+                        [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblEvaluateAssignment)
+                            (pinAssignmentEvaluator r proj.currentAssignment)
+                        , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
+                            (exportAssignmentToClipboard r proj.currentAssignment (proj.origin == Draft))
                         ]
-                    ]
-                , -- Date below title (muted, small)
-                  M.span_
-                    [class_ "text-sm text-muted-foreground"]
-                    [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
-                , -- Description (if present, supports math syntax)
-                  if desc == mempty
+                    })
+               | proj.connectedUserRole == Teacher
+               ]
+        ]
+
+    bodyMetadata dateMode proj =
+      let desc = proj.currentAssignment.description
+          dateRow = case dateMode of
+            WithDate ->
+              [ M.span_
+                  [class_ "text-sm text-muted-foreground"]
+                  [M.text $ C.formatDay proj.currentAssignment.assignmentDate]
+              ]
+            WithoutDate -> []
+       in M.div_ [class_ "space-y-2"] $
+            dateRow
+              <> [ if desc == mempty
                     then M.text ""
                     else M.div_
                            [class_ "prose prose-stone prose-sm max-w-none"]
                            [renderRichText r.formulaCache desc]
-                , -- Accumulated observations list (one per competence level)
-                  viewObservationList proj
-                ]
-            , M.div_
-              [class_ "space-y-4"]
-              ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
-                [ viewTaskList r m proj showPurposeBadge ]
-              )
-            ]
+                 , viewObservationList proj
+                 ]
+
+    bodyTaskList m proj =
+      let desc = proj.currentAssignment.description
+          showPurposeBadge = proj.connectedUserRole == Teacher
+       in M.div_
+            [class_ "space-y-4"]
+            ( [ Typography.h3 $ C.translate' C.LblAssignmentTasks | desc /= mempty ] <>
+              [ viewTaskList r m proj showPurposeBadge ]
+            )
 
 
     viewObservationList proj =
