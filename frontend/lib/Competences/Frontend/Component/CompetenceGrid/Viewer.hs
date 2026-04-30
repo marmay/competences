@@ -52,7 +52,7 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
 import Competences.Frontend.Component.CompetenceGrid.Assessment (pinCompetenceGridAssessment)
-import Competences.Frontend.Component.CompetenceGrid.Editor (pinCompetenceGridEditor)
+import Competences.Frontend.Component.CompetenceGrid.Editor (exportGridYaml, pinCompetenceGridEditor)
 import Competences.Frontend.Component.CompetenceGrid.Grading (pinCompetenceGridGrading)
 import Competences.Frontend.Component.EntityMenu qualified as EM
 import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
@@ -550,13 +550,23 @@ viewerComponent r grid wm =
                   <> [ entityMenu ]
               ]
 
-        -- EntityMenu hosting pin + teacher-only Edit/Assess/Grade entries.
-        -- Assess/Grade need a focused user (UserViewData); Edit doesn't.
+        -- EntityMenu hosting pin + teacher-only entries (Edit /
+        -- Assess / Grade open as pins; Export copies YAML to the
+        -- clipboard).
         entityMenu =
           let isTeacher_ = proj.connectedUserRole == Teacher
-              hasFocusedUser = case proj.viewData of
-                UserViewData _ -> True
-                AnalyticsViewData _ -> False
+              teacherEntries =
+                [ EM.ExtraEntry Icon.IcnEdit (C.translate' C.LblEdit)
+                    (pinCompetenceGridEditor r grid)
+                , EM.ExtraEntry Icon.IcnApply (C.translate' C.LblAssess)
+                    (pinCompetenceGridAssessment r grid)
+                , EM.ExtraEntry Icon.IcnEvidence (C.translate' C.LblGrade)
+                    (pinCompetenceGridGrading r grid)
+                , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
+                    (exportGridYaml r grid False)
+                , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExportWithContent)
+                    (exportGridYaml r grid True)
+                ]
            in inlineComponent
                 ("entity-menu-grid-" <> M.ms (show grid.id))
                 ( EM.entityMenuComponent r EM.EntityMenuConfig
@@ -567,19 +577,7 @@ viewerComponent r grid wm =
                           else Nothing
                     , goTo = Nothing
                     , delete = Nothing
-                    , extraEntries =
-                        [ EM.ExtraEntry Icon.IcnEdit (C.translate' C.LblEdit)
-                            (pinCompetenceGridEditor r grid)
-                        | isTeacher_
-                        ]
-                          <> [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblAssess)
-                                 (pinCompetenceGridAssessment r grid)
-                             | isTeacher_ && hasFocusedUser
-                             ]
-                          <> [ EM.ExtraEntry Icon.IcnEvidence (C.translate' C.LblGrade)
-                                 (pinCompetenceGridGrading r grid)
-                             | isTeacher_ && hasFocusedUser
-                             ]
+                    , extraEntries = if isTeacher_ then teacherEntries else []
                     }
                 )
 

@@ -247,6 +247,7 @@ data Label
   | LblImportResources
   | LblImportLessons
   | LblExport
+  | LblExportWithContent
     -- Analytics
   | LblMasteryStreakTwoAssessed
   | LblMasteryStreakTwoPlus
@@ -671,6 +672,7 @@ labels' =
   , LblImportResources
   , LblImportLessons
   , LblExport
+  , LblExportWithContent
     -- Analytics
   , LblMasteryStreakTwoAssessed
   , LblMasteryStreakTwoPlus
@@ -1125,6 +1127,7 @@ defaultTranslation LblImportAssignments = "Aufgaben importieren"
 defaultTranslation LblImportResources = "Materialien importieren"
 defaultTranslation LblImportLessons = "Stunden importieren"
 defaultTranslation LblExport = "Exportieren"
+defaultTranslation LblExportWithContent = "Mit Inhalt exportieren"
 -- Analytics
 defaultTranslation LblMasteryStreakTwoAssessed = "Überprüfungsbereit (++2)"
 defaultTranslation LblMasteryStreakTwoPlus = "Sicher (2+ Erfolge)"

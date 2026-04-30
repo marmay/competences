@@ -1,5 +1,6 @@
 module Competences.Frontend.Component.CompetenceGrid.Editor
   ( pinCompetenceGridEditor
+  , exportGridYaml
   )
 where
 
@@ -76,10 +77,22 @@ newtype EditorModel = EditorModel
 -- | Action for the editor detail component
 data EditorAction
   = CreateNewCompetence
-  | ExportGrid
-  | ExportGridWithContent
   | DocumentUpdated !DocumentChange
   deriving (Eq, Show)
+
+-- | Export the grid as YAML to the clipboard. When @withContent@ is
+-- 'True' the export carries every competence + level body; otherwise
+-- just the grid skeleton.
+exportGridYaml :: SyncContext -> CompetenceGrid -> Bool -> IO ()
+exportGridYaml ctx g withContent = do
+  syncDoc <- readSyncDocument ctx
+  let xdoc =
+        if withContent
+          then competenceGridWithContentExchange syncDoc.localDocument g
+          else competenceGridExchange syncDoc.localDocument g
+  encodeExchangeYaml xdoc $ \case
+    Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
+    Right yamlText -> copyToClipboard yamlText
 
 -- | Pin the competence-grid editor as a persistent dialog.
 pinCompetenceGridEditor :: SyncContext -> CompetenceGrid -> IO ()
@@ -145,19 +158,6 @@ editorComponent r grid =
               }
       modifySyncDocument r (Competences $ OnCompetences $ CreateAndLock competence)
 
-    update ExportGrid = M.io_ $ exportGridYaml r grid False
-    update ExportGridWithContent = M.io_ $ exportGridYaml r grid True
-
-    exportGridYaml ctx g withContent = do
-      syncDoc <- readSyncDocument ctx
-      let xdoc =
-            if withContent
-              then competenceGridWithContentExchange syncDoc.localDocument g
-              else competenceGridExchange syncDoc.localDocument g
-      encodeExchangeYaml xdoc $ \case
-        Left reason -> putStrLn $ "Export failed: " <> T.unpack reason
-        Right yamlText -> copyToClipboard yamlText
-
     view _m =
       Layout.vFlow
         (Layout.gapS <> Layout.wFull <> Layout.crossCenter)
@@ -168,10 +168,7 @@ editorComponent r grid =
             ("competence-grid-editor-competences-" <> M.ms (show grid.id))
             (TE.editorComponent competencesEditor r Nothing def)
         , Layout.hFlow Layout.gapS
-            [ Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)
-            , Button.ghost (Button.button (Icon.IcnExport, ("Raster exportieren" :: M.MisoString)) ExportGrid)
-            , Button.ghost (Button.button (Icon.IcnExport, ("Raster + Inhalt exportieren" :: M.MisoString)) ExportGridWithContent)
-            ]
+            [Button.primary (Button.button (Icon.IcnAdd, C.LblAddNewCompetence) CreateNewCompetence)]
         ]
 
     competenceGridEditable =
