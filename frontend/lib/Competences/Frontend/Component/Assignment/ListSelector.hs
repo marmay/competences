@@ -1,23 +1,23 @@
 -- | Assignment list selector — config builder over
 -- 'listSelectorComponent', plus the assignment-specific filter
--- fragment and the standalone read-only viewer / searchable single-
--- select used by the Editor framework.
+-- fragment.
 --
 -- Selected type is 'WithOrigin Assignment' so drafts and published
 -- assignments share one indexed collection. The projection is the
 -- richer 'SelectorProjection' that pre-computes per-assignment
 -- status maps; the role-aware filter dropdown reads those when
 -- deciding which modes to render and apply.
+--
+-- The combobox-style searchable single-select used by the Editor
+-- framework lives separately in
+-- 'Component.Assignment.SearchSelector'.
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Competences.Frontend.Component.Assignment.ListSelector
-  ( -- * Selector
-    AssignmentWithOriginIxs
+  ( AssignmentWithOriginIxs
   , Selected
   , Projection
   , assignmentListSelectorComponent
-    -- * Editor-framework integration (read-only viewer + searchable selector)
-  , searchableSingleAssignmentEditorField
   )
 where
 
@@ -29,8 +29,6 @@ import Competences.Document.User (UserId, isTeacher)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.WithOrigin (WithOrigin (..))
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Editor.EditorField (EditorField, currentValue, selectorEditorFieldWithViewer)
-import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), SelectorTransformedLens (..), mkSelectorBinding)
 import Competences.Frontend.Component.Selector.List
   ( Action (..)
   , CreateAction (..)
@@ -44,24 +42,18 @@ import Competences.Frontend.Fragment.SelectorFilter (FilterFragment (..))
 import Competences.Frontend.Fragment.EvidenceIcon qualified as EvidenceIcon
 import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext
-  ( ChangeInfo (..)
-  , ProjectedChange (..)
-  , SyncContext (..)
+  ( SyncContext (..)
   , SyncDocumentEnv (..)
   , modifySyncDocument
   , nextId
-  , subscribeWithProjection
   , syncDocumentEnv
   )
 import Competences.Frontend.View.Badge qualified as Badge
-import Competences.Frontend.View.Combobox qualified as Combobox
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Assignment (AssignmentStatus (..), assignmentStatus, hasOpenSubmissions, isAssignmentOpen)
-import Data.Default (Default)
-import Data.List (find, sortOn)
+import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
@@ -74,7 +66,7 @@ import GHC.Generics (Generic)
 import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString, fromMisoString, ms)
-import Optics.Core (Lens', castOptic, (&), (.~), (^.), (%~))
+import Optics.Core (Lens', (&), (.~))
 
 -- ---------------------------------------------------------------------------
 -- Types
@@ -351,175 +343,3 @@ renderItem w isSel =
 unName :: AssignmentName -> Text
 unName (AssignmentName t) = t
 
--- ===========================================================================
--- Editor-framework integration: read-only viewer + searchable selector
--- (used by Evidence editor etc.)
--- ===========================================================================
---
--- Separate machinery from the list selector above: a read-only
--- viewer plus a searchable combobox-style single-select used in
--- editor fields. Different projection (just the list of
--- assignments) and different binding shape ('SelectorTransformedLens').
-
--- | Searchable single-assignment editor field for use in editors.
-searchableSingleAssignmentEditorField
-  :: (Eq t, Ord p, Default patch)
-  => SyncContext
-  -> M.MisoString
-  -> EntityPatchTransformedLens p patch Maybe Assignment Maybe t
-  -> EditorField p patch f
-searchableSingleAssignmentEditorField r k eptl =
-  let conf currentAssignmentId =
-        AssignmentEditorConfig
-          { isInitialAssignment = \a -> currentAssignmentId == Just (eptl.transform a)
-          }
-   in selectorEditorFieldWithViewer
-        k
-        eptl
-        (\e -> selectedAssignmentViewerComponent r (conf (e ^. eptl.viewLens)))
-        ( \e p ->
-            searchableSingleAssignmentSelectorComponent
-              r
-              (conf (currentValue e p eptl.viewLens eptl.patchLens))
-        )
-
-newtype AssignmentEditorConfig = AssignmentEditorConfig
-  { isInitialAssignment :: Assignment -> Bool
-  }
-
-data EditorFieldProjection = EditorFieldProjection
-  { assignments :: ![Assignment]
-  , focusedUser :: !(Maybe User)
-  }
-  deriving (Eq, Generic, Show)
-
-editorFieldProjection :: Document -> Maybe User -> EditorFieldProjection
-editorFieldProjection doc mUser =
-  let filtered = case mUser of
-        Nothing -> Ix.toList doc.assignments
-        Just u -> Ix.toList (doc.assignments Ix.@= u.id)
-   in EditorFieldProjection
-        { assignments = sortOn (.assignmentDate) filtered
-        , focusedUser = mUser
-        }
-
-data SelectedAssignmentViewerModel = SelectedAssignmentViewerModel
-  { possibleValues :: ![Assignment]
-  , selectedValue :: !(Maybe Assignment)
-  }
-  deriving (Eq, Generic, Show)
-
-newtype SelectedAssignmentViewerAction
-  = AssignmentViewerProjectionChanged (ProjectedChange EditorFieldProjection)
-  deriving (Eq, Show)
-
-selectedAssignmentViewerComponent
-  :: SyncContext
-  -> AssignmentEditorConfig
-  -> SelectorTransformedLens p Maybe Assignment f t
-  -> M.Component p SelectedAssignmentViewerModel SelectedAssignmentViewerAction
-selectedAssignmentViewerComponent r conf lensBinding =
-  (M.component model0 update0 view0)
-    { M.bindings = [mkSelectorBinding lensBinding (castOptic #selectedValue)]
-    , M.subs = [subscribeWithProjection r editorFieldProjection AssignmentViewerProjectionChanged]
-    }
-  where
-    model0 = SelectedAssignmentViewerModel{possibleValues = [], selectedValue = Nothing}
-
-    update0 (AssignmentViewerProjectionChanged change) =
-      M.modify $ \m ->
-        let newPossibleValues = change.projection.assignments
-            newSelectedValue
-              | change.changeInfo == InitialSnapshot =
-                  case filter conf.isInitialAssignment newPossibleValues of
-                    (a : _) -> Just a
-                    [] -> Nothing
-              | otherwise =
-                  m.selectedValue >>= \sel -> find (\a -> a.id == sel.id) newPossibleValues
-         in m
-              & (#possibleValues .~ newPossibleValues)
-              & (#selectedValue .~ newSelectedValue)
-
-    view0 m = viewSelectedAssignment m.selectedValue
-
-viewSelectedAssignment :: Maybe Assignment -> M.View m a
-viewSelectedAssignment = \case
-  Nothing -> Typography.muted (C.translate' C.LblNoAssignmentSelected)
-  Just a ->
-    M.span_
-      []
-      [M.text $ ms $ unName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"]
-
-data AssignmentSelectorModel = AssignmentSelectorModel
-  { possibleValues :: ![Assignment]
-  , selectedValue :: !(Maybe Assignment)
-  , searchQuery :: !Text
-  , isOpen :: !Bool
-  }
-  deriving (Eq, Generic, Show)
-
-data AssignmentSelectorAction
-  = SelectorProjectionChanged !(ProjectedChange EditorFieldProjection)
-  | SelectorToggle !Assignment
-  | SelectorSetSearchQuery !Text
-  | SelectorSetOpen !Bool
-  deriving (Eq, Show)
-
-searchableSingleAssignmentSelectorComponent
-  :: SyncContext
-  -> AssignmentEditorConfig
-  -> SelectorTransformedLens p Maybe Assignment f t
-  -> M.Component p AssignmentSelectorModel AssignmentSelectorAction
-searchableSingleAssignmentSelectorComponent r conf lensBinding =
-  (M.component model0 update0 view0)
-    { M.bindings = [mkSelectorBinding lensBinding #selectedValue]
-    , M.subs = [subscribeWithProjection r editorFieldProjection SelectorProjectionChanged]
-    }
-  where
-    model0 =
-      AssignmentSelectorModel
-        { possibleValues = []
-        , selectedValue = Nothing
-        , searchQuery = ""
-        , isOpen = False
-        }
-
-    update0 (SelectorProjectionChanged change) =
-      M.modify $ \m ->
-        let newPossibleValues = change.projection.assignments
-            newSelectedValue
-              | change.changeInfo == InitialSnapshot = find conf.isInitialAssignment newPossibleValues
-              | otherwise = m.selectedValue >>= \v -> find (\a -> a.id == v.id) newPossibleValues
-         in m
-              & (#possibleValues .~ newPossibleValues)
-              & (#selectedValue .~ newSelectedValue)
-    update0 (SelectorToggle a) =
-      M.modify $ \m ->
-        m
-          & (#selectedValue %~ \s -> if (fmap (.id) s) == Just a.id then Nothing else Just a)
-          & (#isOpen .~ False)
-    update0 (SelectorSetSearchQuery q) =
-      M.modify (#searchQuery .~ q)
-    update0 (SelectorSetOpen open) =
-      M.modify (#isOpen .~ open)
-
-    view0 m =
-      let options =
-            map
-              (\v -> Combobox.ComboboxOption v (fromMisoString $ showAssignment v))
-              m.possibleValues
-          selectedSet = maybe Set.empty Set.singleton m.selectedValue
-          displayTxt = fmap (fromMisoString . showAssignment) m.selectedValue
-       in Combobox.singleSelectCombobox
-            SelectorSetSearchQuery
-            SelectorToggle
-            SelectorSetOpen
-            & Combobox.withPlaceholder (fromMisoString $ C.translate' C.LblSelectAssignment)
-            & Combobox.withOptions options
-            & Combobox.withSelected selectedSet
-            & Combobox.withDisplayText displayTxt
-            & Combobox.withSearchQuery m.searchQuery
-            & Combobox.withIsOpen m.isOpen
-            & Combobox.renderCombobox
-
-    showAssignment a = ms $ unName a.name <> " (" <> T.pack (show $ C.formatDay a.assignmentDate) <> ")"

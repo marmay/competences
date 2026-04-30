@@ -44,6 +44,7 @@ library
         Competences.Frontend.Page.Assignments,
         Competences.Frontend.Component.Assignment.Detailed,
         Competences.Frontend.Component.Assignment.ListSelector,
+        Competences.Frontend.Component.Assignment.SearchSelector,
         Competences.Frontend.Component.Assignment.TaskSearchSelectWithAdd,
         Competences.Frontend.Component.Assignment.EvaluatorDetail,
         Competences.Frontend.Component.Assignment.PinEditor,

@@ -28,7 +28,7 @@ import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), entityPatchTransformedLens)
 import Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor (bulkEvidenceEditorComponent)
-import Competences.Frontend.Component.Assignment.ListSelector (searchableSingleAssignmentEditorField)
+import Competences.Frontend.Component.Assignment.SearchSelector (searchableSingleAssignmentEditorField)
 import Competences.Frontend.Component.Selector.EvidenceSelector
   ( EvidenceSelectorStyle (..)
   , evidenceSelectorComponent
