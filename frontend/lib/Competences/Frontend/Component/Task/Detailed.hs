@@ -41,7 +41,7 @@ module Competences.Frontend.Component.Task.Detailed
 where
 
 import Competences.Frontend.Common.Effect (liftEffect_)
-import Competences.Command (Command (..), EntityCommand (..), SolutionsCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), PublishData (..), SolutionsCommand (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Common.Set (toggle)
 import Competences.Document (Assignment (..), Document (..), Solution (..), Task (..), User (..))
@@ -471,7 +471,12 @@ headerAnnotations r cfg m task =
             , pin = Just (PinTaskViewer task)
             , goTo = if cfg.settings.enableGoTo then Just (ManageTasks (Just task.id)) else Nothing
             , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id cfg.origin) else Nothing
-            , extraEntries = [addSolutionExtraEntry r task.id, exportTaskExtraEntry r task cfg.origin]
+            , extraEntries =
+                [addSolutionExtraEntry r task.id, exportTaskExtraEntry r task cfg.origin]
+                  <> [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblPublishAssignment)
+                         (modifySyncDocument r $ Publish PublishData {tasks = [task], assignment = Nothing})
+                     | cfg.origin == Draft
+                     ]
             })
       | isTeacher r
       ]

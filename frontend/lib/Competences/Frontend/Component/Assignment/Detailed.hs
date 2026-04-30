@@ -15,7 +15,7 @@ import Control.Monad (when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
-import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..))
+import Competences.Command (Command (..), EntityCommand (..), ModifyCommand (..), PublishData (..))
 import Competences.Command.Assignments (AssignmentPatch (..), AssignmentsCommand (..))
 import Competences.Command.Layouts (LayoutsCommand (..))
 import Competences.Common.IxSet qualified as Ix
@@ -834,10 +834,30 @@ viewerComponent r user assignment renderStyle wm =
                         , EM.ExtraEntry Icon.IcnExport (C.translate' C.LblExport)
                             (exportAssignmentToClipboard r proj.currentAssignment (proj.origin == Draft))
                         ]
+                          <> [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblPublishAssignment)
+                                 (publishDraftAssignment proj)
+                             | proj.origin == Draft
+                             ]
                     })
                | proj.connectedUserRole == Teacher
                ]
         ]
+
+    -- | Bundle a draft assignment with its referenced draft tasks and
+    -- dispatch the 'Publish' command. Tolerant: tasks already in the
+    -- published collection are skipped (we only publish what's actually
+    -- in 'draftTasks').
+    publishDraftAssignment proj = do
+      let draftTasks =
+            [ tws.task
+            | tws <- proj.tasksWithSolutions
+            , Set.member tws.task.id proj.draftTaskIds
+            ]
+      modifySyncDocument r $
+        Publish PublishData
+          { tasks = draftTasks
+          , assignment = Just proj.currentAssignment
+          }
 
     bodyMetadata dateMode proj =
       let desc = proj.currentAssignment.description
