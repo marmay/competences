@@ -1,5 +1,5 @@
--- | Resource entity selector — a thin config wrapper around
--- 'entitySelectorComponent'.
+-- | Resource list selector — a thin config wrapper around
+-- 'listSelectorComponent'.
 --
 -- Resources have no draft/published distinction (no 'WithOrigin'),
 -- so the selected type is plain 'Resource'. The dropdown carries
@@ -7,8 +7,8 @@
 -- The "import resources" entry is intentionally absent here; it is
 -- a cross-cutting concern and lives in the main menu (see
 -- docs/TODO.md immediate follow-ups).
-module Competences.Frontend.Component.Resource.Selector
-  ( resourceSelectorComponent
+module Competences.Frontend.Component.Resource.ListSelector
+  ( resourceListSelectorComponent
   )
 where
 
@@ -18,13 +18,13 @@ import Competences.Document (Document (..), Resource (..), ResourceContent (..),
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
 import Competences.Document.Resource (ResourceId, ResourceIdentifier (..), mkResource)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Selector.Entity
+import Competences.Frontend.Component.Selector.List
   ( Action (..)
   , CreateAction (..)
-  , EntitySelectorConfig (..)
+  , ListSelectorConfig (..)
   , ItemRenderer (..)
   , Model
-  , entitySelectorComponent
+  , listSelectorComponent
   )
 import Competences.Frontend.Component.Selector.UriBinding (pageBinding)
 import Competences.Frontend.Fragment.SelectorFilter (searchOnlyFilter)
@@ -48,21 +48,21 @@ type Projection = Ix.IxSet ResourceIxs Resource
 -- | Mount a resource selector. @parentLens@ points to the
 -- @Maybe Resource@ slot in the parent's model that the selector
 -- writes to.
-resourceSelectorComponent
+resourceListSelectorComponent
   :: SyncContext
   -> Maybe ResourceId
   -- ^ Deep-linked resource at first mount, if any.
   -> Lens' p (Maybe Selected)
   -> M.Component p (Model Selected Projection Text) (Action Selected Projection Text)
-resourceSelectorComponent r mResourceId parentLens =
-  entitySelectorComponent r (config parentLens mResourceId)
+resourceListSelectorComponent r mResourceId parentLens =
+  listSelectorComponent r (config parentLens mResourceId)
 
 config
   :: Lens' p (Maybe Selected)
   -> Maybe ResourceId
-  -> EntitySelectorConfig p Selected Projection ResourceIxs ResourceId Text Text
+  -> ListSelectorConfig p Selected Projection ResourceIxs ResourceId Text Text
 config parentLens mResourceId =
-  EntitySelectorConfig
+  ListSelectorConfig
     { title = C.translate' C.LblManageResources
     , project = \doc _user -> doc.resources
     , emptyProjection = Ix.empty

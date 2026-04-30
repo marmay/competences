@@ -2,7 +2,7 @@
 --
 -- A 'FilterFragment' bundles its own state, action, view, pure update,
 -- and a function that turns its state plus the host's projection into
--- the visible item list. The generic 'entitySelectorComponent' embeds
+-- the visible item list. The generic 'listSelectorComponent' embeds
 -- one fragment per call site; entity-specific filters live alongside
 -- their entity types and are passed in via the selector's config.
 --

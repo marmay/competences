@@ -10,7 +10,7 @@ import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.WithOrigin (WithOrigin (..))
 import Competences.Frontend.Component.Draft (EntityOrigin)
-import Competences.Frontend.Component.Task.Selector (taskSelectorComponent)
+import Competences.Frontend.Component.Task.ListSelector (taskListSelectorComponent)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
@@ -52,7 +52,7 @@ tasksPage r mTaskId =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskSelectorComponent r mTaskId #selected)
+        (inlineComponentAttrs "task-selector" [class_ "h-full"] $ taskListSelectorComponent r mTaskId #selected)
         (detailView m.selected)
 
     detailView Nothing =

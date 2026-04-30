@@ -1,6 +1,6 @@
--- | URL parser/pusher pair for entity selectors.
+-- | URL parser/pusher pair for list selectors.
 --
--- Used by 'entitySelectorComponent' to optionally synchronise its
+-- Used by 'listSelectorComponent' to optionally synchronise its
 -- selection with the URL: 'extract' parses an incoming URI into the
 -- entity ID, 'push' writes the URL when the user picks an item.
 -- Build with 'pageBinding' so parser and serializer stay in sync.

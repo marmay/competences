@@ -1,5 +1,5 @@
--- | Task entity selector — a thin config wrapper around
--- 'entitySelectorComponent'.
+-- | Task list selector — a thin config wrapper around
+-- 'listSelectorComponent'.
 --
 -- Builds the projection (drafts + published merged into a single
 -- @IxSet TaskWithOriginIxs (WithOrigin Task)@), the create dropdown
@@ -7,11 +7,11 @@
 -- filter. The generic body owns selection state, URL synchronisation,
 -- and the create-then-promote workflow.
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Competences.Frontend.Component.Task.Selector
+module Competences.Frontend.Component.Task.ListSelector
   ( TaskWithOriginIxs
   , Selected
   , Projection
-  , taskSelectorComponent
+  , taskListSelectorComponent
   )
 where
 
@@ -22,13 +22,13 @@ import Competences.Document.Task (TaskId, TaskIdentifier, defaultTask, taskDispl
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.WithOrigin (WithOrigin (..))
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Selector.Entity
+import Competences.Frontend.Component.Selector.List
   ( Action (..)
   , CreateAction (..)
-  , EntitySelectorConfig (..)
+  , ListSelectorConfig (..)
   , ItemRenderer (..)
   , Model
-  , entitySelectorComponent
+  , listSelectorComponent
   )
 import Competences.Frontend.Component.Selector.UriBinding (pageBinding)
 import Competences.Frontend.Fragment.SelectorFilter (searchOnlyFilter)
@@ -62,21 +62,21 @@ instance Ix.Indexable TaskWithOriginIxs Selected where
 -- | Mount a task selector. @parentLens@ points to the
 -- @Maybe (WithOrigin Task)@ slot in the parent's model that the
 -- selector writes to.
-taskSelectorComponent
+taskListSelectorComponent
   :: SyncContext
   -> Maybe TaskId
   -- ^ Deep-linked task at first mount, if any.
   -> Lens' p (Maybe Selected)
   -> M.Component p (Model Selected Projection Text) (Action Selected Projection Text)
-taskSelectorComponent r mTaskId parentLens =
-  entitySelectorComponent r (config parentLens mTaskId)
+taskListSelectorComponent r mTaskId parentLens =
+  listSelectorComponent r (config parentLens mTaskId)
 
 config
   :: Lens' p (Maybe Selected)
   -> Maybe TaskId
-  -> EntitySelectorConfig p Selected Projection TaskWithOriginIxs TaskId Text Text
+  -> ListSelectorConfig p Selected Projection TaskWithOriginIxs TaskId Text Text
 config parentLens mTaskId =
-  EntitySelectorConfig
+  ListSelectorConfig
     { title = C.translate' C.LblTasks
     , project = \doc _user -> projectTasks doc
     , emptyProjection = Ix.empty

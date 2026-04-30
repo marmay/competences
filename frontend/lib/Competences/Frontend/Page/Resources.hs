@@ -15,7 +15,7 @@ import Competences.Frontend.Component.Resource.Detailed
   , defaultResourceDetailedSettings
   , resourceDetailedComponent
   )
-import Competences.Frontend.Component.Resource.Selector (resourceSelectorComponent)
+import Competences.Frontend.Component.Resource.ListSelector (resourceListSelectorComponent)
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
@@ -46,7 +46,7 @@ resourcesPage r mResId =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
-        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceSelectorComponent r mResId #selected)
+        (inlineComponentAttrs "resource-selector" [class_ "h-full"] $ resourceListSelectorComponent r mResId #selected)
         (detailView m.selected)
 
     detailView Nothing =

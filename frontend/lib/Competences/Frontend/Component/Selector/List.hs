@@ -1,4 +1,4 @@
--- | Generic entity selector component.
+-- | Generic list selector component.
 --
 -- Subscribes to a per-entity 'project'ion of the document, renders the
 -- entity collection as a search-/filter-driven list with optional
@@ -6,16 +6,19 @@
 -- via a Miso binding. Optionally synchronises the selection with the
 -- URL via 'UriBinding'.
 --
--- Per-entity selectors (Task, Resource, Assignment) are thin config
--- builders over this component.
+-- This is one specific kind of selector — distinct from e.g. the
+-- inline 'EnumSelector' dropdown or the combobox-based search-select
+-- used in editor fields. Per-entity list selectors (Task, Resource,
+-- Assignment) are thin 'ListSelectorConfig' builders over this
+-- component.
 {-# LANGUAGE RankNTypes #-}
-module Competences.Frontend.Component.Selector.Entity
-  ( EntitySelectorConfig (..)
+module Competences.Frontend.Component.Selector.List
+  ( ListSelectorConfig (..)
   , CreateAction (..)
   , ItemRenderer (..)
   , Action (..)
   , Model
-  , entitySelectorComponent
+  , listSelectorComponent
   )
 where
 
@@ -82,7 +85,7 @@ newtype ItemRenderer selected projection fAction
 --   * @id@         — the entity's identifier; used by 'UriBinding'.
 --   * @fState@,
 --     @fAction@    — the 'FilterFragment'-internal types.
-data EntitySelectorConfig p selected projection ixs id fState fAction = EntitySelectorConfig
+data ListSelectorConfig p selected projection ixs id fState fAction = ListSelectorConfig
   { title :: !MisoString
   , project :: !(Document -> Maybe User -> projection)
   , emptyProjection :: !projection
@@ -140,7 +143,7 @@ deriving instance (Show selected, Show projection, Show fState) => Show (Model s
 -- Component
 -- ---------------------------------------------------------------------------
 
-entitySelectorComponent
+listSelectorComponent
   :: forall p selected projection ixs id fState fAction.
      ( Eq selected
      , Eq projection
@@ -149,9 +152,9 @@ entitySelectorComponent
      , Eq id
      )
   => SyncContext
-  -> EntitySelectorConfig p selected projection ixs id fState fAction
+  -> ListSelectorConfig p selected projection ixs id fState fAction
   -> M.Component p (Model selected projection fState) (Action selected projection fAction)
-entitySelectorComponent r cfg =
+listSelectorComponent r cfg =
   (M.component initial update view')
     { M.bindings = [toLensVL cfg.parentLens M.<--- toLensVL #selected]
     , M.subs =
@@ -217,8 +220,7 @@ entitySelectorComponent r cfg =
             validatedSelected =
               m.selected >>= \s -> cfg.lookupBy xs (cfg.idOf s)
             -- If 'pending' resolves now, promote it; otherwise keep
-            -- it parked. (Modelled on AssignmentSelector's
-            -- pending-promotion logic.)
+            -- it parked.
             (selected', pending') = case m.pending of
               Just p -> case cfg.lookupBy xs (cfg.idOf p) of
                 Just promoted -> (Just promoted, Nothing)
