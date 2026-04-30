@@ -22,7 +22,9 @@ import Competences.Frontend.Component.Selector.List
   , Model
   , listSelectorComponent
   )
+import Competences.Frontend.Component.Selector.UriBinding (pageBinding)
 import Competences.Frontend.Fragment.SelectorFilter (searchOnlyFilter)
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId)
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
 import Competences.Frontend.View.Icon qualified as Icon
@@ -79,7 +81,10 @@ config initialPickFn parentLens =
                 pure (Just p)
             }
         ]
-    , uriBinding = Nothing
+    , uriBinding =
+        Just $ pageBinding (Planning . Just) $ \case
+          Planning (Just pid) -> Just pid
+          _ -> Nothing
     , initialPick = initialPickFn
     , filter = searchOnlyFilter (C.translate' C.LblFilterMesoPlans) (.title)
     , parentLens = parentLens

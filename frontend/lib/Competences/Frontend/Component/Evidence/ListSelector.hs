@@ -21,7 +21,9 @@ import Competences.Frontend.Component.Selector.List
   , Model
   , listSelectorComponent
   )
+import Competences.Frontend.Component.Selector.UriBinding (pageBinding)
 import Competences.Frontend.Fragment.SelectorFilter (noopFilter)
+import Competences.Frontend.Page (Page (..))
 import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -55,15 +57,17 @@ projectEvidences doc mUser =
 
 evidenceListSelectorComponent
   :: SyncContext
+  -> Maybe EvidenceId
   -> Lens' p (Maybe Selected)
   -> M.Component p (Model Selected Projection ()) (Action Selected Projection ())
-evidenceListSelectorComponent r parentLens =
-  listSelectorComponent r (config parentLens)
+evidenceListSelectorComponent r mDeepLink parentLens =
+  listSelectorComponent r (config mDeepLink parentLens)
 
 config
-  :: Lens' p (Maybe Selected)
+  :: Maybe EvidenceId
+  -> Lens' p (Maybe Selected)
   -> ListSelectorConfig p Selected Projection EvidenceIxs EvidenceId () ()
-config parentLens =
+config mDeepLink parentLens =
   ListSelectorConfig
     { title = C.translate' C.LblSelectEvidences
     , project = projectEvidences
@@ -73,8 +77,13 @@ config parentLens =
     , idOf = (.id)
     , itemView = ItemRenderer renderItem
     , createActions = []
-    , uriBinding = Nothing
-    , initialPick = Nothing
+    , uriBinding =
+        Just $ pageBinding (Evidences . Just) $ \case
+          Evidences (Just eid) -> Just eid
+          _ -> Nothing
+    , initialPick = case mDeepLink of
+        Just eid -> Just (\xs -> Ix.getOne (xs Ix.@= eid))
+        Nothing -> Nothing
     , filter = noopFilter
     , parentLens = parentLens
     }

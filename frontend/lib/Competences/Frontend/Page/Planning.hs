@@ -4,7 +4,9 @@ module Competences.Frontend.Page.Planning
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (MesoPlan (..))
+import Competences.Document.MesoPlan (MesoPlanId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Planning.DetailView (detailView)
 import Competences.Frontend.Component.MesoPlan.ListSelector (mesoPlanListSelectorComponent)
@@ -13,6 +15,7 @@ import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
 import Competences.Query.DefaultSelection qualified as QDefault
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.Typography qualified as Typography
+import Control.Applicative ((<|>))
 import Data.List.NonEmpty (NonEmpty (..))
 import Miso qualified as M
 
@@ -25,13 +28,14 @@ data PlanningMode = PlanningEdit
 -- Teachers: Edit meso plans and their entries
 planningPage
   :: SyncContext
+  -> Maybe MesoPlanId
   -> M.Component p (SD.Model MesoPlan PlanningMode) (SD.Action PlanningMode)
-planningPage r =
+planningPage r mPlanId =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "planning"
       , SD.selectorComponent = mesoPlanListSelectorComponent r
-          (Just $ QDefault.defaultMesoPlan r.env.currentDay)
+          (Just initialPickFn)
       , SD.detailView = \mode plan -> case mode of
           PlanningEdit -> detailView r plan
       , SD.modeLabel = \case
@@ -42,3 +46,7 @@ planningPage r =
       , SD.defaultMode = PlanningEdit
       , SD.emptyView = Typography.muted (C.translate' C.LblSelectMesoPlan)
       }
+  where
+    initialPickFn xs = case mPlanId of
+      Just pid -> Ix.getOne (xs Ix.@= pid) <|> QDefault.defaultMesoPlan r.env.currentDay xs
+      Nothing -> QDefault.defaultMesoPlan r.env.currentDay xs

@@ -95,7 +95,7 @@ mkApp ir initialUri =
 
     view :: Model -> M.View Model Action
     view m =
-      let fallbackPage = if isStudent m.connectedUser then ManageAssignments Nothing else CompetenceGrid
+      let fallbackPage = if isStudent m.connectedUser then ManageAssignments Nothing else CompetenceGrid Nothing
           currentPage = either (const fallbackPage) id $ M.route (m ^. #uri)
           teacher = isTeacher m.connectedUser
           categories = if teacher then NavBar.teacherCategories else NavBar.studentCategories
@@ -126,9 +126,9 @@ mkApp ir initialUri =
     page uri = case M.route uri of
       Left _ -> V.text_ "404"
       Right v -> case v of
-        CompetenceGrid -> competenceGrid
-        Planning -> planning
-        Evidences -> evidences
+        CompetenceGrid mGridId -> competenceGrid mGridId
+        Planning mPlanId -> planning mPlanId
+        Evidences mEvId -> evidences mEvId
         ManageTasks mTaskId -> manageTasks mTaskId
         ManageResources mResId -> manageResources mResId
         LessonRecords mLid -> lessonRecords mLid
@@ -137,14 +137,14 @@ mkApp ir initialUri =
         ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
 
-    competenceGrid = mounted CompetenceGrid $ competenceGridPage ir defaultGridMode availableGridModes
+    competenceGrid mGridId = mounted (CompetenceGrid mGridId) $ competenceGridPage ir mGridId defaultGridMode availableGridModes
     defaultGridMode = GridView
     availableGridModes =
       if isTeacher model.connectedUser
         then GridView :| [GridEdit, GridAssessment, GridGrading]
         else GridView :| []
-    planning = mounted Planning $ planningPage ir
-    evidences = mounted Evidences $ evidencesPage ir (isTeacher model.connectedUser)
+    planning mPlanId = mounted (Planning mPlanId) $ planningPage ir mPlanId
+    evidences mEvId = mounted (Evidences mEvId) $ evidencesPage ir mEvId (isTeacher model.connectedUser)
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ tasksPage ir mTaskId
     manageResources mResId = mounted (ManageResources mResId) $ resourcesPage ir mResId
     lessonRecords mLid = mounted (LessonRecords mLid) $ lessonRecordsPage ir mLid
@@ -156,15 +156,14 @@ mkApp ir initialUri =
     mounted key = inlineComponentAttrs (M.ms (pageKey key)) [class_ "min-h-0", class_ "w-full", class_ "h-full"]
 
     -- Stable per-constructor key. Pages whose route carries a parameter
-    -- (e.g. ManageTasks (Just tid)) must NOT have that parameter in
-    -- their mount key — otherwise selecting an item in the page pushes
-    -- a new URL and Miso unmounts/remounts the whole page, losing
-    -- selector scroll position. Such pages subscribe to uriSub
-    -- internally and reconcile their state on URL change.
+    -- must NOT include that parameter in their mount key — otherwise
+    -- the list selector inside would unmount and remount on every
+    -- pick, losing scroll position. Such pages reconcile their state
+    -- against URI changes via 'popstateSub' inside the selector.
     pageKey :: Page -> String
-    pageKey CompetenceGrid = "competence-grid"
-    pageKey Planning = "planning"
-    pageKey Evidences = "evidences"
+    pageKey CompetenceGrid{} = "competence-grid"
+    pageKey Planning{} = "planning"
+    pageKey Evidences{} = "evidences"
     pageKey ManageTasks{} = "manage-tasks"
     pageKey ManageResources{} = "manage-resources"
     pageKey LessonRecords{} = "lesson-records"

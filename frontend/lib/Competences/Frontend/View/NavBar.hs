@@ -53,21 +53,21 @@ teacherCategories =
       , categoryPage = ManageAssignments Nothing
       , subEntries =
           [ NavEntry Icon.IcnTask (C.translate' C.LblTasks) (ManageTasks Nothing)
-          , NavEntry Icon.IcnEvidence (C.translate' C.LblEvidences) Evidences
+          , NavEntry Icon.IcnEvidence (C.translate' C.LblEvidences) (Evidences Nothing)
           ]
       }
   , NavCategory
       { categoryIcon = Icon.IcnCompetenceGrid
       , categoryLabel = C.translate' C.LblCompetenceGrid
       , categoryDescription = "Eine Übersicht darüber, was du schon kannst und was du noch etwas üben musst."
-      , categoryPage = CompetenceGrid
+      , categoryPage = CompetenceGrid Nothing
       , subEntries = []
       }
   , NavCategory
       { categoryIcon = Icon.IcnMesoPlan
       , categoryLabel = C.translate' C.LblMesoPlanning
       , categoryDescription = "Unterrichtsplanung und Materialien."
-      , categoryPage = Planning
+      , categoryPage = Planning Nothing
       , subEntries =
           [ NavEntry Icon.IcnResources (C.translate' C.LblResources) (ManageResources Nothing)
           ]
@@ -88,7 +88,7 @@ studentCategories =
       { categoryIcon = Icon.IcnCompetenceGrid
       , categoryLabel = C.translate' C.LblCompetenceGrid
       , categoryDescription = "Eine Übersicht darüber, was du schon kannst und was du noch etwas üben musst."
-      , categoryPage = CompetenceGrid
+      , categoryPage = CompetenceGrid Nothing
       , subEntries = []
       }
   , NavCategory

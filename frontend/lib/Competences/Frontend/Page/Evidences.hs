@@ -21,6 +21,7 @@ import Competences.Document
   , lockOwner
   )
 import Competences.Document.Evidence (Observation (..))
+import Competences.Document.Id (Id)
 import Competences.Document.Task (Task (..), TaskId, taskDisplayName)
 import Competences.Document.User (UserId, isStudent)
 import Competences.Frontend.Common qualified as C
@@ -73,12 +74,14 @@ data EvidenceEditorAction
 -- | Evidence editor component
 evidencesPage
   :: SyncContext
+  -> Maybe (Id Evidence)
+  -- ^ Deep-linked evidence (URL parameter), if any.
   -> Bool
   -- ^ Can edit evidences? (True for teachers, False for students)
   -> M.Component p EvidenceEditorModel EvidenceEditorAction
-evidencesPage r canEdit =
+evidencesPage r mEvId canEdit =
   let defaultMode = if canEdit then EvidenceEdit else EvidenceView
-   in M.component model update (mainView r canEdit defaultMode)
+   in M.component model update (mainView r mEvId canEdit defaultMode)
   where
     model = EvidenceEditorModel Nothing (if canEdit then EvidenceEdit else EvidenceView) True
     update (SwitchMode mode) = M.modify $ #activeMode .~ mode
@@ -87,18 +90,19 @@ evidencesPage r canEdit =
 -- | Main view with selector on left and detail view on right
 mainView
   :: SyncContext
+  -> Maybe (Id Evidence)
   -> Bool
   -> EvidenceMode
   -> EvidenceEditorModel
   -> M.View EvidenceEditorModel EvidenceEditorAction
-mainView r canEdit defaultMode m =
+mainView r mEvId canEdit defaultMode m =
   V.collapsibleSideMenu
     m.sidebarOpen
     ToggleSidebar
     ( V.inlineComponentAttrs
         "evidence-selector"
         [class_ "h-full"]
-        (evidenceListSelectorComponent r #selectedEvidence)
+        (evidenceListSelectorComponent r mEvId #selectedEvidence)
     )
     (detailPanel r canEdit defaultMode m)
 

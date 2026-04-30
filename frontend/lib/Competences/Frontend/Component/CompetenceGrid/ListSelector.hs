@@ -30,8 +30,10 @@ import Competences.Frontend.Component.Selector.List
   , Model
   , listSelectorComponent
   )
+import Competences.Frontend.Component.Selector.UriBinding (pageBinding)
 import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.Fragment.SelectorFilter (noopFilter)
+import Competences.Frontend.Page qualified as Page
 import Competences.Frontend.SyncContext (SyncContext, modifySyncDocument, nextId)
 import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.SelectorList qualified as SL
@@ -103,7 +105,10 @@ config style initialPickFn parentLens =
                   pure (Just g)
               }
           ]
-    , uriBinding = Nothing
+    , uriBinding =
+        Just $ pageBinding (Page.CompetenceGrid . Just) $ \case
+          Page.CompetenceGrid (Just gid) -> Just gid
+          _ -> Nothing
     , initialPick = initialPickFn
     , filter = noopFilter
     , parentLens = parentLens

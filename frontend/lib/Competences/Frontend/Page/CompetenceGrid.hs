@@ -4,7 +4,10 @@ module Competences.Frontend.Page.CompetenceGrid
   )
 where
 
+import Competences.Common.IxSet qualified as Ix
 import Competences.Document (CompetenceGrid (..))
+import Competences.Document.CompetenceGrid (CompetenceGridId)
+import Control.Applicative ((<|>))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.CompetenceGrid.Assessment (assessmentDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Editor (editorDetailView)
@@ -39,22 +42,26 @@ import Miso.Html qualified as MH
 -- - Assessment mode: allows assessing student competences
 competenceGridPage
   :: SyncContext
+  -> Maybe CompetenceGridId
+  -- ^ Deep-linked grid (URL parameter), if any.
   -> CompetenceGridMode
   -- ^ Initial mode (GridView or GridEdit)
   -> NonEmpty CompetenceGridMode
   -- ^ Available modes (for role-based filtering)
   -> M.Component p (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
-competenceGridPage r initialMode availableModes =
+competenceGridPage r mGridId initialMode availableModes =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "competence-grid"
       , SD.selectorComponent = \sel ->
-          -- Use create style if edit mode is available, otherwise view-only
           let style =
                 if GridEdit `elem` availableModes
                   then CompetenceGridSelectorViewAndCreateStyle
                   else CompetenceGridSelectorViewOnlyStyle
-           in competenceGridListSelectorComponent r style (Just QDefault.defaultCompetenceGrid) sel
+              initialPickFn xs = case mGridId of
+                Just gid -> Ix.getOne (xs Ix.@= gid) <|> QDefault.defaultCompetenceGrid xs
+                Nothing -> QDefault.defaultCompetenceGrid xs
+           in competenceGridListSelectorComponent r style (Just initialPickFn) sel
       , SD.detailView = \mode grid ->
           MH.div_
             [class_ "h-full w-full"]
