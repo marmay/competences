@@ -11,9 +11,9 @@ import Competences.Frontend.Component.CompetenceGrid.Editor (editorDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Grading (gradingDetailView)
 import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode (..))
 import Competences.Frontend.Component.CompetenceGrid.Viewer (viewerDetailView)
-import Competences.Frontend.Component.Selector.CompetenceGridSelector
+import Competences.Frontend.Component.CompetenceGrid.ListSelector
   ( CompetenceGridSelectorStyle (..)
-  , competenceGridSelectorComponent
+  , competenceGridListSelectorComponent
   )
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext)
@@ -54,7 +54,7 @@ competenceGridPage r initialMode availableModes =
                 if GridEdit `elem` availableModes
                   then CompetenceGridSelectorViewAndCreateStyle
                   else CompetenceGridSelectorViewOnlyStyle
-           in competenceGridSelectorComponent r style (Just QDefault.defaultCompetenceGrid) sel
+           in competenceGridListSelectorComponent r style (Just QDefault.defaultCompetenceGrid) sel
       , SD.detailView = \mode grid ->
           MH.div_
             [class_ "h-full w-full"]

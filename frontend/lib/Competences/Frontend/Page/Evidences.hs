@@ -27,12 +27,8 @@ import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Editor qualified as TE
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Selector.Common (EntityPatchTransformedLens (..), entityPatchTransformedLens)
-import Competences.Frontend.Component.EvidenceEditor.BulkEvidenceEditor (bulkEvidenceEditorComponent)
 import Competences.Frontend.Component.Assignment.SearchSelector (searchableSingleAssignmentEditorField)
-import Competences.Frontend.Component.Selector.EvidenceSelector
-  ( EvidenceSelectorStyle (..)
-  , evidenceSelectorComponent
-  )
+import Competences.Frontend.Component.Evidence.ListSelector (evidenceListSelectorComponent)
 import Competences.Frontend.Component.Selector.SearchSelect (SearchSelectConfig (..), SelectionOrder (..), TagLayout (..))
 import Competences.Frontend.Component.Selector.SearchSelectEditorField (searchSelectEditorField, searchSelectSingleEditorField)
 import Competences.Query.Task qualified as QTask
@@ -63,7 +59,6 @@ data EvidenceMode
 -- | Model for the evidence editor component
 data EvidenceEditorModel = EvidenceEditorModel
   { selectedEvidence :: !(Maybe Evidence)
-  , bulkEditorActive :: !Bool
   , activeMode :: !EvidenceMode
   , sidebarOpen :: !Bool
   }
@@ -75,60 +70,56 @@ data EvidenceEditorAction
   | ToggleSidebar
   deriving (Eq, Show)
 
--- | Evidence editor component with support for bulk editing
+-- | Evidence editor component
 evidencesPage
   :: SyncContext
   -> Bool
   -- ^ Can edit evidences? (True for teachers, False for students)
   -> M.Component p EvidenceEditorModel EvidenceEditorAction
 evidencesPage r canEdit =
-  let style = if canEdit then EvidenceSelectorViewAndCreate else EvidenceSelectorViewOnly
-      defaultMode = if canEdit then EvidenceEdit else EvidenceView
-   in M.component model update (mainView r style canEdit defaultMode)
+  let defaultMode = if canEdit then EvidenceEdit else EvidenceView
+   in M.component model update (mainView r canEdit defaultMode)
   where
-    model = EvidenceEditorModel Nothing False (if canEdit then EvidenceEdit else EvidenceView) True
+    model = EvidenceEditorModel Nothing (if canEdit then EvidenceEdit else EvidenceView) True
     update (SwitchMode mode) = M.modify $ #activeMode .~ mode
     update ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
--- | Main view with selector on left and detail/bulk editor on right
+-- | Main view with selector on left and detail view on right
 mainView
   :: SyncContext
-  -> EvidenceSelectorStyle
   -> Bool
   -> EvidenceMode
   -> EvidenceEditorModel
   -> M.View EvidenceEditorModel EvidenceEditorAction
-mainView r style canEdit defaultMode m =
+mainView r canEdit defaultMode m =
   V.collapsibleSideMenu
     m.sidebarOpen
     ToggleSidebar
     ( V.inlineComponentAttrs
         "evidence-selector"
         [class_ "h-full"]
-        (evidenceSelectorComponent r style #selectedEvidence #bulkEditorActive)
+        (evidenceListSelectorComponent r #selectedEvidence)
     )
     (detailPanel r canEdit defaultMode m)
 
--- | Detail panel - shows bulk editor or normal detail view
+-- | Detail panel — shows the editor or viewer for the selected evidence.
 detailPanel
   :: SyncContext
   -> Bool
   -> EvidenceMode
   -> EvidenceEditorModel
   -> M.View EvidenceEditorModel EvidenceEditorAction
-detailPanel r canEdit _defaultMode m
-  | m.bulkEditorActive =
-      V.inlineComponent "bulk-evidence-editor" (bulkEvidenceEditorComponent r)
-  | otherwise = case m.selectedEvidence of
-      Nothing -> V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-      Just evidence ->
-        V.vFlow (V.gapM <> V.wFull <> V.crossStart)
-          [ if canEdit then modeSwitcher m else V.empty
-          , V.flexGrow $
-              if canEdit
-                then evidenceEditorDetailView r evidence
-                else evidenceViewerDetailView r evidence
-          ]
+detailPanel r canEdit _defaultMode m =
+  case m.selectedEvidence of
+    Nothing -> V.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
+    Just evidence ->
+      V.vFlow (V.gapM <> V.wFull <> V.crossStart)
+        [ if canEdit then modeSwitcher m else V.empty
+        , V.flexGrow $
+            if canEdit
+              then evidenceEditorDetailView r evidence
+              else evidenceViewerDetailView r evidence
+        ]
 
 -- | Mode switcher buttons
 modeSwitcher :: EvidenceEditorModel -> M.View EvidenceEditorModel EvidenceEditorAction

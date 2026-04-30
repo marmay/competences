@@ -62,10 +62,16 @@ data CreateAction selected = CreateAction
 -- exists because record-dot access (and 'HasField') can't see through
 -- a 'forall' field; the body uses @case ... of ItemRenderer iv -> iv ...@
 -- to pull out the function.
+--
+-- The renderer receives the current projection alongside the item so
+-- it can derive metadata that isn't part of the entity itself
+-- (e.g. a per-row badge that depends on a focused-user-specific
+-- pre-computed map). Pure renderers ignore the projection argument.
 newtype ItemRenderer selected projection fAction
   = ItemRenderer
       ( forall m
          . selected
+        -> projection
         -> Bool
         -> M.View m (Action selected projection fAction)
       )
@@ -272,7 +278,7 @@ listSelectorComponent r cfg =
               || (cfg.idOf <$> m.pending) == Just (cfg.idOf s)
        in case cfg.itemView of
             ItemRenderer iv ->
-              SL.selectorList [iv s (isSelected s) | s <- shown]
+              SL.selectorList [iv s m.projection (isSelected s) | s <- shown]
 
 -- ---------------------------------------------------------------------------
 -- Helpers

@@ -1,6 +1,6 @@
 -- | Lesson records (Schulübung) list + detail page. The left pane mounts
--- 'lessonRecordsSelectorComponent' (which owns the subscription and
--- exposes the chosen 'LessonId' via a binding); the right pane mounts
+-- 'lessonRecordsListSelectorComponent' (which owns the subscription and
+-- exposes the chosen 'LessonRow' via a binding); the right pane mounts
 -- 'lessonDetailedComponent' in student mode for the selected lesson.
 module Competences.Frontend.Page.LessonRecords
   ( lessonRecordsPage
@@ -14,19 +14,17 @@ import Competences.Frontend.Component.Lesson.Detailed
   , LessonDetailedMode (..)
   , lessonDetailedComponent
   )
-import Competences.Frontend.Component.Selector.LessonRecordsSelector (lessonRecordsSelectorComponent)
-import Competences.Frontend.Page (Page (..))
-import Competences.Frontend.SyncContext (SyncContext (..))
+import Competences.Frontend.Component.LessonRecords.ListSelector (LessonRow (..), lessonRecordsListSelectorComponent)
+import Competences.Frontend.SyncContext (SyncContext)
 import Competences.Frontend.SyncContext.WindowManager (inlineComponent, inlineComponentAttrs)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import GHC.Generics (Generic)
 import Miso qualified as M
-import Miso.Router qualified as M
 import Miso.String (ms)
 
 data Model = Model
-  { selected :: !(Maybe LessonId)
+  { selected :: !(Maybe LessonRow)
   , sidebarOpen :: !Bool
   }
   deriving (Eq, Generic, Show)
@@ -39,24 +37,22 @@ lessonRecordsPage :: SyncContext -> Maybe LessonId -> M.Component p Model Action
 lessonRecordsPage r mSelected =
   M.component model update' view'
   where
-    model = Model mSelected True
+    model = Model Nothing True
 
-    onSelect = Just (M.pushURI . M.toURI . LessonRecords . Just)
-
-    update' ToggleSidebar = M.modify $ \m -> m {sidebarOpen = not m.sidebarOpen}
+    update' ToggleSidebar = M.modify $ \m -> m{sidebarOpen = not m.sidebarOpen}
 
     view' m =
       Layout.collapsibleSideMenu
         m.sidebarOpen
         ToggleSidebar
         ( inlineComponentAttrs "lesson-record-selector" [class_ "h-full"] $
-            lessonRecordsSelectorComponent r mSelected onSelect #selected
+            lessonRecordsListSelectorComponent r mSelected #selected
         )
         (detailView m.selected)
 
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
-    detailView (Just lid) =
+    detailView (Just row) =
       inlineComponent
-        ("lesson-record-detail-" <> ms (show lid))
-        (lessonDetailedComponent r (LessonDetailedConfig lid StudentMode))
+        ("lesson-record-detail-" <> ms (show row.lessonId))
+        (lessonDetailedComponent r (LessonDetailedConfig row.lessonId StudentMode))

@@ -317,9 +317,10 @@ config r initialPickFn parentLens =
 
 renderItem
   :: Selected
+  -> Projection
   -> Bool
   -> M.View m (Action Selected Projection AssignmentFilterAction)
-renderItem w isSel =
+renderItem w _proj isSel =
   let isDraft = w.origin == Draft
       iconView =
         Icon.icon

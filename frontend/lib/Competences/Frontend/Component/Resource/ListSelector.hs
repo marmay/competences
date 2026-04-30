@@ -104,9 +104,10 @@ config parentLens mResourceId =
 
 renderItem
   :: Selected
+  -> Projection
   -> Bool
   -> M.View m (Action Selected Projection Text)
-renderItem res isSel =
+renderItem res _proj isSel =
   let ResourceIdentifier ident = res.identifier
       label = ms (if T.null ident then "(Unbenannt)" else ident)
    in SL.selectorItem isSel (contentIcon res.content) label (Pick res)

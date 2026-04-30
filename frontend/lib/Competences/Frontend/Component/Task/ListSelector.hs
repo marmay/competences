@@ -121,9 +121,10 @@ config parentLens mTaskId =
 
 renderItem
   :: Selected
+  -> Projection
   -> Bool
   -> M.View m (Action Selected Projection Text)
-renderItem wt isSel =
+renderItem wt _proj isSel =
   let badge = case wt.origin of
         Draft -> Just $ Badge.secondary (Badge.badgeText (C.translate' C.LblDraft))
         Published -> Nothing

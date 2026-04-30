@@ -7,7 +7,7 @@ where
 import Competences.Document (MesoPlan (..))
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Planning.DetailView (detailView)
-import Competences.Frontend.Component.Selector.MesoPlanSelector (mesoPlanSelectorComponent)
+import Competences.Frontend.Component.MesoPlan.ListSelector (mesoPlanListSelectorComponent)
 import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext (SyncContext (..), SyncDocumentEnv (..))
 import Competences.Query.DefaultSelection qualified as QDefault
@@ -30,7 +30,7 @@ planningPage r =
   SD.selectorDetailComponent
     SD.SelectorDetailConfig
       { SD.selectorId = "planning"
-      , SD.selectorComponent = mesoPlanSelectorComponent r
+      , SD.selectorComponent = mesoPlanListSelectorComponent r
           (Just $ QDefault.defaultMesoPlan r.env.currentDay)
       , SD.detailView = \mode plan -> case mode of
           PlanningEdit -> detailView r plan
