@@ -51,12 +51,16 @@ import Competences.Query.User qualified as QUser
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.RichContent (renderRichTextWithFiles)
 import Competences.Frontend.Component.ResourceLookup (findGroupedResources)
-import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponentWith, isPinned, pinDialogWith)
+import Competences.Frontend.Component.CompetenceGrid.Assessment (pinCompetenceGridAssessment)
+import Competences.Frontend.Component.CompetenceGrid.Editor (pinCompetenceGridEditor)
+import Competences.Frontend.Component.CompetenceGrid.Grading (pinCompetenceGridGrading)
+import Competences.Frontend.Component.EntityMenu qualified as EM
+import Competences.Frontend.SyncContext.WindowManager (PinCategory (..), PinMeta (..), SortAtom (..), SortKey (..), WindowChrome (..), WindowMode, inlineComponent, inlineComponentWith, isPinned, pinDialogWith)
 import Competences.Frontend.Component.Resource.Modal qualified as ResourceModal
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.Fragment.Task.Projection (TaskWithSolutions (..))
 import Competences.Frontend.SyncContext
-  ( ProjectedChange (..)
+  ( PinViewerRequest (..)
+  , ProjectedChange (..)
   , SyncContext (..)
   , SyncDocument (..)
   , SyncDocumentEnv (..)
@@ -81,7 +85,6 @@ import Competences.Frontend.View.CellStyle qualified as CellStyle
 import Competences.Frontend.Fragment.MasteryBar qualified as MasteryBar
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
-import Competences.Frontend.View.WindowFrame (pinButton)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.Mastery
   ( MasteryStatus (..)
@@ -111,7 +114,6 @@ import Miso.Html.Property qualified as MP
 import Miso.String (MisoString)
 import Optics.Core ((.~))
 
-import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 
 -- ============================================================================
 -- PROJECTION TYPES
@@ -205,7 +207,6 @@ data ViewerModel = ViewerModel
 data ViewerAction
   = ViewerProjectionChanged !(ProjectedChange ViewerProjection)
   | OpenResourceModal !CompetenceLevelId
-  | PinThis
   | TriggerPrint
   | DoPrint !PrintData
   | ClearPrint
@@ -236,10 +237,7 @@ pinCompetenceGridViewer r grid =
         (\mode (_savedState :: Maybe ()) -> viewerComponent r grid mode)
 
 -- | View for the viewer detail - shows competence grid with student evidence
-viewerDetailView
-  :: SyncContext
-  -> CompetenceGrid
-  -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
+viewerDetailView :: SyncContext -> CompetenceGrid -> M.View m a
 viewerDetailView r grid =
   inlineComponentWith
     ("competence-grid-viewer-" <> M.ms (show grid.id))
@@ -416,8 +414,6 @@ viewerComponent r grid wm =
           cfg = ResourceModal.ResourceModalConfig tasks (\doc -> findGroupedResources doc [clId]) showPurposeBadge m.projection.taskStatuses
       M.io_ $ ResourceModal.openResourceModal r cfg
 
-    update PinThis = M.io_ $ pinCompetenceGridViewer r grid
-
     update TriggerPrint = M.io $ do
       syncDoc <- readSyncDocument r
       let doc = syncDoc.localDocument
@@ -535,7 +531,7 @@ viewerComponent r grid wm =
                   ]
                   <> [ toggleButton | proj.gridHasExamples ]
                   <> [ printButton' ]
-                  <> [ pinButton PinThis | not (isPinned wm) ]
+                  <> [ entityMenu ]
                   <> [ case userData.activeGridGrade of
                          Just gridGrade -> gradeBadgeView gridGrade.grade
                          Nothing -> Layout.empty
@@ -551,8 +547,41 @@ viewerComponent r grid wm =
                   ]
                   <> [ toggleButton | proj.gridHasExamples ]
                   <> [ printButton' ]
-                  <> [ pinButton PinThis | not (isPinned wm) ]
+                  <> [ entityMenu ]
               ]
+
+        -- EntityMenu hosting pin + teacher-only Edit/Assess/Grade entries.
+        -- Assess/Grade need a focused user (UserViewData); Edit doesn't.
+        entityMenu =
+          let isTeacher_ = proj.connectedUserRole == Teacher
+              hasFocusedUser = case proj.viewData of
+                UserViewData _ -> True
+                AnalyticsViewData _ -> False
+           in inlineComponent
+                ("entity-menu-grid-" <> M.ms (show grid.id))
+                ( EM.entityMenuComponent r EM.EntityMenuConfig
+                    { edit = Nothing
+                    , pin =
+                        if not (isPinned wm)
+                          then Just (PinCompetenceGridViewer grid)
+                          else Nothing
+                    , goTo = Nothing
+                    , delete = Nothing
+                    , extraEntries =
+                        [ EM.ExtraEntry Icon.IcnEdit (C.translate' C.LblEdit)
+                            (pinCompetenceGridEditor r grid)
+                        | isTeacher_
+                        ]
+                          <> [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblAssess)
+                                 (pinCompetenceGridAssessment r grid)
+                             | isTeacher_ && hasFocusedUser
+                             ]
+                          <> [ EM.ExtraEntry Icon.IcnEvidence (C.translate' C.LblGrade)
+                                 (pinCompetenceGridGrading r grid)
+                             | isTeacher_ && hasFocusedUser
+                             ]
+                    }
+                )
 
         description = Typography.paragraph (M.ms grid.description)
 

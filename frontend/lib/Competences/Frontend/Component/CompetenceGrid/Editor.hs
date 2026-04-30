@@ -1,5 +1,5 @@
 module Competences.Frontend.Component.CompetenceGrid.Editor
-  ( editorDetailView
+  ( pinCompetenceGridEditor
   )
 where
 
@@ -20,7 +20,6 @@ import Competences.Document.Order (orderPosition)
 import Competences.Exchange.Build (competenceGridExchange, competenceGridWithContentExchange)
 import Competences.Frontend.Clipboard (copyToClipboard)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 import Competences.Frontend.Exchange (encodeExchangeYaml)
 import Competences.Frontend.Component.CompetenceLevelExampleEditor (openExampleEditor)
 import Competences.Frontend.Component.Editor qualified as TE
@@ -28,7 +27,6 @@ import Competences.Frontend.Component.Editor.EditorField (EditorField (..))
 import Competences.Frontend.Component.Editor.FormView qualified as TE
 import Competences.Frontend.Component.Editor.TableView qualified as TE
 import Competences.Frontend.Component.Editor.Types (Action (UpdatePatch), Model (..), translateReorder')
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -38,7 +36,16 @@ import Competences.Frontend.SyncContext
   , readSyncDocument
   , subscribeDocument
   )
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Frontend.SyncContext.WindowManager
+  ( PinCategory (..)
+  , PinMeta (..)
+  , SortAtom (..)
+  , SortKey (..)
+  , WindowChrome (..)
+  , inlineComponent
+  , pinDialogWith
+  )
+import Competences.Document.Id (idToText)
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Text (text_)
 import Competences.Frontend.View.Button qualified as Button
@@ -74,15 +81,22 @@ data EditorAction
   | DocumentUpdated !DocumentChange
   deriving (Eq, Show)
 
--- | View for the editor detail - allows editing grid and competences
-editorDetailView
-  :: SyncContext
-  -> CompetenceGrid
-  -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
-editorDetailView r grid =
-  inlineComponent
-    ("competence-grid-editor-" <> M.ms (show grid.id))
-    (editorComponent r grid)
+-- | Pin the competence-grid editor as a persistent dialog.
+pinCompetenceGridEditor :: SyncContext -> CompetenceGrid -> IO ()
+pinCompetenceGridEditor r grid =
+  let chrome = WindowChrome (M.ms grid.title) Icon.IcnEdit Nothing
+      meta = PinMeta
+        { key = "grid-edit-" <> idToText grid.id
+        , category = PinCatCompetenceGrid
+        , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
+        , context = Nothing
+        , isEditor = True
+        , followUp = True
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (\_ (_ :: Maybe ()) -> editorComponent r grid)
 
 editorComponent :: SyncContext -> CompetenceGrid -> M.Component p EditorModel EditorAction
 editorComponent r grid =

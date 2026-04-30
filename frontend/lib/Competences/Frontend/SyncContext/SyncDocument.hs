@@ -61,7 +61,7 @@ module Competences.Frontend.SyncContext.SyncDocument
 where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Document (Assignment, Document, Resource, Task, User (..), UserRole (..), emptyDocument)
+import Competences.Document (Assignment, CompetenceGrid, Document, Resource, Task, User (..), UserRole (..), emptyDocument)
 import Competences.Document.Session (SessionId)
 import Competences.Document.FileRef (FileData (..), FileRef, SHA256Hash)
 import Competences.Document.Id (Id (..))
@@ -180,6 +180,7 @@ data PinViewerRequest
   = PinTaskViewer !Task
   | PinResourceViewer !Resource
   | PinAssignmentViewer !Assignment
+  | PinCompetenceGridViewer !CompetenceGrid
   deriving (Eq, Show)
 
 requestViewerPin :: SyncContext -> PinViewerRequest -> IO ()

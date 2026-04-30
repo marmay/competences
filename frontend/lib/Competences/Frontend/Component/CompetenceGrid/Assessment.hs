@@ -1,5 +1,5 @@
 module Competences.Frontend.Component.CompetenceGrid.Assessment
-  ( assessmentDetailView
+  ( pinCompetenceGridAssessment
   )
 where
 
@@ -31,16 +31,23 @@ import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Query.Evidence qualified as QEvidence
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Document.Id (idToText)
+import Competences.Frontend.SyncContext.WindowManager
+  ( PinCategory (..)
+  , PinMeta (..)
+  , SortAtom (..)
+  , SortKey (..)
+  , WindowChrome (..)
+  , pinDialogWith
+  )
 import Competences.Frontend.View.Tooltip (Tooltip (..), withTooltip)
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.View.DateDisplay qualified as DateDisplay
@@ -66,7 +73,6 @@ import Miso.Html qualified as MH
 import Optics.Core ((.~))
 import System.IO.Unsafe (unsafePerformIO)
 
-import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
 
 -- ============================================================================
 -- ASSESSMENT MODE DETAIL
@@ -102,15 +108,22 @@ data AssessmentAction
   | InitToday !Day -- Initialize today's date
   deriving (Eq, Show)
 
--- | View for the assessment detail - allows assessing student competences
-assessmentDetailView
-  :: SyncContext
-  -> CompetenceGrid
-  -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
-assessmentDetailView r grid =
-  inlineComponent
-    ("competence-grid-assessment-" <> M.ms (show grid.id))
-    (assessmentComponent r grid)
+-- | Pin the competence-grid assessment view as a persistent dialog.
+pinCompetenceGridAssessment :: SyncContext -> CompetenceGrid -> IO ()
+pinCompetenceGridAssessment r grid =
+  let chrome = WindowChrome (M.ms grid.title) Icon.IcnApply Nothing
+      meta = PinMeta
+        { key = "grid-assess-" <> idToText grid.id
+        , category = PinCatCompetenceGrid
+        , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
+        , context = Nothing
+        , isEditor = False
+        , followUp = True
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (\_ (_ :: Maybe ()) -> assessmentComponent r grid)
 
 assessmentComponent :: SyncContext -> CompetenceGrid -> M.Component p AssessmentModel AssessmentAction
 assessmentComponent r grid =

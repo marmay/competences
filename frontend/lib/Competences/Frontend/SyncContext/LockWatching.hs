@@ -22,6 +22,7 @@ import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId, taskDisplayName)
 import Competences.Frontend.Component.Assignment.PinEditor (assignmentPinEditor)
 import Competences.Frontend.Component.Assignment.Detailed (pinAssignmentViewer)
+import Competences.Frontend.Component.CompetenceGrid.Viewer (pinCompetenceGridViewer)
 import Competences.Frontend.Component.Planning.LessonPinEditor (lessonPinEditor)
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.Resource.PinEditor (resourcePinEditor)
@@ -278,6 +279,8 @@ handleViewerPin r (PinResourceViewer res) =
         (\_ (_ :: Maybe ()) -> ResComp.resourceDetailedComponent r (ResComp.ResourceDetailedConfig res.id ResComp.defaultResourceDetailedSettings))
 handleViewerPin r (PinAssignmentViewer assignment) =
   pinAssignmentViewer r r.env.connectedUser assignment
+handleViewerPin r (PinCompetenceGridViewer grid) =
+  pinCompetenceGridViewer r grid
 
 -- ============================================================================
 -- Config

@@ -1,5 +1,5 @@
 module Competences.Frontend.Component.CompetenceGrid.Grading
-  ( gradingDetailView
+  ( pinCompetenceGridGrading
   )
 where
 
@@ -24,23 +24,30 @@ import Competences.Query.CompetenceAssessment qualified as QAssessment
 import Competences.Query.CompetenceGridGrade qualified as QGridGrade
 import Competences.Document.User (User (..))
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.CompetenceGrid.Types (CompetenceGridMode)
-import Competences.Frontend.Component.SelectorDetail qualified as SD
 import Competences.Frontend.SyncContext
   ( ProjectedChange (..)
-  , SyncContext
+  , SyncContext (..)
   , modifySyncDocument
   , nextId
   , subscribeWithProjection
   )
 import Competences.Frontend.View.Button qualified as Button
-import Competences.Frontend.SyncContext.WindowManager (inlineComponent)
+import Competences.Document.Id (idToText)
+import Competences.Frontend.SyncContext.WindowManager
+  ( PinCategory (..)
+  , PinMeta (..)
+  , SortAtom (..)
+  , SortKey (..)
+  , WindowChrome (..)
+  , pinDialogWith
+  )
 import Competences.Frontend.View.Card qualified as Card
 import Competences.Frontend.Fragment.GradeBadge (gradeBadgeView)
 import Competences.Frontend.View.Input qualified as Input
 import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Table qualified as Table
 import Competences.Frontend.View.CellStyle qualified as CellStyle
+import Competences.Frontend.View.Icon qualified as Icon
 import Competences.Frontend.View.StatusIcon qualified as StatusIcon
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
@@ -90,15 +97,22 @@ data GradingAction
   | InitToday !Day
   deriving (Eq, Show)
 
--- | View for the grading detail - shows condensed competence grid with grade entry
-gradingDetailView
-  :: SyncContext
-  -> CompetenceGrid
-  -> M.View (SD.Model CompetenceGrid CompetenceGridMode) (SD.Action CompetenceGridMode)
-gradingDetailView r grid =
-  inlineComponent
-    ("competence-grid-grading-" <> M.ms (show grid.id))
-    (gradingComponent r grid)
+-- | Pin the competence-grid grading view as a persistent dialog.
+pinCompetenceGridGrading :: SyncContext -> CompetenceGrid -> IO ()
+pinCompetenceGridGrading r grid =
+  let chrome = WindowChrome (M.ms grid.title) Icon.IcnEvidence Nothing
+      meta = PinMeta
+        { key = "grid-grade-" <> idToText grid.id
+        , category = PinCatCompetenceGrid
+        , sortKey = SortKey [SortAtom grid.order, SortAtom grid.id]
+        , context = Nothing
+        , isEditor = False
+        , followUp = True
+        }
+   in pinDialogWith r.windowManager
+        meta
+        chrome
+        (\_ (_ :: Maybe ()) -> gradingComponent r grid)
 
 gradingComponent :: SyncContext -> CompetenceGrid -> M.Component p GradingModel GradingAction
 gradingComponent r grid =

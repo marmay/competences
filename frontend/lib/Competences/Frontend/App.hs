@@ -13,7 +13,7 @@ import Competences.Frontend.Component.ConnectionStatus (connectionStatusView)
 import Competences.Frontend.Component.SidebarAddButton (sidebarAddButton)
 import Competences.Frontend.Component.WindowHost (windowHostComponent)
 import Competences.Frontend.Page.Assignments (assignmentsPage)
-import Competences.Frontend.Page.CompetenceGrid (CompetenceGridMode (..), competenceGridPage)
+import Competences.Frontend.Page.CompetenceGrid (competenceGridPage)
 import Competences.Frontend.Page.Evidences (evidencesPage)
 import Competences.Frontend.Page.LessonRecords (lessonRecordsPage)
 import Competences.Frontend.Page.Participation (participationPage)
@@ -41,7 +41,6 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.NavBar qualified as NavBar
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Query.User qualified as QUser
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -137,12 +136,7 @@ mkApp ir initialUri =
         ParticipationTimeline -> participationTimeline
         ManageUsers -> manageUsers
 
-    competenceGrid mGridId = mounted (CompetenceGrid mGridId) $ competenceGridPage ir mGridId defaultGridMode availableGridModes
-    defaultGridMode = GridView
-    availableGridModes =
-      if isTeacher model.connectedUser
-        then GridView :| [GridEdit, GridAssessment, GridGrading]
-        else GridView :| []
+    competenceGrid mGridId = mounted (CompetenceGrid mGridId) $ competenceGridPage ir mGridId
     planning mPlanId = mounted (Planning mPlanId) $ planningPage ir mPlanId
     evidences mEvId = mounted (Evidences mEvId) $ evidencesPage ir mEvId (isTeacher model.connectedUser)
     manageTasks mTaskId = mounted (ManageTasks mTaskId) $ tasksPage ir mTaskId

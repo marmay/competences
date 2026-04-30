@@ -67,7 +67,6 @@ library
         Competences.Frontend.Component.Planning.LessonPinEditor,
         Competences.Frontend.Component.Planning.LessonEvaluator,
         Competences.Frontend.Component.Planning.StudentEvaluatorModal,
-        Competences.Frontend.Component.CompetenceGrid.Types,
         Competences.Frontend.Component.CompetenceGrid.Viewer,
         Competences.Frontend.Component.ConnectionStatus,
         Competences.Frontend.Component.LockButton,
