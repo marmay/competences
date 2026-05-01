@@ -23,7 +23,7 @@ library
         Competences.HouseCup.Database
         Competences.HouseCup.Scoring
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         aeson,
         bytestring,
         competences-common,
@@ -46,7 +46,7 @@ executable competences-housecup
         OverloadedStrings
     main-is:          Main.hs
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         aeson,
         bytestring,
         competences-housecup,

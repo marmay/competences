@@ -26,7 +26,7 @@ library
         Competences.Markdown.Geometry.Parser
         Competences.Markdown.Validation
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         containers,
         megaparsec,
         mtl,
@@ -48,7 +48,7 @@ test-suite competences-markdown-test
         Test.Markdown.GeometryTest
         Test.Markdown.ValidationTest
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         competences-markdown,
         containers,
         tasty,

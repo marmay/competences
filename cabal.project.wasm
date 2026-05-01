@@ -12,7 +12,28 @@ package competences-frontend
 constraints: miso +template-haskell
 
 allow-newer:
-    ixset-typed:template-haskell
+    ixset-typed:template-haskell,
+    *:base,
+    *:template-haskell,
+    *:Cabal,
+    *:Cabal-syntax,
+    *:bytestring,
+    *:containers,
+    *:deepseq,
+    *:directory,
+    *:filepath,
+    *:ghc-prim,
+    *:ghc-bignum,
+    *:ghc-internal,
+    *:integer-gmp,
+    *:os-string,
+    *:process,
+    *:text,
+    *:time,
+    *:transformers,
+    *:unix,
+    *:ghc,
+    *:ghc-experimental
 
 source-repository-package
     --sha256: sha256-4xQLKNwXxdUqurhqckMiXlj/+rmMytkMR9xdrxvMcH4=

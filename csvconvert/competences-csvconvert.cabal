@@ -21,7 +21,7 @@ executable competences-csvconvert
         OverloadedStrings
     main-is:          Main.hs
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         attoparsec,
         aeson,
         bytestring,

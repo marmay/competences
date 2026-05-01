@@ -103,7 +103,7 @@ library
         Competences.Search
         Competences.TaskContent.RichContent
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         base64-bytestring,
         binary,
         bytestring,
@@ -139,7 +139,7 @@ test-suite competences-common-test
         Test.Query.MasteryTest
         Test.SearchTest
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         competences-common,
         containers,
         ixset-typed,

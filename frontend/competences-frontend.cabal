@@ -191,7 +191,7 @@ library
         Competences.Frontend.WebSocket.Handlers,
         Competences.Frontend.WebSocket.Protocol
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         base64-bytestring,
         binary,
         bytestring,
@@ -226,7 +226,7 @@ executable competences-frontend
         OverloadedStrings
     main-is:          Main.hs
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         binary,
         bytestring,
         competences-common,

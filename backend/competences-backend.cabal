@@ -38,7 +38,7 @@ library
         Competences.Backend.State
         Competences.Backend.WebSocket
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         aeson,
         binary,
         blaze-html,
@@ -96,7 +96,7 @@ executable competences-backend
         TypeFamilies
     main-is:          Main.hs
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         bytestring,
         competences-backend,
         competences-common,
@@ -132,5 +132,5 @@ test-suite competences-backend-test
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        base ^>=4.21.0.0,
+        base >=4.21 && <4.23,
         competences-backend

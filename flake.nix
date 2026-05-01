@@ -44,7 +44,9 @@
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
-        flake = pkgs.hixProject.flake {};
+        flake = pkgs.hixProject.flake {
+          crossPlatforms = p: [ p.wasi32 ];
+        };
 
         # Get packages from pkgs (which now has our overlay applied)
         backend = pkgs.competences-backend;
