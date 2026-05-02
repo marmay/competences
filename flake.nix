@@ -51,16 +51,14 @@
               # shell.tools.hlint = "latest";
               # shell.tools.haskell-language-server = "latest";
 
-              # Native dev plus the post-processing pipeline the deploy
-              # script needs (binaryen for wasm-opt, wasm-tools, esbuild,
-              # tailwindcss). The wasm32-unknown-wasi-cabal wrapper from
-              # haskell.nix is also on PATH but not currently usable for
-              # direct iterative builds — it picks up the native libffi
-              # rather than the wasi32 one. The deploy script therefore
-              # invokes `nix build` for the .wasm artifact and only uses
-              # the post-processing tools from the shell. Module-level
-              # incremental WASM dev is a follow-up item.
-              shell.buildInputs = with final; [
+              # Native dev tools and the WASM post-processing pipeline.
+              # These are *build-platform* binaries (they produce or run on
+              # x86_64-linux), so they go into nativeBuildInputs. Putting
+              # them into buildInputs would treat them as cross-targeted
+              # deps and leak their .so/.a paths into NIX_LDFLAGS_FOR_TARGET,
+              # which then poisons the wasi32 link search path and points
+              # `-lffi` at the native libffi.
+              shell.nativeBuildInputs = with final; [
                 ghcid ghciwatch nginx postgresql
                 binaryen wasm-tools esbuild tailwindcss_4
                 gnumake http-server
