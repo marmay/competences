@@ -28,6 +28,7 @@
 - [ ] **Assignment status icon in Schulübung rows** — Surface submission / evaluation status per assignment (overdue, submitted, corrected). Requires an assignment-level status query.
 - [ ] **Reorder UX within a phase's items list** — Current editor preserves insertion order; no drag-reorder yet.
 - [ ] **Per-phase file attachments** — Not supported; teachers use a dedicated Resource for media-bearing content. Revisit only if friction proves real.
+- [ ] **Selector binding direction is implicit** — `Component/Selector/EnumSelector.hs` uses bidirectional `<--->`; the rest of the selector family (`List`, `CustomSelect`, `MultiStageSelector`, `LessonSelector`, `SearchSelect`) goes through `mkSelectorBinding` which is hardcoded to uni `<---`. The current EnumSelector use sites happen to need `<--->` (so external parent-state changes flow back into the dropdown, e.g. on `LoadStudentEvidence`), so things work — but the choice is invisible to the caller. Introduce a `data Direction p a = Uni (Lens' p a) | Bi (Lens' p a)` (or similar) so each call site explicitly opts into uni- or bi-directional binding instead of inheriting whichever the component happened to pick. Keeps the reactive graph simple by default, lets the rare cases declare the bidirectional dependency at the use site.
 
 ### Entity menus
 
