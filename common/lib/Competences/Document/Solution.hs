@@ -11,11 +11,13 @@ module Competences.Document.Solution
 where
 
 import Competences.Common.IxSet qualified as Ix
+import Competences.Document.FileRef (FileRef)
 import Competences.Document.Id (Id)
 import Competences.Document.Task (TaskId)
 import Competences.Document.User (UserId)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, withObject, (.:), (.:?), (.!=))
+import Data.Aeson qualified as Aeson
 #endif
 import Data.Binary (Binary)
 import Data.List (singleton)
@@ -51,6 +53,7 @@ data Solution = Solution
   , userId :: !UserId
   , solutionType :: !SolutionType
   , content :: !RichContent
+  , files :: ![FileRef]
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -63,9 +66,20 @@ instance Ix.Indexable SolutionIxs Solution where
       (Ix.ixFun $ singleton . (.solutionType))
 
 #ifdef WITH_AESON
-instance FromJSON Solution
+-- Hand-written so `files` defaults to [] in old snapshots/commands.
+instance FromJSON Solution where
+  parseJSON = withObject "Solution" $ \v ->
+    Solution
+      <$> v .: "id"
+      <*> v .: "taskId"
+      <*> v .: "userId"
+      <*> v .: "solutionType"
+      <*> v .: "content"
+      <*> v .:? "files" .!= []
 
-instance ToJSON Solution
+instance ToJSON Solution where
+  toJSON = Aeson.genericToJSON Aeson.defaultOptions
+  toEncoding = Aeson.genericToEncoding Aeson.defaultOptions
 #endif
 
 instance Binary Solution
@@ -79,4 +93,5 @@ mkSolution sid tid uid =
     , userId = uid
     , solutionType = Hint
     , content = mempty
+    , files = []
     }

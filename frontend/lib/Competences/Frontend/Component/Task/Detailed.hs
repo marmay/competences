@@ -252,7 +252,7 @@ renderOneSol r state liftAction openByDefault isTeacher' sol =
       isExpanded = if openByDefault then not toggled else toggled
       rendered
         | sol.content == mempty = Typography.muted (C.translate' C.LblNoContent)
-        | otherwise = taskContentView (renderRichText r.formulaCache sol.content)
+        | otherwise = taskContentView (renderRichTextWithFiles r.formulaCache r sol.files sol.content)
       actions
         | isTeacher' =
             [ Disclosure.viewAction (solutionEditButton r sol)

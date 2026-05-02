@@ -11,10 +11,12 @@ import Competences.Command.Audience (CommandAudience (..))
 import Competences.Command.Common (Change, CommandContext (..), EntityCommand, UpdateResult, inContext, patchField')
 import Competences.Command.Interpret (interpretEntityCommand, mkEntityCommandContext)
 import Competences.Document (Document (..), Lock (..))
+import Competences.Document.FileRef (FileRef)
 import Competences.Document.Solution (Solution (..), SolutionType)
 import Control.Monad ((>=>))
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, withObject, (.:?))
+import Data.Aeson qualified as Aeson
 #endif
 import Data.Binary (Binary)
 import Data.Default (Default (..))
@@ -26,6 +28,7 @@ import GHC.Generics (Generic)
 data SolutionPatch = SolutionPatch
   { solutionType :: !(Change SolutionType)
   , content :: !(Change RichContent)
+  , files :: !(Change [FileRef])
   }
   deriving (Eq, Generic, Show)
 
@@ -36,9 +39,18 @@ newtype SolutionsCommand = OnSolutions (EntityCommand Solution SolutionPatch)
 instance Binary SolutionPatch
 
 #ifdef WITH_AESON
-instance FromJSON SolutionPatch
+-- Hand-written to keep `files` optional in commands recorded before the
+-- field existed.
+instance FromJSON SolutionPatch where
+  parseJSON = withObject "SolutionPatch" $ \v ->
+    SolutionPatch
+      <$> v .:? "solutionType"
+      <*> v .:? "content"
+      <*> v .:? "files"
 
-instance ToJSON SolutionPatch
+instance ToJSON SolutionPatch where
+  toJSON = Aeson.genericToJSON Aeson.defaultOptions
+  toEncoding = Aeson.genericToEncoding Aeson.defaultOptions
 #endif
 
 instance Binary SolutionsCommand
@@ -55,6 +67,7 @@ instance Default SolutionPatch where
     SolutionPatch
       { solutionType = Nothing
       , content = Nothing
+      , files = Nothing
       }
 
 -- | Apply a patch to a Solution, checking for conflicts
@@ -63,6 +76,7 @@ applySolutionPatch solution patch =
   inContext "Solution" solution $
     patchField' @"solutionType" patch
       >=> patchField' @"content" patch
+      >=> patchField' @"files" patch
 
 -- | Handle a Solutions context command
 handleSolutionsCommand :: CommandContext -> SolutionsCommand -> Document -> UpdateResult

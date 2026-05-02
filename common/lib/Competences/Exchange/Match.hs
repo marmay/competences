@@ -618,6 +618,7 @@ makeNewSolution s =
     , userId = Id UUID.nil
     , solutionType = s.solutionType
     , content = fromTrustedInput s.content
+    , files = []
     }
 
 makeNewResource :: ExchangeResource -> Resource

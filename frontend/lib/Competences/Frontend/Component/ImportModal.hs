@@ -745,6 +745,7 @@ applySolutionAction r cmd taskId mTeacherId = \case
               , userId = teacherId
               , solutionType = s.solutionType
               , content = s.content
+              , files = []
               }
       modifySyncDocument r $ cmd (Cmd.Solutions $ Cmd.OnSolutions $ Cmd.Create newSolution)
     Nothing -> pure ()
@@ -833,6 +834,7 @@ buildSolutionPatch old new =
   SolutionPatch
     { solutionType = if old.solutionType == new.solutionType then Nothing else Just (old.solutionType, new.solutionType)
     , content = if old.content == new.content then Nothing else Just (old.content, new.content)
+    , files = if old.files == new.files then Nothing else Just (old.files, new.files)
     }
 
 buildLessonPatch

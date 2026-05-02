@@ -13,7 +13,7 @@ import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.Draft (EntityOrigin (..))
-import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, enumEditorField, richTextEditorField)
+import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, enumEditorField, fileUploadEditorField, richTextWithFilesEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView)
 import Competences.Frontend.Component.Editor.Types (Action, Model)
 import Competences.Frontend.Component.Editor.View (EditorView, EditorViewData (..), EditorViewItem (..))
@@ -68,7 +68,10 @@ solutionPinEditor r solId pid _mode mSaved =
                             #solutionType
                         )
         `addNamedField` ( C.LblSolutionContent
-                        , richTextEditorField r.formulaCache "solution-content" #content #content
+                        , richTextWithFilesEditorField r "solution-content" #content #content #files
+                        )
+        `addNamedField` ( C.LblAttachments
+                        , fileUploadEditorField r #files #files
                         )
 
 -- ============================================================================
