@@ -66,22 +66,6 @@
         "type": "github"
       }
     },
-    "competences-blobs": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1777580174,
-        "narHash": "sha256-COxIu0GifAv+oC3xhtLdaeoQgzArjAdf2YSFrcV+RKY=",
-        "owner": "marmay",
-        "repo": "competences-blobs",
-        "rev": "612953c4334cc2031ba65c220cadb483ccbf2831",
-        "type": "github"
-      },
-      "original": {
-        "owner": "marmay",
-        "repo": "competences-blobs",
-        "type": "github"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -621,7 +605,6 @@
     },
     "root": {
       "inputs": {
-        "competences-blobs": "competences-blobs",
         "flake-utils": "flake-utils",
         "haskellNix": "haskellNix",
         "nixpkgs": [

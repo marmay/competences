@@ -23,13 +23,23 @@ independent version (`0.1.0.0`) and is not part of the release cycle.
 
 ## Repository Structure
 
-Static assets (WASM binary, generated CSS, vendored libraries) live in a separate
-repository [`competences-blobs`](https://github.com/marmay/competences-blobs),
-included as a git submodule at `static/`.
+The frontend's `static/` tree (WASM binary, generated CSS, MathJax bundle,
+vendored fonts/wasi shim) is produced reproducibly from source:
 
-Source files that feed into the build live in `frontend/static-src/`:
-- `index.js` - WASM module loader (copied to `static/` by `deploy_frontend.sh`)
-- `input.css` - Tailwind CSS input (compiled to `static/output.css`)
+```bash
+nix build .#competences-frontend
+```
+
+Vendored static assets (third-party fonts, the WASI shim) live in
+`frontend/static-src/{fonts,wasi}/`. Source files that feed into the build:
+
+- `frontend/static-src/index.js` — WASM module loader, bundled by esbuild.
+- `frontend/static-src/input.css` — Tailwind input, compiled to `output.css`.
+
+`nix/npm-deps.nix` pulls MathJax and basecoat-css via `buildNpmPackage` from
+the pinned `package-lock.json`. The dev shell symlinks the same Nix-built
+`node_modules` into the project root so `deploy_frontend.sh` and the
+production derivation share one source.
 
 ## Release Steps
 
@@ -50,37 +60,28 @@ Two formats are used:
 
 ### 3. Build and test
 
-Run a native build and tests as a fast feedback step before the slow WASM build:
+Run native build and tests as a fast feedback step:
 ```bash
-cabal build all && cabal test all
+nix develop --command cabal build all
+nix develop --command cabal test all
 ```
 
-### 4. Build frontend WASM
+### 4. Verify the frontend derivation builds
 
-This compiles the WASM binary, runs wasm-opt/wasm-tools, copies `index.js`,
-and builds Tailwind CSS. Takes several minutes (compiles ~170 Haskell modules).
-Requires user permission (enters a Nix shell):
 ```bash
-nix develop .#wasmShell.x86_64-linux -c ./deploy_frontend.sh
+nix build .#competences-frontend
 ```
 
-### 5. Commit and push the blobs submodule
+This produces `result/` with the same shape as the runtime `static/` tree
+(`app.wasm`, `ghc_wasm_jsffi.js`, `index.js`, `output.css`, `mathjax-*`,
+`fonts/`, `wasi/`). The build is hermetic — caches into the IOG / nixpkgs
+caches, no manual artifact wrangling.
 
-Requires user permission for the `git push`:
-```bash
-cd static && git add -A && git commit -m "Release X.Y.Z" && git push && cd ..
-```
+### 5. Create release commit
 
-### 6. Update the Nix flake lock
+Stage the 6 version files plus `flake.lock` (in case dep updates were
+folded in) and commit:
 
-This pins the new blobs commit in `flake.lock`. Requires user permission:
-```bash
-nix flake update competences-blobs
-```
-
-### 7. Create release commit
-
-Stage exactly these 8 paths (the 6 version files + flake.lock + submodule pointer):
 ```bash
 git add \
   common/competences-common.cabal \
@@ -89,15 +90,14 @@ git add \
   frontend/competences-frontend.cabal \
   housecup/competences-housecup.cabal \
   nix/frontend.nix \
-  flake.lock \
-  static
+  flake.lock
 ```
 
 Generate a changelog by reading `git log --oneline <prev-release>..HEAD` and
 categorizing commits into the sections below. Omit any category with no entries.
 Commit with the standard format (see Changelog Format below).
 
-### 8. Push to remote
+### 6. Push to remote
 
 Requires user permission:
 ```bash
@@ -131,10 +131,14 @@ and grouping commits into these categories. Omit any category that has no entrie
 
 ## Reproducing Historical Releases
 
-Every commit from the first release onwards has a `static` submodule entry
-pointing to the correct blobs commit. To reproduce any historical release:
+Every release commit pins haskell.nix, nixpkgs, and `package-lock.json` via
+`flake.lock`. To reproduce any historical release:
 
 ```bash
 git checkout <release-commit>
-git submodule update --init
+nix build .#competences-frontend  # rebuilds the static/ tree from scratch
+nix build .#competences-backend
 ```
+
+The first run on a cold cache may need to build the WASM cross GHC from
+source (~30 min); subsequent runs are cache-fast.

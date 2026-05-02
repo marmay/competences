@@ -4,12 +4,8 @@
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.competences-blobs = {
-    url = "github:marmay/competences-blobs";
-    flake = false;
-  };
 
-  outputs = { self, nixpkgs, flake-utils, haskellNix, competences-blobs }:
+  outputs = { self, nixpkgs, flake-utils, haskellNix }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -74,6 +70,13 @@
               # per-target vars directly, then stamp the FLAGS_SET marker
               # so the wrappers don't try to re-append on first invocation.
               shell.shellHook = ''
+                # Force node_modules to point at the Nix-built deps so
+                # deploy_frontend.sh / tailwindcss / esbuild see the same
+                # tree the production derivation does. Always overwrite —
+                # no `npm install` should ever be the source of truth.
+                rm -rf node_modules
+                ln -snf ${final.competences-frontend.passthru.npmDeps}/node_modules node_modules
+
                 _split_keep_wasm() {
                   local out=""
                   for tok in $1; do
@@ -116,7 +119,7 @@
             };
             competences-frontend = import ./nix/frontend.nix {
               pkgs = final;
-              blobs = competences-blobs;
+              hixProject = final.hixProject;
               src = ./.;
             };
             competences-housecup = import ./nix/housecup.nix {

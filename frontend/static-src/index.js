@@ -1,4 +1,4 @@
-import { WASI, OpenFile, File, ConsoleStdout } from "../../static/wasi/index.js";
+import { WASI, OpenFile, File, ConsoleStdout } from "./wasi/index.js";
 
 // Build ghc_wasm_jsffi URL with cache-busting hash if available
 const jsffiHash = window.COMPETENCES_JSFFI_HASH || '';

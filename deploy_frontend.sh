@@ -15,6 +15,8 @@
 set -x
 set -e
 
+mkdir -p static
+
 # 1. Build the .wasm incrementally.
 wasm32-unknown-wasi-cabal build exe:competences-frontend
 WASM_BIN=$(wasm32-unknown-wasi-cabal list-bin exe:competences-frontend)
@@ -33,7 +35,13 @@ wasm-tools strip -o static/app.wasm static/app.wasm
 echo "Bundling index.js with esbuild..."
 esbuild frontend/static-src/index.js --bundle --format=esm --outfile=static/index.js --minify
 
-# 5. MathJax assets (still pulled from node_modules — pinned via package.json).
+# 5. Vendored static assets (kept in-tree under frontend/static-src/).
+echo "Copying vendored fonts and WASI shim..."
+mkdir -p static/fonts static/wasi
+cp frontend/static-src/fonts/*.woff2 static/fonts/
+cp frontend/static-src/wasi/*.js static/wasi/
+
+# 6. MathJax assets (still pulled from node_modules — pinned via package.json).
 echo "Copying MathJax bundle..."
 cp node_modules/mathjax/tex-svg.js static/mathjax-tex-svg.js
 
@@ -45,6 +53,6 @@ echo "Copying MathJax font data..."
 rm -rf static/mathjax-newcm-font
 cp -r node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font
 
-# 6. Compile Tailwind.
+# 7. Compile Tailwind.
 echo "Building Tailwind CSS..."
 tailwindcss -i ./frontend/static-src/input.css -o ./static/output.css --minify

@@ -8,4 +8,4 @@ frontend/res
 data
 backups
 node_modules
-package-lock.json
+static
