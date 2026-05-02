@@ -63,6 +63,50 @@
                 binaryen wasm-tools esbuild tailwindcss_4
                 gnumake http-server
               ];
+
+              # Bypass nixpkgs' cross-shell aggregation, which dumps the
+              # union of native libs (libffi-3.5.2, gmp, ncurses, …) and
+              # wasi32 libs (libffi-wasm, libcxx-static-wasm32-unknown-wasi,
+              # …) into both NIX_LDFLAGS and NIX_LDFLAGS_FOR_TARGET. Each
+              # cc-wrapper's add-flags.sh hook would then mangle them into
+              # the per-target var, leaking wasi paths to ld.bfd and native
+              # paths to wasm-ld. We zero the shared inputs and set the
+              # per-target vars directly, then stamp the FLAGS_SET marker
+              # so the wrappers don't try to re-append on first invocation.
+              shell.shellHook = ''
+                _split_keep_wasm() {
+                  local out=""
+                  for tok in $1; do
+                    case "$tok" in
+                      -L*wasm*|-L*wasi*) out="$out $tok" ;;
+                      -L*) ;;
+                      *) out="$out $tok" ;;
+                    esac
+                  done
+                  printf '%s' "$out"
+                }
+                _split_drop_wasm() {
+                  local out=""
+                  for tok in $1; do
+                    case "$tok" in
+                      -L*wasm*|-L*wasi*) ;;
+                      *) out="$out $tok" ;;
+                    esac
+                  done
+                  printf '%s' "$out"
+                }
+                # NIX_LDFLAGS feeds the native cc-wrapper (HOST role), keep
+                # native libs only. NIX_LDFLAGS_FOR_TARGET feeds *both* the
+                # native cc-wrapper (its own TARGET role for x86_64) and
+                # wasm32-unknown-wasi-cc (TARGET role for wasi32). Empty it
+                # and instead pre-populate NIX_LDFLAGS_wasm32_unknown_wasi
+                # so add-flags.sh appends nothing extra to it.
+                _all_lf="''${NIX_LDFLAGS:-} ''${NIX_LDFLAGS_FOR_TARGET:-}"
+                export NIX_LDFLAGS="$(_split_drop_wasm "$_all_lf")"
+                export NIX_LDFLAGS_FOR_TARGET=""
+                export NIX_LDFLAGS_wasm32_unknown_wasi="$(_split_keep_wasm "$_all_lf") ''${NIX_LDFLAGS_wasm32_unknown_wasi:-}"
+                unset _all_lf
+              '';
             };
           })
           # Overlay to add competences packages to pkgs (for NixOS module)

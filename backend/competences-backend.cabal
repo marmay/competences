@@ -94,6 +94,7 @@ executable competences-backend
         OverloadedRecordDot,
         OverloadedStrings,
         TypeFamilies
+    ghc-options:      -threaded -rtsopts
     main-is:          Main.hs
     build-depends:
         base >=4.21 && <4.23,

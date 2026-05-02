@@ -238,6 +238,9 @@ executable competences-frontend
     if !flag(wasm)
         build-depends:
             optparse-applicative
+        ghc-options:
+            -threaded
+            -rtsopts
     if flag(wasm)
         build-depends:
             optics-core

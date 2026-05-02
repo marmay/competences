@@ -19,6 +19,7 @@ executable competences-csvconvert
         NoFieldSelectors,
         OverloadedRecordDot,
         OverloadedStrings
+    ghc-options:      -threaded -rtsopts
     main-is:          Main.hs
     build-depends:
         base >=4.21 && <4.23,
