@@ -4,13 +4,12 @@
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.ghc-wasm-meta.url = "gitlab:haskell-wasm/ghc-wasm-meta?host=gitlab.haskell.org";
   inputs.competences-blobs = {
     url = "github:marmay/competences-blobs";
     flake = false;
   };
 
-  outputs = { self, nixpkgs, flake-utils, haskellNix, ghc-wasm-meta, competences-blobs }:
+  outputs = { self, nixpkgs, flake-utils, haskellNix, competences-blobs }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -20,13 +19,53 @@
       let
         overlays = [ haskellNix.overlay
           (final: _prev: {
-            hixProject =
-              final.haskell-nix.hix.project {
-                src = ./.;
-                # uncomment with your current system for `nix flake show` to work:
-                #evalSystem = "x86_64-linux";
-              } //
-	      { shell.buildInputs = [ ghc-wasm-meta.packages.${system}.all_9_12 ]; };
+            hixProject = final.haskell-nix.project' {
+              src = ./.;
+              compiler-nix-name = "ghc9141";
+
+              # Per-platform module overrides applied only when building for
+              # wasm32. We declare which packages are WASM-buildable (only
+              # competences-{common,markdown,frontend}) and inject the same
+              # flags the legacy cabal.project.wasm used. The remaining
+              # packages depend on POSIX libraries (warp, sqlite, libsodium,
+              # …) without wasi32 configurations and are simply marked
+              # non-buildable on this platform.
+              modules = [({ lib, pkgs, ... }:
+                lib.mkIf pkgs.stdenv.hostPlatform.isWasm {
+                  packages.competences-common.flags.aeson = false;
+                  packages.competences-frontend.flags.wasm = true;
+                  packages.competences-backend.package.buildable = lib.mkForce false;
+                  packages.competences-csvconvert.package.buildable = lib.mkForce false;
+                  packages.competences-housecup.package.buildable = lib.mkForce false;
+                })];
+
+              # Make wasm32-unknown-wasi-{cabal,ghc} available in `nix develop`
+              # so the WASM frontend can be iterated incrementally with cabal,
+              # without going through hermetic `nix build`s every time.
+              shell.crossPlatforms = p: [ p.wasi32 ];
+
+              shell.tools.cabal = "latest";
+              # hlint and haskell-language-server temporarily dropped — neither
+              # has a GHC 9.14 / base 4.22 compatible release yet. Re-add once
+              # upstream catches up.
+              # shell.tools.hlint = "latest";
+              # shell.tools.haskell-language-server = "latest";
+
+              # Native dev plus the post-processing pipeline the deploy
+              # script needs (binaryen for wasm-opt, wasm-tools, esbuild,
+              # tailwindcss). The wasm32-unknown-wasi-cabal wrapper from
+              # haskell.nix is also on PATH but not currently usable for
+              # direct iterative builds — it picks up the native libffi
+              # rather than the wasi32 one. The deploy script therefore
+              # invokes `nix build` for the .wasm artifact and only uses
+              # the post-processing tools from the shell. Module-level
+              # incremental WASM dev is a follow-up item.
+              shell.buildInputs = with final; [
+                ghcid ghciwatch nginx postgresql
+                binaryen wasm-tools esbuild tailwindcss_4
+                gnumake http-server
+              ];
+            };
           })
           # Overlay to add competences packages to pkgs (for NixOS module)
           (final: _prev: {
@@ -67,18 +106,6 @@
             paths = [ backend frontend ];
           };
         };
-      } // {
-        wasmShell = pkgs.mkShell {
-          name = "The miso ${system} GHC WASM 9.12.2 shell";
-          packages = [
-            ghc-wasm-meta.packages.${system}.all_9_12
-            pkgs.gnumake
-            pkgs.http-server
-            pkgs.cabal-install
-            pkgs.esbuild
-            pkgs.tailwindcss_4
-          ];
-	};
       }) // {
       # NixOS module (system-agnostic)
       nixosModules.competences = import ./nix/module.nix;

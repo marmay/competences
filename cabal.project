@@ -2,6 +2,15 @@ packages: backend common csvconvert frontend housecup markdown
 
 constraints: miso +template-haskell
 
+-- Per-platform package flags. The wasm32 cross compile needs the same
+-- flags the legacy cabal.project.wasm used: drop aeson on common and
+-- enable the +wasm code path on frontend (CPP guard, exec-model, etc.).
+if arch(wasm32)
+    package competences-common
+        flags: -aeson
+    package competences-frontend
+        flags: +wasm
+
 allow-newer:
   ixset-typed:template-haskell,
   *:base,
