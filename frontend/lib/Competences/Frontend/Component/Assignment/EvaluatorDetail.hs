@@ -21,6 +21,7 @@ import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDi
 import Competences.Document.User (UserId, UserIxs)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Component.SelectorDetail qualified as SD
+import Competences.Frontend.Component.Selector.EnumSelector (SelectionStyle (..), enumSelectorComponent')
 import Competences.Frontend.SyncContext
   ( DocumentChange (..)
   , SyncContext (..)
@@ -146,7 +147,7 @@ data EvaluatorModel = EvaluatorModel
   , taskNotes :: !(Map.Map TaskId RichContent)
   , taskNoteStates :: !(Map.Map TaskId (ContentState RichContent))
   , expandedTaskNotes :: !(Set.Set TaskId)
-  , isCorrection :: !Bool
+  , deliveredAs :: !ActivityType
   , additionalTasks :: !(Set.Set TaskId)
   -- Counter to re-key the inline extra-task selector (incremented on reset)
   , selectorGeneration :: !Int
@@ -190,7 +191,6 @@ data EvaluatorAction
   | ResetLoadedEvidence -- Clear loaded evidence, reset to fresh evaluation
   | ToggleTaskRemark !TaskId !TaskRemark
   | ToggleTaskNoteEditor !TaskId
-  | ToggleCorrection
   | ToggleStartFromEmpty
   | DismissSubmissions
   deriving (Eq, Show)
@@ -259,7 +259,7 @@ evaluatorComponent r assignment =
         , taskNotes = Map.empty
         , taskNoteStates = Map.empty
         , expandedTaskNotes = Set.empty
-        , isCorrection = False
+        , deliveredAs = assignment.activityType
         , additionalTasks = Set.empty
         , selectorGeneration = 0
         , startFromEmpty = False
@@ -329,7 +329,7 @@ evaluatorComponent r assignment =
                 , taskNotes = Map.empty
                 , taskNoteStates = Map.empty
                 , expandedTaskNotes = Set.empty
-                , isCorrection = False
+                , deliveredAs = m.assignment.activityType
                 , additionalTasks = Set.empty
                 , selectorGeneration = m.selectorGeneration + 1
                 , selectedSocialForm = Individual
@@ -410,7 +410,7 @@ evaluatorComponent r assignment =
         , taskNotes = Map.empty
         , taskNoteStates = Map.empty
         , expandedTaskNotes = Set.empty
-        , isCorrection = False
+        , deliveredAs = m'.assignment.activityType
         , additionalTasks = Set.empty
         , selectorGeneration = m'.selectorGeneration + 1
         }
@@ -483,7 +483,7 @@ evaluatorComponent r assignment =
                , taskNotes = ev.taskNotes
                , taskNoteStates = Map.empty
                , expandedTaskNotes = Set.empty
-               , isCorrection = ev.activityType == Correction
+               , deliveredAs = ev.activityType
                , additionalTasks = loadedExtras
                , selectorGeneration = m.selectorGeneration + 1
                }
@@ -497,7 +497,7 @@ evaluatorComponent r assignment =
        , taskNotes = Map.empty
        , taskNoteStates = Map.empty
        , expandedTaskNotes = Set.empty
-       , isCorrection = False
+       , deliveredAs = m.assignment.activityType
        , additionalTasks = Set.empty
        , selectorGeneration = m.selectorGeneration + 1
        }
@@ -514,9 +514,6 @@ evaluatorComponent r assignment =
 
     update (ToggleTaskNoteEditor taskId) = M.modify $ \m ->
       m & #expandedTaskNotes %~ toggle taskId
-
-    update ToggleCorrection = M.modify $ \m ->
-      m{isCorrection = not m.isCorrection}
 
     update ToggleStartFromEmpty = M.modify $ \m ->
       m{startFromEmpty = not m.startFromEmpty}
@@ -545,7 +542,7 @@ evaluatorComponent r assignment =
                     ]
             ]
       observations <- mapM (mkObservation sf) (Map.toList m.aggregatedResults)
-      let effectiveActivityType = if m.isCorrection then Correction else asmt.activityType
+      let effectiveActivityType = m.deliveredAs
       case Map.lookup userId (evidencesForDate m.evaluationDate m.assignmentEvidences) of
         Just existingEv -> do
           -- Lock then modify existing evidence
@@ -672,9 +669,16 @@ evaluatorComponent r assignment =
                         [ M.input_ [MP.type_ "checkbox", MP.checked_ m.startFromEmpty, M.onClick ToggleStartFromEmpty]
                         , M.text (C.translate' C.LblOnlySelectedTasks)
                         ]
-                    , M.label_ [class_ "flex items-center gap-2 text-sm font-medium select-none cursor-pointer"]
-                        [ M.input_ [MP.type_ "checkbox", MP.checked_ m.isCorrection, M.onClick ToggleCorrection]
-                        , M.text (C.translate' C.LblIsCorrection)
+                    , Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+                        [ M.span_ [class_ "font-semibold text-sm"]
+                            [M.text $ C.translate' C.LblActivityType <> ":"]
+                        , inlineComponent "evaluator-delivered-as"
+                            (enumSelectorComponent'
+                              m.assignment.activityType
+                              [Conversation, Exam, SchoolExercise, HomeExercise, Correction]
+                              SelectDropdown
+                              (\at -> C.translate' (C.LblActivityTypeDescription at))
+                              #deliveredAs)
                         ]
                     ]
                 ]

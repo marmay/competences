@@ -319,7 +319,6 @@ data Label
   | LblEvidencesWillBeEdited
   | LblEvidencesBasedOn
   | LblWillBeEdited
-  | LblIsCorrection
   | LblTaskNote
     -- Lesson evaluator
   | LblAbsent
@@ -750,7 +749,6 @@ labels' =
   , LblEvidencesWillBeEdited
   , LblEvidencesBasedOn
   , LblWillBeEdited
-  , LblIsCorrection
   , LblTaskNote
     -- Lesson evaluator
   , LblAbsent
@@ -1206,7 +1204,6 @@ defaultTranslation (LblStudentsSelected n) = ms (show n) <> " Schüler ausgewäh
 defaultTranslation LblEvidencesWillBeEdited = "Die Nachweise der folgenden Schüler werden bearbeitet:"
 defaultTranslation LblEvidencesBasedOn = "Die Nachweise der folgenden Schüler werden auf Basis des Nachweises für \""
 defaultTranslation LblWillBeEdited = "\" bearbeitet: "
-defaultTranslation LblIsCorrection = "Verbesserung"
 defaultTranslation LblTaskNote = "Anmerkung"
 -- Lesson evaluator
 defaultTranslation LblAbsent = "Abwesend"
