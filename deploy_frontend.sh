@@ -1,25 +1,23 @@
 #!/bin/sh
 # Build the WASM frontend and assemble the static/ tree for deployment.
 #
-# Run from inside the project's dev shell (binaryen / wasm-tools / esbuild /
-# tailwindcss come from there):
+# Run from inside the project's dev shell (it provides
+# wasm32-unknown-wasi-cabal, binaryen, wasm-tools, esbuild, tailwindcss):
 #
 #   nix develop --command ./deploy_frontend.sh
 #
-# The .wasm itself is produced by haskell.nix via `nix build`, then post-
-# processed in place. haskell.nix caches per-package, so only changed
-# packages rebuild between runs.
+# The .wasm is built incrementally via the haskell.nix-provided
+# wasm32-unknown-wasi-cabal — module-level, so only modules you touched
+# rebuild between runs. For a hermetic from-scratch build, use
+# `nix build .#wasm32-unknown-wasi:competences-frontend:exe:competences-frontend`
+# instead.
 
 set -x
 set -e
 
-# 1. Build the raw .wasm via haskell.nix.
-nix build --allow-import-from-derivation \
-  --print-out-paths \
-  .#"wasm32-unknown-wasi:competences-frontend:exe:competences-frontend" \
-  > /tmp/competences-wasm-result
-WASM_RESULT=$(cat /tmp/competences-wasm-result)
-WASM_BIN="$WASM_RESULT/bin/competences-frontend.wasm"
+# 1. Build the .wasm incrementally.
+wasm32-unknown-wasi-cabal build exe:competences-frontend
+WASM_BIN=$(wasm32-unknown-wasi-cabal list-bin exe:competences-frontend)
 
 # 2. Generate the JS FFI shim using post-link.mjs from the cross GHC.
 GHC_LIB=$(wasm32-unknown-wasi-ghc --print-libdir)
