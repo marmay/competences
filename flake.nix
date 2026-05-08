@@ -45,7 +45,16 @@
               # has a GHC 9.14 / base 4.22 compatible release yet. Re-add once
               # upstream catches up.
               # shell.tools.hlint = "latest";
-              # shell.tools.haskell-language-server = "latest";
+              shell.tools.haskell-language-server = {
+                modules = [{
+                  doCheck = false;
+                }];
+                cabalProjectLocal = ''
+                  package haskell-language-server
+                    flags: -ghcide-bench
+                  allow-newer: *:base, *:containers, *:template-haskell, *:ghc, *:time
+                '';
+	      };
 
               # Native dev tools and the WASM post-processing pipeline.
               # These are *build-platform* binaries (they produce or run on
