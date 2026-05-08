@@ -64,6 +64,8 @@ import Miso qualified as M
 import Miso.Html qualified as M
 import Miso.String (MisoString, fromMisoString, ms)
 import Optics.Core (Lens', (&), (.~))
+import Competences.Frontend.View.StatusIcon (Status (..), statusIcon)
+import qualified Competences.Frontend.View as V
 
 -- ---------------------------------------------------------------------------
 -- Types
@@ -316,7 +318,7 @@ renderItem
   -> Projection
   -> Bool
   -> M.View m (Action Selected Projection AssignmentFilterAction)
-renderItem w _proj isSel =
+renderItem w proj isSel =
   let isDraft = w.origin == Draft
       iconView =
         Icon.icon
@@ -328,6 +330,8 @@ renderItem w _proj isSel =
             [class_ "flex items-center gap-2"]
             ( [ iconView
               , M.span_ [class_ "text-sm truncate font-medium"] [M.text $ ms $ unName w.value.name]
+              , V.flowSpring
+              , statusIcon' $ Map.findWithDefault NotGraded w.value.id proj.statusMap
               ]
                 <> [Badge.secondary (Badge.badgeText (C.translate' C.LblDraft)) | isDraft]
             )
@@ -336,6 +340,12 @@ renderItem w _proj isSel =
             [M.span_ [] [M.text (C.formatDay w.value.assignmentDate)]]
         ]
         (Pick w)
+
+-- | Status icon display: growing icon (yellow) for NeedsWork, checkmark (green) for Completed
+statusIcon' :: AssignmentStatus -> M.View model a
+statusIcon' NotGraded = M.text ""  -- No icon for not graded
+statusIcon' NeedsWork = statusIcon InProgress
+statusIcon' Completed = statusIcon Achieved
 
 unName :: AssignmentName -> Text
 unName (AssignmentName t) = t
