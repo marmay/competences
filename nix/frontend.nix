@@ -18,7 +18,7 @@ in
 
 pkgs.stdenv.mkDerivation rec {
   pname = "competences-frontend";
-  version = "1.6.1";
+  version = "1.6.2";
 
   inherit src;
 
