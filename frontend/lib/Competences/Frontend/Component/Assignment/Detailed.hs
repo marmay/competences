@@ -628,7 +628,7 @@ viewerComponent r user assignment renderStyle _wm =
                & #pagePrintPendingContent .~ Just cs
                & #pagePrintPageGrouping .~ pg
           M.io $ do
-            threadDelay 800000 -- 800ms for MathJax
+            threadDelay 3000000 -- 800ms for MathJax
             triggerPrint
             pure ClearPagePrint
 
