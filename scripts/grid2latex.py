@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""Convert a competence grid markdown export to a LaTeX tabularx table.
+"""Convert a competence grid YAML export to a LaTeX tabularx table.
 
-Input format (as exported by the application's Export button):
+Input format (as exported by the application's Export button in YAML format):
 
-    # Grid Title
-
-    ## Ich kann lineare Gleichungen lösen
-    - Wesentlich: Einfache Gleichungen mit einer Unbekannten
-    - Mittelstufe: Gleichungssysteme mit zwei Unbekannten
-    - Fortgeschritten: Textaufgaben in Gleichungen übersetzen
-
-    ## Ich kann Brüche addieren
-    - Wesentlich: Gleichnamige Brüche
-    - Mittelstufe: Ungleichnamige Brüche
+    competenceGrids:
+      - title: "Lineare Algebra"
+        description: "Schemata für lineare Gleichungen und Vektorrechnung."
+        competences:
+          - description: "Gleichungen lösen"
+            levels:
+              BasicLevel: "Einfache Gleichungen mit einer Unbekannten lösen."
+              IntermediateLevel: "Gleichungssysteme mit zwei Unbekannten lösen."
+              AdvancedLevel: "Gleichungssysteme mit Matrizenrechnung lösen."
 
 Output: LaTeX nested itemize list, one item per competence with (W)/(M)/(F) sub-items
 """
@@ -21,14 +20,17 @@ import argparse
 import re
 import sys
 
-GRID_TITLE_RE = re.compile(r"^#\s+(.*)")
-COMPETENCE_RE = re.compile(r"^##\s+(.*)")
-LEVEL_RE = re.compile(r"^-\s+(Wesentlich|Mittelstufe|Fortgeschritten):\s+(.*)")
+try:
+    import yaml
+except ImportError:
+    print("Error: PyYAML is required. Install with: pip install pyyaml", file=sys.stderr)
+    sys.exit(1)
 
-LEVEL_MAP = {
-    "Wesentlich": "W",
-    "Mittelstufe": "M",
-    "Fortgeschritten": "F",
+# Mapping from YAML level names to short codes
+YAML_LEVEL_MAP = {
+    "BasicLevel": "W",
+    "IntermediateLevel": "M",
+    "AdvancedLevel": "F",
 }
 
 PREAMBLE = r"""\documentclass[a4paper]{{article}}
@@ -46,13 +48,73 @@ POSTAMBLE = r"""
 """
 
 
-def parse(lines):
-    """Parse exported markdown lines into a grid title and list of competences.
+def parse_yaml(text):
+    """Parse YAML export into grid title and list of competences.
 
     Each competence is a dict with keys:
       - description: str
       - W, M, F: str or empty
     """
+    data = yaml.safe_load(text)
+    
+    if not data or 'competenceGrids' not in data:
+        return None, []
+    
+    grids = data.get('competenceGrids', [])
+    if not grids:
+        return None, []
+    
+    # Take the first grid (for single-grid exports)
+    grid = grids[0]
+    title = grid.get('title', '')
+    
+    competences = []
+    for comp in grid.get('competences', []):
+        comp_dict = {
+            "description": comp.get('description', ''),
+            "W": "",
+            "M": "",
+            "F": ""
+        }
+        levels = comp.get('levels', {})
+        
+        # Handle two possible YAML representations of the levels map:
+        # 1. As a dict: {BasicLevel: "text", IntermediateLevel: "text"}
+        # 2. As a list of pairs: [[BasicLevel, "text"], [IntermediateLevel, "text"]]
+        if isinstance(levels, dict):
+            for yaml_level, short_code in YAML_LEVEL_MAP.items():
+                if yaml_level in levels:
+                    comp_dict[short_code] = levels[yaml_level]
+        elif isinstance(levels, list):
+            for pair in levels:
+                if isinstance(pair, list) and len(pair) == 2:
+                    yaml_level = pair[0]
+                    description = pair[1]
+                    if yaml_level in YAML_LEVEL_MAP:
+                        comp_dict[YAML_LEVEL_MAP[yaml_level]] = description
+        
+        competences.append(comp_dict)
+    
+    return title, competences
+
+
+def parse(lines):
+    """Parse exported lines (YAML format) into a grid title and list of competences.
+
+    Each competence is a dict with keys:
+      - description: str
+      - W, M, F: str or empty
+    
+    For backward compatibility, also accepts old markdown format.
+    """
+    text = ''.join(lines)
+    
+    # Try YAML format first
+    title, competences = parse_yaml(text)
+    if title or competences:
+        return title, competences
+    
+    # Fallback to old markdown format for backward compatibility
     title = None
     competences = []
     current = None
@@ -61,20 +123,20 @@ def parse(lines):
         line = line.rstrip("\n")
 
         if title is None:
-            m = GRID_TITLE_RE.match(line)
+            m = re.compile(r"^#\s+(.*)").match(line)
             if m:
                 title = m.group(1)
             continue
 
-        m = COMPETENCE_RE.match(line)
+        m = re.compile(r"^##\s+(.*)").match(line)
         if m:
             current = {"description": m.group(1), "W": "", "M": "", "F": ""}
             competences.append(current)
             continue
 
-        m = LEVEL_RE.match(line)
+        m = re.compile(r"^-\s+(Wesentlich|Mittelstufe|Fortgeschritten):\s+(.*)").match(line)
         if m and current is not None:
-            level_key = LEVEL_MAP[m.group(1)]
+            level_key = {"Wesentlich": "W", "Mittelstufe": "M", "Fortgeschritten": "F"}[m.group(1)]
             current[level_key] = m.group(2)
 
     return title, competences
@@ -120,7 +182,7 @@ def render_latex(title, competences, standalone=False, printLevels=True):
                 parts.append(r"  \begin{itemize}")
                 for key, text in levels:
                     parts.append(r"    \item[(" + key + r")] " + escape_latex(text))
-                    parts.append(r"  \end{itemize}")
+                parts.append(r"  \end{itemize}")
 
     parts.append(r"\end{itemize}")
 
@@ -132,7 +194,7 @@ def render_latex(title, competences, standalone=False, printLevels=True):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert competence grid markdown export to LaTeX tabularx table."
+        description="Convert competence grid YAML export to LaTeX tabularx table."
     )
     parser.add_argument(
         "file",
