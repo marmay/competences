@@ -9,7 +9,6 @@ import Competences.Document.Assignment (AssignmentName (..))
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
 import Competences.Frontend.Common.WithOrigin (WithOrigin (..))
-import Competences.Frontend.Component.Draft (EntityOrigin)
 import Competences.Frontend.Component.Task.ListSelector (taskListSelectorComponent)
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
 import Competences.Frontend.SyncContext (ProjectedChange (..), SyncContext (..), subscribeWithProjection)
@@ -58,7 +57,7 @@ tasksPage r mTaskId =
     detailView Nothing =
       Layout.centeredPlaceholder (C.translate' C.LblPleaseSelectItem)
     detailView (Just w) =
-      taskDetailView r w.origin w.value
+      taskDetailView r w.value
 
 -- ---------------------------------------------------------------------------
 -- Task detail view: assignment-refs banner + standard task component
@@ -107,10 +106,9 @@ assignmentRefsBanner r taskId =
 -- | Task detail view: assignment refs banner + standard task component.
 taskDetailView
   :: SyncContext
-  -> EntityOrigin
   -> Task
   -> M.View p a
-taskDetailView r origin task =
+taskDetailView r task =
   MH.div_
     [class_ "space-y-4"]
     [ inlineComponent
@@ -118,7 +116,7 @@ taskDetailView r origin task =
         (assignmentRefsBanner r task.id)
     , inlineComponent
         ("task-detail-" <> ms (show task.id))
-        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id origin adminSettings))
+        (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id adminSettings))
     ]
   where
     adminSettings = TaskComp.defaultTaskDetailedSettings {TaskComp.enableGoTo = False, TaskComp.enableDelete = True}

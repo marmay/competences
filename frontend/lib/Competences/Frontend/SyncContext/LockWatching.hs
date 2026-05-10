@@ -262,7 +262,7 @@ handleViewerPin r (PinTaskViewer task) =
       , followUp = True
       })
     (WindowChrome (ms (taskDisplayName task)) Icon.IcnTask Nothing)
-    (\_ (_ :: Maybe ()) -> TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id Published TaskComp.defaultTaskDetailedSettings))
+    (\_ (_ :: Maybe ()) -> TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig task.id TaskComp.defaultTaskDetailedSettings))
 handleViewerPin r (PinResourceViewer res) =
   let ResourceIdentifier ident = res.identifier
       title = if T.null ident then "Ressource" else ident

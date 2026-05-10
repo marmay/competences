@@ -97,6 +97,7 @@ import Miso qualified as M
 import Miso.Html qualified as MH
 import Miso.String (MisoString, ms)
 import Optics.Core (Lens', (%), (%~), (.~))
+import Control.Applicative ((<|>))
 
 -- ============================================================================
 -- State machine
@@ -360,7 +361,6 @@ taskCardView displayName bodyParts =
 
 data TaskDetailedConfig = TaskDetailedConfig
   { taskId :: !TaskId
-  , origin :: !EntityOrigin
   , settings :: !TaskDetailedSettings
   }
 
@@ -387,7 +387,7 @@ defaultTaskDetailedSettings = TaskDetailedSettings
   }
 
 data TaskProjection = TaskProjection
-  { task :: !(Maybe Task)
+  { task :: !(Maybe (Task, EntityOrigin))
   , solutions :: ![Solution]
   , focusedUser :: !(Maybe User)
   , history :: ![EvidenceRow]
@@ -428,7 +428,7 @@ taskDetailedComponent r cfg =
 
     view' m = case m.projection.task of
       Nothing -> Layout.empty
-      Just task -> viewTask r cfg m task
+      Just (task, origin) -> viewTask r cfg m task origin
 
 taskProjection :: TaskDetailedConfig -> Document -> Maybe User -> TaskProjection
 taskProjection cfg doc mUser =
@@ -437,22 +437,22 @@ taskProjection cfg doc mUser =
     , solutions = Ix.toList (doc.solutions Ix.@= cfg.taskId)
     , focusedUser = mUser
     , history = case (mUser, mTask) of
-        (Just u, Just t) -> evaluationHistory doc u t
+        (Just u, Just (t, _)) -> evaluationHistory doc u t
         _ -> []
     , headerStatus = case (mUser, mTask) of
-        (Just u, Just t) -> taskCompletionStatus doc u.id t
+        (Just u, Just (t, _)) -> taskCompletionStatus doc u.id t
         _ -> TaskNotEvaluated
     }
   where
-    mTask = case cfg.origin of
-      Published -> Ix.getOne (doc.tasks Ix.@= cfg.taskId)
-      Draft -> Ix.getOne (doc.draftTasks Ix.@= cfg.taskId)
+    mTask =
+      ((, Published) <$> Ix.getOne (doc.tasks Ix.@= cfg.taskId))
+      <|> ((, Draft) <$> Ix.getOne (doc.draftTasks Ix.@= cfg.taskId))
 
-viewTask :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> M.View ComponentModel ComponentAction
-viewTask r cfg m task =
+viewTask :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> EntityOrigin -> M.View ComponentModel ComponentAction
+viewTask r cfg m task origin =
   let displayName = ms (taskDisplayName task)
       annotations
-        | cfg.settings.showAnnotations = headerAnnotations r cfg m task
+        | cfg.settings.showAnnotations = headerAnnotations r cfg m task origin
         | otherwise = []
       body = taskBody r cfg m task
       expanded = Set.member cfg.taskId m.viewState.expandedTasks
@@ -460,22 +460,22 @@ viewTask r cfg m task =
         then taskDisclosureView Nothing (ViewAction (ToggleTask cfg.taskId)) displayName annotations expanded body
         else taskOpenView displayName annotations body
 
-headerAnnotations :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> [M.View ComponentModel ComponentAction]
-headerAnnotations r cfg m task =
+headerAnnotations :: SyncContext -> TaskDetailedConfig -> ComponentModel -> Task -> EntityOrigin -> [M.View ComponentModel ComponentAction]
+headerAnnotations r cfg m task origin =
   concat
     [ [viewTaskCompletionStatus m.projection.headerStatus]
     , [assessmentStar task.purpose]
     , [ inlineComponent ("task-menu-" <> ms (show task.id))
           (EM.entityMenuComponent r EM.EntityMenuConfig
-            { edit = Just (EM.taskEdit task.id cfg.origin)
+            { edit = Just (EM.taskEdit task.id origin)
             , pin = Just (PinTaskViewer task)
             , goTo = if cfg.settings.enableGoTo then Just (ManageTasks (Just task.id)) else Nothing
-            , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id cfg.origin) else Nothing
+            , delete = if cfg.settings.enableDelete then Just (EM.taskDelete task.id origin) else Nothing
             , extraEntries =
-                [addSolutionExtraEntry r task.id, exportTaskExtraEntry r task cfg.origin]
+                [addSolutionExtraEntry r task.id, exportTaskExtraEntry r task origin]
                   <> [ EM.ExtraEntry Icon.IcnApply (C.translate' C.LblPublishAssignment)
                          (modifySyncDocument r $ Publish PublishData {tasks = [task], assignment = Nothing})
-                     | cfg.origin == Draft
+                     | origin == Draft
                      ]
             })
       | isTeacher r

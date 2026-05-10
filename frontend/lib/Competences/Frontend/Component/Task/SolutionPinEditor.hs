@@ -12,7 +12,6 @@ import Competences.Document (Document (..), Lock (..), Solution (..), lockOwner)
 import Competences.Document.Solution (SolutionId)
 import Competences.Document.Task (TaskId)
 import Competences.Frontend.Common qualified as C
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Editor (Editable (..), editable, editor, addNamedField, editorComponent, enumEditorField, fileUploadEditorField, richTextWithFilesEditorField)
 import Competences.Frontend.Component.Editor.FormView (editorFormView)
 import Competences.Frontend.Component.Editor.Types (Action, Model)
@@ -104,7 +103,7 @@ solEditorView r _solId viewData =
    in MH.div_
         [class_ "space-y-4"]
         ( [ inlineComponent ("sol-task-preview-" <> ms (show taskId))
-              (taskDetailedComponent r (TaskDetailedConfig taskId Published previewSettings))
+              (taskDetailedComponent r (TaskDetailedConfig taskId previewSettings))
           | Just taskId <- [mTaskId]
           ]
             <> [formView]

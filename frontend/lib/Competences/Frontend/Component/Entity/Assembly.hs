@@ -7,7 +7,6 @@ module Competences.Frontend.Component.Entity.Assembly
 where
 
 import Competences.Document (Resource (..), Task (..))
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Resource.Detailed qualified as ResComp
 import Competences.Frontend.Component.ResourceLookup (ResolvedItem (..))
 import Competences.Frontend.Component.Task.Detailed qualified as TaskComp
@@ -26,4 +25,4 @@ renderResolvedItem r (ResolvedResource res) =
 renderResolvedItem r (ResolvedTask tws) =
   inlineComponent
     ("ln-task-" <> ms (show tws.task.id))
-    (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig tws.task.id Published TaskComp.defaultTaskDetailedSettings))
+    (TaskComp.taskDetailedComponent r (TaskComp.TaskDetailedConfig tws.task.id TaskComp.defaultTaskDetailedSettings))

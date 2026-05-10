@@ -53,7 +53,6 @@ import Competences.Frontend.Component.Assignment.Detailed
   , bindVisibility
   , viewerComponent
   )
-import Competences.Frontend.Component.Draft (EntityOrigin (..))
 import Competences.Frontend.Component.Resource.Detailed
   ( ResourceDetailedConfig (..)
   , defaultResourceDetailedSettings
@@ -522,7 +521,7 @@ renderOne r renderAssignment findAssignment item =
             (resourceDetailedComponent r (ResourceDetailedConfig rid defaultResourceDetailedSettings))
         PhaseTask tid ->
           inlineComponent ("lesson-record-task-" <> ms (show tid))
-            (taskDetailedComponent r (TaskDetailedConfig tid Published lessonRecordTaskSettings))
+            (taskDetailedComponent r (TaskDetailedConfig tid lessonRecordTaskSettings))
         PhaseAssignment aid ->
           case findAssignment aid of
             Nothing -> Layout.empty
