@@ -982,6 +982,7 @@ viewerComponent r user assignment renderStyle _wm =
     taskAnnotations :: ViewerModel -> ViewerProjection -> Bool -> TaskWithSolutions -> [M.View ViewerModel ViewerAction]
     taskAnnotations _m proj _showPurpose tws =
       let taskId = tws.task.id
+          origin = if Set.member taskId proj.draftTaskIds then Draft else Published
        in concat
             [ [ M.div_ [class_ "flex items-center gap-1"]
                   ( viewTaskRemarkBadges proj.taskRemarkMap taskId
@@ -991,13 +992,13 @@ viewerComponent r user assignment renderStyle _wm =
             , [TaskBadge.assessmentStar tws.taskPurpose]
             , [ inlineComponent ("entity-menu-" <> ms (show tws.task.id))
                   (EM.entityMenuComponent r EM.EntityMenuConfig
-                    { edit = Just (EM.taskEdit tws.task.id Published)
+                    { edit = Just (EM.taskEdit tws.task.id origin)
                     , pin = Just (PinTaskViewer tws.task)
                     , goTo = Just (ManageTasks (Just tws.task.id))
                     , delete = Nothing
                     , extraEntries =
                         [ VT.addSolutionExtraEntry r tws.task.id
-                        , VT.exportTaskExtraEntry r tws.task Published
+                        , VT.exportTaskExtraEntry r tws.task origin
                         ]
                     })
               | proj.connectedUserRole == Teacher
