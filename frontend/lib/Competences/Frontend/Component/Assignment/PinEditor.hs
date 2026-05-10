@@ -12,7 +12,7 @@ import Competences.Document.Task (defaultTask)
 import Competences.Frontend.SyncContext (nextId)
 import Competences.Command.Common (Change)
 import Competences.Common.IxSet qualified as Ix
-import Competences.Document (Assignment (..), Document (..), Lock (..), User (..), lockOwner)
+import Competences.Document (Assignment (..), Document (..), Lock (..), User (..), lockOwner, TaskIxs)
 import Competences.Document.Assignment (AssignmentId, AssignmentName (..))
 import Competences.Document.Task (Task (..), TaskId, TaskIdentifier (..), taskDisplayName)
 import Competences.Document.User (UserId, isStudent)
@@ -99,7 +99,7 @@ assignmentPinEditor r assignmentId origin pid _mode mSaved =
                         , addableSearchSelectEditorField
                             r
                             (editorId <> "-tasks")
-                            taskSearchConfig
+                            (taskSearchConfig origin)
                             (.tasks)
                             (entityPatchTransformedLens #tasks #tasks (.id) id)
                             [ AddAction
@@ -143,11 +143,10 @@ namePatchLens = #name % changeAssignmentNameTextIso
 -- SearchSelect configs
 -- ============================================================================
 
-taskSearchConfig :: SearchSelectConfig Task TaskId
-taskSearchConfig =
+taskSearchConfig :: EntityOrigin -> SearchSelectConfig Task TaskId
+taskSearchConfig origin =
   SearchSelectConfig
-    { projectItems = \doc ->
-        Ix.toAscList (Proxy @TaskIdentifier) doc.tasks
+    { projectItems = tasksFactoryFor origin
     , itemId = (.id)
     , itemLabel = taskDisplayName
     , metaFilters = []
@@ -157,6 +156,13 @@ taskSearchConfig =
     , tagLayout = TagsInline
     , onCreate = Nothing
     }
+
+tasksFactoryFor :: EntityOrigin -> Document -> [Task]
+tasksFactoryFor Published doc = tasksList doc.tasks
+tasksFactoryFor Draft doc = tasksList doc.tasks <> tasksList doc.draftTasks
+
+tasksList :: Ix.IxSet TaskIxs Task -> [Task]
+tasksList = Ix.toAscList (Proxy @TaskIdentifier)
 
 userSearchConfig :: SearchSelectConfig User UserId
 userSearchConfig =
