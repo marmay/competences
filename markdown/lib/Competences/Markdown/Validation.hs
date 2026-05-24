@@ -85,6 +85,12 @@ validateBlocks !n = \case
     let (leftErrors, midN) = validateItems n leftItems
         (rightErrors, nextN) = validateItems midN rightItems
      in leftErrors ++ rightErrors ++ validateBlocks nextN rest
+  MD.Columns _ratios cells : rest ->
+    let (errors, nextN) = validateItems n cells
+     in errors ++ validateBlocks nextN rest
+  MD.Table alignments _header rows : rest ->
+    let widthErrors = validateTableShape (length alignments) rows
+     in widthErrors ++ validateBlocks n rest
   _ : rest -> validateBlocks n rest
 
 -- | Validate list items (each item is [Block]).
@@ -122,7 +128,26 @@ countGeometryBlocks = \case
     sum (map countGeometryBlocks items) + countGeometryBlocks rest
   MD.MappingBlock leftItems rightItems : rest ->
     sum (map countGeometryBlocks leftItems) + sum (map countGeometryBlocks rightItems) + countGeometryBlocks rest
+  MD.Columns _ratios cells : rest ->
+    sum (map countGeometryBlocks cells) + countGeometryBlocks rest
   _ : rest -> countGeometryBlocks rest
+
+-- | Check that every body row of a table has the same number of cells as
+-- the alignment list (which equals the header row width by parser invariant).
+validateTableShape :: Int -> [[a]] -> [ValidationError]
+validateTableShape expected rows =
+  [ ValidationError
+      { context = "Tabelle, Zeile " <> T.pack (show (i :: Int))
+      , message =
+          "Erwartet "
+            <> T.pack (show expected)
+            <> " Spalten, "
+            <> T.pack (show (length row))
+            <> " gefunden."
+      }
+  | (i, row) <- zip [1 ..] rows
+  , length row /= expected
+  ]
 
 -- | Validate a single geometry block: check version, then parse body.
 validateGeometryBlock :: Int -> Text -> Text -> [ValidationError]

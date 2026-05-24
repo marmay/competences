@@ -1,6 +1,7 @@
 module Test.Markdown.ValidationTest (validationTests) where
 
 import Competences.Markdown.Validation (ValidationError (..), validateMarkdown)
+import Data.Text qualified as T
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -42,4 +43,22 @@ validationTests =
         validateMarkdown "```python\nimport os\n```" @?= []
     , testCase "empty geometry block — no errors" $ do
         validateMarkdown "```geometry\n\n```" @?= []
+    , testCase "well-formed table — no errors" $ do
+        validateMarkdown "| x | y |\n|---|---|\n| 1 | 2 |" @?= []
+    , testCase "table with wrong row width — reports row index" $ do
+        let errors = validateMarkdown "| x | y |\n|---|---|\n| 1 | 2 | 3 |"
+        assertBool "should have errors" (not $ null errors)
+        assertBool "context should mention row 1" $
+          any (\e -> context e == "Tabelle, Zeile 1") errors
+    , testCase "valid columns block — no errors" $ do
+        validateMarkdown "```columns 1:1\nLeft\n+++\nRight\n```" @?= []
+    , testCase "geometry inside columns is validated" $ do
+        let input =
+              "```columns 1:1\n"
+                <> "```geometry\nunknownCommand\n```\n"
+                <> "+++\nRight\n```"
+        let errors = validateMarkdown input
+        assertBool "should have errors" (not $ null errors)
+        assertBool "context should mention Geometrie-Block 1" $
+          any (\e -> T.isPrefixOf "Geometrie-Block" (context e)) errors
     ]

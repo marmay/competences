@@ -281,6 +281,11 @@ extractFromBlock = \case
     concatMap (concatMap extractFromBlock) leftItems
       ++ concatMap (concatMap extractFromBlock) rightItems
   MD.VSpace _ -> []
+  MD.Table _alignments header rows ->
+    concatMap (concatMap extractFromInline) header
+      ++ concatMap (concatMap (concatMap extractFromInline)) rows
+  MD.Columns _ratios cells ->
+    concatMap (concatMap extractFromBlock) cells
   where
     resolveColor c =
       let hex = resolveStrokeColor c
@@ -354,6 +359,10 @@ renderBlock resolver symbols = \case
     renderMappingBlock resolver symbols leftItems rightItems
   MD.VSpace val ->
     M.div_ [MC.style_ [("height", ms val)]] []
+  MD.Table alignments header rows ->
+    renderTable resolver symbols alignments header rows
+  MD.Columns ratios cells ->
+    renderColumns resolver symbols ratios cells
 
 -- | Get HTML tag and CSS classes for heading level
 headingStyle :: Int -> ([M.Attribute action] -> [M.View model action] -> M.View model action, Text)
@@ -596,6 +605,86 @@ renderMappingRight resolver symbols item =
         (map (renderBlock resolver symbols) item)
     ]
 
+-- | Render a GFM-style table. Header underline + light row dividers, no
+-- vertical lines (matches typeset textbook style; works equally for general
+-- data tables and t-charts).
+renderTable
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [MD.Alignment]
+  -> [[MD.Inline]]
+  -> [[[MD.Inline]]]
+  -> M.View RichContentModel RichContentAction
+renderTable resolver symbols alignments header rows =
+  M.div_
+    [class_ "my-4 rounded-lg overflow-hidden border border-stone-200"]
+    [ M.table_
+        [class_ "w-full border-collapse"]
+        [ M.thead_
+            [class_ "bg-stone-50 border-b-2 border-stone-300"]
+            [ M.tr_ [] $
+                zipWith
+                  ( \al cell ->
+                      M.th_
+                        [class_ ("px-3 py-2 font-medium text-stone-800 " <> alignClass al)]
+                        (map (renderInline resolver symbols) cell)
+                  )
+                  alignments
+                  (padRow header)
+            ]
+        , M.tbody_ [] $
+            zipWith
+              ( \isLast row ->
+                  M.tr_
+                    [class_ (if isLast then "" else "border-b border-stone-200")]
+                    $ zipWith
+                      ( \al cell ->
+                          M.td_
+                            [class_ ("px-3 py-2 text-stone-800 " <> alignClass al)]
+                            (map (renderInline resolver symbols) cell)
+                      )
+                      alignments
+                      (padRow row)
+              )
+              (rowFlags (length rows))
+              rows
+        ]
+    ]
+  where
+    -- Pad or truncate a row to match the alignment list length. (Validation
+    -- flags mismatches; rendering is graceful.)
+    nCols = length alignments
+    padRow cells = take nCols (cells ++ repeat [])
+    rowFlags n = replicate (max 0 (n - 1)) False ++ [True]
+
+    alignClass :: MD.Alignment -> Text
+    alignClass = \case
+      MD.AlignDefault -> "text-left"
+      MD.AlignLeft -> "text-left"
+      MD.AlignRight -> "text-right"
+      MD.AlignCenter -> "text-center"
+
+-- | Render a side-by-side columns container as a CSS grid with @fr@ units.
+renderColumns
+  :: FileResolver
+  -> Map SymbolId FormulaResult
+  -> [Int]
+  -> [[MD.Block]]
+  -> M.View RichContentModel RichContentAction
+renderColumns resolver symbols ratios cells =
+  M.div_
+    [ class_ "my-4 grid gap-4"
+    , MC.style_ [("grid-template-columns", ms gridTemplate)]
+    ]
+    [ M.div_
+        [class_ "min-w-0 space-y-2"]
+        (map (renderBlock resolver symbols) cell)
+    | cell <- cells
+    ]
+  where
+    gridTemplate :: Text
+    gridTemplate = T.intercalate " " [T.pack (show r) <> "fr" | r <- ratios]
+
 -- | German display label for each admonition type
 admonitionLabel :: MD.AdmonitionType -> Text
 admonitionLabel = \case
@@ -810,6 +899,10 @@ referencedFileHashes attachments (MD.Document blocks) =
         concatMap (concatMap blockInlines) items
       MD.MappingBlock l r ->
         concatMap (concatMap blockInlines) l ++ concatMap (concatMap blockInlines) r
+      MD.Table _alignments header rows ->
+        concat header ++ concatMap concat rows
+      MD.Columns _ratios cells ->
+        concatMap (concatMap blockInlines) cells
       _ -> []
 
     extractRefsFromInline :: MD.Inline -> [SHA256Hash]

@@ -24,6 +24,7 @@ module Competences.Markdown.AST
   , Block (..)
   , Inline (..)
   , AdmonitionType (..)
+  , Alignment (..)
   , ThumbSize (..)
   , ImageSize (..)
   , ClozeOptions (..)
@@ -72,6 +73,24 @@ data Block
     MappingBlock ![[Block]] ![[Block]]
   | -- | Vertical space with CSS length value (e.g. "2em", "10mm")
     VSpace !Text
+  | -- | GFM-style table: per-column alignments, header row cells, body rows.
+    --   Each cell is a list of inline elements (no block-level content).
+    --   Invariant (enforced by parser & validation): every row has the same
+    --   length as the alignment list / header row.
+    Table ![Alignment] ![[Inline]] ![[[Inline]]]
+  | -- | Side-by-side columns container: column ratio weights and cell blocks.
+    --   Ratios mirror @grid-template-columns@ fr-units (e.g. @[2, 1]@ →
+    --   @2fr 1fr@). Length of @ratios@ equals length of cell list.
+    Columns ![Int] ![[Block]]
+  deriving (Eq, Show)
+
+-- | Per-column alignment for 'Table'. @AlignDefault@ means \"no explicit
+-- marker in the separator row\"; renderers should treat it as left-aligned.
+data Alignment
+  = AlignDefault
+  | AlignLeft
+  | AlignRight
+  | AlignCenter
   deriving (Eq, Show)
 
 -- | Options for a cloze block

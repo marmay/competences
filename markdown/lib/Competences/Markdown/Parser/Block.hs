@@ -14,13 +14,13 @@ import Competences.Markdown.AST
 import Competences.Markdown.Parser.Inline (inlinesP, lineInlinesP)
 import Control.Monad (guard, void)
 import Data.Char (isLower)
+import Data.List (unfoldr)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
-import Data.List (unfoldr)
 
 type Parser = Parsec Void Text
 
@@ -39,6 +39,7 @@ blockP =
     [ thematicBreakP
     , headingP
     , notesGridP
+    , columnsP
     , taskBlockP
     , fencedCodeBlockP
     , mathBlockP
@@ -47,6 +48,7 @@ blockP =
     , bulletListP
     , admonitionP
     , vspaceP
+    , tableP
     , paragraphP
     ]
 
@@ -451,6 +453,165 @@ vspaceP = try $ do
   _ <- string "}}"
   _ <- optional eol
   pure (VSpace val)
+
+-- | GFM-style pipe table: header line, separator line, zero or more body rows.
+--   Commits to table parsing only after the second line parses as a valid
+--   separator; otherwise backtracks so paragraphP can handle the lines.
+tableP :: Parser Block
+tableP = try $ do
+  headerLine <- takeWhile1P Nothing (/= '\n')
+  guard (T.any (== '|') headerLine)
+  _ <- newline
+  sepLine <- takeWhile1P Nothing (/= '\n')
+  alignments <- case parseSeparator sepLine of
+    Just as -> pure as
+    Nothing -> fail "not a table separator"
+  let headerCells = splitRow headerLine
+  guard (length headerCells == length alignments)
+  bodyRows <- many tableBodyRowP
+  let headerInlines = map parseCellInlines headerCells
+      bodyInlines = map (map parseCellInlines) bodyRows
+  pure $ Table alignments headerInlines bodyInlines
+  where
+    tableBodyRowP = try $ do
+      _ <- newline
+      line <- takeWhile1P Nothing (/= '\n')
+      guard (T.any (== '|') line)
+      -- Must not look like a separator line — that would be a degenerate
+      -- two-table input; treat the second separator as the start of a new
+      -- block instead. (Conservative: fail and let outer parsing decide.)
+      case parseSeparator line of
+        Just _ -> fail "row looks like separator"
+        Nothing -> pure ()
+      pure (splitRow line)
+
+    parseCellInlines :: Text -> [Inline]
+    parseCellInlines t
+      | T.null t = []
+      | otherwise = fromMaybe [Plain t] (parseMaybe lineInlinesP t)
+
+-- | Parse the separator row of a table. Each cell must be of the form
+-- @:?-{3,}:?@ (optionally wrapped in whitespace and surrounding pipes).
+-- Returns one 'Alignment' per cell, or 'Nothing' if the line isn't a valid
+-- separator.
+parseSeparator :: Text -> Maybe [Alignment]
+parseSeparator line = case splitRow line of
+  [] -> Nothing
+  cells -> traverse alignFromCell cells
+  where
+    alignFromCell :: Text -> Maybe Alignment
+    alignFromCell s =
+      let (hasL, s1) = case T.uncons s of
+            Just (':', rest) -> (True, rest)
+            _ -> (False, s)
+          dashesLen = T.length (T.takeWhile (== '-') s1)
+          afterDashes = T.drop dashesLen s1
+          hasR = afterDashes == ":"
+          validRest = T.null afterDashes || hasR
+       in if dashesLen >= 3 && validRest
+            then Just $ case (hasL, hasR) of
+              (False, False) -> AlignDefault
+              (True, False) -> AlignLeft
+              (False, True) -> AlignRight
+              (True, True) -> AlignCenter
+            else Nothing
+
+-- | Split a pipe-delimited row into its cells. Handles:
+--
+-- * @\\|@ as a literal pipe within a cell.
+-- * Pipes inside @$...$@, @\\(...\\)@, and @`...`@ spans are not separators.
+-- * Optional leading and trailing pipes are decorative (stripped).
+-- * Inner whitespace around cell content is trimmed.
+splitRow :: Text -> [Text]
+splitRow input = map T.strip $ dropEdgePipes $ scan (T.unpack (T.strip input)) "" [] Normal
+  where
+    dropEdgePipes cells =
+      let cells' = case cells of
+            (c : rest) | T.null (T.strip c) -> rest
+            _ -> cells
+       in case reverse cells' of
+            (c : rest) | T.null (T.strip c) -> reverse rest
+            _ -> cells'
+
+    finalize cur cells = reverse (T.pack (reverse cur) : cells)
+
+    scan :: String -> String -> [Text] -> CellState -> [Text]
+    scan [] cur cells _ = finalize cur cells
+    -- Escape: \| → literal | (only at top level)
+    scan ('\\' : '|' : rest) cur cells Normal = scan rest ('|' : cur) cells Normal
+    -- \( opens paren-math
+    scan ('\\' : '(' : rest) cur cells Normal = scan rest ('(' : '\\' : cur) cells InParenMath
+    -- \) closes paren-math
+    scan ('\\' : ')' : rest) cur cells InParenMath = scan rest (')' : '\\' : cur) cells Normal
+    -- $ toggles dollar-math (only at top level)
+    scan ('$' : rest) cur cells Normal = scan rest ('$' : cur) cells InMath
+    scan ('$' : rest) cur cells InMath = scan rest ('$' : cur) cells Normal
+    -- ` toggles code span
+    scan ('`' : rest) cur cells Normal = scan rest ('`' : cur) cells InCode
+    scan ('`' : rest) cur cells InCode = scan rest ('`' : cur) cells Normal
+    -- | splits only at top level
+    scan ('|' : rest) cur cells Normal = scan rest "" (T.pack (reverse cur) : cells) Normal
+    -- Any other char (including | inside math/code) is part of current cell
+    scan (c : rest) cur cells st = scan rest (c : cur) cells st
+
+-- | State machine for 'splitRow': tracks whether the scanner is inside a
+-- math span, paren-math span, or code span (within which @|@ is literal).
+data CellState
+  = Normal
+  | InMath
+  | InParenMath
+  | InCode
+  deriving (Eq)
+
+-- | Side-by-side columns: ```columns or ```columns N:M:... fenced block.
+--   Cells separated by @+++@. Each cell parsed recursively as @[Block]@.
+columnsP :: Parser Block
+columnsP = try $ do
+  (fenceChar, fenceLen) <- backtickFence
+  _ <- hspace
+  _ <- string "columns"
+  ratios <- option [] (try $ hspace1 *> ratioListP)
+  _ <- takeWhileP Nothing (\c -> c /= '\n' && c /= '`')
+  _ <- newline
+  bodyLines <- nestedFencedBodyP fenceChar fenceLen
+  let cellSegments = splitOnPlus bodyLines
+      cells = map (parseCellBlocks . T.intercalate "\n") cellSegments
+      finalRatios = take (length cells) (ratios ++ repeat 1)
+  pure $ Columns finalRatios cells
+  where
+    ratioListP :: Parser [Int]
+    ratioListP = do
+      first <- ratioNumP
+      rest <- many (try (char ':' *> ratioNumP))
+      pure (first : rest)
+
+    ratioNumP :: Parser Int
+    ratioNumP = do
+      digits <- takeWhile1P (Just "ratio digit") (\c -> c >= '0' && c <= '9')
+      let n = read (T.unpack digits)
+      guard (n > 0)
+      pure n
+
+    splitOnPlus :: [Text] -> [[Text]]
+    splitOnPlus = unfoldr $ \xs ->
+      case xs of
+        [] -> Nothing
+        _ -> let (seg, rest) = break isPlusLine xs
+              in Just (seg, drop 1 rest)
+
+    isPlusLine :: Text -> Bool
+    isPlusLine line =
+      let stripped = T.strip line
+       in T.length stripped >= 3 && T.all (== '+') stripped
+
+    parseCellBlocks :: Text -> [Block]
+    parseCellBlocks t =
+      let trimmed = T.strip t
+       in if T.null trimmed
+            then []
+            else case parseMaybe documentP trimmed of
+              Just (Document blocks) -> blocks
+              Nothing -> [Paragraph [Plain trimmed]]
 
 -- | Paragraph: inline content terminated by blank line or eof
 paragraphP :: Parser Block

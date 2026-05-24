@@ -1,6 +1,6 @@
 module Test.Markdown.ParserTest (parserTests) where
 
-import Competences.Markdown.AST (AdmonitionType (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), ImageSize (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (AdmonitionType (..), Alignment (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), ImageSize (..), Inline (..), ThumbSize (..))
 import Competences.Markdown.Parser (parseMarkdown)
 import Data.Text qualified as T
 import Test.Tasty
@@ -29,6 +29,8 @@ parserTests =
     , testGroup "Notes grid" notesGridTests
     , testGroup "Cloze blanks" clozeBlankTests
     , testGroup "Task blocks" taskBlockTests
+    , testGroup "Tables" tableTests
+    , testGroup "Columns" columnsTests
     , testGroup "Backward compatibility" backwardCompatTests
     ]
 
@@ -539,6 +541,223 @@ taskBlockTests =
         "unknown format"
         (Document [FencedCodeBlock (Just "task:unknown") "some content"])
         "```task:unknown\nsome content\n```"
+  ]
+
+tableTests :: [TestTree]
+tableTests =
+  [ testCase "basic 2-column table" $
+      assertParse
+        "2-col"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "x"], [Plain "y"]]
+                [ [[Plain "1"], [Plain "2"]]
+                , [[Plain "3"], [Plain "4"]]
+                ]
+            ]
+        )
+        "| x | y |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |"
+  , testCase "alignment markers" $
+      assertParse
+        "alignments"
+        ( Document
+            [ Table
+                [AlignLeft, AlignRight, AlignCenter]
+                [[Plain "a"], [Plain "b"], [Plain "c"]]
+                [[[Plain "1"], [Plain "2"], [Plain "3"]]]
+            ]
+        )
+        "| a | b | c |\n|:---|---:|:---:|\n| 1 | 2 | 3 |"
+  , testCase "no leading/trailing pipes" $
+      assertParse
+        "no edge pipes"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "x"], [Plain "y"]]
+                [[[Plain "1"], [Plain "2"]]]
+            ]
+        )
+        "x | y\n---|---\n1 | 2"
+  , testCase "inline math in cells" $
+      assertParse
+        "math in cells"
+        ( Document
+            [ Table
+                [AlignDefault, AlignRight]
+                [[Plain "x"], [MathInline "f(x)"]]
+                [ [[Plain "-2"], [MathInline "4"]]
+                , [[Plain "0"], [MathInline "0"]]
+                ]
+            ]
+        )
+        "| x | $f(x)$ |\n|---|---:|\n| -2 | $4$ |\n| 0 | $0$ |"
+  , testCase "math with pipe inside is preserved" $
+      assertParse
+        "pipe inside math"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "a"], [Plain "b"]]
+                [[[MathInline "x | y"], [Plain "ok"]]]
+            ]
+        )
+        "| a | b |\n|---|---|\n| $x | y$ | ok |"
+  , testCase "cloze blanks in cells" $
+      assertParse
+        "blanks in cells"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "x"], [Plain "y"]]
+                [ [[Plain "-1"], [ClozeBlank Nothing]]
+                , [[Plain "0"], [ClozeBlank (Just 20)]]
+                ]
+            ]
+        )
+        "| x | y |\n|---|---|\n| -1 | ___ |\n| 0 | ___2___ |"
+  , testCase "escaped pipe literal" $
+      assertParse
+        "escaped pipe"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "a"], [Plain "b"]]
+                [[[Plain "x|y"], [Plain "z"]]]
+            ]
+        )
+        "| a | b |\n|---|---|\n| x\\|y | z |"
+  , testCase "empty cells preserved" $
+      assertParse
+        "empty cells"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault, AlignDefault]
+                [[Plain "a"], [Plain "b"], [Plain "c"]]
+                [[[Plain "1"], [], [Plain "3"]]]
+            ]
+        )
+        "| a | b | c |\n|---|---|---|\n| 1 |  | 3 |"
+  , testCase "single line without separator is paragraph" $
+      assertParse
+        "no separator → paragraph"
+        (Document [Paragraph [Plain "a | b | c"]])
+        "a | b | c"
+  , testCase "wrong row width preserved in AST" $
+      assertParse
+        "wrong width"
+        ( Document
+            [ Table
+                [AlignDefault, AlignDefault]
+                [[Plain "x"], [Plain "y"]]
+                [[[Plain "1"], [Plain "2"], [Plain "3"]]]
+            ]
+        )
+        "| x | y |\n|---|---|\n| 1 | 2 | 3 |"
+  , testCase "table followed by paragraph" $
+      assertBlockCount "table+para" 2
+        "| x | y |\n|---|---|\n| 1 | 2 |\n\nFollowing text"
+  , testCase "table inside cloze block" $
+      assertParse
+        "table-in-cloze"
+        ( Document
+            [ ClozeBlock
+                [ Table
+                    [AlignDefault, AlignDefault]
+                    [[Plain "x"], [Plain "y"]]
+                    [[[Plain "1"], [ClozeBlank Nothing]]]
+                ]
+                ClozeNoOptions
+            ]
+        )
+        "```task:cloze\n| x | y |\n|---|---|\n| 1 | ___ |\n```"
+  ]
+
+columnsTests :: [TestTree]
+columnsTests =
+  [ testCase "basic two-column" $
+      assertParse
+        "2-col default"
+        ( Document
+            [ Columns
+                [1, 1]
+                [ [Paragraph [Plain "Left"]]
+                , [Paragraph [Plain "Right"]]
+                ]
+            ]
+        )
+        "```columns\nLeft\n+++\nRight\n```"
+  , testCase "ratio 2:1" $
+      assertParse
+        "2:1"
+        ( Document
+            [ Columns
+                [2, 1]
+                [ [Paragraph [Plain "Wide"]]
+                , [Paragraph [Plain "Narrow"]]
+                ]
+            ]
+        )
+        "```columns 2:1\nWide\n+++\nNarrow\n```"
+  , testCase "three columns 1:1:1" $
+      assertParse
+        "3-col"
+        ( Document
+            [ Columns
+                [1, 1, 1]
+                [ [Paragraph [Plain "A"]]
+                , [Paragraph [Plain "B"]]
+                , [Paragraph [Plain "C"]]
+                ]
+            ]
+        )
+        "```columns 1:1:1\nA\n+++\nB\n+++\nC\n```"
+  , testCase "missing ratios default to 1" $
+      assertParse
+        "ratio shortfall"
+        ( Document
+            [ Columns
+                [2, 1, 1]
+                [ [Paragraph [Plain "A"]]
+                , [Paragraph [Plain "B"]]
+                , [Paragraph [Plain "C"]]
+                ]
+            ]
+        )
+        "```columns 2\nA\n+++\nB\n+++\nC\n```"
+  , testCase "table inside columns" $
+      assertParse
+        "table-in-cols"
+        ( Document
+            [ Columns
+                [1, 1]
+                [ [Paragraph [Plain "Plot here"]]
+                ,
+                  [ Table
+                      [AlignDefault, AlignRight]
+                      [[Plain "x"], [Plain "y"]]
+                      [[[Plain "-1"], [Plain "1"]]]
+                  ]
+                ]
+            ]
+        )
+        "```columns 1:1\nPlot here\n+++\n| x | y |\n|---|---:|\n| -1 | 1 |\n```"
+  , testCase "columns inside cloze block" $
+      assertParse
+        "cols-in-cloze"
+        ( Document
+            [ ClozeBlock
+                [ Columns
+                    [1, 1]
+                    [ [Paragraph [Plain "L"]]
+                    , [Paragraph [Plain "R"]]
+                    ]
+                ]
+                ClozeNoOptions
+            ]
+        )
+        "```task:cloze\n```columns\nL\n+++\nR\n```\n```"
   ]
 
 -- | Tests for backward compatibility with existing TaskContent markup
