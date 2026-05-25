@@ -58,26 +58,33 @@ Two formats are used:
 - `.cabal` files: `X.Y.Z.0` (four-part, e.g., `0.12.0.0`)
 - `nix/frontend.nix`: `X.Y.Z` (three-part, e.g., `0.12.0`)
 
-### 3. Build and test
+### 3. Build and test via Nix
 
-Run native build and tests as a fast feedback step:
+Build the release artifacts via Nix as the single confirmation step:
 ```bash
-nix develop --command cabal build all
-nix develop --command cabal test all
+nix build
 ```
 
-### 4. Verify the frontend derivation builds
+The default flake output is a `symlinkJoin` of `competences-backend` and
+`competences-frontend`, so this one command builds both. Two benefits over
+running `cabal build all` natively:
 
-```bash
-nix build .#competences-frontend
-```
+1. **Verifies the hermetic build path** — the same path used by
+   `nixos-rebuild` during deploy. If `nix build` succeeds, the deploy
+   will not have to rebuild Haskell artifacts from scratch.
+2. **Warms the local Nix store** — the resulting `/nix/store/...` paths
+   are now cached on the build host. `nixos-rebuild switch --build-host
+   localhost` copies them straight over rather than re-doing the
+   compilation, so the deploy step is fast.
 
-This produces `result/` with the same shape as the runtime `static/` tree
-(`app.wasm`, `ghc_wasm_jsffi.js`, `index.js`, `output.css`, `mathjax-*`,
-`fonts/`, `wasi/`). The build is hermetic — caches into the IOG / nixpkgs
-caches, no manual artifact wrangling.
+If you also want to run the test suite (optional — tests are not part of
+the Nix derivation), do `nix develop --command cabal test all`.
 
-### 5. Create release commit
+The Nix build produces `result/` with the backend executable and the
+frontend `static/` tree (`app.wasm`, `ghc_wasm_jsffi.js`, `index.js`,
+`output.css`, `mathjax-*`, `fonts/`, `wasi/`).
+
+### 4. Create release commit
 
 Stage the 6 version files plus `flake.lock` (in case dep updates were
 folded in) and commit:
@@ -97,7 +104,7 @@ Generate a changelog by reading `git log --oneline <prev-release>..HEAD` and
 categorizing commits into the sections below. Omit any category with no entries.
 Commit with the standard format (see Changelog Format below).
 
-### 6. Push to remote
+### 5. Push to remote
 
 Requires user permission:
 ```bash
