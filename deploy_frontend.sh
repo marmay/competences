@@ -15,11 +15,17 @@
 set -x
 set -e
 
+# Use a separate dist tree from native `cabal build`. The inplace package db
+# under `dist-newstyle/packagedb/` is not per-target, so a native build of
+# `competences-common` (with the +aeson flag) would clobber the WASM
+# registration (built with -aeson) and break the next WASM link.
+WASM_BUILDDIR=dist-newstyle-wasm
+
 mkdir -p static
 
 # 1. Build the .wasm incrementally.
-wasm32-unknown-wasi-cabal build exe:competences-frontend
-WASM_BIN=$(wasm32-unknown-wasi-cabal list-bin exe:competences-frontend)
+wasm32-unknown-wasi-cabal --builddir="$WASM_BUILDDIR" build exe:competences-frontend
+WASM_BIN=$(wasm32-unknown-wasi-cabal --builddir="$WASM_BUILDDIR" list-bin exe:competences-frontend)
 
 # 2. Generate the JS FFI shim using post-link.mjs from the cross GHC.
 GHC_LIB=$(wasm32-unknown-wasi-ghc --print-libdir)

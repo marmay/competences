@@ -1,5 +1,6 @@
 .claude
 dist-newstyle
+dist-newstyle-wasm
 result
 *~
 \#*\#
