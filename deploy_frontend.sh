@@ -61,7 +61,10 @@ install -m 644 node_modules/mathjax/sre/speech-worker.js static/sre/speech-worke
 
 echo "Copying MathJax font data..."
 rm -rf static/mathjax-newcm-font
-cp -r node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font
+# --no-preserve=mode applies umask (typically 755 dirs / 644 files) instead
+# of inheriting the Nix store's read-only mode bits — same reasoning as the
+# install -m 644 calls above, but for a recursive directory tree.
+cp -r --no-preserve=mode node_modules/@mathjax/mathjax-newcm-font static/mathjax-newcm-font
 
 # 7. Compile Tailwind.
 echo "Building Tailwind CSS..."
