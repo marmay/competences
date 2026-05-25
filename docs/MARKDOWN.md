@@ -152,7 +152,7 @@ The table style is **fixed** and intentionally minimal:
 
 **You cannot control via syntax:** cell borders, vertical column dividers, alternating row colours, header background, font size, per-cell styling, or column widths.
 
-**Table width** is always 100% of the container — there is no per-table width attribute. To make a table narrower (or to put a plot next to it), wrap it in a [`columns`](#columns-side-by-side) block with a narrow weight:
+**Tables shrink to their content width and are centered horizontally** within their container, like figures. There is no per-table width attribute and no `{width=...}` annotation. To place a table beside other content (a plot, a caption, an explanation), wrap it in a [`columns`](#columns-side-by-side) block:
 
 ````
 ```columns 1:2
@@ -168,7 +168,7 @@ $y$-axis.
 ```
 ````
 
-This is the **only** mechanism for influencing table width — there are no `{width=...}` or similar attributes.
+If a table's natural width exceeds the surrounding container, the table is clipped at the container's edge. Use a `columns` block to give the table a narrower cell, or break wide data across multiple smaller tables.
 
 ### Display Math
 

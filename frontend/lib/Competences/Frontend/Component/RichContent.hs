@@ -617,9 +617,9 @@ renderTable
   -> M.View RichContentModel RichContentAction
 renderTable resolver symbols alignments header rows =
   M.div_
-    [class_ "my-4 rounded-lg overflow-hidden border border-stone-200"]
+    [class_ "my-4 mx-auto w-fit max-w-full rounded-lg overflow-hidden border border-stone-200"]
     [ M.table_
-        [class_ "w-full border-collapse"]
+        [class_ "border-collapse"]
         [ M.thead_
             [class_ "bg-stone-50 border-b-2 border-stone-300"]
             [ M.tr_ [] $
