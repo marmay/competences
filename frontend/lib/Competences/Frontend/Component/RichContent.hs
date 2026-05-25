@@ -857,11 +857,27 @@ renderRichTextWithFiles fc syncCtx attachments rc =
         [M.text (ms (toRawText rc))]
 
 -- | Render rich content with a custom file resolver (for print-specific behavior).
-renderRichTextWithResolver :: FormulaCache -> FileResolver -> RichContent -> M.View p a
-renderRichTextWithResolver fc resolver rc =
+--
+-- The @resolverKey@ argument lets the caller force a fresh component mount
+-- whenever the resolver's effective behaviour changes. The rich-content
+-- component is keyed by the document hash so that incidental parent
+-- re-renders don't disturb it (preserves MathJax cache, etc.) — but that
+-- means a resolver passed at one mount is frozen for the component's
+-- lifetime: parents updating the resolver via subsequent renders are
+-- ignored. Callers whose resolver depends on external state (e.g. per-image
+-- print sizing) should pass a stable string derived from that state; we
+-- append it to the key so a change re-mounts the component. Pass @\"\"@ if
+-- the resolver is invariant.
+--
+-- TODO: This is a workaround. The proper fix is to refactor the
+-- rich-content component to receive resolver state via the model (see
+-- @docs/TODO.md@).
+renderRichTextWithResolver :: FormulaCache -> FileResolver -> Text -> RichContent -> M.View p a
+renderRichTextWithResolver fc resolver resolverKey rc =
   case Markdown.parseMarkdown (toRawText rc) of
     Right doc ->
-      let key = hashDocument doc
+      let docKey = hashDocument doc
+          key = if T.null resolverKey then docKey else docKey <> "-" <> resolverKey
        in inlineComponent
             ("rich-" <> M.ms key)
             (richContentComponent fc resolver [] key doc)

@@ -265,12 +265,15 @@ updatePrintModal (MoveTaskUp tid) _total m =
 updatePrintModal (MoveTaskDown tid) _total m =
   m {taskInfos = swapWithNext (\ti -> ti.taskId == tid) m.taskInfos, pageGrouping = []}
 updatePrintModal OpenRenumberModal _total m = m
+-- Image-knob actions deliberately do NOT clear `pageGrouping`. Keeping
+-- the prior grouping while a remeasure is in flight keeps the preview
+-- coherent (slightly stale layout, but images render at the new size
+-- because `wrapImageForPrint` re-reads contentSettings). The next
+-- `MeasuredPageGrouping` replaces it with up-to-date heights.
 updatePrintModal (SetImageSize tid url pct) _total m =
   m & #contentSettings .~ modifyImageSetting tid url (#sizePct .~ max 10 (min 100 pct)) m.contentSettings
-    & #pageGrouping .~ []
 updatePrintModal (SetImagePosition tid url pos) _total m =
   m & #contentSettings .~ modifyImageSetting tid url (#position .~ pos) m.contentSettings
-    & #pageGrouping .~ []
 updatePrintModal (ToggleImageBackdrop tid url) _total m =
   m & #contentSettings .~ modifyImageSetting tid url (\ips -> ips & #backdrop .~ not ips.backdrop) m.contentSettings
 
@@ -345,9 +348,13 @@ remeasurePolicy (MoveTaskUp _) = Immediate
 remeasurePolicy (MoveTaskDown _) = Immediate
 remeasurePolicy (SetCustomFooter _) = Debounced
 remeasurePolicy (SetPoints _ _) = Debounced
-remeasurePolicy (SetImageSize _ _ _) = Debounced
-remeasurePolicy (SetImagePosition _ _ _) = Debounced
-remeasurePolicy (ToggleImageBackdrop _ _) = Debounced
+-- Image actions are Immediate so slider drag updates the preview without a
+-- 500 ms debounce wait. Combined with NOT clearing pageGrouping (see
+-- updatePrintModal above), rapid slider events naturally coalesce — the
+-- last-arriving MeasuredPageGrouping wins.
+remeasurePolicy (SetImageSize _ _ _) = Immediate
+remeasurePolicy (SetImagePosition _ _ _) = Immediate
+remeasurePolicy (ToggleImageBackdrop _ _) = Immediate
 remeasurePolicy _ = NoRemeasure
 
 -- | Extract grid config from settings, defaulting to 1x1

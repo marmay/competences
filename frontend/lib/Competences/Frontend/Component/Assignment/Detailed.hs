@@ -684,7 +684,13 @@ viewerComponent r user assignment renderStyle _wm =
               (firstAvail, restAvail) = decorationAdjustedHeights settings cs'
               gap = minGapPx settings.baseFontSize
           M.io $ do
-            threadDelay 100000 -- 100ms for DOM to re-render
+            -- Wait long enough that Miso has committed the vDOM diff and
+            -- the browser has applied style changes before we read heights.
+            -- 100 ms occasionally raced under load (stale bbox even after
+            -- preview was correct). 500 ms is well over typical
+            -- vDOM-commit + reflow budget; if even this proves
+            -- insufficient, switch to a requestAnimationFrame-based wait.
+            threadDelay 500000
             heights <- measureTaskHeights
             footerH <- measureFooterHeight
             let baseGrouping = groupIntoPages firstAvail restAvail gap settings.distributeLastPage heights
@@ -1232,6 +1238,11 @@ viewerComponent r user assignment renderStyle _wm =
             | url <- floatTopUrls
             ]
 
+          -- See renderRichTextWithResolver's haddock: changing imageSettings
+          -- needs to bump the rich-content component's key so the new
+          -- printResolver actually takes effect (the component is keyed by
+          -- doc + this string).
+          resolverKey = T.pack (show imgSettings)
           descriptionView
             | tcs.showDescription =
                 [ M.div_
@@ -1239,7 +1250,7 @@ viewerComponent r user assignment renderStyle _wm =
                         <> printColumnsClass tcs.itemsPerRow
                         <> if tcs.inlineAnswer then " print-inline-answer" else ""
                     ]
-                    [renderRichTextWithResolver r.formulaCache printResolver content]
+                    [renderRichTextWithResolver r.formulaCache printResolver resolverKey content]
                 | Just content <- [tws.taskContent]
                 ]
             | otherwise = []
