@@ -83,6 +83,93 @@ c. Zeichne das Dreieck
    maßstabsgetreu.
 ```
 
+### Tables
+
+GFM-style pipe tables. A header row, a separator row that declares per-column alignment, and zero or more body rows.
+
+```
+| Name      | Alter | Beruf      |
+|-----------|------:|:----------:|
+| Anna      |    23 | Lehrerin   |
+| Bernd     |    45 | Tischler   |
+```
+
+**Alignment** (separator row, per column):
+
+- `---` — default (left)
+- `:---` — left
+- `---:` — right
+- `:---:` — centered
+
+At least three dashes per cell are required.
+
+**Leading and trailing pipes are optional.** `a | b` and `| a | b |` are equivalent. Whitespace around cell content is trimmed.
+
+**Cells contain inline content only** — text, bold, italic, inline code, links, file embeds, **inline math**, and **cloze blanks**. Block-level content (lists, math blocks, paragraphs) does not work inside a cell. If you need that, use a [`columns`](#columns-side-by-side) block instead.
+
+**Inline math in cells** typesets naturally. Use this for value tables and any table that mixes numeric and symbolic content:
+
+```
+| $x$ | $f(x) = x^2$ |
+|----:|-------------:|
+|  -2 |          $4$ |
+|  -1 |          $1$ |
+|   0 |          $0$ |
+```
+
+**Cloze blanks in cells** turn a table into a fill-in-the-values exercise. Wrap inside a `task:cloze` block so the editor recognises it as a cloze task:
+
+````
+```task:cloze
+Vervollständige die Wertetabelle:
+
+| $x$ | $f(x)$  |
+|----:|--------:|
+|  -2 | ___2___ |
+|  -1 |     ___ |
+|   0 |     ___ |
+```
+````
+
+**Literal pipes** inside a cell must be escaped: `\|`. **Pipes inside `$...$`, `\(...\)`, and `` `...` `` spans need no escape** — they are treated as part of the math or code, not as cell separators:
+
+```
+| Operator | Bedeutung |
+|----------|-----------|
+| $x \| y$ | x oder y  |
+| `a\|b`   | Pipe-Symbol |
+```
+
+**Row width** — every body row must have the same number of cells as the header. The editor reports a validation error like *Tabelle, Zeile 2: Erwartet 3 Spalten, 2 gefunden.* if a row doesn't match.
+
+#### Styling and layout
+
+The table style is **fixed** and intentionally minimal:
+
+- Rounded outer border, light header background, thick header underline.
+- Light horizontal row dividers; **no vertical lines** (matches typeset textbook style, works for both general data tables and t-chart value tables).
+- Per-column horizontal alignment as declared in the separator row.
+
+**You cannot control via syntax:** cell borders, vertical column dividers, alternating row colours, header background, font size, per-cell styling, or column widths.
+
+**Table width** is always 100% of the container — there is no per-table width attribute. To make a table narrower (or to put a plot next to it), wrap it in a [`columns`](#columns-side-by-side) block with a narrow weight:
+
+````
+```columns 1:2
+| $x$ | $y$ |
+|----:|----:|
+|  -2 |   4 |
+|   0 |   0 |
+|   2 |   4 |
++++
+The function $f(x) = x^2$ is the canonical example of a parabola opening
+upward, with its vertex at the origin and axis of symmetry along the
+$y$-axis.
+```
+````
+
+This is the **only** mechanism for influencing table width — there are no `{width=...}` or similar attributes.
+
 ### Display Math
 
 For standalone math formulas, use `$$...$$` or `\[...\]`. The content is rendered via MathJax.
@@ -290,12 +377,85 @@ Right column
 
 This produces a grid with the bottom two cells empty.
 
+### Columns (Side-by-Side)
+
+Fenced code blocks with the `columns` info string lay out their cells side by side. Cells are separated by `+++` (three or more `+` on a line). This is the primary tool for plot-plus-table or explanation-plus-summary layouts.
+
+````
+```columns
+![Graph](file:parabola.svg)
++++
+| $x$ | $y$ |
+|----:|----:|
+|  -2 |   4 |
+|  -1 |   1 |
+|   0 |   0 |
+|   1 |   1 |
+|   2 |   4 |
+```
+````
+
+Each cell supports **full block-level markdown** — paragraphs, lists, headings, math blocks, tables, file embeds, admonitions, even nested `columns` blocks.
+
+#### Width ratios
+
+Optional. Use `columns N:M:...` where each positive integer is a flex-grid weight (rendered as CSS `Nfr`). Default is an even split.
+
+````
+```columns 2:1
+Two-thirds of the available width: an explanation with the **key concept**
+worked through in detail, including derivations and worked examples.
++++
+One-third: a quick reference card or summary box.
+```
+````
+
+**Rules:**
+
+- `columns` (no ratio) — equal split based on cell count.
+- `columns 1:1`, `columns 2:1`, `columns 3:2:1`, `columns 1:1:1` — explicit weights.
+- If fewer ratios than cells are provided, missing ratios default to `1`.
+- If more ratios than cells, the extras are ignored.
+
+Two- and three-column layouts are the common cases. The syntax accepts any number of columns.
+
+#### Common patterns
+
+**Plot + value table:**
+
+````
+```columns 1:1
+![](file:graph.svg)
++++
+| $x$ | $y$ |
+|----:|----:|
+|  -1 |   1 |
+|   0 |   0 |
+|   1 |   1 |
+```
+````
+
+**Side-by-side comparison:**
+
+````
+```columns
+**Methode A**
+
+Schritt-für-Schritt mit Äquivalenzumformungen.
++++
+**Methode B**
+
+Grafische Lösung durch Schnittpunkte.
+```
+````
+
+**Composition with cloze tasks:** `columns` works inside a `task:cloze` body, and a `task:cloze` body can contain `columns` — both compose recursively. A cloze exercise with a plot on one side and a fill-in value table on the other is one block, not two.
+
 ## Unsupported Features
 
 The following standard markdown features are **not** available:
 
 - Images (`![alt](url)`)
-- Tables
 - Strikethrough (`~~text~~`)
 - Task lists / checkboxes (`- [ ] item`)
 - Footnotes
