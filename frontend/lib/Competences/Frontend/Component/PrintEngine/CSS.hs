@@ -81,6 +81,11 @@ sharedCSS settings =
           ".page-print-content .print-task-points { float: right; font-size: 0.85em; color: #666; font-weight: normal; }"
         , -- Per-image print layout: override flex parent when it contains a floated image
           ".page-print-content .flex:has(> .print-image-float-right) { display: block !important; }"
+        , -- Per-image stretch (slider > 100%): force the inner <img> to fill the
+          -- wrapper width. Without this the existing .embed-exact img cap of
+          -- max-width: 100% of wrapper stops raster images at their intrinsic
+          -- size, so the slider's effect above 100% wouldn't be visible.
+          ".page-print-content .print-image-stretch img { width: 100% !important; max-width: 100% !important; }"
         , -- Contain floats within print tasks
           ".page-print-content .print-task { overflow: hidden; }"
         , -- Pure black text for print (overrides prose-stone / text-stone-800)

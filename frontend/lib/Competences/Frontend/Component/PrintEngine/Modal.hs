@@ -271,7 +271,7 @@ updatePrintModal OpenRenumberModal _total m = m
 -- because `wrapImageForPrint` re-reads contentSettings). The next
 -- `MeasuredPageGrouping` replaces it with up-to-date heights.
 updatePrintModal (SetImageSize tid url pct) _total m =
-  m & #contentSettings .~ modifyImageSetting tid url (#sizePct .~ max 10 (min 100 pct)) m.contentSettings
+  m & #contentSettings .~ modifyImageSetting tid url (#sizePct .~ max 10 (min 150 pct)) m.contentSettings
 updatePrintModal (SetImagePosition tid url pos) _total m =
   m & #contentSettings .~ modifyImageSetting tid url (#position .~ pos) m.contentSettings
 updatePrintModal (ToggleImageBackdrop tid url) _total m =
@@ -676,7 +676,7 @@ imageSettingRow tcs wrap tid url =
                   , MP.value_ (ms (show ips.sizePct))
                   , M.onInput (\v -> wrap (SetImageSize tid url (parseIntOr ips.sizePct v)))
                   , M.textProp "min" "10"
-                  , M.textProp "max" "100"
+                  , M.textProp "max" "150"
                   , M.textProp "step" "5"
                   , class_ "flex-1 h-4"
                   ]

@@ -1287,7 +1287,20 @@ viewerComponent r user assignment renderStyle _wm =
     -- | Wrap an image with print layout styles based on its ImagePrintSetting.
     wrapImageForPrint :: ImagePrintSetting -> M.View p a -> M.View p a
     wrapImageForPrint ips fileView =
-      let sizeStyle = [("max-width", ms (show ips.sizePct) <> "%")]
+      let pct = ms (show ips.sizePct)
+          stretching = ips.sizePct > 100
+          -- Below 100% the wrapper stays auto-width capped by max-width.
+          -- Above 100% we set explicit width so the wrapper actually
+          -- extends, AND mark it for the CSS rule that forces the inner
+          -- <img> to fill the wrapper (the embed-exact img rule caps at
+          -- max-width: 100% of wrapper, which would otherwise keep raster
+          -- images at intrinsic size). User has accepted that rasters
+          -- will pixelate above 100% — that's the trade for SVG-friendly
+          -- oversize.
+          sizeStyle =
+            [("max-width", pct <> "%")]
+              <> [("width", pct <> "%") | stretching]
+          stretchClass = if stretching then " print-image-stretch" else ""
           backdropStyle =
             if ips.backdrop
               then [("background", "white"), ("padding", "2mm"), ("print-color-adjust", "exact"), ("-webkit-print-color-adjust", "exact")]
@@ -1296,7 +1309,7 @@ viewerComponent r user assignment renderStyle _wm =
             PrintFloatRight -> ("print-image-float-right", [("float", "right"), ("margin-left", "0.5em"), ("margin-bottom", "0.3em")])
             PrintFloatTop -> ("", [("float", "right"), ("clear", "right"), ("margin-left", "0.5em"), ("margin-bottom", "0.3em")])
             PrintInline -> ("", [("margin", "0 auto")])
-       in M.div_ [class_ posClass, MC.style_ (sizeStyle <> backdropStyle <> floatStyle)] [fileView]
+       in M.div_ [class_ (posClass <> stretchClass), MC.style_ (sizeStyle <> backdropStyle <> floatStyle)] [fileView]
 
     -- | Render a solution for print: type label (h2-sized) + rich text content
     printSolutionView :: Solution -> M.View ViewerModel ViewerAction
