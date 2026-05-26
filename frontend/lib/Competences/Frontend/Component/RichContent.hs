@@ -668,22 +668,22 @@ renderTable resolver symbols alignments header rows =
 renderColumns
   :: FileResolver
   -> Map SymbolId FormulaResult
-  -> [Int]
+  -> [MD.ColumnSpec]
   -> [[MD.Block]]
   -> M.View RichContentModel RichContentAction
-renderColumns resolver symbols ratios cells =
+renderColumns resolver symbols specs cells =
   M.div_
     [ class_ "my-4 grid gap-4"
     , MC.style_ [("grid-template-columns", ms gridTemplate)]
     ]
     [ M.div_
-        [class_ "min-w-0 space-y-2"]
+        [class_ ("min-w-0 space-y-2" <> if spec.centered then " self-center" else "")]
         (map (renderBlock resolver symbols) cell)
-    | cell <- cells
+    | (spec, cell) <- zip specs cells
     ]
   where
     gridTemplate :: Text
-    gridTemplate = T.intercalate " " [T.pack (show r) <> "fr" | r <- ratios]
+    gridTemplate = T.intercalate " " [T.pack (show s.weight) <> "fr" | s <- specs]
 
 -- | German display label for each admonition type
 admonitionLabel :: MD.AdmonitionType -> Text

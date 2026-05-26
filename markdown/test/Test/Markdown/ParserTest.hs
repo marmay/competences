@@ -1,6 +1,6 @@
 module Test.Markdown.ParserTest (parserTests) where
 
-import Competences.Markdown.AST (AdmonitionType (..), Alignment (..), Block (..), ChoiceType (..), ClozeOptions (..), Document (..), ImageSize (..), Inline (..), ThumbSize (..))
+import Competences.Markdown.AST (AdmonitionType (..), Alignment (..), Block (..), ChoiceType (..), ClozeOptions (..), ColumnSpec (..), Document (..), ImageSize (..), Inline (..), ThumbSize (..))
 import Competences.Markdown.Parser (parseMarkdown)
 import Data.Text qualified as T
 import Test.Tasty
@@ -676,89 +676,115 @@ tableTests =
 
 columnsTests :: [TestTree]
 columnsTests =
-  [ testCase "basic two-column" $
-      assertParse
-        "2-col default"
-        ( Document
-            [ Columns
-                [1, 1]
-                [ [Paragraph [Plain "Left"]]
-                , [Paragraph [Plain "Right"]]
-                ]
-            ]
-        )
-        "```columns\nLeft\n+++\nRight\n```"
-  , testCase "ratio 2:1" $
-      assertParse
-        "2:1"
-        ( Document
-            [ Columns
-                [2, 1]
-                [ [Paragraph [Plain "Wide"]]
-                , [Paragraph [Plain "Narrow"]]
-                ]
-            ]
-        )
-        "```columns 2:1\nWide\n+++\nNarrow\n```"
-  , testCase "three columns 1:1:1" $
-      assertParse
-        "3-col"
-        ( Document
-            [ Columns
-                [1, 1, 1]
-                [ [Paragraph [Plain "A"]]
-                , [Paragraph [Plain "B"]]
-                , [Paragraph [Plain "C"]]
-                ]
-            ]
-        )
-        "```columns 1:1:1\nA\n+++\nB\n+++\nC\n```"
-  , testCase "missing ratios default to 1" $
-      assertParse
-        "ratio shortfall"
-        ( Document
-            [ Columns
-                [2, 1, 1]
-                [ [Paragraph [Plain "A"]]
-                , [Paragraph [Plain "B"]]
-                , [Paragraph [Plain "C"]]
-                ]
-            ]
-        )
-        "```columns 2\nA\n+++\nB\n+++\nC\n```"
-  , testCase "table inside columns" $
-      assertParse
-        "table-in-cols"
-        ( Document
-            [ Columns
-                [1, 1]
-                [ [Paragraph [Plain "Plot here"]]
-                ,
-                  [ Table
-                      [AlignDefault, AlignRight]
-                      [[Plain "x"], [Plain "y"]]
-                      [[[Plain "-1"], [Plain "1"]]]
-                  ]
-                ]
-            ]
-        )
-        "```columns 1:1\nPlot here\n+++\n| x | y |\n|---|---:|\n| -1 | 1 |\n```"
-  , testCase "columns inside cloze block" $
-      assertParse
-        "cols-in-cloze"
-        ( Document
-            [ ClozeBlock
+  let cw w = ColumnSpec w False     -- plain weight
+      cc w = ColumnSpec w True      -- centred-vertically
+   in [ testCase "basic two-column" $
+          assertParse
+            "2-col default"
+            ( Document
                 [ Columns
-                    [1, 1]
-                    [ [Paragraph [Plain "L"]]
-                    , [Paragraph [Plain "R"]]
+                    [cw 1, cw 1]
+                    [ [Paragraph [Plain "Left"]]
+                    , [Paragraph [Plain "Right"]]
                     ]
                 ]
-                ClozeNoOptions
-            ]
-        )
-        "```task:cloze\n```columns\nL\n+++\nR\n```\n```"
-  ]
+            )
+            "```columns\nLeft\n+++\nRight\n```"
+      , testCase "ratio 2:1" $
+          assertParse
+            "2:1"
+            ( Document
+                [ Columns
+                    [cw 2, cw 1]
+                    [ [Paragraph [Plain "Wide"]]
+                    , [Paragraph [Plain "Narrow"]]
+                    ]
+                ]
+            )
+            "```columns 2:1\nWide\n+++\nNarrow\n```"
+      , testCase "three columns 1:1:1" $
+          assertParse
+            "3-col"
+            ( Document
+                [ Columns
+                    [cw 1, cw 1, cw 1]
+                    [ [Paragraph [Plain "A"]]
+                    , [Paragraph [Plain "B"]]
+                    , [Paragraph [Plain "C"]]
+                    ]
+                ]
+            )
+            "```columns 1:1:1\nA\n+++\nB\n+++\nC\n```"
+      , testCase "missing ratios default to 1" $
+          assertParse
+            "ratio shortfall"
+            ( Document
+                [ Columns
+                    [cw 2, cw 1, cw 1]
+                    [ [Paragraph [Plain "A"]]
+                    , [Paragraph [Plain "B"]]
+                    , [Paragraph [Plain "C"]]
+                    ]
+                ]
+            )
+            "```columns 2\nA\n+++\nB\n+++\nC\n```"
+      , testCase "table inside columns" $
+          assertParse
+            "table-in-cols"
+            ( Document
+                [ Columns
+                    [cw 1, cw 1]
+                    [ [Paragraph [Plain "Plot here"]]
+                    ,
+                      [ Table
+                          [AlignDefault, AlignRight]
+                          [[Plain "x"], [Plain "y"]]
+                          [[[Plain "-1"], [Plain "1"]]]
+                      ]
+                    ]
+                ]
+            )
+            "```columns 1:1\nPlot here\n+++\n| x | y |\n|---|---:|\n| -1 | 1 |\n```"
+      , testCase "columns inside cloze block" $
+          assertParse
+            "cols-in-cloze"
+            ( Document
+                [ ClozeBlock
+                    [ Columns
+                        [cw 1, cw 1]
+                        [ [Paragraph [Plain "L"]]
+                        , [Paragraph [Plain "R"]]
+                        ]
+                    ]
+                    ClozeNoOptions
+                ]
+            )
+            "```task:cloze\n```columns\nL\n+++\nR\n```\n```"
+      , testCase "vertical-centre marker on first column (3*:1)" $
+          assertParse
+            "3*:1"
+            ( Document
+                [ Columns
+                    [cc 3, cw 1]
+                    [ [Paragraph [Plain "Tall"]]
+                    , [Paragraph [Plain "Short"]]
+                    ]
+                ]
+            )
+            "```columns 3*:1\nTall\n+++\nShort\n```"
+      , testCase "vertical-centre marker on second column (1:2*)" $
+          assertParse
+            "1:2*"
+            ( Document
+                [ Columns
+                    [cw 1, cc 2]
+                    [ [Paragraph [Plain "A"]]
+                    , [Paragraph [Plain "B"]]
+                    ]
+                ]
+            )
+            "```columns 1:2*\nA\n+++\nB\n```"
+      ]
 
 -- | Tests for backward compatibility with existing TaskContent markup
 backwardCompatTests :: [TestTree]

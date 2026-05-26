@@ -570,27 +570,30 @@ columnsP = try $ do
   (fenceChar, fenceLen) <- backtickFence
   _ <- hspace
   _ <- string "columns"
-  ratios <- option [] (try $ hspace1 *> ratioListP)
+  specs <- option [] (try $ hspace1 *> ratioListP)
   _ <- takeWhileP Nothing (\c -> c /= '\n' && c /= '`')
   _ <- newline
   bodyLines <- nestedFencedBodyP fenceChar fenceLen
   let cellSegments = splitOnPlus bodyLines
       cells = map (parseCellBlocks . T.intercalate "\n") cellSegments
-      finalRatios = take (length cells) (ratios ++ repeat 1)
-  pure $ Columns finalRatios cells
+      finalSpecs = take (length cells) (specs ++ repeat (ColumnSpec 1 False))
+  pure $ Columns finalSpecs cells
   where
-    ratioListP :: Parser [Int]
+    ratioListP :: Parser [ColumnSpec]
     ratioListP = do
-      first <- ratioNumP
-      rest <- many (try (char ':' *> ratioNumP))
+      first <- ratioSpecP
+      rest <- many (try (char ':' *> ratioSpecP))
       pure (first : rest)
 
-    ratioNumP :: Parser Int
-    ratioNumP = do
+    -- A column spec: N or N*  — the trailing star marks the column for
+    -- vertical centring against the row height.
+    ratioSpecP :: Parser ColumnSpec
+    ratioSpecP = do
       digits <- takeWhile1P (Just "ratio digit") (\c -> c >= '0' && c <= '9')
       let n = read (T.unpack digits)
       guard (n > 0)
-      pure n
+      mark <- optional (char '*')
+      pure (ColumnSpec n (case mark of Just _ -> True; Nothing -> False))
 
     splitOnPlus :: [Text] -> [[Text]]
     splitOnPlus = unfoldr $ \xs ->

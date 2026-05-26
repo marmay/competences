@@ -25,6 +25,7 @@ module Competences.Markdown.AST
   , Inline (..)
   , AdmonitionType (..)
   , Alignment (..)
+  , ColumnSpec (..)
   , ThumbSize (..)
   , ImageSize (..)
   , ClozeOptions (..)
@@ -78,10 +79,10 @@ data Block
     --   Invariant (enforced by parser & validation): every row has the same
     --   length as the alignment list / header row.
     Table ![Alignment] ![[Inline]] ![[[Inline]]]
-  | -- | Side-by-side columns container: column ratio weights and cell blocks.
-    --   Ratios mirror @grid-template-columns@ fr-units (e.g. @[2, 1]@ →
-    --   @2fr 1fr@). Length of @ratios@ equals length of cell list.
-    Columns ![Int] ![[Block]]
+  | -- | Side-by-side columns container: per-column specs (weight + optional
+    --   centring) and cell blocks. Weights mirror @grid-template-columns@
+    --   fr-units. Length of the spec list equals the length of the cell list.
+    Columns ![ColumnSpec] ![[Block]]
   deriving (Eq, Show)
 
 -- | Per-column alignment for 'Table'. @AlignDefault@ means \"no explicit
@@ -91,6 +92,16 @@ data Alignment
   | AlignLeft
   | AlignRight
   | AlignCenter
+  deriving (Eq, Show)
+
+-- | Per-column spec for 'Columns'. @weight@ is the grid-template-columns
+-- fr-unit weight (must be positive). @centered@ marks the column for
+-- vertical centring against the row height (the row height being the
+-- natural height of the tallest cell); rendered as @align-self: center@.
+data ColumnSpec = ColumnSpec
+  { weight :: !Int
+  , centered :: !Bool
+  }
   deriving (Eq, Show)
 
 -- | Options for a cloze block

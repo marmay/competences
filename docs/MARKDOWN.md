@@ -419,6 +419,20 @@ One-third: a quick reference card or summary box.
 
 Two- and three-column layouts are the common cases. The syntax accepts any number of columns.
 
+#### Vertical centring
+
+Append `*` to a column's ratio to centre its content vertically against the row's height (the row height is the natural height of the tallest cell, as usual). Useful when one cell is short text and the neighbour is a tall image or table.
+
+````
+```columns 3*:1
+A one-line explanation that wants to sit visually next to the image.
++++
+![](file:graph.svg)
+```
+````
+
+You can mark any subset of the columns. `columns 1:2*:1` centres only the middle column; the outer two align to the top as usual.
+
 #### Common patterns
 
 **Plot + value table:**
