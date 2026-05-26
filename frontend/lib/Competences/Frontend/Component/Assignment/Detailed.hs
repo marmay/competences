@@ -11,7 +11,7 @@ module Competences.Frontend.Component.Assignment.Detailed
   )
 where
 
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Competences.Query.Task (getTaskOrDraft)
 import Data.Default (def)
 import Data.Maybe (isJust, mapMaybe)
@@ -47,6 +47,7 @@ import Competences.Frontend.Component.PrintEngine.Footer qualified as Footer
 import Competences.Frontend.Component.PrintEngine.Measure
   ( PageGrouping
   , adjustForFooter
+  , allMeasureImagesLoaded
   , contentHeightPx
   , groupIntoPages
   , measureFooterHeight
@@ -684,13 +685,30 @@ viewerComponent r user assignment renderStyle _wm =
               (firstAvail, restAvail) = decorationAdjustedHeights settings cs'
               gap = minGapPx settings.baseFontSize
           M.io $ do
-            -- Wait long enough that Miso has committed the vDOM diff and
-            -- the browser has applied style changes before we read heights.
-            -- 100 ms occasionally raced under load (stale bbox even after
-            -- preview was correct). 500 ms is well over typical
-            -- vDOM-commit + reflow budget; if even this proves
-            -- insufficient, switch to a requestAnimationFrame-based wait.
-            threadDelay 500000
+            -- Initial settle for vDOM commit + browser reflow.
+            threadDelay 100000
+            -- Wait for embedded images in the measurement container to finish
+            -- loading. The 1.6.5 resolverKey workaround re-mounts the
+            -- rich-content component on every slider tick, tearing down the
+            -- inner filePreviewComponents and restarting their async load
+            -- (downloadFile + data-URL encode). Reading task heights while a
+            -- file preview still shows the small loading placeholder
+            -- underestimates the task's height, which then poisons
+            -- groupIntoPages and pushes the actual (loaded) image off the
+            -- bottom of its page. Cap the wait so a stuck image doesn't hang
+            -- the modal: ~2 s max, in practice 100–300 ms when images are
+            -- cached. Proper fix lives in docs/TODO.md (refactor
+            -- RichContent to receive resolver state via the model instead of
+            -- remounting per-tick).
+            let maxPolls = 20 :: Int
+                pollUs = 100000
+                waitImages 0 = pure ()
+                waitImages n = do
+                  loaded <- allMeasureImagesLoaded
+                  unless loaded $ do
+                    threadDelay pollUs
+                    waitImages (n - 1)
+            waitImages maxPolls
             heights <- measureTaskHeights
             footerH <- measureFooterHeight
             let baseGrouping = groupIntoPages firstAvail restAvail gap settings.distributeLastPage heights

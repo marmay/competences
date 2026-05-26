@@ -9,6 +9,7 @@ module Competences.Frontend.Component.PrintEngine.Measure
   , contentHeightPx
   , nameFieldPx
   , firstPageHeaderPx
+  , allMeasureImagesLoaded
   )
 where
 
@@ -131,6 +132,40 @@ childHeight children idx = do
   rect <- child # ("getBoundingClientRect" :: MisoString) $ ([] :: [MisoString])
   mh <- rect ! ("height" :: MisoString) >>= fromJSVal @Double
   pure (maybe 0.0 id mh)
+
+-- | Check whether every @\<img\>@ element inside the measurement container has
+-- finished loading. Returns @True@ if the container is missing or contains no
+-- images. Used to wait for asynchronously-loaded file previews before reading
+-- task heights: the 1.6.5 resolverKey workaround re-mounts the rich-content
+-- (and its filePreviewComponent children) on every slider tick, so embedded
+-- images are temporarily replaced by a small loading placeholder. Reading
+-- heights while that placeholder is in place underestimates task heights and
+-- corrupts the page-grouping layout.
+allMeasureImagesLoaded :: IO Bool
+allMeasureImagesLoaded = do
+  doc <- jsg ("document" :: MisoString)
+  container <- doc # ("getElementById" :: MisoString) $ [toJSVal ("print-measure-container" :: MisoString)]
+  containerIsNull <- isNull container
+  if containerIsNull
+    then pure True
+    else do
+      imgs <- container # ("querySelectorAll" :: MisoString) $ [toJSVal ("img" :: MisoString)]
+      mLen <- imgs ! ("length" :: MisoString) >>= fromJSVal @Int
+      case mLen of
+        Nothing -> pure True
+        Just n -> allLoaded imgs n
+  where
+    allLoaded _ 0 = pure True
+    allLoaded imgs n = go 0
+      where
+        go i
+          | i >= n = pure True
+          | otherwise = do
+              img <- imgs # ("item" :: MisoString) $ [toJSVal i]
+              mComplete <- img ! ("complete" :: MisoString) >>= fromJSVal @Bool
+              mNatural <- img ! ("naturalWidth" :: MisoString) >>= fromJSVal @Double
+              let loaded = maybe False id mComplete && maybe 0.0 id mNatural > 0
+              if loaded then go (i + 1) else pure False
 
 -- | Estimated height of the name field in CSS px.
 -- Label + underline + 1em top/bottom margin = ~4 lines.
