@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               competences-backend
-version:            1.6.5.0
+version:            1.6.6.0
 license:            BSD-3-Clause
 author:             Markus Mayr
 maintainer:         markus.mayr@tuta.com
