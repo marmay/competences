@@ -554,11 +554,23 @@
 }
 
 /* On screen, cap embedded task/rich-content graphics so they never
-   overflow their container. Print has its own caps below. */
+   overflow their container. Inside `.page-print-content` (print modal
+   preview + offscreen measurement + actual print container) this gets
+   overridden to 100% so the preview's image proportions match what will
+   print — see the rule below. */
 @media screen {
   .embed-exact img {
     max-width: 80% !important;
   }
+}
+
+/* Page-print-content (preview pane, measurement container, and the
+   hidden print container) renders embedded images at full wrapper width
+   in every medium. Without this, the screen rule's 80% cap would shrink
+   the preview/measurement image by 20% relative to the printed output,
+   desyncing layout measurement from what actually prints. */
+.page-print-content .embed-exact img {
+  max-width: 100% !important;
 }
 
 /* Float right — used only by print renderer for floated images */
@@ -610,11 +622,6 @@
   .embed-float-left,
   .embed-float-right {
     page-break-inside: avoid;
-  }
-
-  /* In print engine cells, cap exact-size images at container width */
-  .page-print-content .embed-exact img {
-    max-width: 100% !important;
   }
 
   /* Competence grid print table */
