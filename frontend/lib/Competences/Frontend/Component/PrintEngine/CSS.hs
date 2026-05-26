@@ -77,6 +77,13 @@ sharedCSS settings =
         , ".page-print-content .print-inline-answer ol li { display: flex; align-items: center; counter-increment: letter-counter; }"
         , ".page-print-content .print-inline-answer ol li::before { content: counter(letter-counter, lower-alpha) \") \"; flex-shrink: 0; font-weight: 500; color: #57534e; margin-right: 0.25em; }"
         , ".page-print-content .print-inline-answer ol li::after { content: \"\"; flex: 1; height: 10mm; min-width: 20mm; background-image: url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'><defs><pattern id='g' patternUnits='userSpaceOnUse' width='5mm' height='5mm' x='2.5mm' y='2.5mm'><line x1='2.5mm' y1='0' x2='2.5mm' y2='5mm' stroke='%23ccc' stroke-width='0.1mm'/><line x1='0' y1='2.5mm' x2='5mm' y2='2.5mm' stroke='%23ccc' stroke-width='0.1mm'/></pattern></defs><rect width='100%25' height='100%25' fill='url(%23g)'/></svg>\"); background-size: round(down, 100%, 5mm) 100%; background-position: right top; border: 0.1mm solid #ccc; border-left: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; image-rendering: crisp-edges; margin-left: 0.5em; }"
+        , -- Compact tables inside the print engine. Print modal preview,
+          -- measurement container, and actual print all share .page-print-content
+          -- so this matches what users will see in all three. Non-print task
+          -- views (assignment viewer etc.) are not scoped and keep their
+          -- default Tailwind sizing.
+          ".page-print-content table { font-size: 0.9em; }"
+        , ".page-print-content table th, .page-print-content table td { padding: 0.25em 0.5em; }"
         , -- Points display
           ".page-print-content .print-task-points { float: right; font-size: 0.85em; color: #666; font-weight: normal; }"
         , -- Per-image print layout: override flex parent when it contains a floated image
