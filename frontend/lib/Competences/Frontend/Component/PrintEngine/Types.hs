@@ -184,6 +184,7 @@ hasLetterListBlock (MD.ClozeBlock body opts) =
     MD.ClozePerBlankOptions groups -> any (any hasLetterListBlock) groups
 hasLetterListBlock (MD.ChoiceBlock _ items) = any (any hasLetterListBlock) items
 hasLetterListBlock (MD.MappingBlock l r) = any (any hasLetterListBlock) l || any (any hasLetterListBlock) r
+hasLetterListBlock (MD.Columns _ cells) = any (any hasLetterListBlock) cells
 hasLetterListBlock _ = False
 
 collectUrlsFromBlock :: MD.Block -> [Text]
@@ -206,6 +207,7 @@ collectUrlsFromBlock = \case
   MD.MappingBlock l r ->
     concatMap (concatMap collectUrlsFromBlock) l
       ++ concatMap (concatMap collectUrlsFromBlock) r
+  MD.Columns _ cells -> concatMap (concatMap collectUrlsFromBlock) cells
   _ -> []
 
 collectUrlsFromInline :: MD.Inline -> [Text]
