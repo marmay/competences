@@ -24,6 +24,7 @@ module Competences.Exchange.Types
   , ExchangeLessonItemKind (..)
   , ExchangeCompetenceGrid (..)
   , ExchangeCompetence (..)
+  , ExchangeCompetenceLevelExample (..)
   , exchangeFormatVersion
   )
 where
@@ -378,6 +379,10 @@ data ExchangeCompetence = ExchangeCompetence
     -- ^ Per-level human-readable description. Empty descriptions and
     -- absent levels mean the same thing — no description at this
     -- level.
+  , examples :: !(Map Level [ExchangeCompetenceLevelExample])
+    -- ^ Per-level concrete examples. On import each listed level is
+    -- replaced wholesale (replace-all): a level absent from this map
+    -- is left untouched. Order is the list position.
   }
   deriving (Eq, Generic, Show)
 
@@ -390,5 +395,26 @@ instance FromJSON ExchangeCompetence where
       <$> o .: "description"
       <*> o .:? "replaces"
       <*> o .:? "levels" .!= mempty
+      <*> o .:? "examples" .!= mempty
 instance ToJSON ExchangeCompetence
+#endif
+
+-- | A single concrete example for a competence level. Lives nested
+-- under 'ExchangeCompetence.examples' keyed by 'Level'; its position
+-- in the list is its order.
+data ExchangeCompetenceLevelExample = ExchangeCompetenceLevelExample
+  { content :: !Text
+  , attachments :: ![ExchangeAttachment]
+  }
+  deriving (Eq, Generic, Show)
+
+instance Binary ExchangeCompetenceLevelExample
+
+#ifdef WITH_AESON
+instance FromJSON ExchangeCompetenceLevelExample where
+  parseJSON = withObject "ExchangeCompetenceLevelExample" $ \o ->
+    ExchangeCompetenceLevelExample
+      <$> o .: "content"
+      <*> o .:? "attachments" .!= []
+instance ToJSON ExchangeCompetenceLevelExample
 #endif

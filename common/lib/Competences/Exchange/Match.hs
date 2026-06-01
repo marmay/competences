@@ -8,6 +8,7 @@ module Competences.Exchange.Match
   ( -- * Preview ADT
     ExchangePreview (..)
   , GridPreview (..)
+  , CompetencePreview (..)
   , LessonPreview (..)
   , TaskPreview (..)
   , AssignmentPreview (..)
@@ -30,11 +31,12 @@ import Competences.Document (Document (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
 import Competences.Document.Competence (Competence (..), CompetenceLevelId, Level, LevelInfo (..))
 import Competences.Document.CompetenceGrid (CompetenceGrid (..))
+import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
 import Competences.Document.Lesson (Lesson (..))
 import Competences.Document.MesoPlan (MesoPlan (..))
-import Competences.Document.Order (orderMax, orderMin)
+import Competences.Document.Order (Order, orderMax, orderMin, orderPos)
 import Competences.Document.Resource (Resource (..), ResourceContent (..), ResourceIdentifier (..))
 import Competences.Document.Solution (Solution (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..), defaultTask)
@@ -43,6 +45,7 @@ import Competences.Exchange.Types
   , ExchangeAttachment (..)
   , ExchangeCompetence (..)
   , ExchangeCompetenceGrid (..)
+  , ExchangeCompetenceLevelExample (..)
   , ExchangeCompetenceRef (..)
   , ExchangeDoc (..)
   , ExchangeLesson (..)
@@ -52,10 +55,11 @@ import Competences.Exchange.Types
   , ExchangeTask (..)
   )
 import Data.Map.Strict qualified as Map
-import Competences.TaskContent.RichContent (fromTrustedInput)
+import Competences.TaskContent.RichContent (fromTrustedInput, toRawText)
 import GHC.Generics (Generic)
 import Data.List (find)
 import Data.Maybe (mapMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -130,13 +134,23 @@ data ExchangePreview = ExchangePreview
   }
   deriving (Eq, Show)
 
--- | Grid preview: the grid action plus per-competence actions
--- (Create / Update / NoChange / Delete). The exchange grid is kept
--- alongside so apply can re-walk the imported competence list.
+-- | Grid preview: the grid action plus per-competence previews. The
+-- exchange grid is kept alongside so apply can re-walk the imported
+-- competence list.
 data GridPreview = GridPreview
   { exchangeGrid :: !ExchangeCompetenceGrid
   , gridAction :: !(ImportAction CompetenceGrid)
-  , competenceActions :: ![ImportAction Competence]
+  , competencePreviews :: ![CompetencePreview]
+  }
+  deriving (Eq, Show)
+
+-- | Per-competence preview: the competence action plus its
+-- level-example actions. Examples follow replace-all-per-level
+-- semantics, so 'exampleActions' contains only 'Create', 'Delete', and
+-- 'NoChange' — never 'Update'.
+data CompetencePreview = CompetencePreview
+  { competenceAction :: !(ImportAction Competence)
+  , exampleActions :: ![ImportAction CompetenceLevelExample]
   }
   deriving (Eq, Show)
 
@@ -203,7 +217,12 @@ previewHasChanges p =
     || any (isChange . (.lessonAction)) p.lessonPreviews
 
 gridHasChanges :: GridPreview -> Bool
-gridHasChanges gp = isChange gp.gridAction || any isChange gp.competenceActions
+gridHasChanges gp =
+  isChange gp.gridAction || any competencePreviewHasChanges gp.competencePreviews
+
+competencePreviewHasChanges :: CompetencePreview -> Bool
+competencePreviewHasChanges cp =
+  isChange cp.competenceAction || any isChange cp.exampleActions
 
 previewHasBlockingConflicts :: ExchangePreview -> Bool
 previewHasBlockingConflicts p = not (null p.conflicts)
@@ -284,11 +303,11 @@ matchExchangeGrid doc xg =
            in if gridEquals g updated
                 then NoChange g
                 else Update g updated
-      competenceActions = matchCompetences doc existing xg.competences
+      competencePreviews = matchCompetences doc existing xg.competences
    in GridPreview
         { exchangeGrid = xg
         , gridAction = gridAction
-        , competenceActions = competenceActions
+        , competencePreviews = competencePreviews
         }
 
 findGridWithReplaces :: Document -> ExchangeCompetenceGrid -> Maybe CompetenceGrid
@@ -318,12 +337,13 @@ gridEquals a b = a.title == b.title && a.description == b.description
 -- | For each imported competence, look up an existing one (by
 -- 'replaces' first, then by 'description') within the matched grid.
 -- Existing competences not present in the import emit a Delete; the
--- backend rejects deletes of in-use competences.
+-- backend rejects deletes of in-use competences. Each preview also
+-- carries the competence's level-example actions.
 matchCompetences
   :: Document
   -> Maybe CompetenceGrid
   -> [ExchangeCompetence]
-  -> [ImportAction Competence]
+  -> [CompetencePreview]
 matchCompetences doc maybeGrid xcs =
   let existingComps = case maybeGrid of
         Just g -> Ix.toList (doc.competences Ix.@= g.id)
@@ -334,20 +354,75 @@ matchCompetences doc maybeGrid xcs =
               Nothing -> Nothing
             byDesc = find (descMatches xc.description) existingComps
          in byReplaces <|> byDesc
-      importedActions =
+      importedPreviews =
         map
-          ( \xc -> case lookupExisting xc of
-              Nothing -> Create (makeNewCompetence xc)
-              Just c ->
-                let updated = updateCompetence c xc
-                 in if competenceEquals c updated
-                      then NoChange c
-                      else Update c updated
+          ( \xc ->
+              let existing = lookupExisting xc
+                  action = case existing of
+                    Nothing -> Create (makeNewCompetence xc)
+                    Just c ->
+                      let updated = updateCompetence c xc
+                       in if competenceEquals c updated
+                            then NoChange c
+                            else Update c updated
+               in CompetencePreview
+                    { competenceAction = action
+                    , exampleActions = matchExamples doc existing xc.examples
+                    }
           )
           xcs
       matchedIds = mapMaybe (fmap (.id) . lookupExisting) xcs
       toDelete = filter (\c -> c.id `notElem` matchedIds) existingComps
-   in importedActions ++ map Delete toDelete
+   in importedPreviews
+        ++ map (\c -> CompetencePreview (Delete c) []) toDelete
+
+-- | Replace-all-per-level matching for a competence's examples. For
+-- each level *present* in the imported map: if the existing examples
+-- already equal the imported set, keep them ('NoChange'); otherwise
+-- delete the existing ones and create the imported ones. Levels absent
+-- from the import are left untouched (no actions emitted).
+matchExamples
+  :: Document
+  -> Maybe Competence
+  -> Map.Map Level [ExchangeCompetenceLevelExample]
+  -> [ImportAction CompetenceLevelExample]
+matchExamples doc maybeComp xExamples =
+  concatMap perLevel (Map.toList xExamples)
+  where
+    compId = maybe (Id UUID.nil) (.id) maybeComp
+    perLevel (level, xes) =
+      let existing = case maybeComp of
+            Just c -> Ix.toAscList (Proxy @Order) (doc.competenceLevelExamples Ix.@= (c.id, level))
+            Nothing -> []
+       in if examplesUnchanged existing xes
+            then map NoChange existing
+            else
+              map Delete existing
+                ++ zipWith (makeNewExample compId level) [0 ..] xes
+
+-- | True when the existing examples already match the imported list
+-- exactly (same content and attachments, same order).
+examplesUnchanged :: [CompetenceLevelExample] -> [ExchangeCompetenceLevelExample] -> Bool
+examplesUnchanged existing xes =
+  length existing == length xes
+    && and (zipWith sameExample existing xes)
+  where
+    sameExample e xe =
+      toRawText e.content == xe.content
+        && e.attachments == map attachmentFromExchange xe.attachments
+
+makeNewExample
+  :: Id Competence -> Level -> Int -> ExchangeCompetenceLevelExample -> ImportAction CompetenceLevelExample
+makeNewExample compId level i xe =
+  Create
+    CompetenceLevelExample
+      { id = Id UUID.nil
+      , competenceId = compId
+      , level = level
+      , order = orderPos i
+      , content = fromTrustedInput xe.content
+      , attachments = map attachmentFromExchange xe.attachments
+      }
 
 descMatches :: Text -> Competence -> Bool
 descMatches d c = normalize c.description == normalize d

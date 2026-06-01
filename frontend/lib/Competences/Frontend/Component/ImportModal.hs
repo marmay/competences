@@ -34,7 +34,8 @@ import Competences.Command qualified as Cmd
 import Competences.Document (Competence (..), CompetenceGrid (..), Document (..), Lesson (..), Resource (..))
 import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
 import Competences.Document (CompetenceGridId)
-import Competences.Document.Competence (CompetenceLevelId, Level, LevelInfo (..))
+import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, LevelInfo (..))
+import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.Id (Id (..))
 import Competences.Document.Lesson (LessonItem (..), LessonItemContent (..), LessonPhase (..))
 import Competences.Document.Resource (ResourceId, ResourceIdentifier (..))
@@ -45,6 +46,7 @@ import Competences.Exchange.Match
   ( AssignmentImportPreview (..)
   , AssignmentPreview (..)
   , CompetenceMatch (..)
+  , CompetencePreview (..)
   , ExchangePreview (..)
   , GridPreview (..)
   , ImportAction (..)
@@ -96,6 +98,7 @@ import Competences.Frontend.View.Layout qualified as Layout
 import Competences.Frontend.View.Tailwind (class_)
 import Competences.Frontend.View.Typography qualified as Typography
 import Competences.Query.User qualified as QUser
+import Competences.TaskContent.RichContent (toRawText)
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -306,19 +309,45 @@ renderGridRow gp =
         ]
     , M.div_
         [class_ "ml-3 mt-1 space-y-0.5"]
-        (map renderCompetenceRow gp.competenceActions)
+        (map renderCompetenceRow gp.competencePreviews)
     ]
 
-renderCompetenceRow :: ImportAction Competence -> M.View Model Action
-renderCompetenceRow a =
-  let label = case a of
+renderCompetenceRow :: CompetencePreview -> M.View Model Action
+renderCompetenceRow cp =
+  let a = cp.competenceAction
+      label = case a of
         Create c -> c.description
         Update _ c -> c.description
         NoChange c -> c.description
         Delete c -> c.description
+      exampleRows = mapMaybe renderExampleRow cp.exampleActions
    in M.div_
-        [class_ "flex items-center gap-2 text-xs"]
-        [actionBadge a, M.text (M.ms label)]
+        [class_ "space-y-0.5"]
+        ( M.div_
+            [class_ "flex items-center gap-2 text-xs"]
+            [actionBadge a, M.text (M.ms label)]
+            : [M.div_ [class_ "ml-4 space-y-0.5"] exampleRows | not (null exampleRows)]
+        )
+
+-- | Render a level-example sub-row. 'NoChange' rows are omitted to
+-- keep the preview focused on actual changes.
+renderExampleRow :: ImportAction CompetenceLevelExample -> Maybe (M.View Model Action)
+renderExampleRow = \case
+  NoChange _ -> Nothing
+  a@(Create e) -> Just (row a e)
+  a@(Update _ e) -> Just (row a e)
+  a@(Delete e) -> Just (row a e)
+  where
+    row a e =
+      M.div_
+        [class_ "flex items-center gap-2 text-xs text-muted-foreground"]
+        [actionBadge a, M.text (M.ms ("Beispiel: " <> exampleSnippet e))]
+
+-- | A short single-line snippet of an example's content for the preview.
+exampleSnippet :: CompetenceLevelExample -> Text
+exampleSnippet e =
+  let raw = T.strip (T.map (\c -> if c == '\n' then ' ' else c) (toRawText e.content))
+   in if T.length raw > 60 then T.take 60 raw <> "…" else raw
 
 section :: Text -> [M.View Model Action] -> M.View Model Action
 section _ [] = M.text ""
@@ -512,7 +541,12 @@ normalizeKey = T.toLower . T.strip
 applyGridPreview :: SyncContext -> GridPreview -> IO ()
 applyGridPreview r gp = do
   gridId <- applyGridAction r gp.gridAction
-  mapM_ (applyCompetenceAction r gridId) gp.competenceActions
+  mapM_ (applyCompetencePreview r gridId) gp.competencePreviews
+
+applyCompetencePreview :: SyncContext -> CompetenceGridId -> CompetencePreview -> IO ()
+applyCompetencePreview r gridId cp = do
+  compId <- applyCompetenceAction r gridId cp.competenceAction
+  mapM_ (applyExampleAction r compId) cp.exampleActions
 
 applyGridAction :: SyncContext -> ImportAction CompetenceGrid -> IO CompetenceGridId
 applyGridAction r = \case
@@ -529,19 +563,36 @@ applyGridAction r = \case
   NoChange existing -> pure existing.id
   Delete existing -> pure existing.id  -- unreachable for grids
 
-applyCompetenceAction :: SyncContext -> CompetenceGridId -> ImportAction Competence -> IO ()
+applyCompetenceAction :: SyncContext -> CompetenceGridId -> ImportAction Competence -> IO CompetenceId
 applyCompetenceAction r gridId = \case
   Create new -> do
     newId <- nextId r
     let withId = new & #id .~ newId & #competenceGridId .~ gridId
     modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Create withId
+    pure newId
   Update old new -> do
     modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id Lock
     let patch = buildCompetencePatch old new
     modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Modify old.id (Release patch)
-  NoChange _ -> pure ()
-  Delete c ->
+    pure old.id
+  NoChange existing -> pure existing.id
+  Delete c -> do
     modifySyncDocument r $ Cmd.Competences $ Cmd.OnCompetences $ Cmd.Delete c.id
+    pure c.id
+
+-- | Apply a single example action under the resolved competence id.
+-- Replace-all semantics emit only Create/Delete/NoChange; the action
+-- list orders deletes before creates within each level.
+applyExampleAction :: SyncContext -> CompetenceId -> ImportAction CompetenceLevelExample -> IO ()
+applyExampleAction r compId = \case
+  Create new -> do
+    newId <- nextId r
+    let withId = new & #id .~ newId & #competenceId .~ compId
+    modifySyncDocument r $ Cmd.CompetenceLevelExamples $ Cmd.OnCompetenceLevelExamples $ Cmd.Create withId
+  Delete e ->
+    modifySyncDocument r $ Cmd.CompetenceLevelExamples $ Cmd.OnCompetenceLevelExamples $ Cmd.Delete e.id
+  NoChange _ -> pure ()
+  Update _ _ -> pure ()  -- replace-all never produces Update
 
 buildGridPatch :: CompetenceGrid -> CompetenceGrid -> CompetenceGridPatch
 buildGridPatch old new =

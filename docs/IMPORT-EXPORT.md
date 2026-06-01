@@ -42,6 +42,7 @@ For each incoming entity the importer looks up an existing one by:
 | Assignment | `name`, scoped to draft/published pool |
 | Resource | `identifier` |
 | Lesson | `title` (across all meso plans) |
+| Competence level example | none — replace-all per level (see Competence grid section) |
 
 Match results in one of four actions:
 
@@ -98,6 +99,12 @@ competenceGrids:
         levels:
           BasicLevel: "Vektoren addieren und subtrahieren."
           AdvancedLevel: "Kreuzprodukt berechnen und geometrisch interpretieren."
+        examples:
+          BasicLevel:
+            - content: "Berechne (1,2) + (3,4)."
+            - content: "Subtrahiere (5,1) von (2,7)."
+          AdvancedLevel:
+            - content: "Bestimme das Kreuzprodukt von (1,0,0) und (0,1,0)."
 ```
 
 | Field (grid) | Type | Required | Notes |
@@ -112,8 +119,11 @@ competenceGrids:
 | `description` | string | yes | Matching key, scoped to its grid. |
 | `replaces` | string \| null | no | Previous description for renames. |
 | `levels` | map of Level → string | yes | Per-level description. Absent levels mean "no description at this level". |
+| `examples` | map of Level → list | no | Per-level concrete examples ("teasers"). Each entry has `content` (rich text) and optional `attachments`. Order is the list position. |
 
 **Competence list semantics on Update:** existing competences not present in the import are emitted as Deletes. The backend rejects deletes of in-use competences (referenced by tasks, resources, evidences, etc.), so an apply will fail loudly if the import would orphan references. Use `replaces` on a competence to rename it instead of inadvertently deleting + recreating it under a new name.
+
+**Example semantics — replace-all per level:** for each `Level` listed under a competence's `examples`, the import is the source of truth: the existing examples at that competence + level are deleted and the imported ones created (unless they already match exactly, in which case nothing changes). A level **not** listed in `examples` is left untouched — so an import that omits `examples` entirely never disturbs existing examples.
 
 ### Task (`tasks` / `draftTasks`)
 

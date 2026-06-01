@@ -36,8 +36,10 @@ import Competences.Document
   , Task (..)
   )
 import Competences.Document.Assignment (Assignment (..), AssignmentId, AssignmentName (..))
-import Competences.Document.Competence (CompetenceLevelId, LevelInfo (..))
+import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, LevelInfo (..))
+import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
+import Competences.Document.Order (Order)
 import Competences.Document.Lesson
   ( LessonItem (..)
   , LessonItemContent (..)
@@ -50,6 +52,7 @@ import Competences.Exchange.Types
   , ExchangeAttachment (..)
   , ExchangeCompetence (..)
   , ExchangeCompetenceGrid (..)
+  , ExchangeCompetenceLevelExample (..)
   , ExchangeCompetenceRef (..)
   , ExchangeDoc (..)
   , ExchangeLesson (..)
@@ -63,7 +66,10 @@ import Competences.Exchange.Types
   , emptyExchangeDoc
   )
 import Competences.TaskContent.RichContent (toRawText)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Optics.Core ((&), (.~))
 
@@ -328,13 +334,31 @@ competenceGridToExchange doc grid =
     { title = grid.title
     , replaces = Nothing
     , description = grid.description
-    , competences = map competenceToExchange (Ix.toList (doc.competences Ix.@= grid.id))
+    , competences = map (competenceToExchange doc) (Ix.toList (doc.competences Ix.@= grid.id))
     }
 
-competenceToExchange :: Competence -> ExchangeCompetence
-competenceToExchange c =
+competenceToExchange :: Document -> Competence -> ExchangeCompetence
+competenceToExchange doc c =
   ExchangeCompetence
     { description = c.description
     , replaces = Nothing
     , levels = fmap (\li -> li.description) c.levels
+    , examples = competenceExamplesToExchange doc c.id
+    }
+
+-- | Collect a competence's examples, grouped by level, each level's
+-- list in 'Order' sequence.
+competenceExamplesToExchange
+  :: Document -> CompetenceId -> Map Level [ExchangeCompetenceLevelExample]
+competenceExamplesToExchange doc cid =
+  let examples = Ix.toAscList (Proxy @Order) (doc.competenceLevelExamples Ix.@= cid)
+   in Map.fromListWith
+        (flip (<>))
+        [(e.level, [exampleToExchange e]) | e <- examples]
+
+exampleToExchange :: CompetenceLevelExample -> ExchangeCompetenceLevelExample
+exampleToExchange e =
+  ExchangeCompetenceLevelExample
+    { content = toRawText e.content
+    , attachments = map attachmentToExchange e.attachments
     }
