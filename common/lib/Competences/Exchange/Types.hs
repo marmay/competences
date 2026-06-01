@@ -41,7 +41,8 @@ import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), ToJSON, withObject, (.!=), (.:), (.:?))
+import Competences.Document.Competence (levelMapToJSON, parseLevelMap)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.!=), (.:), (.:?), (.=))
 #endif
 
 -- | Bump when the wire format changes in a way that breaks
@@ -394,9 +395,16 @@ instance FromJSON ExchangeCompetence where
     ExchangeCompetence
       <$> o .: "description"
       <*> o .:? "replaces"
-      <*> o .:? "levels" .!= mempty
-      <*> o .:? "examples" .!= mempty
-instance ToJSON ExchangeCompetence
+      <*> (o .:? "levels" >>= maybe (pure mempty) parseLevelMap)
+      <*> (o .:? "examples" >>= maybe (pure mempty) parseLevelMap)
+instance ToJSON ExchangeCompetence where
+  toJSON c =
+    object
+      [ "description" .= c.description
+      , "replaces" .= c.replaces
+      , "levels" .= levelMapToJSON c.levels
+      , "examples" .= levelMapToJSON c.examples
+      ]
 #endif
 
 -- | A single concrete example for a competence level. Lives nested

@@ -8,11 +8,17 @@ module Competences.Document.Competence
   , Level (..)
   , LevelInfo (..)
   , allLevels
+  , levelToText
+  , levelFromText
   , competenceLevelIdsOf
   , getLevelInfo
   , levelDescription
   , isLevelLocked
   , hasLevelContent
+#ifdef WITH_AESON
+  , levelMapToJSON
+  , parseLevelMap
+#endif
   )
 where
 
@@ -20,7 +26,10 @@ import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Order, Orderable)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON, ToJSONKey, (.:), (.:?), (.!=), withObject)
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON, ToJSONKey, Value (..), object, withObject, (.!=), (.:), (.:?), (.=))
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Types (Parser, typeMismatch)
 import Data.Set qualified as S
 #endif
 import Data.Binary (Binary)
@@ -65,6 +74,21 @@ data Competence = Competence
 allLevels :: [Level]
 allLevels = [BasicLevel, IntermediateLevel, AdvancedLevel]
 
+-- | Canonical text form of a 'Level', matching the constructor name
+-- and the string produced by 'ToJSON Level'. Used as the object key
+-- in the new level-keyed-map encoding.
+levelToText :: Level -> Text
+levelToText BasicLevel = "BasicLevel"
+levelToText IntermediateLevel = "IntermediateLevel"
+levelToText AdvancedLevel = "AdvancedLevel"
+
+-- | Inverse of 'levelToText'.
+levelFromText :: Text -> Maybe Level
+levelFromText "BasicLevel" = Just BasicLevel
+levelFromText "IntermediateLevel" = Just IntermediateLevel
+levelFromText "AdvancedLevel" = Just AdvancedLevel
+levelFromText _ = Nothing
+
 competenceLevelIdsOf :: Competence -> [CompetenceLevelId]
 competenceLevelIdsOf competence =
    map (competence.id,) $ M.keys competence.levels
@@ -104,6 +128,36 @@ instance ToJSON Level
 instance FromJSONKey Level
 
 instance ToJSONKey Level
+
+-- | Encode a level-keyed map as a JSON *object* keyed by level name
+-- (e.g. @{ "BasicLevel": v }@) — the new, human-friendly format.
+--
+-- Note: this is deliberately a standalone helper rather than a text
+-- 'ToJSONKey'/'FromJSONKey' instance on 'Level'. Those instances are
+-- shared by every @Map Level _@ in the persisted document and command
+-- log, which is still on the legacy array-of-pairs encoding; flipping
+-- them globally would break reading that data. Sites migrate to this
+-- helper one batch at a time (see docs/TODO.md).
+levelMapToJSON :: ToJSON v => M.Map Level v -> Value
+levelMapToJSON m =
+  object [Key.fromText (levelToText k) .= v | (k, v) <- M.toAscList m]
+
+-- | Parse a level-keyed map, accepting *both* the new object form and
+-- the legacy array-of-pairs form (@[["BasicLevel", v], ...]@). The
+-- array fallback delegates to the stock @FromJSON (Map Level v)@
+-- instance, so it keeps working as long as 'FromJSONKey Level' stays
+-- on its default (value) encoding.
+parseLevelMap :: FromJSON v => Value -> Parser (M.Map Level v)
+parseLevelMap = \case
+  Object o -> fmap M.fromList (traverse parseEntry (KM.toList o))
+    where
+      parseEntry (k, v) = do
+        lvl <-
+          maybe (fail ("Unknown level key: " <> Key.toString k)) pure $
+            levelFromText (Key.toText k)
+        (,) lvl <$> parseJSON v
+  arr@(Array _) -> parseJSON arr
+  other -> typeMismatch "level-keyed map (object or array of pairs)" other
 
 instance FromJSON LevelInfo
 
