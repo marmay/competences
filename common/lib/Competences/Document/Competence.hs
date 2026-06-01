@@ -15,10 +15,6 @@ module Competences.Document.Competence
   , levelDescription
   , isLevelLocked
   , hasLevelContent
-#ifdef WITH_AESON
-  , levelMapToJSON
-  , parseLevelMap
-#endif
   )
 where
 
@@ -26,10 +22,10 @@ import Competences.Document.CompetenceGrid (CompetenceGridId)
 import Competences.Document.Id (Id)
 import Competences.Document.Order (Order, Orderable)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON, ToJSONKey, Value (..), object, withObject, (.!=), (.:), (.:?), (.=))
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey, Value (..), object, withObject, (.!=), (.:), (.:?), (.=))
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KM
-import Data.Aeson.Types (Parser, typeMismatch)
+import Data.Aeson.Types (typeMismatch)
 import Data.Set qualified as S
 #endif
 import Data.Binary (Binary)
@@ -129,35 +125,31 @@ instance FromJSONKey Level
 
 instance ToJSONKey Level
 
--- | Encode a level-keyed map as a JSON *object* keyed by level name
--- (e.g. @{ "BasicLevel": v }@) — the new, human-friendly format.
---
--- Note: this is deliberately a standalone helper rather than a text
--- 'ToJSONKey'/'FromJSONKey' instance on 'Level'. Those instances are
--- shared by every @Map Level _@ in the persisted document and command
--- log, which is still on the legacy array-of-pairs encoding; flipping
--- them globally would break reading that data. Sites migrate to this
--- helper one batch at a time (see docs/TODO.md).
-levelMapToJSON :: ToJSON v => M.Map Level v -> Value
-levelMapToJSON m =
-  object [Key.fromText (levelToText k) .= v | (k, v) <- M.toAscList m]
+-- | Level-keyed maps serialise as a JSON *object* keyed by level name
+-- (e.g. @{ "BasicLevel": v }@) rather than aeson's default array of
+-- @[key, value]@ pairs. This @OVERLAPPING@ instance specialises the
+-- stock @Map k v@ instance for @k ~ Level@; it lives alongside 'Level'
+-- so it is not an orphan (and is therefore in scope everywhere 'Level'
+-- is). The companion 'FromJSON' below reads /both/ the new object form
+-- and the legacy array form, so existing snapshots and command logs
+-- keep parsing.
+instance {-# OVERLAPPING #-} (ToJSON a) => ToJSON (M.Map Level a) where
+  toJSON m = object [Key.fromText (levelToText k) .= v | (k, v) <- M.toAscList m]
 
--- | Parse a level-keyed map, accepting *both* the new object form and
--- the legacy array-of-pairs form (@[["BasicLevel", v], ...]@). The
--- array fallback delegates to the stock @FromJSON (Map Level v)@
--- instance, so it keeps working as long as 'FromJSONKey Level' stays
--- on its default (value) encoding.
-parseLevelMap :: FromJSON v => Value -> Parser (M.Map Level v)
-parseLevelMap = \case
-  Object o -> fmap M.fromList (traverse parseEntry (KM.toList o))
-    where
-      parseEntry (k, v) = do
-        lvl <-
-          maybe (fail ("Unknown level key: " <> Key.toString k)) pure $
-            levelFromText (Key.toText k)
-        (,) lvl <$> parseJSON v
-  arr@(Array _) -> parseJSON arr
-  other -> typeMismatch "level-keyed map (object or array of pairs)" other
+instance {-# OVERLAPPING #-} (FromJSON a) => FromJSON (M.Map Level a) where
+  parseJSON = \case
+    Object o -> fmap M.fromList (traverse parseEntry (KM.toList o))
+      where
+        parseEntry (k, v) = do
+          lvl <-
+            maybe (fail ("Unknown level key: " <> Key.toString k)) pure $
+              levelFromText (Key.toText k)
+          (lvl,) <$> parseJSON v
+    -- Legacy array-of-pairs form. Parsing as a list of @(Level, a)@
+    -- pairs goes through the list/tuple/'FromJSON' 'Level' instances,
+    -- so it never recurses back into this instance.
+    arr@(Array _) -> fmap M.fromList (parseJSON arr)
+    other -> typeMismatch "level-keyed map (object or array of pairs)" other
 
 instance FromJSON LevelInfo
 
