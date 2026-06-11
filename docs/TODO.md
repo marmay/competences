@@ -13,9 +13,66 @@
   assignments, plus handing in tasks without an assignment.
 - **1.8.x — TODO tracking**: capture todos from class and from
   corrections (see existing TODO entity entry below).
+- **Summer 2026 hardening** (calendar-bound, not release-bound): see
+  dedicated section below. The visibility unification must land
+  before 1.9.x.
 - **1.9.x — Q&A**: students raise questions, teachers answer.
 - **Consolidation phase** (post-1.9): clean up and streamline the
   application.
+
+## Summer 2026 hardening (before school year 2026/27)
+
+From the architecture review of 2026-06-10. The first two remove the only
+silent data-loss paths; the third must land before Q&A (1.9.x) gives
+students write access.
+
+- [ ] **Fail-stop the command processor on persist failure** —
+  `processorLoop` runs under a bare `forkIO`
+  (`CommandProcessor.hs:102`) and `DB.saveCommandWithAudience` has no
+  exception handler. A failed DB write kills the processor thread
+  alone: the server stays up, the bounded TBQueue fills, submitters
+  block — a zombie with in-memory state ahead of the DB, and the
+  crash/restart that the reconnect-rollback model relies on never
+  happens. Fix: catch around the persist, log, terminate the process.
+  The ack-before-persist design itself stays as is (conscious
+  trade-off; clients roll back via `performSync` → unknown CommandId
+  → snapshot).
+- [ ] **Make dropped commands loud at replay** — The replay list
+  comprehension in `Database.hs:330-335` pattern-filters on `Success`
+  / `Right`, silently discarding any command that no longer parses.
+  Count failures and refuse to start (or at minimum log each one)
+  when commands *after the latest snapshot* fail to parse. Replaces
+  the implicit "never break log and snapshots at the same time"
+  discipline with a checked invariant.
+- [ ] **Golden-file corpus for command serializations** — Store
+  serialized commands from each historical format; CI test asserts
+  they all still parse. Append whenever a format changes. Companion
+  to the loud-replay check: that one detects breakage at startup,
+  this one before merge.
+- [ ] **Unify per-entity visibility into one source of truth** —
+  "Who sees what" is currently computed in four uncoordinated
+  places: `projectDocument` (student snapshot), the per-entity
+  `CommandAudience` closures scattered across `Command/*.hs`
+  (broadcast filtering), `clientCommands` in `CommandProcessor.hs`
+  (hand-written synthetic Create/Delete for assignment `studentIds`
+  changes), and the authorization stack (`isAuthorized` WebSocket
+  gate + `teacherOnly` wrappers + ad-hoc ownership checks in
+  `Submissions.hs`). Nothing forces these to agree; the assignment
+  special case exists because two of them already diverged once.
+  Derive projection, audience, and the diff-rewriting from a single
+  per-entity visibility function. **Prerequisite for Q&A** — student
+  write access multiplies the cost of a missed `teacherOnly` or a
+  projection/audience mismatch.
+- [ ] **Centralize referential integrity / cascades** — Delete
+  validation and cascading are per-handler folklore: Task checks
+  evidences, Assignment checks lessons/evidences, but Competence,
+  CompetenceGrid, and User deletion check nothing, and only
+  MesoPlan/Lesson cascade. Orphaned IDs (e.g. stale `TaskId`s in
+  `Evidence.tasks`) corrupt silently and replay reproducibly.
+  Declare per-entity references in one place and derive both
+  delete-validation and cascades from it. Overlaps with the
+  visibility unification above — "who is affected" and "what
+  references what" are closely related queries.
 
 ## Frontend
 
