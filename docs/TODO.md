@@ -112,10 +112,27 @@ students write access.
 
 ## Backend
 
+- [ ] **Warn teachers about an expiring/expired OAuth client secret** — A
+  silently expired Azure client secret (AADSTS7000222) took down login in
+  production on 2026-06-16 (no code change, no warning — the secret just
+  lapsed on its date). Make the server check its own OAuth credential
+  health periodically (on startup and once a day) and surface the result
+  to teachers as a permanent warning banner ("login will stop working —
+  ask your administrator to renew the OAuth secret") so availability for
+  students is never interrupted by a lapse that only an admin can fix.
+  Check via the secret's `endDateTime` from Graph (warn ~30 days ahead),
+  or, failing that, a `client_credentials` probe that detects
+  AADSTS7000222 (detects only after expiry — prefer the Graph date).
+  Banner is teacher-only (students can't act on it). Related: the bad
+  `_ -> "No access_token in response"` branch in `exchangeCodeForToken`
+  hid Microsoft's real `error_description` and turned this into a blind
+  guessing game — return/log the actual error too. Folds naturally into
+  the auth-service consolidation below (one app registration = one
+  credential to monitor).
 - [ ] **Split Database.hs** — 722 lines mixing migrations, queries, and snapshot logic. Separate into focused modules.
 - [ ] **Split WebSocket.hs** — 380 lines mixing auth, message handling, and file upload. Separate concerns.
 - [ ] **Add backend tests** — Currently `main = pure ()`.
-- [ ] **Shared OAuth callback service (before next school year, 2026/27)** — Extract `oauthCallbackHandler` plus JWT generation into a small standalone service mounted at the shared domain root (e.g. `mathe.example.com/auth/`). One Azure app registration, one shared JWT secret, one redirect URI for the whole tenant. Each instance drops its `/oauth/callback` route and 302s unauthenticated requests to the auth service with `?return=<url>`. Per-instance authorization is unaffected — `findUserByEmail` still gates access via the local user table, so a shared JWT carrying email is safe to accept across instances. Optional follow-on: a `.<shared-domain>` session cookie mapping `session_id → email` so subsequent logins to other instances short-circuit the OAuth round-trip (real SSO across classes for teachers). Subdomain-mode instances cannot share the session cookie and would either keep their own callback or migrate to the shared domain. Motivation: spinning up a new class becomes "add an instance entry to the NixOS module" instead of "add an instance entry + register an Azure app + set redirect URI + put credentials in agenix".
+- [ ] **Shared auth service + Microsoft Teams integration (Stage 1 before next school year, 2026/27)** — Superseded and expanded by the full plan in [teams-integration-plan.md](teams-integration-plan.md) (2026-06-12). Summary: standalone `competences-auth` identity provider (one Azure app registration, browser OAuth + Teams SSO), front-channel exchange — 60 s Ed25519-signed identity assertion → instance `POST /api/login` → instance-minted 24h HS256 session JWT (WebSocket auth untouched); Teams configurable channel tab per class Team. Staged: (1) shared auth service browser-only, (2) Teams SSO + shell + real CSP headers, (3) manifest/config page/org catalog + one-class pilot, (4) mobile evaluation.
 
 ## Tests
 
