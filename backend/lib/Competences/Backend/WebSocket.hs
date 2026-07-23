@@ -1,17 +1,17 @@
 module Competences.Backend.WebSocket
   ( wsHandler
   , handleClient
-  , extractUserFromJWT'
   )
 where
 
-import Competences.Backend.Auth (JWTSecret, extractUserFromJWT, validateJWT)
+import Competences.Backend.Auth (validateJWT', AuthUser(..))
 import Competences.Backend.BuildInfo (backendVersion)
 import Competences.Backend.CAS qualified as CAS
 import Competences.Backend.Checkpoint (computeDocumentChecksum)
 import Competences.Backend.CommandProcessor (ConnectionId (..))
 import Competences.Backend.CommandProcessor qualified as CP
 import Competences.Backend.Database qualified as DB
+import Competences.Backend.SecurityConfig (SecurityConfig(..))
 import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.State
   ( AppState (..)
@@ -23,7 +23,6 @@ import Competences.Document (Document (..), User (..), UserId, UserRole (..), pr
 import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.Lock (Lock, LockHolder (..))
 import Competences.Document.Session (SessionId)
-import Competences.Document.User (Office365Id)
 import Data.Map.Strict qualified as Map
 import Competences.Protocol (CommandId, ClientMessage (..), ServerInfo (..), ServerMessage (..))
 import Control.Concurrent (ThreadId, forkIO, killThread)
@@ -64,15 +63,15 @@ maxUploadSize = 10 * 1024 * 1024
 
 -- | WebSocket application handler.
 -- Accepts connection first, then waits for authentication message.
-wsHandler :: AppState -> JWTSecret -> WS.ServerApp
-wsHandler state jwtSecret pending = do
+wsHandler :: AppState -> SecurityConfig -> WS.ServerApp
+wsHandler state securityConfig pending = do
   conn <- WS.acceptRequest pending
   WS.withPingThread conn 30 (pure ()) $ do
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
     case decodeOrFail authMsg of
       Right (_, _, Authenticate token _clientInfo sessionId mImpersonate) ->
-        authenticateAndHandle state jwtSecret conn token sessionId mImpersonate
+        authenticateAndHandle state securityConfig conn token sessionId mImpersonate
       Right (_, _, _otherMsg) -> do
         putStrLn "First message must be Authenticate"
         WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "First message must be authentication")
@@ -82,24 +81,25 @@ wsHandler state jwtSecret pending = do
 
 -- | Shared authentication logic.
 authenticateAndHandle
-  :: AppState -> JWTSecret -> WS.Connection -> Text -> SessionId -> Maybe UserId -> IO ()
-authenticateAndHandle state jwtSecret conn token sessionId mImpersonate =
-  case extractUserFromJWT' jwtSecret token of
+  :: AppState -> SecurityConfig -> WS.Connection -> Text -> SessionId -> Maybe UserId -> IO ()
+authenticateAndHandle state securityConfig conn token sessionId mImpersonate = do
+  validated <- validateJWT' securityConfig.sessionIssuerJwk token
+  case validated of
     Left err -> do
-      putStrLn $ "Authentication failed: " <> err
-      WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed $ T.pack err)
-    Right (userId, userName, userRole, o365Id) -> do
-      let user = User userId userName userRole o365Id
+      putStrLn $ "Authentication failed: " <> show err
+      WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed $ T.pack $ show err)
+    Right authUser -> do
+      let user = User authUser.id authUser.name authUser.role authUser.office365Id
       case mImpersonate of
         Nothing -> do
-          putStrLn $ "Authentication successful for: " <> T.unpack userName
+          putStrLn $ "Authentication successful for: " <> T.unpack authUser.name
           -- Send Authenticated
           WS.sendBinaryData conn (Bin.encode $ Authenticated user (ServerInfo backendVersion))
-          handleClient state userId sessionId user conn
+          handleClient state authUser.id sessionId user conn
         Just targetUserId -> do
-          if userRole /= Teacher
+          if authUser.role /= Teacher
             then do
-              putStrLn $ "Impersonation rejected: user " <> T.unpack userName <> " is not a teacher"
+              putStrLn $ "Impersonation rejected: user " <> T.unpack authUser.name <> " is not a teacher"
               WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Only teachers can impersonate")
             else do
               doc <- getDocument state
@@ -108,15 +108,9 @@ authenticateAndHandle state jwtSecret conn token sessionId mImpersonate =
                   putStrLn $ "Impersonation rejected: target user not found: " <> show targetUserId
                   WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Target user not found")
                 Just targetUser -> do
-                  putStrLn $ "Impersonation: " <> T.unpack userName <> " viewing as " <> T.unpack targetUser.name
+                  putStrLn $ "Impersonation: " <> T.unpack authUser.name <> " viewing as " <> T.unpack targetUser.name
                   WS.sendBinaryData conn (Bin.encode $ Authenticated targetUser (ServerInfo backendVersion))
                   handleClient state targetUser.id sessionId targetUser conn
-
--- | Validate JWT and extract user information
-extractUserFromJWT' :: JWTSecret -> Text -> Either String (UserId, Text, UserRole, Office365Id)
-extractUserFromJWT' jwtSecret token = do
-  claims <- validateJWT jwtSecret token
-  extractUserFromJWT claims
 
 -- | Handle a single client connection after authentication.
 -- Protocol: wait for SubscribeFrom, sync, then enter operation loop with sender thread.

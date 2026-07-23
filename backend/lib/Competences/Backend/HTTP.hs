@@ -5,51 +5,28 @@ module Competences.Backend.HTTP
   ( AppAPI
   , appAPI
   , server
-  , FrontendHashes (..)
   )
 where
 
-import Competences.Backend.Auth
-  ( JWTSecret
-  , OAuth2Config (..)
-  , Office365User (..)
-  , exchangeCodeForToken
-  , generateJWT
-  , getUserInfo
-  )
+import Competences.Backend.Auth (generateJWT', toAuthUser)
 import Competences.Backend.Exchange (exchangeFromYaml, exchangeToYaml)
-import Competences.Backend.HashedFile (FileHashRef, readFileHash)
-import Competences.Backend.State (AppState, getDocument)
-import Competences.Document (Document (..), User (..))
-import Competences.Document.User (Office365Id (..))
+import Competences.Backend.SecurityConfig (SecurityConfig(..))
 import Competences.Exchange.Types (ExchangeDoc)
 import Control.Monad.IO.Class (liftIO)
 import Data.Binary qualified as Bin
-import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Char qualified as Char
-import Data.IxSet.Typed qualified as Ix
-import Data.Tagged (Tagged (..))
 import Data.Text (Text)
-import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUID
-import Network.HTTP.Types (status302, urlEncode)
-import Network.Wai (Application, pathInfo, rawQueryString, responseLBS)
 import Servant
   ( (:<|>) (..)
   , (:>)
   , Get
   , Handler
-  , Header
   , OctetStream
   , PlainText
   , Post
   , Proxy (..)
-  , QueryParam
   , Raw
   , ReqBody
   , Server
@@ -60,33 +37,27 @@ import Servant
   , errBody
   , errHeaders
   , serveDirectoryWebApp
-  , throwError
+  , throwError, err403
   )
 import Servant.API (NoContent (..))
 import Servant.HTML.Blaze (HTML)
-import Text.Blaze.Html5 (Html, (!))
-import Text.Blaze.Html5 qualified as H
-import Text.Blaze.Html5.Attributes qualified as A
-import Web.Cookie (SetCookie (..), defaultSetCookie, parseCookies, renderSetCookieBS)
-
--- | Hashes for frontend cache busting
-data FrontendHashes = FrontendHashes
-  { wasmHash :: !FileHashRef
-  , indexJsHash :: !FileHashRef
-  , jsffiHash :: !FileHashRef
-  , mathjaxHash :: !FileHashRef
-  , outputCssHash :: !FileHashRef
-  }
+import Text.Blaze.Html5 (Html)
+import Competences.Backend.Shell (ShellHashes, mkShellConfig, renderShell)
+import qualified Data.Text.Encoding as T
+import Competences.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
+import qualified Data.Text as T
+import qualified Data.ByteString as B
+import Competences.Backend.State (RestState(..), ensureUnconsumed)
+import Competences.Query.User (findUserByOffice365Id)
+import Competences.Document.User (Office365Id(..))
+import Optics.Core ((&))
+import Control.Concurrent.STM (readTVarIO)
+import Control.Monad (unless)
+import qualified Data.UUID as UUID
 
 type AppAPI =
   -- Root redirect to /app/grid
   Get '[HTML] NoContent
-    -- OAuth callback - exchange code for token and serve frontend
-    :<|> "oauth" :> "callback"
-           :> QueryParam "code" Text
-           :> QueryParam "state" Text
-           :> Header "Cookie" Text
-           :> Get '[HTML] Html
     -- Exchange codec: ExchangeDoc (Binary) -> YAML.
     :<|> "api" :> "exchange" :> "encode"
            :> ReqBody '[OctetStream] BL.ByteString
@@ -98,22 +69,32 @@ type AppAPI =
     :<|> "api" :> "exchange" :> "decode"
            :> ReqBody '[OctetStream] BL.ByteString
            :> Post '[OctetStream] BL.ByteString
+    -- Receives a security assertion; returns a JWT
+    -- todo: types shall encode this!
+    :<|> "api" :> "login"
+           :> ReqBody '[OctetStream] BL.ByteString
+           :> Post '[OctetStream] BL.ByteString
     -- Static files
     :<|> "static" :> Raw
     -- App catch-all - initiate OAuth with return URL preservation
-    :<|> "app" :> Raw
+    :<|> "app" :> Get '[HTML] Html
 
 appAPI :: Proxy AppAPI
 appAPI = Proxy
 
-server :: AppState -> OAuth2Config -> JWTSecret -> FilePath -> FrontendHashes -> Servant.Server AppAPI
-server state oauth2Config jwtSecret staticDir hashes =
+server :: SecurityConfig -> FilePath -> ShellHashes -> RestState -> Servant.Server AppAPI
+server securityConfig staticDir hashes restState =
   rootRedirectHandler
-    :<|> oauthCallbackHandler state oauth2Config jwtSecret hashes
     :<|> exchangeEncodeHandler
     :<|> exchangeDecodeHandler
+    :<|> loginHandler securityConfig restState
     :<|> serveDirectoryWebApp staticDir
-    :<|> appCatchAllHandler oauth2Config
+    :<|> appCatchAllHandler hashes
+
+-- | Redirect root "/" to "/app/grid"
+rootRedirectHandler :: Handler NoContent
+rootRedirectHandler =
+  throwError err302 {errHeaders = [("Location", "/app/grid")]}
 
 -- | Encode endpoint: deserialise a 'Binary' 'ExchangeDoc' and emit its
 -- YAML rendering. Malformed input yields 400.
@@ -129,247 +110,44 @@ exchangeEncodeHandler body =
 -- 'ExchangeDoc' and return its 'Binary' encoding. Parse failures
 -- (including non-UTF-8 input) surface as 400 with a plain-text body.
 exchangeDecodeHandler :: BL.ByteString -> Handler BL.ByteString
-exchangeDecodeHandler body =
-  case TLE.decodeUtf8' body of
-    Left _ ->
+exchangeDecodeHandler body = do
+  decodedBody <- TLE.decodeUtf8' body
+                   & either handleDecodeError pure
+  forExchange <- exchangeFromYaml (TL.toStrict decodedBody)
+                   & either handleToExchangeError pure
+  pure $ Bin.encode forExchange
+
+  where
+    handleDecodeError _ =
       throwError err400 {errBody = "request body is not valid UTF-8"}
-    Right lazyText ->
-      case exchangeFromYaml (TL.toStrict lazyText) of
-        Left reason ->
-          throwError err400 {errBody = TLE.encodeUtf8 (TL.fromStrict reason)}
-        Right xdoc ->
-          pure (Bin.encode xdoc)
+    handleToExchangeError reason =
+      throwError err400 {errBody = TLE.encodeUtf8 (TL.fromStrict reason)}
 
--- | Cookie name for OAuth state parameter
-oauthStateCookieName :: BS.ByteString
-oauthStateCookieName = "oauth_state"
+loginHandler :: SecurityConfig -> RestState -> BL.ByteString -> Handler BL.ByteString
+loginHandler securityConfig restState inputToken = do
+  (validateResult, validUntil) <-
+    liftIO (validateIdentityAssertion' securityConfig.authPublicKey securityConfig.allowedExpirySkewDuration securityConfig.origin inputToken) >>= either handleInvalidAssertion pure
+  isUnconsumed <- liftIO (ensureUnconsumed validateResult.assertionId validUntil restState.consumedAssertionIds)
+  unless isUnconsumed $
+    handleAlreadyConsumedAssertion validateResult.assertionId
+  doc <- liftIO (readTVarIO restState.document)
+  user <- findUserByOffice365Id doc (Office365Id validateResult.office365Id) & maybe (handleUserNotFound validateResult.office365Id) pure
+  liftIO (generateJWT' securityConfig.sessionIssuerJwk (toAuthUser user))
+    >>= either handleMintingError pure
 
--- | Cookie name for return URL after OAuth
-oauthReturnUrlCookieName :: BS.ByteString
-oauthReturnUrlCookieName = "oauth_return_url"
-
--- | Redirect root "/" to "/app/grid"
-rootRedirectHandler :: Handler NoContent
-rootRedirectHandler =
-  throwError err302 {errHeaders = [("Location", "/app/grid")]}
+  where
+    handleInvalidAssertion jwtError = 
+      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ T.pack $ "Could not validate input token: " <> show jwtError}
+    handleAlreadyConsumedAssertion assertionId =
+      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ "Assertion " <> UUID.toText assertionId <> " has already been consumed."}
+    handleUserNotFound o365Id =
+      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ "Could not find user with id '" <> o365Id <> "' from token."}
+    handleMintingError jwtError =
+      throwError err500 {errBody = B.fromStrict $ T.encodeUtf8 $ T.pack $ "Internal error when minting the session token: " <> show jwtError}
 
 -- | Catch-all handler for /app/* routes
 -- Saves the requested URL in a cookie and redirects to Office365 OAuth
-appCatchAllHandler :: OAuth2Config -> Tagged Handler Application
-appCatchAllHandler config = Tagged $ \req respond -> do
-  -- Reconstruct the return URL from the request
-  -- Servant strips the "app" segment, so pathInfo has segments after /app/
-  let segments = pathInfo req
-      queryStr = decodeUtf8 $ rawQueryString req
-      returnUrl = validateReturnUrl $ "/app/" <> T.intercalate "/" segments <> queryStr
-
-  -- Generate random state for CSRF protection
-  csrfState <- UUID.toText <$> UUID.nextRandom
-
-  -- Build authorization URL with state parameter
-  let authUrl = getAuthorizationUrlWithState config csrfState
-
-  -- Create cookies (both scoped to /oauth/callback, HttpOnly)
-  let stateCookie =
-        renderSetCookieBS $
-          defaultSetCookie
-            { setCookieName = oauthStateCookieName
-            , setCookieValue = encodeUtf8 csrfState
-            , setCookiePath = Just "/oauth/callback"
-            , setCookieHttpOnly = True
-            }
-      returnUrlCookie =
-        renderSetCookieBS $
-          defaultSetCookie
-            { setCookieName = oauthReturnUrlCookieName
-            , setCookieValue = encodeUtf8 returnUrl
-            , setCookiePath = Just "/oauth/callback"
-            , setCookieHttpOnly = True
-            }
-
-  -- Redirect to Office365 with both cookies
-  respond $
-    responseLBS
-      status302
-      [ ("Location", encodeUtf8 authUrl)
-      , ("Set-Cookie", stateCookie)
-      , ("Set-Cookie", returnUrlCookie)
-      ]
-      ""
-
-
--- | Build OAuth authorization URL with state parameter
-getAuthorizationUrlWithState :: OAuth2Config -> Text -> Text
-getAuthorizationUrlWithState config state =
-  T.concat
-    [ "https://login.microsoftonline.com/"
-    , config.tenantId
-    , "/oauth2/v2.0/authorize?"
-    , "client_id=" <> config.clientId
-    , "&response_type=code"
-    , "&redirect_uri=" <> config.redirectUri
-    , "&response_mode=query"
-    , "&scope=openid%20profile%20email%20User.Read"
-    , "&state=" <> decodeUtf8 (urlEncode False (encodeUtf8 state))
-    ]
-
--- | OAuth callback - exchange code for token and serve frontend with JWT
--- Validates state parameter to prevent CSRF attacks
-oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FrontendHashes -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
-oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState maybeCookie = do
-  -- Validate state parameter (CSRF protection)
-  stateFromQuery <- case maybeState of
-    Nothing -> throwError err400 {errBody = "Missing state parameter"}
-    Just s -> pure s
-
-  stateFromCookie <- case extractStateFromCookie maybeCookie of
-    Nothing -> throwError err400 {errBody = "Missing or invalid state cookie"}
-    Just s -> pure s
-
-  if stateFromQuery /= stateFromCookie
-    then throwError err400 {errBody = "State mismatch - possible CSRF attack"}
-    else pure ()
-
-  code <- case maybeCode of
-    Nothing -> throwError err400 {errBody = "Missing authorization code"}
-    Just c -> pure c
-
-  -- Exchange code for access token
-  tokenResult <- liftIO $ exchangeCodeForToken oauth2Config code
-  accessToken <- case tokenResult of
-    Left err -> throwError err500 {errBody = BL.fromStrict $ encodeUtf8 $ T.pack err}
-    Right token -> pure token
-
-  -- Get user info from Microsoft Graph
-  userInfoResult <- liftIO $ getUserInfo accessToken
-  o365User <- case userInfoResult of
-    Left err -> throwError err500 {errBody = BL.fromStrict $ encodeUtf8 $ T.pack err}
-    Right info -> pure info
-
-  -- Find user in document by email address
-  let email = case o365User.mail of
-        Just m -> m
-        Nothing -> o365User.userPrincipalName
-
-  userResult <- liftIO $ findUserByEmail appState email
-  user <- case userResult of
-    Just u -> pure u
-    Nothing -> throwError err400
-      { errBody = BL.fromStrict $ encodeUtf8 $
-          "No user found with email address: " <> email <>
-          ". Please contact an administrator to create your user account."
-      }
-
-  -- Generate JWT
-  jwt <- liftIO $ generateJWT jwtSecret user
-
-  -- Extract return URL from cookie (defaults to /app/grid)
-  let returnUrl = extractReturnUrlFromCookie maybeCookie
-
-  -- Read current file hashes (may have been updated by file watcher)
-  wasmHash <- liftIO $ readFileHash hashes.wasmHash
-  indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
-  jsffiHash <- liftIO $ readFileHash hashes.jsffiHash
-  mathjaxHash <- liftIO $ readFileHash hashes.mathjaxHash
-  outputCssHash <- liftIO $ readFileHash hashes.outputCssHash
-
-  -- Serve frontend HTML with JWT and hashes embedded
-  pure $ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
-
--- | Extract state value from Cookie header
--- Parses the Cookie header and looks for the oauth_state cookie
-extractStateFromCookie :: Maybe Text -> Maybe Text
-extractStateFromCookie Nothing = Nothing
-extractStateFromCookie (Just cookieHeader) =
-  let cookies = parseCookies (encodeUtf8 cookieHeader)
-   in decodeUtf8 <$> lookup oauthStateCookieName cookies
-
--- | Extract return URL from Cookie header (defaults to /app/grid)
-extractReturnUrlFromCookie :: Maybe Text -> Text
-extractReturnUrlFromCookie Nothing = "/app/grid"
-extractReturnUrlFromCookie (Just cookieHeader) =
-  let cookies = parseCookies (encodeUtf8 cookieHeader)
-   in case decodeUtf8 <$> lookup oauthReturnUrlCookieName cookies of
-        Just url -> validateReturnUrl url
-        Nothing -> "/app/grid"
-
--- | Validate a return URL to prevent open redirect and XSS attacks.
--- Must start with "/app" and contain only safe URL characters.
--- Explicitly excludes ' and \ which would break JS string literals.
-validateReturnUrl :: Text -> Text
-validateReturnUrl url
-  | T.isPrefixOf "/app" url && T.all isSafeUrlChar url = url
-  | otherwise = "/app/grid"
-  where
-    isSafeUrlChar c =
-      Char.isAlphaNum c || c `elem` ("-._~:/?#[]@!$&()*+,;=%" :: [Char])
-
--- | Find existing user by email address stored in office365Id field
-findUserByEmail :: AppState -> Text -> IO (Maybe User)
-findUserByEmail appState email = do
-  doc <- getDocument appState
-  let o365Id = Office365Id email
-  pure $ Ix.getOne $ doc.users Ix.@= o365Id
-
--- | Content Security Policy header value
--- Restricts script/style sources to prevent XSS attacks.
--- Note: frame-ancestors must be delivered via HTTP header, not meta tag.
--- For clickjacking protection, consider adding X-Frame-Options header.
-cspHeaderValue :: Text
-cspHeaderValue = T.intercalate "; "
-  [ "default-src 'self'"
-  , "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:"  -- unsafe-inline for JWT, wasm-unsafe-eval for WASM, blob: for MathJax workers
-  , "style-src 'self' 'unsafe-inline'"   -- unsafe-inline needed for inline styles
-  , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
-  , "img-src 'self' data:"               -- Allow data URIs for images
-  , "font-src 'self'"
-  , "base-uri 'self'"                    -- Prevent base tag injection
-  , "form-action 'self'"                 -- Restrict form submissions
-  ]
-
--- | Render frontend HTML with JWT, return URL, and WASM hash embedded
-renderFrontendHTML :: Text -> Text -> Text -> Text -> Text -> Text -> Text -> Html
-renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash = H.docTypeHtml $ do
-  H.head $ do
-    H.meta ! A.charset "utf-8"
-    H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
-    -- Content Security Policy via meta tag
-    -- Prevents XSS attacks by restricting script/style sources
-    H.meta ! A.httpEquiv "Content-Security-Policy" ! A.content (H.toValue cspHeaderValue)
-    H.title "Meine Mathe-Kompetenzen"
-    -- Favicon (inline SVG - competence grid icon in sky-600)
-    H.link ! A.rel "icon" ! A.type_ "image/svg+xml"
-      ! A.href "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='1.5'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>"
-    -- Load Tailwind CSS + Basecoat (single unified build)
-    let outputCssUrl = "/static/output.css?v=" <> outputCssHash
-    H.link ! A.rel "stylesheet" ! A.href (H.toValue outputCssUrl)
-    -- MathJax configuration (must come before loading MathJax)
-    H.script $ H.toHtml
-      ("window.MathJax = {\
-        \loader: { paths: { fonts: '/static' } },\
-        \startup: { typeset: false },\
-        \tex: { packages: ['base', 'ams'] },\
-        \svg: { fontCache: 'local' },\
-        \options: { enableMenu: false, enableEnrichment: false, enableSpeech: false, enableBraille: false, enableExplorer: false, enableComplexity: false, menuOptions: { settings: { enrich: false, speech: false, braille: false, collapsible: false } } }\
-      \};" :: Text)
-    -- Load MathJax 4 for LaTeX rendering (async to not block page load)
-    let mathjaxUrl = "/static/mathjax-tex-svg.js?v=" <> mathjaxHash
-    H.script ! A.src (H.toValue mathjaxUrl) ! H.customAttribute "async" "" $ ""
-    H.script $ H.toHtml $
-      "// JWT token for WebSocket authentication\n\
-      \window.COMPETENCES_JWT = '" <> jwt <> "';\n\
-      \// Debug logging flag (set to true for verbose console output)\n\
-      \window.COMPETENCES_DEBUG = false;\n\
-      \// File hashes for cache busting\n\
-      \window.COMPETENCES_WASM_HASH = '" <> wasmHash <> "';\n\
-      \window.COMPETENCES_JSFFI_HASH = '" <> jsffiHash <> "';\n\
-      \// Restore original URL after OAuth redirect\n\
-      \history.replaceState(null, '', '" <> returnUrl <> "');"
-  H.body ! A.class_ "theme-claude" $ do
-    -- Loading indicator (replaced when Miso mounts)
-    H.div ! A.class_ "flex items-center justify-center h-screen" $
-      H.p ! A.class_ "text-lg text-muted-foreground" $
-        "Anwendung wird geladen\x2026"
-    -- Load application code (with cache-busting hash)
-    let indexJsUrl = "/static/index.js?v=" <> indexJsHash
-    H.script ! A.src (H.toValue indexJsUrl) ! A.type_ "module" $ ""
+appCatchAllHandler :: ShellHashes -> Handler Html
+appCatchAllHandler frontendHashes = do
+  shellConfig <- liftIO $ mkShellConfig frontendHashes
+  pure $ renderShell shellConfig

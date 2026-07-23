@@ -21,23 +21,32 @@ library
         OverloadedStrings,
         TypeFamilies
     exposed-modules:
-        Competences.Backend.API.Auth
+        Competences.Auth.Assertion
+        Competences.Auth.HTTP
+        Competences.Auth.Microsoft
+        Competences.Auth.OAuth2Config
+        Competences.Auth.SecurityConfig
         Competences.Backend.Auth
         Competences.Backend.BuildInfo
         Competences.Backend.CAS
         Competences.Backend.Checkpoint
         Competences.Backend.CommandProcessor
-        Competences.Backend.Config
         Competences.Backend.Database
         Competences.Backend.Envelope
         Competences.Backend.Exchange
         Competences.Backend.HashedFile
         Competences.Backend.HTTP
+        Competences.Backend.SecurityConfig
         Competences.Backend.SessionRegistry
+        Competences.Backend.Shell
         Competences.Backend.StaleLockCleanup
         Competences.Backend.State
         Competences.Backend.WebSocket
+    other-modules:
+        Paths_competences_backend
+        Competences.Internal.SecurityConfig
     build-depends:
+        mtl ^>=2.3.1,
         base >=4.21 && <4.23,
         aeson,
         binary,
@@ -46,7 +55,7 @@ library
         competences-common,
         containers,
         cookie,
-        cryptonite,
+        crypton,
         directory,
         filepath,
         fsnotify,
@@ -55,13 +64,18 @@ library
         http-types,
         http-conduit,
         hslogger,
+        jose >= 0.13,
         jwt,
         ixset-typed,
-        memory,
+        lens,
+        monad-time,
+        mtl,
         optics-core,
         optparse-applicative,
         postgresql-simple >= 0.7.0.1,
         process,
+        ram,
+        random,
         resource-pool,
         servant,
         servant-blaze,
@@ -81,10 +95,30 @@ library
         websockets,
         yaml
     autogen-modules:  Paths_competences_backend
-    other-modules:    Paths_competences_backend
     hs-source-dirs:   lib
     default-language: GHC2024
 
+executable competences-auth
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings,
+        TypeFamilies
+    ghc-options:      -threaded -rtsopts
+    main-is:          Main.hs
+    build-depends:
+        base >=4.21 && <4.23,
+        competences-backend,
+        containers,
+        optparse-applicative,
+        servant,
+        servant-server
+    hs-source-dirs:   app-auth
+    default-language: GHC2024
+           
 executable competences-backend
     import:           warnings
     default-extensions:
@@ -116,7 +150,7 @@ executable competences-backend
         wai-websockets,
         warp,
         websockets
-    hs-source-dirs:   app
+    hs-source-dirs:   app-backend
     default-language: GHC2024
 
 test-suite competences-backend-test

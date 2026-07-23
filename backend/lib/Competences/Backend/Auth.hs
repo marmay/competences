@@ -1,190 +1,119 @@
 module Competences.Backend.Auth
-  ( OAuth2Config (..)
-  , Office365User (..)
-  , JWTSecret (..)
-  , getAuthorizationUrl
-  , exchangeCodeForToken
-  , getUserInfo
+  ( AuthUser( .. )
   , generateJWT
+  , generateJWT'
   , validateJWT
-  , extractUserFromJWT
+  , validateJWT'
+  , toAuthUser
   )
 where
 
-import Competences.Document (User (..), UserId)
-import Competences.Document.Id (Id (..), mkId)
-import Competences.Document.User (Office365Id (..), UserRole (..))
+import Competences.Document (User (..))
+import Competences.Document.Id (Id (..))
 import Data.UUID.Types qualified as UUID
-import Data.Aeson (FromJSON (..), Value (..), eitherDecode, withObject, (.:))
-import Data.Aeson.KeyMap qualified as KM
-import Data.Map.Strict qualified as Map
+import Data.Aeson (FromJSON (..), ToJSON(..), Value (..), withObject, (.:))
 import Data.Text (Text)
-import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Clock (addUTCTime, getCurrentTime)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock (addUTCTime)
 import GHC.Generics (Generic)
-import Network.HTTP.Client (RequestBody (..), httpLbs, method, parseRequest, requestBody, requestHeaders, responseBody)
-import Network.HTTP.Client.TLS (newTlsManager)
-import Network.HTTP.Types (hContentType)
-import Web.JWT qualified as JWT
-import Web.JWT (stringOrURIToText)
+import qualified Crypto.JWT as JWT
+import Control.Lens.Operators
+import qualified Data.Aeson.KeyMap as AKV
+import qualified Data.Set as Set
+import Competences.Document.User (UserId, UserRole, Office365Id)
+import Control.Monad.Error.Class (MonadError)
+import Control.Monad.Time (MonadTime (..))
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 
--- | OAuth2 configuration for Office365
-data OAuth2Config = OAuth2Config
-  { clientId :: !Text
-  , clientSecret :: !Text
-  , redirectUri :: !Text
-  , tenantId :: !Text
+-- | Information about a user that goes into the main authentication token.
+-- Equivalent to the full user for now, but conceptually, a projection of
+-- the relevant parts to decide whether a user is granted authorization.
+data AuthUser = AuthUser
+  { id :: !UserId
+  , name :: !Text
+  , role :: !UserRole
+  , office365Id :: !Office365Id
+  } deriving (Eq, Generic, Show)
+
+instance FromJSON AuthUser
+instance ToJSON AuthUser
+
+-- | Projects full user to token authentication user.
+toAuthUser :: User -> AuthUser
+toAuthUser user =
+  AuthUser 
+  { id = user.id
+  , name = user.name
+  , role = user.role
+  , office365Id = user.office365Id
   }
-  deriving (Eq, Show)
 
--- | Office365 user information from Microsoft Graph API
-data Office365User = Office365User
-  { o365Id :: !Text
-  , displayName :: !Text
-  , mail :: !(Maybe Text)
-  , userPrincipalName :: !Text
-  }
-  deriving (Eq, Generic, Show)
+-- | Contents of the JWT; base JWT + and AuthUser object.
+data UserClaims = UserClaims
+  { jwtClaims :: !JWT.ClaimsSet
+  , user :: !AuthUser
+  } deriving (Eq, Show)
 
-instance FromJSON Office365User where
-  parseJSON = withObject "Office365User" $ \v ->
-    Office365User
-      <$> v .: "id"
-      <*> v .: "displayName"
-      <*> v .: "mail"
-      <*> v .: "userPrincipalName"
+instance JWT.HasClaimsSet UserClaims where
+  claimsSet f s = fmap (\cs -> s {jwtClaims = cs}) (JWT.claimsSet f s.jwtClaims)
 
--- | JWT secret for signing tokens
-newtype JWTSecret = JWTSecret Text
-  deriving (Eq, Show)
+instance FromJSON UserClaims where
+  parseJSON = withObject "UserClaims" $ \o -> do
+    jwtClaims <- parseJSON (Object o)
+    user <- o .: "https://bu-ki.at/#user"
+    pure $ UserClaims jwtClaims user
 
--- | Get the authorization URL to redirect users to
-getAuthorizationUrl :: OAuth2Config -> Text
-getAuthorizationUrl config =
-  T.concat
-    [ "https://login.microsoftonline.com/"
-    , config.tenantId
-    , "/oauth2/v2.0/authorize?"
-    , "client_id=" <> config.clientId
-    , "&response_type=code"
-    , "&redirect_uri=" <> config.redirectUri
-    , "&response_mode=query"
-    , "&scope=openid%20profile%20email%20User.Read"
-    ]
-
--- | Exchange authorization code for access token
-exchangeCodeForToken :: OAuth2Config -> Text -> IO (Either String Text)
-exchangeCodeForToken config code = do
-  manager <- newTlsManager
-
-  let tokenUrl = T.concat
-        [ "https://login.microsoftonline.com/"
-        , config.tenantId
-        , "/oauth2/v2.0/token"
-        ]
-
-  request <- parseRequest $ T.unpack tokenUrl
-  let body = T.concat
-        [ "client_id=" <> config.clientId
-        , "&client_secret=" <> config.clientSecret
-        , "&code=" <> code
-        , "&redirect_uri=" <> config.redirectUri
-        , "&grant_type=authorization_code"
-        ]
-
-  let request' = request
-        { requestHeaders = [(hContentType, "application/x-www-form-urlencoded")]
-        , method = "POST"
-        , requestBody = RequestBodyBS (encodeUtf8 body)
-        }
-
-  response <- httpLbs request' manager
-
-  case eitherDecode (responseBody response) of
-    Left err -> pure $ Left $ "Failed to parse token response: " <> err
-    Right (Object obj) -> case KM.lookup "access_token" obj of
-      Just (String token) -> pure $ Right token
-      _ -> pure $ Left "No access_token in response"
-    Right _ -> pure $ Left "Invalid token response format"
-
--- | Get user information from Microsoft Graph API
-getUserInfo :: Text -> IO (Either String Office365User)
-getUserInfo accessToken = do
-  manager <- newTlsManager
-
-  request <- parseRequest "https://graph.microsoft.com/v1.0/me"
-  let request' = request
-        { requestHeaders = [("Authorization", encodeUtf8 $ "Bearer " <> accessToken)]
-        }
-
-  response <- httpLbs request' manager
-
-  case eitherDecode (responseBody response) of
-    Left err -> pure $ Left $ "Failed to parse user info: " <> err
-    Right userInfo -> pure $ Right userInfo
+instance ToJSON UserClaims where
+  toJSON s =
+    toJSON s.jwtClaims `merge`
+               [ ("https://bu-ki.at/#user", toJSON s.user)
+               ]
+    where
+      merge :: Value -> [(AKV.Key, Value)] -> Value
+      merge (Object o) kvs = Object $ o `AKV.union` AKV.fromList kvs
+      merge x _ = x
 
 -- | Generate a JWT token for a user
-generateJWT :: JWTSecret -> User -> IO Text
-generateJWT (JWTSecret secret) user = do
-  now <- getCurrentTime
+generateJWT :: JWT.JWK -> AuthUser -> IO (Either JWT.JWTError JWT.SignedJWT)
+generateJWT key user = JWT.runJOSE $ generateJWT_ key user
+
+generateJWT' :: JWT.JWK -> AuthUser -> IO (Either JWT.JWTError BL.ByteString)
+generateJWT' key user = JWT.runJOSE $ do
+  jwt <- generateJWT_ key user
+  pure $ JWT.encodeCompact jwt
+
+generateJWT_ :: (Monad m, MonadTime m, MonadError e m, JWT.AsError e, JWT.MonadRandom m) => JWT.JWK -> AuthUser -> m JWT.SignedJWT
+generateJWT_ key user = do
+  now <- currentTime
   let expiry = addUTCTime (24 * 60 * 60) now -- 24 hours
 
-  let claims = JWT.JWTClaimsSet
-        { JWT.iss = JWT.stringOrURI "competences-backend"
-        , JWT.sub = JWT.stringOrURI $ UUID.toText user.id.unId
-        , JWT.aud = Nothing
-        , JWT.exp = JWT.numericDate $ utcTimeToPOSIXSeconds expiry
-        , JWT.nbf = Nothing
-        , JWT.iat = JWT.numericDate $ utcTimeToPOSIXSeconds now
-        , JWT.jti = Nothing
-        , JWT.unregisteredClaims = JWT.ClaimsMap $ Map.fromList
-            [ ("name", String user.name)
-            , ("role", String $ T.pack $ show user.role)
-            , ("o365Id", let Office365Id oid = user.office365Id in String oid)
-            ]
-        }
+  let claims = JWT.emptyClaimsSet
+        & JWT.claimIss ?~ "competences-backend"
+        & JWT.claimAud ?~ JWT.Audience [JWT.string # "competences-backend"]
+        & JWT.claimSub ?~ (JWT.string # UUID.toText user.id.unId)
+        & JWT.claimExp ?~ (JWT.NumericDate expiry)
+        & JWT.claimIat ?~ (JWT.NumericDate now)
+  let userClaims = UserClaims claims user
+  alg <- JWT.bestJWSAlg key
+  JWT.signJWT key (JWT.newJWSHeader (JWT.RequiredProtection, alg)) userClaims
 
-  let signer = JWT.hmacSecret secret
-  pure $ JWT.encodeSigned signer mempty claims
+validateJWT :: JWT.JWK -> JWT.SignedJWT -> IO (Either JWT.JWTError AuthUser)
+validateJWT key token = JWT.runJOSE $ validateJWT_ key token
 
+validateJWT' :: JWT.JWK -> Text -> IO (Either JWT.JWTError AuthUser)
+validateJWT' key encoded = JWT.runJOSE $ do
+  token <- JWT.decodeCompact $ B.fromStrict $ T.encodeUtf8 $ encoded
+  validateJWT_ key token
+  
 -- | Validate a JWT token
-validateJWT :: JWTSecret -> Text -> Either String JWT.JWTClaimsSet
-validateJWT (JWTSecret secret) token =
-  case JWT.decodeAndVerifySignature (JWT.toVerify $ JWT.hmacSecret secret) token of
-    Nothing -> Left "Invalid JWT signature"
-    Just jwt -> Right $ JWT.claims jwt
-
--- | Extract user information from validated JWT claims
-extractUserFromJWT :: JWT.JWTClaimsSet -> Either String (UserId, Text, UserRole, Office365Id)
-extractUserFromJWT claims = do
-  -- Extract subject (user ID)
-  subText <- case JWT.sub claims of
-    Nothing -> Left "Missing subject in JWT"
-    Just uri -> Right $ stringOrURIToText uri
-
-  userId <- case mkId subText of
-    Nothing -> Left $ "Invalid user ID in JWT: " <> T.unpack subText
-    Just uid -> Right uid
-
-  -- Extract custom claims
-  let customClaims = JWT.unClaimsMap $ JWT.unregisteredClaims claims
-
-  name <- case Map.lookup "name" customClaims of
-    Just (String n) -> Right n
-    _ -> Left "Missing or invalid name in JWT"
-
-  role <- case Map.lookup "role" customClaims of
-    Just (String r) -> case reads (T.unpack r) of
-      [(role, "")] -> Right role
-      _ -> Left "Invalid role in JWT"
-    _ -> Left "Missing or invalid role in JWT"
-
-  o365Id <- case Map.lookup "o365Id" customClaims of
-    Just (String oid) -> Right $ Office365Id oid
-    Just Null -> Right $ Office365Id ""
-    Nothing -> Right $ Office365Id ""
-    _ -> Left "Invalid o365Id in JWT"
-
-  pure (userId, name, role, o365Id)
+validateJWT_ :: (Monad m, MonadTime m, MonadError e m, JWT.AsError e, JWT.AsJWTError e) => JWT.JWK -> JWT.SignedJWT -> m AuthUser
+validateJWT_ key token = do
+  alg <- JWT.bestJWSAlg key   -- Enforce best algorithm supported by key, as we
+                              -- are the signing party too.
+  let validationSettings =
+       JWT.defaultJWTValidationSettings (== "competences-backend")
+       & JWT.jwtValidationSettingsIssuerPredicate .~ (== "competences-backend")
+       & JWT.validationSettingsAlgorithms .~ Set.fromList [alg]
+  (userClaims :: UserClaims) <- JWT.verifyJWT validationSettings key token
+  pure $ userClaims.user

@@ -2,13 +2,14 @@ module Main where
 
 import Competences.Backend.CAS (newCAS)
 import Competences.Backend.CommandProcessor (startProcessor)
-import Competences.Backend.Config (loadConfig)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
-import Competences.Backend.HTTP (FrontendHashes (..), appAPI, server)
+import Competences.Backend.HTTP (appAPI, server)
+import Competences.Backend.SecurityConfig (loadSecurityConfig)
 import Competences.Backend.SessionRegistry qualified as SR
+import Competences.Backend.Shell (ShellHashes(..))
 import Competences.Backend.StaleLockCleanup qualified as SLC
-import Competences.Backend.State (AppState (..), initAppState)
+import Competences.Backend.State (AppState (..), initAppState, initRestState)
 import Competences.Backend.WebSocket (wsHandler)
 import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), handleCommand)
 import Competences.Document.Session (SessionId, legacySessionId)
@@ -44,7 +45,7 @@ import System.Posix.Types (FileMode)
 data Options = Options
   { port :: !Int
   , dbConnString :: !ByteString
-  , configPath :: !FilePath
+  , securityConfigPath :: !FilePath
   , staticDir :: !FilePath
   , casDir :: !FilePath
   , casFileMode :: !FileMode
@@ -145,8 +146,8 @@ main = do
   opts <- Opt.execParser optsParserInfo
 
   -- Load configuration (secrets) from file
-  putStrLn $ "Loading configuration from: " <> opts.configPath
-  (jwtSecret, oauth2Config) <- loadConfig opts.configPath
+  putStrLn $ "Loading security configuration from: " <> opts.securityConfigPath
+  securityConfig <- loadSecurityConfig opts.securityConfigPath
 
   putStrLn ""
   putStrLn "Competences Backend Server"
@@ -220,17 +221,18 @@ main = do
   proc <- startProcessor docVar genVar pool
 
   -- Initialize application state
-  state <- initAppState docVar genVar pool cas instId proc
+  appState <- initAppState docVar genVar pool cas instId proc
+  restState <- initRestState appState
 
   -- Seed session registry from pre-restart locks so their holders are
   -- visible to the stale-lock cleanup thread. Without this, locks from
   -- sessions that existed before this backend start would never be
   -- cleaned up (the registry is in-memory and otherwise starts empty).
   startupTime <- getCurrentTime
-  SR.seedFromDocument state.sessionRegistry doc' startupTime
+  SR.seedFromDocument appState.sessionRegistry doc' startupTime
 
   -- Start stale lock cleanup thread (6-hour threshold)
-  _ <- SLC.startCleanupThread state.sessionRegistry docVar proc (6 * 3600)
+  _ <- SLC.startCleanupThread appState.sessionRegistry docVar proc (6 * 3600)
 
   -- Log startup
   DB.logStartup pool instanceId latestGen (opts.ensureTeacherO365 /= Nothing) Nothing
@@ -240,7 +242,7 @@ main = do
   shutdown <- newEmptyMVar
 
   -- Periodic snapshot timer (every 15 minutes)
-  _ <- forkIO $ snapshotTimer state shutdown
+  _ <- forkIO $ snapshotTimer appState shutdown
 
   putStrLn $ "Starting WebSocket server on port " <> show opts.port
   putStrLn "Press Ctrl+C to stop"
@@ -255,19 +257,19 @@ main = do
         , opts.staticDir <> "/output.css"
         ]
   withHashedFiles frontendFiles $ \hashRefs ->
-    flip finally (gracefulShutdown state pool instanceId shutdown) $ do
-      let hashes = FrontendHashes
+    flip finally (gracefulShutdown appState pool instanceId shutdown) $ do
+      let hashes = ShellHashes
             { wasmHash = hashRefs Map.! (opts.staticDir <> "/app.wasm")
             , indexJsHash = hashRefs Map.! (opts.staticDir <> "/index.js")
             , jsffiHash = hashRefs Map.! (opts.staticDir <> "/ghc_wasm_jsffi.js")
             , mathjaxHash = hashRefs Map.! (opts.staticDir <> "/mathjax-tex-svg.js")
             , outputCssHash = hashRefs Map.! (opts.staticDir <> "/output.css")
             }
-          httpApp = serve appAPI (server state oauth2Config jwtSecret opts.staticDir hashes)
+          httpApp = serve appAPI (server securityConfig opts.staticDir hashes restState)
       run opts.port $
         websocketsOr
           defaultConnectionOptions
-          (wsHandler state jwtSecret)
+          (wsHandler appState securityConfig)
           httpApp
 
 -- | Build startup migration commands from CLI options
