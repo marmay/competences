@@ -1,6 +1,7 @@
 module Competences.Auth.Microsoft
   ( exchangeCodeForToken
   , getUserInfo
+  , Office365User(..)
   ) where
 
 import Competences.Auth.OAuth2Config (OAuth2Config(..))
@@ -9,9 +10,9 @@ import qualified Data.Aeson.KeyMap as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Network.HTTP.Client as H
-import qualified Network.HTTP.Client.TLS as H
 import qualified Network.HTTP.Types as H
 import GHC.Generics (Generic)
+import Network.HTTP.Client (Manager)
     
 -- | Office365 user information from Microsoft Graph API
 data Office365User = Office365User
@@ -31,10 +32,8 @@ instance A.FromJSON Office365User where
       <*> v A..: "userPrincipalName"
 
 -- | Exchange authorization code for access token
-exchangeCodeForToken :: OAuth2Config -> T.Text -> IO (Either String T.Text)
-exchangeCodeForToken config code = do
-  manager <- H.newTlsManager
-
+exchangeCodeForToken :: Manager -> OAuth2Config -> T.Text -> IO (Either String T.Text)
+exchangeCodeForToken tlsManager config code = do
   let tokenUrl = T.concat
         [ "https://login.microsoftonline.com/"
         , config.tenantId
@@ -56,7 +55,7 @@ exchangeCodeForToken config code = do
         , H.requestBody = H.RequestBodyBS (T.encodeUtf8 body)
         }
 
-  response <- H.httpLbs request' manager
+  response <- H.httpLbs request' tlsManager
 
   case A.eitherDecode (H.responseBody response) of
     Left err -> pure $ Left $ "Failed to parse token response: " <> err
@@ -66,16 +65,14 @@ exchangeCodeForToken config code = do
     Right _ -> pure $ Left "Invalid token response format"
 
 -- | Get user information from Microsoft Graph API
-getUserInfo :: T.Text -> IO (Either String Office365User)
-getUserInfo accessToken = do
-  manager <- H.newTlsManager
-
+getUserInfo :: Manager -> T.Text -> IO (Either String Office365User)
+getUserInfo tlsManager accessToken = do
   request <- H.parseRequest "https://graph.microsoft.com/v1.0/me"
   let request' = request
         { H.requestHeaders = [("Authorization", T.encodeUtf8 $ "Bearer " <> accessToken)]
         }
 
-  response <- H.httpLbs request' manager
+  response <- H.httpLbs request' tlsManager
 
   case A.eitherDecode (H.responseBody response) of
     Left err -> pure $ Left $ "Failed to parse user info: " <> err

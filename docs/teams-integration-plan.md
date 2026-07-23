@@ -30,8 +30,8 @@ Refactor groundwork:
 - [x] Toolchain: `crypton` (was cryptonite), `jose >= 0.13`; `jose-jwt` dropped
 - [x] `AuthUser` token projection (tripwire in place before `User` grows)
 - [x] `Backend/API/Auth.hs` stub deleted
-- [~] `Auth/Microsoft`: `getUserInfo` + `Office365User` folded in; still two calls
-      (collapse to `exchangeCode -> Office365User`); still `newTlsManager` per request
+- [~] `Auth/Microsoft`: `getUserInfo` + `Office365User` folded in; shared `Manager` threaded
+      (2026-07-23); optional: collapse the two calls to one `exchangeCode -> Office365User`
 - [ ] Drop `jwt` from build-depends (no module imports Web.JWT anymore — just the cabal line)
 
 Session token (jose): [x] **done** — `generateJWT'`/`validateJWT'` on jose (HS256 via
@@ -58,10 +58,17 @@ Identity assertion (`Auth/Assertion`):
       service's `aud` and instance `origin` must match byte-for-byte, mind trailing slashes)
 
 Auth service + instance wiring:
-- [~] `app-auth/Main.hs`: CLI parser (`--port`, `--config`) done; no server behind it yet
-- [~] `Auth/HTTP.hs`: empty module; old instance OAuth handlers kept as commented reference
-- [ ] `/auth/login` (return-domain validation, CSRF + return cookies, 302 to AAD)
-- [ ] `/auth/callback` (state check, code exchange, issue 60s assertion, `302 <return>#itoken`)
+- [~] `app-auth/Main.hs`: CLI parser (`--port`, `--config`) done; still needs `newTlsManager` +
+      `serve` wiring (typechecks now), plus a `--gen-key` mode for the Ed25519 JWK
+- [x] `/auth/login` (2026-07-24): return validated via parse-first `isAllowedReturnUrl`
+      (https, no userinfo/port/fragment, host = apex or any `.`-suffixed subdomain of
+      `allowedReturnDomain` — path deliberately unrestricted, see Risks; config domain must be
+      lowercase); CSRF state + url-encoded return cookies (HttpOnly, Secure, SameSite=Lax,
+      Path=/auth/callback, Max-Age=600); 302 to AAD with encoded params
+- [x] `/auth/callback` (2026-07-24): state-vs-cookie check, cookie return URL re-validated,
+      code exchange + Graph /me (shared Manager), email = mail ?? userPrincipalName, assertion
+      `aud` = origin of return URL (path/query stripped), `302 <return>#itoken=…` + cookie
+      cleanup. Old commented reference code fully deleted
 - [x] `/app/*` always serves shell without embedded JWT (old OAuth routes/cookies deleted from
       `Backend/HTTP.hs`)
 - [ ] Bootstrap script in shell (fragment → `/api/login` → sessionStorage → `window.COMPETENCES_JWT`)
@@ -230,6 +237,14 @@ Teams iOS/Android webview with the 11 MB app.wasm + 1.8 MB MathJax: measure cold
 
 ## Risks / long-term consequences
 
+- **Return-URL validation is host-only, path-unrestricted** (decision 2026-07-23, for auth-service
+  reuse — e.g. the planned CMS): any `https://` origin that is the allowed domain or a subdomain
+  of it may receive identity assertions via `#itoken`. Safe while no trusted origin serves
+  user-authored content over HTTP (true for competences instances: uploads travel over the WS).
+  Consequence for every FUTURE service on the domain (esp. a CMS with student-drafted articles):
+  XSS in user content escalates to account takeover (a script-injected page can be named as
+  `return` and harvest assertions redeemable at that same origin) — HTML sanitization there is
+  auth-critical, not cosmetic.
 - **Email as the join key** crosses the auth boundary; alias/rename divergence between UPN and `mail` breaks Teams-vs-browser parity (see action item). Eventual fix: key users on AAD `oid`. → TODO.md.
 - **Ed25519 keypair**: public key is config, private key one agenix secret; rotation = accept-two-keys window. Instances can verify, never mint.
 - **Microsoft churn** lives in exactly three places, all config/docs not code: authorized-client-ID list, `frame-ancestors` domain list (config-driven), manifest schema version.

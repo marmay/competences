@@ -10,11 +10,13 @@ import Data.Aeson (FromJSON)
 import qualified Crypto.JOSE as JOSE
 import Competences.Internal.SecurityConfig (forceLoadSecurityConfig)
 import Data.Time (NominalDiffTime)
+import Data.Text (Text)
 
 data SecurityConfig = SecurityConfig
   { oauth2Config :: !OAuth2Config
   , authIssuerJwk :: !JOSE.JWK
   , tokenExpiryDuration :: !NominalDiffTime
+  , allowedReturnDomain :: !Text
   }
   deriving (Generic, Show)
 

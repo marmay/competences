@@ -70,6 +70,7 @@ library
         lens,
         monad-time,
         mtl,
+        network-uri,
         optics-core,
         optparse-applicative,
         postgresql-simple >= 0.7.0.1,

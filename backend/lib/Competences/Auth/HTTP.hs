@@ -1,187 +1,177 @@
 module Competences.Auth.HTTP
-  (
+  ( authServer
   ) where
 
--- import Servant.API (NoContent(..))
--- import Servant (Get, (:<|>))
---   
--- type AuthAPI =
---        "auth" :> "login"
---          :> QueryParam "return" Text
---          :> Get '[HTML] Html
---   :<|> "auth" :> "callback"
---          :> QueryParam "code" Text
---          :> QueryParam "state" Text
---          :> Header "Cookie" Text
---          :> Get '[HTML] Html
---   :<|> "auth" :> "teams" :> "exchange"
---          :> Post '[HTML] Html
+import Servant (Get, (:<|>) (..), (:>), QueryParam, Header, Server, Handler, throwError, ServerError (..), err302, err400, err500)
+import Data.Text (Text)
+import Competences.Auth.SecurityConfig (SecurityConfig(..))
+import Control.Monad (unless)
+import qualified Data.UUID.V4 as UUID
+import Control.Monad.IO.Class (MonadIO(..))
+import qualified Data.UUID as UUID
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import Network.HTTP.Types (urlEncode, urlDecode)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Competences.Auth.OAuth2Config (OAuth2Config(..))
+import Servant.HTML.Blaze (HTML)
+import Text.Blaze.Html (Html)
+import Network.URI (parseAbsoluteURI, URI (..), URIAuth (..), uriToString)
+import qualified Data.Text as T
+import Web.Cookie (parseCookies, Cookies)
+import Competences.Auth.Microsoft (exchangeCodeForToken, getUserInfo, Office365User(..))
+import Network.HTTP.Client (Manager)
+import Competences.Auth.Assertion (IdentityAssertion(..), generateIdentityAssertion')
+import Data.Maybe (fromMaybe)
+  
+type AuthAPI =
+  "auth" :>
+  ( "login"
+         :> QueryParam "return" Text
+         :> Get '[HTML] Html
+  :<|> "callback"
+         :> QueryParam "code" Text
+         :> QueryParam "state" Text
+         :> Header "Cookie" Text
+         :> Get '[HTML] Html
+  )
 
---    -- OAuth callback - exchange code for token and serve frontend
---    :<|> "oauth" :> "callback"
---           :> QueryParam "code" Text
---           :> QueryParam "state" Text
---           :> Header "Cookie" Text
---           :> Get '[HTML] Html
---     :<|> oauthCallbackHandler state oauth2Config jwtSecret hashes
+authServer :: Manager -> SecurityConfig -> Server AuthAPI
+authServer tlsManager securityConfig = (loginHandler securityConfig.oauth2Config securityConfig.allowedReturnDomain) :<|> (callbackHandler tlsManager securityConfig)
 
--- -- | OAuth callback - exchange code for token and serve frontend with JWT
--- -- Validates state parameter to prevent CSRF attacks
--- oauthCallbackHandler :: AppState -> OAuth2Config -> JWTSecret -> FrontendHashes -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
--- oauthCallbackHandler appState oauth2Config jwtSecret hashes maybeCode maybeState maybeCookie = do
---   -- Validate state parameter (CSRF protection)
---   stateFromQuery <- case maybeState of
---     Nothing -> throwError err400 {errBody = "Missing state parameter"}
---     Just s -> pure s
--- 
---   stateFromCookie <- case extractStateFromCookie maybeCookie of
---     Nothing -> throwError err400 {errBody = "Missing or invalid state cookie"}
---     Just s -> pure s
--- 
---   if stateFromQuery /= stateFromCookie
---     then throwError err400 {errBody = "State mismatch - possible CSRF attack"}
---     else pure ()
--- 
---   code <- case maybeCode of
---     Nothing -> throwError err400 {errBody = "Missing authorization code"}
---     Just c -> pure c
--- 
---   -- Exchange code for access token
---   tokenResult <- liftIO $ exchangeCodeForToken oauth2Config code
---   accessToken <- case tokenResult of
---     Left err -> throwError err500 {errBody = BL.fromStrict $ encodeUtf8 $ T.pack err}
---     Right token -> pure token
--- 
---   -- Get user info from Microsoft Graph
---   userInfoResult <- liftIO $ getUserInfo accessToken
---   o365User <- case userInfoResult of
---     Left err -> throwError err500 {errBody = BL.fromStrict $ encodeUtf8 $ T.pack err}
---     Right info -> pure info
--- 
---   -- Find user in document by email address
---   let email = case o365User.mail of
---         Just m -> m
---         Nothing -> o365User.userPrincipalName
--- 
---   userResult <- liftIO $ findUserByEmail appState email
---   user <- case userResult of
---     Just u -> pure u
---     Nothing -> throwError err400
---       { errBody = BL.fromStrict $ encodeUtf8 $
---           "No user found with email address: " <> email <>
---           ". Please contact an administrator to create your user account."
---       }
--- 
---   -- Generate JWT
---   jwt <- liftIO $ generateJWT jwtSecret user
--- 
---   -- Extract return URL from cookie (defaults to /app/grid)
---   let returnUrl = extractReturnUrlFromCookie maybeCookie
--- 
---   -- Read current file hashes (may have been updated by file watcher)
---   wasmHash <- liftIO $ readFileHash hashes.wasmHash
---   indexJsHash <- liftIO $ readFileHash hashes.indexJsHash
---   jsffiHash <- liftIO $ readFileHash hashes.jsffiHash
---   mathjaxHash <- liftIO $ readFileHash hashes.mathjaxHash
---   outputCssHash <- liftIO $ readFileHash hashes.outputCssHash
--- 
---   -- Serve frontend HTML with JWT and hashes embedded
---   pure $ renderFrontendHTML jwt returnUrl wasmHash indexJsHash jsffiHash mathjaxHash outputCssHash
+loginHandler :: OAuth2Config -> Text -> Maybe Text -> Handler Html
+loginHandler oauth2Config allowedReturnUrl returnUrl = do
+  returnUrl' <- maybe handleMissingReturnUrl pure returnUrl
+                >>= pure . parseAbsoluteURI . T.unpack
+                >>= maybe handleReturnUrlInvalid pure
+  unless (isAllowedReturnUrl allowedReturnUrl returnUrl') $
+    handleDisallowedReturnUrl
+  csrfState <- liftIO UUID.nextRandom
+  let
+    locationHeader = ("Location", getAuthorizationUrlWithState oauth2Config (UUID.toText csrfState))
+    csrfStateCookie = mkCookie "csrfState" (UUID.toText csrfState)
+    returnUrlCookie = mkCookie "returnUrl" (T.pack (uriToString id returnUrl' ""))
 
--- -- | Build OAuth authorization URL with state parameter
--- getAuthorizationUrlWithState :: OAuth2Config -> Text -> Text
--- getAuthorizationUrlWithState config state =
---   T.concat
---     [ "https://login.microsoftonline.com/"
---     , config.tenantId
---     , "/oauth2/v2.0/authorize?"
---     , "client_id=" <> config.clientId
---     , "&response_type=code"
---     , "&redirect_uri=" <> config.redirectUri
---     , "&response_mode=query"
---     , "&scope=openid%20profile%20email%20User.Read"
---     , "&state=" <> decodeUtf8 (urlEncode False (encodeUtf8 state))
---     ]
+  throwError err302
+               { errHeaders = [ locationHeader, csrfStateCookie, returnUrlCookie ] }
 
--- -- | Extract state value from Cookie header
--- -- Parses the Cookie header and looks for the oauth_state cookie
--- extractStateFromCookie :: Maybe Text -> Maybe Text
--- extractStateFromCookie Nothing = Nothing
--- extractStateFromCookie (Just cookieHeader) =
---   let cookies = parseCookies (encodeUtf8 cookieHeader)
---    in decodeUtf8 <$> lookup oauthStateCookieName cookies
--- 
--- -- | Extract return URL from Cookie header (defaults to /app/grid)
--- extractReturnUrlFromCookie :: Maybe Text -> Text
--- extractReturnUrlFromCookie Nothing = "/app/grid"
--- extractReturnUrlFromCookie (Just cookieHeader) =
---   let cookies = parseCookies (encodeUtf8 cookieHeader)
---    in case decodeUtf8 <$> lookup oauthReturnUrlCookieName cookies of
---         Just url -> validateReturnUrl url
---         Nothing -> "/app/grid"
--- 
--- -- | Validate a return URL to prevent open redirect and XSS attacks.
--- -- Must start with "/app" and contain only safe URL characters.
--- -- Explicitly excludes ' and \ which would break JS string literals.
--- validateReturnUrl :: Text -> Text
--- validateReturnUrl url
---   | T.isPrefixOf "/app" url && T.all isSafeUrlChar url = url
---   | otherwise = "/app/grid"
---   where
---     isSafeUrlChar c =
---       Char.isAlphaNum c || c `elem` ("-._~:/?#[]@!$&()*+,;=%" :: [Char])
--- 
--- -- | Find existing user by email address stored in office365Id field
--- findUserByEmail :: AppState -> Text -> IO (Maybe User)
--- findUserByEmail appState email = do
---   doc <- getDocument appState
---   let o365Id = Office365Id email
---   pure $ Ix.getOne $ doc.users Ix.@= o365Id
+  where
+    handleMissingReturnUrl =
+      throwError err400 {errBody = "Missing return URL"}
+    handleReturnUrlInvalid =
+      throwError err400 {errBody = "Invalid return URL"}
+    handleDisallowedReturnUrl =
+      throwError err400 {errBody = "Disallowed return URL"}
+    mkCookie name value =
+      ("Set-Cookie", B.concat [name, "=", urlEncode False (encodeUtf8 value), "; HttpOnly; Secure; SameSite=Lax; Path=/auth/callback; Max-Age=600"])
 
---   -- Reconstruct the return URL from the request
---   -- Servant strips the "app" segment, so pathInfo has segments after /app/
---   let segments = pathInfo req
---       queryStr = decodeUtf8 $ rawQueryString req
---       returnUrl = validateReturnUrl $ "/app/" <> T.intercalate "/" segments <> queryStr
--- 
---   -- Generate random state for CSRF protection
---   csrfState <- UUID.toText <$> UUID.nextRandom
--- 
---   -- Build authorization URL with state parameter
---   let authUrl = getAuthorizationUrlWithState config csrfState
--- 
---   -- Create cookies (both scoped to /oauth/callback, HttpOnly)
---   let stateCookie =
---         renderSetCookieBS $
---           defaultSetCookie
---             { setCookieName = oauthStateCookieName
---             , setCookieValue = encodeUtf8 csrfState
---             , setCookiePath = Just "/oauth/callback"
---             , setCookieHttpOnly = True
---             }
---       returnUrlCookie =
---         renderSetCookieBS $
---           defaultSetCookie
---             { setCookieName = oauthReturnUrlCookieName
---             , setCookieValue = encodeUtf8 returnUrl
---             , setCookiePath = Just "/oauth/callback"
---             , setCookieHttpOnly = True
---             }
--- 
---   -- Redirect to Office365 with both cookies
---   respond $
---     responseLBS
---       status302
---       [ ("Location", encodeUtf8 authUrl)
---       , ("Set-Cookie", stateCookie)
---       , ("Set-Cookie", returnUrlCookie)
---       ]
---       ""
+callbackHandler :: Manager -> SecurityConfig -> Maybe Text -> Maybe Text -> Maybe Text -> Handler Html
+callbackHandler tlsManager securityConfig code state cookies = do
+  code' <- maybe handleMissingCode pure code
+  state' <- maybe handleMissingState pure state
+  (csrfState, returnUrl) <- maybe handleMissingCookies pure cookies
+                              >>= parseAllCookies
+  returnUrl' <- maybe (handleInvalidReturnUrl returnUrl) pure
+                  $ parseAbsoluteURI $ T.unpack $ returnUrl
+  unless (csrfState == state') $
+    handleNonMatchingCsrfState state' csrfState
+  unless (isAllowedReturnUrl securityConfig.allowedReturnDomain returnUrl') $
+    handleDisallowedReturnUrl
+  token <- liftIO (exchangeCodeForToken tlsManager securityConfig.oauth2Config code')
+             >>= either handleTokenExchangeError pure
+  userInfo <- liftIO (getUserInfo tlsManager token)
+             >>= either handleTokenExchangeError pure
+  identityAssertion <- liftIO (mkIdentityAssertion userInfo)
+  let mintedTokenAudience = returnUrl' { uriPath = "", uriQuery = "", uriFragment = "" }
+  mintedToken <- liftIO (generateIdentityAssertion' securityConfig.authIssuerJwk securityConfig.tokenExpiryDuration mintedTokenAudience identityAssertion)
+    >>= either handleMintingError pure
+  throwError err302 {
+    errHeaders = [ ("Location", B.concat [ encodeUtf8 returnUrl
+                                         , "#itoken="
+                                         , B.toStrict mintedToken
+                                         ])
+                 , clearCookie "csrfState"
+                 , clearCookie "returnUrl"
+                 ]
+    }
+                 
+  where
+    handleMissingCode =
+      throwError err400 {errBody = "Missing code"}
+    handleMissingState =
+      throwError err400 {errBody = "Missing state"}
+    handleInvalidReturnUrl returnUrl =
+      throwError err400 {errBody = B.fromStrict $ B.concat
+                          [ "Invalid return URL: "
+                          , encodeUtf8 returnUrl
+                          ]}
+    handleDisallowedReturnUrl =
+      throwError err400 {errBody = "Disallowed return URL"}
+    handleMissingCookies =
+      throwError err400 {errBody = "Missing cookies"}
+    handleNonMatchingCsrfState fromAssertingParty fromCookie =
+      throwError err400 {errBody = B.fromStrict $ B.concat
+                          [ "CSRF state does not match; received from asserting party: "
+                          , encodeUtf8 fromAssertingParty
+                          , "; cookie value: "
+                          , encodeUtf8 fromCookie
+                          ]}
+    handleTokenExchangeError err =
+      throwError err500 {errBody = B.fromStrict $ B.concat
+                          [ "Token exchange failed: "
+                          , encodeUtf8 $ T.pack err
+                          ]}
+    handleMintingError err =
+      throwError err500 {errBody = B.fromStrict $ B.concat
+                          [ "Minting failed: "
+                          , encodeUtf8 $ T.pack $ show err
+                          ]}
+    parseAllCookies cs = do
+      let parsed = parseCookies (encodeUtf8 cs)
+      csrfState <- readCookie parsed "csrfState"
+      returnUrl <- readCookie parsed "returnUrl"
+      pure (csrfState, returnUrl)
+    readCookie :: Cookies -> ByteString -> Handler Text
+    readCookie cs n = do
+      case lookup n cs of
+        Just v -> pure $ decodeUtf8 $ urlDecode False v
+        Nothing -> throwError err400 {errBody = "Missing cookie: " <> B.fromStrict n}
+    clearCookie n = ("Set-Cookie", B.concat [n, "=; HttpOnly; Secure; SameSite=Lax; Path=/auth/callback; Max-Age=0"])
+    mkIdentityAssertion office365User = do
+      assertionId <- UUID.nextRandom
+      pure IdentityAssertion
+        { assertionId = assertionId
+        , name = office365User.displayName
+        , office365Id = fromMaybe office365User.userPrincipalName office365User.mail 
+        }
 
--- -- | Cookie name for OAuth state parameter
--- oauthStateCookieName :: BS.ByteString
--- oauthStateCookieName = "oauth_state"
--- 
--- -- | Cookie name for return URL after OAuth
--- oauthReturnUrlCookieName :: BS.ByteString
--- oauthReturnUrlCookieName = "oauth_return_url"
+isAllowedReturnUrl :: Text -> URI -> Bool
+isAllowedReturnUrl allowedPattern returnUrl =
+     uriScheme returnUrl == "https:"
+  && null (uriFragment returnUrl)
+  && maybe False isAllowedUriAuthority (uriAuthority returnUrl)
+  where
+    isAllowedUriAuthority auth =
+         null (uriUserInfo auth)
+      && null (uriPort auth)
+      && isAllowedHost (T.pack (uriRegName auth))
+    isAllowedHost host =
+         allowedPattern == host
+      || ("." <> allowedPattern) `T.isSuffixOf` host
+      
+getAuthorizationUrlWithState :: OAuth2Config -> Text -> ByteString
+getAuthorizationUrlWithState config state =
+  B.concat
+    [ "https://login.microsoftonline.com/"
+    , encodeUtf8 config.tenantId
+    , "/oauth2/v2.0/authorize?"
+    , "client_id="
+    , urlEncode False (encodeUtf8 config.clientId)
+    , "&response_type=code"
+    , "&redirect_uri="
+    , urlEncode False (encodeUtf8 config.redirectUri)
+    , "&response_mode=query"
+    , "&scope=openid%20profile%20email%20User.Read"
+    , "&state="
+    , urlEncode False (encodeUtf8 state)
+    ]
