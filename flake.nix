@@ -33,6 +33,7 @@
                   packages.competences-backend.package.buildable = lib.mkForce false;
                   packages.competences-csvconvert.package.buildable = lib.mkForce false;
                   packages.competences-housecup.package.buildable = lib.mkForce false;
+                  packages.marmay-auth.package.buildable = lib.mkForce false;
                 })];
 
               # Make wasm32-unknown-wasi-{cabal,ghc} available in `nix develop`

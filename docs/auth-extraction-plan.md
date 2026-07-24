@@ -80,7 +80,14 @@ they would need coordinated releases:
 
 ### Phase B — the extraction
 
-**B1. Create the `marmay-auth` repo.** Layout:
+**B1. Create the `marmay-auth` repo.** — DONE 2026-07-24 (staged in ~/devel/hs/marmay-auth,
+first commit pending): 9 modules + exe + 7 protocol tests (replay protection incl. the
+prune-direction cases, assertion round-trip against the public key, wrong-aud rejection), all
+green; `nix build .#marmay-auth` green. flake.lock rev-identical to competences (cache
+reuse). Ported from parent: the GHC 9.14 `allow-newer` block, the HLS `doCheck=false` +
+`cabalProjectLocal` workaround, hlint dropped. nixosModule with dedicated `marmay-auth`
+system user (agenix: owner marmay-auth, mode 0400), `nginx.domain` option,
+self-injected package default (no specialArgs needed by consumers). Layout:
 
 ```
 marmay-auth.cabal        library (Marmay.Auth.*) + executable marmay-auth
@@ -104,7 +111,14 @@ routing `/auth/` to the service. The **instance-side** `/auth/` proxy location (
 Stage 2 same-origin Teams exchange) stays in competences' `nix/module.nix` — it is
 instance-vhost config.
 
-**B2. Wire competences to the new repo.**
+**B2. Wire competences to the new repo.** — DONE 2026-07-24: pinned via
+`source-repository-package` (github:marmay/marmay-auth @ 3c0163bc); `backend/lib/Marmay/` +
+`app-auth/` deleted; `competences-auth` exe stanza gone; deps pruned (cookie, http-client,
+http-client-tls, http-types, http-conduit, network-uri — NOT `ram`: it provides
+Data.ByteArray.Encoding for CAS/HashedFile). marmay-auth marked non-buildable on wasm32 in
+flake.nix (the client half reaches the browser as generated JS, not compiled code). Pin
+workflow: auth changes = commit+push in marmay-auth, then bump tag + sha256 here; for active
+Stage 2 bursts use an uncommitted cabal.project.local override.
 - Delete `backend/lib/Competences/Auth/` (now `Marmay/Auth/`) and `backend/app-auth/` from
   competences; drop the `competences-auth` executable stanza; remove now-unneeded deps from
   the library stanza (check: `network-uri`, `cookie`, `http-client-tls` — some remain used

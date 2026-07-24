@@ -36,6 +36,12 @@ allow-newer:
   *:ghc-experimental
 
 source-repository-package
+  --sha256: sha256-/aRlD1WfbsUaFqkhewUT7hVBGaI5ZVI1T+YwyYshyZY=
+  type: git
+  location: https://github.com/marmay/marmay-auth
+  tag: 3c0163bc499278a39c2def8428468c23125dbd1f
+
+source-repository-package
   --sha256: sha256-4xQLKNwXxdUqurhqckMiXlj/+rmMytkMR9xdrxvMcH4=
   type: git
   location: https://github.com/sumo/syb-with-class

@@ -93,15 +93,18 @@ Auth service + instance wiring:
 - [x] Instance config: `authBaseUrl :: Maybe Text` in `Backend/SecurityConfig` (optional
       via generic aeson Maybe handling; `Nothing` = dev mode)
 
-Follow-up (post Stage 1, pre CMS): move `bootstrapScript` from `Backend/Shell.hs` into the
-`Competences.Auth.*` namespace — it is the client half of the assertion protocol (fragment
-contract, error codes, sessionStorage key, exp check) and should ship with the auth service
-for reuse (CMS). Parameterize the app-specific parts (module-script URL / app start, panel
-rendering); aligns with the eventual extraction of `Competences.Auth.*` into its own project.
+**EXTRACTED (2026-07-24):** the auth service now lives in its own repo,
+github:marmay/marmay-auth (`Marmay.Auth.*` library + `marmay-auth` executable + nixosModule;
+see docs/auth-extraction-plan.md). Competences consumes it as a pinned
+`source-repository-package`. All REMAINING auth-service work — including the whole of
+Stage 2's service side (`/auth/teams/exchange`, JWKS validation, `/teams/config`) — lands in
+THAT repo, not here.
 
 Infra:
-- [ ] Nix: `competences-auth` package; `authService` unit; shared-domain vhost; `/auth/` proxy
-      on instance vhosts (cabal exe exists; nothing on the nix side)
+- [x] Nix: `services.marmay-auth` nixosModule ships with the marmay-auth repo (systemd unit,
+      dedicated user, auth-subdomain vhost + maintenance page). Still open HERE: import the
+      module in the server config; `/auth/` proxy on instance vhosts (for Stage 2 same-origin
+      Teams exchange); shrink instance secrets to sessionIssuerJwk + authClientConfig
 - [ ] Azure: collapse to one app registration; delete per-class apps
 
 **Stage 2 — Teams SSO + shell + CSP headers** — [ ] not started (gate first: verify `getAuthToken` from a subdomain)

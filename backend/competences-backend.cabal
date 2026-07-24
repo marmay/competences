@@ -21,15 +21,6 @@ library
         OverloadedStrings,
         TypeFamilies
     exposed-modules:
-        Marmay.Auth.Assertion
-        Marmay.Auth.Bootstrap
-        Marmay.Auth.ClientConfig
-        Marmay.Auth.ConfigFile
-        Marmay.Auth.HTTP
-        Marmay.Auth.Microsoft
-        Marmay.Auth.OAuth2Config
-        Marmay.Auth.ReplayProtection
-        Marmay.Auth.SecurityConfig
         Competences.Backend.Auth
         Competences.Backend.BuildInfo
         Competences.Backend.CAS
@@ -57,22 +48,17 @@ library
         bytestring,
         competences-common,
         containers,
-        cookie,
         crypton,
         directory,
         filepath,
         fsnotify,
-        http-client,
-        http-client-tls,
-        http-types,
-        http-conduit,
         hslogger,
         jose >= 0.13,
         ixset-typed,
         lens,
+        marmay-auth,
         monad-time,
         mtl,
-        network-uri,
         optics-core,
         optparse-applicative,
         postgresql-simple >= 0.7.0.1,
@@ -101,31 +87,6 @@ library
     hs-source-dirs:   lib
     default-language: GHC2024
 
-executable competences-auth
-    import:           warnings
-    default-extensions:
-        DuplicateRecordFields,
-        GADTs,
-        NoFieldSelectors,
-        OverloadedRecordDot,
-        OverloadedStrings,
-        TypeFamilies
-    ghc-options:      -threaded -rtsopts
-    main-is:          Main.hs
-    build-depends:
-        base >=4.21 && <4.23,
-        competences-backend,
-        containers,
-        http-client,
-        http-client-tls,
-        optparse-applicative,
-        servant,
-        servant-server,
-        wai,
-        warp
-    hs-source-dirs:   app-auth
-    default-language: GHC2024
-           
 executable competences-backend
     import:           warnings
     default-extensions:
