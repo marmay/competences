@@ -21,15 +21,15 @@ library
         OverloadedStrings,
         TypeFamilies
     exposed-modules:
-        Competences.Auth.Assertion
-        Competences.Auth.Bootstrap
-        Competences.Auth.ClientConfig
-        Competences.Auth.ConfigFile
-        Competences.Auth.HTTP
-        Competences.Auth.Microsoft
-        Competences.Auth.OAuth2Config
-        Competences.Auth.ReplayProtection
-        Competences.Auth.SecurityConfig
+        Marmay.Auth.Assertion
+        Marmay.Auth.Bootstrap
+        Marmay.Auth.ClientConfig
+        Marmay.Auth.ConfigFile
+        Marmay.Auth.HTTP
+        Marmay.Auth.Microsoft
+        Marmay.Auth.OAuth2Config
+        Marmay.Auth.ReplayProtection
+        Marmay.Auth.SecurityConfig
         Competences.Backend.Auth
         Competences.Backend.BuildInfo
         Competences.Backend.CAS

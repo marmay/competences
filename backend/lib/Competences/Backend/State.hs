@@ -7,7 +7,7 @@ module Competences.Backend.State
   )
 where
 
-import Competences.Auth.ReplayProtection (mkConsumedLog, ConsumedLog)
+import Marmay.Auth.ReplayProtection (mkConsumedLog, ConsumedLog)
 import Competences.Backend.CAS (CAS, InstanceId)
 import Competences.Backend.CommandProcessor (CommandProcessor)
 import Competences.Backend.SessionRegistry (SessionRegistry)
@@ -57,7 +57,7 @@ data RestState = RestState
   -- rest end points too.
   , consumedAssertionIds :: !ConsumedLog
   -- ^ Replay protection for /api/login; semantics live in
-  -- Competences.Auth.ReplayProtection.
+  -- Marmay.Auth.ReplayProtection.
   }
 
 -- | Initializes the RestState from the AppState and possibly from

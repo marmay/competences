@@ -67,7 +67,8 @@ A record bundling what every consumer needs: `authPublicKey`, `origin`,
 (flatten in JSON or nest — nested keeps consumer configs uniform across apps). This is the
 "how do I consume marmay-auth" API: public key + origin + skew + base URL, nothing else.
 
-**A5. Rename `Competences.Auth.*` → `Marmay.Auth.*` in place.** Mechanical
+**A5. Rename `Competences.Auth.*` → `Marmay.Auth.*` in place.** — DONE 2026-07-24 (incl.
+`iss` → `"marmay-auth"` at both sites). Mechanical
 (find/replace + `git mv`), one commit. Do the **wire-protocol renames in the same commit**,
 because they are two-sided and both sides still live in one repo here — after extraction
 they would need coordinated releases:

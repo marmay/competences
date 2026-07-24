@@ -1,16 +1,16 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Competences.Auth.SecurityConfig
+module Marmay.Auth.SecurityConfig
   ( SecurityConfig (.. )
   , loadSecurityConfig
   )
   where
 
 import GHC.Generics (Generic)
-import Competences.Auth.OAuth2Config
+import Marmay.Auth.OAuth2Config
 import Data.Aeson (FromJSON(..), withObject, (.:), (.:?), (.!=))
 import qualified Crypto.JOSE as JOSE
-import Competences.Auth.ConfigFile (forceLoadConfigFile)
+import Marmay.Auth.ConfigFile (forceLoadConfigFile)
 import Data.Time (NominalDiffTime)
 import Data.Text (Text)
 

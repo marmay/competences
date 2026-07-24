@@ -8,8 +8,8 @@ where
 import Data.Aeson (FromJSON)
 import GHC.Generics (Generic)
 import qualified Crypto.JOSE as JOSE
-import Competences.Auth.ConfigFile (forceLoadConfigFile)
-import qualified Competences.Auth.ClientConfig as Auth
+import Marmay.Auth.ConfigFile (forceLoadConfigFile)
+import qualified Marmay.Auth.ClientConfig as Auth
 
 -- | Security configuration of the backend.
 --

@@ -1,11 +1,11 @@
-module Competences.Auth.HTTP
+module Marmay.Auth.HTTP
   ( authServer
   , authAPI
   ) where
 
 import Servant (Get, (:<|>) (..), (:>), QueryParam, Header, Server, Handler, throwError, ServerError (..), err302, err400, err500)
 import Data.Text (Text)
-import Competences.Auth.SecurityConfig (SecurityConfig(..))
+import Marmay.Auth.SecurityConfig (SecurityConfig(..))
 import Control.Monad (unless)
 import qualified Data.UUID.V4 as UUID
 import Control.Monad.IO.Class (MonadIO(..))
@@ -14,15 +14,15 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Network.HTTP.Types (urlEncode, urlDecode)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Competences.Auth.OAuth2Config (OAuth2Config(..))
+import Marmay.Auth.OAuth2Config (OAuth2Config(..))
 import Servant.HTML.Blaze (HTML)
 import Text.Blaze.Html (Html)
 import Network.URI (parseAbsoluteURI, URI (..), URIAuth (..), uriToString)
 import qualified Data.Text as T
 import Web.Cookie (parseCookies, Cookies)
-import Competences.Auth.Microsoft (exchangeCodeForToken, getUserInfo, Office365User(..))
+import Marmay.Auth.Microsoft (exchangeCodeForToken, getUserInfo, Office365User(..))
 import Network.HTTP.Client (Manager)
-import Competences.Auth.Assertion (IdentityAssertion(..), generateIdentityAssertion')
+import Marmay.Auth.Assertion (IdentityAssertion(..), generateIdentityAssertion')
 import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy(..))
   

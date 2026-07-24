@@ -3,8 +3,8 @@ module Main
   ) where
 
 import qualified Options.Applicative as Opt
-import Competences.Auth.SecurityConfig (loadSecurityConfig, SecurityConfig (laxReturnUrlCheck))
-import Competences.Auth.HTTP (authServer, authAPI)
+import Marmay.Auth.SecurityConfig (loadSecurityConfig, SecurityConfig (laxReturnUrlCheck))
+import Marmay.Auth.HTTP (authServer, authAPI)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.Wai.Handler.Warp (run)
 import Servant (serve)

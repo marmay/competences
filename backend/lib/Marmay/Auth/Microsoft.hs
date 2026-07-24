@@ -1,10 +1,10 @@
-module Competences.Auth.Microsoft
+module Marmay.Auth.Microsoft
   ( exchangeCodeForToken
   , getUserInfo
   , Office365User(..)
   ) where
 
-import Competences.Auth.OAuth2Config (OAuth2Config(..))
+import Marmay.Auth.OAuth2Config (OAuth2Config(..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as A
 import qualified Data.Text as T

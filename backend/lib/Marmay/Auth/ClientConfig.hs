@@ -1,4 +1,4 @@
-module Competences.Auth.ClientConfig
+module Marmay.Auth.ClientConfig
   ( ClientConfig(..)
   )
   where

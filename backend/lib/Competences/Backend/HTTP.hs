@@ -8,8 +8,8 @@ module Competences.Backend.HTTP
   )
 where
 
-import Competences.Auth.ClientConfig (ClientConfig(..))
-import Competences.Auth.ReplayProtection (ensureUnconsumed)
+import Marmay.Auth.ClientConfig (ClientConfig(..))
+import Marmay.Auth.ReplayProtection (ensureUnconsumed)
 import Competences.Backend.Auth (generateJWT', toAuthUser)
 import Competences.Backend.Exchange (exchangeFromYaml, exchangeToYaml)
 import Competences.Backend.SecurityConfig (SecurityConfig(..))
@@ -48,7 +48,7 @@ import Servant.API (NoContent (..))
 import Servant.HTML.Blaze (HTML)
 import Text.Blaze.Html5 (Html)
 import Competences.Backend.Shell (ShellHashes, mkShellConfig, renderShell)
-import Competences.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
+import Marmay.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
 import Competences.Backend.State (RestState(..))
 import Competences.Query.User (findUserByOffice365Id)

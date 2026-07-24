@@ -1,4 +1,4 @@
-module Competences.Auth.OAuth2Config
+module Marmay.Auth.OAuth2Config
   ( OAuth2Config( .. )
   , getAuthorizationUrl
   ) where

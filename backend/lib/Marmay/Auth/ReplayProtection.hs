@@ -1,6 +1,6 @@
 -- | Provides a simple, ephemeral data structure that stops a single
 -- IdentityAssertion being consumed multiple times for a single service.
-module Competences.Auth.ReplayProtection
+module Marmay.Auth.ReplayProtection
   ( ConsumedLog
   , mkConsumedLog
   , ensureUnconsumed

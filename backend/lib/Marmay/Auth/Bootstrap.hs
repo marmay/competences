@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Competences.Auth.Bootstrap
+module Marmay.Auth.Bootstrap
   ( BootstrapConfig(..)
   , defaultBootstrapConfig
   , bootstrapCoreScript

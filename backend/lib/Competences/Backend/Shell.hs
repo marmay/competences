@@ -6,8 +6,8 @@ module Competences.Backend.Shell
   )
   where
 
-import Competences.Auth.Bootstrap qualified as Bootstrap
-import Competences.Auth.Bootstrap (jsonText)
+import Marmay.Auth.Bootstrap qualified as Bootstrap
+import Marmay.Auth.Bootstrap (jsonText)
 import Competences.Backend.HashedFile (FileHashRef, readFileHash)
 import Text.Blaze.Html5 (Html, (!))
 import Text.Blaze.Html5 qualified as H
@@ -106,7 +106,7 @@ renderShell shellConfig = H.docTypeHtml $ do
 --      configured (dev mode), start the app without a token.
 --
 -- The protocol core (fragment exchange, caching, expiry check,
--- redirect rules) comes from Competences.Auth.Bootstrap; this
+-- redirect rules) comes from Marmay.Auth.Bootstrap; this
 -- composes it with the app-specific hooks: module-script injection
 -- on success, German error panels on failure.
 bootstrapScript :: ShellConfig -> Text

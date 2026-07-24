@@ -1,4 +1,4 @@
-module Competences.Auth.Assertion
+module Marmay.Auth.Assertion
   ( generateIdentityAssertion
   , generateIdentityAssertion'
   , validateIdentityAssertion
@@ -79,7 +79,7 @@ generateIdentityAssertion_ jwk expiryDuration audience a = do
   now <- currentTime
   let expiry = addUTCTime expiryDuration now
   let baseClaims = JOSE.emptyClaimsSet
-       & JOSE.claimIss ?~ "competences-auth"
+       & JOSE.claimIss ?~ "marmay-auth"
        & JOSE.claimAud ?~ JOSE.Audience [JOSE.uri # audience]
        & JOSE.claimExp ?~ JOSE.NumericDate expiry
        & JOSE.claimIat ?~ JOSE.NumericDate now
@@ -101,7 +101,7 @@ validateIdentityAssertion_ jwk allowedExpirySkewDuration expectedAudience token 
   let validationSettings =
         JOSE.defaultJWTValidationSettings
           (== JOSE.uri # expectedAudience)
-          & JOSE.jwtValidationSettingsIssuerPredicate .~ (== "competences-auth")
+          & JOSE.jwtValidationSettingsIssuerPredicate .~ (== "marmay-auth")
           & JOSE.jwtValidationSettingsAllowedSkew .~ allowedExpirySkewDuration
           & JOSE.validationSettingsAlgorithms .~ Set.fromList [alg]
   joseAssertion <- JOSE.verifyJWT validationSettings jwk token

@@ -1,7 +1,7 @@
 -- | Permission-checked JSON config loading, shared by the auth
 -- service and its consumers. Refuses secret files readable by
 -- others and config directories writable by others.
-module Competences.Auth.ConfigFile
+module Marmay.Auth.ConfigFile
   ( forceLoadConfigFile
   ) where
 
