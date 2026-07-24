@@ -23,6 +23,7 @@ library
     exposed-modules:
         Competences.Auth.Assertion
         Competences.Auth.Bootstrap
+        Competences.Auth.ClientConfig
         Competences.Auth.ConfigFile
         Competences.Auth.HTTP
         Competences.Auth.Microsoft

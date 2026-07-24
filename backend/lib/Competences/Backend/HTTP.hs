@@ -8,6 +8,7 @@ module Competences.Backend.HTTP
   )
 where
 
+import Competences.Auth.ClientConfig (ClientConfig(..))
 import Competences.Auth.ReplayProtection (ensureUnconsumed)
 import Competences.Backend.Auth (generateJWT', toAuthUser)
 import Competences.Backend.Exchange (exchangeFromYaml, exchangeToYaml)
@@ -137,8 +138,9 @@ instance A.ToJSON LoginResponse
 
 loginHandler :: SecurityConfig -> RestState -> BL.ByteString -> Handler LoginResponse
 loginHandler securityConfig restState inputToken = do
+  let validateConfig = securityConfig.authClientConfig
   (validateResult, validUntil) <-
-    liftIO (validateIdentityAssertion' securityConfig.authPublicKey securityConfig.allowedExpirySkewDuration securityConfig.origin inputToken) >>= either handleInvalidAssertion pure
+    liftIO (validateIdentityAssertion' validateConfig.authPublicKey validateConfig.allowedExpirySkewDuration validateConfig.origin inputToken) >>= either handleInvalidAssertion pure
   isUnconsumed <- liftIO (ensureUnconsumed validateResult.assertionId validUntil restState.consumedAssertionIds)
   unless isUnconsumed $
     handleAlreadyConsumedAssertion validateResult.assertionId
@@ -167,5 +169,5 @@ loginHandler securityConfig restState inputToken = do
 -- which acquires the session token client-side (see Backend.Shell).
 appCatchAllHandler :: SecurityConfig -> ShellHashes -> [Text] -> Handler Html
 appCatchAllHandler securityConfig frontendHashes _path = do
-  shellConfig <- liftIO $ mkShellConfig frontendHashes securityConfig.authBaseUrl
+  shellConfig <- liftIO $ mkShellConfig frontendHashes securityConfig.authClientConfig.authBaseUrl
   pure $ renderShell shellConfig
