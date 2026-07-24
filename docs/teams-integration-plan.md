@@ -10,13 +10,15 @@ This plan is implementation guidance to code from, staged into independently shi
 
 Legend: `[x]` done · `[~]` in progress · `[ ]` not started.
 
-**Stage 1 — Shared auth service, browser flow** (~65%)
+**Stage 1 — Shared auth service, browser flow** (~85% — functionally COMPLETE)
 
-**Tree state (2026-07-23):** all of this is still uncommitted (staged + working tree); builds
-clean. The instance side of the new login flow is DONE (`/api/login` incl. replay protection);
-the shell bootstrap and the auth-service handlers are the remaining functional gaps — until
-they exist, login is disconnected (shell embeds no JWT). `flake.lock` unstaged (toolchain now
-GHC 9.14.1).
+**Status (2026-07-24): full browser flow verified end to end in dev** (lax mode, localhost):
+shell → bootstrap → /auth/login → AAD → /auth/callback → #itoken → /api/login → session JWT →
+WebSocket. Remaining: nix packaging, rest of the verification matrix, prod cutover (Azure
+redirect-URI consolidation). Gotcha confirmed in testing: instance `origin` config must be the
+bare origin (no path, no trailing slash) — a leftover `/app/grid` in it produced
+JWTNotInAudience. `/app` route needed `CaptureAll` (servant literals match exactly one
+segment; the old catch-all was Raw).
 
 Refactor groundwork:
 - [x] `Competences.Auth.*` namespace; one-way `Backend → Auth` dependency holds
@@ -77,9 +79,25 @@ Auth service + instance wiring:
       cleanup. Old commented reference code fully deleted
 - [x] `/app/*` always serves shell without embedded JWT (old OAuth routes/cookies deleted from
       `Backend/HTTP.hs`)
-- [ ] Bootstrap script in shell (fragment → `/api/login` → sessionStorage → `window.COMPETENCES_JWT`)
-- [ ] Instance config: `authBaseUrl` (for the bootstrap redirect; `Nothing` = dev mode);
-      keygen story for the auth-service Ed25519 JWK
+- [x] Bootstrap script in shell (2026-07-24, pending review): `Backend/Shell.hs`
+      `bootstrapScript` — fragment → scrub → `POST /api/login` → sessionStorage
+      (`competences.sessionJwt`) → `window.COMPETENCES_JWT`; client-side `exp` check with
+      60 s margin; index.js module script injected DYNAMICALLY once a token is in hand
+      (correction to this plan's "module scripts defer" assumption — that only covers the
+      synchronous reload path, not the async login exchange; the Teams shell will share this
+      injection contract). Login failure shows a panel, never redirects (loop protection);
+      `unknown-user` code → no-account panel, else generic + retry link. Dev mode
+      (`authBaseUrl` absent) starts the app tokenless, no redirect. `/api/login` now returns
+      JSON `{jwt}` / `{error, message}` (codes: `invalid-assertion`, `unknown-user`,
+      `minting-failed`); `ShellConfig.returnUrl` removed
+- [x] Instance config: `authBaseUrl :: Maybe Text` in `Backend/SecurityConfig` (optional
+      via generic aeson Maybe handling; `Nothing` = dev mode)
+
+Follow-up (post Stage 1, pre CMS): move `bootstrapScript` from `Backend/Shell.hs` into the
+`Competences.Auth.*` namespace — it is the client half of the assertion protocol (fragment
+contract, error codes, sessionStorage key, exp check) and should ship with the auth service
+for reuse (CMS). Parameterize the app-specific parts (module-script URL / app start, panel
+rendering); aligns with the eventual extraction of `Competences.Auth.*` into its own project.
 
 Infra:
 - [ ] Nix: `competences-auth` package; `authService` unit; shared-domain vhost; `/auth/` proxy

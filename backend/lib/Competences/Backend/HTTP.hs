@@ -18,11 +18,14 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TLE
+import Data.Aeson qualified as A
+import GHC.Generics (Generic)
 import Servant
   ( (:<|>) (..)
   , (:>)
   , Get
   , Handler
+  , JSON
   , OctetStream
   , PlainText
   , Post
@@ -37,16 +40,14 @@ import Servant
   , errBody
   , errHeaders
   , serveDirectoryWebApp
-  , throwError, err403
+  , throwError, err403, CaptureAll
   )
 import Servant.API (NoContent (..))
 import Servant.HTML.Blaze (HTML)
 import Text.Blaze.Html5 (Html)
 import Competences.Backend.Shell (ShellHashes, mkShellConfig, renderShell)
-import qualified Data.Text.Encoding as T
 import Competences.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
-import qualified Data.ByteString as B
 import Competences.Backend.State (RestState(..), ensureUnconsumed)
 import Competences.Query.User (findUserByOffice365Id)
 import Competences.Document.User (Office365Id(..))
@@ -69,15 +70,18 @@ type AppAPI =
     :<|> "api" :> "exchange" :> "decode"
            :> ReqBody '[OctetStream] BL.ByteString
            :> Post '[OctetStream] BL.ByteString
-    -- Receives a security assertion; returns a JWT
-    -- todo: types shall encode this!
+    -- Receives a security assertion; returns {"jwt": ...}.
+    -- Failures are JSON {"error": <code>, "message": ...} where the
+    -- code is a contract with the shell bootstrap: "unknown-user"
+    -- renders the no-account panel, everything else a generic
+    -- failure panel with a retry link.
     :<|> "api" :> "login"
            :> ReqBody '[OctetStream] BL.ByteString
-           :> Post '[OctetStream] BL.ByteString
+           :> Post '[JSON] LoginResponse
     -- Static files
     :<|> "static" :> Raw
     -- App catch-all - initiate OAuth with return URL preservation
-    :<|> "app" :> Get '[HTML] Html
+    :<|> "app" :> CaptureAll "path" Text :> Get '[HTML] Html
 
 appAPI :: Proxy AppAPI
 appAPI = Proxy
@@ -89,7 +93,7 @@ server securityConfig staticDir hashes restState =
     :<|> exchangeDecodeHandler
     :<|> loginHandler securityConfig restState
     :<|> serveDirectoryWebApp staticDir
-    :<|> appCatchAllHandler hashes
+    :<|> appCatchAllHandler securityConfig hashes
 
 -- | Redirect root "/" to "/app/grid"
 rootRedirectHandler :: Handler NoContent
@@ -123,7 +127,14 @@ exchangeDecodeHandler body = do
     handleToExchangeError reason =
       throwError err400 {errBody = TLE.encodeUtf8 (TL.fromStrict reason)}
 
-loginHandler :: SecurityConfig -> RestState -> BL.ByteString -> Handler BL.ByteString
+-- | Successful login response; the bootstrap reads the jwt field.
+newtype LoginResponse = LoginResponse
+  { jwt :: Text
+  } deriving (Generic, Show)
+
+instance A.ToJSON LoginResponse
+
+loginHandler :: SecurityConfig -> RestState -> BL.ByteString -> Handler LoginResponse
 loginHandler securityConfig restState inputToken = do
   (validateResult, validUntil) <-
     liftIO (validateIdentityAssertion' securityConfig.authPublicKey securityConfig.allowedExpirySkewDuration securityConfig.origin inputToken) >>= either handleInvalidAssertion pure
@@ -133,21 +144,27 @@ loginHandler securityConfig restState inputToken = do
   doc <- liftIO (readTVarIO restState.document)
   user <- findUserByOffice365Id doc (Office365Id validateResult.office365Id) & maybe (handleUserNotFound validateResult.office365Id) pure
   liftIO (generateJWT' securityConfig.sessionIssuerJwk (toAuthUser user))
-    >>= either handleMintingError pure
+    >>= either handleMintingError (pure . LoginResponse . TL.toStrict . TLE.decodeUtf8)
 
   where
-    handleInvalidAssertion jwtError = 
-      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ T.pack $ "Could not validate input token: " <> show jwtError}
+    handleInvalidAssertion jwtError =
+      jsonError err403 "invalid-assertion" (T.pack $ "Could not validate input token: " <> show jwtError)
     handleAlreadyConsumedAssertion assertionId =
-      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ "Assertion " <> UUID.toText assertionId <> " has already been consumed."}
+      jsonError err403 "invalid-assertion" ("Assertion " <> UUID.toText assertionId <> " has already been consumed.")
     handleUserNotFound o365Id =
-      throwError err403 {errBody = B.fromStrict $ T.encodeUtf8 $ "Could not find user with id '" <> o365Id <> "' from token."}
+      jsonError err403 "unknown-user" ("Could not find user with id '" <> o365Id <> "' from token.")
     handleMintingError jwtError =
-      throwError err500 {errBody = B.fromStrict $ T.encodeUtf8 $ T.pack $ "Internal error when minting the session token: " <> show jwtError}
+      jsonError err500 "minting-failed" (T.pack $ "Internal error when minting the session token: " <> show jwtError)
+    jsonError :: forall a. ServerError -> Text -> Text -> Handler a
+    jsonError baseError code message =
+      throwError baseError
+        { errBody = A.encode $ A.object ["error" A..= code, "message" A..= message]
+        , errHeaders = [("Content-Type", "application/json")]
+        }
 
--- | Catch-all handler for /app/* routes
--- Saves the requested URL in a cookie and redirects to Office365 OAuth
-appCatchAllHandler :: ShellHashes -> Handler Html
-appCatchAllHandler frontendHashes = do
-  shellConfig <- liftIO $ mkShellConfig frontendHashes
+-- | Catch-all handler for /app/* routes: always serves the shell,
+-- which acquires the session token client-side (see Backend.Shell).
+appCatchAllHandler :: SecurityConfig -> ShellHashes -> [Text] -> Handler Html
+appCatchAllHandler securityConfig frontendHashes _path = do
+  shellConfig <- liftIO $ mkShellConfig frontendHashes securityConfig.authBaseUrl
   pure $ renderShell shellConfig

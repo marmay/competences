@@ -74,7 +74,7 @@ optionsParser =
               )
         )
     <*> Opt.strOption
-      ( Opt.long "config"
+      ( Opt.long "security-config"
           <> Opt.short 'c'
           <> Opt.metavar "FILE"
           <> Opt.help "Configuration file (JSON) containing secrets"

@@ -10,6 +10,7 @@ import GHC.Generics (Generic)
 import qualified Crypto.JOSE as JOSE
 import Competences.Internal.SecurityConfig (forceLoadSecurityConfig)
 import qualified Crypto.JOSE.Types as JOSE
+import Data.Text (Text)
 import Data.Time (NominalDiffTime)
 
 -- | Security configuration of the backend.
@@ -28,6 +29,12 @@ data SecurityConfig = SecurityConfig
   , origin :: !JOSE.URI
   -- ^ Origin of the instance; used to check whether a security
   -- token is for us.
+  , authBaseUrl :: !(Maybe Text)
+  -- ^ Base URL of the authentication service (no trailing slash);
+  -- the shell bootstrap redirects to <authBaseUrl>/auth/login when
+  -- no valid session token is available. Nothing preserves the
+  -- disconnected dev mode: the app starts without a token and never
+  -- redirects.
   }
   deriving (Generic, Show)
 
