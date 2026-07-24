@@ -1,5 +1,8 @@
-module Competences.Internal.SecurityConfig
-  ( forceLoadSecurityConfig
+-- | Permission-checked JSON config loading, shared by the auth
+-- service and its consumers. Refuses secret files readable by
+-- others and config directories writable by others.
+module Competences.Auth.ConfigFile
+  ( forceLoadConfigFile
   ) where
 
 import Control.Monad (when)
@@ -10,8 +13,8 @@ import System.Posix.Files (getFileStatus, fileMode)
 import System.Posix.Types (FileMode)
 import System.Exit (die)
 
-forceLoadSecurityConfig :: forall a. FromJSON a => FilePath -> IO a
-forceLoadSecurityConfig path = do
+forceLoadConfigFile :: forall a. FromJSON a => FilePath -> IO a
+forceLoadConfigFile path = do
   ensureSecretFileMode path
   ensureSecretDirMode $ takeDirectory path
   (loadResult :: Either String a) <- eitherDecodeFileStrict path

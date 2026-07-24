@@ -8,7 +8,7 @@ where
 import Data.Aeson (FromJSON)
 import GHC.Generics (Generic)
 import qualified Crypto.JOSE as JOSE
-import Competences.Internal.SecurityConfig (forceLoadSecurityConfig)
+import Competences.Auth.ConfigFile (forceLoadConfigFile)
 import qualified Crypto.JOSE.Types as JOSE
 import Data.Text (Text)
 import Data.Time (NominalDiffTime)
@@ -44,4 +44,4 @@ instance FromJSON SecurityConfig
 --
 -- Exits with error message if file cannot be read or parsed.
 loadSecurityConfig :: FilePath -> IO SecurityConfig
-loadSecurityConfig = forceLoadSecurityConfig @SecurityConfig
+loadSecurityConfig = forceLoadConfigFile @SecurityConfig

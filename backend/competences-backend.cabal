@@ -22,6 +22,7 @@ library
         TypeFamilies
     exposed-modules:
         Competences.Auth.Assertion
+        Competences.Auth.ConfigFile
         Competences.Auth.HTTP
         Competences.Auth.Microsoft
         Competences.Auth.OAuth2Config
@@ -44,7 +45,6 @@ library
         Competences.Backend.WebSocket
     other-modules:
         Paths_competences_backend
-        Competences.Internal.SecurityConfig
     build-depends:
         mtl ^>=2.3.1,
         base >=4.21 && <4.23,

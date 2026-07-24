@@ -10,7 +10,7 @@ import GHC.Generics (Generic)
 import Competences.Auth.OAuth2Config
 import Data.Aeson (FromJSON(..), withObject, (.:), (.:?), (.!=))
 import qualified Crypto.JOSE as JOSE
-import Competences.Internal.SecurityConfig (forceLoadSecurityConfig)
+import Competences.Auth.ConfigFile (forceLoadConfigFile)
 import Data.Time (NominalDiffTime)
 import Data.Text (Text)
 
@@ -34,4 +34,4 @@ instance FromJSON SecurityConfig where
     pure SecurityConfig {..}
 
 loadSecurityConfig :: FilePath -> IO SecurityConfig
-loadSecurityConfig = forceLoadSecurityConfig @SecurityConfig
+loadSecurityConfig = forceLoadConfigFile @SecurityConfig
