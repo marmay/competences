@@ -48,7 +48,11 @@ onNoAccount(), onFailure(retryUrl) }`:
   simply so each app's choice is visible at its call site.
 - Re-test in the browser after this step; it is the riskiest refactor of Phase A.
 
-**A3. Move replay protection into the Auth namespace.**
+**A3. Move replay protection into the Auth namespace.** — DONE 2026-07-24 as
+`Competences.Auth.ReplayProtection` (`ConsumedLog`, `mkConsumedLog`, `ensureUnconsumed`).
+The unit test is DEFERRED to B1 (no test infrastructure in competences yet; the marmay-auth
+repo gets a real test suite from day one — the ReplayProtection cases are its first tests,
+non-negotiable there).
 `Competences.Auth.Jti`: the consumed-`jti` set (`newConsumedJtiSet`, `consumeAssertionId` —
 the current `ensureUnconsumed` logic including the prune-in-one-STM-transaction property).
 `RestState` holds the set by this type; drop the logic from `Backend/State.hs`. **Write the

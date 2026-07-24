@@ -8,6 +8,7 @@ module Competences.Backend.HTTP
   )
 where
 
+import Competences.Auth.ReplayProtection (ensureUnconsumed)
 import Competences.Backend.Auth (generateJWT', toAuthUser)
 import Competences.Backend.Exchange (exchangeFromYaml, exchangeToYaml)
 import Competences.Backend.SecurityConfig (SecurityConfig(..))
@@ -48,7 +49,7 @@ import Text.Blaze.Html5 (Html)
 import Competences.Backend.Shell (ShellHashes, mkShellConfig, renderShell)
 import Competences.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
-import Competences.Backend.State (RestState(..), ensureUnconsumed)
+import Competences.Backend.State (RestState(..))
 import Competences.Query.User (findUserByOffice365Id)
 import Competences.Document.User (Office365Id(..))
 import Optics.Core ((&))
