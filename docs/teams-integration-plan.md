@@ -32,7 +32,7 @@ Refactor groundwork:
 - [x] `Backend/API/Auth.hs` stub deleted
 - [~] `Auth/Microsoft`: `getUserInfo` + `Office365User` folded in; shared `Manager` threaded
       (2026-07-23); optional: collapse the two calls to one `exchangeCode -> Office365User`
-- [ ] Drop `jwt` from build-depends (no module imports Web.JWT anymore — just the cabal line)
+- [x] `jwt` dropped from build-depends (2026-07-24) — session tokens are fully on `jose`
 
 Session token (jose): [x] **done** — `generateJWT'`/`validateJWT'` on jose (HS256 via
 `bestJWSAlg` on the oct JWK, `iss`+`aud` checked); `WebSocket.hs` consumes
@@ -58,13 +58,19 @@ Identity assertion (`Auth/Assertion`):
       service's `aud` and instance `origin` must match byte-for-byte, mind trailing slashes)
 
 Auth service + instance wiring:
-- [~] `app-auth/Main.hs`: CLI parser (`--port`, `--config`) done; still needs `newTlsManager` +
-      `serve` wiring (typechecks now), plus a `--gen-key` mode for the Ed25519 JWK
+- [x] `app-auth/Main.hs` (2026-07-24): loads config, shared `newTlsManager`, warp `serve`;
+      loud startup warning when `laxReturnUrlCheck` is on. Keygen is a documented repl
+      two-liner (`genJWK (OKPGenParam Ed25519)` / `asPublicKey`; oct session key via
+      `genJWK (OctGenParam 32)` → HS256) — no `--gen-key` mode, rotation is rare.
+      Verified end-to-end against AAD: `#itoken` arrives in the URL (2026-07-24)
 - [x] `/auth/login` (2026-07-24): return validated via parse-first `isAllowedReturnUrl`
       (https, no userinfo/port/fragment, host = apex or any `.`-suffixed subdomain of
       `allowedReturnDomain` — path deliberately unrestricted, see Risks; config domain must be
       lowercase); CSRF state + url-encoded return cookies (HttpOnly, Secure, SameSite=Lax,
-      Path=/auth/callback, Max-Age=600); 302 to AAD with encoded params
+      Path=/auth/callback, Max-Age=600); 302 to AAD with encoded params.
+      Dev escape hatch: `laxReturnUrlCheck` config flag (JSON default FALSE = strict) admits
+      http + explicit ports; cookies stay `Secure`, so dev auth service must be reached as
+      `http://localhost:<port>` (browsers drop Secure cookies on other http origins)
 - [x] `/auth/callback` (2026-07-24): state-vs-cookie check, cookie return URL re-validated,
       code exchange + Graph /me (shared Manager), email = mail ?? userPrincipalName, assertion
       `aud` = origin of return URL (path/query stripped), `302 <return>#itoken=…` + cookie

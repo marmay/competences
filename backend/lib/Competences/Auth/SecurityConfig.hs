@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Competences.Auth.SecurityConfig
   ( SecurityConfig (.. )
   , loadSecurityConfig
@@ -6,7 +8,7 @@ module Competences.Auth.SecurityConfig
 
 import GHC.Generics (Generic)
 import Competences.Auth.OAuth2Config
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON(..), withObject, (.:), (.:?), (.!=))
 import qualified Crypto.JOSE as JOSE
 import Competences.Internal.SecurityConfig (forceLoadSecurityConfig)
 import Data.Time (NominalDiffTime)
@@ -15,13 +17,21 @@ import Data.Text (Text)
 data SecurityConfig = SecurityConfig
   { oauth2Config :: !OAuth2Config
   , authIssuerJwk :: !JOSE.JWK
-  , tokenExpiryDuration :: !NominalDiffTime
   , allowedReturnDomain :: !Text
+  , tokenExpiryDuration :: !NominalDiffTime
+  , laxReturnUrlCheck :: !Bool
   }
   deriving (Generic, Show)
 
-instance FromJSON SecurityConfig
+instance FromJSON SecurityConfig where
+  -- Manual parseJSON with default values for tokenExpiryDuration and laxReturnUrlCheck:
+  parseJSON = withObject "SecurityConfig" $ \o -> do
+    oauth2Config <- o .: "oauth2Config"
+    authIssuerJwk <- o .: "authIssuerJwk"
+    allowedReturnDomain <- o .: "allowedReturnDomain"
+    tokenExpiryDuration <- o .:? "tokenExpiryDuration" .!= 60
+    laxReturnUrlCheck <- o .:? "laxReturnUrlCheck" .!= False
+    pure SecurityConfig {..}
 
 loadSecurityConfig :: FilePath -> IO SecurityConfig
 loadSecurityConfig = forceLoadSecurityConfig @SecurityConfig
-

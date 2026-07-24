@@ -3,10 +3,16 @@ module Main
   ) where
 
 import qualified Options.Applicative as Opt
+import Competences.Auth.SecurityConfig (loadSecurityConfig, SecurityConfig (laxReturnUrlCheck))
+import Competences.Auth.HTTP (authServer, authAPI)
+import Network.HTTP.Client.TLS (newTlsManager)
+import Network.Wai.Handler.Warp (run)
+import Servant (serve)
+import Control.Monad (when)
 
 data Options = Options
   { port :: !Int
-  , config :: !FilePath
+  , securityConfigPath :: !FilePath
   } deriving (Eq, Show)
 
 optionsParser :: Opt.ParserInfo Options
@@ -32,6 +38,16 @@ optionsParser =
 
 main :: IO ()
 main = do
-  _opts <- Opt.execParser optionsParser
-  pure ()
+  opts <- Opt.execParser optionsParser
+
+  putStrLn $ "Loading security configuration from: " <> opts.securityConfigPath
+  securityConfig <- loadSecurityConfig opts.securityConfigPath
+
+  when securityConfig.laxReturnUrlCheck $ do
+    putStrLn "WARNING: Lax Return URL check is enabled. This is for development only!"
+
+  putStrLn $ "Starting to listen on port " <> show opts.port <> "."
+  tlsManager <- newTlsManager
+  run opts.port $
+    serve authAPI (authServer tlsManager securityConfig)
 

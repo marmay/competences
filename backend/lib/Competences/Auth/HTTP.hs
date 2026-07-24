@@ -1,5 +1,6 @@
 module Competences.Auth.HTTP
   ( authServer
+  , authAPI
   ) where
 
 import Servant (Get, (:<|>) (..), (:>), QueryParam, Header, Server, Handler, throwError, ServerError (..), err302, err400, err500)
@@ -23,6 +24,7 @@ import Competences.Auth.Microsoft (exchangeCodeForToken, getUserInfo, Office365U
 import Network.HTTP.Client (Manager)
 import Competences.Auth.Assertion (IdentityAssertion(..), generateIdentityAssertion')
 import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy(..))
   
 type AuthAPI =
   "auth" :>
@@ -36,19 +38,22 @@ type AuthAPI =
          :> Get '[HTML] Html
   )
 
-authServer :: Manager -> SecurityConfig -> Server AuthAPI
-authServer tlsManager securityConfig = (loginHandler securityConfig.oauth2Config securityConfig.allowedReturnDomain) :<|> (callbackHandler tlsManager securityConfig)
+authAPI :: Proxy AuthAPI
+authAPI = Proxy
 
-loginHandler :: OAuth2Config -> Text -> Maybe Text -> Handler Html
-loginHandler oauth2Config allowedReturnUrl returnUrl = do
+authServer :: Manager -> SecurityConfig -> Server AuthAPI
+authServer tlsManager securityConfig = (loginHandler securityConfig) :<|> (callbackHandler tlsManager securityConfig)
+
+loginHandler :: SecurityConfig -> Maybe Text -> Handler Html
+loginHandler securityConfig returnUrl = do
   returnUrl' <- maybe handleMissingReturnUrl pure returnUrl
                 >>= pure . parseAbsoluteURI . T.unpack
                 >>= maybe handleReturnUrlInvalid pure
-  unless (isAllowedReturnUrl allowedReturnUrl returnUrl') $
+  unless (isAllowedReturnUrl securityConfig.laxReturnUrlCheck securityConfig.allowedReturnDomain returnUrl') $
     handleDisallowedReturnUrl
   csrfState <- liftIO UUID.nextRandom
   let
-    locationHeader = ("Location", getAuthorizationUrlWithState oauth2Config (UUID.toText csrfState))
+    locationHeader = ("Location", getAuthorizationUrlWithState securityConfig.oauth2Config (UUID.toText csrfState))
     csrfStateCookie = mkCookie "csrfState" (UUID.toText csrfState)
     returnUrlCookie = mkCookie "returnUrl" (T.pack (uriToString id returnUrl' ""))
 
@@ -75,7 +80,7 @@ callbackHandler tlsManager securityConfig code state cookies = do
                   $ parseAbsoluteURI $ T.unpack $ returnUrl
   unless (csrfState == state') $
     handleNonMatchingCsrfState state' csrfState
-  unless (isAllowedReturnUrl securityConfig.allowedReturnDomain returnUrl') $
+  unless (isAllowedReturnUrl securityConfig.laxReturnUrlCheck securityConfig.allowedReturnDomain returnUrl') $
     handleDisallowedReturnUrl
   token <- liftIO (exchangeCodeForToken tlsManager securityConfig.oauth2Config code')
              >>= either handleTokenExchangeError pure
@@ -145,15 +150,16 @@ callbackHandler tlsManager securityConfig code state cookies = do
         , office365Id = fromMaybe office365User.userPrincipalName office365User.mail 
         }
 
-isAllowedReturnUrl :: Text -> URI -> Bool
-isAllowedReturnUrl allowedPattern returnUrl =
-     uriScheme returnUrl == "https:"
+isAllowedReturnUrl :: Bool -> Text -> URI -> Bool
+isAllowedReturnUrl laxReturnUrlCheck allowedPattern returnUrl =
+     (uriScheme returnUrl == "https:"
+      || (laxReturnUrlCheck && uriScheme returnUrl == "http:"))
   && null (uriFragment returnUrl)
   && maybe False isAllowedUriAuthority (uriAuthority returnUrl)
   where
     isAllowedUriAuthority auth =
          null (uriUserInfo auth)
-      && null (uriPort auth)
+      && (laxReturnUrlCheck || null (uriPort auth))
       && isAllowedHost (T.pack (uriRegName auth))
     isAllowedHost host =
          allowedPattern == host
