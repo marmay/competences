@@ -66,7 +66,13 @@ maxUploadSize = 10 * 1024 * 1024
 wsHandler :: AppState -> SecurityConfig -> WS.ServerApp
 wsHandler state securityConfig pending = do
   conn <- WS.acceptRequest pending
-  WS.withPingThread conn 30 (pure ()) $ do
+  -- Ping interval must stay well below warp's slowloris timeout
+  -- (default 30 s) and nginx's proxy_read_timeout (default 60 s):
+  -- the client's pongs are the only idle-time traffic that keeps
+  -- those from reaping the connection. At exactly 30 s the first
+  -- ping races the warp deadline and loses (empirically: idle
+  -- connections die after 30.03 s).
+  WS.withPingThread conn 10 (pure ()) $ do
     putStrLn "Waiting for authentication message..."
     authMsg <- WS.receiveData conn
     case decodeOrFail authMsg of
