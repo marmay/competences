@@ -22,6 +22,7 @@ library
         TypeFamilies
     exposed-modules:
         Competences.Auth.Assertion
+        Competences.Auth.Bootstrap
         Competences.Auth.ConfigFile
         Competences.Auth.HTTP
         Competences.Auth.Microsoft

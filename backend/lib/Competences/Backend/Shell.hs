@@ -6,10 +6,9 @@ module Competences.Backend.Shell
   )
   where
 
+import Competences.Auth.Bootstrap qualified as Bootstrap
+import Competences.Auth.Bootstrap (jsonText)
 import Competences.Backend.HashedFile (FileHashRef, readFileHash)
-import Data.Aeson qualified as Aeson
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TLE
 import Text.Blaze.Html5 (Html, (!))
 import Text.Blaze.Html5 qualified as H
 import Text.Blaze.Html5.Attributes qualified as A
@@ -106,106 +105,62 @@ renderShell shellConfig = H.docTypeHtml $ do
 --   3. Otherwise: redirect to the auth service; with no authBaseUrl
 --      configured (dev mode), start the app without a token.
 --
--- The 60 s expiry margin keeps us from handing the WebSocket a token
--- that dies mid-handshake.
+-- The protocol core (fragment exchange, caching, expiry check,
+-- redirect rules) comes from Competences.Auth.Bootstrap; this
+-- composes it with the app-specific hooks: module-script injection
+-- on success, German error panels on failure.
 bootstrapScript :: ShellConfig -> Text
 bootstrapScript shellConfig =
-  "(function () {\n\
-  \  var AUTH_BASE = " <> jsonText shellConfig.authBaseUrl <> ";\n\
-  \  var INDEX_JS = " <> jsonText indexJsUrl <> ";\n\
-  \  var KEY = 'competences.sessionJwt';\n\
-  \\n\
-  \  function startApp(jwt) {\n\
-  \    if (jwt) { window.COMPETENCES_JWT = jwt; }\n\
-  \    var s = document.createElement('script');\n\
-  \    s.type = 'module';\n\
-  \    s.src = INDEX_JS;\n\
-  \    document.head.appendChild(s);\n\
-  \  }\n\
-  \\n\
-  \  function loginUrl() {\n\
-  \    return AUTH_BASE + '/auth/login?return=' + encodeURIComponent(location.href);\n\
-  \  }\n\
-  \\n\
-  \  function showPanel(message, withRetry) {\n\
-  \    var panel = document.getElementById('loading-panel');\n\
-  \    if (!panel) { return; }\n\
-  \    panel.textContent = '';\n\
-  \    var box = document.createElement('div');\n\
-  \    box.className = 'text-center';\n\
-  \    var p = document.createElement('p');\n\
-  \    p.className = 'text-lg text-muted-foreground';\n\
-  \    p.textContent = message;\n\
-  \    box.appendChild(p);\n\
-  \    if (withRetry && AUTH_BASE) {\n\
-  \      var retry = document.createElement('p');\n\
-  \      retry.className = 'mt-4';\n\
-  \      var a = document.createElement('a');\n\
-  \      a.className = 'underline';\n\
-  \      a.href = loginUrl();\n\
-  \      a.textContent = 'Erneut anmelden';\n\
-  \      retry.appendChild(a);\n\
-  \      box.appendChild(retry);\n\
-  \    }\n\
-  \    panel.appendChild(box);\n\
-  \  }\n\
-  \\n\
-  \  function isUsable(jwt) {\n\
-  \    try {\n\
-  \      var payload = JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));\n\
-  \      return typeof payload.exp === 'number' && payload.exp > Date.now() / 1000 + 60;\n\
-  \    } catch (e) {\n\
-  \      return false;\n\
-  \    }\n\
-  \  }\n\
-  \\n\
-  \  var match = location.hash.match(/^#itoken=(.+)$/);\n\
-  \  if (match) {\n\
-  \    var assertion = match[1];\n\
-  \    history.replaceState(null, '', location.pathname + location.search);\n\
-  \    fetch('/api/login', {\n\
-  \      method: 'POST',\n\
-  \      headers: { 'Content-Type': 'application/octet-stream' },\n\
-  \      body: assertion\n\
-  \    }).then(function (resp) {\n\
-  \      if (resp.ok) {\n\
-  \        return resp.json().then(function (data) {\n\
-  \          sessionStorage.setItem(KEY, data.jwt);\n\
-  \          startApp(data.jwt);\n\
-  \        });\n\
-  \      }\n\
-  \      return resp.json().catch(function () { return {}; }).then(function (data) {\n\
-  \        if (data.error === 'unknown-user') {\n\
-  \          showPanel('F\\u00fcr dieses Microsoft-Konto gibt es hier keinen Benutzer. Bitte wende dich an deine Lehrkraft.', false);\n\
-  \        } else {\n\
-  \          showPanel('Die Anmeldung ist fehlgeschlagen.', true);\n\
-  \        }\n\
-  \      });\n\
-  \    }).catch(function () {\n\
-  \      showPanel('Die Anmeldung ist fehlgeschlagen (Netzwerkfehler).', true);\n\
-  \    });\n\
-  \    return;\n\
-  \  }\n\
-  \\n\
-  \  var stored = sessionStorage.getItem(KEY);\n\
-  \  if (stored && isUsable(stored)) {\n\
-  \    startApp(stored);\n\
-  \    return;\n\
-  \  }\n\
-  \  sessionStorage.removeItem(KEY);\n\
-  \  if (AUTH_BASE) {\n\
-  \    location.href = loginUrl();\n\
-  \  } else {\n\
-  \    startApp(null);\n\
-  \  }\n\
-  \})();"
+  Bootstrap.bootstrapCoreScript coreConfig <> appHooks
   where
+    coreConfig = Bootstrap.BootstrapConfig
+      { authBaseUrl = shellConfig.authBaseUrl
+      , loginPath = "/api/login"
+      , storageKey = "competences.sessionJwt"
+      }
     indexJsUrl = "/static/index.js?v=" <> shellConfig.indexJsHash
-    -- JSON-encode a value into a JS literal (string or null); JSON
-    -- string escaping is valid JS and keeps the URL from breaking
-    -- out of the literal.
-    jsonText :: Aeson.ToJSON a => a -> Text
-    jsonText = TL.toStrict . TLE.decodeUtf8 . Aeson.encode
+    appHooks = T.unlines
+      [ "var INDEX_JS = " <> jsonText indexJsUrl <> ";"
+      , ""
+      , "function showPanel(message, retryUrl) {"
+      , "  var panel = document.getElementById('loading-panel');"
+      , "  if (!panel) { return; }"
+      , "  panel.textContent = '';"
+      , "  var box = document.createElement('div');"
+      , "  box.className = 'text-center';"
+      , "  var p = document.createElement('p');"
+      , "  p.className = 'text-lg text-muted-foreground';"
+      , "  p.textContent = message;"
+      , "  box.appendChild(p);"
+      , "  if (retryUrl) {"
+      , "    var retry = document.createElement('p');"
+      , "    retry.className = 'mt-4';"
+      , "    var a = document.createElement('a');"
+      , "    a.className = 'underline';"
+      , "    a.href = retryUrl;"
+      , "    a.textContent = 'Erneut anmelden';"
+      , "    retry.appendChild(a);"
+      , "    box.appendChild(retry);"
+      , "  }"
+      , "  panel.appendChild(box);"
+      , "}"
+      , ""
+      , "runAuthBootstrap({"
+      , "  onToken: function (jwt) {"
+      , "    if (jwt) { window.COMPETENCES_JWT = jwt; }"
+      , "    var s = document.createElement('script');"
+      , "    s.type = 'module';"
+      , "    s.src = INDEX_JS;"
+      , "    document.head.appendChild(s);"
+      , "  },"
+      , "  onNoAccount: function () {"
+      , "    showPanel('F\\u00fcr dieses Microsoft-Konto gibt es hier keinen Benutzer. Bitte wende dich an deine Lehrkraft.', null);"
+      , "  },"
+      , "  onFailure: function (retryUrl) {"
+      , "    showPanel('Die Anmeldung ist fehlgeschlagen.', retryUrl);"
+      , "  }"
+      , "});"
+      ]
 
 -- | Content Security Policy header value
 -- Restricts script/style sources to prevent XSS attacks.
