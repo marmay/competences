@@ -76,17 +76,6 @@ let
         description = ''
           Path to configuration file containing secrets (JWT secret and OAuth2 config).
           This should typically be an agenix-managed secret.
-
-          Expected JSON format:
-          {
-            "jwtSecret": "your-secret-key-here-minimum-32-characters",
-            "oauth2": {
-              "clientId": "your-azure-client-id",
-              "clientSecret": "your-azure-client-secret",
-              "redirectUri": "https://9a.competences.example.com/oauth/callback",
-              "tenantId": "your-azure-tenant-id"
-            }
-          }
         '';
       };
 
@@ -336,7 +325,7 @@ in {
             "${cfg.package}/bin/competences-backend"
             "--port ${toString instance.port}"
             "--database \"host=/run/postgresql dbname=${instance.database} user=${instance.database}\""
-            "--config ${instance.secretsFile}"
+            "--security-config ${instance.secretsFile}"
             "--static ${cfg.staticDir}"
             "--cas-dir ${cfg.casDir}"
             "--cas-file-mode ${cfg.casFileMode}"
