@@ -44,7 +44,7 @@ main = do
     Nothing -> do
       logError "No JWT token found in window.COMPETENCES_JWT"
       -- Fallback: use test user with disconnected CommandSender
-      let user = User nilId "Test User" Teacher (Office365Id "")
+      let user = User nilId "Test User" Teacher (Office365Id "") Nothing
       sender <- mkCommandSender  -- Creates disconnected sender (commands won't send)
       env <- mkSyncDocumentEnv user legacySessionId sender False
       ref <- mkSyncDocument env
