@@ -56,6 +56,7 @@ usersPage r =
               , name = ""
               , role = Student
               , office365Id = Office365Id ""
+              , entraOid = Nothing
               }
       modifySyncDocument r (Users $ OnUsers $ CreateAndLock user)
 

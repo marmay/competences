@@ -117,8 +117,8 @@ optionsParser =
     <*> Opt.optional
       ( Opt.strOption
           ( Opt.long "ensure-teacher-o365"
-              <> Opt.metavar "EMAIL"
-              <> Opt.help "Ensure a Teacher user exists for this O365 email"
+              <> Opt.metavar "EMAIL|OID"
+              <> Opt.help "Ensure a Teacher user exists for this O365 identity (sign-in address, or Entra object id when it contains no '@')"
           )
       )
 

@@ -58,10 +58,13 @@ data RestState = RestState
   , consumedAssertionIds :: !ConsumedLog
   -- ^ Replay protection for /api/login; semantics live in
   -- Marmay.Auth.ReplayProtection.
+  , processor :: !CommandProcessor
+  -- ^ Command path for login-time effects (lazy Entra oid binding).
   }
 
 -- | Initializes the RestState from the AppState and possibly from
 -- other values.
 initRestState :: AppState -> IO RestState
-initRestState AppState{document} =
-  mkConsumedLog >>= pure . RestState document
+initRestState AppState{document, processor} = do
+  consumed <- mkConsumedLog
+  pure RestState{document, consumedAssertionIds = consumed, processor}

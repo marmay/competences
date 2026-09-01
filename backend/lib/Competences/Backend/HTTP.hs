@@ -51,8 +51,16 @@ import Competences.Backend.Shell (ShellHashes, mkShellConfig, renderShell)
 import Marmay.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
 import Competences.Backend.State (RestState(..))
-import Competences.Query.User (findUserByOffice365Id)
-import Competences.Document.User (Office365Id(..))
+import Competences.Backend.CommandProcessor qualified as CP
+import Competences.Command (Command (Migration), MigrationCommand (BindEntraOid))
+import Competences.Command.Common (CommandContext (..))
+import Competences.Document (Document (..), User (..))
+import Competences.Document.Session (legacySessionId)
+import Competences.Query.User (findUserByEntraOid, findUserByOffice365Id)
+import Competences.Document.User (EntraOid (..), Office365Id (..))
+import Control.Applicative ((<|>))
+import Data.IxSet.Typed qualified as Ix
+import Data.List (find)
 import Optics.Core ((&))
 import Control.Concurrent.STM (readTVarIO)
 import Control.Monad (unless)
@@ -145,17 +153,41 @@ loginHandler securityConfig restState inputToken = do
   unless isUnconsumed $
     handleAlreadyConsumedAssertion validateResult.assertionId
   doc <- liftIO (readTVarIO restState.document)
-  user <- findUserByOffice365Id doc (Office365Id validateResult.office365Id) & maybe (handleUserNotFound validateResult.office365Id) pure
+  -- Identity resolution (lazy oid binding): the bound Entra oid is
+  -- authoritative; an address match is only acceptable for a not yet
+  -- bound user and binds the oid as a side effect. An address whose
+  -- user is bound to a DIFFERENT oid is rejected — that account
+  -- belongs to someone else.
+  user <- case findUserByEntraOid doc (EntraOid validateResult.oid) of
+    Just u -> pure u
+    Nothing -> case findUserByAddress doc validateResult.upn of
+      Nothing -> handleUserNotFound validateResult.upn
+      Just u -> case u.entraOid of
+        Just _ -> handleUserNotFound validateResult.upn
+        Nothing -> do
+          bindResult <- liftIO $ CP.submitCommand
+            restState.processor
+            (CommandContext u.id legacySessionId)
+            (Migration (BindEntraOid u.id validateResult.oid))
+          -- Best effort: a failed bind is retried on the next login.
+          either (liftIO . putStrLn . ("BindEntraOid failed: " <>) . T.unpack) (const (pure ())) bindResult
+          pure u
   liftIO (generateJWT' securityConfig.sessionIssuerJwk (toAuthUser user))
     >>= either handleMintingError (pure . LoginResponse . TL.toStrict . TLE.decodeUtf8)
 
   where
+    -- Exact index lookup first; linear case-insensitive fallback for
+    -- teacher-typed addresses (the assertion upn is lowercased).
+    findUserByAddress doc upn =
+      findUserByOffice365Id doc (Office365Id upn)
+        <|> find (\u -> let Office365Id a = u.office365Id in a /= "" && T.toLower a == upn)
+              (Ix.toList doc.users)
     handleInvalidAssertion jwtError =
       jsonError err403 "invalid-assertion" (T.pack $ "Could not validate input token: " <> show jwtError)
     handleAlreadyConsumedAssertion assertionId =
       jsonError err403 "invalid-assertion" ("Assertion " <> UUID.toText assertionId <> " has already been consumed.")
-    handleUserNotFound o365Id =
-      jsonError err403 "unknown-user" ("Could not find user with id '" <> o365Id <> "' from token.")
+    handleUserNotFound upn =
+      jsonError err403 "unknown-user" ("Could not find user with address '" <> upn <> "' from token.")
     handleMintingError jwtError =
       jsonError err500 "minting-failed" (T.pack $ "Internal error when minting the session token: " <> show jwtError)
     jsonError :: forall a. ServerError -> Text -> Text -> Handler a

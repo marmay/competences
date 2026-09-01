@@ -20,6 +20,7 @@ import Competences.Backend.State
 import Competences.Command (Command (..), CommandContext (..))
 import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User (..), UserId, UserRole (..), projectDocument)
+import Competences.Query.User qualified as Query
 import Competences.Document.FileRef (FileData (..), FileRef (..))
 import Competences.Document.Lock (Lock, LockHolder (..))
 import Competences.Document.Session (SessionId)
@@ -95,17 +96,29 @@ authenticateAndHandle state securityConfig conn token sessionId mImpersonate = d
       putStrLn $ "Authentication failed: " <> show err
       WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed $ T.pack $ show err)
     Right authUser -> do
-      let user = User authUser.id authUser.name authUser.role authUser.office365Id
+      -- The session user comes from the document, not from the JWT
+      -- claims: the row is the authority (fresh role, bound entraOid),
+      -- and a user deleted since login gets no session.
+      doc0 <- getDocument state
+      case Query.getUser doc0 authUser.id of
+        Nothing -> do
+          putStrLn $ "Authentication failed: user " <> T.unpack authUser.name <> " no longer exists"
+          WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Unknown user")
+        Just user -> authenticated user
+  where
+    authenticated user = do
       case mImpersonate of
         Nothing -> do
-          putStrLn $ "Authentication successful for: " <> T.unpack authUser.name
+          putStrLn $ "Authentication successful for: " <> T.unpack user.name
           -- Send Authenticated
           WS.sendBinaryData conn (Bin.encode $ Authenticated user (ServerInfo backendVersion))
-          handleClient state authUser.id sessionId user conn
+          handleClient state user.id sessionId user conn
         Just targetUserId -> do
-          if authUser.role /= Teacher
+          -- Role check against the current document row, not the JWT
+          -- claim: a role change must not survive on a stale token.
+          if user.role /= Teacher
             then do
-              putStrLn $ "Impersonation rejected: user " <> T.unpack authUser.name <> " is not a teacher"
+              putStrLn $ "Impersonation rejected: user " <> T.unpack user.name <> " is not a teacher"
               WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Only teachers can impersonate")
             else do
               doc <- getDocument state
@@ -114,7 +127,7 @@ authenticateAndHandle state securityConfig conn token sessionId mImpersonate = d
                   putStrLn $ "Impersonation rejected: target user not found: " <> show targetUserId
                   WS.sendBinaryData conn (Bin.encode $ AuthenticationFailed "Target user not found")
                 Just targetUser -> do
-                  putStrLn $ "Impersonation: " <> T.unpack authUser.name <> " viewing as " <> T.unpack targetUser.name
+                  putStrLn $ "Impersonation: " <> T.unpack user.name <> " viewing as " <> T.unpack targetUser.name
                   WS.sendBinaryData conn (Bin.encode $ Authenticated targetUser (ServerInfo backendVersion))
                   handleClient state targetUser.id sessionId targetUser conn
 

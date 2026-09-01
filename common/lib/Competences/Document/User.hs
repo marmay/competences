@@ -6,6 +6,7 @@ module Competences.Document.User
   , UserIxs
   , UserRole (..)
   , Office365Id (..)
+  , EntraOid (..)
   , isStudent
   , isTeacher
   )
@@ -18,13 +19,27 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary (Binary)
 import Data.IxSet.Typed qualified as Ix
 import Data.List (singleton)
+import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
 type UserId = Id User
 
--- | Office365 user identifier for authentication.
+-- | Office365 sign-in address (the lowercased user principal name).
+-- The human-readable provisioning matcher: teachers create users by
+-- address, and the first login binds the account (see 'EntraOid').
 newtype Office365Id = Office365Id Text
+  deriving (Eq, Generic, Ord, Show)
+#ifdef WITH_AESON
+  deriving newtype (Binary, FromJSON, ToJSON)
+#else
+  deriving newtype (Binary)
+#endif
+
+-- | Immutable Entra directory object id — the durable identity key.
+-- Bound lazily: 'Nothing' until the user's first login matches by
+-- address and backfills it.
+newtype EntraOid = EntraOid Text
   deriving (Eq, Generic, Ord, Show)
 #ifdef WITH_AESON
   deriving newtype (Binary, FromJSON, ToJSON)
@@ -46,7 +61,9 @@ data User = User
   , role :: !UserRole
   -- ^ User's role (Teacher or Student).
   , office365Id :: !Office365Id
-  -- ^ Office365 user ID for authentication. Empty string for local/test users.
+  -- ^ Office365 sign-in address. Empty string for local/test users.
+  , entraOid :: !(Maybe EntraOid)
+  -- ^ Entra object id, bound on first login (identity key once set).
   }
   deriving (Eq, Generic, Ord, Show)
 
@@ -56,7 +73,7 @@ isStudent = (== Student) . (.role)
 isTeacher :: User -> Bool
 isTeacher = (== Teacher) . (.role)
 
-type UserIxs = '[UserId, Text, UserRole, Office365Id]
+type UserIxs = '[UserId, Text, UserRole, Office365Id, EntraOid]
 
 instance Ix.Indexable UserIxs User where
   indices =
@@ -65,6 +82,7 @@ instance Ix.Indexable UserIxs User where
       (Ix.ixFun $ singleton . (.name))
       (Ix.ixFun $ singleton . (.role))
       (Ix.ixFun $ singleton . (.office365Id))
+      (Ix.ixFun $ maybeToList . (.entraOid))
 
 #ifdef WITH_AESON
 instance FromJSON UserRole

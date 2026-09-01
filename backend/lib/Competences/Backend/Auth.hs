@@ -42,7 +42,7 @@ instance ToJSON AuthUser
 -- | Projects full user to token authentication user.
 toAuthUser :: User -> AuthUser
 toAuthUser user =
-  AuthUser 
+  AuthUser
   { id = user.id
   , name = user.name
   , role = user.role

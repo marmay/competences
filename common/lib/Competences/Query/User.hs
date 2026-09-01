@@ -4,6 +4,7 @@ module Competences.Query.User
   ( -- * Single-entity lookup
     getUser
   , findUserByOffice365Id
+  , findUserByEntraOid
     -- * Role-based queries
   , students
   , studentsSortedByName
@@ -19,7 +20,7 @@ import Competences.Common.IxSet qualified as Ix
 import Competences.Document (Document (..), User, UserIxs, UserId, UserRole (..))
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
-import Competences.Document.User (Office365Id)
+import Competences.Document.User (EntraOid, Office365Id)
 
 -- | Lookup a user by primary key.
 getUser :: Document -> UserId -> Maybe User
@@ -28,6 +29,10 @@ getUser doc userId = Ix.getOne $ doc.users Ix.@= userId
 -- | Retrieves user by o365Id
 findUserByOffice365Id :: Document -> Office365Id -> Maybe User
 findUserByOffice365Id doc o365Id = Ix.getOne $ doc.users Ix.@= o365Id
+
+-- | Retrieves user by bound Entra object id.
+findUserByEntraOid :: Document -> EntraOid -> Maybe User
+findUserByEntraOid doc oid = Ix.getOne $ doc.users Ix.@= oid
 
 -- | All students in the document (via UserRole index).
 students :: Document -> [User]

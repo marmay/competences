@@ -56,7 +56,7 @@ import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
 import Competences.Document.Lesson (Lesson (..), LessonId)
 import Competences.Document.Lock (Lock)
-import Competences.Document.User (Office365Id (..), UserRole (..))
+import Competences.Document.User (EntraOid (..), Office365Id (..), UserRole (..))
 import Competences.Document.Task (Task (..), TaskIdentifier (..))
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
@@ -70,12 +70,17 @@ import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (%~), (^.))
 
--- | Migration commands for schema evolution and startup initialization
+-- | Migration commands for schema evolution and startup initialization.
+-- Only append constructors — Binary encodes the constructor tag, and
+-- the command log replays old encodings.
 data MigrationCommand
   = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
   | InitIfEmpty
   | EnsureTeacherO365 !(Id User) !Text
   | SortAssignmentTasksByIdentifier
+  | BindEntraOid !(Id User) !Text
+    -- ^ Bind the Entra object id on first login (lazy oid binding;
+    -- submitted by the login handler after an address match).
   deriving (Eq, Generic, Show)
 
 instance Binary MigrationCommand
@@ -175,9 +180,15 @@ handleMigrationCommand (UpdateLessonAssignments updates) d =
 handleMigrationCommand InitIfEmpty d
   | Ix.null (d ^. #users) = Right (d, AudienceAll)
   | otherwise = Left "Document is not empty"
-handleMigrationCommand (EnsureTeacherO365 newId email) d =
-  let o365Id = Office365Id email
-   in case Ix.getOne (d.users Ix.@= o365Id) of
+handleMigrationCommand (EnsureTeacherO365 newId identifier) d =
+  -- Dual form: an address binds by office365Id; anything without '@'
+  -- is treated as an Entra object id and binds by entraOid.
+  let byAddress = "@" `T.isInfixOf` identifier
+      normalized = T.toLower identifier
+      existing
+        | byAddress = Ix.getOne (d.users Ix.@= Office365Id normalized)
+        | otherwise = Ix.getOne (d.users Ix.@= EntraOid normalized)
+   in case existing of
         Just user
           | user.role == Teacher -> Left "Teacher already exists"
           | otherwise ->
@@ -188,12 +199,25 @@ handleMigrationCommand (EnsureTeacherO365 newId email) d =
           let user =
                 User
                   { id = newId
-                  , name = T.takeWhile (/= '@') email
+                  , name = if byAddress then T.takeWhile (/= '@') normalized else normalized
                   , role = Teacher
-                  , office365Id = o365Id
+                  , office365Id = Office365Id (if byAddress then normalized else "")
+                  , entraOid = if byAddress then Nothing else Just (EntraOid normalized)
                   }
               d' = d & #users %~ Ix.insert user
            in Right (d', AudienceAll)
+handleMigrationCommand (BindEntraOid userId oidText) d =
+  let oid = EntraOid (T.toLower oidText)
+   in case Ix.getOne (d.users Ix.@= userId) of
+        Nothing -> Left "BindEntraOid: user not found"
+        Just user -> case user.entraOid of
+          Just existing
+            | existing == oid -> Right (d, AudienceAll)
+            | otherwise -> Left "BindEntraOid: user is already bound to a different Entra oid"
+          Nothing ->
+            let user' = user & #entraOid .~ Just oid
+                d' = d & #users %~ Ix.insert user' . Ix.deleteIx user.id
+             in Right (d', AudienceAll)
 handleMigrationCommand SortAssignmentTasksByIdentifier d =
   let lookupIdentifier taskSet tid =
         case Ix.getOne (taskSet Ix.@= tid) of

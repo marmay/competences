@@ -36,10 +36,10 @@ allow-newer:
   *:ghc-experimental
 
 source-repository-package
-  --sha256: sha256-/aRlD1WfbsUaFqkhewUT7hVBGaI5ZVI1T+YwyYshyZY=
+  --sha256: sha256-wyczzsIQGcDLA27MdLoNiV96TYbm3LBtZPUHGzECotU=
   type: git
   location: https://github.com/marmay/marmay-auth
-  tag: 3c0163bc499278a39c2def8428468c23125dbd1f
+  tag: 52087b8ae023e2caad94300bb4c2cadd3d5f32c5
 
 source-repository-package
   --sha256: sha256-4xQLKNwXxdUqurhqckMiXlj/+rmMytkMR9xdrxvMcH4=

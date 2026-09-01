@@ -113,10 +113,10 @@ bootstrapScript :: ShellConfig -> Text
 bootstrapScript shellConfig =
   Bootstrap.bootstrapCoreScript coreConfig <> appHooks
   where
-    coreConfig = Bootstrap.BootstrapConfig
-      { authBaseUrl = shellConfig.authBaseUrl
-      , loginPath = "/api/login"
-      , storageKey = "competences.sessionJwt"
+    coreConfig = Bootstrap.defaultBootstrapConfig
+      { Bootstrap.authBaseUrl = shellConfig.authBaseUrl
+      , Bootstrap.loginPath = "/api/login"
+      , Bootstrap.storageKey = "competences.sessionJwt"
       }
     indexJsUrl = "/static/index.js?v=" <> shellConfig.indexJsHash
     appHooks = T.unlines
