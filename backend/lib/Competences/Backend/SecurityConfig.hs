@@ -5,7 +5,9 @@ module Competences.Backend.SecurityConfig
   )
 where
 
-import Data.Aeson (FromJSON)
+import Competences.Backend.Middleware (defaultTeamsFrameAncestors)
+import Data.Aeson (FromJSON (..), withObject, (.!=), (.:), (.:?))
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import qualified Crypto.JOSE as JOSE
 import Marmay.Auth.ConfigFile (forceLoadConfigFile)
@@ -20,10 +22,25 @@ data SecurityConfig = SecurityConfig
   -- ^ Secret key for JWT token signing
   , authClientConfig :: !Auth.ClientConfig
   -- ^ Configuration as a client to the authentication service.
+  , teamsFrameAncestors :: ![Text]
+  -- ^ Origins allowed to iframe /app/* (Teams hosts). Optional;
+  -- override only when Microsoft's hosting domains churn.
   }
   deriving (Generic, Show)
 
-instance FromJSON SecurityConfig
+instance FromJSON SecurityConfig where
+  -- Manual instance so existing config files keep parsing without the
+  -- optional key.
+  parseJSON = withObject "SecurityConfig" $ \o -> do
+    sessionIssuerJwk <- o .: "sessionIssuerJwk"
+    authClientConfig <- o .: "authClientConfig"
+    teamsFrameAncestors <- o .:? "teamsFrameAncestors" .!= defaultTeamsFrameAncestors
+    pure
+      SecurityConfig
+        { sessionIssuerJwk = sessionIssuerJwk
+        , authClientConfig = authClientConfig
+        , teamsFrameAncestors = teamsFrameAncestors
+        }
 
 -- | Load security configuration from JSON file
 --

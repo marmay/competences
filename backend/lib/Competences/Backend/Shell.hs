@@ -48,9 +48,8 @@ renderShell shellConfig = H.docTypeHtml $ do
   H.head $ do
     H.meta ! A.charset "utf-8"
     H.meta ! A.name "viewport" ! A.content "width=device-width, initial-scale=1"
-    -- Content Security Policy via meta tag
-    -- Prevents XSS attacks by restricting script/style sources
-    H.meta ! A.httpEquiv "Content-Security-Policy" ! A.content (H.toValue cspHeaderValue)
+    -- CSP comes as a response header (Competences.Backend.Middleware);
+    -- a meta tag cannot carry frame-ancestors.
     H.title "Meine Mathe-Kompetenzen"
     -- Favicon (inline SVG - competence grid icon in sky-600)
     H.link ! A.rel "icon" ! A.type_ "image/svg+xml"
@@ -162,18 +161,3 @@ bootstrapScript shellConfig =
       , "});"
       ]
 
--- | Content Security Policy header value
--- Restricts script/style sources to prevent XSS attacks.
--- Note: frame-ancestors must be delivered via HTTP header, not meta tag.
--- For clickjacking protection, consider adding X-Frame-Options header.
-cspHeaderValue :: Text
-cspHeaderValue = T.intercalate "; "
-  [ "default-src 'self'"
-  , "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:"  -- unsafe-inline for JWT, wasm-unsafe-eval for WASM, blob: for MathJax workers
-  , "style-src 'self' 'unsafe-inline'"   -- unsafe-inline needed for inline styles
-  , "connect-src 'self' ws: wss:"        -- Allow WebSocket connections
-  , "img-src 'self' data:"               -- Allow data URIs for images
-  , "font-src 'self'"
-  , "base-uri 'self'"                    -- Prevent base tag injection
-  , "form-action 'self'"                 -- Restrict form submissions
-  ]

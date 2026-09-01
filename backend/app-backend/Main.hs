@@ -5,7 +5,8 @@ import Competences.Backend.CommandProcessor (startProcessor)
 import Competences.Backend.Database qualified as DB
 import Competences.Backend.HashedFile (withHashedFiles)
 import Competences.Backend.HTTP (appAPI, server)
-import Competences.Backend.SecurityConfig (loadSecurityConfig)
+import Competences.Backend.Middleware (securityHeaders)
+import Competences.Backend.SecurityConfig (SecurityConfig (..), loadSecurityConfig)
 import Competences.Backend.SessionRegistry qualified as SR
 import Competences.Backend.Shell (ShellHashes(..))
 import Competences.Backend.StaleLockCleanup qualified as SLC
@@ -270,7 +271,7 @@ main = do
         websocketsOr
           defaultConnectionOptions
           (wsHandler appState securityConfig)
-          httpApp
+          (securityHeaders securityConfig.teamsFrameAncestors httpApp)
 
 -- | Build startup migration commands from CLI options
 buildStartupMigrations :: Options -> IO [Command]
