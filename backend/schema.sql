@@ -72,14 +72,10 @@ CREATE TABLE command_recipients (
 );
 CREATE INDEX idx_command_recipients_user_gen ON command_recipients(user_id, generation);
 
--- Record schema versions
+-- Record the schema version. Versioning was reset to 1 with the
+-- 2026-09 identity rework (oid-keyed users), which required
+-- re-initializing every database anyway; this file is the complete
+-- version-1 schema. Future schema changes append entries to
+-- Database.hs's migrations list (and bump expectedSchemaVersion).
 INSERT INTO schema_migrations (version, description)
-VALUES (1, 'Initial schema: commands, snapshots, metadata, schema_migrations, startup_log');
-INSERT INTO schema_migrations (version, description)
-VALUES (2, 'Command audience tracking for incremental sync');
-INSERT INTO schema_migrations (version, description)
-VALUES (3, 'Add protected flag for snapshot garbage collection');
-INSERT INTO schema_migrations (version, description)
-VALUES (4, 'Convert snapshot document_data from JSONB to TEXT for byte-exact comparison');
-INSERT INTO schema_migrations (version, description)
-VALUES (5, 'Add UNIQUE constraint on snapshots.generation to prevent duplicates');
+VALUES (1, 'Initial schema (2026-09 reset): commands, snapshots, metadata, schema_migrations, startup_log');

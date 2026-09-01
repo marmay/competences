@@ -83,7 +83,7 @@ import System.Process (readProcessWithExitCode)
 
 -- | Expected database schema version
 expectedSchemaVersion :: Int
-expectedSchemaVersion = 5
+expectedSchemaVersion = 1
 
 -- | Initialize connection pool
 --
@@ -107,54 +107,14 @@ closePool = destroyAllResources
 
 -- | Embedded schema migrations.
 --
--- Each entry is (version, description, sql). Migration 1 is the initial schema
--- (applied by schema.sql on first deploy) and is never run by the migration runner.
--- Only migrations with version > current database version are applied.
+-- Each entry is (version, description, sql). Version 1 is the initial schema
+-- (applied by schema.sql on first deploy) and is never run by the migration
+-- runner; only migrations with version > current database version are
+-- applied. Versioning was reset to 1 with the 2026-09 identity rework —
+-- schema.sql is the complete version-1 schema, and databases from before
+-- the reset fail the version check loudly instead of migrating.
 migrations :: [(Int, String, ByteString)]
-migrations =
-  [
-    ( 2
-    , "Command audience tracking for incremental sync"
-    , BS.intercalate "\n"
-        [ "ALTER TABLE commands ADD COLUMN audience TEXT NOT NULL DEFAULT 'all';"
-        , ""
-        , "CREATE TABLE command_recipients ("
-        , "  generation BIGINT NOT NULL REFERENCES commands(generation),"
-        , "  user_id UUID NOT NULL,"
-        , "  PRIMARY KEY (generation, user_id)"
-        , ");"
-        , "CREATE INDEX idx_command_recipients_user_gen ON command_recipients(user_id, generation);"
-        ]
-    )
-  , ( 3
-    , "Add protected flag for snapshot garbage collection"
-    , "ALTER TABLE snapshots ADD COLUMN protected BOOLEAN NOT NULL DEFAULT FALSE;"
-    )
-  , ( 4
-    , "Convert snapshot document_data from JSONB to TEXT for byte-exact comparison"
-    , BS.intercalate "\n"
-        [ "ALTER TABLE snapshots ALTER COLUMN document_data TYPE TEXT USING document_data::text;"
-        , ""
-        , "INSERT INTO commands (command_id, user_id, command_data)"
-        , "VALUES ("
-        , "  gen_random_uuid(),"
-        , "  '00000000-0000-0000-0000-000000000000',"
-        , "  '{\"payload\":{\"contents\":{\"tag\":\"SortAssignmentTasksByIdentifier\"},\"tag\":\"Migration\"},\"userId\":\"00000000-0000-0000-0000-000000000000\",\"version\":1}'"
-        , ");"
-        ]
-    )
-  , ( 5
-    , "Add UNIQUE constraint on snapshots.generation to prevent duplicates"
-    , BS.intercalate "\n"
-        [ "DELETE FROM snapshots WHERE id NOT IN ("
-        , "  SELECT MAX(id) FROM snapshots GROUP BY generation"
-        , ");"
-        , ""
-        , "DROP INDEX IF EXISTS idx_snapshots_generation;"
-        , "ALTER TABLE snapshots ADD CONSTRAINT snapshots_generation_unique UNIQUE (generation);"
-        ]
-    )
-  ]
+migrations = []
 
 -- | Run pending database migrations automatically.
 --
