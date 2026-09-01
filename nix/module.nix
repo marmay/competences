@@ -1,5 +1,5 @@
 # NixOS module for Competences tracking system
-{ config, lib, pkgs, ... }@args:
+{ config, options, lib, pkgs, ... }@args:
 
 with lib;
 
@@ -114,10 +114,24 @@ let
           description = "Display name in the Teams tab selector (and suggested tab title).";
         };
 
-        path = mkOption {
-          type = types.str;
-          default = "/app/assignments";
-          description = "Entry-point path a Teams tab opens on this instance.";
+        views = mkOption {
+          type = types.listOf (types.submodule {
+            options = {
+              name = mkOption {
+                type = types.str;
+                description = "Display name of the view (tab title suggestion).";
+              };
+              path = mkOption {
+                type = types.str;
+                description = "Path relative to the instance URL (query strings allowed).";
+              };
+            };
+          });
+          default = [
+            { name = "Aufgaben"; path = "/app/assignments?embedded"; }
+            { name = "Unterricht"; path = "/app/lesson-records?embedded"; }
+          ];
+          description = "Selectable views in the Teams tab selector; a tab shows exactly one.";
         };
       };
     };
@@ -209,8 +223,8 @@ in {
       default = concatLists (mapAttrsToList (_name: instance:
         optional instance.teams.enable {
           name = instance.teams.displayName;
-          contentUrl = "https://${instance.subdomain}.${cfg.nginx.domain}${instance.teams.path}";
-          websiteUrl = "https://${instance.subdomain}.${cfg.nginx.domain}${instance.teams.path}";
+          url = "https://${instance.subdomain}.${cfg.nginx.domain}";
+          views = instance.teams.views;
         }) cfg.instances);
       defaultText = literalExpression "one entry per instance with teams.enable";
       description = ''
@@ -254,7 +268,15 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = mkIf cfg.enable (mkMerge [
+    # When the marmay-auth module is present on this host, fill its
+    # Teams application registry directly (list options merge across
+    # modules). On split topologies without the module, this is
+    # silently skipped — wire teamsApplications across hosts manually.
+    (optionalAttrs (options.services ? marmay-auth) {
+      services.marmay-auth.applications = cfg.teamsApplications;
+    })
+    {
     # Ensure PostgreSQL is enabled if automatic setup is requested
     services.postgresql = mkIf cfg.postgresql.enable {
       enable = true;
@@ -421,5 +443,5 @@ in {
         }
       ) (attrNames cfg.instances));
     };
-  };
+  }]);
 }

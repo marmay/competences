@@ -1,5 +1,6 @@
 module Competences.Frontend.View.MainPage
   ( mainPage
+  , mainPageEmbedded
   )
 where
 
@@ -28,7 +29,7 @@ mainPage burgerBtn title categoryIcons focusedUserView connectionStatus content 
     [class_ "flex-1 min-h-0"]
     [ Layout.vFlow Layout.hFull
         [ navBanner
-        , contentArea
+        , mainContentArea content
         ]
     ]
   where
@@ -50,7 +51,16 @@ mainPage burgerBtn title categoryIcons focusedUserView connectionStatus content 
             ]
         ]
 
-    contentArea =
-      MH.main_
-        [class_ "flex-1 min-h-0 p-4 flex bg-background"]
-        [content]
+-- | Embedded variant (?embedded, e.g. inside a Teams tab): the content
+-- area without the nav banner. The host context provides the framing.
+mainPageEmbedded :: View m a -> View m a
+mainPageEmbedded content =
+  MH.div_
+    [class_ "flex-1 min-h-0"]
+    [Layout.vFlow Layout.hFull [mainContentArea content]]
+
+mainContentArea :: View m a -> View m a
+mainContentArea content =
+  MH.main_
+    [class_ "flex-1 min-h-0 p-4 flex bg-background"]
+    [content]

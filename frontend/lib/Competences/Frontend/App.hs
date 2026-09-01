@@ -59,6 +59,10 @@ type App = M.Component M.ROOT Model Action
 data Model = Model
   { uri :: M.URI
   , connectedUser :: User
+  , embedded :: Bool
+  -- ^ ?embedded was present at startup (e.g. inside a Teams tab):
+  -- render without the nav banner. Read once — in-app navigation
+  -- rebuilds URLs from routes and would drop the query flag.
   }
   deriving (Eq, Generic, Show)
 
@@ -88,6 +92,7 @@ mkApp ir initialUri =
       Model
         { uri = initialUri
         , connectedUser = env ^. #connectedUser
+        , embedded = Map.member "embedded" (M.uriQueryString initialUri)
         }
 
     update (SetURI uri) = M.modify $ #uri .~ uri
@@ -107,17 +112,20 @@ mkApp ir initialUri =
             , M.div_
                 [class_ "flex-1 min-w-0 flex flex-col"]
                 ( [ impersonationBanner env m | env.impersonating ]
-                    ++ [ V.mainPage
-                          (V.inlineComponent "burger-menu" (NavBar.burgerMenuComponent currentPage categories extras))
-                          (C.translate' C.LblPageTitle)
-                          (map (NavBar.navCategoryView teacher navigate currentPage) categories)
-                          (focusedUserView ir)
-                          ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
-                              [ M.div_ [class_ "hidden md:block"] [aboutButtonView ir]
-                              , connectionStatusView ir
-                              ]
-                          )
-                          (page (m ^. #uri))
+                    ++ [ if m.embedded
+                          then V.mainPageEmbedded (page (m ^. #uri))
+                          else
+                            V.mainPage
+                              (V.inlineComponent "burger-menu" (NavBar.burgerMenuComponent currentPage categories extras))
+                              (C.translate' C.LblPageTitle)
+                              (map (NavBar.navCategoryView teacher navigate currentPage) categories)
+                              (focusedUserView ir)
+                              ( Layout.hFlow (Layout.gapS <> Layout.crossCenter)
+                                  [ M.div_ [class_ "hidden md:block"] [aboutButtonView ir]
+                                  , connectionStatusView ir
+                                  ]
+                              )
+                              (page (m ^. #uri))
                        ]
                 )
             , M.div_ [class_ "print-hide"] [V.inlineComponent "window-host" (windowHostComponent ir.windowEventSinkInstaller ir.onPinClosedRef (sidebarAddButton ir))]
