@@ -75,6 +75,11 @@ Claude's role was the plan itself.
    allowlist on `/app/*`) plus the pin bump. Tab `contentUrl` remains the
    gate-proven bounce URL, so the in-tab-navigation bet covers only
    expiry/retry. A pasted `/app/…` URL as a tab now simply works.
+10. **(2026-09-01) The Teams app is a "BG Horn" meta-app.** See the Phase C
+    framing note: one catalog entry whose config page selects among ALL
+    internal applications (`applications` registry replaces the
+    competences-only `instances` list); competences classes are just the
+    first entries.
 
 **Precondition**: the Stage 1 production cutover (marmay-auth deployed, one
 Azure app registration, instances on the assertion login flow) must be live
@@ -521,23 +526,43 @@ server-rendered JS).
 
 ## Phase C — Config page, manifest, pilot
 
+**Framing (2026-09-01, decision 10): the Teams app is "BG Horn" — a
+meta-app / application selector.** One catalog entry, one manifest, one AAD
+registration; the config page selects WHICH internal application (and
+instance) a tab shows. Any trust-domain app qualifies as a target once it
+(a) allows Teams framing (a B.4-style frame-ancestors opt-in) and (b) runs
+the frame-aware bootstrap core — the CMS lacks only (a). New application =
+one registry entry + that app's frameability; no tenant-admin work.
+Limitation to know: Teams app-permission policies gate the whole catalog
+entry, not individual selector targets — per-application access control
+remains each app's own login (unknown users get the "kein Benutzer" panel).
+
 ### C.1 `/teams/config` on marmay-auth
 
-- `SecurityConfig` gains `instances :: ![InstanceEntry]` (optional, default
-  `[]`), `data InstanceEntry = InstanceEntry { name :: !Text, url :: !Text }` —
-  generated into the config by the server's nix expression from the
-  competences instance attrset (keeps "new class = one nix attr").
+- The registry
+  (`data ApplicationEntry = ApplicationEntry { name, contentUrl, websiteUrl :: !Text }`,
+  full URLs per entry — entry points differ across apps) is **public
+  config, not part of the encrypted SecurityConfig** (implemented
+  2026-09-01): loaded from a separate unencrypted file via the new
+  `--applications` flag (`loadPublicConfigFile` — the secrets loader
+  refuses world-readable files, which nix-store paths are). The
+  marmay-auth nixosModule renders `services.marmay-auth.applications`
+  (typed list option) into that file; competences' and the CMS's modules
+  publish read-only `teamsApplications` outputs derived from their
+  instance attrsets, so a single-host config wires them with one
+  concatenation (split topologies provide entries manually). Keeps "new
+  class = one nix attr"; the agenix secret never changes for registry
+  reasons.
 - New route `"teams" :> "config" :> Get '[HTML] Html`: a `<select>` over
-  `instances`; on selection `setValidityState(true)`; save handler calls
-  `pages.config.setConfig` with `entityId` = instance name, `contentUrl` =
-  `https://auth.<apex>/teams/sso?return=` ++ urlencoded
-  `<url>/app/assignments` (the bounce, decisions 7+9 — the tab opens on the
-  auth host, the instance's ordinary `/app` URL rides in `return`; cold load
-  never depends on in-tab navigation), `websiteUrl` = `<url>/app/assignments`
-  (the free "open in browser" escape hatch, incl. mobile),
-  `suggestedDisplayName` = instance name. The `instances` list doubles as
-  the hardening option for A.3: exact allowlist instead of suffix-match —
-  post-PoC.
+  `applications`; on selection `setValidityState(true)`; save handler calls
+  `pages.config.setConfig` with `entityId` = entry name, `contentUrl` =
+  `https://auth.<apex>/teams/sso?return=` ++ urlencoded entry `contentUrl`
+  (the bounce, decisions 7+9 — the tab opens on the auth host, the app URL
+  rides in `return`; cold load never depends on in-tab navigation),
+  `websiteUrl` = the entry's `websiteUrl` (the free "open in browser"
+  escape hatch, incl. mobile), `suggestedDisplayName` = entry name. The
+  `applications` list doubles as the hardening option for A.3: exact
+  allowlist instead of suffix-match — post-PoC.
 - teams-js for this page: load from Microsoft's CDN
   (`res.cdn.office.net/teams-js/…`), same as `/teams/sso` (A.4) — the service
   has no static-file machinery, the page is teacher-only and
@@ -546,12 +571,16 @@ server-rendered JS).
 - Later "more views": a second dropdown (view per tab) that varies the path
   suffix — the deep-link mechanics from B.2 already support any route.
 
-### C.2 Manifest package (`teams/` in competences)
+### C.2 Manifest package (`teams/` in **marmay-auth** — relocated
+2026-09-01: the manifest describes the meta-app, and the meta-app is the
+auth service; competences is just one selectable target)
 
 - `manifest.json`, schema ≥ 1.17: **new random GUID** as the Teams app `id`
-  (not the AAD clientId); `configurableTabs: [{ configurationUrl:
-  "https://auth.<apex>/teams/config", scopes: ["team"],
-  canUpdateConfiguration: true }]`; `validDomains: ["<apex>", "*.<apex>"]`
+  (not the AAD clientId); name/description/icons branded **"BG Horn"** (the
+  school's application portal — decision 10; per-tab display names come
+  from `suggestedDisplayName` at configuration time); `configurableTabs:
+  [{ configurationUrl: "https://auth.<apex>/teams/config", scopes:
+  ["team"], canUpdateConfiguration: true }]`; `validDomains: ["<apex>", "*.<apex>"]`
   (wildcard excludes the apex — both entries needed; the auth subdomain is
   covered by the wildcard); `webApplicationInfo: { id: <clientId>, resource:
   "api://auth.<apex>/<clientId>" }` — the auth host, per the gate result:

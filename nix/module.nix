@@ -99,6 +99,27 @@ let
         default = "competences";
         description = "Group under which this instance runs";
       };
+
+      teams = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Publish this instance in the Teams tab selector (see services.competences.teamsApplications).";
+        };
+
+        displayName = mkOption {
+          type = types.str;
+          default = name;
+          defaultText = literalExpression "the instance attribute name";
+          description = "Display name in the Teams tab selector (and suggested tab title).";
+        };
+
+        path = mkOption {
+          type = types.str;
+          default = "/app/assignments";
+          description = "Entry-point path a Teams tab opens on this instance.";
+        };
+      };
     };
   };
 
@@ -179,6 +200,24 @@ in {
             ensureTeacherO365 = "teacher@school.at";
           };
         }
+      '';
+    };
+
+    teamsApplications = mkOption {
+      type = types.listOf types.attrs;
+      readOnly = true;
+      default = concatLists (mapAttrsToList (_name: instance:
+        optional instance.teams.enable {
+          name = instance.teams.displayName;
+          contentUrl = "https://${instance.subdomain}.${cfg.nginx.domain}${instance.teams.path}";
+          websiteUrl = "https://${instance.subdomain}.${cfg.nginx.domain}${instance.teams.path}";
+        }) cfg.instances);
+      defaultText = literalExpression "one entry per instance with teams.enable";
+      description = ''
+        Output: this host's instances as Teams tab selector entries.
+        Feed into the auth service's registry, e.g.
+        services.marmay-auth.applications =
+          config.services.competences.teamsApplications;
       '';
     };
 
