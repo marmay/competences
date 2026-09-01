@@ -275,7 +275,7 @@ user ^. #name
 **Fix:**
 ```bash
 # Enter WASM development shell
-nix develop .#wasmShell.x86_64-linux
+nix develop  # wasm toolchain is in the default shell
 
 # Now wasm32-wasi-cabal is available
 wasm32-wasi-cabal build

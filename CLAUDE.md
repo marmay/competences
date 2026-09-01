@@ -123,7 +123,7 @@ cabal run competences-backend -- \
 **Production mode** (WASM):
 ```bash
 # Requires WASM toolchain
-nix develop .#wasmShell.x86_64-linux
+nix develop  # wasm toolchain is in the default shell
 
 # Compile and deploy
 ./deploy_frontend.sh
@@ -136,7 +136,7 @@ nix develop .#wasmShell.x86_64-linux
 nix develop
 
 # WASM development
-nix develop .#wasmShell.x86_64-linux
+nix develop  # wasm toolchain is in the default shell
 ```
 
 ## Code Formatting
@@ -468,7 +468,7 @@ The task system allows teachers to create and manage learning tasks with compete
 
 **Update frontend dependencies:**
 ```bash
-nix develop .#wasmShell.x86_64-linux
+nix develop  # wasm toolchain is in the default shell
 cd frontend
 wasm32-wasi-cabal update
 wasm32-wasi-cabal freeze
