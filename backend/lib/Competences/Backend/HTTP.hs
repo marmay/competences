@@ -52,7 +52,7 @@ import Marmay.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
 import Competences.Backend.State (RestState(..))
 import Competences.Backend.CommandProcessor qualified as CP
-import Competences.Command (Command (Migration), MigrationCommand (BindEntraOid, CompleteUserIdentity))
+import Competences.Command (Command (System), SystemCommand (BindEntraOid, CompleteUserIdentity))
 import Competences.Command.Common (CommandContext (..))
 import Competences.Document (Document (..), User (..))
 import Competences.Document.Session (legacySessionId)
@@ -167,7 +167,7 @@ loginHandler securityConfig restState inputToken = do
         completeResult <- liftIO $ CP.submitCommand
           restState.processor
           (CommandContext u.id legacySessionId)
-          (Migration (CompleteUserIdentity u.id validateResult.upn validateResult.name))
+          (System (CompleteUserIdentity u.id validateResult.upn validateResult.name))
         either (liftIO . putStrLn . ("CompleteUserIdentity failed: " <>) . T.unpack) (const (pure ())) completeResult
       pure u
     Nothing -> case findUserByAddress doc validateResult.upn of
@@ -178,7 +178,7 @@ loginHandler securityConfig restState inputToken = do
           bindResult <- liftIO $ CP.submitCommand
             restState.processor
             (CommandContext u.id legacySessionId)
-            (Migration (BindEntraOid u.id validateResult.oid))
+            (System (BindEntraOid u.id validateResult.oid))
           -- Best effort: a failed bind is retried on the next login.
           either (liftIO . putStrLn . ("BindEntraOid failed: " <>) . T.unpack) (const (pure ())) bindResult
           pure u

@@ -2,7 +2,7 @@
 
 module Competences.Command
   ( Command (..)
-  , MigrationCommand (..)
+  , SystemCommand (..)
   , CommandId
   , handleCommand
   , module Competences.Command.Common
@@ -52,13 +52,9 @@ import Competences.Command.ParticipationRecords (ParticipationRecordsCommand (..
 import Competences.Command.Tasks (TasksCommand (..), TaskPatch (..), handleTasksCommand)
 import Competences.Command.Users (UsersCommand (..), UserPatch (..), handleUsersCommand)
 import Competences.Document (Document (..), User (..))
-import Competences.Document.Assignment (Assignment (..), AssignmentId)
 import Competences.Document.Id (Id)
-import Competences.Document.Lesson (Lesson (..), LessonId)
 import Competences.Document.Lock (Lock)
 import Competences.Document.User (EntraOid (..), Office365Id (..), UserRole (..))
-import Competences.Document.Task (Task (..), TaskIdentifier (..))
-import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -70,25 +66,20 @@ import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (%~), (^.))
 
--- | System-submitted commands: schema evolution, startup
--- initialization, and server-initiated identity maintenance (the
--- login handler's lazy oid binding and stub completion). Despite the
--- name, this is not a migrations-only bucket — it is the command
--- channel dispatched without a per-command role check ('handleCommand'
--- routes it past teacherOnly), which server-submitted writes on behalf
--- of arbitrary users require. Client reach is gated one layer up:
+-- | System-submitted commands: startup initialization and
+-- server-initiated identity maintenance (the login handler's lazy oid
+-- binding and stub completion). This is the command channel dispatched
+-- without a per-command role check ('handleCommand' routes it past
+-- teacherOnly), which server-submitted writes on behalf of arbitrary
+-- users require. Client reach is gated one layer up:
 -- WebSocket.isAuthorized only lets students submit Submissions, so
 -- students can never send these; teachers can, which is within their
--- existing trust (they may edit users anyway). Renaming the
--- type/constructors would change the persisted JSON wire format (the
--- command log stores constructor names), so the name stays until that
--- migration is worth doing. Only append constructors — the log
--- replays old encodings.
-data MigrationCommand
-  = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
-  | InitIfEmpty
+-- existing trust (they may edit users anyway). The command log
+-- persists commands as JSON by constructor name — renaming or
+-- removing constructors breaks replay of logs that contain them.
+data SystemCommand
+  = InitIfEmpty
   | EnsureTeacherO365 !(Id User) !Text
-  | SortAssignmentTasksByIdentifier
   | BindEntraOid !(Id User) !Text
     -- ^ Bind the Entra object id on first login (lazy oid binding;
     -- submitted by the login handler after an address match).
@@ -98,12 +89,12 @@ data MigrationCommand
     -- text), from the assertion. Submitted by the login handler.
   deriving (Eq, Generic, Show)
 
-instance Binary MigrationCommand
+instance Binary SystemCommand
 
 #ifdef WITH_AESON
-instance FromJSON MigrationCommand
+instance FromJSON SystemCommand
 
-instance ToJSON MigrationCommand
+instance ToJSON SystemCommand
 #endif
 
 -- | Top-level command type wrapping all context commands
@@ -129,7 +120,7 @@ data Command
   | CompetenceLevelExamples !CompetenceLevelExamplesCommand
   | Layouts !LayoutsCommand
   | Publish !PublishData
-  | Migration !MigrationCommand
+  | System !SystemCommand
   | Unlock !Lock
   deriving (Eq, Generic, Show)
 
@@ -172,7 +163,7 @@ handleCommand cmdCtx cmd d = case cmd of
   Submissions c -> handleSubmissionsCommand cmdCtx c d
   -- System commands: no user role check needed
   Publish pd -> handlePublish pd d
-  Migration c -> handleMigrationCommand c d
+  System c -> handleSystemCommand c d
   -- Lock cleanup: permissive and idempotent — server validates ownership/staleness
   -- before persisting. Safe during replay even if the lock was already released.
   -- All clients need to learn the lock was removed (UI lock indicators clear).
@@ -180,22 +171,12 @@ handleCommand cmdCtx cmd d = case cmd of
   where
     teacherOnly result = requireTeacher cmdCtx.userId d >> result
 
--- | Handle migration commands (system-level, userId not used)
-handleMigrationCommand :: MigrationCommand -> Document -> UpdateResult
-handleMigrationCommand (UpdateLessonAssignments updates) d =
-  let applyUpdate :: Document -> (LessonId, [AssignmentId]) -> Document
-      applyUpdate doc (lid, aids) =
-        case Ix.getOne (doc.lessons Ix.@= lid) of
-          Nothing -> doc
-          Just lesson ->
-            let lesson' = lesson & #assignments .~ aids
-             in doc & #lessons %~ Ix.insert lesson' . Ix.deleteIx lid
-      doc' = foldl' applyUpdate d updates
-   in Right (doc', AudienceAll)
-handleMigrationCommand InitIfEmpty d
+-- | Handle system commands (system-level, userId not used)
+handleSystemCommand :: SystemCommand -> Document -> UpdateResult
+handleSystemCommand InitIfEmpty d
   | Ix.null (d ^. #users) = Right (d, AudienceAll)
   | otherwise = Left "Document is not empty"
-handleMigrationCommand (EnsureTeacherO365 newId identifier) d =
+handleSystemCommand (EnsureTeacherO365 newId identifier) d =
   -- Dual form: an address binds by office365Id; anything without '@'
   -- is treated as an Entra object id and binds by entraOid.
   let byAddress = "@" `T.isInfixOf` identifier
@@ -221,7 +202,7 @@ handleMigrationCommand (EnsureTeacherO365 newId identifier) d =
                   }
               d' = d & #users %~ Ix.insert user
            in Right (d', AudienceAll)
-handleMigrationCommand (BindEntraOid userId oidText) d =
+handleSystemCommand (BindEntraOid userId oidText) d =
   let oid = EntraOid (T.toLower oidText)
    in case Ix.getOne (d.users Ix.@= userId) of
         Nothing -> Left "BindEntraOid: user not found"
@@ -233,7 +214,7 @@ handleMigrationCommand (BindEntraOid userId oidText) d =
             let user' = user & #entraOid .~ Just oid
                 d' = d & #users %~ Ix.insert user' . Ix.deleteIx user.id
              in Right (d', AudienceAll)
-handleMigrationCommand (CompleteUserIdentity userId upn displayName) d =
+handleSystemCommand (CompleteUserIdentity userId upn displayName) d =
   case Ix.getOne (d.users Ix.@= userId) of
     Nothing -> Left "CompleteUserIdentity: user not found"
     Just user ->
@@ -246,15 +227,3 @@ handleMigrationCommand (CompleteUserIdentity userId upn displayName) d =
        in if user' == user
             then Right (d, AudienceAll)
             else Right (d & #users %~ Ix.insert user' . Ix.deleteIx user.id, AudienceAll)
-handleMigrationCommand SortAssignmentTasksByIdentifier d =
-  let lookupIdentifier taskSet tid =
-        case Ix.getOne (taskSet Ix.@= tid) of
-          Just t -> t.identifier
-          Nothing -> TaskIdentifier ""
-      sortTasks taskSet a =
-        a & #tasks %~ sortOn (lookupIdentifier taskSet)
-      d' =
-        d
-          & #assignments %~ Ix.fromList . map (sortTasks d.tasks) . Ix.toList
-          & #draftAssignments %~ Ix.fromList . map (sortTasks d.draftTasks) . Ix.toList
-   in Right (d', AudienceAll)

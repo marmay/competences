@@ -10,9 +10,6 @@ module Competences.Command.Common
   , patchField'
   , inContext
   , requireTeacher
-#ifdef WITH_AESON
-  , migrateSnapshotLocks
-#endif
   )
 where
 
@@ -24,11 +21,8 @@ import Competences.Document.Session (SessionId)
 import Competences.Document.User (UserId)
 import Control.Monad (when)
 #ifdef WITH_AESON
-import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), fromJSON, object, withObject, (.:), (.=))
-import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), fromJSON, withObject, (.:))
 import Data.Aeson.Types (Parser)
-import Competences.Document.Session (legacySessionId)
-import Data.UUID.Types qualified as UUID
 #endif
 import Data.Bifunctor (first)
 import Data.Binary (Binary)
@@ -155,20 +149,3 @@ requireTeacher userId doc =
     Nothing -> Left "User not found"
     Just u -> when (u.role /= Teacher) $ Left "Only teachers can perform this action"
 
-#ifdef WITH_AESON
--- | Migrate locks in a v2 snapshot from [(Lock, UserId)] to [(Lock, LockHolder)].
--- Transforms bare UUID strings into LockHolder objects with legacySessionId.
-migrateSnapshotLocks :: Value -> Value
-migrateSnapshotLocks (Object docObj) = case KM.lookup "locks" docObj of
-  Just locksVal -> Object $ KM.insert "locks" (migrateLockList locksVal) docObj
-  Nothing -> Object docObj
-  where
-    sidText = UUID.toText legacySessionId.unId
-    migrateLockList (Array locks) = Array $ fmap migrateLockPair locks
-    migrateLockList other = other
-    migrateLockPair (Array pair) = Array $ fmap migrateValue pair
-    migrateLockPair other = other
-    migrateValue (String uidText) = object ["userId" .= uidText, "sessionId" .= sidText]
-    migrateValue other = other
-migrateSnapshotLocks other = other
-#endif

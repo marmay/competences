@@ -12,7 +12,7 @@ import Competences.Backend.Shell (ShellHashes(..))
 import Competences.Backend.StaleLockCleanup qualified as SLC
 import Competences.Backend.State (AppState (..), initAppState, initRestState)
 import Competences.Backend.WebSocket (wsHandler)
-import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..), handleCommand)
+import Competences.Command (Command (..), CommandContext (..), SystemCommand (..), handleCommand)
 import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
@@ -21,7 +21,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar)
 import Control.Concurrent.STM (atomically, newTVarIO, readTVar)
 import Control.Exception (finally)
-import Control.Monad (foldM, unless, when)
+import Control.Monad (when)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BS
 import Data.Int (Int64)
@@ -173,40 +173,29 @@ main = do
   -- Load document from database (or start with empty document)
   putStrLn "Loading document from database..."
   mSnapshot <- DB.loadLatestSnapshot pool
-  (doc, initialGen, replayedCommands, migrationCmds) <- case mSnapshot of
+  (doc, initialGen, replayedCommands) <- case mSnapshot of
     Nothing -> do
       putStrLn "No snapshot found, starting with empty document"
-      pure (emptyDocument, 0, 0, [])
-    Just (rawSnapshot, gen, migCmds) -> do
+      pure (emptyDocument, 0, 0)
+    Just (snapshot, gen) -> do
       putStrLn $ "Loaded snapshot at generation " <> show gen
-      -- Apply migration commands first (v1→v2 schema upgrade)
-      let systemUserId = Id UUID.nil
-      snapshot <- applyMigrationCmds systemUserId rawSnapshot migCmds
-      -- Then replay user commands since snapshot
+      -- Replay user commands since snapshot
       commands <- DB.loadCommandsSince pool gen
       putStrLn $ "Replaying " <> show (length commands) <> " commands since snapshot"
       doc' <- replayCommands snapshot commands
-      pure (doc', gen + fromIntegral (length commands), length commands, migCmds)
+      pure (doc', gen + fromIntegral (length commands), length commands)
 
   putStrLn $ "Document loaded (generation " <> show initialGen <> ")"
 
-  -- Persist schema migration commands + new snapshot if any
-  unless (null migrationCmds) $ do
-    putStrLn $ "Schema migration produced " <> show (length migrationCmds) <> " compensating command(s)"
-    let systemCtx = CommandContext (Id UUID.nil) legacySessionId
-    latestGen <- foldM (\_ cmd -> snd <$> DB.saveCommand pool systemCtx cmd) initialGen migrationCmds
-    DB.saveSnapshot pool doc latestGen
-    putStrLn $ "Migration commands and snapshot saved at generation " <> show latestGen
-
   -- Create recovery snapshot if we replayed any commands (non-graceful shutdown recovery)
-  when (replayedCommands > 0 && null migrationCmds) $ do
+  when (replayedCommands > 0) $ do
     putStrLn "Non-graceful shutdown detected: creating recovery snapshot..."
     DB.saveSnapshot pool doc initialGen
     putStrLn $ "Recovery snapshot created at generation " <> show initialGen
 
-  -- Build and apply startup migration commands
-  startupCmds <- buildStartupMigrations opts
-  (doc', latestGen) <- applyStartupMigrations pool doc initialGen startupCmds
+  -- Build and apply startup system commands
+  startupCmds <- buildStartupCommands opts
+  (doc', latestGen) <- applyStartupCommands pool doc initialGen startupCmds
 
   -- Initialize CAS (content-addressable store for files)
   cas <- newCAS opts.casDir opts.casFileMode
@@ -273,32 +262,32 @@ main = do
           (wsHandler appState securityConfig)
           (securityHeaders securityConfig.teamsFrameAncestors httpApp)
 
--- | Build startup migration commands from CLI options
-buildStartupMigrations :: Options -> IO [Command]
-buildStartupMigrations opts = do
-  let initCmd = [Migration InitIfEmpty]
+-- | Build startup system commands from CLI options
+buildStartupCommands :: Options -> IO [Command]
+buildStartupCommands opts = do
+  let initCmd = [System InitIfEmpty]
   teacherCmds <- case opts.ensureTeacherO365 of
     Nothing -> pure []
     Just email -> do
       newId <- Id <$> UUID.nextRandom
-      pure [Migration (EnsureTeacherO365 newId (T.pack email))]
+      pure [System (EnsureTeacherO365 newId (T.pack email))]
   pure $ initCmd <> teacherCmds
 
--- | Apply startup migration commands, persisting only those that succeed.
+-- | Apply startup system commands, persisting only those that succeed.
 -- Commands that fail are silently skipped (they indicate no action needed).
-applyStartupMigrations :: Pool Connection -> Document -> Int64 -> [Command] -> IO (Document, Int64)
-applyStartupMigrations pool = go
+applyStartupCommands :: Pool Connection -> Document -> Int64 -> [Command] -> IO (Document, Int64)
+applyStartupCommands pool = go
   where
     systemCtx = CommandContext (Id UUID.nil) legacySessionId
     go doc gen [] = pure (doc, gen)
     go doc gen (cmd : rest) =
       case handleCommand systemCtx cmd doc of
         Left reason -> do
-          putStrLn $ "Startup migration skipped: " <> T.unpack reason
+          putStrLn $ "Startup command skipped: " <> T.unpack reason
           go doc gen rest
         Right (doc', _) -> do
           (_cmdId, gen') <- DB.saveCommand pool systemCtx cmd
-          putStrLn $ "Startup migration applied at generation " <> show gen'
+          putStrLn $ "Startup command applied at generation " <> show gen'
           go doc' gen' rest
 
 -- | Replay commands on top of a document
@@ -311,14 +300,6 @@ replayCommands doc ((gen, userId, sessionId, cmd) : rest) =
   case handleCommand (CommandContext userId sessionId) cmd doc of
     Left err -> die $ "Failed to replay command at generation " <> show gen <> ": " <> T.unpack err
     Right (doc', _) -> replayCommands doc' rest
-
--- | Apply migration commands to a document, aborting on failure
-applyMigrationCmds :: Competences.Document.User.UserId -> Document -> [Command] -> IO Document
-applyMigrationCmds _userId doc [] = pure doc
-applyMigrationCmds userId doc (cmd : rest) =
-  case handleCommand (CommandContext userId legacySessionId) cmd doc of
-    Left err -> die $ "Failed to apply migration command: " <> T.unpack err
-    Right (doc', _) -> applyMigrationCmds userId doc' rest
 
 -- | Periodic snapshot timer (runs on startup, then every 12 hours)
 -- Checks if snapshot should be taken based on time and command count

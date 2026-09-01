@@ -26,12 +26,9 @@ module Competences.Backend.Envelope
   )
 where
 
-import Competences.Command (Command (..), CommandContext (..), MigrationCommand (..))
-import Competences.Command.Common (migrateSnapshotLocks)
+import Competences.Command (Command (..), CommandContext (..))
 import Competences.Document (Document (..))
-import Competences.Document.Assignment (AssignmentId)
 import Competences.Document.Id (Id (..))
-import Competences.Document.Lesson (LessonId)
 import Competences.Document.Session (SessionId, legacySessionId)
 import Competences.Document.User (UserId)
 import Data.Aeson
@@ -44,12 +41,8 @@ import Data.Aeson
   , toJSON
   , withObject
   , (.:)
-  , (.:?)
   , (.=)
   )
-import Data.Aeson.KeyMap qualified as KM
-import Data.Aeson.Types (Parser, parseMaybe)
-import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack)
 import Data.UUID.Types qualified as UUID
 import GHC.Generics (Generic)
@@ -138,21 +131,17 @@ wrapCommand ctx cmd =
     , payload = toJSON cmd
     }
 
--- | Unwrap a command envelope, applying migrations if needed.
--- V1 commands have old Lock/CreateAndLock format with embedded userId/sessionId;
--- the FromJSON instances in Command.Common handle backward compat by ignoring extra fields.
+-- | Unwrap a command envelope. Only the current version is supported:
+-- the 2026-09 identity rework (oid-keyed users, SystemCommand rename)
+-- reset all databases, so older envelopes cannot exist.
 unwrapCommand :: CommandEnvelope -> Either Text Command
 unwrapCommand env = case env.version of
-  1 ->
-    case fromJSON env.payload of
-      Success cmd -> Right cmd
-      Error err -> Left $ "Failed to parse command v1: " <> pack err
   2 ->
     case fromJSON env.payload of
       Success cmd -> Right cmd
       Error err -> Left $ "Failed to parse command v2: " <> pack err
   v ->
-    Left $ "Unknown command version: " <> pack (show v)
+    Left $ "Unsupported command version: " <> pack (show v)
 
 -- | Wrap a document snapshot in an envelope at the current version
 wrapSnapshot :: Document -> SnapshotEnvelope
@@ -162,58 +151,15 @@ wrapSnapshot doc =
     , payload = toJSON doc
     }
 
--- | Unwrap a snapshot envelope, applying migrations if needed.
--- Returns the migrated document and any compensating commands that must be
--- persisted to the command log to make the migration reproducible on replay.
-unwrapSnapshot :: SnapshotEnvelope -> Either Text (Document, [Command])
+-- | Unwrap a snapshot envelope. Only the current version is supported:
+-- the 2026-09 identity rework (oid-keyed users, SystemCommand rename)
+-- reset all databases, so older envelopes cannot exist.
+unwrapSnapshot :: SnapshotEnvelope -> Either Text Document
 unwrapSnapshot env = case env.version of
-  1 -> do
-    -- V1 snapshot: Assignment had lessonId, Lesson had no assignments field.
-    -- Parse the document (FromJSON backward compat handles missing/extra fields),
-    -- then migrate lessonId links into Lesson.assignments.
-    doc <- case fromJSON env.payload of
-      Success d -> Right d
-      Error err -> Left $ "Failed to parse snapshot v1: " <> pack err
-    let linkMap = extractAssignmentLessonLinks env.payload
-        cmds
-          | Map.null linkMap = []
-          | otherwise = [Migration (UpdateLessonAssignments (Map.toList linkMap))]
-    Right (doc, cmds)
-  2 -> do
-    -- V2: locks stored as [(Lock, UserId)] — migrate to [(Lock, LockHolder)]
-    let migratedPayload = migrateSnapshotLocks env.payload
-    case fromJSON migratedPayload of
-      Success doc -> Right (doc, [])
-      Error err -> Left $ "Failed to parse snapshot v2: " <> pack err
   3 ->
-    -- Current version: direct parse
     case fromJSON env.payload of
-      Success doc -> Right (doc, [])
+      Success doc -> Right doc
       Error err -> Left $ "Failed to parse snapshot v3: " <> pack err
   v ->
-    Left $ "Unknown snapshot version: " <> pack (show v)
-
--- | Extract Assignment.lessonId links from a v1 snapshot's raw JSON.
--- Returns a map from LessonId to list of AssignmentIds that referenced it.
-extractAssignmentLessonLinks :: Value -> Map.Map LessonId [AssignmentId]
-extractAssignmentLessonLinks payload =
-  case payload of
-    Object docObj ->
-      case KM.lookup "assignments" docObj of
-        Nothing -> Map.empty
-        Just assignmentsVal ->
-          let links = parseMaybe parseLinks assignmentsVal
-           in maybe Map.empty id links
-    _ -> Map.empty
-  where
-    parseLinks = withObject "AssignmentIxSet" $ \v -> do
-      -- IxSet serializes as {"ixSet": [...]}
-      items <- v .: "ixSet" :: Parser [Value]
-      pairs <- mapM parseLink items
-      pure $ Map.fromListWith (<>) [(lid, [aid]) | (aid, Just lid) <- pairs]
-
-    parseLink = withObject "Assignment" $ \v -> do
-      aid <- v .: "id"
-      mLid <- v .:? "lessonId"
-      pure (aid :: AssignmentId, mLid :: Maybe LessonId)
+    Left $ "Unsupported snapshot version: " <> pack (show v)
 

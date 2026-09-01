@@ -472,7 +472,7 @@ saveSnapshot pool doc generation = withResource pool $ \conn -> do
 -- Returns Nothing if no snapshots exist.
 -- The snapshot is unwrapped from a versioned envelope, with migrations applied if needed.
 -- Also returns any migration commands that must be persisted for replay safety.
-loadLatestSnapshot :: Pool Connection -> IO (Maybe (Document, Int64, [Command]))
+loadLatestSnapshot :: Pool Connection -> IO (Maybe (Document, Int64))
 loadLatestSnapshot pool = withResource pool $ \conn -> do
   rows <-
     query_ conn [sql|
@@ -489,7 +489,7 @@ loadLatestSnapshot pool = withResource pool $ \conn -> do
         Right envelope ->
           case unwrapSnapshot envelope of
             Left err -> die $ "Failed to unwrap snapshot: " <> T.unpack err
-            Right (doc, cmds) -> pure $ Just (doc, generation, cmds)
+            Right doc -> pure $ Just (doc, generation)
 
 -- | Check if a snapshot should be taken
 --
@@ -661,7 +661,7 @@ loadSnapshotDocumentById conn gen = do
         Right envelope ->
           case unwrapSnapshot envelope of
             Left err -> pure $ Left $ "Failed to unwrap snapshot: " <> T.unpack err
-            Right (doc, _cmds) -> pure $ Right doc
+            Right doc -> pure $ Right doc
     [] -> pure $ Left $ "No snapshot found at generation " <> show gen
     _ -> pure $ Left $ "Multiple snapshots at generation " <> show gen
 
