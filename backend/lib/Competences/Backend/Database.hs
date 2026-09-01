@@ -57,6 +57,8 @@ import Data.Aeson (Value, eitherDecodeStrict, encode, fromJSON, Result(..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
+import Text.Read (readMaybe)
 import Data.Pool (Pool, newPool, defaultPoolConfig, setNumStripes, destroyAllResources, withResource)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -467,18 +469,22 @@ shouldTakeSnapshot pool currentGeneration = withResource pool $ \conn -> do
       SELECT value FROM metadata WHERE key = 'last_snapshot_time'
     |]
 
-  let lastSnapGen = read lastSnapGenText :: Int64
+  let lastSnapGen = fromMaybe 0 (readMaybe lastSnapGenText) :: Int64
   let commandsSince = currentGeneration - lastSnapGen
 
   -- Check if 25 commands have passed
   if commandsSince >= 25
     then pure True
-    else do
-      -- Check if 15 minutes have passed and at least 1 command
-      now <- getCurrentTime
-      let lastSnapTime = read lastSnapTimeText :: UTCTime
-      let minutesSince = realToFrac (now `diffUTCTime` lastSnapTime) / 60 :: Double
-      pure (minutesSince >= 15 && commandsSince > 0)
+    else case readMaybe lastSnapTimeText :: Maybe UTCTime of
+      -- schema.sql seeds last_snapshot_time as NOW()::TEXT, which is
+      -- PostgreSQL's format, not 'show's — treat unparseable as
+      -- snapshot-due; the snapshot then rewrites the key canonically.
+      Nothing -> pure (commandsSince > 0)
+      Just lastSnapTime -> do
+        -- Check if 15 minutes have passed and at least 1 command
+        now <- getCurrentTime
+        let minutesSince = realToFrac (now `diffUTCTime` lastSnapTime) / 60 :: Double
+        pure (minutesSince >= 15 && commandsSince > 0)
 
 -- | Prune old snapshots using age-based thresholds with reproducibility verification.
 --
