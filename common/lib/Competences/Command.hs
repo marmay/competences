@@ -70,9 +70,20 @@ import Data.IxSet.Typed qualified as Ix
 import GHC.Generics (Generic)
 import Optics.Core ((&), (.~), (%~), (^.))
 
--- | Migration commands for schema evolution and startup initialization.
--- Only append constructors — Binary encodes the constructor tag, and
--- the command log replays old encodings.
+-- | System-submitted commands: schema evolution, startup
+-- initialization, and server-initiated identity maintenance (the
+-- login handler's lazy oid binding and stub completion). Despite the
+-- name, this is not a migrations-only bucket — it is the command
+-- channel dispatched without a per-command role check ('handleCommand'
+-- routes it past teacherOnly), which server-submitted writes on behalf
+-- of arbitrary users require. Client reach is gated one layer up:
+-- WebSocket.isAuthorized only lets students submit Submissions, so
+-- students can never send these; teachers can, which is within their
+-- existing trust (they may edit users anyway). Renaming the
+-- type/constructors would change the persisted JSON wire format (the
+-- command log stores constructor names), so the name stays until that
+-- migration is worth doing. Only append constructors — the log
+-- replays old encodings.
 data MigrationCommand
   = UpdateLessonAssignments ![(LessonId, [AssignmentId])]
   | InitIfEmpty
@@ -81,6 +92,10 @@ data MigrationCommand
   | BindEntraOid !(Id User) !Text
     -- ^ Bind the Entra object id on first login (lazy oid binding;
     -- submitted by the login handler after an address match).
+  | CompleteUserIdentity !(Id User) !Text !Text
+    -- ^ Fill an oid-provisioned stub's display fields on first login
+    -- (address upn when empty, name when empty or still the raw oid
+    -- text), from the assertion. Submitted by the login handler.
   deriving (Eq, Generic, Show)
 
 instance Binary MigrationCommand
@@ -218,6 +233,19 @@ handleMigrationCommand (BindEntraOid userId oidText) d =
             let user' = user & #entraOid .~ Just oid
                 d' = d & #users %~ Ix.insert user' . Ix.deleteIx user.id
              in Right (d', AudienceAll)
+handleMigrationCommand (CompleteUserIdentity userId upn displayName) d =
+  case Ix.getOne (d.users Ix.@= userId) of
+    Nothing -> Left "CompleteUserIdentity: user not found"
+    Just user ->
+      let stubName = user.name == "" || Just (EntraOid (T.toLower user.name)) == user.entraOid
+          emptyAddress = user.office365Id == Office365Id ""
+          user' =
+            user
+              & #office365Id .~ (if emptyAddress then Office365Id (T.toLower upn) else user.office365Id)
+              & #name .~ (if stubName then displayName else user.name)
+       in if user' == user
+            then Right (d, AudienceAll)
+            else Right (d & #users %~ Ix.insert user' . Ix.deleteIx user.id, AudienceAll)
 handleMigrationCommand SortAssignmentTasksByIdentifier d =
   let lookupIdentifier taskSet tid =
         case Ix.getOne (taskSet Ix.@= tid) of

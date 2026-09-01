@@ -52,7 +52,7 @@ import Marmay.Auth.Assertion (validateIdentityAssertion', IdentityAssertion(..))
 import qualified Data.Text as T
 import Competences.Backend.State (RestState(..))
 import Competences.Backend.CommandProcessor qualified as CP
-import Competences.Command (Command (Migration), MigrationCommand (BindEntraOid))
+import Competences.Command (Command (Migration), MigrationCommand (BindEntraOid, CompleteUserIdentity))
 import Competences.Command.Common (CommandContext (..))
 import Competences.Document (Document (..), User (..))
 import Competences.Document.Session (legacySessionId)
@@ -63,7 +63,7 @@ import Data.IxSet.Typed qualified as Ix
 import Data.List (find)
 import Optics.Core ((&))
 import Control.Concurrent.STM (readTVarIO)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Data.UUID as UUID
 
 type AppAPI =
@@ -159,7 +159,17 @@ loginHandler securityConfig restState inputToken = do
   -- user is bound to a DIFFERENT oid is rejected — that account
   -- belongs to someone else.
   user <- case findUserByEntraOid doc (EntraOid validateResult.oid) of
-    Just u -> pure u
+    Just u -> do
+      -- Self-completion for oid-provisioned stubs: fill the empty
+      -- address and the placeholder name from the assertion, once.
+      let stubName = u.name == "" || Just (EntraOid (T.toLower u.name)) == u.entraOid
+      when (stubName || u.office365Id == Office365Id "") $ do
+        completeResult <- liftIO $ CP.submitCommand
+          restState.processor
+          (CommandContext u.id legacySessionId)
+          (Migration (CompleteUserIdentity u.id validateResult.upn validateResult.name))
+        either (liftIO . putStrLn . ("CompleteUserIdentity failed: " <>) . T.unpack) (const (pure ())) completeResult
+      pure u
     Nothing -> case findUserByAddress doc validateResult.upn of
       Nothing -> handleUserNotFound validateResult.upn
       Just u -> case u.entraOid of
