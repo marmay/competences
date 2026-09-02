@@ -130,6 +130,7 @@ let
           default = [
             { name = "Aufgaben"; path = "/app/assignments?embedded"; }
             { name = "Unterricht"; path = "/app/lesson-records?embedded"; }
+            { name = "Kompetenzraster"; path = "/app/grid?embedded"; }
           ];
           description = "Selectable views in the Teams tab selector; a tab shows exactly one.";
         };
