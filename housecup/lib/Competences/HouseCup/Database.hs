@@ -6,7 +6,6 @@ module Competences.HouseCup.Database
 where
 
 import Competences.Command (Command, CommandContext (..), handleCommand)
-import Competences.Command.Common (migrateSnapshotLocks)
 import Competences.Document (Document (..), emptyDocument)
 import Competences.Document.Id (Id (..))
 import Competences.Document.Session (SessionId, legacySessionId)
@@ -64,12 +63,6 @@ unwrapSnapshot env = case env.version of
   1 -> case fromJSON env.payload of
     Success doc -> Right doc
     Error err -> Left $ "Failed to parse snapshot v1: " <> T.pack err
-  2 -> case fromJSON (migrateSnapshotLocks env.payload) of
-    Success doc -> Right doc
-    Error err -> Left $ "Failed to parse snapshot v2: " <> T.pack err
-  3 -> case fromJSON env.payload of
-    Success doc -> Right doc
-    Error err -> Left $ "Failed to parse snapshot v3: " <> T.pack err
   v -> Left $ "Unknown snapshot version: " <> T.pack (show v)
 
 unwrapCommand :: CommandEnvelope -> Either Text Command
@@ -77,9 +70,6 @@ unwrapCommand env = case env.version of
   1 -> case fromJSON env.payload of
     Success cmd -> Right cmd
     Error err -> Left $ "Failed to parse command v1: " <> T.pack err
-  2 -> case fromJSON env.payload of
-    Success cmd -> Right cmd
-    Error err -> Left $ "Failed to parse command v2: " <> T.pack err
   v -> Left $ "Unknown command version: " <> T.pack (show v)
 
 -- | Find the latest snapshot with created_at <= target time.
