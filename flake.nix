@@ -42,20 +42,51 @@
               shell.crossPlatforms = p: [ p.wasi32 ];
 
               shell.tools.cabal = "latest";
-              # hlint and haskell-language-server temporarily dropped — neither
-              # has a GHC 9.14 / base 4.22 compatible release yet. Re-add once
-              # upstream catches up.
+              # hlint still dropped: 3.10 (latest as of 2026-09) needs
+              # ghc-lib-parser <9.13, so it cannot be built with GHC 9.14.
+              # Re-add once an hlint release supports ghc-lib-parser 9.14.
               # shell.tools.hlint = "latest";
+              # HLS 2.15.0.0 supports GHC 9.14.1, but several of its deps
+              # still declare too-tight bounds on base/containers/etc. on
+              # Hackage. This mirrors the `if impl(ghc >= 9.14)` allow-newer
+              # block from HLS's own cabal.project (tag 2.15.0.0); drop it
+              # once upstream metadata revisions make it unnecessary.
               shell.tools.haskell-language-server = {
-                modules = [{
-                  doCheck = false;
-                }];
+                version = "latest";
                 cabalProjectLocal = ''
-                  package haskell-language-server
-                    flags: -ghcide-bench
-                  allow-newer: *:base, *:containers, *:template-haskell, *:ghc, *:time
+                  allow-newer:
+                    aeson:containers,
+                    aeson:template-haskell,
+                    aeson:time,
+                    binary-instances:base,
+                    binary-instances:tagged,
+                    binary-orphans:base,
+                    boring:base,
+                    cabal-install-parsers:base,
+                    cabal-install-parsers:containers,
+                    cabal-install-parsers:time,
+                    constraints-extras:template-haskell,
+                    dependent-map:containers,
+                    ghc-trace-events:base,
+                    hie-compat:base,
+                    indexed-traversable:base,
+                    indexed-traversable:containers,
+                    indexed-traversable-instances:base,
+                    lukko:base,
+                    quickcheck-instances:base,
+                    quickcheck-instances:containers,
+                    semialign:base,
+                    semialign:containers,
+                    string-interpolate:template-haskell,
+                    tasty-hspec:base,
+                    text-iso8601:time,
+                    these:base,
+                    time-compat:base,
+                    time-compat:time,
+                    uuid-types:template-haskell,
+                    websockets:containers,
                 '';
-	      };
+              };
 
               # Native dev tools and the WASM post-processing pipeline.
               # These are *build-platform* binaries (they produce or run on

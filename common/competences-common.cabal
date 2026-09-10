@@ -84,6 +84,7 @@ library
         Competences.Document.User
         Competences.Exchange.Build
         Competences.Exchange.Match
+        Competences.Exchange.Query
         Competences.Exchange.Types
         Competences.Protocol
         Competences.Query.Assignment

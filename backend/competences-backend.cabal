@@ -122,6 +122,28 @@ executable competences-backend
     hs-source-dirs:   app-backend
     default-language: GHC2024
 
+executable competences-snapshot-to-exchange
+    import:           warnings
+    default-extensions:
+        DuplicateRecordFields,
+        GADTs,
+        NoFieldSelectors,
+        OverloadedRecordDot,
+        OverloadedStrings,
+        TypeFamilies
+    ghc-options:      -threaded -rtsopts
+    main-is:          Main.hs
+    build-depends:
+        base >=4.21 && <4.23,
+        aeson,
+        competences-common,
+        optparse-applicative,
+        text,
+        yaml
+    hs-source-dirs:   app-snapshot-to-exchange
+    default-language: GHC2024
+
+
 test-suite competences-backend-test
     import:           warnings
     default-extensions:

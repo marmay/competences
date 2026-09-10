@@ -5,13 +5,17 @@
 -- (which constructs the IR for export) and any tooling that wants
 -- to round-trip a Document programmatically can use it.
 module Competences.Exchange.Build
-  ( -- * Single-entity entry points
-    assignmentExchange
+  ( -- * Entire document exchange entry point
+    documentExchange
+
+    -- * Single-entity entry points
+  , assignmentExchange
   , taskExchange
   , resourceExchange
   , lessonExchange
   , competenceGridExchange
   , competenceGridWithContentExchange
+
     -- * Lower-level pieces (re-exported for the matcher)
   , taskToExchange
   , solutionToExchange
@@ -39,12 +43,12 @@ import Competences.Document.Assignment (Assignment (..), AssignmentId, Assignmen
 import Competences.Document.Competence (CompetenceId, CompetenceLevelId, Level, LevelInfo (..))
 import Competences.Document.CompetenceLevelExample (CompetenceLevelExample (..))
 import Competences.Document.FileRef (FileRef (..), SHA256Hash (..))
-import Competences.Document.Order (Order)
 import Competences.Document.Lesson
   ( LessonItem (..)
   , LessonItemContent (..)
   , LessonPhase (..)
   )
+import Competences.Document.Order (Order)
 import Competences.Document.Resource (ResourceContent (..), ResourceId, ResourceIdentifier (..))
 import Competences.Document.Task (TaskId, TaskIdentifier (..))
 import Competences.Exchange.Types
@@ -66,12 +70,48 @@ import Competences.Exchange.Types
   , emptyExchangeDoc
   )
 import Competences.TaskContent.RichContent (toRawText)
+import Data.List (sortBy)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (mapMaybe)
+import Data.Ord (comparing)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
+import Data.Time (Day)
 import Optics.Core ((&), (.~))
+
+documentExchange :: Document -> ExchangeDoc
+documentExchange doc =
+  ExchangeDoc
+    { assignments =
+        map
+          (assignmentToExchange doc)
+          (Ix.toAscList (Proxy @Day) doc.assignments)
+    , draftAssignments =
+        map
+          (assignmentToExchange doc)
+          (Ix.toAscList (Proxy @Day) doc.draftAssignments)
+    , tasks =
+        map
+          (taskToExchange doc)
+          (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks)
+    , draftTasks =
+        map
+          (taskToExchange doc)
+          (Ix.toAscList (Proxy @TaskIdentifier) doc.draftTasks)
+    , resources =
+        map (resourceToExchange doc)
+          $ sortBy (comparing (.identifier))
+          $ Ix.toList doc.resources
+    , lessons =
+        map
+          (lessonToExchange doc)
+          (Ix.toAscList (Proxy @Day) doc.lessons)
+    , competenceGrids =
+        map
+          (competenceGridToExchange doc)
+          (Ix.toAscList (Proxy @Order) doc.competenceGrids)
+    }
 
 -- ============================================================================
 -- Single-entity entry points
@@ -114,13 +154,19 @@ competenceGridExchange doc grid =
 competenceGridWithContentExchange :: Document -> CompetenceGrid -> ExchangeDoc
 competenceGridWithContentExchange doc grid =
   let gridTasks =
-        filter (taskReferencesGrid doc grid.id) (Ix.toList doc.tasks)
+        filter
+          (taskReferencesGrid doc grid.id)
+          (Ix.toAscList (Proxy @TaskIdentifier) doc.tasks)
       gridResources =
-        filter (resourceReferencesGrid doc grid.id) (Ix.toList doc.resources)
+        filter (resourceReferencesGrid doc grid.id)
+               (sortBy (comparing (.identifier)) (Ix.toList doc.resources))
    in emptyExchangeDoc
-        & #competenceGrids .~ [competenceGridToExchange doc grid]
-        & #tasks .~ map (taskToExchange doc) gridTasks
-        & #resources .~ map (resourceToExchange doc) gridResources
+        & #competenceGrids
+        .~ [competenceGridToExchange doc grid]
+        & #tasks
+        .~ map (taskToExchange doc) gridTasks
+        & #resources
+        .~ map (resourceToExchange doc) gridResources
 
 taskReferencesGrid :: Document -> CompetenceGridId -> Task -> Bool
 taskReferencesGrid doc gridId t =
@@ -156,13 +202,17 @@ lessonExchange doc l =
       inlinedResources =
         mapMaybe (lookupResource doc) (referencedResources l)
    in emptyExchangeDoc
-        & #lessons .~ [lessonToExchange doc l]
-        & #assignments .~ map (assignmentToExchange doc) inlinedAssignments
-        & #tasks .~ map (taskToExchange doc) (assignmentTasks <> standaloneTasks)
-        & #resources .~ map (resourceToExchange doc) inlinedResources
+        & #lessons
+        .~ [lessonToExchange doc l]
+        & #assignments
+        .~ map (assignmentToExchange doc) inlinedAssignments
+        & #tasks
+        .~ map (taskToExchange doc) (assignmentTasks <> standaloneTasks)
+        & #resources
+        .~ map (resourceToExchange doc) inlinedResources
 
 -- | Order-preserving deduplication.
-nubOrdered :: Eq a => [a] -> [a]
+nubOrdered :: (Eq a) => [a] -> [a]
 nubOrdered = go []
   where
     go _ [] = []
@@ -334,7 +384,10 @@ competenceGridToExchange doc grid =
     { title = grid.title
     , replaces = Nothing
     , description = grid.description
-    , competences = map (competenceToExchange doc) (Ix.toList (doc.competences Ix.@= grid.id))
+    , competences =
+        map
+          (competenceToExchange doc)
+          (Ix.toAscList (Proxy @Order) (doc.competences Ix.@= grid.id))
     }
 
 competenceToExchange :: Document -> Competence -> ExchangeCompetence
